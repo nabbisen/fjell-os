@@ -1,0 +1,12 @@
+[package]
+name = "fjell-configd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fjell-configd"
+path = "src/main.rs"
+
+[dependencies]

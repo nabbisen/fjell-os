@@ -1,0 +1,27 @@
+# Root-level cargo configuration.
+#
+# The default build target is intentionally NOT set here so that host-side
+# crates (fjell-tools, user-space services) compile for the host without
+# requiring --target on every invocation.
+#
+# The kernel linker script is supplied via crates/fjell-kernel/build.rs so
+# that it works correctly regardless of the working directory.
+
+[alias]
+# Build and run the kernel under QEMU:
+#   cargo xtask qemu
+#
+# Run the M2 smoke test suite:
+#   cargo xtask qemu-test m2
+xtask = "run --package fjell-tools --"
+
+# Flags that apply whenever any crate is compiled for the bare-metal RISC-V
+# target, regardless of the working directory.
+[target.riscv64gc-unknown-none-elf]
+rustflags = [
+    # "medium" is the LLVM/Rust name for GCC's "medany" code model.
+    # It uses PC-relative addressing and allows the kernel to be placed
+    # anywhere in the 64-bit address space (required at 0x8000_0000,
+    # which lies outside the "small" model's ±2 GiB range from zero).
+    "-C", "code-model=medium",
+]

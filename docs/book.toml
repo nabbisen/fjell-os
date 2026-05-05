@@ -1,0 +1,9 @@
+[book]
+title = "Fjell OS Documentation"
+authors = ["nabbisen"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/nabbisen/fjell-os"
+edit-url-template = "https://github.com/nabbisen/fjell-os/edit/main/docs/src/{path}"

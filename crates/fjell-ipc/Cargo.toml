@@ -1,0 +1,12 @@
+[package]
+name = "fjell-ipc"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+fjell-cap = { path = "../fjell-cap" }
+
+[dev-dependencies]
+# proptest added in M3.

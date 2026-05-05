@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "dev/**"]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ── Host-side checks (default-members, no cross-compile needed) ─────────────
+  check-host:
+    name: Check (host)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.91
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.91"
+
+      - name: cargo check – host crates (default-members)
+        run: cargo check
+
+      - name: cargo build – host crates
+        run: cargo build
+
+      - name: cargo test – pure-logic crates
+        run: |
+          cargo test --package fjell-abi
+          cargo test --package fjell-cap
+          cargo test --package fjell-ipc
+          cargo test --package fjell-audit-format
+
+  # ── Bare-metal kernel (must cross-compile explicitly) ───────────────────────
+  check-kernel:
+    name: Check + build (riscv64 kernel)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.91 + RISC-V target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.91"
+          targets: riscv64gc-unknown-none-elf
+
+      - name: cargo check – fjell-kernel
+        run: |
+          cargo check \
+            --package fjell-kernel \
+            --target riscv64gc-unknown-none-elf
+
+      - name: cargo build – fjell-kernel (release)
+        run: |
+          cargo build \
+            --package fjell-kernel \
+            --target riscv64gc-unknown-none-elf \
+            --release
+
+  # ── QEMU smoke test ─────────────────────────────────────────────────────────
+  smoke-m1:
+    name: QEMU smoke test (M1)
+    runs-on: ubuntu-24.04
+    needs: check-kernel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.91 + RISC-V target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.91"
+          targets: riscv64gc-unknown-none-elf
+
+      - name: Install QEMU
+        run: sudo apt-get install -y qemu-system-misc
+
+      - name: Run M1 smoke test
+        run: cargo xtask qemu-test

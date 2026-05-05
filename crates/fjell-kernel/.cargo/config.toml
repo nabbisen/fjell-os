@@ -1,0 +1,25 @@
+# Kernel crate-local cargo configuration.
+#
+# ⚠️  This file applies ONLY when cargo is invoked with the current working
+#     directory inside crates/fjell-kernel/ (or deeper).  It does NOT apply
+#     when running cargo from the workspace root.
+#
+# From the workspace root, always pass both flags explicitly:
+#   cargo build --package fjell-kernel --target riscv64gc-unknown-none-elf
+#   cargo check --package fjell-kernel --target riscv64gc-unknown-none-elf
+#
+# The canonical way to build and run is:
+#   cargo xtask qemu          (from workspace root)
+#   cargo xtask qemu-test     (from workspace root)
+#
+# Linker script: supplied via build.rs (absolute path).
+# code-model:    supplied via workspace root .cargo/config.toml [target.*].
+# Both work from any working directory.
+
+[build]
+target = "riscv64gc-unknown-none-elf"
+
+[target.riscv64gc-unknown-none-elf]
+# Runner is used by `cargo run` when invoked from within this directory.
+# From the workspace root use `cargo xtask qemu` instead.
+runner = "qemu-system-riscv64 -machine virt -bios none -nographic -kernel"

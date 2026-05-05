@@ -1,0 +1,12 @@
+[package]
+name = "fjell-init"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "fjell-init"
+path = "src/main.rs"
+
+[dependencies]

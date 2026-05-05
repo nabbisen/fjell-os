@@ -1,0 +1,15 @@
+[package]
+name = "fjell-tools"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+# This crate always targets the host, not the bare-metal RISC-V target.
+# Build it with: cargo build --package fjell-tools --target x86_64-unknown-linux-gnu
+
+[[bin]]
+name = "fjell-tools"
+path = "src/main.rs"
+
+[dependencies]
