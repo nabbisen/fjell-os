@@ -1,12 +1,14 @@
 [package]
 name = "fjell-kernel"
-version.workspace = true
+version = "0.0.2"
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+publish = false
 
 [[bin]]
 name = "fjell-kernel"
 path = "src/main.rs"
 
 [dependencies]
+fjell-abi = { path = "../fjell-abi" }

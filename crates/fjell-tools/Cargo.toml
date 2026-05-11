@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+publish = false
 
 # This crate always targets the host, not the bare-metal RISC-V target.
 # Build it with: cargo build --package fjell-tools --target x86_64-unknown-linux-gnu

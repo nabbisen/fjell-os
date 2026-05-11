@@ -3,8 +3,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml/badge.svg)](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml)
 
-**A memory-safe, verifiable, minimal microkernel — built in Rust for
-industrial and edge systems.**
+**A memory-safe, verifiable, minimal microkernel — built in Rust for industrial and edge systems.**
 
 ---
 
@@ -15,18 +14,19 @@ Fjell OS is a research operating system that combines:
 - **Memory safety by design** — written in Rust 2024 edition, `no_std` kernel
 - **Capability-based security** — no ambient `root`; all authority is explicit
 - **Minimal microkernel** — drivers, filesystems, and audit services live in user space
-- **ABDD** (Accessible by Default and by Design) — services emit structured *intent* streams rather than pixel data, letting a Presentation Proxy render them for any modality
+- **ABDD** (Accessible by Default and by Design) — services emit structured *intent* streams
+  rather than pixel data, letting a Presentation Proxy render them for any modality
 
-The current milestone is **v0.1.0**, targeting RISC-V 64 on QEMU `virt`.
+Current version: **v0.0.2** (M2: Memory and Task Isolation).  
+Target release: **v0.1.0** at M8 completion.
 
 ---
 
 ## Why Fjell OS?
 
-Modern general-purpose operating systems carry decades of implicit trust,
-memory-unsafe drivers, and monolithic privilege models that are hard to audit
-or formally verify.  Fjell OS starts from the smallest defensible core and
-builds up deliberately:
+Modern general-purpose operating systems carry decades of implicit trust, memory-unsafe
+drivers, and monolithic privilege models that are hard to audit or formally verify.
+Fjell OS starts from the smallest defensible core and builds up deliberately:
 
 - Industrial / edge devices need long-term stability and auditability
 - Accessible-by-default requires separating *what* from *how it looks*
@@ -46,39 +46,35 @@ for the full design rationale.
 rustup toolchain install 1.91
 rustup target add riscv64gc-unknown-none-elf
 
-# QEMU (Ubuntu/Debian)
-sudo apt-get install qemu-system-misc
-# QEMU (Arch Linux)
-sudo pacman -S qemu-system-riscv
-# QEMU (macOS)
-brew install qemu
-# RISC-V GCC linker — required for kernel link step (Ubuntu/Debian)
-sudo apt-get install gcc-riscv64-unknown-elf
-# (Arch Linux)
-sudo pacman -S riscv64-elf-gcc
+# RISC-V GCC linker (required for kernel link step)
+sudo apt-get install gcc-riscv64-unknown-elf   # Ubuntu/Debian
+sudo pacman -S riscv64-elf-gcc                 # Arch Linux
+
+# QEMU
+sudo apt-get install qemu-system-misc          # Ubuntu/Debian
+sudo pacman -S qemu-system-riscv               # Arch Linux
+brew install qemu                              # macOS
 ```
 
-### Build and Run
+### Build and run
 
 ```sh
-# ── Host-side crates (services and utilities) ─────────────────────────────
+# Host-side crates (services, tools) — no cross-compile needed
 cargo check
 cargo build
 
-# ── Kernel (RISC-V cross-compilation) ─────────────────────────────────────
-# --package and --target must always be specified together.
-# Specifying only --target or only --package will affect other crates and cause failures.
-cargo check --package fjell-kernel --target riscv64gc-unknown-none-elf
+# Kernel — must specify BOTH --package and --target
 cargo build --package fjell-kernel --target riscv64gc-unknown-none-elf --release
 
-# ── Launch with QEMU (executes the build above internally, then starts QEMU) ───
-cargo xtask qemu        # Interactive launch (exit with Ctrl-A X)
-cargo xtask qemu-test   # Smoke test (with timeout, non-interactive)
+# Launch under QEMU (builds kernel then starts QEMU)
+cargo xtask qemu        # interactive  — exit with Ctrl-A then X
+cargo xtask qemu-test   # smoke test   — non-interactive, 30s timeout
 ```
 
-> **Common Mistake**
-> 
-> Running `cargo build --target riscv64gc-unknown-none-elf` (without `--package`) attempts to build all `default-members` for RISC-V, causing errors in service crates that depend on `std`. Always include `--package fjell-kernel` when building the kernel.
+> **Common mistake**: `cargo build --target riscv64gc-unknown-none-elf` without
+> `--package fjell-kernel` will attempt to build all `default-members` for the
+> bare-metal target and fail on `std`-using crates.  Always pair `--package` and
+> `--target` when building the kernel directly.
 
 ---
 
@@ -96,7 +92,7 @@ cargo xtask qemu-test   # Smoke test (with timeout, non-interactive)
 | Config | Declarative TOML |
 | UI boundary | Intent Stream → Presentation Proxy |
 
-For more detail, see our [full documentation](docs/src/SUMMARY.md).
+For full documentation see [docs/src/SUMMARY.md](docs/src/SUMMARY.md).
 
 ---
 

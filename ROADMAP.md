@@ -15,7 +15,7 @@ of the next; scope discipline is a first-class constraint.
 - CI pipeline skeleton
 - `LICENSE`, `NOTICE`, `TERMS_OF_USE.md`
 
-### M1 · Bootable Kernel ✅
+### M1 · Bootable Kernel
 - Linker script (`link.ld`) for QEMU `virt` RAM at `0x8000_0000`
 - `_start` assembly: hart selection, BSS clear, stack pointer
 - UART 16550A driver (MMIO `0x1000_0000`)
