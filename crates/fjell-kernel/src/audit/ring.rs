@@ -21,6 +21,17 @@ pub enum AuditKindInternal {
     TaskFault,
     Syscall,
     UnknownSyscall,
+    // M3 capability events
+    CapCopy,
+    CapMint,
+    CapDelete,
+    CapRevoke,
+    // M3 IPC events
+    IpcSend,
+    IpcRecv,
+    IpcCall,
+    IpcReply,
+    IpcDenied,
 }
 
 /// A single audit record stored in the ring.

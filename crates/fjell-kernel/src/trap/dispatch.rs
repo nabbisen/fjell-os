@@ -148,9 +148,9 @@ fn handle_unhandled(tf: &mut TrapFrame, cause: usize) {
 /// the next runnable task.  Updates the sscratch record so the trap entry
 /// points at the new task's TrapFrame.
 fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
-    // Access global task/scheduler state.
-    // SAFETY: single-hart M2; initialised in kmain before first trap.
-    let (table, sched) = unsafe { crate::get_kernel_state() };
+    // Access global kernel state.
+    // SAFETY: single-hart M2/M3; initialised in kmain before first trap.
+    let (table, sched, _ct, _et) = unsafe { crate::get_kernel_state() };
 
     let current_id = sched.current();
 
@@ -241,13 +241,24 @@ fn task_label(id: TaskId) -> &'static str {
 }
 
 fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
-    let done = |idx: u16| {
+    // M3 pass condition: both user tasks reached Exited(0) via the
+    // ipc_call / ipc_recv / ipc_reply flow.
+    let exited_ok = |idx: u16| {
+        table.get(TaskId::new(idx, 0))
+             .map(|t| matches!(t.state, TaskState::Exited(0)))
+             .unwrap_or(false)
+    };
+    let faulted_or_exited = |idx: u16| {
         table.get(TaskId::new(idx, 0))
              .map(|t| matches!(t.state, TaskState::Exited(_) | TaskState::Faulted(_)))
              .unwrap_or(true)
     };
-    if done(1) && done(2) {
+
+    if exited_ok(1) && exited_ok(2) {
         crate::kprintln!("sched: idle");
-        crate::kprintln!("TEST:M2:PASS");
+        crate::kprintln!("TEST:M3:PASS");
+    } else if faulted_or_exited(1) && faulted_or_exited(2) {
+        // At least one task faulted — still print idle but not PASS.
+        crate::kprintln!("sched: idle");
     }
 }

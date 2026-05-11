@@ -13,6 +13,7 @@
 mod arch;
 mod audit;
 mod boot;
+mod cap;
 mod console;
 mod mm;
 mod platform;
@@ -62,6 +63,8 @@ unsafe impl<T> Sync for KS<T> {}
 static FRAME_BITMAP: KS<[u64; 512]>            = KS(UnsafeCell::new([0u64; 512]));
 static TASK_TABLE:   KS<MaybeUninit<TaskTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
 static SCHEDULER:    KS<MaybeUninit<Scheduler>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static CAP_TABLE:    KS<MaybeUninit<cap::table::CapTable>>      = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static EP_TABLE:     KS<MaybeUninit<cap::table::EndpointTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
 /// Per-hart trap scratch record. Layout: [0] = kernel sp, [1] = TrapFrame ptr.
 /// Must be static — sscratch holds a pointer to it across sret/trap boundaries.
 pub(crate) static TRAP_SCRATCH: KS<[usize; 2]> = KS(UnsafeCell::new([0usize; 2]));
@@ -73,15 +76,23 @@ macro_rules! ks_get {
     ($ks:expr) => { unsafe { (*$ks.0.get()).assume_init_mut() } };
 }
 
-/// Called by `trap/dispatch.rs` to access the task table and scheduler.
+/// Called by `trap/dispatch.rs` to access all mutable kernel state.
 ///
 /// # Safety
-/// TASK_TABLE and SCHEDULER must have been initialised before any trap fires.
-/// Single-hart M2; no concurrent access.
-pub unsafe fn get_kernel_state()
-    -> (&'static mut task::tcb::TaskTable, &'static mut task::scheduler::Scheduler)
-{
-    (ks_get!(TASK_TABLE), ks_get!(SCHEDULER))
+/// All tables must have been initialised before any trap fires.
+/// Single-hart M2/M3; no concurrent access.
+pub unsafe fn get_kernel_state() -> (
+    &'static mut task::tcb::TaskTable,
+    &'static mut task::scheduler::Scheduler,
+    &'static mut cap::table::CapTable,
+    &'static mut cap::table::EndpointTable,
+) {
+    (
+        ks_get!(TASK_TABLE),
+        ks_get!(SCHEDULER),
+        ks_get!(CAP_TABLE),
+        ks_get!(EP_TABLE),
+    )
 }
 
 // ── kprintln! — usable from trap/dispatch.rs ─────────────────────────────────
@@ -221,10 +232,19 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // Initialise task table and scheduler.
     ks_init!(TASK_TABLE, TaskTable::new());
     ks_init!(SCHEDULER,  Scheduler::new());
-    let table = ks_get!(TASK_TABLE);
-    let sched = ks_get!(SCHEDULER);
+    ks_init!(CAP_TABLE,  cap::table::CapTable::new());
+    ks_init!(EP_TABLE,   cap::table::EndpointTable::new());
+    let table  = ks_get!(TASK_TABLE);
+    let sched  = ks_get!(SCHEDULER);
+    let ct     = ks_get!(CAP_TABLE);
+    let et     = ks_get!(EP_TABLE);
 
-    // Idle task.
+    // Allocate a shared IPC endpoint for M3 smoke test.
+    // user0 gets SEND|CALL rights (client), user1 gets RECV rights (server).
+    let ep_obj_id = et.alloc().expect("alloc endpoint");
+    println!("ipc: endpoint {} created", ep_obj_id);
+
+    // Idle task — no capabilities needed.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
     let mut idle = Task::new(TaskId::new(0, 0), PRIORITY_IDLE,
                              AddressSpaceId(0), idle_ksp, 0);
@@ -273,6 +293,19 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         let ins_id = table.insert(t).expect("task insert");
         sched.enqueue_runnable(ins_id, PRIORITY_USER);
         AUDIT.lock_free_append(AuditKindInternal::TaskCreate, i, 0, 0);
+
+        // Install endpoint capability:
+        //   user0 (i=0) → SEND | CALL (client role)
+        //   user1 (i=1) → RECV        (server role)
+        let rights = if i == 0 {
+            fjell_cap::CapRights::SEND | fjell_cap::CapRights::CALL
+        } else {
+            fjell_cap::CapRights::RECV
+        };
+        ct.cspace_mut(ins_id.index as usize)
+          .and_then(|cs| cs.install_root(fjell_cap::CapKind::Endpoint, ep_obj_id, rights).ok())
+          .expect("install endpoint cap");
+
         println!("task: {} created", name);
     }
 

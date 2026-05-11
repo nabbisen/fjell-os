@@ -5,7 +5,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [Unreleased — v0.0.2 / M2: Memory and Task Isolation]
+## [Unreleased — v0.0.3 / M3: IPC and Capability]
+
+### Added
+- `fjell-abi`: expanded `SyscallNumber` (CapCopy/Mint/Delete/Revoke/Inspect,
+  IpcSend/Recv/Call/Reply) and `SysError` (InvalidCap, WrongType, SlotEmpty,
+  SlotOccupied, RightsExceed, CapTransferDenied, WouldBlock, QueueFull,
+  MsgTooLong, Canceled, NoMemory, AlreadyMapped, NotMapped, InvalidAddress)
+- `fjell-cap`: `CapHandle` (generation-tagged), `CapRights` bitmask,
+  `CapKind`, `Capability`, `CapSlot`, `CSpace` with copy/mint/delete/revoke/
+  inspect; derivation tree; host unit tests
+- `fjell-ipc`: synchronous rendezvous `Endpoint` (sendq + recvq),
+  `PendingMessage` snapshot, `ReplyEdge` (one-shot reply), `MessageTag`;
+  host unit tests for IPC-A/B/C invariants
+- `fjell-kernel/src/cap/`: `table.rs` (EndpointTable, CapTable, ReplySlot),
+  `syscall.rs` (all M3 cap + IPC syscall handlers)
+- `fjell-kernel/src/audit/ring.rs`: M3 audit kinds
+  (CapCopy/Mint/Delete/Revoke, IpcSend/Recv/Call/Reply/Denied)
+- `fjell-kernel/src/task/user_image.rs`: M3 smoke scenario
+  (user0=client ipc_call, user1=server ipc_recv+ipc_reply)
+- `main.rs`: static `CAP_TABLE` + `EP_TABLE`; endpoint allocated and
+  capabilities installed into user task CSpaces at boot
+- Smoke test marker: `TEST:M3:PASS` (both tasks exit(0) via IPC flow)
+- `cargo xtask qemu-test m3` smoke gate
+
+---
+
+## [v0.0.2 — M2: Memory and Task Isolation]
 
 ### Added
 - M-mode shim → S-mode kernel handoff; `kmain(hart_id, dtb_pa)` signature

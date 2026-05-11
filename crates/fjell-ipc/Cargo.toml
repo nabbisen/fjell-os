@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+fjell-abi = { path = "../fjell-abi" }
 fjell-cap = { path = "../fjell-cap" }
 
 [dev-dependencies]
-# proptest added in M3.

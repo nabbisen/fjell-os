@@ -19,6 +19,17 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::Yield)      => sys_yield(tf),
         Some(SyscallNumber::Exit)       => sys_exit(tf),
         Some(SyscallNumber::DebugWrite) => sys_debug_write(tf),
+        // M3 capability syscalls
+        Some(SyscallNumber::CapCopy) |
+        Some(SyscallNumber::CapMint) |
+        Some(SyscallNumber::CapDelete) |
+        Some(SyscallNumber::CapRevoke) |
+        Some(SyscallNumber::CapInspect) |
+        // M3 IPC syscalls
+        Some(SyscallNumber::IpcSend) |
+        Some(SyscallNumber::IpcRecv) |
+        Some(SyscallNumber::IpcCall) |
+        Some(SyscallNumber::IpcReply)   => dispatch_m3(tf, nr),
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
             tf.gpr[REG_A0] = SysError::UnknownSyscall as isize as usize;
@@ -103,4 +114,32 @@ pub fn take_yield() -> bool { YIELD_REQUESTED.take() }
 /// Called by the kernel run-loop to check if the current task exited.
 pub fn take_exit() -> Option<i32> {
     if EXIT_REQUESTED.take() { Some(EXIT_CODE.load()) } else { None }
+}
+
+// ── M3 syscall dispatcher ─────────────────────────────────────────────────────
+
+fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
+    use crate::cap::syscall::*;
+    use fjell_abi::syscall::SyscallNumber;
+
+    // Get kernel state — SAFETY: single-hart, initialised before first trap.
+    let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
+
+    // Determine the calling task's index from sscratch → TrapFrame ptr.
+    // For M3 we derive task index from the scheduler's current().
+    let cur_id = sched.current().unwrap_or(crate::task::TaskId::new(0, 0));
+    let tidx   = cur_id.index as usize;
+
+    match SyscallNumber::from_usize(nr) {
+        Some(SyscallNumber::CapCopy)    => sys_cap_copy(tf, tidx, ct),
+        Some(SyscallNumber::CapMint)    => sys_cap_mint(tf, tidx, ct),
+        Some(SyscallNumber::CapDelete)  => sys_cap_delete(tf, tidx, ct),
+        Some(SyscallNumber::CapRevoke)  => sys_cap_revoke(tf, tidx, ct),
+        Some(SyscallNumber::CapInspect) => sys_cap_inspect(tf, tidx, ct),
+        Some(SyscallNumber::IpcSend)    => sys_ipc_send(tf, tidx, ct, et, table, sched, cur_id),
+        Some(SyscallNumber::IpcRecv)    => sys_ipc_recv(tf, tidx, ct, et, table, sched, cur_id),
+        Some(SyscallNumber::IpcCall)    => sys_ipc_call(tf, tidx, ct, et, table, sched, cur_id),
+        Some(SyscallNumber::IpcReply)   => sys_ipc_reply(tf, tidx, ct, table, sched),
+        _                               => { /* already handled in caller */ }
+    }
 }

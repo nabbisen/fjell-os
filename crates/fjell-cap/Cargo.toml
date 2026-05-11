@@ -10,4 +10,3 @@ publish = false
 fjell-abi = { path = "../fjell-abi" }
 
 [dev-dependencies]
-# proptest will be added in M3 for capability invariant property tests.
