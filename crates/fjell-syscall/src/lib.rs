@@ -391,3 +391,49 @@ pub fn sys_ipc_call_words(
     to_result(r0)?;
     Ok(r1)
 }
+
+// ── Cap manipulation wrappers (RFC 042) ───────────────────────────────────────
+
+/// `sys_cap_copy(src, dst_slot) → Ok(new_handle)` (SyscallNumber::CapCopy = 10)
+///
+/// Copies the capability in `src` into `dst_slot`, returning the new handle.
+pub fn sys_cap_copy(src: CapHandle, dst_slot: u32) -> Result<CapHandle, SysError> {
+    let (r0, r1) = ecall2(
+        SyscallNumber::CapCopy as usize,
+        src.0 as usize, dst_slot as usize, 0, 0,
+    );
+    to_result(r0)?;
+    Ok(CapHandle(r1 as u32))
+}
+
+/// `sys_cap_mint(src, dst_slot, rights) → Ok(new_handle)` (SyscallNumber::CapMint = 11)
+///
+/// Mints a derived capability into `dst_slot` with rights narrowed to
+/// `src.rights & rights`.  Used to create caps with fewer rights for
+/// rights-denied testing.
+pub fn sys_cap_mint(src: CapHandle, dst_slot: u32, rights: u64) -> Result<CapHandle, SysError> {
+    let (r0, r1) = ecall2(
+        SyscallNumber::CapMint as usize,
+        src.0 as usize, dst_slot as usize, rights as usize, 0,
+    );
+    to_result(r0)?;
+    Ok(CapHandle(r1 as u32))
+}
+
+/// `sys_cap_bind_lease(cap, lease_id) → Ok(())` (SyscallNumber::CapBindLease = 16)
+///
+/// Binds a lease to an existing capability in the caller's CSpace.
+/// After binding, `require_cap` step 7 verifies the lease is still active
+/// before allowing the cap to be used.
+///
+/// Requires: caller must hold a `LeaseAdmin` capability with `LEASE_CREATE`.
+pub fn sys_cap_bind_lease(
+    cap:      CapHandle,
+    lease_id: fjell_abi::lease::LeaseId,
+) -> Result<(), SysError> {
+    let r = ecall2(
+        SyscallNumber::CapBindLease as usize,
+        cap.0 as usize, lease_id.0 as usize, 0, 0,
+    );
+    to_result(r.0).map(|_| ())
+}

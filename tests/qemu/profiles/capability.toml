@@ -1,9 +1,12 @@
-# RFC 031 (v0.2): require_cap kind check — wrong kind rejected.
-# NEG_TEST service emits this when sys_mmio_map with an Endpoint cap fails.
+# RFC 031-033 (v0.2): require_cap enforcement.
+# NEG_TEST exercises wrong-kind, rights-denied, lease-revoked, drop-on-revoked.
 
 name             = "capability"
 timeout_secs     = 90
 expected_markers = [
+  "NEG:CAP:RIGHTS_DENIED:PASS",
+  "NEG:CAP:LEASE_REVOKED:PASS",
+  "NEG:CAP:DROP_ON_REVOKED:PASS",
   "NEG:CAP:WRONG_KIND_REJECTED:PASS",
 ]
 extra_args       = []

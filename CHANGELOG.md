@@ -3,6 +3,39 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.3] - 2026-05-18
+
+### RFC 042 Phase 3 — Capability Lifecycle Negative Tests
+
+Wires `RIGHTS_DENIED`, `LEASE_REVOKED`, and `DROP_ON_REVOKED` markers via a new
+`sys_cap_bind_lease` kernel primitive.
+
+### Added
+
+- **`fjell-abi/src/syscall.rs`**: `SyscallNumber::CapBindLease = 16`.
+- **`fjell-kernel/src/cap/syscall.rs`**: `sys_cap_bind_lease(cap, lease_id)` —
+  binds a lease to an existing cap in the caller's CSpace (requires LeaseAdmin +
+  LEASE_CREATE right).  Uses `cs.slots_mut()` to modify the cap in place.
+- **`fjell-syscall/src/lib.rs`**: three new wrappers:
+  - `sys_cap_copy(src, dst_slot)` — copies a cap to a new slot.
+  - `sys_cap_mint(src, dst_slot, rights)` — derives a cap with narrowed rights.
+  - `sys_cap_bind_lease(cap, lease_id)` — binds a lease (RFC 042).
+- **`fjell-kernel/src/task/spawn.rs`**: `NEG_TEST` gets slot 4 = `LeaseAdmin`
+  (required for `sys_cap_bind_lease` and `sys_lease_create`).
+- **`fjell-neg-test/src/main.rs`**: three new test functions:
+  - `test_cap_rights_denied()` — mints a cap with RECV bit cleared, tries
+    `sys_ipc_recv` → PermissionDenied → `NEG:CAP:RIGHTS_DENIED:PASS`.
+  - `test_cap_lease_revoked()` — copies a cap, binds a lease, revokes it,
+    tries to use the cap → LeaseRevoked → `NEG:CAP:LEASE_REVOKED:PASS`.
+  - `test_cap_drop_on_revoked()` — drops the revoked cap → Ok (RFC 032:
+    `cap_drop` skips lease check) → `NEG:CAP:DROP_ON_REVOKED:PASS`.
+
+### Changed
+
+- `tests/qemu/profiles/capability.toml`: all 4 capability markers expected.
+- Kernel dispatch updated: `CapBindLease` in gate group and match arm.
+- Workspace version bumped to `0.2.3`.
+
 ## [0.2.2] - 2026-05-18
 
 ### RFC 042 Phase 2 — Policy Negative Tests

@@ -163,6 +163,55 @@ pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     }
 }
 
+/// `sys_cap_bind_lease(a0=cap_handle, a1=lease_id) -> a0=status`
+///
+/// RFC 042: bind a lease to an existing capability so that `require_cap`
+/// step 7 verifies the lease is still active on every use.
+///
+/// Requires: caller holds `CapKind::LeaseAdmin` with `CapRights::LEASE_CREATE`.
+/// This ensures only privileged services (init, service-manager) can create
+/// lease-bound caps, preventing unprivileged escalation.
+pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
+    use fjell_abi::lease::LeaseId;
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_h    = CapHandle(tf.gpr[REG_A0] as u32);
+    let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
+
+    // 1. Caller must hold LeaseAdmin + LEASE_CREATE.
+    if let Err(e) = crate::trap::syscall::require_cap(CapKind::LeaseAdmin, CapRights::LEASE_CREATE) {
+        err(tf, e); return;
+    }
+
+    // 2. Get the current epoch for the lease (must be Active).
+    let lt = unsafe { crate::get_lease_table() };
+    let epoch = match lt.current_epoch(lease_id) {
+        Ok(e)  => e,
+        Err(e) => { err(tf, e); return; }
+    };
+
+    // 3. Bind the lease to the cap in the caller's CSpace.
+    let cs = match ct.cspace_mut(tidx) {
+        Some(c) => c,
+        None    => { err(tf, SysError::InternalError); return; }
+    };
+    let binding = fjell_cap::slot::LeaseBinding { lease_id, epoch_at_issue: epoch };
+    // Locate the slot and set its lease field.
+    let slots = cs.slots_mut();
+    let idx = cap_h.0 as usize;
+    if idx >= slots.len() {
+        err(tf, SysError::InvalidCap); return;
+    }
+    match &mut slots[idx].cap {
+        Some(cap) => {
+            cap.lease = Some(binding);
+            ok(tf);
+            AUDIT.lock_free_append(AuditKindInternal::CapMint, idx, lease_id.0 as usize, 0);
+        }
+        None => err(tf, SysError::InvalidCap),
+    }
+}
+
 /// Deliver a PendingMessage into the current task's TrapFrame (for recv/call).
 fn deliver(tf: &mut TrapFrame, msg: &PendingMessage) {
     ok(tf);

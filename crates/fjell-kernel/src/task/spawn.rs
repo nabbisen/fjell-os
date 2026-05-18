@@ -188,6 +188,14 @@ pub fn spawn(
                     rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
+            // Slot 4: LeaseAdmin cap for NEG_TEST — required by sys_cap_bind_lease
+            // so the neg-test service can create and revoke lease-bound caps (RFC 042).
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(4, Capability {
+                    kind: CapKind::LeaseAdmin, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                });
+            }
         }
     }
 

@@ -35,6 +35,12 @@ pub enum SyscallNumber {
     /// Unlike `CapDelete`, this succeeds even when the capability's lease has
     /// been revoked.  Existence check (ownership + generation) still applies.
     CapDrop    = 15,
+    /// Bind a lease to an existing capability (RFC 042 §"cap_bind_lease").
+    ///
+    /// After binding, `require_cap` step 7 checks whether the lease is still
+    /// active before allowing the cap to be used.  Used by the neg-test service
+    /// to create lease-bound caps for negative testing.
+    CapBindLease = 16,
 
     // ── M3 IPC syscalls ────────────────────────────────────────────────────
     /// Synchronous send (blocks until a receiver is ready).
@@ -95,6 +101,7 @@ impl SyscallNumber {
             13 => Some(Self::CapRevoke),
             14 => Some(Self::CapInspect),
             15 => Some(Self::CapDrop),
+            16 => Some(Self::CapBindLease),
             20 => Some(Self::IpcSend),
             21 => Some(Self::IpcRecv),
             22 => Some(Self::IpcCall),

@@ -26,6 +26,7 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::CapRevoke) |
         Some(SyscallNumber::CapInspect) |
         Some(SyscallNumber::CapDrop)    |
+        Some(SyscallNumber::CapBindLease) |
         // M3 IPC syscalls
         Some(SyscallNumber::IpcSend) |
         Some(SyscallNumber::IpcRecv) |
@@ -76,7 +77,7 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 /// Per RFC 031, the v0.2 production path passes the cap handle explicitly.
 /// Migration of task/lease syscalls to handle-based `require_cap` is tracked
 /// in V02-A-001 of the v0.2 preparation backlog.
-fn require_cap(kind: fjell_cap::CapKind, required_rights: fjell_cap::CapRights) -> Result<(), SysError> {
+pub(crate) fn require_cap(kind: fjell_cap::CapKind, required_rights: fjell_cap::CapRights) -> Result<(), SysError> {
     use crate::trap::dispatch::current_task_idx;
     let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
     let lt = unsafe { crate::get_lease_table() };
@@ -184,6 +185,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
         Some(SyscallNumber::CapRevoke)  => sys_cap_revoke(tf, tidx, ct),
         Some(SyscallNumber::CapInspect) => sys_cap_inspect(tf, tidx, ct),
         Some(SyscallNumber::CapDrop)    => sys_cap_drop(tf, tidx, ct),
+        Some(SyscallNumber::CapBindLease) => sys_cap_bind_lease(tf, tidx, ct),
         Some(SyscallNumber::IpcSend)    => sys_ipc_send(tf, tidx, ct, et, table, sched, cur_id),
         Some(SyscallNumber::IpcRecv)    => sys_ipc_recv(tf, tidx, ct, et, table, sched, cur_id),
         Some(SyscallNumber::IpcCall)    => sys_ipc_call(tf, tidx, ct, et, table, sched, cur_id),

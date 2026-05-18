@@ -26,6 +26,8 @@ use fjell_syscall::{
     sys_exit, sys_debug_writeln, sys_yield,
     sys_mmio_map, sys_dma_alloc, sys_dma_revoke,
     sys_audit_drain_raw, sys_ipc_call_words,
+    sys_cap_copy, sys_cap_mint, sys_cap_bind_lease,
+    sys_lease_create, sys_lease_revoke, sys_ipc_recv,
 };
 use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
@@ -36,6 +38,11 @@ const SLOT_OWN_EP:     u32 = 0;   // Endpoint cap (own endpoint, object 0)
 const SLOT_AUDIT:      u32 = 1;   // AuditDrain cap
 const SLOT_DMA:        u32 = 2;   // DmaRegion cap
 const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
+#[allow(dead_code)]
+const SLOT_LEASE_ADMIN:u32 = 4;   // LeaseAdmin cap
+// Scratch slots used by lease-revoked and rights-denied tests
+const SLOT_SCRATCH_A:  u32 = 6;   // copy of OWN_EP with lease bound
+const SLOT_SCRATCH_B:  u32 = 7;   // minted cap with narrowed rights
 const SLOT_MMIO_BASE:  u32 = 31;  // First MmioRegion cap (object 0)
 
 // ── RAM_BASE (must match kernel platform constant) ────────────────────────────
@@ -51,6 +58,59 @@ fn check(condition: bool, marker: &str) {
 }
 
 // ── Negative test scenarios ───────────────────────────────────────────────────
+
+
+/// CAP: mint a cap with RECV right removed, then try ipc_recv → PermissionDenied.
+///
+/// RFC 031 step 4 (rights check): cap.rights.contains(RECV) is false → denied.
+fn test_cap_rights_denied() {
+    // Mint slot OWN_EP into SLOT_SCRATCH_B with RECV bit cleared.
+    // RECV = 1<<4 = 16.  ALL_RIGHTS ^ RECV clears it.
+    let no_recv_rights: u64 = ((1u64 << 26) - 1) ^ (1 << 4);
+    match sys_cap_mint(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_B, no_recv_rights) {
+        Ok(_) => {
+            // Try to recv on a cap without RECV right → PermissionDenied.
+            let result = sys_ipc_recv(SLOT_SCRATCH_B);
+            check(result.is_err(), M::CAP_RIGHTS_DENIED);
+        }
+        Err(_) => {}  // mint failed — skip
+    }
+}
+
+/// CAP: copy a cap, bind a lease, revoke the lease, use the cap → LeaseRevoked.
+///
+/// RFC 031 step 7 (lease check) + RFC 033 (epoch revocation).
+fn test_cap_lease_revoked() {
+    // 1. Copy slot 0 to SLOT_SCRATCH_A.
+    let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+    // 2. Create a lease.
+    let lease_id = match sys_lease_create(0) {
+        Ok(id) => id,
+        Err(_) => return,
+    };
+    // 3. Bind the lease to the copied cap.
+    if sys_cap_bind_lease(copied, lease_id).is_err() { return; }
+    // 4. Revoke the lease — epoch increments, cap binding now stale.
+    if sys_lease_revoke(lease_id).is_err() { return; }
+    // 5. Try to recv on the now-lease-revoked cap → LeaseRevoked.
+    let result = sys_ipc_recv(SLOT_SCRATCH_A);
+    check(result.is_err(), M::CAP_LEASE_REVOKED);
+}
+
+/// CAP: drop a lease-revoked cap — sys_cap_drop skips the lease check (RFC 032).
+///
+/// This test depends on test_cap_lease_revoked having run first (SLOT_SCRATCH_A
+/// holds a revoked cap).  If lease-revoked test was skipped, this is a no-op.
+fn test_cap_drop_on_revoked() {
+    // SLOT_SCRATCH_A should contain a cap with a revoked lease (from previous test).
+    // cap_drop must succeed regardless of lease state.
+    use fjell_cap::CapHandle as CH;
+    let result = fjell_syscall::sys_cap_drop(CH(SLOT_SCRATCH_A));
+    check(result.is_ok(), M::CAP_DROP_ON_REVOKED);
+}
 
 /// CAP / MMIO: use an Endpoint cap for sys_mmio_map.
 ///
@@ -165,6 +225,9 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("neg-test: starting v0.2 negative test scenarios");
 
     // ── Capability enforcement (RFC 031) ──────────────────────────────────────
+    test_cap_rights_denied();
+    test_cap_lease_revoked();
+    test_cap_drop_on_revoked();
     test_cap_wrong_kind();
 
     // ── MMIO boundary (RFC 035) ───────────────────────────────────────────────
