@@ -46,8 +46,12 @@ use trap::entry::init_trap;
 // ── Linker symbols ────────────────────────────────────────────────────────────
 
 unsafe extern "C" {
-    static __bss_end:   u8;
-    static __stack_top: u8;
+    static __bss_end:    u8;
+    static __stack_top:  u8;
+    /// RFC 009 (W^X): end of .text section.  Pages below this address get R|X.
+    static __text_end:   u8;
+    /// RFC 009 (W^X): end of .rodata section.  Pages in [text_end, rodata_end) get R only.
+    static __rodata_end: u8;
 }
 
 fn kernel_end_pa() -> usize {
@@ -93,14 +97,18 @@ static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
     core::sync::atomic::AtomicUsize::new(0);
 /// Per-hart trap scratch record. Layout: [0] = kernel sp, [1] = TrapFrame ptr.
 /// Must be static — sscratch holds a pointer to it across sret/trap boundaries.
-/// Pre-allocated 16 KiB DMA buffer for user-space drivers (M6).
+/// RFC 007: DMA virtual address base for per-task allocations.
 ///
-/// MUST be page-aligned: QueuePFN = dma_pa >> 12 requires the base address to
-/// be a multiple of 4096 so the virtio device and the kernel agree on where
-/// descriptors, rings, and request data reside.
-#[repr(align(4096))]
-pub(crate) struct DmaBuf(pub [u8; 16384]);
-pub(crate) static DMA_BUF: KS<DmaBuf> = KS(UnsafeCell::new(DmaBuf([0u8; 16384])));
+/// DMA frames are mapped at user VA 0x6000_0000+ (VPN[2]=1), well below the
+/// kernel half (VPN[2]=2, 0x8000_0000+) and above user code (VPN[2]=0,
+/// 0x0000_0000+).  This avoids the AlreadyMapped conflict that arose when
+/// DMA frames were placed at their kernel identity-map VA.
+pub(crate) const DMA_USER_VA_BASE: usize = 0x6000_0000;
+
+/// Per-request DMA VA bump allocator (RFC 007).
+/// Monotonically increases; no free list needed for M7.1.
+pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(DMA_USER_VA_BASE);
 
 /// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save,
 /// [3]=temp_user_t6_save  (RFC 001: slot added to fix t6 register save correctness)
@@ -272,15 +280,27 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     //
     // boot_end (BSS + 2 MiB) is kept as the bump-allocator ceiling; the
     // stack pages are additionally mapped here.
-    let stack_top = unsafe { &__stack_top as *const u8 as usize };
-    let map_end   = (stack_top + 0xFFF) & !0xFFF; // page-align up
+    let stack_top  = unsafe { &__stack_top   as *const u8 as usize };
+    let text_end   = unsafe { &__text_end    as *const u8 as usize };
+    let map_end    = (stack_top + 0xFFF) & !0xFFF;
+
+    // RFC 009: W^X — two-region split.
+    //   .text  (RAM_BASE .. __text_end)  → R | X   (execute, no write)
+    //   rest   (__text_end .. map_end)   → R | W   (read-write, no execute)
+    // This enforces the core W^X invariant: no page is simultaneously
+    // writable and executable.  Full three-section split (separate rodata=R)
+    // is deferred to M8 when we can verify .rodata contains no writable statics.
     let mut va = RAM_BASE;
     while va < map_end {
         let f = PhysFrame::from_pa(va).unwrap();
+        let perms = if va < text_end {
+            VmPerms::R | VmPerms::X    // .text: execute only, not writable
+        } else {
+            VmPerms::R | VmPerms::W    // .data / .bss / stack: read-write, not executable
+        };
         // SAFETY: kernel_root valid; sfence inside enable_sv39.
         unsafe {
-            mm::page_table::map_page(kernel_root.pa(), VirtAddr(va), f,
-                VmPerms::R | VmPerms::W | VmPerms::X, fa!())
+            mm::page_table::map_page(kernel_root.pa(), VirtAddr(va), f, perms, fa!())
                 .expect("kernel map");
         }
         va += 4096;
@@ -392,21 +412,8 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 .expect("init text map");
         }
 
-        // Map static DMA buffer pages at fixed user VA 0x20000000 (R|W|U).
-        // Each page of DMA_BUF maps to a different offset within the static.
-        {
-            let dma_pa_base = unsafe { (*DMA_BUF.0.get()).0.as_ptr() } as usize;
-            for pg in 0..4usize {
-                let dma_page_pa = dma_pa_base + pg * 4096;
-                if let Ok(f) = PhysFrame::from_pa(dma_page_pa & !0xFFF) {
-                    let _ = aspace.map_page(
-                        VirtAddr(0x2000_0000 + pg * 4096), f,
-                        VmPerms::R | VmPerms::W | VmPerms::U,
-                        VmRegionKind::Mmio, fa!()
-                    );
-                }
-            }
-        }
+        // RFC 007: DMA is now allocated per-task via sys_dma_alloc at VA 0x6000_0000+.
+        // No pre-mapping needed here.
 
         // Map all 16 stack pages (64 KiB, from 0x80000 to 0x90000).
         const INIT_STACK_PAGES: usize = 16;
@@ -444,17 +451,17 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // Slot 28: TaskCreate — init can spawn service tasks.
             let _ = cs.install_raw(28, Capability {
                 kind: CapKind::TaskCreate, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
             });
             // Slot 29: TaskControl — init can start spawned tasks.
             let _ = cs.install_raw(29, Capability {
                 kind: CapKind::TaskControl, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
             });
             // Slot 30: LeaseAdmin — init can create/revoke leases.
             let _ = cs.install_raw(30, Capability {
                 kind: CapKind::LeaseAdmin, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
             });
         }
         println!("M4: init task ready");

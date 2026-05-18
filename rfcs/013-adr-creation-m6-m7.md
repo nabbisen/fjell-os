@@ -1,7 +1,8 @@
 # RFC 013: Create ADRs 0006–0010 for M6/M7 design decisions
 
 **RFC ID:** 013  
-**Status:** Accepted (documentation work, start M7.1)  
+**Status:** Implemented  
+_(was: Accepted, documentation work, start M7.1)  
 **Affects:** `docs/src/adr/`
 
 ## Problem (M-05)

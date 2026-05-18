@@ -1,7 +1,8 @@
 # RFC 009: W^X enforcement for kernel page table
 
 **RFC ID:** 009  
-**Status:** Accepted (implementation deferred to M7.1)  
+**Status:** Implemented  
+_(was: Accepted, deferred to M7.1)  
 **Affects:** `crates/fjell-kernel/src/main.rs` (kernel identity map setup)
 
 ## Problem (H-03)

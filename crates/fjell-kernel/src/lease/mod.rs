@@ -66,3 +66,15 @@ impl LeaseTable {
         Ok(slot)
     }
 }
+
+// ── RFC 006: implement LeaseChecker for the kernel lease table ────────────────
+
+impl fjell_cap::slot::LeaseChecker for LeaseTable {
+    fn check_active(
+        &self,
+        id:           fjell_abi::lease::LeaseId,
+        epoch_issued: fjell_abi::lease::LeaseEpoch,
+    ) -> Result<(), fjell_abi::error::SysError> {
+        self.check_active(id, epoch_issued)
+    }
+}

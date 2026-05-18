@@ -9,6 +9,47 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.10] — 2026-05-12 — M7.1 hardening (RFC 006, 007, 009, 013)
+
+Second batch of architect-review-driven fixes.  Implements RFC 006, 007, 009, 013.
+Remaining deferred RFCs: 011 (service separation), 012 (real crypto) — both require
+M8 preemptive scheduler as prerequisite.
+
+### Added / Changed
+
+- **RFC 006** (`fjell-cap/src/slot.rs`, `fjell-kernel/src/lease/mod.rs`):
+  `LeaseBinding { lease_id, epoch_at_issue }` added to `Capability` (field `lease:
+  Option<LeaseBinding>`).  `Capability::check_lease(&dyn LeaseChecker)` validates
+  lease liveness.  `LeaseChecker` trait defined in `fjell-cap`; `LeaseTable` implements
+  it in the kernel.  All capability constructors (`install_root`, `install_raw`,
+  `derive`, bootstrap literals) set `lease: None` for unbound caps.  Infrastructure is
+  in place; lease-bound delegation used by M8 cap-broker.
+
+- **RFC 007** (`fjell-kernel/src/main.rs`, `trap/syscall.rs`): Replaced singleton
+  `DMA_BUF` static with a per-task DMA VA bump allocator at `0x60000000+` (VPN[2]=1).
+  `sys_dma_alloc` allocates frames from the frame allocator, maps them at
+  `DMA_VA_NEXT` in the calling task's page table, and returns `(user_va, device_pa)`.
+  VPN[2]=1 is task-local (not shared via `clone_kernel_half`), resolving the
+  `AlreadyMapped` conflict from the M6 static-buffer approach.
+
+- **RFC 009** (`crates/fjell-kernel/link.ld`, `main.rs`): W^X kernel page permissions.
+  Linker script exports `__text_start`, `__text_end`, `__rodata_start`, `__rodata_end`.
+  Kernel identity map now uses a two-region split:
+  - `.text` (RAM_BASE .. __text_end): **R | X** — execute, not writable
+  - everything else (.rodata / .data / .bss / stack): **R | W** — read-write, not executable
+  No page is simultaneously writable and executable.  Full three-region split
+  (.rodata = R only) deferred: requires confirming no writable statics in .rodata.
+
+- **RFC 013** (`docs/src/adr/`): Created ADR 0006–0010 documenting all M6/M7 design
+  decisions, workarounds, and deprecation plans:
+  - ADR 0006: User-space driver model and MMIO/DMA capability boundary
+  - ADR 0007: Persistent append-only store and recovery model
+  - ADR 0008: Verified immutable rootfs and signed artifact model
+  - ADR 0009: A/B boot-control and health-based confirmation model
+  - ADR 0010: Inline init smoke workaround and service separation deprecation plan
+
+---
+
 ## [0.0.9] — 2026-05-12 — M7.1 Security & Architecture Hardening
 
 Implements RFC 004, 005, 008, 010 in response to architect review of v0.0.8.

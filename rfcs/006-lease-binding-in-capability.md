@@ -1,7 +1,8 @@
 # RFC 006: LeaseBinding in Capability + lease validation in check paths
 
 **RFC ID:** 006  
-**Status:** Accepted (implementation deferred to M7.1 after RFC 004)  
+**Status:** Implemented  
+_(was: Accepted, deferred to M7.1 after RFC 004)  
 **Affects:** `crates/fjell-cap/src/slot.rs`, all capability check paths
 
 ## Problem (RB-04)

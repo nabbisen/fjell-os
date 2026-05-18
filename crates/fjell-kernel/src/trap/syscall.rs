@@ -430,21 +430,60 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     tf.gpr[REG_A1] = phys_addr;
 }
 
-/// `sys_dma_alloc(a0=size_bytes) -> a0=status, a1=user_va, a2=phys_addr`
-///
-/// Allocates contiguous physical frames for DMA use, maps them into the
-/// calling task's address space, and returns both the user VA and the device
-/// physical address (identity-mapped: user_va == phys_addr in M6).
-/// `sys_dma_alloc(a0=size_bytes) -> a0=status, a1=user_va, a2=phys_addr`
-///
-/// Returns the pre-allocated static DMA buffer that is mapped into init's page
-/// table at fixed user VA 0x20000000.  In M6, we support one DMA region per
-/// caller (sufficient for the smoke test).
-pub fn sys_dma_alloc(tf: &mut TrapFrame) {
-    let user_va  = 0x2000_0000usize;
-    let device_pa = unsafe { (*crate::DMA_BUF.0.get()).0.as_ptr() } as usize;
-    tf.gpr[REG_A0] = 0;
-    tf.gpr[REG_A1] = user_va;
-    tf.gpr[12]     = device_pa;
-}
 
+
+/// `sys_dma_alloc(a0=size_bytes) -> a0=status, a1=user_va, a2=device_pa`
+///
+/// RFC 007: Per-task DMA allocator.
+///
+/// Allocates `size_bytes` (rounded to 4 KiB pages) of kernel RAM, maps them
+/// into the calling task's page table at VA 0x6000_0000+ (VPN[2]=1), and
+/// returns both the user VA and the physical address for the device.
+///
+/// VPN[2]=1 is task-local (not shared via clone_kernel_half), so `map_page`
+/// succeeds without AlreadyMapped collision.
+pub fn sys_dma_alloc(tf: &mut TrapFrame) {
+    use crate::mm::{address::VirtAddr, vspace::VmPerms, frame_alloc::FrameOwner};
+
+    let size_bytes = (tf.gpr[REG_A0] + 0xFFF) & !0xFFF;
+    let pages = size_bytes / 4096;
+    if pages == 0 || pages > 8 {
+        tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        return;
+    }
+
+    let (table, _, _, _) = unsafe { crate::get_kernel_state() };
+    let cur_id  = crate::trap::dispatch::current_task_idx();
+    let task_id = crate::task::TaskId::new(cur_id as u16, 0);
+    let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
+    if root_pfn == 0 {
+        tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
+        return;
+    }
+    let root_pa = root_pfn << 12;
+    let fa = unsafe { &mut *crate::fa_static_ptr() };
+
+    let user_va_start = crate::DMA_VA_NEXT.fetch_add(
+        pages * 4096, core::sync::atomic::Ordering::Relaxed);
+
+    let mut first_pa = 0usize;
+    for pg in 0..pages {
+        let frame = match fa.alloc_frame(FrameOwner::UserStack { task: task_id }) {
+            Ok(f) => f,
+            Err(_) => { tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; return; }
+        };
+        if pg == 0 { first_pa = frame.pa(); }
+        let user_va = user_va_start + pg * 4096;
+        unsafe {
+            let _ = crate::mm::page_table::map_page(
+                root_pa, VirtAddr(user_va), frame,
+                VmPerms::R | VmPerms::W | VmPerms::U, fa,
+            );
+        }
+    }
+    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+
+    tf.gpr[REG_A0] = 0;
+    tf.gpr[REG_A1] = user_va_start;
+    tf.gpr[12]     = first_pa;
+}

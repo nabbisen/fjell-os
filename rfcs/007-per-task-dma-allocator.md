@@ -1,7 +1,8 @@
 # RFC 007: Per-task DMA allocator (replace DMA_BUF singleton)
 
 **RFC ID:** 007  
-**Status:** Accepted (implementation deferred to M7.1)  
+**Status:** Implemented  
+_(was: Accepted, deferred to M7.1)  
 **Affects:** `crates/fjell-kernel/src/main.rs`, `trap/syscall.rs`
 
 ## Problem (RB-03)

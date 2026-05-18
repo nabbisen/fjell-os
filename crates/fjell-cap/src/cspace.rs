@@ -76,6 +76,7 @@ impl CSpace {
             rights,
             badge:  0,
             parent: None,
+            lease:  None,   // RFC 006: root caps are not lease-bound
         });
         Ok(self.handle_for(idx))
     }

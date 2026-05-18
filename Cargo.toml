@@ -56,7 +56,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.0.9"
+version = "0.0.10"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
