@@ -15,6 +15,9 @@ pub const SERVICES: &[&str] = &[
     "fjell-auditd",
     "fjell-service-manager",
     "fjell-sample-service",
+    // M5
+    "fjell-semantic-stream",
+    "fjell-proxy-text",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.

@@ -80,12 +80,18 @@ pub fn spawn(
             .map_err(|_| SysError::NoMemory)?;
     }
 
-    // Allocate and map stack page.
-    let stack_f = fa.alloc_frame(FrameOwner::UserStack { task: tid })
-                    .map_err(|_| SysError::NoMemory)?;
-    aspace.map_page(VirtAddr(SERVICE_STACK_TOP - 4096), stack_f,
-        VmPerms::R | VmPerms::W | VmPerms::U, VmRegionKind::UserStack, fa)
-        .map_err(|_| SysError::NoMemory)?;
+    // Allocate and map all stack pages (64 KiB = 16 pages).
+    // The linker script places __stack_bottom = 0x80000, __stack_top = 0x90000.
+    // Mapping only the top page caused StorePageFault when stack usage exceeded 4K.
+    const STACK_PAGES: usize = 16;
+    let stack_base = SERVICE_STACK_TOP - STACK_PAGES * 4096;
+    for pg in 0..STACK_PAGES {
+        let sf = fa.alloc_frame(FrameOwner::UserStack { task: tid })
+                   .map_err(|_| SysError::NoMemory)?;
+        aspace.map_page(VirtAddr(stack_base + pg * 4096), sf,
+            VmPerms::R | VmPerms::W | VmPerms::U, VmRegionKind::UserStack, fa)
+            .map_err(|_| SysError::NoMemory)?;
+    }
 
     // Allocate kernel stack.
     let kstack_f = fa.alloc_frame(FrameOwner::KernelStack)

@@ -9,6 +9,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.5] — 2026-05-12 — M5: Semantic Operations Plane
+
+### Added
+- `fjell-semantic-format`: `IntentNode`, `StateNode`, `EventNode`,
+  `SemanticEnvelope`, `TextToken`, `BoundedText`, `FixedVec<T,N>`,
+  `ActionRequest`, `ActionResult`, `StreamFilter`, `ExportFormat`;
+  invariant validators (`validate_intent`, `validate_state`);
+  4 unit tests (valid intent, empty-action error, failed-state error,
+  BoundedText roundtrip)
+- `fjell-semantic-stream` (new service): publish/subscribe/validate/
+  action dispatch; memory-backed intent/state/event rings
+- `fjell-proxy-text` (full implementation): text rendering for
+  `[STATE]`, `[EVENT]`, `[INTENT]` nodes; `SmokeScenario` auto-selects
+  first action; no pixel/color/layout metadata required
+- `fjell-init` (M5): full M5 smoke scenario — starts semantic-stream
+  and proxy-text; publishes ServiceGraph, ConfigValidated, AuditSummary,
+  CapabilityGranted, sample IntentNode; drives action dispatch;
+  exports system state as plain text; emits `TEST:M5:PASS`
+- `fjell-abi`: `ImageId::SEMANTIC_STREAM = 6`, `ImageId::PROXY_TEXT = 7`
+- Kernel image table: `fjell-semantic-stream.bin`, `fjell-proxy-text.bin`
+- `cargo xtask qemu-test m5` smoke gate
+
+### Fixed
+- Service linker script: stack start pinned to fixed VA `0x80000`
+  (`__stack_top = 0x90000`) — previously `__stack_top` varied with
+  binary size, causing `SERVICE_STACK_TOP` mismatches after the init
+  binary grew to include semantic-format and proxy-text code
+- `spawn.rs` + kmain: map all 16 stack pages (64 KiB) instead of one —
+  init uses ~32 KB of stack for M5 scenario; single-page mapping caused
+  `StorePageFault` at `0x87ec8`
+- `Cargo.toml workspace.default-members`: trailing `]` was accidentally
+  dropped by a prior edit, corrupting the TOML array
+
+---
+
 ## [0.0.4] — 2026-05-12 — M4: Service Plane Bootstrap
 
 ### Added

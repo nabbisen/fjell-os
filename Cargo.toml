@@ -19,65 +19,41 @@ members = [
     "crates/fjell-configd",
     "crates/fjell-proxy-text",
     "crates/fjell-sample-service",
+    "crates/fjell-semantic-stream",
     "crates/fjell-cap-broker",
     "crates/fjell-tools",
 ]
-
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
 # fjell-kernel is intentionally excluded here because it is a no_std / no_main
 # bare-metal binary that must be cross-compiled for riscv64gc-unknown-none-elf.
 # Building it for the host would fail at the assembly or linker stage.
-#
 # To build the kernel use:
 #   cargo build --package fjell-kernel --target riscv64gc-unknown-none-elf
 # or:
 #   cargo xtask qemu
-#
 # `cargo build --workspace` (or `cargo check --workspace`) still works because
 # --workspace overrides default-members and includes all members explicitly.
 # For everyday host-side development use:
 #   cargo build  (no flags — uses default-members)
 #   cargo check  (no flags — uses default-members)
 default-members = [
-    "crates/fjell-arch",
-    "crates/fjell-abi",
-    "crates/fjell-syscall",
-    "crates/fjell-cap",
-    "crates/fjell-ipc",
-    "crates/fjell-audit-format",
-    "crates/fjell-config-format",
-    "crates/fjell-semantic-format",
-    "crates/fjell-service-api",
-    "crates/fjell-init",
-    "crates/fjell-service-manager",
-    "crates/fjell-auditd",
-    "crates/fjell-configd",
-    "crates/fjell-proxy-text",
-    "crates/fjell-sample-service",
-    "crates/fjell-cap-broker",
-    "crates/fjell-tools",
 ]
-
 [workspace.package]
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
 repository = "https://github.com/nabbisen/fjell-os"
-
 [workspace.dependencies]
 # Shared dependencies will be added here as development progresses.
 # Format crates use serde for serialization.
-
 # Profiles must be defined at the workspace root.
 # panic = "abort" is mandatory for no_std kernel crates (unwinding requires std).
 # Host-side crates (fjell-tools, service binaries) also inherit abort, which is
 # acceptable — they are not libraries that need to support unwinding callers.
 [profile.dev]
 panic = "abort"
-
 [profile.release]
-panic = "abort"
 lto = true
 opt-level = "s"

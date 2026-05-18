@@ -9,7 +9,8 @@ pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
         Some("m2") => "TEST:M2:PASS",
         Some("m3") => "TEST:M3:PASS",
         Some("m4") => "TEST:M4:PASS",
-        _          => "TEST:M4:PASS",   // default = current milestone
+        Some("m5") => "TEST:M5:PASS",
+        _          => "TEST:M5:PASS",   // default = current milestone
     };
 
     let kernel = crate::qemu::build_all();

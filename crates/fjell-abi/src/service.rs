@@ -65,3 +65,9 @@ impl ServiceId {
     pub const fn service_manager() -> Self { Self::from_bytes(b"svc.svc-manager") }
     pub const fn sample_service()  -> Self { Self::from_bytes(b"svc.sample") }
 }
+
+impl ImageId {
+    // M5 additions
+    pub const SEMANTIC_STREAM: ImageId = ImageId(6);
+    pub const PROXY_TEXT:      ImageId = ImageId(7);
+}

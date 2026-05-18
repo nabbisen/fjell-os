@@ -13,10 +13,10 @@ use fjell_abi::service::ImageId;
 
 // ── Service image base VA (must match service linker scripts) ─────────────────
 pub const SERVICE_BASE_VA:   usize = 0x0004_0000;
-/// Stack top address as emitted by the service linker script:
-///   __stack_bottom = ALIGN(4096) after .bss ≈ 0x41000
-///   __stack_top    = __stack_bottom + 64K   = 0x51000
-pub const SERVICE_STACK_TOP: usize = 0x0005_1000;
+/// Stack top — FIXED in the service linker script at `0x80000 + 64K = 0x90000`.
+/// The stack start address is pinned regardless of binary size so the kernel
+/// always knows where to map the stack page.
+pub const SERVICE_STACK_TOP: usize = 0x0009_0000;
 
 // ── Embedded flat binaries ────────────────────────────────────────────────────
 // Flat binaries are pre-built from the service crates and committed to
@@ -39,6 +39,9 @@ static BROKER_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-cap-broker.bin"
 static AUDITD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-auditd.bin");
 static SM_BIN:      &[u8] = include_bytes!("../../prebuilt/fjell-service-manager.bin");
 static SAMPLE_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-sample-service.bin");
+// M5 services
+static SEMANTIC_STREAM_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-semantic-stream.bin");
+static PROXY_TEXT_BIN:      &[u8] = include_bytes!("../../prebuilt/fjell-proxy-text.bin");
 
 /// Resolve an `ImageId` to its raw flat-binary slice.
 pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
@@ -49,6 +52,8 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::AUDITD          => Some(AUDITD_BIN),
         ImageId::SERVICE_MANAGER => Some(SM_BIN),
         ImageId::SAMPLE_SERVICE  => Some(SAMPLE_BIN),
+        ImageId::SEMANTIC_STREAM => Some(SEMANTIC_STREAM_BIN),
+        ImageId::PROXY_TEXT      => Some(PROXY_TEXT_BIN),
         _                        => None,
     }
 }

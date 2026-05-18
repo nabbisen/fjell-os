@@ -1,5 +1,5 @@
 [package]
-name = "fjell-proxy-text"
+name = "fjell-semantic-stream"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 publish = false
 
 [[bin]]
-name = "fjell-proxy-text"
+name = "fjell-semantic-stream"
 path = "src/main.rs"
 
 [dependencies]
@@ -15,7 +15,3 @@ fjell-abi            = { path = "../fjell-abi" }
 fjell-syscall        = { path = "../fjell-syscall" }
 fjell-service-api    = { path = "../fjell-service-api" }
 fjell-semantic-format = { path = "../fjell-semantic-format" }
-
-[lib]
-name = "fjell_proxy_text"
-path = "src/lib.rs"

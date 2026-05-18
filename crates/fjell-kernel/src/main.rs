@@ -361,10 +361,15 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 .expect("init text map");
         }
 
-        let stack_f = fa!().alloc_frame(FrameOwner::UserStack { task: tid }).expect("init stack");
-        aspace.map_page(VirtAddr(SERVICE_STACK_TOP - 4096), stack_f,
-            VmPerms::R | VmPerms::W | VmPerms::U, VmRegionKind::UserStack, fa!())
-            .expect("init stack map");
+        // Map all 16 stack pages (64 KiB, from 0x80000 to 0x90000).
+        const INIT_STACK_PAGES: usize = 16;
+        let stack_base = SERVICE_STACK_TOP - INIT_STACK_PAGES * 4096;
+        for pg in 0..INIT_STACK_PAGES {
+            let sf = fa!().alloc_frame(FrameOwner::UserStack { task: tid }).expect("init stack");
+            aspace.map_page(VirtAddr(stack_base + pg * 4096), sf,
+                VmPerms::R | VmPerms::W | VmPerms::U, VmRegionKind::UserStack, fa!())
+                .expect("init stack map");
+        }
 
         let kstack_f = fa!().alloc_frame(FrameOwner::KernelStack).expect("init kstack");
 
