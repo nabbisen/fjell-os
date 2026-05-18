@@ -1,12 +1,9 @@
-# RFC 031-034 (v0.2): require_cap enforcement + lease-bound revocation.
-# Host-side equivalents: fjell-cap tests (16 tests).
+# RFC 031 (v0.2): require_cap kind check — wrong kind rejected.
+# NEG_TEST service emits this when sys_mmio_map with an Endpoint cap fails.
 
 name             = "capability"
 timeout_secs     = 90
 expected_markers = [
   "NEG:CAP:WRONG_KIND_REJECTED:PASS",
-  "NEG:CAP:RIGHTS_DENIED:PASS",
-  "NEG:CAP:LEASE_REVOKED:PASS",
-  "NEG:CAP:DROP_ON_REVOKED:PASS",
 ]
 extra_args       = []

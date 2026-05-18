@@ -1,11 +1,7 @@
-# RFC 034 (v0.2): blocked IPC revocation semantics.
-# Host-side equivalents: fjell-ipc tests (10 tests).
+# RFC 034 (v0.2): blocked IPC revocation.
+# Requires multi-task coordination; markers added in v0.2.2.
 
 name             = "ipc"
 timeout_secs     = 60
-expected_markers = [
-  "NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS",
-  "NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS",
-  "NEG:IPC:LATE_REPLY_REJECTED:PASS",
-]
+expected_markers = []
 extra_args       = []

@@ -156,7 +156,8 @@ pub fn spawn(
                 });
             }
             // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).
-            if image_id == fjell_abi::service::ImageId::AUDITD {
+            if image_id == fjell_abi::service::ImageId::AUDITD
+            || image_id == fjell_abi::service::ImageId::NEG_TEST {
                 let _ = cs.install_raw(1, Capability {
                     kind: CapKind::AuditDrain, object_id: 0,
                     rights: CapRights::RECV, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
@@ -167,7 +168,8 @@ pub fn spawn(
             let needs_dma = matches!(
                 image_id,
                 fjell_abi::service::ImageId::STORAGED |
-                fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK
+                fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK |
+                fjell_abi::service::ImageId::NEG_TEST
             );
             if needs_dma {
                 let _ = cs.install_raw(2, Capability {

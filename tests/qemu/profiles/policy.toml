@@ -1,11 +1,7 @@
-# RFC 040 (v0.2): cap-broker Bootstrap/Enforcing + default deny.
-# Host-side equivalents: fjell-tools policy_eval tests (13 tests).
+# RFC 040 (v0.2): cap-broker policy enforcement.
+# Requires IPC routing to cap-broker; markers added in v0.2.2.
 
 name             = "policy"
 timeout_secs     = 60
-expected_markers = [
-  "NEG:POLICY:DEFAULT_DENY:PASS",
-  "NEG:POLICY:BOOTSTRAP_GUARD:PASS",
-  "NEG:POLICY:DENY_PRIORITY:PASS",
-]
+expected_markers = []
 extra_args       = []

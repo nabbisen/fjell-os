@@ -1,5 +1,5 @@
 # RFC 039 (v0.2): UserPtr arithmetic validation.
-# Host-side equivalents: mm/user_ptr.rs tests (8 cases, verified by standalone rustc).
+# NEG_TEST service calls sys_audit_drain_raw with invalid pointers.
 
 name             = "user-copy"
 timeout_secs     = 60

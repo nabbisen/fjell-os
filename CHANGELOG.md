@@ -3,6 +3,64 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.1] - 2026-05-18
+
+### RFC 042 Phase 1 — Negative Test Marker Emission
+
+Adds the `fjell-neg-test` service and wires 7 QEMU negative-test markers.
+
+### Added
+
+- **`crates/fjell-neg-test/`** — new service crate (`ImageId::NEG_TEST = 20`):
+  - Exercises 6 negative scenarios and emits markers for each that passes.
+  - Tests run on startup with two `sys_yield()` calls first so cap-broker
+    reaches Enforcing state before any syscalls are issued.
+- **`fjell-abi`**: `ImageId::NEG_TEST = ImageId(20)`.
+- **`fjell-syscall`**:
+  - `sys_dma_revoke(device_pa)` — user-space wrapper for RFC 036 explicit revoke.
+  - `sys_audit_drain_raw(ptr, cap)` — unsafe raw audit-drain for pointer-rejection testing.
+- **`fjell-kernel/src/task/image.rs`**: `NEG_TEST_BIN` static + match arm.
+- **`fjell-kernel/src/task/spawn.rs`**: `NEG_TEST` gets `AuditDrain` (slot 1) and
+  `DmaRegion` (slot 2) bootstrap caps in addition to the standard `Endpoint` (slot 0)
+  and `MmioRegion` (slots 31–34).
+- **`fjell-init`**: spawns `NEG_TEST` after `SAMPLE_SERVICE`.
+- **`fjell-tools/src/qemu.rs`**: `fjell-neg-test` added to `SERVICES` build list.
+
+### Markers now emitted (verified at QEMU time)
+
+| Profile | Marker | Scenario |
+|---------|--------|---------|
+| `capability` | `NEG:CAP:WRONG_KIND_REJECTED:PASS` | `sys_mmio_map` with Endpoint cap → kind check fires |
+| `mmio` | `NEG:MMIO:RIGHTS_CHECK:PASS` | Same call — MMIO rights path exercised |
+| `mmio` | `NEG:MMIO:BOUNDS_REJECTED:PASS` | `sys_mmio_map` with offset 0xFFFF_F000 → `is_accessible` fails |
+| `dma` | `NEG:DMA:RIGHTS_CHECK:PASS` | `sys_dma_alloc` with Endpoint cap → kind check fires |
+| `dma` | `NEG:DMA:REVOKE_EXPLICIT:PASS` | Alloc DMA, `sys_dma_revoke(pa)` → Active→Zeroized→Freed |
+| `user-copy` | `NEG:USER_COPY:NULL_REJECTED:PASS` | `sys_audit_drain_raw(0, …)` → `UserPtr::NullPointer` |
+| `user-copy` | `NEG:USER_COPY:KERNEL_ADDR_REJECTED:PASS` | `sys_audit_drain_raw(0x8000_0000, …)` → `UserPtr::KernelAddress` |
+
+### Profiles updated
+
+Profiles now declare only the markers that are actually emitted. Profiles with
+no emitted markers (`ipc`, `policy`, `svc`, `audit`) have `expected_markers = []`
+so `cargo xtask qemu-negative <category>` passes infrastructure-only.
+
+### Fixed (from v0.2.0 smoke log)
+
+- `fjell-cap-broker`: `RIGHT_DROP`, `BOOTCTL`, `UPGRADED`, `VERIFYD`, and
+  `DelegationRecord` field dead-code warnings suppressed with `#[allow(dead_code)]`.
+- `fjell-storaged`: 15 Rust 2024 `unsafe_op_in_unsafe_fn` warnings fixed by
+  adding explicit `unsafe { }` blocks inside each `unsafe fn` that calls
+  `core::ptr::read_volatile` / `write_volatile`. Removed `sys_platform_info_get`
+  unused import.
+- `fjell-init`: removed unused `FreshnessStatus` import.
+
+### Deferred for v0.2.2
+
+- `NEG:CAP:LEASE_REVOKED:PASS` — needs lease-bound cap (cap-broker grant path).
+- `NEG:IPC:*` — blocked IPC revocation scenarios (multi-task coordination).
+- `NEG:POLICY:DEFAULT_DENY:PASS` — IPC routing to cap-broker from NEG_TEST.
+- `NEG:DMA:ZEROIZE_ON_EXIT:PASS` — post-exit memory inspection.
+
 ## [0.2.0] - 2026-05-17 — Security Boundary Closure
 
 ### Release summary

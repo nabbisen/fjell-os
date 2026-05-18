@@ -95,3 +95,8 @@ impl ImageId {
     pub const ATTESTD:    ImageId = ImageId(18);
     pub const RECOVERYD:  ImageId = ImageId(19);
 }
+
+impl ImageId {
+    /// v0.2: dedicated negative-test service (RFC 042).
+    pub const NEG_TEST: ImageId = ImageId(20);
+}

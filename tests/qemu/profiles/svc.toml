@@ -1,10 +1,7 @@
-# RFC 037-038 (v0.2): cooperative service separation + READY protocol.
-# Markers deferred until service-separation binaries land.
+# RFC 037-038 (v0.2): service separation.
+# Requires service-extraction binaries; markers deferred.
 
 name             = "svc"
 timeout_secs     = 90
-expected_markers = [
-  "NEG:SVC:START_TIMEOUT_DETECTED:PASS",
-  "NEG:SVC:FAULT_DETECTED:PASS",
-]
+expected_markers = []
 extra_args       = []

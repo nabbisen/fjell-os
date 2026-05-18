@@ -155,6 +155,7 @@ pub extern "C" fn service_main() -> ! {
     spawn(ImageId::AUDITD,          "M4: auditd started");
     spawn(ImageId::SERVICE_MANAGER, "M4: service-manager started");
     spawn(ImageId::SAMPLE_SERVICE,  "M4: sample service started");
+    spawn(ImageId::NEG_TEST,        "v0.2: neg-test service started");
     sys_debug_writeln("M4: core.target ready");
 
     // ── M5 ───────────────────────────────────────────────────────────────────

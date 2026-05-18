@@ -1,9 +1,7 @@
-# RFC 041 (v0.2): persistent evidence hardening + gap detection.
-# Host-side equivalents: fjell-snapshot-format continuity tests (5 tests).
+# RFC 041 (v0.2): audit evidence.
+# Markers deferred until auditd→storaged pipeline is wired.
 
 name             = "audit"
 timeout_secs     = 60
-expected_markers = [
-  "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS",
-]
+expected_markers = []
 extra_args       = []

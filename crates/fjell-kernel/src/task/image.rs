@@ -66,6 +66,7 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::MEASUREDD  => Some(MEASUREDD_BIN),
         ImageId::ATTESTD    => Some(ATTESTD_BIN),
         ImageId::RECOVERYD  => Some(RECOVERYD_BIN),
+        ImageId::NEG_TEST   => Some(NEG_TEST_BIN),
         _                   => None,
     }
 }
@@ -87,3 +88,5 @@ static SNAPSHOTD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-snapshotd.bi
 static MEASUREDD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-measuredd.bin");
 static ATTESTD_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-attestd.bin");
 static RECOVERYD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-recoveryd.bin");
+// v0.2: negative-test service
+static NEG_TEST_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-neg-test.bin");

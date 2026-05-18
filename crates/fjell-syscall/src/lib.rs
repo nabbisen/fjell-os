@@ -329,3 +329,31 @@ pub fn sys_cap_drop(cap: CapHandle) -> Result<(), SysError> {
     let r0 = ecall1(SyscallNumber::CapDrop as usize, cap.0 as usize);
     to_result(r0).map(|_| ())
 }
+
+/// `sys_dma_revoke(a0=device_pa) -> a0=status`  (RFC 036 explicit revoke)
+pub fn sys_dma_revoke(device_pa: usize) -> Result<(), SysError> {
+    let r = ecall1(SyscallNumber::DmaRevoke as usize, device_pa);
+    to_result(r).map(|_| ())
+}
+
+/// Raw audit-drain call for negative testing (RFC 042).
+///
+/// Unlike `sys_audit_drain`, accepts an arbitrary destination pointer so
+/// the negative-test service can verify that `UserPtr::new` rejects invalid
+/// addresses (null, kernel-space) before any page-table access.
+///
+/// Returns the raw kernel status code (`0` = Ok, non-zero = error).
+///
+/// # Safety
+/// Must only be called from the negative-test service for error-path testing.
+/// The pointed-to memory is NOT read on error; the caller must not use
+/// results from a non-Ok status.
+pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
+    let (r0, _, _) = ecall3(
+        SyscallNumber::AuditDrain as usize,
+        ptr,
+        4096,
+        cap as usize,
+    );
+    r0
+}

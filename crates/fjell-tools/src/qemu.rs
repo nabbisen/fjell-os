@@ -15,6 +15,7 @@ pub const SERVICES: &[&str] = &[
     "fjell-auditd",
     "fjell-service-manager",
     "fjell-sample-service",
+    "fjell-neg-test",
     // M5
     "fjell-semantic-stream",
     "fjell-proxy-text",

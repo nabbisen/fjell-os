@@ -1,0 +1,20 @@
+[package]
+name         = "fjell-neg-test"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-neg-test"
+path = "src/main.rs"
+
+[dependencies]
+fjell-abi         = { path = "../fjell-abi" }
+fjell-cap         = { path = "../fjell-cap" }
+fjell-syscall     = { path = "../fjell-syscall" }
+fjell-service-api = { path = "../fjell-service-api" }
+
+[package.metadata.fjell]
+service-id = "svc.neg-test"
