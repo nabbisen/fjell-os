@@ -1,6 +1,21 @@
 //! Persistent append-only state store format for Fjell OS M6.
 #![no_std]
 
+// ── CRC32 (RFC 008) ───────────────────────────────────────────────────────────
+/// Compute CRC32 (ISO 3309 / Castagnoli, poly 0xEDB88320).
+pub fn crc32(data: &[u8]) -> u32 {
+    let mut crc: u32 = 0xFFFF_FFFF;
+    for &b in data {
+        crc ^= b as u32;
+        for _ in 0..8 {
+            let mask = (crc & 1).wrapping_neg();
+            crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
+        }
+    }
+    !crc
+}
+
+
 pub const STORE_MAGIC:  [u8; 8] = *b"FJSTORE\0";
 pub const RECORD_MAGIC: u32     = 0x464A_4C52; // "FJLR"
 
@@ -33,7 +48,24 @@ impl StoreSuperblock {
             log_tail_seq: 0, active_checkpoint_seq: 0, crc32: 0,
         }
     }
-    pub fn is_valid(&self) -> bool { self.magic == STORE_MAGIC }
+
+    /// Compute and store CRC32 (RFC 008).  Call before writing to disk.
+    pub fn seal(&mut self) {
+        self.crc32 = 0;
+        let bytes = unsafe { core::slice::from_raw_parts(
+            self as *const _ as *const u8, core::mem::size_of::<Self>()) };
+        self.crc32 = crc32(bytes);
+    }
+
+    /// Returns true if magic is correct AND CRC32 matches (RFC 008).
+    pub fn is_valid(&self) -> bool {
+        if self.magic != STORE_MAGIC { return false; }
+        let mut copy = *self;
+        copy.crc32 = 0;
+        let bytes = unsafe { core::slice::from_raw_parts(
+            &copy as *const _ as *const u8, core::mem::size_of::<Self>()) };
+        crc32(bytes) == self.crc32
+    }
 }
 
 #[repr(C)]

@@ -327,10 +327,10 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     ks_init!(LEASE_TABLE, lease::LeaseTable::new());
     println!("M3: capability table initialized");
     println!("M3: endpoint table initialized");
-    let table  = ks_get!(TASK_TABLE);
-    let sched  = ks_get!(SCHEDULER);
-    let _ct    = ks_get!(CAP_TABLE);   // not used in M4 kmain (used from trap)
-    let et     = ks_get!(EP_TABLE);
+    let table     = ks_get!(TASK_TABLE);
+    let sched     = ks_get!(SCHEDULER);
+    let cap_table = ks_get!(CAP_TABLE);   // RFC 004: used for bootstrap cap install
+    let et        = ks_get!(EP_TABLE);
 
     // Allocate the shared IPC endpoint for the M3 smoke test.
     let ep_obj_id = et.alloc().expect("alloc endpoint");
@@ -432,6 +432,31 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         let ins_id = table.insert(t).expect("init insert");
         sched.enqueue_runnable(ins_id, PRIORITY_USER);
         AUDIT.lock_free_append(AuditKindInternal::TaskCreate, 1, 0, 0);
+
+        // RFC 004: Grant init task bootstrap capabilities so it can spawn
+        // services and manage leases.  Service-manager receives TaskCreate
+        // and TaskControl via cap_derive after init spawns it.
+        {
+            use fjell_cap::{CapKind, CapRights};
+            use fjell_cap::slot::Capability;
+            let cs = cap_table.cspace_mut(1 /* init task index */)
+                .expect("init CSpace");
+            // Slot 28: TaskCreate — init can spawn service tasks.
+            let _ = cs.install_raw(28, Capability {
+                kind: CapKind::TaskCreate, object_id: 0,
+                rights: CapRights::ALL, badge: 0, parent: None,
+            });
+            // Slot 29: TaskControl — init can start spawned tasks.
+            let _ = cs.install_raw(29, Capability {
+                kind: CapKind::TaskControl, object_id: 0,
+                rights: CapRights::ALL, badge: 0, parent: None,
+            });
+            // Slot 30: LeaseAdmin — init can create/revoke leases.
+            let _ = cs.install_raw(30, Capability {
+                kind: CapKind::LeaseAdmin, object_id: 0,
+                rights: CapRights::ALL, badge: 0, parent: None,
+            });
+        }
         println!("M4: init task ready");
     }
 

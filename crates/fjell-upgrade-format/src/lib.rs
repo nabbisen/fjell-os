@@ -1,6 +1,21 @@
 //! A/B upgrade and boot-control block types for Fjell OS M6.
 #![no_std]
 
+// ── CRC32 (ISO 3309 / Castagnoli) — no lookup table, no_std safe ─────────────
+
+/// Compute CRC32 over `data`.  Uses the standard 0xEDB88320 polynomial.
+pub fn crc32(data: &[u8]) -> u32 {
+    let mut crc: u32 = 0xFFFF_FFFF;
+    for &b in data {
+        crc ^= b as u32;
+        for _ in 0..8 {
+            let mask = (crc & 1).wrapping_neg();
+            crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
+        }
+    }
+    !crc
+}
+
 pub const BOOT_CTL_MAGIC: [u8; 8] = *b"FJBOOT\0\0";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,18 +63,35 @@ pub struct BootControlBlock {
 pub const NO_CANDIDATE: u8 = 0xFF;
 
 impl BootControlBlock {
-    pub fn new(generation: u64) -> Self {
+    pub fn new(image_gen: u64) -> Self {
         BootControlBlock {
-            magic: BOOT_CTL_MAGIC, version: 1, generation,
+            magic: BOOT_CTL_MAGIC, version: 1, generation: image_gen,
             active_slot: SlotId::A as u8,
             last_confirmed_slot: SlotId::A as u8,
             candidate_slot: NO_CANDIDATE,
-            slot_a: SlotInfo::bootable(generation),
+            slot_a: SlotInfo::bootable(image_gen),
             slot_b: SlotInfo::empty(),
             crc32: 0,
         }
     }
-    pub fn is_valid(&self) -> bool { self.magic == BOOT_CTL_MAGIC }
+
+    /// Compute and store CRC32 (RFC 008).  Call before writing to disk.
+    pub fn seal(&mut self) {
+        self.crc32 = 0;
+        let bytes = unsafe { core::slice::from_raw_parts(
+            self as *const _ as *const u8, core::mem::size_of::<Self>()) };
+        self.crc32 = crc32(bytes);
+    }
+
+    /// Returns true if magic is correct AND CRC32 matches (RFC 008).
+    pub fn is_valid(&self) -> bool {
+        if self.magic != BOOT_CTL_MAGIC { return false; }
+        let mut copy = *self;
+        copy.crc32 = 0;
+        let bytes = unsafe { core::slice::from_raw_parts(
+            &copy as *const _ as *const u8, core::mem::size_of::<Self>()) };
+        crc32(bytes) == self.crc32
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,7 +122,23 @@ mod tests {
 
     #[test]
     fn boot_control_block_is_valid() {
-        let bcb = BootControlBlock::new(1);
-        assert!(bcb.is_valid(), "freshly constructed BCB must have valid magic");
+        let mut bcb = BootControlBlock::new(1);
+        bcb.seal();  // is_valid() now checks CRC32 (RFC 008)
+        assert!(bcb.is_valid(), "sealed BCB must pass is_valid");
     }
 }
+
+    #[test]
+    fn bcb_seal_produces_valid_crc() {
+        let mut bcb = BootControlBlock::new(1);
+        bcb.seal();
+        assert!(bcb.is_valid(), "sealed BCB must pass is_valid");
+    }
+
+    #[test]
+    fn bcb_corrupt_byte_fails_crc() {
+        let mut bcb = BootControlBlock::new(1);
+        bcb.seal();
+        bcb.version ^= 0xFF;  // corrupt one byte
+        assert!(!bcb.is_valid(), "corrupted BCB must fail is_valid");
+    }

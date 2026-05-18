@@ -9,6 +9,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.9] — 2026-05-12 — M7.1 Security & Architecture Hardening
+
+Implements RFC 004, 005, 008, 010 in response to architect review of v0.0.8.
+RFCs 006, 007, 009, 011–013 are specified and accepted; implementation deferred
+to M7.1 hardening sprint or M8.
+
+### Fixed / Added
+
+- **RFC 004** (`fjell-cap`, kernel): Added `CapKind::TaskCreate`, `CapKind::TaskControl`,
+  `CapKind::LeaseAdmin`.  `sys_task_spawn` now requires `TaskCreate`; `sys_task_start`
+  requires `TaskControl`; `sys_lease_create/revoke/inspect` require `LeaseAdmin`.
+  init task receives all three as bootstrap capabilities at slot 28/29/30 in its CSpace.
+  `CSpace::slots()` and `CSpace::install_raw()` added for kernel-internal use.
+
+- **RFC 005** (`kernel/trap/syscall.rs`): `sys_mmio_map` rejects any request whose
+  physical range overlaps kernel RAM (`RAM_BASE..RAM_END`).  Prevents user-space from
+  mapping kernel text, data, or stack with R|W|U.
+
+- **RFC 008** (`fjell-upgrade-format`, `fjell-store-format`): `BootControlBlock` and
+  `StoreSuperblock` now have `seal()` (compute and store CRC32) and updated `is_valid()`
+  (checks magic AND CRC32).  `fjell-init` calls `seal()` before writing BCB and
+  superblocks to disk.  CRC32 uses ISO 3309 / Castagnoli (0xEDB88320) in `no_std`.
+  Added 2 regression tests (seal + corrupt byte detection).
+
+- **RFC 010** (`kernel/trap/syscall.rs`, `fjell-syscall`): `sys_task_spawn` now returns
+  `handle = index | (generation << 16)`.  `sys_task_start` and `sys_task_status` decode
+  the generation from the handle and look up the task with generation check, preventing
+  stale handle reuse.
+
+### Accepted / Deferred
+
+RFC 006 (LeaseBinding in Capability), RFC 007 (per-task DMA), RFC 009 (W^X kernel
+permissions), RFC 011 (service separation), RFC 012 (real digest verification),
+RFC 013 (ADR 0006–0010) are fully specified in `rfcs/` with implementation deferred.
+
+---
+
 ## [0.0.8] — 2026-05-12 — RFC bugfix release
 
 Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.

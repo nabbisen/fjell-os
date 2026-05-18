@@ -103,6 +103,8 @@ pub fn sys_ipc_reply(reply_tag: usize) -> Result<(), SysError> {
 /// Spawn a task from the embedded image identified by `image_id`.
 /// Returns `(task_handle_raw, task_control_cap_slot)` on success.
 #[inline]
+/// Returns `(task_handle, 0)` where `task_handle` encodes `index | (generation << 16)`
+/// (RFC 010).  Pass the handle to `sys_task_start` / `sys_task_status`.
 pub fn sys_task_spawn(image_id: ImageId) -> Result<(usize, usize), SysError> {
     let (r0, r1) = ecall2(SyscallNumber::TaskSpawn as usize,
                            image_id.0 as usize, 0, 0, 0);

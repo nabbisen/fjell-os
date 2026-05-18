@@ -13,6 +13,15 @@ pub enum CapKind {
     Frame,
     /// An implicit one-shot reply edge installed by `ipc_call`.
     Reply,
+    // ── M7.1 additions (RFC 004) ─────────────────────────────────────────
+    /// Authority to call `sys_task_spawn`.  Only init and service-manager
+    /// should hold this capability.
+    TaskCreate,
+    /// Authority to call `sys_task_start` and `sys_task_status`.
+    TaskControl,
+    /// Authority to call `sys_lease_create`, `sys_lease_revoke`, and
+    /// `sys_lease_inspect`.
+    LeaseAdmin,
 }
 
 /// Permission bits attached to a capability.

@@ -151,7 +151,8 @@ pub extern "C" fn service_main() -> ! {
     spawn(ImageId::STORAGED, "");
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     // Write superblock A (LBA 65)
-    let sb = StoreSuperblock::new(1);
+    let mut sb = StoreSuperblock::new(1);
+    sb.seal();  // RFC 008: compute CRC32 before writing
     let sb_b = unsafe { core::slice::from_raw_parts(&sb as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut s = [0u8; 512]; s[..sb_b.len()].copy_from_slice(sb_b);
     blk_write_sector(base, dma_va, dma_pa, LBA_SUPERBLOCK_A, &s);
@@ -166,6 +167,7 @@ pub extern "C" fn service_main() -> ! {
 
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let mut sb2 = StoreSuperblock::new(2); sb2.log_tail_seq = 1; sb2.active_checkpoint_seq = 1;
+    sb2.seal();  // RFC 008
     let sb2_b = unsafe { core::slice::from_raw_parts(&sb2 as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut cs = [0u8; 512]; cs[..sb2_b.len()].copy_from_slice(sb2_b);
     blk_write_sector(base, dma_va, dma_pa, LBA_SUPERBLOCK_A, &cs);
@@ -173,7 +175,8 @@ pub extern "C" fn service_main() -> ! {
 
     spawn(ImageId::BOOTCTL, "");
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
-    let bcb = BootControlBlock::new(1);
+    let mut bcb = BootControlBlock::new(1);
+    bcb.seal();  // RFC 008: compute CRC32 before writing
     let bcb_b = unsafe { core::slice::from_raw_parts(&bcb as *const _ as *const u8, core::mem::size_of::<BootControlBlock>().min(512)) };
     let mut bs = [0u8; 512]; bs[..bcb_b.len()].copy_from_slice(bcb_b);
     blk_write_sector(base, dma_va, dma_pa, LBA_BOOT_CTL_A_START, &bs);

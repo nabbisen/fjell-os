@@ -64,6 +64,24 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 
 // ── Individual syscall implementations ───────────────────────────────────────
 
+// ── RFC 004: capability gating helper ────────────────────────────────────────
+
+/// Returns `true` if the calling task holds at least one capability of the
+/// given `kind` in its CSpace.
+///
+/// Used to gate `sys_task_spawn` (TaskCreate), `sys_task_start`/`sys_task_status`
+/// (TaskControl), and `sys_lease_*` (LeaseAdmin).
+fn caller_has_cap(kind: fjell_cap::CapKind) -> bool {
+    use crate::trap::dispatch::current_task_idx;
+    let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
+    let tidx = current_task_idx();
+    let cs = match cap_table.cspace(tidx) { Some(c) => c, None => return false };
+    cs.slots().iter().any(|slot| {
+        slot.cap.map_or(false, |cap| cap.kind == kind)
+    })
+}
+
+
 /// `sys_yield` — voluntarily relinquish the CPU.
 ///
 /// The actual task switch happens in the kernel main loop after
@@ -160,6 +178,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
 // ── M4 syscall handlers ───────────────────────────────────────────────────────
 
 /// `sys_task_spawn(a0=image_id) -> a0=task_handle_raw, a1=0`
+/// Requires `CapKind::TaskCreate` capability (RFC 004).
 pub fn sys_task_spawn(
     tf: &mut TrapFrame,
     table:       &mut crate::task::tcb::TaskTable,
@@ -169,12 +188,20 @@ pub fn sys_task_spawn(
 ) {
     use fjell_abi::service::ImageId;
     use crate::task::spawn::spawn;
+    // RFC 004: require TaskCreate capability.
+    if !caller_has_cap(fjell_cap::CapKind::TaskCreate) {
+        tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
+        return;
+    }
     let image_id = ImageId(tf.gpr[REG_A0] as u16);
     let fa_ref = unsafe { &mut *fa };
     match spawn(image_id, table, sched, kernel_root, fa_ref) {
         Ok(tid) => {
+            // RFC 010: encode (index, generation) into a single u32 handle.
+            // handle = index | (generation << 16)
+            let handle = (tid.index as u32) | ((tid.generation as u32) << 16);
             tf.gpr[REG_A0] = 0;                          // SysError::Ok
-            tf.gpr[REG_A1] = tid.index as usize;         // task handle
+            tf.gpr[REG_A1] = handle as usize;            // task handle
         }
         Err(e) => {
             tf.gpr[REG_A0] = e as isize as usize;
@@ -190,10 +217,18 @@ pub fn sys_task_start(
 ) {
     use fjell_abi::error::SysError;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
-    let handle = tf.gpr[REG_A0] as u16;
+    // RFC 004: require TaskControl capability.
+    if !caller_has_cap(fjell_cap::CapKind::TaskControl) {
+        tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
+        return;
+    }
+    // RFC 010: decode (index, generation) from packed u32 handle.
+    let raw        = tf.gpr[REG_A0] as u32;
+    let index      = (raw & 0xFFFF) as u16;
+    let generation = (raw >> 16) as u16;
     let entry  = tf.gpr[10 + 1]; // a1
     let stack  = tf.gpr[10 + 2]; // a2
-    let tid    = TaskId::new(handle, 0);
+    let tid    = TaskId::new(index, generation);
     match table.get_mut(tid) {
         Some(task) => {
             if task.state != TaskState::Created {
@@ -215,7 +250,9 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) 
     use fjell_abi::error::SysError;
     use fjell_abi::service::TaskLifecycle;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
-    let tid = TaskId::new(tf.gpr[REG_A0] as u16, 0);
+    // RFC 010: decode (index, generation) from packed u32 handle.
+    let raw        = tf.gpr[REG_A0] as u32;
+    let tid = TaskId::new((raw & 0xFFFF) as u16, (raw >> 16) as u16);
     match table.get(tid) {
         Some(task) => {
             let lc = match task.state {
@@ -236,6 +273,11 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) 
 /// `sys_lease_create(a0=flags) -> a0=LeaseId.0`
 pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
                          tidx: usize) {
+    // RFC 004: require LeaseAdmin capability.
+    if !caller_has_cap(fjell_cap::CapKind::LeaseAdmin) {
+        tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
+        return;
+    }
     use fjell_abi::task::TaskId;
     let flags = tf.gpr[REG_A0] as u32;
     let owner = TaskId::new(tidx as u16, 0);
@@ -342,10 +384,23 @@ pub fn sys_platform_info_get(tf: &mut TrapFrame) {
 ///
 /// Maps the requested MMIO range (page-aligned) into the calling task's
 /// address space.  Returns the identity-mapped user VA (= phys_addr).
+///
+/// # Security — RFC 005
+/// Requests overlapping kernel RAM (`RAM_BASE..RAM_END`) are unconditionally
+/// rejected to prevent user-space from obtaining a writable mapping of kernel
+/// text, data, or stack pages.
 pub fn sys_mmio_map(tf: &mut TrapFrame) {
     use crate::mm::{address::VirtAddr, vspace::VmPerms};
+    use crate::platform::qemu_virt::{RAM_BASE, RAM_END};
     let phys_addr  = tf.gpr[REG_A0] & !0xFFF;      // page-align down
     let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF; // page-align up
+
+    // RFC 005: reject any request that overlaps kernel RAM.
+    let end_addr = phys_addr.saturating_add(size_bytes);
+    if phys_addr < RAM_END && end_addr > RAM_BASE {
+        tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        return;
+    }
 
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let cur_id   = crate::trap::dispatch::current_task_idx();

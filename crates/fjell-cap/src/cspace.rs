@@ -205,6 +205,22 @@ impl CSpace {
         let cap = self.get(h)?;
         Ok((cap.kind, cap.rights, cap.badge))
     }
+
+    /// Read-only view of all slots — used by kernel to check capability kind
+    /// without a handle (e.g., `caller_has_cap` in RFC 004).
+    pub fn slots(&self) -> &[CapSlot; CSPACE_SLOTS] {
+        &self.slots
+    }
+
+    /// Install a capability into a specific slot index (bootstrap use only).
+    ///
+    /// Returns `Err(())` if the slot index is out of range or already occupied.
+    pub fn install_raw(&mut self, slot: usize, cap: Capability) -> Result<(), ()> {
+        let s = self.slots.get_mut(slot).ok_or(())?;
+        if s.cap.is_some() { return Err(()); }
+        s.cap = Some(cap);
+        Ok(())
+    }
 }
 
 // ── Host-side unit tests ──────────────────────────────────────────────────────
@@ -278,4 +294,5 @@ mod tests {
         let res = cs.mint(h, h.slot() as usize, CapRights::SEND, 0);
         assert_eq!(res, Err(SysError::SlotOccupied));
     }
+
 }
