@@ -24,6 +24,7 @@ mod rt;
 
 use fjell_syscall::{
     sys_exit, sys_debug_writeln, sys_yield,
+    sys_task_spawn, sys_task_start, sys_task_status,
     sys_mmio_map, sys_dma_alloc, sys_dma_revoke,
     sys_audit_drain_raw, sys_ipc_call_words,
     sys_cap_copy, sys_cap_mint, sys_cap_bind_lease,
@@ -33,6 +34,7 @@ use fjell_syscall::{
 };
 use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
+use fjell_abi::service::{ImageId, TaskLifecycle};
 
 // ── CSpace slot constants for this service ────────────────────────────────────
 
@@ -41,7 +43,9 @@ const SLOT_AUDIT:      u32 = 1;   // AuditDrain cap
 const SLOT_DMA:        u32 = 2;   // DmaRegion cap
 const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 #[allow(dead_code)]
-const SLOT_LEASE_ADMIN:u32 = 4;   // LeaseAdmin cap
+const SLOT_LEASE_ADMIN:u32 = 4;
+#[allow(dead_code)] const SLOT_TASK_CREATE:u32 = 5;   // TaskCreate cap (kernel uses it implicitly via require_cap)
+#[allow(dead_code)] const SLOT_TASK_CONTROL:u32= 6;   // TaskControl cap   // LeaseAdmin cap
 const SLOT_SCRATCH_C:  u32 = 8;   // scratch slot for audit overflow loop
 #[allow(dead_code)]
 const SLOT_SCRATCH_D:  u32 = 9;   // scratch for ipc blocked-call recv
@@ -391,6 +395,61 @@ fn test_audit_evidence_gap() {
     check(dropped > 0, M::AUDIT_EVIDENCE_GAP);
 }
 
+
+/// SVC: spawn svc-timeout; yield N times; it never sent READY → timeout detected.
+///
+/// The "timeout" is cooperative: after READY_WAIT_YIELDS yields without the
+/// service exiting or self-completing, we declare a start timeout.
+/// The service is still alive (Runnable/Blocked) — not faulted, not exited.
+fn test_svc_start_timeout() {
+    const READY_WAIT_YIELDS: u32 = 20;
+
+    // Spawn the timeout-test service.
+    let handle = match sys_task_spawn(ImageId::SVC_TIMEOUT) {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+    if sys_task_start(handle, 0, 0).is_err() { return; }
+
+    // Wait READY_WAIT_YIELDS cooperative cycles.
+    for _ in 0..READY_WAIT_YIELDS { sys_yield(); }
+
+    // Check: task is still alive (running) — READY was never sent.
+    // TaskLifecycle: Running=2, Runnable=1, Blocked=3 all mean "alive but no READY".
+    match sys_task_status(handle) {
+        Ok(lc) if lc == TaskLifecycle::Running  as u8
+               || lc == TaskLifecycle::Runnable as u8
+               || lc == TaskLifecycle::Blocked  as u8 => {
+            // Service is still alive after the wait window — start timeout detected.
+            check(true, M::SVC_START_TIMEOUT);
+        }
+        _ => {}  // already exited/faulted before timeout window — skip
+    }
+}
+
+/// SVC: spawn svc-fault; wait for it to fault; detect via task status.
+///
+/// svc-fault yields once then dereferences NULL → page fault →
+/// `TaskState::Faulted`.  neg-test detects this and emits the marker.
+fn test_svc_fault_detected() {
+    let handle = match sys_task_spawn(ImageId::SVC_FAULT) {
+        Ok(h) => h,
+        Err(_) => return,
+    };
+    if sys_task_start(handle, 0, 0).is_err() { return; }
+
+    // Yield a few times to let svc-fault run, yield, then fault.
+    for _ in 0..10u32 { sys_yield(); }
+
+    // Check: task is Faulted.
+    match sys_task_status(handle) {
+        Ok(lc) if lc == TaskLifecycle::Faulted as u8 => {
+            check(true, M::SVC_FAULT);
+        }
+        _ => {}
+    }
+}
+
 // ── Service entry point ───────────────────────────────────────────────────────
 
 #[unsafe(no_mangle)]
@@ -434,6 +493,10 @@ pub extern "C" fn service_main() -> ! {
 
     // ── Audit evidence gap (RFC 041) ─────────────────────────────────────────
     test_audit_evidence_gap();
+
+    // ── Service lifecycle (RFC 038) ───────────────────────────────────────────
+    test_svc_start_timeout();
+    test_svc_fault_detected();
 
     sys_debug_writeln("neg-test: all scenarios complete");
     sys_exit(0)

@@ -3,6 +3,52 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.8] - 2026-05-18
+
+### RFC 042 Phase 8 — Service Lifecycle Negative Tests (RFC 038)
+
+### Added
+
+- **`fjell-abi/src/service.rs`**: `ImageId::SVC_TIMEOUT = 21` and
+  `ImageId::SVC_FAULT = 22`.
+- **`crates/fjell-svc-timeout/`** (new crate): service that loops forever via
+  `sys_yield`, never sending READY.  Used by neg-test to verify the start-timeout
+  detection path.
+- **`crates/fjell-svc-fault/`** (new crate): yields once then deliberately reads
+  from address 0 → page fault → `TaskState::Faulted`.
+- **`fjell-kernel/src/task/image.rs`**: `SVC_TIMEOUT_BIN` and `SVC_FAULT_BIN`
+  statics + match arms.
+- **`fjell-kernel/src/task/spawn.rs`**: `NEG_TEST` gets slots 5 and 6 —
+  `TaskCreate` and `TaskControl` — so neg-test can spawn and inspect test
+  services.
+- **`fjell-neg-test/src/main.rs`**: two new test functions:
+  - `test_svc_start_timeout()` — spawns `SVC_TIMEOUT`, yields 20×, checks that
+    the task is still alive (Runnable/Running/Blocked) → READY never arrived →
+    `NEG:SVC:START_TIMEOUT_DETECTED:PASS`.
+  - `test_svc_fault_detected()` — spawns `SVC_FAULT`, yields 10×, checks that
+    the task is `TaskLifecycle::Faulted` → `NEG:SVC:FAULT_DETECTED:PASS`.
+- **`tests/qemu/profiles/svc.toml`**: both SVC markers now expected.
+
+### Changed
+
+- `fjell-tools/src/qemu.rs`: `fjell-svc-timeout` and `fjell-svc-fault` added to
+  `SERVICES` build list.
+- Workspace members updated; workspace version bumped to `0.2.8`.
+
+### Marker count: 21/21 — ALL MARKERS LIVE
+
+| Category | Live |
+|----------|------|
+| capability | 4/4 ✓ |
+| mmio | 3/3 ✓ |
+| dma | 3/3 ✓ |
+| user-copy | 2/2 ✓ |
+| policy | 3/3 ✓ |
+| audit | 1/1 ✓ |
+| ipc | 3/3 ✓ |
+| svc | 2/2 ✓ |
+| **Total** | **21/21** |
+
 ## [0.2.7] - 2026-05-18
 
 ### RFC 042 Phase 7 — MMIO RAM Guard and DMA Zeroize

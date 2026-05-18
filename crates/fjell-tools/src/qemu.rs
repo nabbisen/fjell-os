@@ -16,6 +16,8 @@ pub const SERVICES: &[&str] = &[
     "fjell-service-manager",
     "fjell-sample-service",
     "fjell-neg-test",
+    "fjell-svc-timeout",
+    "fjell-svc-fault",
     // M5
     "fjell-semantic-stream",
     "fjell-proxy-text",

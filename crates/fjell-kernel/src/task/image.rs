@@ -67,6 +67,8 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::ATTESTD    => Some(ATTESTD_BIN),
         ImageId::RECOVERYD  => Some(RECOVERYD_BIN),
         ImageId::NEG_TEST   => Some(NEG_TEST_BIN),
+        ImageId::SVC_TIMEOUT => Some(SVC_TIMEOUT_BIN),
+        ImageId::SVC_FAULT   => Some(SVC_FAULT_BIN),
         _                   => None,
     }
 }
@@ -88,5 +90,7 @@ static SNAPSHOTD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-snapshotd.bi
 static MEASUREDD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-measuredd.bin");
 static ATTESTD_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-attestd.bin");
 static RECOVERYD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-recoveryd.bin");
-// v0.2: negative-test service
-static NEG_TEST_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-neg-test.bin");
+// v0.2: negative-test + svc test services
+static NEG_TEST_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-neg-test.bin");
+static SVC_TIMEOUT_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-svc-timeout.bin");
+static SVC_FAULT_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-svc-fault.bin");

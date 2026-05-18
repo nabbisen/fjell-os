@@ -1,0 +1,17 @@
+[package]
+name         = "fjell-svc-fault"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-svc-fault"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall = { path = "../fjell-syscall" }
+
+[package.metadata.fjell]
+service-id = "svc.fault-test"

@@ -25,6 +25,8 @@ members = [
     "crates/fjell-configd",
     "crates/fjell-proxy-text",
     "crates/fjell-neg-test",
+    "crates/fjell-svc-timeout",
+    "crates/fjell-svc-fault",
     "crates/fjell-sample-service",
     "crates/fjell-devmgr",
     "crates/fjell-driver-virtio-blk",
@@ -63,7 +65,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.2.7"
+version = "0.2.8"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

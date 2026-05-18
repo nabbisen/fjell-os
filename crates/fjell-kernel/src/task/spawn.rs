@@ -206,6 +206,18 @@ pub fn spawn(
                     rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
+            // Slots 5-6: TaskCreate + TaskControl for NEG_TEST (RFC 042 SVC tests).
+            // Allows neg-test to spawn and monitor the svc-timeout/svc-fault services.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(5, Capability {
+                    kind: CapKind::TaskCreate, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                });
+                let _ = cs.install_raw(6, Capability {
+                    kind: CapKind::TaskControl, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                });
+            }
         }
     }
 

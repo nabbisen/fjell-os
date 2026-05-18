@@ -1,7 +1,10 @@
-# RFC 037-038 (v0.2): service separation.
-# Requires service-extraction binaries; markers deferred.
+# RFC 038 (v0.2): service lifecycle — start timeout and fault detection.
+# neg-test spawns svc-timeout (never sends READY) and svc-fault (faults after yield).
 
 name             = "svc"
 timeout_secs     = 90
-expected_markers = []
+expected_markers = [
+  "NEG:SVC:START_TIMEOUT_DETECTED:PASS",
+  "NEG:SVC:FAULT_DETECTED:PASS",
+]
 extra_args       = []

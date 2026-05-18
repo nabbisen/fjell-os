@@ -99,4 +99,8 @@ impl ImageId {
 impl ImageId {
     /// v0.2: dedicated negative-test service (RFC 042).
     pub const NEG_TEST: ImageId = ImageId(20);
+    /// RFC 042: service that never sends READY (start-timeout test).
+    pub const SVC_TIMEOUT: ImageId = ImageId(21);
+    /// RFC 042: service that sends READY then faults (fault-detected test).
+    pub const SVC_FAULT:   ImageId = ImageId(22);
 }
