@@ -2,7 +2,7 @@
 
 **RFC ID:** 050
 **Also known as:** RFC-v0.2-016
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.10
 **Phase:** Capability/syscall enforcement closure
 **Closes review items:** H-06 (and follow-up to RB-05, RB-06)

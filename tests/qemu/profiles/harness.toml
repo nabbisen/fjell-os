@@ -1,0 +1,9 @@
+# RFC 050 (v0.2): neg-test harness self-check.
+# Validates that scratch CSpace slots are empty before destructive tests.
+
+name             = "harness"
+timeout_secs     = 60
+expected_markers = [
+  "NEG:HARNESS:CSpace_LAYOUT_VALID:PASS",
+]
+extra_args       = []

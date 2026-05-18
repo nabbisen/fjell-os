@@ -26,7 +26,7 @@ use fjell_syscall::{
     sys_exit, sys_debug_writeln, sys_yield,
     sys_task_spawn, sys_task_start, sys_task_status,
     sys_mmio_map, sys_dma_alloc, sys_dma_revoke,
-    sys_audit_drain_raw, sys_ipc_call_words,
+    sys_ipc_call_words,
     sys_cap_copy, sys_cap_mint, sys_cap_bind_lease,
     sys_cap_drop as _sys_cap_drop,
     sys_cap_revoke, sys_cap_inspect,
@@ -95,6 +95,26 @@ fn check_err<T>(
     }
 }
 
+
+/// RFC 050: CSpace layout self-check.
+///
+/// Verifies scratch slots 10-13 are empty before any destructive test runs.
+/// If any scratch slot is occupied, spawn.rs disagrees with neg-test's slot
+/// map and all subsequent results are unreliable.
+fn harness_cspace_check() {
+    let scratch_slots = [10u32, 11, 12, 13, 14];
+    let mut all_empty = true;
+    for &slot in &scratch_slots {
+        // sys_cap_inspect returns Err(InvalidCap) for empty slots.
+        // An Ok result means spawn.rs installed something there — collision.
+        if fjell_syscall::sys_cap_inspect(fjell_cap::CapHandle(slot)).is_ok() {
+            all_empty = false;
+            break;
+        }
+    }
+    check(all_empty, M::HARNESS_CSPACE_LAYOUT_VALID);
+}
+
 // ── Negative test scenarios ───────────────────────────────────────────────────
 
 
@@ -109,7 +129,7 @@ fn test_cap_rights_denied() {
         Ok(_) => {
             // Try to recv on a cap without RECV right → PermissionDenied.
             let result = sys_ipc_recv(SLOT_SCRATCH_B);
-            check(result.is_err(), M::CAP_RIGHTS_DENIED);
+            check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_RIGHTS_DENIED);
         }
         Err(_) => {}  // mint failed — skip
     }
@@ -135,7 +155,7 @@ fn test_cap_lease_revoked() {
     if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() { return; }
     // 5. Try to recv on the now-lease-revoked cap → LeaseRevoked.
     let result = sys_ipc_recv(SLOT_SCRATCH_A);
-    check(result.is_err(), M::CAP_LEASE_REVOKED);
+    check_err(result, fjell_abi::error::SysError::LeaseRevoked, M::CAP_LEASE_REVOKED);
 }
 
 /// CAP: drop a lease-revoked cap — sys_cap_drop skips the lease check (RFC 032).
@@ -159,7 +179,7 @@ fn test_cap_drop_on_revoked() {
 ///   RFC 005 guard fires → SysError::InvalidArg.
 fn test_mmio_ram_guard() {
     let result = sys_mmio_map(CapHandle(SLOT_MMIO_RAM), 0x10000, 0x20000);
-    check(result.is_err(), M::MMIO_RAM_GUARD);
+    check_err(result, fjell_abi::error::SysError::InvalidArg, M::MMIO_RAM_GUARD);
 }
 
 /// DMA: alloc → write pattern → explicit revoke → read zeroed PA.
@@ -193,9 +213,9 @@ fn test_dma_zeroize() {
 /// (since the rights check lives in the same `require_cap` path).
 fn test_cap_wrong_kind() {
     let result = sys_mmio_map(CapHandle(SLOT_OWN_EP), 0, 0x1000);
-    check(result.is_err(), M::CAP_WRONG_KIND);
-    // MMIO rights path is exercised via the same call — emit that marker too.
-    check(result.is_err(), M::MMIO_RIGHTS);
+    check_err(result, fjell_abi::error::SysError::InvalidCap, M::CAP_WRONG_KIND);
+    // Both markers from same call: wrong kind → InvalidCap.
+    check_err(result, fjell_abi::error::SysError::InvalidCap, M::MMIO_RIGHTS);
 }
 
 /// MMIO: use a real MmioRegion cap but request an out-of-bounds offset.
@@ -204,7 +224,7 @@ fn test_cap_wrong_kind() {
 fn test_mmio_bounds() {
     // Region 0: base=0x0, size=0x1000_0000. Use offset=0xFFFF_F000 > size.
     let result = sys_mmio_map(CapHandle(SLOT_MMIO_BASE), 0xFFFF_F000, 0x1000);
-    check(result.is_err(), M::MMIO_BOUNDS);
+    check_err(result, fjell_abi::error::SysError::InvalidArg, M::MMIO_BOUNDS);
 }
 
 /// DMA: use an Endpoint cap for sys_dma_alloc.
@@ -212,7 +232,7 @@ fn test_mmio_bounds() {
 /// `require_cap` kind check fires: Endpoint ≠ DmaRegion/DmaAlloc.
 fn test_dma_rights() {
     let result = sys_dma_alloc(SLOT_OWN_EP, 4096);
-    check(result.is_err(), M::DMA_RIGHTS);
+    check_err(result, fjell_abi::error::SysError::InvalidCap, M::DMA_RIGHTS);
 }
 
 /// DMA: allocate a region and explicitly revoke it.
@@ -235,9 +255,9 @@ fn test_dma_revoke_explicit() {
 /// `UserPtr::new(0, 4096)` → NullPointer → SysError::InvalidArg.
 fn test_user_copy_null() {
     // SAFETY: we intentionally pass 0 (null) to test the kernel's rejection.
-    let status = unsafe { sys_audit_drain_raw(0, SLOT_AUDIT) };
-    // Any non-zero status from the kernel means the pointer was rejected.
-    check(status != 0, M::USER_COPY_NULL);
+    // RFC 050: pass null pointer — kernel UserPtr check rejects with InvalidAddress.
+    let result = unsafe { fjell_syscall::sys_audit_drain_ptr(0, 4096, SLOT_AUDIT) };
+    check_err(result, fjell_abi::error::SysError::InvalidAddress, M::USER_COPY_NULL);
 }
 
 /// USER COPY: pass a kernel-space address to sys_audit_drain_raw.
@@ -245,8 +265,9 @@ fn test_user_copy_null() {
 /// `UserPtr::new(RAM_BASE, 4096)` → KernelAddress → SysError::InvalidArg.
 fn test_user_copy_kernel_addr() {
     // SAFETY: we intentionally pass a kernel address to test rejection.
-    let status = unsafe { sys_audit_drain_raw(RAM_BASE, SLOT_AUDIT) };
-    check(status != 0, M::USER_COPY_KERNEL_ADDR);
+    // RFC 050: pass a kernel-space address — UserPtr rejects with InvalidAddress.
+    let result = unsafe { fjell_syscall::sys_audit_drain_ptr(RAM_BASE, 4096, SLOT_AUDIT) };
+    check_err(result, fjell_abi::error::SysError::InvalidAddress, M::USER_COPY_KERNEL_ADDR);
 }
 
 
@@ -332,8 +353,18 @@ fn test_ipc_blocked_call_and_late_reply() {
 
             // 5. Try to reply — the edge is gone (cancelled by revoke above).
             match fjell_syscall::sys_ipc_reply(0) {
-                Err(_) => check(true, M::IPC_LATE_REPLY),  // reply rejected ✓
-                Ok(()) => {}  // should not happen
+                // RFC 050: accept BadState (edge cancelled by revoke) or
+                // LeaseRevoked (defense-in-depth check in sys_ipc_reply).
+                Err(e) if e == fjell_abi::error::SysError::BadState || e == fjell_abi::error::SysError::LeaseRevoked
+                    => check(true, M::IPC_LATE_REPLY),
+                Err(_) => {
+                    sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
+                    sys_debug_writeln(M::IPC_LATE_REPLY);
+                }
+                Ok(()) => {
+                    sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
+                    sys_debug_writeln(M::IPC_LATE_REPLY);
+                }
             }
         }
         Err(_) => {
@@ -540,6 +571,9 @@ pub extern "C" fn service_main() -> ! {
     sys_yield();
 
     sys_debug_writeln("neg-test: starting v0.2 negative test scenarios");
+
+    // ── RFC 050: CSpace layout self-check (must run first) ────────────────────
+    harness_cspace_check();
 
     // ── Capability enforcement (RFC 031) ──────────────────────────────────────
     test_cap_rights_denied();

@@ -1,3 +1,50 @@
+## [0.2.12] - 2026-05-18 — RFC 050: specific-error-code negative tests (completes v0.2.10 RFCs)
+
+### Implements RFC 050 (closes H-06)
+
+All 21 original v0.2.8 negative test markers plus the 4 new RFC 049 markers
+now use `check_err(result, expected_error, marker)` instead of `is_err()`.
+Tests that emit a PASS for the wrong error code now show `NEG:HARNESS:WRONG_ERROR`
+in the serial log — the wrong-reason-pass problem from RB-05 is permanently
+visible and detectable.
+
+### Changed
+
+**`fjell-neg-test/src/main.rs`**
+- `check_err(result, expected, marker)` helper added (RFC 050).
+- `harness_cspace_check()` added — runs first, verifies scratch slots 10-14
+  are empty before any destructive test.
+- Retroactive conversion of all `is_err()`-based checks:
+  - CAP_RIGHTS_DENIED, CAP_LEASE_REVOKED: `PermissionDenied`, `LeaseRevoked`
+  - CAP_WRONG_KIND, MMIO_RIGHTS: `InvalidCap`
+  - MMIO_RAM_GUARD, MMIO_BOUNDS: `InvalidArg`
+  - DMA_RIGHTS: `InvalidCap`
+  - USER_COPY_NULL, USER_COPY_KERNEL_ADDR: `InvalidAddress` (via `sys_audit_drain_ptr`)
+  - IPC_LATE_REPLY: `BadState || LeaseRevoked` (both are valid per RFC 034 §3)
+- IPC and SVC tests that observe effects (lease wakeup, task status, audit gap):
+  kept as `check()` — not changed.
+
+**`fjell-syscall/src/lib.rs`**
+- `sys_audit_drain_ptr(buf_va, buf_len, cap)` added — raw-pointer variant for
+  the user-copy negative tests.
+
+**`fjell-service-api/src/lib.rs`**
+- `negative_markers::HARNESS_CSPACE_LAYOUT_VALID` added.
+
+**`tests/qemu/profiles/harness.toml`** — new profile for harness self-check.
+
+### New QEMU marker
+
+- `NEG:HARNESS:CSpace_LAYOUT_VALID:PASS` — scratch slots 10-14 confirmed empty at startup.
+
+### v0.2.10 closure: RFCs 048, 049, 050 all Implemented
+
+| RFC | Closes | Status |
+|-----|--------|--------|
+| 048 | RB-01 (task/lease ABI) | ✓ Implemented |
+| 049 | RB-02 (management rights) | ✓ Implemented |
+| 050 | H-06 (exact error codes) | ✓ Implemented |
+
 ## [0.2.11] - 2026-05-18 — RFC 049 + RFC 050 (partial): management rights + check_err
 
 ### Implements RFC 049 (closes RB-02) and begins RFC 050 (H-06)

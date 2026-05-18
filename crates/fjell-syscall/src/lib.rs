@@ -246,6 +246,27 @@ pub fn sys_audit_drain(
     Ok((r1, r2))
 }
 
+/// Raw-pointer variant for negative testing: allows passing null / kernel addresses.
+///
+/// RFC 050: used by `test_user_copy_null` and `test_user_copy_kernel_addr` to
+/// obtain a typed `Result` rather than a raw status code.
+///
+/// # Safety
+/// `buf_va` must not alias live kernel state; it is expected to be either null
+/// or a kernel address so that the kernel's UserPtr check rejects it.
+pub unsafe fn sys_audit_drain_ptr(
+    buf_va: usize,
+    buf_len: usize,
+    cap: u32,
+) -> Result<(usize, usize), SysError> {
+    let (r0, r1, r2) = ecall3(
+        SyscallNumber::AuditDrain as usize,
+        buf_va, buf_len, cap as usize,
+    );
+    to_result(r0)?;
+    Ok((r1, r2))
+}
+
 // ── Debug write (testing only) ────────────────────────────────────────────────
 
 /// Write a single byte to the kernel UART (smoke-test helper).
