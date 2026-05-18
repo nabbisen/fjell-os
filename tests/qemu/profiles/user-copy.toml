@@ -1,0 +1,9 @@
+# Negative-test profile: user-copy (RFC 039)
+# Tests that copy_to_user rejects invalid pointer ranges.
+# Pure-arithmetic validation is unit-tested on the host in user_ptr.rs.
+# QEMU markers land when the syscall ABI exposes copy_to_user failures.
+
+name             = "user-copy"
+timeout_secs     = 60
+expected_markers = []
+extra_args       = []

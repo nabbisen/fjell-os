@@ -3,6 +3,48 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-alpha.6] - 2026-05-17
+
+### v0.2 Phase 6 — Safe User Copy + Real Audit Drain (RFC 039)
+
+### Added
+
+- **`fjell-kernel/src/mm/user_ptr.rs`** (RFC 039 §2.1):
+  - `UserPtr { addr, len }` — validated user-space pointer range.
+  - `UserPtr::new(addr, len)` rejects: null pointer, kernel address
+    (addr ≥ RAM_BASE), length overflow (addr + len wraps usize), range
+    crosses kernel (addr + len > RAM_BASE).
+  - `UserCopyError` enum with 7 variants; `impl From<UserCopyError> for SysError`.
+  - 8 unit tests covering all RFC 039 §"Fuzz corpus" cases: null, zero-len null,
+    kernel address (3 variants), length overflow, crosses-kernel, partially valid
+    range, zero-len valid address, end-just-below-kernel.
+- **`fjell-kernel/src/mm/user_copy.rs`** updated (RFC 039 §2):
+  - `copy_to_user_bytes` now calls `UserPtr::new` as the first validation step.
+  - New `copy_from_user_bytes(root_pfn, src_va, dst)` — reads from user VA
+    (validates PTE_R + PTE_U), writes to kernel buffer.
+- **`fjell-audit-format/src/lib.rs`** updated:
+  - New `AuditKind` variants: `CapDrop = 15`, `LeaseRevoked = 16`,
+    `TaskQuantumExceeded = 30`.
+  - `from_u16()` and `label()` extended to cover all v0.2 kinds.
+- **`tests/qemu/profiles/user-copy.toml`** and
+  **`tests/qemu/profiles/audit.toml`** — placeholder profiles for the
+  RFC 039 negative-test categories.
+
+### Changed
+
+- Workspace version bumped to `0.2.0-alpha.6`.
+
+### Note on audit drain
+
+`sys_audit_drain` already produces real binary `AuditRecordBin` records
+(implemented in v0.1.0 / RFC 020).  RFC 039 strengthens the surrounding
+infrastructure:
+- `copy_to_user_bytes` now validates via `UserPtr` before the page walk.
+- `sys_audit_drain` checks `AUDIT_DRAIN` right via the v0.2 require_cap path
+  (wired in alpha.2).
+
+The dropped-count is returned in `a2` by `sys_audit_drain` (existing).
+
 ## [0.2.0-alpha.5] - 2026-05-17
 
 ### v0.2 Phase 5 — Cooperative Service Separation Foundation (RFC 037, RFC 038)

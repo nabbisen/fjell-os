@@ -9,3 +9,4 @@ pub mod region;
 pub mod vspace;
 
 pub mod user_copy;
+pub mod user_ptr;

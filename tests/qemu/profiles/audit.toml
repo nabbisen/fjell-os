@@ -1,0 +1,8 @@
+# Negative-test profile: audit (RFC 039)
+# Tests that audit_drain requires AuditDrain capability and
+# that dropped count is visible.
+
+name             = "audit"
+timeout_secs     = 60
+expected_markers = []
+extra_args       = []
