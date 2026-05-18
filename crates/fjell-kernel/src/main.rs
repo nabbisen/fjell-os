@@ -34,7 +34,7 @@ use mm::{
     region::VmRegionKind,
     vspace::{AddressSpace, AddressSpaceId, VmPerms},
 };
-use platform::qemu_virt::{MMIO_REGIONS, RAM_BASE, RAM_END, mmio_region_table, MMIO_REGION_COUNT, MMIO_REGION_VIRTIO};
+use platform::qemu_virt::{MMIO_REGIONS, RAM_BASE, RAM_END, mmio_region_table, MMIO_REGION_COUNT};
 use task::{
     scheduler::{Scheduler, PRIORITY_IDLE, PRIORITY_USER},
     tcb::{Task, TaskState, TaskTable},
@@ -117,6 +117,7 @@ struct DmaRegionEntry {
     /// Task that owns this DMA region.  `TaskId { index: 0xFFFF, generation: 0 }` = free.
     owner:   crate::task::TaskId,
     /// User VA where the frame is mapped in `owner`'s page table.
+    #[allow(dead_code)]
     user_va: usize,
     /// Physical frame (used for zeroize + free on task exit).
     frame_pa: usize,
@@ -145,13 +146,24 @@ impl DmaRegionTable {
         false
     }
     /// Zeroize and release all DMA regions owned by `owner` (RFC 017 task-exit cleanup).
+    ///
+    /// Steps:
+    /// 1. Zeroize the physical frame (security: clear DMA buffers).
+    /// 2. Free the frame back to the allocator (prevent leak).
     fn release_task(&mut self, owner: crate::task::TaskId) {
+        let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner {
-                // Zeroize the physical frame.
                 let pa = e.frame_pa;
                 if pa != 0 {
+                    // Step 1: zeroize before free (security invariant).
                     unsafe { core::ptr::write_bytes(pa as *mut u8, 0, 4096); }
+                    // Step 2: return frame to allocator.
+                    if let Ok(frame) =
+                        crate::mm::frame_alloc::PhysFrame::from_pa(pa)
+                    {
+                        unsafe { let _ = (*fa).free_frame(frame); }
+                    }
                 }
                 *e = DmaRegionEntry::free();
             }

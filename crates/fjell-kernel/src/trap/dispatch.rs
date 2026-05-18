@@ -162,7 +162,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     if let Some(id) = current_id {
         if let Some(task) = table.get_mut(id) {
             if let Some(code) = super::syscall::take_exit() {
-                let label = task_label(id);
+                let _label = task_label(id);
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
                 task.state = TaskState::Exited(code);
@@ -178,7 +178,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 sched.on_fault();
                 check_smoke_pass(table);
             } else if super::syscall::take_yield() {
-                let label = task_label(id);
+                let _label = task_label(id);
                 task.state = TaskState::Runnable;
                 AUDIT.lock_free_append(
                     AuditKindInternal::TaskSwitch, id.index as usize, 0, 0);

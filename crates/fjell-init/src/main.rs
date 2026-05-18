@@ -10,7 +10,7 @@ mod rt;
 use fjell_abi::service::ImageId;
 use fjell_syscall::{
     sys_exit, sys_task_spawn, sys_task_start, sys_debug_writeln,
-    sys_mmio_map, sys_dma_alloc, sys_platform_info_get,
+    sys_platform_info_get,
 };
 use fjell_semantic_format::*;
 use fjell_proxy_text::{render_state, render_event};
@@ -19,7 +19,6 @@ use fjell_upgrade_format::*;
 use fjell_verify_format::*;
 use fjell_rootfs_format::*;
 use fjell_snapshot_format::*;
-use core::sync::atomic::{fence, Ordering};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,58 +103,6 @@ fn spawn(img: ImageId, label: &str) -> usize {
     }
 }
 
-fn mmr32(base: usize, off: usize) -> u32 {
-    unsafe { core::ptr::read_volatile((base + off) as *const u32) }
-}
-fn mmw32(base: usize, off: usize, v: u32) {
-    unsafe { core::ptr::write_volatile((base + off) as *mut u32, v) }
-}
-
-fn write_desc(desc_base: usize, i: usize, addr: u64, len: u32, flags: u16, next: u16) {
-    let p = (desc_base + i * 16) as *mut u64;
-    unsafe {
-        p.write_volatile(addr);
-        (p as *mut u32).add(2).write_volatile(len);
-        (p as *mut u16).add(6).write_volatile(flags);
-        (p as *mut u16).add(7).write_volatile(next);
-    }
-}
-
-fn blk_write_sector(base: usize, dma_va: usize, dma_pa: usize, lba: u64, data: &[u8; 512]) -> bool {
-    const DESC: usize = 0x000; const AVAIL: usize = 0x080;
-    const USED: usize = 0x200; const HDR:   usize = 0x300;
-    const DAT:  usize = 0x310; const STAT:  usize = 0x510;
-    unsafe {
-        let h = (dma_va + HDR) as *mut u32;
-        h.write_volatile(1); h.add(1).write_volatile(0);
-        ((dma_va + HDR + 8) as *mut u64).write_volatile(lba);
-        core::ptr::copy_nonoverlapping(data.as_ptr(), (dma_va + DAT) as *mut u8, 512);
-        ((dma_va + STAT) as *mut u8).write_volatile(0xFF);
-    }
-    write_desc(dma_va + DESC, 0, (dma_pa + HDR) as u64, 16, 1, 1);
-    write_desc(dma_va + DESC, 1, (dma_pa + DAT) as u64, 512, 1, 2);
-    write_desc(dma_va + DESC, 2, (dma_pa + STAT) as u64, 1, 2, 0);
-    let avail = dma_va + AVAIL;
-    unsafe {
-        let cur = ((avail + 2) as *const u16).read_volatile();
-        ((avail + 4 + (cur as usize % 8) * 2) as *mut u16).write_volatile(0);
-        fence(Ordering::SeqCst);
-        (avail as *mut u16).add(1).write_volatile(cur.wrapping_add(1));
-    }
-    unsafe { core::arch::asm!("fence ow, ow", options(nostack)); }
-    mmw32(base, 0x050, 0);
-    unsafe { core::arch::asm!("fence ow, ow", options(nostack)); }
-    let used = dma_va + USED;
-    let prev_idx = unsafe { ((used + 2) as *const u16).read_volatile() };
-    for _ in 0..5_000_000u64 {
-        fence(Ordering::SeqCst);
-        if unsafe { ((used + 2) as *const u16).read_volatile() } != prev_idx { break; }
-    }
-    let isr = mmr32(base, 0x060);
-    mmw32(base, 0x064, isr & 3);
-    let status_byte = unsafe { ((dma_va + STAT) as *const u8).read_volatile() };
-    status_byte == 0
-}
 
 fn fact_u64(k: &str, v: u64) -> StateFact {
     StateFact { key: TextToken::new(k), value: FactValue::U64(v), importance: Importance::Normal }

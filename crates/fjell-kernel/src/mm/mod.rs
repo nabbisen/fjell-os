@@ -7,3 +7,5 @@ pub mod frame_alloc;
 pub mod page_table;
 pub mod region;
 pub mod vspace;
+
+pub mod user_copy;

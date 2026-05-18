@@ -3,6 +3,45 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.13] - 2026-05-16
+
+### Added (RFC 020, 021, 016, 017)
+
+- **RFC 020 — Audit drain** (`sys_audit_drain`): kernel audit ring is now
+  fully drained by `auditd` via a capability-gated syscall.  `AuditRing` gains
+  a `drain_cursor` + `compact()` so consumed slots are reclaimed.  A new
+  `copy_to_user_bytes` helper translates user VA → PA through the Sv39 page
+  table and writes via the kernel identity map.  `AuditRecordBin` (32-byte
+  flat struct) and `AuditKind::label()` are added to `fjell-audit-format`.
+  `auditd` emits one JSON Lines record per kernel event on startup and on
+  each IPC signal.
+
+- **RFC 021 — cap-broker real policy evaluation**: replaced the tag-byte stub
+  with a three-pass evaluator (explicit Deny → explicit Allow → default Deny)
+  matching RFC requirements BROKER-001 through BROKER-008.  `ResourceClass`,
+  `PolicyKind`, `PolicyResult`, and `PolicyRule` are now proper types.
+  Granted capabilities are lease-bound via `sys_lease_create`.  The IPC
+  protocol is extended to carry `(requester_id, resource_class, requested_rights)`
+  as three IPC words.  `sys_ipc_recv_msg` added to `fjell-syscall` to return
+  all five values (label + 4 words).
+
+- **RFC 017 — DmaAlloc capability gate**: `sys_dma_alloc` now requires the
+  caller to hold `CapKind::DmaAlloc` (CSpace slot 2).  Granted to
+  `fjell-storaged` and `fjell-driver-virtio-blk` at spawn time.  `release_task`
+  now also frees (returns to allocator) the physical DMA frame after zeroing it,
+  preventing frame leaks on task exit.
+
+- **RFC 016 confirmed complete**: `sys_mmio_map` cap-gate, bounds-check against
+  `MmioRegionTable`, and defense-in-depth RAM exclusion were already fully
+  implemented in v0.0.11/v0.0.12; this release documents the confirmation.
+
+### Changed
+
+- `sys_dma_alloc` ABI: `(size_bytes)` → `(dma_cap_handle, size_bytes)`.
+  Callers must pass the `CapKind::DmaAlloc` handle as `a0`; size moves to `a1`.
+- `sys_audit_drain` ABI: `(buf_ptr, buf_len)` → `(buf_va, buf_cap, cap_handle)`;
+  returns `(status, n_records, n_dropped)`.
+
 ## [0.0.12] - 2026-05-14
 
 ### Added

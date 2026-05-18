@@ -28,6 +28,10 @@ pub enum CapKind {
     MmioRegion,
     /// A per-task DMA physical region.  The `object_id` indexes `DmaRegionTable`.
     DmaAlloc,
+    // ── RFC 020 ──────────────────────────────────────────────────────────────
+    /// Authority to call `sys_audit_drain` and read from the kernel audit ring.
+    /// The `object_id` is 0 (only one audit ring exists).
+    AuditDrain,
 }
 
 /// Permission bits attached to a capability.

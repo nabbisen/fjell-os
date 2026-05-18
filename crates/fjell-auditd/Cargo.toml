@@ -11,6 +11,7 @@ name = "fjell-auditd"
 path = "src/main.rs"
 
 [dependencies]
+fjell-audit-format = { path = "../fjell-audit-format" }
 fjell-abi         = { path = "../fjell-abi" }
 fjell-syscall     = { path = "../fjell-syscall" }
 fjell-service-api = { path = "../fjell-service-api" }

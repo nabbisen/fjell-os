@@ -346,10 +346,103 @@ pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable) {
     }
 }
 
-/// `sys_audit_drain(a0=buf_ptr, a1=buf_len) -> a0=bytes_written`
+/// Drain pending kernel audit records into a caller-supplied buffer.
+///
+/// ABI (RFC 020):
+/// ```
+/// sys_audit_drain(
+///   a0 = buf_va       — user-space VA of the output buffer
+///   a1 = buf_cap      — buffer capacity in bytes
+///   a2 = cap_handle   — CapKind::AuditDrain capability (slot 1 in auditd)
+/// ) ->
+///   a0 = status (0 = ok, non-zero = SysError)
+///   a1 = n_records_drained
+///   a2 = n_dropped_total (cumulative since boot)
+/// ```
+///
+/// Each record is exactly `AUDIT_RECORD_BIN_SIZE` (32) bytes; see
+/// `fjell_audit_format::AuditRecordBin`.
 pub fn sys_audit_drain(tf: &mut TrapFrame) {
-    tf.gpr[REG_A0] = 0;
+    use fjell_audit_format::{AuditRecordBin, AUDIT_RECORD_BIN_SIZE};
+    use fjell_cap::{CapKind, CapRights};
+    use crate::audit::ring::{AUDIT, AuditRecord};
+    use crate::mm::user_copy::copy_to_user_bytes;
+    use crate::task::tcb::REG_A2;
+
+    let buf_va  = tf.gpr[REG_A0];
+    let buf_cap = tf.gpr[REG_A1];
+    let cap_raw = tf.gpr[REG_A2] as u32;
+
+    // ── 1. Validate AuditDrain capability ────────────────────────────────────
+    let (table, sched, ct, _) = unsafe { crate::get_kernel_state() };
+    let cur_id = match sched.current() {
+        Some(id) => id,
+        None => { tf.gpr[REG_A0] = SysError::BadState as isize as usize; return; }
+    };
+    let cs = match ct.cspace(cur_id.index as usize) {
+        Some(cs) => cs,
+        None => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
+    };
+    let handle = fjell_cap::CapHandle(cap_raw);
+    let cap = match cs.get(handle) {
+        Ok(c) if c.kind == CapKind::AuditDrain => c,
+        _ => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
+    };
+    if !cap.rights.contains(CapRights::RECV) {
+        tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize; return;
+    }
+
+    // ── 2. Trivial case: buffer too small for even one record ────────────────
+    if buf_cap < AUDIT_RECORD_BIN_SIZE {
+        tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+        tf.gpr[REG_A1] = 0;
+        tf.gpr[REG_A2] = AUDIT.dropped() as usize;
+        return;
+    }
+
+    // ── 3. Drain into kernel-side scratch buffer (≤ 64 records at once) ──────
+    const MAX_BATCH: usize = 64;
+    let max_records = (buf_cap / AUDIT_RECORD_BIN_SIZE).min(MAX_BATCH);
+    let mut kbuf = [unsafe { core::mem::zeroed::<AuditRecord>() }; MAX_BATCH];
+    let (n_drained, n_dropped) = AUDIT.drain_into(&mut kbuf[..max_records]);
+
+    // ── 4. Get caller page-table root for copy_to_user ───────────────────────
+    let root_pfn = match table.get(cur_id) {
+        Some(task) => task.satp_root_pfn,
+        None => { tf.gpr[REG_A0] = SysError::BadState as isize as usize; return; }
+    };
+
+    // ── 5. Serialize each record and copy to user buffer ─────────────────────
+    let mut copied = 0usize;
+    for i in 0..n_drained {
+        let r = &kbuf[i];
+        let bin = AuditRecordBin {
+            seq:    r.seq,
+            tick:   r.tick,
+            kind:   r.kind as u16,
+            task:   0xFFFF,
+            arg0:   r.arg0 as u32,
+            arg1:   r.arg1 as u32,
+            result: r.result as i32,
+        };
+        let bytes = unsafe {
+            core::slice::from_raw_parts(
+                &bin as *const AuditRecordBin as *const u8,
+                AUDIT_RECORD_BIN_SIZE,
+            )
+        };
+        let dst = buf_va + i * AUDIT_RECORD_BIN_SIZE;
+        match unsafe { copy_to_user_bytes(root_pfn, dst, bytes) } {
+            Ok(_)  => copied += 1,
+            Err(_) => break,
+        }
+    }
+
+    tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+    tf.gpr[REG_A1] = copied;
+    tf.gpr[REG_A2] = n_dropped as usize;
 }
+
 
 // ── M4 dispatch wrappers ──────────────────────────────────────────────────────
 
@@ -514,20 +607,46 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     tf.gpr[REG_A1] = mapped_va;
 }
 
-/// `sys_dma_alloc(a0=size_bytes) -> a0=status, a1=user_va, a2=device_pa`
+/// `sys_dma_alloc(a0=dma_cap_handle, a1=size_bytes) -> a0=status, a1=user_va, a2=device_pa`
 ///
-/// RFC 007/017: Per-task DMA allocator with ownership tracking.
-/// M7.1: size > 4096 is rejected (1 page per region).
+/// RFC 017: Per-task DMA allocator.  The caller must hold `CapKind::DmaAlloc`.
+/// Maximum 1 page (4 KiB) per region (M8 may lift this).
 pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     use crate::mm::{address::VirtAddr, vspace::VmPerms, frame_alloc::FrameOwner};
+    use crate::task::tcb::REG_A2;
+    use fjell_cap::CapKind;
 
-    // RFC 017: M7.1 limit — maximum 1 page (4 KiB) per DMA region.
-    let size_bytes = (tf.gpr[REG_A0] + 0xFFF) & !0xFFF;
+    let cap_raw   = tf.gpr[REG_A0] as u32;
+    let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF;
+
+    // RFC 017: validate DmaAlloc capability.
+    let tidx = crate::trap::dispatch::current_task_idx();
+    {
+        let (_, _, ct, lt_ref) = unsafe { crate::get_kernel_state() };
+        let lt = unsafe { crate::get_lease_table() };
+        let cs = match ct.cspace(tidx) {
+            Some(c) => c,
+            None => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
+        };
+        let handle = fjell_cap::CapHandle(cap_raw);
+        let cap = match cs.get(handle) {
+            Ok(c) if c.kind == CapKind::DmaAlloc => c,
+            Ok(_) => { tf.gpr[REG_A0] = SysError::WrongType  as isize as usize; return; }
+            Err(e) => { tf.gpr[REG_A0] = e as isize as usize; return; }
+        };
+        if let Err(e) = cap.check_lease(lt) {
+            tf.gpr[REG_A0] = e as isize as usize; return;
+        }
+        let _ = lt_ref;
+    }
+
+    // RFC 017: M8 limit — maximum 1 page (4 KiB) per DMA region.
     let pages = size_bytes / 4096;
     if pages == 0 || pages > 1 {
-        tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
         return;
     }
+    let _ = REG_A2;
 
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let cur_id  = crate::trap::dispatch::current_task_idx();

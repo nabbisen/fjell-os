@@ -9,6 +9,7 @@ use crate::mm::vspace::AddressSpaceId;
 pub const REG_A0: usize = 10;
 /// `a1` register index.
 pub const REG_A1: usize = 11;
+pub const REG_A2: usize = 12;
 /// `a7` register index (syscall number).
 pub const REG_A7: usize = 17;
 

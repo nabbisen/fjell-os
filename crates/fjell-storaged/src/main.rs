@@ -13,7 +13,7 @@ use core::sync::atomic::Ordering;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    sys_debug_writeln("storaged: panic"); sys_exit(1); loop {}
+    sys_debug_writeln("storaged: panic"); sys_exit(1);
 }
 
 const STORAGED_EP_SLOT: usize = 0;   // slot 0 in storaged CSpace = ep id=1 (private)
@@ -25,43 +25,6 @@ const STORAGED_EP_SLOT: usize = 0;   // slot 0 in storaged CSpace = ep id=1 (pri
     unsafe { ((b+o) as *const u32).read_volatile() }
 }
 
-fn write_desc(va: usize, i: usize, addr: u64, len: u32, flags: u16, next: u16) {
-    let b = va + i * 16;
-    unsafe {
-        (b as *mut u64).write_volatile(addr);
-        ((b+8) as *mut u32).write_volatile(len);
-        ((b+12) as *mut u16).write_volatile(flags);
-        ((b+14) as *mut u16).write_volatile(next);
-    }
-}
-
-fn blk_write(base: usize, va: usize, pa: usize, lba: u64, data: &[u8; 512]) -> bool {
-    const HDR: usize = 0x300; const DAT: usize = 0x310; const STAT: usize = 0x510;
-    const AVAIL: usize = 0x080; const USED: usize = 0x200;
-    unsafe {
-        ((va+HDR) as *mut u32).write_volatile(1);
-        ((va+HDR+4) as *mut u32).write_volatile(0);
-        ((va+HDR+8) as *mut u64).write_volatile(lba);
-        core::ptr::copy_nonoverlapping(data.as_ptr(), (va+DAT) as *mut u8, 512);
-        ((va+STAT) as *mut u8).write_volatile(0xFF);
-    }
-    write_desc(va, 0, (pa+HDR) as u64, 16, 1, 1);
-    write_desc(va, 1, (pa+DAT) as u64, 512, 1, 2);
-    write_desc(va, 2, (pa+STAT) as u64, 1, 2, 0);
-    let old = unsafe { ((va+AVAIL+2) as *const u16).read_volatile() };
-    unsafe { ((va+AVAIL+4+(old as usize%8)*2) as *mut u16).write_volatile(0); }
-    core::sync::atomic::fence(Ordering::SeqCst);
-    unsafe { ((va+AVAIL+2) as *mut u16).write_volatile(old.wrapping_add(1)); }
-    core::sync::atomic::fence(Ordering::SeqCst);
-    mmw32(base, 0x050, 0);
-    core::sync::atomic::fence(Ordering::SeqCst);
-    for _ in 0..100_000u32 {
-        core::sync::atomic::fence(Ordering::SeqCst);
-        if unsafe { ((va+USED+2) as *const u16).read_volatile() } != old { break; }
-    }
-    let st = unsafe { ((va+STAT) as *const u8).read_volatile() };
-    st == 0
-}
 
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     let (tag, w0, w1, w2, w3): (usize, usize, usize, usize, usize);
@@ -104,7 +67,8 @@ pub extern "C" fn service_main() -> ! {
         Ok(v) if v != 0 => v,
         _ => { sys_debug_writeln("storaged: mmio fail"); sys_exit(1); }
     };
-    let (va, pa) = match sys_dma_alloc(4096) {
+    // DmaAlloc cap is installed at CSpace slot 2 (RFC 017).
+    let (va, pa) = match sys_dma_alloc(2, 4096) {
         Ok(p) => p,
         Err(_) => { sys_debug_writeln("storaged: dma fail"); sys_exit(1); }
     };
@@ -120,10 +84,7 @@ pub extern "C" fn service_main() -> ! {
     mmw32(base,0x070,0xB); core::sync::atomic::fence(Ordering::SeqCst);
     mmw32(base,0x070,0xF); core::sync::atomic::fence(Ordering::SeqCst);
     send_ready();
-    let mut buf = [0u8; 512];
-    let mut lba: u64 = 0;
-    let mut chunk: usize = 0;
-    let (first_tag, _, _, _, _) = recv_call();
+    let (_, _, _, _, _) = recv_call();
     send_reply(WRITE_ACK);
     loop {
         let (tag, _, _, _, _) = recv_call();

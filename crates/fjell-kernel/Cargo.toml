@@ -11,6 +11,7 @@ name = "fjell-kernel"
 path = "src/main.rs"
 
 [dependencies]
+fjell-audit-format = { path = "../fjell-audit-format" }
 fjell-abi = { path = "../fjell-abi" }
 fjell-cap = { path = "../fjell-cap" }
 fjell-ipc = { path = "../fjell-ipc" }

@@ -43,6 +43,28 @@ fn ecall2(nr: usize, a0: usize, a1: usize, a2: usize, a3: usize) -> (usize, usiz
     { let _ = (nr, a0, a1, a2, a3); r0 = 0; r1 = 0; }
     (r0, r1)
 }
+/// Execute a syscall returning three registers (a0, a1, a2).
+#[inline]
+fn ecall3(nr: usize, a0: usize, a1: usize, a2: usize) -> (usize, usize, usize) {
+    let r0: usize;
+    let r1: usize;
+    let r2: usize;
+    #[cfg(target_arch = "riscv64")]
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7") nr,
+            inlateout("a0") a0 => r0,
+            inlateout("a1") a1 => r1,
+            inlateout("a2") a2 => r2,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    { let _ = (nr, a0, a1, a2); r0 = 0; r1 = 0; r2 = 0; }
+    (r0, r1, r2)
+}
+
 
 #[inline]
 fn ecall1(nr: usize, a0: usize) -> usize {
@@ -55,6 +77,39 @@ fn ecall0(nr: usize) -> usize {
 }
 
 #[inline]
+
+/// Receive an IPC message and return all five values (label, w0..w3).
+///
+/// Returns `Ok((label, w0, w1, w2, w3))` on success.
+/// Use this variant when the caller needs the full 4-word payload.
+pub fn sys_ipc_recv_msg(ep: u32)
+    -> Result<(usize, usize, usize, usize, usize), SysError>
+{
+    let label: usize;
+    let w0: usize;
+    let w1: usize;
+    let w2: usize;
+    let w3: usize;
+    #[cfg(target_arch = "riscv64")]
+    unsafe {
+        core::arch::asm!(
+            "li a7, 21", "ecall",
+            inlateout("a0") ep as usize => _,
+            lateout("a1") label,
+            lateout("a2") w0,
+            lateout("a3") w1,
+            lateout("a4") w2,
+            lateout("a5") w3,
+            lateout("a7") _,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    { let _ = ep; label = 0; w0 = 0; w1 = 0; w2 = 0; w3 = 0; }
+    to_result(0)?;  // IpcRecv never fails in current kernel
+    Ok((label & 0xFFFF, w0, w1, w2, w3))
+}
+
 fn to_result(raw: usize) -> Result<usize, SysError> {
     let code = raw as isize;
     if code >= 0 { Ok(raw) } else { Err(SysError::from_isize(code)) }
@@ -159,9 +214,26 @@ pub fn sys_lease_inspect(lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
 /// Drain up to `buf.len()` bytes of serialized audit records into `buf`.
 /// Returns the number of bytes written.
 #[inline]
-pub fn sys_audit_drain(buf: &mut [u8]) -> Result<usize, SysError> {
-    to_result(ecall2(SyscallNumber::AuditDrain as usize,
-                     buf.as_mut_ptr() as usize, buf.len(), 0, 0).0)
+/// Drain kernel audit records into `buf`.
+///
+/// `cap` is the `CapKind::AuditDrain` capability handle (slot 1 for auditd).
+///
+/// Returns `Ok((n_records, n_dropped))` where:
+/// - `n_records` — number of [`fjell_audit_format::AuditRecordBin`] records
+///    written into `buf` (each exactly 32 bytes).
+/// - `n_dropped` — cumulative records dropped by the kernel due to ring-full.
+pub fn sys_audit_drain(
+    buf: &mut [u8],
+    cap: u32,
+) -> Result<(usize, usize), SysError> {
+    let (r0, r1, r2) = ecall3(
+        SyscallNumber::AuditDrain as usize,
+        buf.as_mut_ptr() as usize,
+        buf.len(),
+        cap as usize,
+    );
+    to_result(r0)?;
+    Ok((r1, r2))
 }
 
 // ── Debug write (testing only) ────────────────────────────────────────────────
@@ -197,8 +269,11 @@ pub fn sys_platform_info_get() -> Result<usize, SysError> {
 
 
 
-/// `sys_dma_alloc(size_bytes) -> (user_va, phys_addr)`
-pub fn sys_dma_alloc(size_bytes: usize) -> Result<(usize, usize), SysError> {
+/// `sys_dma_alloc(dma_cap, size_bytes) -> (user_va, phys_addr)`
+///
+/// The caller must pass `dma_cap`, a `CapKind::DmaAlloc` handle (slot 2
+/// for storaged / driver-virtio-blk).  RFC 017.
+pub fn sys_dma_alloc(dma_cap: u32, size_bytes: usize) -> Result<(usize, usize), SysError> {
     let nr = SyscallNumber::DmaAlloc as usize;
     let r0: usize; let r1: usize; let r2: usize;
     #[cfg(target_arch = "riscv64")]
@@ -206,15 +281,16 @@ pub fn sys_dma_alloc(size_bytes: usize) -> Result<(usize, usize), SysError> {
         core::arch::asm!(
             "ecall",
             in("a7") nr,
-            inlateout("a0") size_bytes => r0,
-            out("a1") r1,
-            out("a2") r2,
+            inlateout("a0") dma_cap as usize => r0,
+            inlateout("a1") size_bytes => r1,
+            lateout("a2") r2,
             options(nostack),
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = (nr, size_bytes); r0 = 0; r1 = 0; r2 = 0; }
-    if r0 != 0 { Err(SysError::from_isize(r0 as isize)) } else { Ok((r1, r2)) }
+    { let _ = (dma_cap, size_bytes); r0 = 0; r1 = 0; r2 = 0; }
+    to_result(r0)?;
+    Ok((r1, r2))
 }
 
 /// `sys_ipc_try_recv(ep_handle) -> Ok(tag_packed) | Err(WouldBlock | ...)`

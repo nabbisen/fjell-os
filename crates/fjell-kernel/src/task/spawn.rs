@@ -145,6 +145,26 @@ pub fn spawn(
                     rights: CapRights::ALL, badge: 0, parent: None, lease: None,
                 });
             }
+            // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).
+            if image_id == fjell_abi::service::ImageId::AUDITD {
+                let _ = cs.install_raw(1, Capability {
+                    kind: CapKind::AuditDrain, object_id: 0,
+                    rights: CapRights::RECV, badge: 0, parent: None, lease: None,
+                });
+            }
+            // Slot 2: DmaAlloc cap — granted to services that perform DMA
+            // (storaged, driver-virtio-blk).  RFC 017.
+            let needs_dma = matches!(
+                image_id,
+                fjell_abi::service::ImageId::STORAGED |
+                fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK
+            );
+            if needs_dma {
+                let _ = cs.install_raw(2, Capability {
+                    kind: CapKind::DmaAlloc, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                });
+            }
         }
     }
 
