@@ -3,6 +3,44 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.0] - 2026-05-17
+
+### M8 completion — Local Evidence / Attestation / Recovery Plane
+
+This is the v0.1.0 release of Fjell OS, completing all eight milestones (M0-M8).
+
+#### PR-M8-07: Semantic stream integration
+
+- `fjell-semantic-format` extended with M8 StateKind (MeasurementStatus,
+  AttestationStatus, BundleFreshnessStatus, RecoveryStatus), EventKind
+  (BundleFreshnessRejected, RollbackSelected, etc.), and ActionKind
+  (SelectRollback, InspectSnapshots).
+
+- `fjell-proxy-text` extended with M8 render helpers: `render_measurement_status`,
+  `render_attestation_status`, `render_freshness_status`, `render_recovery_status`,
+  `render_recovery_intent`, `render_freshness_rejected_event`,
+  `render_rollback_selected_event`.
+
+- `fjell-init` now publishes the four M8 StateNodes during the smoke run:
+  `[STATE][Ok] Measurement status`, `[STATE][Ok] Attestation status`,
+  `[STATE][Ok] Bundle freshness`, `[STATE][Ok] Recovery status`.
+  RecoveryIntent IntentNode is rendered with Inspect/Rollback actions.
+
+#### PR-M8-08/09: Negative path smoke and hardening
+
+- Negative path (generation-rollback rejection to recovery target) exercised
+  inline. A bundle with gen=3 against last_accepted_gen=5 is rejected.
+  `[EVENT][Important][Failed] Bundle freshness rejected` and
+  `[STATE][Failed] Bundle freshness` are published. `recoveryd` ENTER_RECOVERY
+  is called; `[STATE][Ok] Recovery status` and RecoveryIntent are re-published.
+
+#### v0.1.0 Acceptance criteria
+
+All M8 acceptance criteria from the internal design document (sections 20.1-20.8)
+are met. `TEST:M8:PASS` and `TEST:M7:PASS` are emitted. 24 format-crate unit
+tests pass covering SHA-256 correctness, chain-digest determinism, attestation
+tamper detection, and all freshness rejection paths.
+
 ## [0.0.15] - 2026-05-17
 
 ### Added (M8: Local Evidence / Attestation / Recovery Plane)

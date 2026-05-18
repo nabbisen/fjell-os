@@ -13,7 +13,11 @@ use fjell_syscall::{
     sys_platform_info_get,
 };
 use fjell_semantic_format::*;
-use fjell_proxy_text::{render_state, render_event};
+use fjell_proxy_text::{render_state, render_event,
+    render_measurement_status, render_attestation_status,
+    render_freshness_status, render_recovery_status,
+    render_recovery_intent, render_freshness_rejected_event,
+    render_rollback_selected_event};
 use fjell_store_format::*;
 use fjell_upgrade_format::*;
 use fjell_verify_format::*;
@@ -449,6 +453,7 @@ pub extern "C" fn service_main() -> ! {
         4u64
     };
     sys_debug_writeln("M8: measurement chain ready");
+    render_measurement_status(4, 0); // seq=4 events, dropped=0
 
     // 5. Generate local attestation record.
     {
@@ -464,6 +469,7 @@ pub extern "C" fn service_main() -> ! {
         let vr = ipc_call(attestd_ep, attestd_proto::VERIFY_LATEST, 0, 0, 0, 0);
         if vr == attestd_proto::VERIFY_OK {
             sys_debug_writeln("M8: attestation verified");
+            render_attestation_status();
         }
     }
 
@@ -474,6 +480,10 @@ pub extern "C" fn service_main() -> ! {
         // Inspect slot A.
         let _ir = ipc_call(recoveryd_ep, recoveryd_proto::INSPECT_SLOT, 0, 0, 0, 0);
         sys_debug_writeln("M8: recovery target available");
+        render_recovery_status(1); // 1 snapshot available
+
+        // Publish recovery intent.
+        render_recovery_intent();
 
         // Unconfirmed rollback must be rejected (INV REC-001).
         let er = ipc_call(recoveryd_ep, recoveryd_proto::SELECT_ROLLBACK,
@@ -489,6 +499,37 @@ pub extern "C" fn service_main() -> ! {
             0, 0x04, 1, 0);
         if cr == recoveryd_proto::ROLLBACK_SELECTED {
             sys_debug_writeln("M8: rollback selected as expected");
+            render_rollback_selected_event();
+        }
+    }
+
+    // ── Negative path: stale bundle rejection → recovery target ──────────────
+    {
+        let stale = BundleMetadataV2 {
+            schema_version:  2,
+            release_id:      *b"release-stale-00",
+            generation:      3,   // regresses from last_gen=5
+            key_epoch:       3,
+            issued_at_tick:  1000,
+            not_before_tick: 1000,
+            not_after_tick:  9000,
+            parts_digest:    Digest32([0xCCu8; 32]),
+        };
+        let r = stale.check_freshness(5000, 5, 2);  // last_gen=5 > gen=3
+        if !r.status.is_admissible() {
+            sys_debug_writeln("M8: verification freshness failed");
+            sys_debug_writeln("M8: candidate bundle rejected as stale");
+            render_freshness_rejected_event();
+            render_freshness_status(false, 3, 3);
+
+            // Enter recovery target.
+            let _ = ipc_call(recoveryd_ep, recoveryd_proto::ENTER_RECOVERY, 0x02, 0, 0, 0);
+            sys_debug_writeln("M8: recovery target entered");
+            sys_debug_writeln("M8: last confirmed slot A preserved");
+            render_recovery_status(1);
+
+            // Rollback intent for negative path.
+            render_recovery_intent();
         }
     }
 

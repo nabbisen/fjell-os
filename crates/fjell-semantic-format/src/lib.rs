@@ -157,6 +157,8 @@ pub enum ActionKind {
     Confirm, Cancel, Retry, Inspect, Export,
     StartService, StopService, RestartService,
     ApplyConfig, RollbackConfig, RevokeLease,
+    // M8
+    SelectRollback, InspectSnapshots, ExportDiagnostics, GenerateAttestation,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -193,6 +195,8 @@ pub struct StateNode {
 pub enum StateKind {
     SystemOverview, ServiceGraph, ServiceStatus, ConfigStatus,
     AuditSummary, CapabilitySummary, LeaseSummary, PowerSummary,
+    // M8
+    MeasurementStatus, AttestationStatus, BundleFreshnessStatus, RecoveryStatus,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -231,6 +235,10 @@ pub enum EventKind {
     CapabilityGranted, CapabilityDenied, LeaseRevoked,
     AuditExported, ActionAccepted, ActionDenied,
     ActionCompleted, ActionFailed,
+    // M8
+    MeasurementAppended, AttestationGenerated,
+    BundleFreshnessValid, BundleFreshnessRejected,
+    RecoveryTargetEntered, RollbackSelected,
 }
 
 // ── SemanticEnvelope ──────────────────────────────────────────────────────────

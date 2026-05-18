@@ -82,3 +82,134 @@ pub fn render_intent(n: &IntentNode) -> Option<ActionId> {
     wln("");
     None
 }
+
+
+// ── M8 semantic node constructors ─────────────────────────────────────────────
+
+pub fn render_measurement_status(seq: u64, dropped: u64) {
+    let mut n = StateNode {
+        kind:    StateKind::MeasurementStatus,
+        title:   TextToken::new("Measurement status"),
+        summary: TextToken::new("measurement chain active"),
+        status:  Status::Ok,
+        facts:   FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("measurement.seq"), value: FactValue::U64(seq), importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("measurement.dropped"), value: FactValue::U64(dropped), importance: Importance::Normal,
+    });
+    render_state(&n);
+}
+
+pub fn render_attestation_status() {
+    let mut n = StateNode {
+        kind:    StateKind::AttestationStatus,
+        title:   TextToken::new("Attestation status"),
+        summary: TextToken::new("local attestation record generated"),
+        status:  Status::Ok,
+        facts:   FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("profile"), value: FactValue::Text(TextToken::new("fjell.local.v1")), importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("signature"), value: FactValue::Text(TextToken::new("development-ed25519")), importance: Importance::Normal,
+    });
+    render_state(&n);
+}
+
+pub fn render_freshness_status(status_ok: bool, generation: u64, key_epoch: u64) {
+    let mut n = StateNode {
+        kind:    StateKind::BundleFreshnessStatus,
+        title:   TextToken::new("Bundle freshness"),
+        summary: if status_ok { TextToken::new("bundle metadata valid") } else { TextToken::new("bundle rejected") },
+        status:  if status_ok { Status::Ok } else { Status::Failed },
+        facts:   FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact { key: TextToken::new("generation"), value: FactValue::U64(generation), importance: Importance::Normal });
+    let _ = n.facts.push(StateFact { key: TextToken::new("key_epoch"),  value: FactValue::U64(key_epoch),  importance: Importance::Normal });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("status"),
+        value: FactValue::Text(if status_ok { TextToken::new("valid") } else { TextToken::new("rejected") }),
+        importance: Importance::Normal,
+    });
+    render_state(&n);
+}
+
+pub fn render_recovery_status(snapshots: u64) {
+    let mut n = StateNode {
+        kind:    StateKind::RecoveryStatus,
+        title:   TextToken::new("Recovery status"),
+        summary: TextToken::new("recovery target available"),
+        status:  Status::Ok,
+        facts:   FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("recovery_target"), value: FactValue::Bool(true), importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("snapshots_available"), value: FactValue::U64(snapshots), importance: Importance::Normal,
+    });
+    render_state(&n);
+}
+
+pub fn render_recovery_intent() {
+    let mut n = IntentNode {
+        kind:         IntentKind::ActionRequest,
+        severity:     Severity::Important,
+        title:        TextToken::new("Recovery action available"),
+        description:  TextToken::new("Manual rollback or diagnostics available"),
+        consequences: FixedVec::new(),
+        actions:      FixedVec::new(),
+        expires_at_tick: None,
+    };
+    let _ = n.consequences.push(Consequence {
+        level: Severity::Important,
+        text:  TextToken::new("Rollback boots the last confirmed slot"),
+    });
+    let _ = n.actions.push(ActionSpec {
+        action_id:           ActionId(1),
+        label:               TextToken::new("Inspect snapshots"),
+        kind:                ActionKind::InspectSnapshots,
+        required_capability: None,
+        reversibility:       Reversibility::Reversible,
+        confirmation:        ConfirmationPolicy::None,
+    });
+    let _ = n.actions.push(ActionSpec {
+        action_id:           ActionId(2),
+        label:               TextToken::new("Select rollback"),
+        kind:                ActionKind::SelectRollback,
+        required_capability: None,
+        reversibility:       Reversibility::Irreversible,
+        confirmation:        ConfirmationPolicy::Required,
+    });
+    let _ = render_intent(&n);
+}
+
+pub fn render_freshness_rejected_event() {
+    let n = EventNode {
+        kind:              EventKind::BundleFreshnessRejected,
+        severity:          Severity::Important,
+        result:            EventResult::Failed,
+        title:             TextToken::new("Bundle freshness rejected"),
+        description:       TextToken::new("candidate bundle rejected as stale"),
+        subject:           None,
+        related_audit_seq: None,
+    };
+    render_event(&n);
+}
+
+pub fn render_rollback_selected_event() {
+    let n = EventNode {
+        kind:              EventKind::RollbackSelected,
+        severity:          Severity::Important,
+        result:            EventResult::Ok,
+        title:             TextToken::new("Rollback preserved last confirmed slot"),
+        description:       TextToken::new("rollback selected to last confirmed slot"),
+        subject:           None,
+        related_audit_seq: None,
+    };
+    render_event(&n);
+}
