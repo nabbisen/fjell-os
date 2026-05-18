@@ -66,3 +66,31 @@ impl BootControlBlock {
 pub enum UpgradeState {
     Created, Verified, Staging, Staged, CandidateSet, Confirmed, Aborted, Failed
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn boot_control_block_initial_slot_b_is_empty() {
+        let bcb = BootControlBlock::new(1);
+        assert_eq!(bcb.slot_b.state, SlotState::Empty,
+            "slot B must start as Empty; it has no staged image");
+        assert_eq!(bcb.slot_b.image_generation, 0);
+        assert_eq!(bcb.slot_b.confirmed, 0);
+    }
+
+    #[test]
+    fn boot_control_block_initial_slot_a_is_bootable() {
+        let bcb = BootControlBlock::new(42);
+        assert_eq!(bcb.slot_a.state, SlotState::Bootable);
+        assert_eq!(bcb.slot_a.image_generation, 42);
+        assert_eq!(bcb.slot_a.confirmed, 1);
+    }
+
+    #[test]
+    fn boot_control_block_is_valid() {
+        let bcb = BootControlBlock::new(1);
+        assert!(bcb.is_valid(), "freshly constructed BCB must have valid magic");
+    }
+}

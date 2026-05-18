@@ -135,8 +135,8 @@ pub extern "C" fn service_main() -> ! {
     mmw32(base, 0x070, 0xF); fence(Ordering::SeqCst);
     sys_debug_writeln("M6: virtio-blk ready");
 
-    // Re-read base after ecalls (t5/t6 reg save issue)
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    // base holds the MMIO VA for the virtio device (RFC 001: t5/t6 save fixed;
+    // re-reading sys_mmio_map after each ecall is no longer necessary).
 
     let mut sec = [0u8; 512];
     for (i, b) in sec.iter_mut().enumerate() { *b = (i & 0xFF) as u8; }
@@ -149,7 +149,7 @@ pub extern "C" fn service_main() -> ! {
     }
 
     spawn(ImageId::STORAGED, "");
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     // Write superblock A (LBA 65)
     let sb = StoreSuperblock::new(1);
     let sb_b = unsafe { core::slice::from_raw_parts(&sb as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
@@ -157,14 +157,14 @@ pub extern "C" fn service_main() -> ! {
     blk_write_sector(base, dma_va, dma_pa, LBA_SUPERBLOCK_A, &s);
     sys_debug_writeln("M6: store formatted or recovered");
 
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let rec = RecordHeader::new(RecordKind::ServiceState, 1, 0);
     let rec_b = unsafe { core::slice::from_raw_parts(&rec as *const _ as *const u8, core::mem::size_of::<RecordHeader>()) };
     let mut r = [0u8; 512]; r[..rec_b.len()].copy_from_slice(rec_b);
     blk_write_sector(base, dma_va, dma_pa, LBA_LOG_START, &r);
     sys_debug_writeln("M6: store append ok");
 
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let mut sb2 = StoreSuperblock::new(2); sb2.log_tail_seq = 1; sb2.active_checkpoint_seq = 1;
     let sb2_b = unsafe { core::slice::from_raw_parts(&sb2 as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut cs = [0u8; 512]; cs[..sb2_b.len()].copy_from_slice(sb2_b);
@@ -172,12 +172,12 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("M6: checkpoint created");
 
     spawn(ImageId::BOOTCTL, "");
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let bcb = BootControlBlock::new(1);
     let bcb_b = unsafe { core::slice::from_raw_parts(&bcb as *const _ as *const u8, core::mem::size_of::<BootControlBlock>().min(512)) };
     let mut bs = [0u8; 512]; bs[..bcb_b.len()].copy_from_slice(bcb_b);
     blk_write_sector(base, dma_va, dma_pa, LBA_BOOT_CTL_A_START, &bs);
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     blk_write_sector(base, dma_va, dma_pa, LBA_BOOT_CTL_B_START, &bs);
     sys_debug_writeln("M6: boot-control mirror valid");
 

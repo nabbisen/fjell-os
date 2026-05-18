@@ -1,6 +1,6 @@
 [package]
 name = "fjell-kernel"
-version = "0.0.3"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true

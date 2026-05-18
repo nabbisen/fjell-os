@@ -102,8 +102,9 @@ static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
 pub(crate) struct DmaBuf(pub [u8; 16384]);
 pub(crate) static DMA_BUF: KS<DmaBuf> = KS(UnsafeCell::new(DmaBuf([0u8; 16384])));
 
-/// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save
-pub(crate) static TRAP_SCRATCH: KS<[usize; 3]> = KS(UnsafeCell::new([0usize; 3]));
+/// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save,
+/// [3]=temp_user_t6_save  (RFC 001: slot added to fix t6 register save correctness)
+pub(crate) static TRAP_SCRATCH: KS<[usize; 4]> = KS(UnsafeCell::new([0usize; 4]));
 
 macro_rules! ks_init {
     ($ks:expr, $val:expr) => { unsafe { (*$ks.0.get()).write($val) } };

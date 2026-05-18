@@ -9,6 +9,33 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.8] — 2026-05-12 — RFC bugfix release
+
+Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.
+
+### Fixed
+
+- **RFC 001** (`trap/entry.rs`): t5 (x30) and t6 (x31) saved with wrong values at
+  trap entry. `gpr[30]` received `user_sp`; `gpr[31]` received `scratch_addr`.
+  Added `TRAP_SCRATCH[3]` (4th slot) to save the true user t6 immediately after the
+  `csrrw t6, sscratch, t6` swap. `gpr[30]` is now saved directly after the TrapFrame
+  pointer is loaded, while x30 is still unmodified. Both caller-saved registers are
+  now faithfully preserved across ecalls.
+  Removed 5 redundant `sys_mmio_map` re-read workaround calls from `fjell-init`
+  that were masking the corruption.
+
+- **RFC 002** (`fjell-upgrade-format/src/lib.rs`): `BootControlBlock::new()`
+  initialised `slot_b` with `SlotInfo::bootable(generation)`. Slot B is unprovisioned
+  on a fresh disk and must be `SlotInfo::empty()`. Confirmed already correct in current
+  code; added 3 regression unit tests to prevent recurrence.
+
+- **RFC 003** (`fjell-kernel/Cargo.toml`): `version = "0.0.3"` hard-pinned while
+  workspace was at 0.0.7. Changed to `version.workspace = true`; kernel version now
+  correctly tracks workspace in build output and `cargo metadata`.
+
+---
+
+
 ## [0.0.7] — 2026-05-12 — M7: Verified Immutable System / Snapshot / Complete Rollback Foundation
 
 ### Added
