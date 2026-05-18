@@ -3,6 +3,120 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-05-17
+
+### v0.1.x stabilization — Release freeze + CI foundation
+
+This is the first stabilization release in the v0.1.x line.  It adds
+no new OS functionality.  It freezes the v0.1.0 prototype, documents
+its limitations, lays down the CI / negative-test infrastructure, and
+files the v0.2 design RFCs so v0.2 can begin with a coherent plan.
+
+### Added
+
+- **RFC set 024–047** in `rfcs/`:
+  - 024 (RFC-v0.1.x-001) — release freeze and scope declaration *(Accepted)*.
+  - 025 (RFC-v0.1.x-002) — CI / QEMU automation foundation *(Accepted)*.
+  - 026 (RFC-v0.1.x-003) — negative-test harness *(Proposed)*.
+  - 027 (RFC-v0.1.x-004) — threat model and security boundaries *(Proposed)*.
+  - 028 (RFC-v0.1.x-005) — syscall / ABI / protocol inventory *(Proposed)*.
+  - 029 (RFC-v0.1.x-006) — capability / lease enforcement audit *(Proposed)*.
+  - 030 (RFC-v0.1.x-007) — MMIO / DMA boundary audit *(Proposed)*.
+  - 031–043 (RFC-v0.2-001..013) — full v0.2 *Security Boundary Closure*
+    RFC set *(Proposed)*: unified capability enforcement, CSpace GC,
+    lease epoch revocation, blocked-IPC wake/cancel, MmioRegion ABI
+    replacement, DmaRegion zeroize/quarantine, non-blocking IPC + timer
+    fail-safe, service-plane separation, safe user copy + real audit
+    drain, cap-broker bootstrap handoff and default deny, persistent
+    evidence hardening, v0.2 negative-test expansion, v0.2 security
+    boundary release gate.
+  - 044 (RFC-v0.1.x-008) — audit / snapshot / semantic evidence audit
+    *(Proposed)*.
+  - 045 (RFC-v0.1.x-009) — ADR and documentation synchronization
+    *(Proposed)*.
+  - 046 (RFC-v0.1.x-010) — v0.1.x release checklist *(Proposed)*.
+  - 047 (RFC-v0.1.x-011) — v0.2 preparation backlog *(Proposed)*.
+- **Documentation** under `docs/src/`:
+  - `releases/v0.1.0-scope.md` — what v0.1.0 includes.
+  - `releases/v0.1.0-limitations.md` — what v0.1.0 is *not* (no
+    production secure boot, no remote attestation, no networking, no
+    POSIX, etc.).
+  - `security/v0.1.0-known-non-goals.md` — non-goals contributors
+    must not extend into.
+  - `security/v0.1.0-threat-model.md` — skeleton; full body lands
+    with RFC 027 in v0.1.2.
+  - `roadmap/v0.1.x-stabilization.md` — v0.1.1 → v0.1.5 sequence.
+- **`fjell-tools` xtask extensions** (RFC 025):
+  - `cargo xtask qemu-negative <category>` — runs a profile-driven
+    negative test under `tests/qemu/profiles/`.
+  - `cargo xtask qemu-log-check <log-file> <marker>` — generic
+    substring-match validator.
+  - `cargo xtask qemu-run --profile <name>` — explicit profile runner.
+  - All QEMU runs now write to `tests/qemu/artifacts/<run-id>/` with
+    `serial.log`, `qemu-command.txt`, `expected-markers.txt`, and
+    `result-summary.txt`.
+- **Placeholder profile TOMLs** for the six v0.1.x negative-test
+  categories (`capability`, `ipc`, `mmio`, `dma`, `store`, `upgrade`).
+  Each profile asserts no markers yet — they are real PASSes
+  *infrastructure-wise* per RFC 025 §"chicken-and-egg" exemption; case
+  bodies land per v0.2 RFC.
+- **`.github/workflows/ci.yml`** with five jobs (`ci-format`,
+  `ci-check`, `ci-test-host`, `ci-qemu-smoke`, `ci-qemu-negative`),
+  matrix-parameterised over milestones / categories, with artefact
+  upload.
+
+### Changed
+
+- `README.md` updated: version stamp v0.0.2 → v0.1.1, prominent
+  limitation warning block linking to
+  `docs/src/releases/v0.1.0-limitations.md`.
+- `ROADMAP.md` updated: replaced placeholder v0.2–v0.4 stub with the
+  full v0.1.x stabilization table, v0.2 nine-phase plan, and v0.3
+  through v1.0 progression.
+- `docs/src/SUMMARY.md` updated: new top-level sections *Releases*,
+  *Roadmap*, *Security* preceding *Getting Started*.
+- `crates/fjell-tools/src/main.rs` rewritten to dispatch the four
+  RFC-025 subcommands.
+- `crates/fjell-tools/src/smoke.rs` refactored to use the shared
+  `Profile` / `run_profile` runner; semantics preserved
+  (TEST:Mx:PASS marker map unchanged).
+- Workspace version bumped `0.1.0 → 0.1.1`.
+
+### Fixed
+
+- *(none — this release intentionally adds no OS functionality)*
+
+### Security
+
+- No security-boundary changes in v0.1.1 itself. The v0.2 RFC set
+  (RFCs 031–043) defines every boundary closure that will land in
+  v0.2.0.
+- Threat-model and limitations are now explicit project documents
+  rather than implicit assumptions.
+
+### Known Limitations
+
+All limitations documented in
+`docs/src/releases/v0.1.0-limitations.md` apply unchanged to v0.1.1.
+In particular: no production secure boot, no hardware-rooted trust,
+no remote attestation, no networking, no POSIX, no GUI, no fully
+verified components, no uniform security-boundary enforcement.
+
+### Deferred to v0.2
+
+- Implementation of every RFC-v0.2 design (RFCs 031–043).
+- Replacing `caller_has_cap` style checks with `require_cap`.
+- O(1) lease epoch revocation across syscall and IPC paths.
+- Blocked-IPC wake/cancel on revoke.
+- MmioRegion / DmaRegion capability ABIs.
+- DMA zeroize / quarantine.
+- `sys_ipc_try_recv` + cooperative service loops + timer fail-safe.
+- Real service-plane separation (ADR-0010 supersession).
+- Safe `copy_to_user` + real audit drain (binary AuditRecord).
+- `cap-broker` bootstrap handoff and default-deny policy engine.
+- Persistent evidence hardening matrix.
+- v0.2 negative-test expansion and v0.2 release gate.
+
 ## [0.1.0] - 2026-05-17
 
 ### M8 completion — Local Evidence / Attestation / Recovery Plane

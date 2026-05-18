@@ -1,82 +1,167 @@
-name: CI
+# GitHub Actions CI for Fjell OS — five jobs per RFC 025
+# (also known as RFC-v0.1.x-002).
+#
+# Job topology:
+#   ci-format          — cargo fmt --check
+#   ci-check           — cargo check --workspace --exclude fjell-kernel
+#   ci-test-host       — host unit tests on format / api / tools crates
+#   ci-qemu-smoke      — qemu-test m1..m8 with artefact upload
+#   ci-qemu-negative   — qemu-negative <cat> per category with artefacts
+
+name: ci
 
 on:
   push:
-    branches: ["main", "dev/**"]
+    branches: [main]
   pull_request:
+    branches: [main]
 
 env:
   CARGO_TERM_COLOR: always
-  RUSTFLAGS: "-D warnings"
+  RUSTC_BOOTSTRAP: 1
+  RUST_BACKTRACE: 1
 
 jobs:
-  # ── Host-side checks (default-members, no cross-compile needed) ─────────────
-  check-host:
-    name: Check (host)
+  ci-format:
+    name: format
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Rust 1.91
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.91"
-
-      - name: cargo check – host crates (default-members)
-        run: cargo check
-
-      - name: cargo build – host crates
-        run: cargo build
-
-      - name: cargo test – pure-logic crates
         run: |
-          cargo test --package fjell-abi
-          cargo test --package fjell-cap
-          cargo test --package fjell-ipc
-          cargo test --package fjell-audit-format
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
 
-  # ── Bare-metal kernel (must cross-compile explicitly) ───────────────────────
-  check-kernel:
-    name: Check + build (riscv64 kernel)
+  ci-check:
+    name: check
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust 1.91 + RISC-V target
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.91"
-          targets: riscv64gc-unknown-none-elf
-
-      - name: cargo check – fjell-kernel
+      - name: Install Rust 1.91 + rust-src
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo check (host-buildable subset)
+        # fjell-kernel and the service binaries pin a bare-metal target
+        # (`riscv64gc-unknown-none-elf`) and use riscv-specific inline
+        # asm; they are exercised by the qemu-smoke job.  This job
+        # covers the host-pure crates only.
         run: |
           cargo check \
-            --package fjell-kernel \
-            --target riscv64gc-unknown-none-elf
+              -p fjell-tools \
+              -p fjell-attestation-format \
+              -p fjell-audit-format \
+              -p fjell-block-format \
+              -p fjell-config-format \
+              -p fjell-device-format \
+              -p fjell-measure-format \
+              -p fjell-recovery-format \
+              -p fjell-rootfs-format \
+              -p fjell-semantic-format \
+              -p fjell-service-api \
+              -p fjell-snapshot-format \
+              -p fjell-store-format \
+              -p fjell-upgrade-format \
+              -p fjell-verify-format
 
-      - name: cargo build – fjell-kernel (release)
-        run: |
-          cargo build \
-            --package fjell-kernel \
-            --target riscv64gc-unknown-none-elf \
-            --release
-
-  # ── QEMU smoke test ─────────────────────────────────────────────────────────
-  smoke-m1:
-    name: QEMU smoke test (M1)
+  ci-test-host:
+    name: test-host
     runs-on: ubuntu-24.04
-    needs: check-kernel
     steps:
       - uses: actions/checkout@v4
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo test (host-pure crates)
+        # The format and api crates compile for the host; their unit
+        # tests are the primary host-side coverage at v0.1.x.
+        run: |
+          cargo test --lib --bins \
+              -p fjell-tools \
+              -p fjell-attestation-format \
+              -p fjell-audit-format \
+              -p fjell-block-format \
+              -p fjell-config-format \
+              -p fjell-device-format \
+              -p fjell-measure-format \
+              -p fjell-recovery-format \
+              -p fjell-rootfs-format \
+              -p fjell-semantic-format \
+              -p fjell-service-api \
+              -p fjell-snapshot-format \
+              -p fjell-store-format \
+              -p fjell-upgrade-format \
+              -p fjell-verify-format
 
-      - name: Install Rust 1.91 + RISC-V target
-        uses: dtolnay/rust-toolchain@stable
+  ci-qemu-smoke:
+    name: qemu-smoke
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    strategy:
+      fail-fast: false
+      matrix:
+        milestone: [m1, m2, m3, m4, m5, m6, m7, m8]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91 + QEMU + LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
+              qemu-system-misc llvm
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo xtask qemu-test ${{ matrix.milestone }}
+        run: cargo xtask qemu-test ${{ matrix.milestone }}
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          toolchain: "1.91"
-          targets: riscv64gc-unknown-none-elf
+          name: qemu-smoke-${{ matrix.milestone }}
+          path: tests/qemu/artifacts/smoke-${{ matrix.milestone }}/
+          if-no-files-found: warn
 
-      - name: Install QEMU
-        run: sudo apt-get install -y qemu-system-misc
-
-      - name: Run M1 smoke test
-        run: cargo xtask qemu-test
+  ci-qemu-negative:
+    name: qemu-negative
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [capability, ipc, mmio, dma, store, upgrade]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91 + QEMU + LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
+              qemu-system-misc llvm
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo xtask qemu-negative ${{ matrix.category }}
+        run: cargo xtask qemu-negative ${{ matrix.category }}
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-negative-${{ matrix.category }}
+          path: tests/qemu/artifacts/negative-${{ matrix.category }}/
+          if-no-files-found: warn

@@ -69,10 +69,53 @@ of the next; scope discipline is a first-class constraint.
 
 ---
 
-## Post v0.1.0 (Planned)
+## Post v0.1.0
+
+### v0.1.x — Stabilization / Audit / CI Foundation (in progress)
+
+The v0.1.x release line freezes the v0.1.0 prototype, documents its
+limitations, and adds the audit + CI foundation needed before
+v0.2 modifies security boundaries. It adds no new OS functionality.
+
+See [`docs/src/roadmap/v0.1.x-stabilization.md`](docs/src/roadmap/v0.1.x-stabilization.md)
+and RFCs 024–030, 044–047 (`rfcs/`).
+
+| Version  | Theme                                       | RFCs landed       |
+|----------|---------------------------------------------|-------------------|
+| v0.1.1   | Release freeze + CI foundation              | 024, 025          |
+| v0.1.2   | Negative tests + threat model + ABI         | 026, 027, 028     |
+| v0.1.3   | Capability / Lease / MMIO / DMA / Evidence  | 029, 030, 044     |
+| v0.1.4   | ADR sync + release checklist                | 045, 046          |
+| v0.1.5   | v0.2 preparation backlog                    | 047               |
+
+### v0.2.0 — Security Boundary Closure
+
+The first post-v0.1.x hardening milestone. Turns Fjell OS from a
+local verified prototype into a system whose core security
+boundaries are uniformly enforced. See the v0.2 RFC set (RFCs
+031–043) and [`docs/src/security/v0.1.0-threat-model.md`](docs/src/security/v0.1.0-threat-model.md) §14.
+
+| Phase | Name                                        | RFC      |
+|-------|---------------------------------------------|----------|
+| 1     | Capability Enforcement Core                 | 031, 032 |
+| 2     | Lease Revocation Semantics                  | 033, 034 |
+| 3     | MMIO Boundary Closure                       | 035      |
+| 4     | DMA Boundary Closure                        | 036      |
+| 5     | Cooperative Service Separation              | 037, 038 |
+| 6     | User Copy and Audit Drain                   | 039      |
+| 7     | cap-broker Bootstrap and Policy Enforcement | 040      |
+| 8     | Persistent Evidence Hardening               | 041      |
+| 9     | Negative Test Completion + Release Gate     | 042, 043 |
+
+### Beyond v0.2
 
 | Version | Theme |
 |---------|-------|
-| v0.2.0 | Persistent append-only state store; virtio block driver |
-| v0.3.0 | User-space driver manager; immutable upgrade prototype |
-| v0.4.0 | Network service; formal model for Capability/IPC |
+| v0.3.0 | Hardware Trust Abstraction |
+| v0.4.0 | Minimal Secure Networking |
+| v0.5.0 | Multi-Platform Foundation + Semantic API Stabilization |
+| v0.6.0 | Verification / Property Testing |
+| v0.7.0 | Distributed Snapshot Sync Foundation |
+| v0.8.0 | Fleet / Edge Operations Plane |
+| v0.9.0 | Developer Service Platform |
+| v1.0.0 | First Supported Profile |

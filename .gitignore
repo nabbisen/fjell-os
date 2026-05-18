@@ -27,6 +27,7 @@ target
 
 *.log
 
-.npm
-
+.cargo
+.config
 .local
+.npm
