@@ -21,8 +21,9 @@ use fjell_syscall::{
 };
 use fjell_service_api::{tags, negative_markers as M};
 
-// Scratch CSpace slot for the lease-bound endpoint cap.
-const SLOT_LEASED_EP: u32 = 5;
+// Scratch CSpace slots for IPC tests.
+const SLOT_LEASED_EP:  u32 = 5;  // blocked-recv test (BIND_LEASE_FOR_IPC_TEST)
+const SLOT_CALL_EP:    u32 = 6;  // blocked-call test (BIND_LEASE_AND_CALL_BACK)
 // Own endpoint slot (pre-installed, object 0).
 const SLOT_OWN_EP:    u32 = 0;
 
@@ -90,6 +91,49 @@ pub extern "C" fn service_main() -> ! {
                     }
                 }
                 let _ = sys_cap_drop(CapHandle(SLOT_LEASED_EP));
+            }
+
+            // ── RFC 042: IPC blocked-call + late-reply test protocol ─────────
+            //
+            // neg-test sends BIND_LEASE_AND_CALL_BACK(w0=lease_id):
+            //   1. Copy slot 0 → slot SLOT_CALL_EP; bind lease to copy.
+            //   2. Reply OK so neg-test knows we're ready.
+            //   3. Call neg-test back on the leased copy → blocks waiting reply.
+            //   4. neg-test revokes lease → kernel wakes us with LeaseRevoked.
+            //      → print BLOCKED_CALL_WAKES_ON_REVOKE marker.
+            //   5. Drop SLOT_CALL_EP; continue.
+            l if l == (tags::BIND_LEASE_AND_CALL_BACK & 0xFFFF) => {
+                let lease_id = LeaseId(w0 as u32);
+                let ok = 'setup2: {
+                    let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_CALL_EP) {
+                        Ok(h)  => h,
+                        Err(_) => break 'setup2 false,
+                    };
+                    if sys_cap_bind_lease(h, lease_id).is_err() {
+                        let _ = sys_cap_drop(h);
+                        break 'setup2 false;
+                    }
+                    true
+                };
+                if !ok {
+                    let _ = sys_ipc_reply(usize::MAX);
+                    continue;
+                }
+                // Reply OK — neg-test will now call sys_ipc_recv(0).
+                let _ = sys_ipc_reply(0);
+                // Call neg-test back with the leased cap.
+                // neg-test will receive this, revoke the lease, and try to reply.
+                match fjell_syscall::sys_ipc_call(SLOT_CALL_EP, tags::CALL_BACK_MSG) {
+                    Err(_) => {
+                        // Woken with LeaseRevoked — the BLOCKED_CALL path works.
+                        sys_debug_writeln(M::IPC_BLOCKED_CALL);
+                    }
+                    Ok(_) => {
+                        // Got a reply (unexpected in the test scenario).
+                        // Continue normally.
+                    }
+                }
+                let _ = sys_cap_drop(CapHandle(SLOT_CALL_EP));
             }
 
             // ── Unknown label ────────────────────────────────────────────────

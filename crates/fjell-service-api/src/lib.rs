@@ -28,6 +28,12 @@ pub mod tags {
     /// Sent by neg-test to a helper service: "bind lease_id (in w0) to your
     /// endpoint cap and block in ipc_recv so we can test revocation wakeup."
     pub const BIND_LEASE_FOR_IPC_TEST: usize = 0x060;
+    /// Sent by neg-test (as server): bind lease_id (w0) to a copied endpoint
+    /// cap (slot 6) and immediately call neg-test back on that leased cap.
+    /// Demonstrates BLOCKED_CALL_WAKES and LATE_REPLY_REJECTED in one exchange.
+    pub const BIND_LEASE_AND_CALL_BACK: usize = 0x061;
+    /// Callback message sent by sample-service back to neg-test.
+    pub const CALL_BACK_MSG: usize = 0x062;
 }
 
 // ── RFC 019: storaged IPC protocol ────────────────────────────────────────────

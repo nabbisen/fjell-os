@@ -43,6 +43,8 @@ const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 #[allow(dead_code)]
 const SLOT_LEASE_ADMIN:u32 = 4;   // LeaseAdmin cap
 const SLOT_SCRATCH_C:  u32 = 8;   // scratch slot for audit overflow loop
+#[allow(dead_code)]
+const SLOT_SCRATCH_D:  u32 = 9;   // scratch for ipc blocked-call recv
 // Scratch slots used by lease-revoked and rights-denied tests
 const SLOT_SCRATCH_A:  u32 = 6;   // copy of OWN_EP with lease bound
 const SLOT_SCRATCH_B:  u32 = 7;   // minted cap with narrowed rights
@@ -220,6 +222,57 @@ fn test_ipc_blocked_recv() {
     // (marker emitted by sample-service asynchronously)
 }
 
+
+/// IPC: trigger BLOCKED_CALL_WAKES and LATE_REPLY_REJECTED in one exchange.
+///
+/// Protocol:
+/// 1. neg-test sends BIND_LEASE_AND_CALL_BACK(lease_id) to sample-service (ipc_call).
+/// 2. sample-service: copies slot 0 → slot 6, binds lease, replies OK, then
+///    calls neg-test back on the leased copy → blocks waiting for reply.
+/// 3. neg-test: receives sample-service's callback (immediately from sendq).
+/// 4. neg-test: revokes lease → kernel wakes sample-service with LeaseRevoked
+///    (sample-service prints NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS).
+/// 5. neg-test: sys_ipc_reply → Err (reply edge cancelled by revoke)
+///    → prints NEG:IPC:LATE_REPLY_REJECTED:PASS.
+fn test_ipc_blocked_call_and_late_reply() {
+    // 1. Create a lease.
+    let lease_id = match sys_lease_create(0) {
+        Ok(id) => id,
+        Err(_) => return,
+    };
+
+    // 2. Tell sample-service to bind lease and call us back.
+    match sys_ipc_call_words(
+        SLOT_OWN_EP,
+        tags::BIND_LEASE_AND_CALL_BACK,
+        lease_id.0 as usize, 0, 0,
+    ) {
+        Ok(0) => {}  // sample-service replied OK and is now calling us back
+        _     => { let _ = sys_lease_revoke(lease_id); return; }
+    }
+
+    // 3. Receive sample-service's callback call.
+    //    sample-service is blocked in ipc_call (waiting for our reply).
+    //    Its message is already in endpoint 0's sendq when we call recv.
+    match sys_ipc_recv(SLOT_OWN_EP) {
+        Ok(_) => {
+            // Got the CALL_BACK_MSG from sample-service.
+            // 4. Revoke the lease — this wakes sample-service (BLOCKED_CALL marker)
+            //    and cancels our reply edge.
+            let _ = sys_lease_revoke(lease_id);
+
+            // 5. Try to reply — the edge is gone (cancelled by revoke above).
+            match fjell_syscall::sys_ipc_reply(0) {
+                Err(_) => check(true, M::IPC_LATE_REPLY),  // reply rejected ✓
+                Ok(()) => {}  // should not happen
+            }
+        }
+        Err(_) => {
+            let _ = sys_lease_revoke(lease_id);
+        }
+    }
+}
+
 /// POLICY: send CAP_REQUEST as unknown ImageId — default deny expected.
 ///
 /// RFC 040: cap-broker is in Enforcing state (init sent BOOTSTRAP_COMPLETE).
@@ -331,6 +384,7 @@ pub extern "C" fn service_main() -> ! {
 
     // ── IPC blocked-recv revocation (RFC 034) ────────────────────────────────
     test_ipc_blocked_recv();
+    test_ipc_blocked_call_and_late_reply();
 
     // ── Cap-broker policy (RFC 040) ───────────────────────────────────────────
     // Additional yields so the system is fully settled before IPC.

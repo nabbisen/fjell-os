@@ -3,6 +3,51 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.6] - 2026-05-18
+
+### RFC 042 Phase 6 — IPC Blocked-Call and Late-Reply (RFC 034)
+
+Two more IPC markers wired via a single 2-party exchange.
+
+### Added
+
+- **`fjell-service-api/src/lib.rs`**:
+  - `tags::BIND_LEASE_AND_CALL_BACK = 0x061`
+  - `tags::CALL_BACK_MSG = 0x062`
+- **`fjell-sample-service`**: new `BIND_LEASE_AND_CALL_BACK` branch:
+  1. Copies slot 0 → slot 6, binds lease (from w0).
+  2. Replies OK to neg-test.
+  3. Calls neg-test back on the leased slot 6 via `sys_ipc_call` → blocks.
+  4. Woken by `cancel_blocked_ipc_for_lease` when neg-test revokes the lease.
+  5. Prints `NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS`; drops slot 6.
+- **`fjell-neg-test`**: `test_ipc_blocked_call_and_late_reply()`:
+  1. Sends `BIND_LEASE_AND_CALL_BACK(lease_id)` → sample-service binds and replies.
+  2. `sys_ipc_recv(0)` → immediately receives sample-service's callback from sendq.
+  3. `sys_lease_revoke(lease_id)` → kernel: cancels reply edge + wakes sample-service.
+  4. `sys_ipc_reply(0)` → `Err` (edge gone) → prints `NEG:IPC:LATE_REPLY_REJECTED:PASS`.
+- **`tests/qemu/profiles/ipc.toml`**: all three IPC markers now expected.
+
+### Cooperative scheduling guarantee
+
+After sample-service replies to neg-test's `BIND_LEASE_AND_CALL_BACK` call,
+sample-service stays on-CPU and immediately sends via `sys_ipc_call(6, ...)`.
+Since neg-test is not yet in endpoint 0's recvq, the message queues in the
+sendq and sample-service blocks. When neg-test runs, `sys_ipc_recv(0)` finds
+the message immediately — no timing dependency.
+
+### Marker count: 17/21 live
+
+| Category | Live | Remaining |
+|----------|------|-----------|
+| capability | 4/4 ✓ | — |
+| mmio | 2/3 | RAM_GUARD (untriggerable) |
+| dma | 2/3 | ZEROIZE_ON_EXIT |
+| user-copy | 2/2 ✓ | — |
+| policy | 3/3 ✓ | — |
+| audit | 1/1 ✓ | — |
+| ipc | 3/3 ✓ | — |
+| svc | 0/2 | needs service extraction |
+
 ## [0.2.5] - 2026-05-18
 
 ### RFC 042 Phase 5 — IPC Blocked-Recv Revocation (RFC 034)
