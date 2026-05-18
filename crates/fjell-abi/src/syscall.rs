@@ -130,7 +130,6 @@ impl SyscallNumber {
             111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
             120 => Some(Self::Reboot),
-            18  => Some(Self::PlatformReboot),
             _  => None,
         }
     }

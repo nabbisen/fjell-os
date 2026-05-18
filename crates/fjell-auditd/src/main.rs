@@ -59,7 +59,7 @@ fn emit_record(r: &AuditRecordBin) {
 // ── Drain one batch from the kernel ring ──────────────────────────────────────
 
 fn drain_once(buf: &mut [u8; DRAIN_BUF_BYTES]) {
-    match sys_audit_drain(buf, AUDIT_DRAIN_CAP) {
+    match sys_audit_drain(AUDIT_DRAIN_CAP, buf) {
         Ok((n_records, _n_dropped)) => {
             for i in 0..n_records {
                 let off = i * AUDIT_RECORD_BIN_SIZE;

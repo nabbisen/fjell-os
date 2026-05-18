@@ -1,3 +1,21 @@
+## [0.2.15] - 2026-05-18 — Build fix: no errors, no warnings for QEMU cross-build
+
+### Fixed (found by `cargo xtask qemu-negative policy` cross-build)
+
+- **`crates/fjell-auditd/src/main.rs`**: `sys_audit_drain(buf, cap)` → `sys_audit_drain(cap, buf)`.
+  RFC 054 changed the ABI (cap-handle first) but `fjell-auditd` was not updated.
+  This was the direct cause of the build failure.
+
+- **`crates/fjell-abi/src/syscall.rs`**: Removed duplicate `18 => Some(Self::PlatformReboot)`
+  match arm (was inserted twice during v0.2.14 work) → eliminated `unreachable_patterns` warning.
+
+- **`crates/fjell-init/src/main.rs`**: Added `#[allow(dead_code)]` to `INIT_SLOT_LEASE_ADMIN`
+  constant → eliminated `dead_code` warning.
+
+- **`crates/fjell-bootctl/src/main.rs`**: Removed a write to `state` that was never read
+  (`state = BootState::Rollback` before an immediate reboot); added `#[allow(dead_code)]`
+  to the `Rollback` variant → eliminated `unused_assignments` and `dead_code` warnings.
+
 ## [0.2.14] - 2026-05-18 — v0.2.12 block: RFCs 055-059 (service separation + release-gate close)
 
 ### Implements RFCs 055-059 — closes RB-11, RB-12, H-04; earns TEST:V02:PASS

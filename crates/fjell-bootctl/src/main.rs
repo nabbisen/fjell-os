@@ -14,6 +14,7 @@ use fjell_cap::CapHandle;
 const SLOT_OWN_EP: u32 = 0;
 const SLOT_REBOOT: u32 = 1;
 
+#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq)]
 enum BootState { Pending, Confirmed, Rollback }
 
@@ -36,7 +37,6 @@ pub extern "C" fn service_main() -> ! {
                 else { let _ = sys_ipc_reply(usize::MAX); }
             }
             l if l == (tags::BOOT_ROLLBACK & 0xFFFF) => {
-                state = BootState::Rollback;
                 sys_debug_writeln("bootctl: ROLLBACK");
                 let _ = sys_ipc_reply(0);
                 let _ = sys_reboot(CapHandle(SLOT_REBOOT), 0);
