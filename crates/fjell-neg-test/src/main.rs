@@ -25,16 +25,17 @@ mod rt;
 use fjell_syscall::{
     sys_exit, sys_debug_writeln, sys_yield,
     sys_mmio_map, sys_dma_alloc, sys_dma_revoke,
-    sys_audit_drain_raw,
+    sys_audit_drain_raw, sys_ipc_call_words,
 };
 use fjell_cap::CapHandle;
-use fjell_service_api::negative_markers as M;
+use fjell_service_api::{negative_markers as M, tags};
 
 // ── CSpace slot constants for this service ────────────────────────────────────
 
-const SLOT_OWN_EP:     u32 = 0;   // Endpoint cap (own endpoint)
+const SLOT_OWN_EP:     u32 = 0;   // Endpoint cap (own endpoint, object 0)
 const SLOT_AUDIT:      u32 = 1;   // AuditDrain cap
 const SLOT_DMA:        u32 = 2;   // DmaRegion cap
+const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 const SLOT_MMIO_BASE:  u32 = 31;  // First MmioRegion cap (object 0)
 
 // ── RAM_BASE (must match kernel platform constant) ────────────────────────────
@@ -114,6 +115,44 @@ fn test_user_copy_kernel_addr() {
     check(status != 0, M::USER_COPY_KERNEL_ADDR);
 }
 
+
+/// POLICY: send CAP_REQUEST as unknown ImageId — default deny expected.
+///
+/// RFC 040: cap-broker is in Enforcing state (init sent BOOTSTRAP_COMPLETE).
+/// ImageId 20 (NEG_TEST) is not in the policy table → default deny.
+fn test_policy_default_deny() {
+    // Resource class 2 = TaskControl, ALL_RIGHTS requested.
+    match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        20,       // w0 = requester_id (ImageId::NEG_TEST, not in policy)
+        2,        // w1 = resource class: TaskControl
+        0xFF,     // w2 = requested rights (some bits)
+    ) {
+        Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
+            check(true, M::POLICY_DEFAULT_DENY);
+        }
+        _ => {}  // unexpected reply — marker not emitted
+    }
+}
+
+/// POLICY: send BOOTSTRAP_COMPLETE to a broker that is already Enforcing.
+///
+/// RFC 040: cap-broker transitions Bootstrap→Enforcing exactly once.
+/// A second BOOTSTRAP_COMPLETE returns usize::MAX (rejection sentinel).
+fn test_policy_bootstrap_guard() {
+    match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::BOOTSTRAP_COMPLETE,
+        0, 0, 0,
+    ) {
+        Ok(reply) if reply == usize::MAX => {
+            check(true, M::POLICY_BOOTSTRAP_GUARD);
+        }
+        _ => {}  // was Bootstrap state or unexpected — marker not emitted
+    }
+}
+
 // ── Service entry point ───────────────────────────────────────────────────────
 
 #[unsafe(no_mangle)]
@@ -138,6 +177,12 @@ pub extern "C" fn service_main() -> ! {
     // ── Safe user copy (RFC 039) ──────────────────────────────────────────────
     test_user_copy_null();
     test_user_copy_kernel_addr();
+
+    // ── Cap-broker policy (RFC 040) ───────────────────────────────────────────
+    // Additional yields so the system is fully settled before IPC.
+    sys_yield(); sys_yield(); sys_yield();
+    test_policy_default_deny();
+    test_policy_bootstrap_guard();
 
     sys_debug_writeln("neg-test: all scenarios complete");
     sys_exit(0)

@@ -10,7 +10,7 @@ mod rt;
 use fjell_abi::service::ImageId;
 use fjell_syscall::{
     sys_exit, sys_task_spawn, sys_task_start, sys_debug_writeln,
-    sys_platform_info_get,
+    sys_platform_info_get, sys_yield, sys_ipc_call_words,
 };
 use fjell_semantic_format::*;
 use fjell_proxy_text::{render_state, render_event,
@@ -152,6 +152,11 @@ pub extern "C" fn service_main() -> ! {
     // ── M4 ───────────────────────────────────────────────────────────────────
     spawn(ImageId::CONFIGD,         "M4: configd started");
     spawn(ImageId::CAP_BROKER,      "M4: cap-broker started");
+    // RFC 040: send BOOTSTRAP_COMPLETE to cap-broker on slot 1 (endpoint 5).
+    // Yield twice first so cap-broker enters its recv loop.
+    sys_yield(); sys_yield();
+    let _ = sys_ipc_call_words(1, fjell_service_api::tags::BOOTSTRAP_COMPLETE, 0, 0, 0);
+    sys_debug_writeln("M4: cap-broker Enforcing");
     spawn(ImageId::AUDITD,          "M4: auditd started");
     spawn(ImageId::SERVICE_MANAGER, "M4: service-manager started");
     spawn(ImageId::SAMPLE_SERVICE,  "M4: sample service started");

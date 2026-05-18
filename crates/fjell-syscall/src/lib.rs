@@ -357,3 +357,37 @@ pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
     );
     r0
 }
+
+/// `sys_ipc_call` with up to 3 data words (RFC 042 / cap-broker protocol).
+///
+/// The cap-broker protocol passes:
+/// - `w0` = requester ImageId
+/// - `w1` = resource class discriminant
+/// - `w2` = requested rights mask
+///
+/// Returns `Ok(reply_label)` on success.
+/// Passes w0→a2, w1→a3, w2→a4 in the ECALL so the kernel copies them into
+/// the `PendingMessage.words` array for the server to read.
+pub fn sys_ipc_call_words(
+    ep: u32, tag: usize, w0: usize, w1: usize, w2: usize,
+) -> Result<usize, SysError> {
+    let r0: usize;
+    let r1: usize; // reply label
+    #[cfg(target_arch = "riscv64")]
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7")          SyscallNumber::IpcCall as usize,
+            inlateout("a0")   ep as usize => r0,
+            inlateout("a1")   tag => r1,
+            in("a2")          w0,
+            in("a3")          w1,
+            in("a4")          w2,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    { let _ = (ep, tag, w0, w1, w2); r0 = 0; r1 = 0; }
+    to_result(r0)?;
+    Ok(r1)
+}

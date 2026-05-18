@@ -3,6 +3,47 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.2] - 2026-05-18
+
+### RFC 042 Phase 2 — Policy Negative Tests
+
+Wires two `policy` negative-test markers by giving cap-broker a dedicated
+endpoint and having init perform the Bootstrap→Enforcing handoff at boot.
+
+### Added
+
+- **`fjell-syscall`**: `sys_ipc_call_words(ep, tag, w0, w1, w2)` — multi-word
+  IPC call using RISC-V registers a2-a4 so the cap-broker protocol's
+  (requester, resource, rights) tuple reaches the server.
+- **`fjell-neg-test`**: two new test functions:
+  - `test_policy_default_deny()` — sends `CAP_REQUEST` as ImageId 20 (not in
+    policy) → receives `CAP_DENIED` → emits `NEG:POLICY:DEFAULT_DENY:PASS`.
+  - `test_policy_bootstrap_guard()` — sends `BOOTSTRAP_COMPLETE` to a broker
+    already in Enforcing state → receives `usize::MAX` rejection →
+    emits `NEG:POLICY:BOOTSTRAP_GUARD:PASS`.
+
+### Changed
+
+- **`crates/fjell-kernel/src/task/spawn.rs`**:
+  - `CAP_BROKER` now gets `ep_obj = 5` (dedicated endpoint, was shared 0).
+  - `NEG_TEST` gets slot 3 = `Endpoint(object_id=5)` — direct path to broker.
+- **`crates/fjell-kernel/src/main.rs`**: init's slot 1 added as
+  `Endpoint(object_id=5)` — init uses this to send `BOOTSTRAP_COMPLETE`.
+- **`crates/fjell-init/src/main.rs`**: after spawning `CAP_BROKER`, yields
+  twice then calls `sys_ipc_call_words(1, BOOTSTRAP_COMPLETE, 0, 0, 0)` to
+  transition cap-broker to Enforcing state before other services start.
+  Adds `sys_yield` and `sys_ipc_call_words` to its syscall imports.
+- **`tests/qemu/profiles/policy.toml`**: `expected_markers` populated with
+  `NEG:POLICY:DEFAULT_DENY:PASS` and `NEG:POLICY:BOOTSTRAP_GUARD:PASS`.
+- Workspace version bumped to `0.2.2`.
+
+### Deferred
+
+- `NEG:CAP:LEASE_REVOKED:PASS` — needs cap delegation syscall (v0.3):
+  cap-broker cannot yet install a capability into another task's CSpace;
+  the only lease-bound caps are those created by the broker itself.
+- `NEG:IPC:*` — multi-task coordination + lease-bound caps (v0.3).
+
 ## [0.2.1] - 2026-05-18
 
 ### RFC 042 Phase 1 — Negative Test Marker Emission

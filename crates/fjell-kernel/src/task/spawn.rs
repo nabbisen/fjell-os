@@ -136,11 +136,14 @@ pub fn spawn(
             //   3 = attestd   (M8)
             //   4 = recoveryd (M8)
             let ep_obj: u32 = match image_id {
-                fjell_abi::service::ImageId::STORAGED  => 1,
-                fjell_abi::service::ImageId::MEASUREDD => 2,
-                fjell_abi::service::ImageId::ATTESTD   => 3,
-                fjell_abi::service::ImageId::RECOVERYD => 4,
-                _                                      => 0,
+                fjell_abi::service::ImageId::STORAGED   => 1,
+                fjell_abi::service::ImageId::MEASUREDD  => 2,
+                fjell_abi::service::ImageId::ATTESTD    => 3,
+                fjell_abi::service::ImageId::RECOVERYD  => 4,
+                // RFC 040: cap-broker gets its own dedicated endpoint (5)
+                // so policy tests can route to it without ambiguity.
+                fjell_abi::service::ImageId::CAP_BROKER => 5,
+                _                                       => 0,
             };
             let _ = cs.install_raw(0, Capability {
                 kind: CapKind::Endpoint, object_id: ep_obj,
@@ -174,6 +177,14 @@ pub fn spawn(
             if needs_dma {
                 let _ = cs.install_raw(2, Capability {
                     kind: CapKind::DmaAlloc, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                });
+            }
+            // Slot 3: cap-broker endpoint cap for NEG_TEST (RFC 042 policy tests).
+            // object_id=5 is cap-broker's dedicated endpoint.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(3, Capability {
+                    kind: CapKind::Endpoint, object_id: 5,
                     rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }

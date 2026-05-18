@@ -621,6 +621,12 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 kind: CapKind::Endpoint, object_id: 0,
                 rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
+            // Slot 1: cap-broker private endpoint (endpoint id=5, RFC 040).
+            // Init uses this to send BOOTSTRAP_COMPLETE.
+            let _ = cs.install_raw(1, Capability {
+                kind: CapKind::Endpoint, object_id: 5,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+            });
             // Slot 2: storaged private endpoint (endpoint id=1).
             let _ = cs.install_raw(2, Capability {
                 kind: CapKind::Endpoint, object_id: 1,
