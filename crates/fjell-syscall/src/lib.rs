@@ -430,7 +430,45 @@ pub fn sys_cap_mint(src: CapHandle, dst_slot: u32, rights: u64) -> Result<CapHan
     Ok(CapHandle(r1 as u32))
 }
 
-/// `sys_cap_bind_lease(cap, lease_id) → Ok(())` (SyscallNumber::CapBindLease = 16)
+/// `sys_cap_revoke(cap) → Ok(())` — RFC 049: requires REVOKE right.
+///
+/// Revokes the capability subtree rooted at `cap`.  Fails with
+/// `PermissionDenied` if the source cap lacks `CapRights::REVOKE`.
+pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
+    to_result(ecall2(SyscallNumber::CapRevoke as usize, cap.0 as usize, 0, 0, 0).0)
+        .map(|_| ())
+}
+
+/// `sys_cap_inspect(cap) → Ok((kind, rights, badge))` — RFC 049: requires INSPECT right.
+///
+/// Fails with `PermissionDenied` if the source cap lacks `CapRights::INSPECT`.
+pub fn sys_cap_inspect(cap: CapHandle) -> Result<(usize, u64, u64), SysError> {
+    let (r0, kind) = ecall2(SyscallNumber::CapInspect as usize, cap.0 as usize, 0, 0, 0);
+    to_result(r0)?;
+    // rights and badge returned in a2/a3; ecall2 only returns a0/a1.
+    // Use inline asm to read them.
+    #[cfg(target_arch = "riscv64")]
+    let (rights, badge): (usize, usize) = unsafe {
+        let r: usize;
+        let b: usize;
+        core::arch::asm!(
+            "li a7, 13", "ecall",  // SyscallNumber::CapInspect
+            inlateout("a0") cap.0 as usize => _,
+            lateout("a1") _,
+            lateout("a2") r,
+            lateout("a3") b,
+            lateout("a7") _,
+            options(nostack),
+        );
+        (r, b)
+    };
+    #[cfg(not(target_arch = "riscv64"))]
+    let (rights, badge) = (0usize, 0usize);
+    let _ = kind;
+    Ok((kind, rights as u64, badge as u64))
+}
+
+
 ///
 /// Binds a lease to an existing capability in the caller's CSpace.
 /// After binding, `require_cap` step 7 verifies the lease is still active

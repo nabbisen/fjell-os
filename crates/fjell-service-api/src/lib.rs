@@ -258,6 +258,11 @@ pub mod negative_markers {
     pub const CAP_LEASE_REVOKED: &str      = "NEG:CAP:LEASE_REVOKED:PASS";
     /// `sys_cap_drop` succeeds even on a revoked capability.
     pub const CAP_DROP_ON_REVOKED: &str    = "NEG:CAP:DROP_ON_REVOKED:PASS";
+    // ── RFC 049: capability management rights ─────────────────────────────────
+    pub const CAP_COPY_WITHOUT_RIGHT:    &str = "NEG:CAP:COPY_WITHOUT_RIGHT_REJECTED:PASS";
+    pub const CAP_MINT_WITHOUT_RIGHT:    &str = "NEG:CAP:MINT_WITHOUT_RIGHT_REJECTED:PASS";
+    pub const CAP_REVOKE_WITHOUT_RIGHT:  &str = "NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS";
+    pub const CAP_INSPECT_WITHOUT_RIGHT: &str = "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS";
 
     // ── blocked IPC revocation (RFC 034) ─────────────────────────────────────
     /// A task blocked in `ipc_call` is woken with `LeaseRevoked` when its

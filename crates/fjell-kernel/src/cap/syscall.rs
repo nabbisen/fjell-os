@@ -26,12 +26,13 @@ fn err(tf: &mut TrapFrame, e: SysError){ tf.gpr[REG_A0] = e as isize as usize; }
 pub fn sys_cap_copy(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src = CapHandle(tf.gpr[10] as u32);
     let dst  = tf.gpr[11];
-    // RFC 015: validate source cap lease before copying.
+    // RFC 049: require COPY right + lease check on source cap.
     {
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
         if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; }
+        if !cap.rights.contains(CapRights::COPY) { err(tf, SysError::PermissionDenied); return; }
     }
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     match cs.copy(src, dst) {
@@ -45,12 +46,13 @@ pub fn sys_cap_mint(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src    = CapHandle(tf.gpr[10] as u32);
     let dst    = tf.gpr[11];
     let rights = CapRights(tf.gpr[12] as u64);  // v0.2: CapRights is u64
-    // RFC 015: validate source cap lease before minting a derived capability.
+    // RFC 049: require MINT right + lease check on source cap.
     {
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
         if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; }
+        if !cap.rights.contains(CapRights::MINT) { err(tf, SysError::PermissionDenied); return; }
     }
     let badge  = tf.gpr[13] as u64;
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
@@ -70,6 +72,14 @@ pub fn sys_cap_delete(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 
 pub fn sys_cap_revoke(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let h = CapHandle(tf.gpr[10] as u32);
+    // RFC 049: require REVOKE right + lease check on source cap.
+    {
+        let lt = unsafe { crate::get_lease_table() };
+        let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
+        let cap = match cs.get(h) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
+        if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; }
+        if !cap.rights.contains(CapRights::REVOKE) { err(tf, SysError::PermissionDenied); return; }
+    }
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     match cs.revoke(h) { Ok(()) => ok(tf), Err(e) => err(tf, e) }
     AUDIT.lock_free_append(AuditKindInternal::CapRevoke, h.0 as usize, 0, 0);
@@ -79,9 +89,12 @@ pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
     let h  = CapHandle(tf.gpr[10] as u32);
     let lt = unsafe { crate::get_lease_table() };
     let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
-    // RFC 015: validate lease before exposing cap metadata.
+    // RFC 049: require INSPECT right + lease check before exposing cap metadata.
     match cs.get(h) {
-        Ok(cap) => { if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; } }
+        Ok(cap) => {
+            if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; }
+            if !cap.rights.contains(CapRights::INSPECT) { err(tf, SysError::PermissionDenied); return; }
+        }
         Err(e)  => { err(tf, e); return; }
     }
     match cs.inspect(h) {

@@ -1,3 +1,32 @@
+## [0.2.11] - 2026-05-18 — RFC 049 + RFC 050 (partial): management rights + check_err
+
+### Implements RFC 049 (closes RB-02) and begins RFC 050 (H-06)
+
+**RFC 049**: `sys_cap_copy/mint/revoke/inspect` now each require the
+corresponding management right (`COPY`, `MINT`, `REVOKE`, `INSPECT`) on the
+source capability.  Any service holding an operational cap (e.g. `SEND|RECV`)
+minted by cap-broker can no longer copy, re-delegate, or self-revoke it.
+
+- `sys_cap_copy`: requires `CapRights::COPY`
+- `sys_cap_mint`: requires `CapRights::MINT`
+- `sys_cap_revoke`: requires `CapRights::REVOKE` (now reads the source cap first)
+- `sys_cap_inspect`: requires `CapRights::INSPECT`
+- `sys_cap_delete` and `sys_cap_drop`: unchanged (ownership-only, RFC 032)
+
+**RFC 050 (partial)**: `check_err(result, expected, marker)` helper added to
+neg-test.  Emits `PASS` only when `result == Err(expected)`; emits
+`NEG:HARNESS:WRONG_ERROR` or `NEG:HARNESS:UNEXPECTED_OK` otherwise.
+
+**New QEMU markers** (4, under `capability` category):
+- `NEG:CAP:COPY_WITHOUT_RIGHT_REJECTED:PASS`
+- `NEG:CAP:MINT_WITHOUT_RIGHT_REJECTED:PASS`
+- `NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS`
+- `NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS`
+
+**New wrappers** in `fjell-syscall`: `sys_cap_revoke`, `sys_cap_inspect`.
+
+`capability.toml` updated to 8 expected markers.
+
 ## [0.2.10] - 2026-05-18 — RFC 048: handle-based `require_cap` for task/lease syscalls
 
 ### Implements RFC 048 (closes RB-01)

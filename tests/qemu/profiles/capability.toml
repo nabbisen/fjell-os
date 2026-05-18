@@ -1,12 +1,17 @@
-# RFC 031-033 (v0.2): require_cap enforcement.
-# NEG_TEST exercises wrong-kind, rights-denied, lease-revoked, drop-on-revoked.
+# RFC 031/032/048/049 (v0.2): capability enforcement.
+# RFCs 048: handle-based require_cap for task/lease syscalls.
+# RFC 049: COPY/MINT/REVOKE/INSPECT management rights.
 
 name             = "capability"
 timeout_secs     = 90
 expected_markers = [
+  "NEG:CAP:WRONG_KIND_REJECTED:PASS",
   "NEG:CAP:RIGHTS_DENIED:PASS",
   "NEG:CAP:LEASE_REVOKED:PASS",
   "NEG:CAP:DROP_ON_REVOKED:PASS",
-  "NEG:CAP:WRONG_KIND_REJECTED:PASS",
+  "NEG:CAP:COPY_WITHOUT_RIGHT_REJECTED:PASS",
+  "NEG:CAP:MINT_WITHOUT_RIGHT_REJECTED:PASS",
+  "NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS",
+  "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS",
 ]
 extra_args       = []

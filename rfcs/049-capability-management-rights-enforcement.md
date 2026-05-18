@@ -2,7 +2,7 @@
 
 **RFC ID:** 049
 **Also known as:** RFC-v0.2-015
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.10
 **Phase:** Capability/syscall enforcement closure
 **Closes review item:** RB-02

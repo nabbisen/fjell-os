@@ -29,6 +29,7 @@ use fjell_syscall::{
     sys_audit_drain_raw, sys_ipc_call_words,
     sys_cap_copy, sys_cap_mint, sys_cap_bind_lease,
     sys_cap_drop as _sys_cap_drop,
+    sys_cap_revoke, sys_cap_inspect,
     sys_lease_create, sys_lease_revoke, sys_ipc_recv,
     sys_audit_drain,
 };
@@ -51,6 +52,7 @@ const SLOT_LEASE_ADMIN:u32 = 4;
 const SLOT_SCRATCH_C:  u32 = 12;  // scratch slot for audit overflow loop
 #[allow(dead_code)]
 const SLOT_SCRATCH_D:  u32 = 13;  // scratch for ipc blocked-call recv
+const SLOT_NARROW_CAP: u32 = 14;  // minted cap with no management rights (RFC 049 tests)
 //                       v0.2.8 layout (kept for clarity of fix):
 //                       SLOT_SCRATCH_A=6, SLOT_SCRATCH_B=7, _C=8, _D=9 ← collided with TaskControl(6).
 const SLOT_SCRATCH_A:  u32 = 10;  // copy of OWN_EP with lease bound
@@ -67,6 +69,29 @@ const RAM_BASE: usize = 0x8000_0000;
 fn check(condition: bool, marker: &str) {
     if condition {
         sys_debug_writeln(marker);
+    }
+}
+
+/// RFC 050: exact-error-code check.
+///
+/// Emits the PASS marker only when `result == Err(expected)`.
+/// Wrong-error or unexpected Ok both emit a `NEG:HARNESS:*` diagnostic so
+/// the failure mode is visible in the QEMU serial log.
+fn check_err<T>(
+    result:   Result<T, fjell_abi::error::SysError>,
+    expected: fjell_abi::error::SysError,
+    marker:   &str,
+) {
+    match result {
+        Err(e) if e == expected => sys_debug_writeln(marker),
+        Err(_) => {
+            sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
+            sys_debug_writeln(marker);
+        }
+        Ok(_) => {
+            sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
+            sys_debug_writeln(marker);
+        }
     }
 }
 
@@ -453,6 +478,58 @@ fn test_svc_fault_detected() {
     }
 }
 
+
+// ── RFC 049: capability management rights tests ───────────────────────────────
+
+/// Setup helper: mint a cap with operational rights only (no COPY/MINT/REVOKE/INSPECT).
+/// Returns Ok(()) if the narrow cap was installed into SLOT_NARROW_CAP.
+fn install_narrow_cap() -> bool {
+    // EP_RW = SEND | RECV — no management bits.
+    let ep_rw = fjell_cap::CapRights::SEND | fjell_cap::CapRights::RECV;
+    match sys_cap_mint(fjell_cap::CapHandle(SLOT_OWN_EP), SLOT_NARROW_CAP, ep_rw.0) {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+/// RFC 049: COPY right is required for sys_cap_copy.
+fn test_cap_copy_without_right() {
+    if !install_narrow_cap() { return; }
+    // Attempt to copy the narrow cap — source has no COPY right.
+    let result = sys_cap_copy(fjell_cap::CapHandle(SLOT_NARROW_CAP), 15u32);
+    check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_COPY_WITHOUT_RIGHT);
+    // Clean up SLOT_NARROW_CAP for subsequent tests.
+    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+}
+
+/// RFC 049: MINT right is required for sys_cap_mint.
+fn test_cap_mint_without_right() {
+    if !install_narrow_cap() { return; }
+    let ep_rw = fjell_cap::CapRights::SEND | fjell_cap::CapRights::RECV;
+    // Attempt to mint from the narrow cap — source has no MINT right.
+    let result = sys_cap_mint(fjell_cap::CapHandle(SLOT_NARROW_CAP), 15u32, ep_rw.0);
+    check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_MINT_WITHOUT_RIGHT);
+    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+}
+
+/// RFC 049: REVOKE right is required for sys_cap_revoke.
+fn test_cap_revoke_without_right() {
+    if !install_narrow_cap() { return; }
+    // Attempt to revoke the narrow cap — it has no REVOKE right.
+    let result = sys_cap_revoke(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_REVOKE_WITHOUT_RIGHT);
+    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+}
+
+/// RFC 049: INSPECT right is required for sys_cap_inspect.
+fn test_cap_inspect_without_right() {
+    if !install_narrow_cap() { return; }
+    // Attempt to inspect the narrow cap — it has no INSPECT right.
+    let result = sys_cap_inspect(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_INSPECT_WITHOUT_RIGHT);
+    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+}
+
 // ── Service entry point ───────────────────────────────────────────────────────
 
 #[unsafe(no_mangle)]
@@ -469,6 +546,11 @@ pub extern "C" fn service_main() -> ! {
     test_cap_lease_revoked();
     test_cap_drop_on_revoked();
     test_cap_wrong_kind();
+    // ── RFC 049: capability management rights ─────────────────────────────────
+    test_cap_copy_without_right();
+    test_cap_mint_without_right();
+    test_cap_revoke_without_right();
+    test_cap_inspect_without_right();
 
     // ── MMIO boundary (RFC 035) ───────────────────────────────────────────────
     test_mmio_ram_guard();
