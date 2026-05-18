@@ -248,7 +248,6 @@ pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 /// lease-bound caps, preventing unprivileged escalation.
 pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     use fjell_abi::lease::LeaseId;
-    use fjell_cap::{CapKind, CapRights};
 
     let cap_h    = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);

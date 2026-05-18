@@ -1,3 +1,16 @@
+## [0.2.17] - 2026-05-18 — Build fix: REG_A3 missing and stale unused import
+
+### Fixed
+
+- **`crates/fjell-kernel/src/task/tcb.rs`**: `REG_A3` through `REG_A6` were
+  never defined (only A0, A1, A2, A7 existed). Added `REG_A3=13`, `REG_A4=14`,
+  `REG_A5=15`, `REG_A6=16`. The A3 constant is required by `sys_cap_install`
+  and `sys_task_start` argument reads added in v0.2.14.
+
+- **`crates/fjell-kernel/src/cap/syscall.rs`**: Unused `use fjell_cap::{CapKind,
+  CapRights}` import in `sys_cap_bind_lease` (left over after replacing the old
+  scan-based `require_cap` call with a deferral comment in v0.2.16). Removed.
+
 ## [0.2.16] - 2026-05-18 — Build fix: kernel cross-compilation errors
 
 ### Fixed (found by kernel cross-build after v0.2.15)
