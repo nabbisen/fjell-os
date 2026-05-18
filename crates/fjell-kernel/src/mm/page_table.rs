@@ -15,7 +15,7 @@ use super::{
     vspace::VmPerms,
 };
 use crate::arch::riscv64::pte::{
-    sv39_decode_va, Pte, PTE_PER_PAGE, PTE_R, PTE_U, PTE_W, PTE_X,
+    sv39_decode_va, Pte, PTE_R, PTE_U, PTE_W, PTE_X,
 };
 
 /// Map a single 4 KiB page.
@@ -134,14 +134,23 @@ pub unsafe fn clone_kernel_half(
     target_root_pa: usize,
     kernel_root_pa: usize,
 ) {
-    // The kernel occupies the upper canonical half of Sv39 (VPN[2] >= 256).
+    // This kernel uses an identity map with the kernel image sitting at
+    // physical 0x80000000 = VA 0x80000000 (VPN[2] = 2, Sv39).
+    // The "upper canonical half" approach (VPN[2] >= 256) is NOT used here;
+    // instead we copy the root-level entries that the kernel actually occupies:
+    //
+    //   Entry 2 (VA 0x8000_0000 – 0xBFFF_FFFF): kernel text, data, stack.
+    //   Entry 0 is LEFT EMPTY here; each task adds its own user mappings
+    //           plus the UART mapping into entry 0 independently.
+    //
+    // Sharing the entry-2 PTE is safe because user tasks never write into
+    // kernel code/data pages (page faults are handled in trap/fault.rs).
     // SAFETY: both root_pa values are valid 4-KiB-aligned page tables.
     unsafe {
         let src = kernel_root_pa as *const Pte;
         let dst = target_root_pa as *mut Pte;
-        for i in 256..PTE_PER_PAGE {
-            *dst.add(i) = *src.add(i);
-        }
+        // Entry 2 covers the 1-GiB region starting at VA 0x8000_0000.
+        *dst.add(2) = *src.add(2);
     }
 }
 

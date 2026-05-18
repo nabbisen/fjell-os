@@ -40,47 +40,51 @@ use super::{fault::handle_user_fault, syscall::handle_syscall};
 /// - `sscratch` must point to the static `TRAP_SCRATCH`.
 #[cfg(target_arch = "riscv64")]
 pub unsafe fn first_entry(tf: &TrapFrame) -> ! {
-    // SAFETY: tf is a fully-initialised TrapFrame.  We restore CSRs and GPRs
-    // then execute sret.  The CPU enters user mode and this function diverges.
+    // Pin tf to a0 (x10).  The load sequence restores every register in order;
+    // if the compiler chose s3 (x19) as the base, `ld x19, 19*8(s3)` would
+    // overwrite the base with TrapFrame.gpr[19] (often 0), causing the next
+    // load to fault.  With a0 as the base, only x10 is clobbered — and that
+    // happens on the very last load, immediately before sret.
     unsafe {
         core::arch::asm!(
-            "ld   t0, {sstatus_off}({tf})",
+            "ld   t0, {sstatus_off}(a0)",
             "csrw sstatus, t0",
-            "ld   t0, {sepc_off}({tf})",
+            "ld   t0, {sepc_off}(a0)",
             "csrw sepc,    t0",
-            "ld   x1,   1*8({tf})",
-            "ld   x2,   2*8({tf})",
-            "ld   x3,   3*8({tf})",
-            "ld   x4,   4*8({tf})",
-            "ld   x5,   5*8({tf})",
-            "ld   x6,   6*8({tf})",
-            "ld   x7,   7*8({tf})",
-            "ld   x8,   8*8({tf})",
-            "ld   x9,   9*8({tf})",
-            "ld   x11, 11*8({tf})",
-            "ld   x12, 12*8({tf})",
-            "ld   x13, 13*8({tf})",
-            "ld   x14, 14*8({tf})",
-            "ld   x15, 15*8({tf})",
-            "ld   x16, 16*8({tf})",
-            "ld   x17, 17*8({tf})",
-            "ld   x18, 18*8({tf})",
-            "ld   x19, 19*8({tf})",
-            "ld   x20, 20*8({tf})",
-            "ld   x21, 21*8({tf})",
-            "ld   x22, 22*8({tf})",
-            "ld   x23, 23*8({tf})",
-            "ld   x24, 24*8({tf})",
-            "ld   x25, 25*8({tf})",
-            "ld   x26, 26*8({tf})",
-            "ld   x27, 27*8({tf})",
-            "ld   x28, 28*8({tf})",
-            "ld   x29, 29*8({tf})",
-            "ld   x30, 30*8({tf})",
-            "ld   x31, 31*8({tf})",
-            "ld   x10, 10*8({tf})",   // a0 last
+            "ld   x1,   1*8(a0)",
+            "ld   x2,   2*8(a0)",
+            "ld   x3,   3*8(a0)",
+            "ld   x4,   4*8(a0)",
+            "ld   x5,   5*8(a0)",
+            "ld   x6,   6*8(a0)",
+            "ld   x7,   7*8(a0)",
+            "ld   x8,   8*8(a0)",
+            "ld   x9,   9*8(a0)",
+            // x10 = a0 (base) — restored last
+            "ld   x11, 11*8(a0)",
+            "ld   x12, 12*8(a0)",
+            "ld   x13, 13*8(a0)",
+            "ld   x14, 14*8(a0)",
+            "ld   x15, 15*8(a0)",
+            "ld   x16, 16*8(a0)",
+            "ld   x17, 17*8(a0)",
+            "ld   x18, 18*8(a0)",
+            "ld   x19, 19*8(a0)",
+            "ld   x20, 20*8(a0)",
+            "ld   x21, 21*8(a0)",
+            "ld   x22, 22*8(a0)",
+            "ld   x23, 23*8(a0)",
+            "ld   x24, 24*8(a0)",
+            "ld   x25, 25*8(a0)",
+            "ld   x26, 26*8(a0)",
+            "ld   x27, 27*8(a0)",
+            "ld   x28, 28*8(a0)",
+            "ld   x29, 29*8(a0)",
+            "ld   x30, 30*8(a0)",
+            "ld   x31, 31*8(a0)",
+            "ld   x10, 10*8(a0)",   // a0 last — clobbers base, sret follows
             "sret",
-            tf          = in(reg) tf,
+            in("a0") tf,            // force base into a0 to prevent self-clobber
             sstatus_off = const 32 * 8,
             sepc_off    = const 33 * 8,
             options(noreturn),
@@ -207,10 +211,20 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         return current_tf;
     }
 
-    // Mark next task as running.
+    // Mark next task as running and switch to its address space.
     let next_tf = if let Some(task) = table.get_mut(next_id) {
         task.state = TaskState::Running;
         task.accounting.run_count += 1;
+
+        // Switch satp to the next task's root page table.
+        // For the idle task (satp_root_pfn = 0) keep the kernel mapping.
+        // SAFETY: satp_root_pfn was set from a valid PhysFrame.pfn during task
+        // creation; sfence.vma flushes stale TLB entries for ASID 0.
+        #[cfg(target_arch = "riscv64")]
+        if task.satp_root_pfn != 0 {
+            unsafe { crate::arch::riscv64::satp::enable_sv39(task.satp_root_pfn) };
+        }
+
         &mut task.trap_frame as *mut TrapFrame
     } else {
         current_tf
@@ -219,14 +233,20 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     // Update TRAP_SCRATCH[1] to point at the next task's TrapFrame so the
     // trap entry stub saves/restores the correct registers next time.
     // TRAP_SCRATCH[0] (kernel sp) stays constant — always the boot stack top.
+    //
+    // Also explicitly restore sscratch to &TRAP_SCRATCH[0].  The trap entry
+    // does `csrrw t6, sscratch, t6` (swap t6 and sscratch), which leaves
+    // sscratch = user's t6 after entry.  If we don't restore it here, the
+    // *next* trap would load scratch_addr=user_t6 (often 0) and fault on
+    // `ld sp, 0(t6)`.
+    //
     // SAFETY: TRAP_SCRATCH is static and was initialised in kmain before any
-    // trap fired.  Single-hart M2; no concurrent access.
+    // trap fired.  Single-hart M3; no concurrent access.
     #[cfg(target_arch = "riscv64")]
     unsafe {
         let s = &mut *crate::TRAP_SCRATCH.0.get();
         s[1] = next_tf as usize;
-        // sscratch already points at TRAP_SCRATCH from kmain setup; no need
-        // to call write_sscratch again unless we change the scratch address.
+        crate::arch::riscv64::csr::write_sscratch(s.as_ptr() as usize);
     }
 
     next_tf
@@ -234,31 +254,43 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
 
 fn task_label(id: TaskId) -> &'static str {
     match id.index {
-        1 => "user0",
-        2 => "user1",
-        _ => "task?",
+        1 => "init",
+        2 => "configd",
+        3 => "cap-broker",
+        4 => "auditd",
+        5 => "svc-manager",
+        6 => "sample",
+        _ => "task",
     }
 }
 
 fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
-    // M3 pass condition: both user tasks reached Exited(0) via the
-    // ipc_call / ipc_recv / ipc_reply flow.
+    // M4 pass condition: fjell-init (task 1) exited cleanly with code 0.
+    // init itself orchestrates all other services and only exits after
+    // printing TEST:M4:PASS.
     let exited_ok = |idx: u16| {
         table.get(TaskId::new(idx, 0))
              .map(|t| matches!(t.state, TaskState::Exited(0)))
              .unwrap_or(false)
     };
-    let faulted_or_exited = |idx: u16| {
+    let done = |idx: u16| {
         table.get(TaskId::new(idx, 0))
              .map(|t| matches!(t.state, TaskState::Exited(_) | TaskState::Faulted(_)))
              .unwrap_or(true)
     };
 
-    if exited_ok(1) && exited_ok(2) {
+    if exited_ok(1) {
         crate::kprintln!("sched: idle");
-        crate::kprintln!("TEST:M3:PASS");
-    } else if faulted_or_exited(1) && faulted_or_exited(2) {
-        // At least one task faulted — still print idle but not PASS.
+    } else if done(1) {
         crate::kprintln!("sched: idle");
+        crate::kprintln!("TEST:M4:FAIL (init did not exit cleanly)");
     }
+}
+
+/// Return the index of the currently running task (used by M4 syscall dispatch).
+///
+/// Returns 0 (idle) if no task is currently scheduled.
+pub fn current_task_idx() -> usize {
+    let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
+    sched.current().map(|id| id.index as usize).unwrap_or(0)
 }

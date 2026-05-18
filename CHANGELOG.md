@@ -5,7 +5,78 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [Unreleased — v0.0.3 / M3: IPC and Capability]
+## [Unreleased]
+
+---
+
+## [0.0.4] — 2026-05-12 — M4: Service Plane Bootstrap
+
+### Added
+- `fjell-abi`: `LeaseId`, `LeaseEpoch`, `BootInfo`, `ImageId`, `ServiceId`,
+  `TaskLifecycle`; M4 syscall numbers (TaskSpawn=40, TaskStart=41,
+  TaskStatus=42, TaskKill=43, LeaseCreate=50, LeaseRevoke=51,
+  LeaseInspect=52, AuditDrain=60)
+- `fjell-syscall`: complete user-space wrappers for all M3+M4 syscalls;
+  service runtime module (`rt.rs`) with `_start` + `#[panic_handler]`
+- `fjell-service-api`: IPC protocol tag constants for service lifecycle,
+  config, cap-broker, audit, and service-manager protocols
+- `fjell-cap-broker`: policy-evaluation service; static rule table;
+  lease-create/revoke/inspect smoke demonstration
+- `fjell-configd`: bootstrap manifest validation; config-get endpoint
+- `fjell-auditd`: kernel audit ring drain; JSON Lines emission
+- `fjell-service-manager`: service graph bootstrap; sample-service spawn
+- `fjell-sample-service`: minimal ready/heartbeat/shutdown service
+- `fjell-init` (full implementation): orchestrates configd → cap-broker →
+  auditd → service-manager → sample-service; emits audit JSON Lines;
+  prints `TEST:M4:PASS`
+- `fjell-kernel/src/lease/`: `LeaseTable` with `create`/`revoke`/
+  `check_active`/`current_epoch`; MAX_LEASES=32
+- `fjell-kernel/src/task/image.rs`: embedded flat-binary service image table
+  (`include_bytes!` of six release binaries); `SERVICE_BASE_VA=0x40000`,
+  `SERVICE_STACK_TOP=0x51000`
+- `fjell-kernel/src/task/spawn.rs`: flat-binary task spawner; multi-page
+  text loading; UART + kernel-half mapping in spawned address space
+- Kernel M4 syscall handlers: `sys_task_spawn`, `sys_task_start`,
+  `sys_task_status`, `sys_lease_create`, `sys_lease_revoke`,
+  `sys_lease_inspect`, `sys_audit_drain`
+- `sys_debug_write` updated: directly writes a user byte to UART MMIO
+- `FRAME_ALLOC` static: `FrameAllocator` moved from kmain stack to BSS static
+- `KERNEL_ROOT_PFN` static: kernel root page-table PFN stored for trap-time
+  `sys_task_spawn` access
+- `FA_RAW_PTR` static: frame-allocator raw pointer stored for `sys_task_spawn`
+- TRAP_SCRATCH expanded to `[usize; 3]`: slot [2] holds user sp temp save
+- `Scheduler::suspend_current()` used in `block()` (M3 fix carried forward)
+- `TaskTable::next_free_index()` helper
+
+### Fixed
+- `first_entry`: changed `in(reg) tf` to `in("a0") tf` — when the compiler
+  chose `s3` (x19) as the base register, `ld x19, 19*8(s3)` would overwrite
+  the base with `TrapFrame.gpr[19]` (often 0), faulting on the next load
+- `FrameAllocator` local-to-kmain: trap handler resets sp to `__stack_top`
+  on every entry, overwriting kmain's stack frame including `fa_cell`; fix:
+  moved to `static FRAME_ALLOC` in BSS
+- `SERVICE_STACK_TOP`: was `0x50000`, linker script produces `0x51000`
+  (`__stack_bottom=0x41000 + 64K = 0x51000`); incorrect value caused
+  `StorePageFault` on first service function call
+- `trap/entry.rs`: `sd sp, 2*8(t6)` saved kernel sp (already loaded by
+  `ld sp, 0(t6)`) instead of user sp; fixed by: (a) storing user sp to
+  `SCRATCH[2]` before loading kernel sp, (b) restoring sscratch to
+  SCRATCH_ADDR, (c) loading user sp back from `SCRATCH[2]` into the
+  TrapFrame; without this, all service stacks were silently corrupted after
+  their first ecall
+- `check_smoke_pass` / `task_label`: updated for M4 single-task model (init
+  exit = PASS criterion; task labels: init/configd/cap-broker/auditd/…)
+- `task/spawn.rs`: `alloc_frame` returns `Result`, not `Option`; replaced
+  `ok_or` with `map_err` in all spawn allocation paths
+- `task/spawn.rs`: `next_free_index()` returns `Option`; kept `ok_or` there
+- `TaskState`: added `#[derive(PartialEq)]` for state comparison in
+  `sys_task_status` and `sys_task_start`
+- `BlockReason`, `FaultInfo`: added `#[derive(PartialEq)]` for
+  `TaskState::PartialEq` to work transitively
+
+---
+
+## [0.0.3] — 2026-05-11 — M3: IPC and Capability
 
 ### Added
 - `fjell-abi`: expanded `SyscallNumber` (CapCopy/Mint/Delete/Revoke/Inspect,
@@ -22,12 +93,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `syscall.rs` (all M3 cap + IPC syscall handlers)
 - `fjell-kernel/src/audit/ring.rs`: M3 audit kinds
   (CapCopy/Mint/Delete/Revoke, IpcSend/Recv/Call/Reply/Denied)
-- `fjell-kernel/src/task/user_image.rs`: M3 smoke scenario
-  (user0=client ipc_call, user1=server ipc_recv+ipc_reply)
-- `main.rs`: static `CAP_TABLE` + `EP_TABLE`; endpoint allocated and
-  capabilities installed into user task CSpaces at boot
-- Smoke test marker: `TEST:M3:PASS` (both tasks exit(0) via IPC flow)
+- `fjell-kernel/src/task/user_image.rs`: `USER_TASK_C` (denied task — no
+  capability, ipc_call → denied → exit(0))
+- `main.rs`: 3-task M3 smoke scenario (client, server, denied) with M3 boot
+  messages; per-task satp switching; UART mapped in each user page table
+- `Scheduler::suspend_current()`: clears current without dequeuing next task
+- M3 kernel log messages: "client: call sent", "server: request received",
+  "server: reply sent", "client: reply received", "denied: ipc denied as
+  expected", "audit: capability.denied", "audit: ipc.call", "audit: ipc.reply"
+- Smoke test marker: `TEST:M3:PASS` (all three tasks exit(0) via IPC flow)
 - `cargo xtask qemu-test m3` smoke gate
+
+### Fixed
+- `fjell-cap/src/cspace.rs`: `gen` renamed to `slot_gen` (Rust 2024 reserved
+  keyword)
+- `fjell-ipc/src/endpoint.rs`: removed duplicate `pub use` re-export of
+  `IPC_WORDS`/`IPC_CAPS` that caused E0252 in Rust 2024
+- `fjell-ipc/src/endpoint.rs`: added `#[derive(Debug)]` to `SendResult` and
+  `RecvResult` (required by `unwrap_err` in tests)
+- `fjell-cap/src/slot.rs`: added `#[derive(PartialEq)]` to `Capability`
+  (required by `assert_eq!` in tests)
+- `task/user_image.rs`: removed stray `}` after `USER_TASK_A` slice literal
+- `cap/table.rs`: removed unused imports `CSPACE_SLOTS`, `CapHandle`,
+  `CapKind`, `CapRights`
+- `main.rs (m_mode_setup)`: added PMP entry 0 (NAPOT, RWX, all memory) so
+  S-mode can access RAM after `mret` — without this every S-mode fetch faults
+- `main.rs (kmain)`: DTB reservation now ignores `AlreadyReserved` (DTB may
+  overlap kernel image on QEMU virt)
+- `main.rs (kmain)`: identity map extended to `__stack_top` (was only
+  `boot_end = BSS+2MiB`; stack is BSS+4MiB, causing store_page_fault on
+  first kernel stack write after enabling Sv39)
+- `mm/page_table.rs (clone_kernel_half)`: now copies root entry 2
+  (VA 0x80000000, kernel code/data/stack) instead of entries 256..511 (which
+  are all empty for this identity-mapped kernel)
+- `trap/dispatch.rs (schedule_next)`: `write_sscratch` called on every
+  schedule to restore the sscratch → TRAP_SCRATCH pointer (the trap entry
+  `csrrw t6, sscratch, t6` leaves sscratch = user's t6; without this restore
+  the second trap would fault at `ld sp, 0(t6)` with t6=0)
+- `cap/syscall.rs (block)`: replaced `sched.on_exit()` (which internally
+  dequeues and discards the next task) with `sched.suspend_current()` — fixes
+  silent task loss when caller blocks on IPC
+- `task/scheduler.rs (on_exit/on_fault/on_yield)`: removed internal
+  `choose_next()` calls; callers in `schedule_next` now always call
+  `choose_next()` exactly once, preventing double-dequeue and task loss
+- `cap/syscall.rs (sys_ipc_recv)`: for `is_call=true`, sender is no longer
+  prematurely woken on message delivery (it must wait for explicit `ipc_reply`)
+- `cap/syscall.rs (sys_ipc_reply)`: caller state is checked before waking;
+  Exited/Faulted callers are silently skipped to prevent zombie resurrection
+
 
 ---
 

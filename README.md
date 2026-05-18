@@ -42,13 +42,24 @@ for the full design rationale.
 ### Prerequisites
 
 ```sh
-# Rust 1.91 + bare-metal RISC-V target
+# Rust 1.91 + nightly bootstrap flag (for -Z build-std)
 rustup toolchain install 1.91
-rustup target add riscv64gc-unknown-none-elf
+# Note: rustup target add is NOT needed — build-std compiles core from source
 
-# RISC-V GCC linker (required for kernel link step)
-sudo apt-get install gcc-riscv64-unknown-elf   # Ubuntu/Debian
-sudo pacman -S riscv64-elf-gcc                 # Arch Linux
+# LLVM linker (ld.lld) — cross-platform, handles RISC-V out of the box
+sudo apt-get install lld                       # Ubuntu/Debian  → provides ld.lld
+sudo pacman -S lld                             # Arch Linux
+brew install llvm && brew link llvm            # macOS
+
+# objcopy (to extract flat binaries from ELFs, needed by cargo xtask build-services)
+sudo apt-get install llvm                      # Ubuntu/Debian  → provides llvm-objcopy
+sudo pacman -S llvm                            # Arch Linux
+# macOS: included with the llvm install above
+
+# Alternative: GNU toolchain (both linker and objcopy in one package)
+# sudo apt-get install gcc-riscv64-unknown-elf
+# sudo pacman -S riscv64-elf-binutils
+# (update .cargo/config.toml linker = "riscv64-unknown-elf-ld" if using this)
 
 # QEMU
 sudo apt-get install qemu-system-misc          # Ubuntu/Debian
@@ -59,22 +70,27 @@ brew install qemu                              # macOS
 ### Build and run
 
 ```sh
-# Host-side crates (services, tools) — no cross-compile needed
-cargo check
-cargo build
+# 1. Build user-space service binaries (produces crates/fjell-kernel/prebuilt/*.bin)
+cargo xtask build-services
 
-# Kernel — must specify BOTH --package and --target
-cargo build --package fjell-kernel --target riscv64gc-unknown-none-elf --release
+# 2. Build fjell-kernel (embeds the prebuilt service binaries)
+RUSTC_BOOTSTRAP=1 cargo build \
+  --package fjell-kernel \
+  --target riscv64gc-unknown-none-elf \
+  --release \
+  -Z build-std=core,compiler_builtins
 
-# Launch under QEMU (builds kernel then starts QEMU)
-cargo xtask qemu        # interactive  — exit with Ctrl-A then X
-cargo xtask qemu-test   # smoke test   — non-interactive, 30s timeout
+# Or: do both in one command and launch QEMU
+cargo xtask qemu                  # interactive  — exit with Ctrl-A then X
+cargo xtask qemu-test             # smoke test   — checks for TEST:M4:PASS
+cargo xtask qemu-test m4          # same as above, explicit milestone
 ```
 
-> **Common mistake**: `cargo build --target riscv64gc-unknown-none-elf` without
-> `--package fjell-kernel` will attempt to build all `default-members` for the
-> bare-metal target and fail on `std`-using crates.  Always pair `--package` and
-> `--target` when building the kernel directly.
+> **Note on build order**: `fjell-kernel` embeds pre-built service binaries
+> via `include_bytes!("../../prebuilt/*.bin")`.  You must run
+> `cargo xtask build-services` (or equivalent) at least once before building
+> the kernel.  The kernel's `build.rs` will print a helpful error with
+> instructions if the prebuilt binaries are missing.
 
 ---
 

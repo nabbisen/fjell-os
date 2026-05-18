@@ -1,27 +1,37 @@
-# Root-level cargo configuration.
-#
-# The default build target is intentionally NOT set here so that host-side
-# crates (fjell-tools, user-space services) compile for the host without
-# requiring --target on every invocation.
-#
-# The kernel linker script is supplied via crates/fjell-kernel/build.rs so
-# that it works correctly regardless of the working directory.
-
 [alias]
-# Build and run the kernel under QEMU:
-#   cargo xtask qemu
-#
-# Run the M2 smoke test suite:
-#   cargo xtask qemu-test m2
 xtask = "run --package fjell-tools --"
 
-# Flags that apply whenever any crate is compiled for the bare-metal RISC-V
-# target, regardless of the working directory.
+# ── RISC-V bare-metal target configuration ────────────────────────────────────
+#
+# Linker: Fjell OS requires a RISC-V-capable linker.  Two options:
+#
+#   Option A — LLVM LLD (recommended, cross-platform):
+#     Ubuntu/Debian:  sudo apt install lld
+#     Arch Linux:     sudo pacman -S lld
+#     macOS:          brew install llvm  (then add to PATH)
+#     Windows:        winget install LLVM.LLVM
+#
+#   Option B — GNU binutils for RISC-V:
+#     Ubuntu/Debian:  sudo apt install gcc-riscv64-unknown-elf
+#     Arch Linux:     sudo pacman -S riscv64-elf-binutils
+#     macOS:          brew install riscv-gnu-toolchain
+#
+#   To switch to Option B, change the [target.riscv64gc-unknown-none-elf]
+#   section below:
+#     linker = "riscv64-unknown-elf-ld"
+#     rustflags = ["-C", "code-model=medium", "-C", "linker-flavor=ld"]
+#
+# objcopy (needed by `cargo xtask build-services`):
+#   Option A:  llvm-objcopy  (from the lld / llvm package above)
+#   Option B:  riscv64-unknown-elf-objcopy  (from gcc-riscv64-unknown-elf)
+#
+# The xtask automatically tries both names; set FJELL_OBJCOPY to override.
+
 [target.riscv64gc-unknown-none-elf]
+linker  = "ld.lld"
 rustflags = [
-    # "medium" is the LLVM/Rust name for GCC's "medany" code model.
-    # It uses PC-relative addressing and allows the kernel to be placed
-    # anywhere in the 64-bit address space (required at 0x8000_0000,
-    # which lies outside the "small" model's ±2 GiB range from zero).
+    "-C", "linker-flavor=ld",
+    "-C", "link-arg=-m",
+    "-C", "link-arg=elf64lriscv",
     "-C", "code-model=medium",
 ]

@@ -30,6 +30,17 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::IpcRecv) |
         Some(SyscallNumber::IpcCall) |
         Some(SyscallNumber::IpcReply)   => dispatch_m3(tf, nr),
+        // M4 task syscalls
+        Some(SyscallNumber::TaskSpawn)  => dispatch_task_spawn(tf),
+        Some(SyscallNumber::TaskStart)  => dispatch_task_start(tf),
+        Some(SyscallNumber::TaskStatus) => dispatch_task_status(tf),
+        // M4 lease syscalls
+        Some(SyscallNumber::LeaseCreate)  => dispatch_lease_create(tf),
+        Some(SyscallNumber::LeaseRevoke)  => dispatch_lease_revoke(tf),
+        Some(SyscallNumber::LeaseInspect) => dispatch_lease_inspect(tf),
+        // M4 audit
+        Some(SyscallNumber::AuditDrain)   => sys_audit_drain(tf),
+        // DebugWrite handled before
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
             tf.gpr[REG_A0] = SysError::UnknownSyscall as isize as usize;
@@ -69,16 +80,14 @@ fn sys_exit(tf: &mut TrapFrame) {
     EXIT_REQUESTED.store(true);
 }
 
-/// `sys_debug_write` — write bytes to the UART (smoke-test only).
+/// `sys_debug_write(a0=byte)` — write one byte to UART (smoke-test helper).
+///
+/// Used by `fjell_syscall::sys_debug_write_byte` in user-space services.
 fn sys_debug_write(tf: &mut TrapFrame) {
-    // a0 = pointer to bytes (user VA), a1 = length.
-    // In M2 we trust the pointer (no capability check); this syscall is
-    // removed or protected in M3+.
-    let _ptr = tf.gpr[REG_A0];
-    let _len = tf.gpr[REG_A1];
+    let b = tf.gpr[REG_A0] as u8;
+    // Direct MMIO write; safe because UART PA is identity-mapped.
+    unsafe { (0x1000_0000usize as *mut u8).write_volatile(b) };
     tf.gpr[REG_A0] = SysError::Ok as usize;
-    // Actual output omitted: we cannot safely dereference user pointers
-    // without page-table walk in M2.  Smoke test relies on kernel-side prints.
 }
 
 // ── Shared state between syscall handler and kernel run-loop ─────────────────
@@ -142,4 +151,155 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
         Some(SyscallNumber::IpcReply)   => sys_ipc_reply(tf, tidx, ct, table, sched),
         _                               => { /* already handled in caller */ }
     }
+}
+
+// ── M4 syscall handlers ───────────────────────────────────────────────────────
+
+/// `sys_task_spawn(a0=image_id) -> a0=task_handle_raw, a1=0`
+pub fn sys_task_spawn(
+    tf: &mut TrapFrame,
+    table:       &mut crate::task::tcb::TaskTable,
+    sched:       &mut crate::task::scheduler::Scheduler,
+    kernel_root: crate::mm::frame_alloc::PhysFrame,
+    fa:          *mut crate::mm::frame_alloc::FrameAllocator<'static>,
+) {
+    use fjell_abi::service::ImageId;
+    use crate::task::spawn::spawn;
+    let image_id = ImageId(tf.gpr[REG_A0] as u16);
+    let fa_ref = unsafe { &mut *fa };
+    match spawn(image_id, table, sched, kernel_root, fa_ref) {
+        Ok(tid) => {
+            tf.gpr[REG_A0] = 0;                          // SysError::Ok
+            tf.gpr[REG_A1] = tid.index as usize;         // task handle
+        }
+        Err(e) => {
+            tf.gpr[REG_A0] = e as isize as usize;
+        }
+    }
+}
+
+/// `sys_task_start(a0=handle, a1=entry_pc, a2=stack_top)`
+pub fn sys_task_start(
+    tf:    &mut TrapFrame,
+    table: &mut crate::task::tcb::TaskTable,
+    sched: &mut crate::task::scheduler::Scheduler,
+) {
+    use fjell_abi::error::SysError;
+    use crate::task::TaskId; use crate::task::tcb::TaskState;
+    let handle = tf.gpr[REG_A0] as u16;
+    let entry  = tf.gpr[10 + 1]; // a1
+    let stack  = tf.gpr[10 + 2]; // a2
+    let tid    = TaskId::new(handle, 0);
+    match table.get_mut(tid) {
+        Some(task) => {
+            if task.state != TaskState::Created {
+                tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
+                return;
+            }
+            if entry != 0 { task.trap_frame.sepc   = entry; }
+            if stack != 0 { task.trap_frame.gpr[2] = stack; }
+            task.state = TaskState::Runnable;
+            sched.enqueue_runnable(tid, 2 /* PRIORITY_USER */);
+            tf.gpr[REG_A0] = 0;
+        }
+        None => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; }
+    }
+}
+
+/// `sys_task_status(a0=handle) -> a0=lifecycle_byte`
+pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) {
+    use fjell_abi::error::SysError;
+    use fjell_abi::service::TaskLifecycle;
+    use crate::task::TaskId; use crate::task::tcb::TaskState;
+    let tid = TaskId::new(tf.gpr[REG_A0] as u16, 0);
+    match table.get(tid) {
+        Some(task) => {
+            let lc = match task.state {
+                TaskState::Empty    => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
+                TaskState::Created    => TaskLifecycle::Created,
+                TaskState::Runnable   => TaskLifecycle::Runnable,
+                TaskState::Running    => TaskLifecycle::Running,
+                TaskState::Blocked(_) => TaskLifecycle::Blocked,
+                TaskState::Exited(_)  => TaskLifecycle::Exited,
+                TaskState::Faulted(_) => TaskLifecycle::Faulted,
+            };
+            tf.gpr[REG_A0] = lc as usize;
+        }
+        None => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; }
+    }
+}
+
+/// `sys_lease_create(a0=flags) -> a0=LeaseId.0`
+pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
+                         tidx: usize) {
+    use fjell_abi::task::TaskId;
+    let flags = tf.gpr[REG_A0] as u32;
+    let owner = TaskId::new(tidx as u16, 0);
+    match lt.create(owner, flags) {
+        Ok(id) => { tf.gpr[REG_A0] = 0; tf.gpr[REG_A1] = id.0 as usize; }
+        Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
+    }
+}
+
+/// `sys_lease_revoke(a0=lease_id) -> a0=new_epoch`
+pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable) {
+    use fjell_abi::lease::LeaseId;
+    let id = LeaseId(tf.gpr[REG_A0] as u32);
+    match lt.revoke(id) {
+        Ok(ep) => { tf.gpr[REG_A0] = 0; tf.gpr[REG_A1] = ep.0 as usize; }
+        Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
+    }
+}
+
+/// `sys_lease_inspect(a0=lease_id) -> a0=epoch`
+pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable) {
+    use fjell_abi::lease::LeaseId;
+    let id = LeaseId(tf.gpr[REG_A0] as u32);
+    match lt.current_epoch(id) {
+        Ok(ep) => { tf.gpr[REG_A0] = ep.0 as usize; }
+        Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
+    }
+}
+
+/// `sys_audit_drain(a0=buf_ptr, a1=buf_len) -> a0=bytes_written`
+pub fn sys_audit_drain(tf: &mut TrapFrame) {
+    tf.gpr[REG_A0] = 0;
+}
+
+// ── M4 dispatch wrappers ──────────────────────────────────────────────────────
+
+fn dispatch_task_spawn(tf: &mut TrapFrame) {
+    use crate::mm::frame_alloc::PhysFrame;
+    let (table, sched, _ct, _et) = unsafe { crate::get_kernel_state() };
+    let pfn = crate::KERNEL_ROOT_PFN.load(core::sync::atomic::Ordering::Relaxed);
+    let kernel_root = PhysFrame::from_pfn(pfn as u64).unwrap();
+    // SAFETY: single-hart, kernel frame allocator accessed exclusively.
+    let fa_ptr = unsafe { crate::fa_static_ptr() };
+    sys_task_spawn(tf, table, sched, kernel_root, fa_ptr);
+}
+
+fn dispatch_task_start(tf: &mut TrapFrame) {
+    let (table, sched, _ct, _et) = unsafe { crate::get_kernel_state() };
+    sys_task_start(tf, table, sched);
+}
+
+fn dispatch_task_status(tf: &mut TrapFrame) {
+    let (table, _, _ct, _et) = unsafe { crate::get_kernel_state() };
+    sys_task_status(tf, table);
+}
+
+fn dispatch_lease_create(tf: &mut TrapFrame) {
+    let lt   = unsafe { crate::get_lease_table() };
+    let tidx = crate::trap::dispatch::current_task_idx();
+    sys_lease_create(tf, lt, tidx);
+}
+
+fn dispatch_lease_revoke(tf: &mut TrapFrame) {
+    let lt = unsafe { crate::get_lease_table() };
+    sys_lease_revoke(tf, lt);
+}
+
+fn dispatch_lease_inspect(tf: &mut TrapFrame) {
+    let lt = unsafe { crate::get_lease_table() };
+    sys_lease_inspect(tf, lt);
 }

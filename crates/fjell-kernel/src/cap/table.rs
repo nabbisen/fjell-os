@@ -7,8 +7,7 @@
 
 #![allow(dead_code)]
 
-use fjell_cap::cspace::{CSpace, CSPACE_SLOTS};
-use fjell_cap::{CapHandle, CapKind, CapRights};
+use fjell_cap::cspace::CSpace;
 use fjell_ipc::endpoint::Endpoint;
 use fjell_ipc::reply::ReplyEdge;
 use fjell_abi::error::SysError;

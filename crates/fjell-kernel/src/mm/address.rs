@@ -64,6 +64,12 @@ impl PhysFrame {
         Ok(PhysFrame { pfn: (pa >> 12) as u64 })
     }
 
+    /// Create a frame from a PFN (already validated).
+    #[inline]
+    pub fn from_pfn(pfn: u64) -> Result<Self, MmError> {
+        Ok(PhysFrame { pfn })
+    }
+
     /// Physical address of the start of this frame.
     #[inline]
     pub fn pa(self) -> usize {

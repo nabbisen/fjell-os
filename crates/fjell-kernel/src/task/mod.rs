@@ -8,3 +8,5 @@ pub mod user_image;
 
 // Re-export the single most-used type for convenience.
 pub use id::TaskId;
+pub mod image;
+pub mod spawn;

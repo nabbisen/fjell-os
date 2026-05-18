@@ -7,3 +7,5 @@ license.workspace = true
 publish = false
 
 [dependencies]
+fjell-abi    = { path = "../fjell-abi" }
+fjell-syscall = { path = "../fjell-syscall" }

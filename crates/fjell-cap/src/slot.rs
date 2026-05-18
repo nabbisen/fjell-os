@@ -12,7 +12,7 @@ pub type ParentRef = Option<u16>;
 /// Each capability records the slot index of its parent.  Revocation walks
 /// all slots looking for matching `parent` values to delete descendants.
 /// For M3 with a small fixed-capacity CSpace this O(n) walk is acceptable.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Capability {
     pub kind:     CapKind,
     /// Index of the kernel object this capability refers to.

@@ -150,23 +150,39 @@ impl Scheduler {
             .expect("idle task must always be set (SCHED-005)")
     }
 
-    /// Handle `sys_yield`: re-enqueue current at its priority, pick next.
-    pub fn on_yield(&mut self, current: TaskId, priority: u8) -> TaskId {
+    /// Handle `sys_yield`: re-enqueue current at its priority, clear current.
+    ///
+    /// Does NOT choose the next task — `schedule_next` calls `choose_next`.
+    pub fn on_yield(&mut self, current: TaskId, priority: u8) {
         self.ready.enqueue(current, priority);
         self.current = None;
-        self.choose_next()
+        // Note: schedule_next in the trap dispatcher calls choose_next()
+        // after this returns; we must NOT call it here too or the next
+        // task would be dequeued and discarded.
     }
 
-    /// Handle `sys_exit` or task completion.
-    pub fn on_exit(&mut self) -> TaskId {
+    /// Suspend the running task (e.g. IPC block): clear `current` without
+    /// popping anything from the ready queue.
+    ///
+    /// The task's state must already have been changed to `Blocked` by the
+    /// caller.  `schedule_next` in the trap dispatcher will call `choose_next`
+    /// to pick the actual successor.
+    pub fn suspend_current(&mut self) {
         self.current = None;
-        self.choose_next()
     }
 
-    /// Handle a user fault: task is already marked Faulted; pick next.
-    pub fn on_fault(&mut self) -> TaskId {
+    /// Handle `sys_exit` or task completion: clear current.
+    ///
+    /// Does NOT choose the next task — `schedule_next` calls `choose_next`.
+    pub fn on_exit(&mut self) {
         self.current = None;
-        self.choose_next()
+    }
+
+    /// Handle a user fault: task is already marked Faulted; clear current.
+    ///
+    /// Does NOT choose the next task — `schedule_next` calls `choose_next`.
+    pub fn on_fault(&mut self) {
+        self.current = None;
     }
 
     /// Timer tick: optionally preempt current task.

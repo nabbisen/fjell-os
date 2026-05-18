@@ -181,3 +181,22 @@ pub unsafe fn mret() -> ! {
         core::arch::asm!("mret", options(noreturn));
     }
 }
+
+/// Write `pmpaddr0` (Physical Memory Protection address register 0).
+///
+/// # Safety
+/// Must be called from M-mode.  Incorrect values can lock out all memory access.
+#[inline]
+pub unsafe fn write_pmpaddr0(v: usize) {
+    unsafe { core::arch::asm!("csrw pmpaddr0, {}", in(reg) v) };
+}
+
+/// Write `pmpcfg0` (Physical Memory Protection configuration register 0).
+///
+/// # Safety
+/// Must be called from M-mode.  Incorrect values can lock out all memory access.
+/// Once a PMP entry is locked (L-bit set) it cannot be changed until reset.
+#[inline]
+pub unsafe fn write_pmpcfg0(v: usize) {
+    unsafe { core::arch::asm!("csrw pmpcfg0, {}", in(reg) v) };
+}

@@ -40,6 +40,28 @@ pub enum SyscallNumber {
     IpcCall    = 22,
     /// Consume the one-shot reply edge and deliver a reply.
     IpcReply   = 23,
+
+    // ── M4 task-spawn syscalls ─────────────────────────────────────────────
+    /// Spawn a new task from a named embedded image; returns task_handle.
+    TaskSpawn  = 40,
+    /// Make a Spawned task Runnable (first-time start).
+    TaskStart  = 41,
+    /// Query a task's current state.
+    TaskStatus = 42,
+    /// Terminate a running task (optional M4).
+    TaskKill   = 43,
+
+    // ── M4 lease syscalls ──────────────────────────────────────────────────
+    /// Create a new lease; returns LeaseId packed into a0.
+    LeaseCreate  = 50,
+    /// Revoke a lease (increment epoch); invalidates all bound capabilities.
+    LeaseRevoke  = 51,
+    /// Inspect a lease's current epoch.
+    LeaseInspect = 52,
+
+    // ── M4 audit syscalls ──────────────────────────────────────────────────
+    /// Copy pending audit records from the kernel ring into user buffer.
+    AuditDrain = 60,
 }
 
 impl SyscallNumber {
@@ -59,6 +81,14 @@ impl SyscallNumber {
             21 => Some(Self::IpcRecv),
             22 => Some(Self::IpcCall),
             23 => Some(Self::IpcReply),
+            40 => Some(Self::TaskSpawn),
+            41 => Some(Self::TaskStart),
+            42 => Some(Self::TaskStatus),
+            43 => Some(Self::TaskKill),
+            50 => Some(Self::LeaseCreate),
+            51 => Some(Self::LeaseRevoke),
+            52 => Some(Self::LeaseInspect),
+            60 => Some(Self::AuditDrain),
             _  => None,
         }
     }

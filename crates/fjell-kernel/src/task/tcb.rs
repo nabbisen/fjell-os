@@ -71,7 +71,7 @@ pub enum FaultCause {
     KernelRejectedReturn,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FaultInfo {
     pub cause: FaultCause,
     pub sepc:  usize,
@@ -84,7 +84,7 @@ pub struct FaultInfo {
 ///
 /// Terminal states: `Faulted` and `Exited` — the scheduler never re-enqueues
 /// a task in either state (invariant TASK-005).
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TaskState {
     Empty,
     Created,
@@ -96,7 +96,7 @@ pub enum TaskState {
 }
 
 /// Reason a task is blocked.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BlockReason {
     Yield,
     Sleep,
@@ -121,6 +121,10 @@ pub struct Task {
     pub priority:        u8,
     pub state:           TaskState,
     pub address_space:   AddressSpaceId,
+    /// Sv39 satp PFN for this task's root page table.
+    /// Written to `satp` on every context switch so the CPU uses the correct
+    /// virtual address space.  0 means "use kernel root" (idle task).
+    pub satp_root_pfn:   usize,
     pub kernel_context:  KernelContext,
     pub trap_frame:      TrapFrame,
     pub kernel_stack_top: usize,
@@ -141,6 +145,7 @@ impl Task {
             priority,
             state: TaskState::Created,
             address_space,
+            satp_root_pfn: 0,   // caller must set this after creating the page table
             kernel_context: KernelContext::zero(),
             trap_frame: TrapFrame::zero(),
             kernel_stack_top,
@@ -218,4 +223,13 @@ pub enum TaskError {
     GenerationMismatch,
     InvalidState,
     NoRunnableTask,
+}
+
+impl TaskTable {
+    /// Return the index of the next free slot (for pre-allocation checks).
+    pub fn next_free_index(&self) -> Option<u16> {
+        self.slots.iter().enumerate()
+            .find(|(_, s)| s.task.is_none())
+            .map(|(i, _)| i as u16)
+    }
 }

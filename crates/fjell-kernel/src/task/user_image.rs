@@ -77,8 +77,30 @@ pub static USER_TASK_A: &[u8] = &[
         0x73, 0x00, 0x00, 0x00,
         // wfi
         0x73, 0x00, 0x50, 0x10,
-    ]
-};
+];
+
+// ── user_task_c: denied ───────────────────────────────────────────────────────
+//
+// Same bytecode as user_task_a, but this task has NO capability installed.
+// The ipc_call will fail with SlotEmpty / InvalidCap, then the task exits(0).
+pub static USER_TASK_C: &[u8] = &[
+    // li a0, 0  (ep_handle = CapHandle(0) — no cap at slot 0)
+    0x13, 0x05, 0x00, 0x00,
+    // li a1, 1  (tag)
+    0x93, 0x05, 0x10, 0x00,
+    // li a7, 22  (IpcCall)
+    0x93, 0x08, 0x60, 0x01,
+    // ecall  (returns error in a0; task ignores it and exits)
+    0x73, 0x00, 0x00, 0x00,
+    // li a0, 0  (exit code = 0)
+    0x13, 0x05, 0x00, 0x00,
+    // li a7, 1  (Exit)
+    0x93, 0x08, 0x10, 0x00,
+    // ecall
+    0x73, 0x00, 0x00, 0x00,
+    // wfi
+    0x73, 0x00, 0x50, 0x10,
+];
 
 // ── user_task_b: server ───────────────────────────────────────────────────────
 //

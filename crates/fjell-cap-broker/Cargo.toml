@@ -1,0 +1,21 @@
+[package]
+name = "fjell-cap-broker"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-cap-broker"
+path = "src/main.rs"
+
+[dependencies]
+fjell-abi        = { path = "../fjell-abi" }
+fjell-syscall    = { path = "../fjell-syscall" }
+fjell-service-api = { path = "../fjell-service-api" }
+
+[build-dependencies]
+
+[package.metadata.fjell]
+service-id = "svc.cap-broker"

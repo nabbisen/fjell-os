@@ -11,3 +11,6 @@ name = "fjell-service-manager"
 path = "src/main.rs"
 
 [dependencies]
+fjell-abi         = { path = "../fjell-abi" }
+fjell-syscall     = { path = "../fjell-syscall" }
+fjell-service-api = { path = "../fjell-service-api" }

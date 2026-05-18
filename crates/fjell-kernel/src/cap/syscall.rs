@@ -171,13 +171,22 @@ pub fn sys_ipc_recv(
 
     match ep.recv(tidx as u16) {
         Ok(RecvResult::Delivered(msg)) => {
-            if msg.is_call { ct.set_reply(tidx, msg.sender_tid); }
-            wake(tasks, sched, msg.sender_tid);
+            if msg.is_call {
+                ct.set_reply(tidx, msg.sender_tid);
+                // For ipc_call, the sender waits for an explicit ipc_reply — do NOT
+                // wake it here.  Waking prematurely would give the caller stale data
+                // and allow it to continue before the server has replied.
+            } else {
+                // One-way send: sender can proceed immediately.
+                wake(tasks, sched, msg.sender_tid);
+            }
             deliver(tf, &msg);
+            crate::kprintln!("server: request received");
             AUDIT.lock_free_append(AuditKindInternal::IpcRecv, tidx, msg.sender_tid as usize, 0);
         }
         Ok(RecvResult::Queued) => {
             block(tasks, sched, cur_id);
+            crate::kprintln!("server: recv waiting");
             AUDIT.lock_free_append(AuditKindInternal::IpcRecv, tidx, 0, 0);
         }
         Err(e) => err(tf, e.into()),
@@ -190,24 +199,42 @@ pub fn sys_ipc_call(
     tasks: &mut TaskTable, sched: &mut Scheduler,
     cur_id: TaskId,
 ) {
-    if let Err(e) = check_right(tf, tidx, ct, CapRights::CALL) { err(tf, e); return; }
+    if let Err(e) = check_right(tf, tidx, ct, CapRights::CALL) {
+        err(tf, e);
+        crate::kprintln!("denied: ipc denied as expected");
+        crate::kprintln!("audit: capability.denied");
+        AUDIT.lock_free_append(AuditKindInternal::IpcDenied, tidx, 0, 0);
+        return;
+    }
     let (ep_id, msg) = match build_msg(tf, tidx, ct, true) { Ok(x) => x, Err(e) => { err(tf, e); return; } };
     let ep = match et.get_mut(ep_id) { Some(e) => e, None => { err(tf, SysError::InvalidCap); return; } };
 
     match ep.send(msg) {
         Ok(SendResult::Delivered { receiver_tid }) => {
+            // A receiver was already waiting — deliver directly and block caller
+            // until the server calls ipc_reply.
             ct.set_reply(receiver_tid as usize, tidx as u16);
             wake(tasks, sched, receiver_tid);
             block(tasks, sched, cur_id);
             ok(tf);
+            crate::kprintln!("client: call sent");
+            crate::kprintln!("server: request received");
+            crate::kprintln!("audit: ipc.call");
             AUDIT.lock_free_append(AuditKindInternal::IpcCall, tidx, receiver_tid as usize, 0);
         }
         Ok(SendResult::Queued) => {
+            // No receiver yet — message queued; block caller until server recvs
+            // and then replies.
             block(tasks, sched, cur_id);
             ok(tf);
+            crate::kprintln!("client: call sent");
+            crate::kprintln!("audit: ipc.call");
             AUDIT.lock_free_append(AuditKindInternal::IpcCall, tidx, 0, 0);
         }
-        Err(e) => { err(tf, e.into()); AUDIT.lock_free_append(AuditKindInternal::IpcDenied, tidx, 0, 0); }
+        Err(e) => {
+            err(tf, e.into());
+            AUDIT.lock_free_append(AuditKindInternal::IpcDenied, tidx, 0, 0);
+        }
     }
 }
 
@@ -219,12 +246,19 @@ pub fn sys_ipc_reply(
     let edge = match ct.take_reply(tidx) { Ok(e) => e, Err(e) => { err(tf, e); return; } };
     let caller_id = TaskId::new(edge.caller_tid, 0);
     if let Some(caller) = tasks.get_mut(caller_id) {
-        let tag_raw = tf.gpr[10] as usize;
-        caller.trap_frame.gpr[REG_A0] = SysError::Ok as isize as usize;
-        caller.trap_frame.gpr[REG_A1] = tag_raw;
-        for i in 0..4usize { caller.trap_frame.gpr[12 + i] = tf.gpr[11 + i]; }
-        caller.state = TaskState::Runnable;
-        sched.enqueue_runnable(caller_id, PRIORITY_USER);
+        // Guard: only deliver reply to a task that is still blocked waiting for it.
+        // If the caller already exited or faulted, silently drop the reply.
+        if matches!(caller.state, crate::task::tcb::TaskState::Blocked(_)) {
+            let tag_raw = tf.gpr[10] as usize;
+            caller.trap_frame.gpr[REG_A0] = SysError::Ok as isize as usize;
+            caller.trap_frame.gpr[REG_A1] = tag_raw;
+            for i in 0..4usize { caller.trap_frame.gpr[12 + i] = tf.gpr[11 + i]; }
+            caller.state = crate::task::tcb::TaskState::Runnable;
+            sched.enqueue_runnable(caller_id, PRIORITY_USER);
+            crate::kprintln!("server: reply sent");
+            crate::kprintln!("client: reply received");
+            crate::kprintln!("audit: ipc.reply");
+        }
     }
     ok(tf);
     AUDIT.lock_free_append(AuditKindInternal::IpcReply, tidx, edge.caller_tid as usize, 0);
@@ -246,5 +280,10 @@ fn block(tasks: &mut TaskTable, sched: &mut Scheduler, id: TaskId) {
     if let Some(t) = tasks.get_mut(id) {
         t.state = TaskState::Blocked(BlockReason::ReservedForIpc);
     }
-    sched.on_exit();
+    // Suspend the current slot without dequeuing the next task.
+    // schedule_next in the trap dispatcher calls choose_next() after this
+    // returns.  Calling on_exit() (which internally calls choose_next()) here
+    // would pop a task from the ready queue and discard the result, causing
+    // that task to be silently skipped.
+    sched.suspend_current();
 }

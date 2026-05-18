@@ -16,6 +16,6 @@ pub mod endpoint;
 pub mod message;
 pub mod reply;
 
-pub use endpoint::{Endpoint, EndpointError, IPC_CAPS, IPC_WORDS};
-pub use message::MessageTag;
+pub use endpoint::{Endpoint, EndpointError};
+pub use message::{MessageTag, IPC_CAPS, IPC_WORDS};
 pub use reply::ReplyEdge;

@@ -5,11 +5,8 @@
 //!   IPC-B: payload and cap-transfer commit atomically.
 //!   IPC-D: sender_badge matches the endpoint capability badge at send time.
 
-use super::message::{MessageTag, IPC_WORDS, IPC_CAPS};
+use super::message::{MessageTag, IPC_WORDS};
 use fjell_abi::error::SysError;
-
-/// Re-export for kernel use.
-pub use super::message::{IPC_WORDS, IPC_CAPS};
 
 const QUEUE_DEPTH: usize = 32;
 
@@ -88,6 +85,7 @@ impl From<EndpointError> for SysError {
     }
 }
 
+#[derive(Debug)]
 pub enum SendResult {
     /// Message delivered directly to a waiting receiver.
     Delivered { receiver_tid: u16 },
@@ -95,6 +93,7 @@ pub enum SendResult {
     Queued,
 }
 
+#[derive(Debug)]
 pub enum RecvResult {
     /// A queued sender's message was delivered.
     Delivered(PendingMessage),

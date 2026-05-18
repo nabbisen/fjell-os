@@ -4,42 +4,66 @@ version = 4
 
 [[package]]
 name = "fjell-abi"
-version = "0.0.3"
+version = "0.0.4"
 
 [[package]]
 name = "fjell-arch"
-version = "0.0.3"
+version = "0.0.4"
 
 [[package]]
 name = "fjell-audit-format"
-version = "0.0.3"
+version = "0.0.4"
 
 [[package]]
 name = "fjell-auditd"
-version = "0.0.3"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-service-api",
+ "fjell-syscall",
+]
 
 [[package]]
 name = "fjell-cap"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "fjell-abi",
 ]
 
 [[package]]
+name = "fjell-cap-broker"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-service-api",
+ "fjell-syscall",
+]
+
+[[package]]
 name = "fjell-config-format"
-version = "0.0.3"
+version = "0.0.4"
 
 [[package]]
 name = "fjell-configd"
-version = "0.0.3"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-service-api",
+ "fjell-syscall",
+]
 
 [[package]]
 name = "fjell-init"
-version = "0.0.3"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-service-api",
+ "fjell-syscall",
+]
 
 [[package]]
 name = "fjell-ipc"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "fjell-abi",
  "fjell-cap",
@@ -56,31 +80,45 @@ dependencies = [
 
 [[package]]
 name = "fjell-proxy-text"
-version = "0.0.3"
+version = "0.0.4"
 
 [[package]]
 name = "fjell-sample-service"
-version = "0.0.3"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-service-api",
+ "fjell-syscall",
+]
 
 [[package]]
 name = "fjell-semantic-format"
-version = "0.0.3"
+version = "0.0.4"
 
 [[package]]
 name = "fjell-service-api"
-version = "0.0.3"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-syscall",
+]
 
 [[package]]
 name = "fjell-service-manager"
-version = "0.0.3"
+version = "0.0.4"
+dependencies = [
+ "fjell-abi",
+ "fjell-service-api",
+ "fjell-syscall",
+]
 
 [[package]]
 name = "fjell-syscall"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "fjell-abi",
 ]
 
 [[package]]
 name = "fjell-tools"
-version = "0.0.3"
+version = "0.0.4"

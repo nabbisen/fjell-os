@@ -40,8 +40,8 @@ impl CSpace {
 
     fn resolve_mut(&mut self, h: CapHandle) -> Result<(usize, &mut CapSlot), SysError> {
         let idx = h.slot() as usize;
-        let gen = self.slots.get(idx).ok_or(SysError::InvalidCap)?.generation;
-        if gen != h.generation() {
+        let slot_gen = self.slots.get(idx).ok_or(SysError::InvalidCap)?.generation;
+        if slot_gen != h.generation() {
             return Err(SysError::InvalidCap);
         }
         Ok((idx, &mut self.slots[idx]))
@@ -170,7 +170,7 @@ impl CSpace {
         loop {
             let mut deleted_any = false;
             for i in 0..CSPACE_SLOTS {
-                if let Some(cap) = &self.slots[i].cap {
+                if self.slots[i].cap.is_some() {
                     if Self::is_descendant_of(&self.slots, i, root_idx) {
                         self.slots[i].clear();
                         deleted_any = true;

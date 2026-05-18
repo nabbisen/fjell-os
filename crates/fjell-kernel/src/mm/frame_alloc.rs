@@ -7,9 +7,9 @@
 #![allow(dead_code)]
 
 use super::{
-    address::PhysFrame,
     error::MmError,
 };
+pub use super::address::PhysFrame;
 use fjell_abi::task::TaskId;
 
 /// Physical frame size in bytes.

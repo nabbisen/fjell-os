@@ -15,6 +15,7 @@ mod audit;
 mod boot;
 mod cap;
 mod console;
+mod lease;
 mod mm;
 mod platform;
 mod task;
@@ -37,7 +38,7 @@ use platform::qemu_virt::{MMIO_REGIONS, RAM_BASE, RAM_END};
 use task::{
     scheduler::{Scheduler, PRIORITY_IDLE, PRIORITY_USER},
     tcb::{Task, TaskState, TaskTable},
-    user_image::{USER_ENTRY_VA, USER_STACK_TOP, USER_TEXT_VA, USER_TASK_A, USER_TASK_B},
+    // user_image constants are still defined for reference; not used in M4 main.
     TaskId,
 };
 use trap::entry::init_trap;
@@ -62,12 +63,38 @@ unsafe impl<T> Sync for KS<T> {}
 
 static FRAME_BITMAP: KS<[u64; 512]>            = KS(UnsafeCell::new([0u64; 512]));
 static TASK_TABLE:   KS<MaybeUninit<TaskTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
+/// Static frame allocator storage — must NOT be a kmain local.
+///
+/// If `FrameAllocator` were on the kmain stack, the trap handler (which resets
+/// sp to `__stack_top` on every entry) would overwrite it after `first_entry`.
+/// Keeping it in BSS means it lives at a fixed address for the kernel lifetime.
+static FRAME_ALLOC: KS<MaybeUninit<mm::frame_alloc::FrameAllocator<'static>>>
+    = KS(UnsafeCell::new(MaybeUninit::uninit()));
+
+/// Raw pointer to the kernel frame allocator stored after kmain initialises it.
+/// Accessed by `sys_task_spawn` during trap handling.
+static FA_RAW_PTR: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
+
+/// Return a `'static`-lifetime pointer to the frame allocator.
+///
+/// # Safety
+/// Must be called after `FA_RAW_PTR` is stored in kmain.  Single-hart;
+/// caller is responsible for exclusive access (no concurrent spawn calls).
+pub unsafe fn fa_static_ptr() -> *mut mm::frame_alloc::FrameAllocator<'static> {
+    FA_RAW_PTR.load(core::sync::atomic::Ordering::Relaxed) as *mut _
+}
 static SCHEDULER:    KS<MaybeUninit<Scheduler>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
 static CAP_TABLE:    KS<MaybeUninit<cap::table::CapTable>>      = KS(UnsafeCell::new(MaybeUninit::uninit()));
 static EP_TABLE:     KS<MaybeUninit<cap::table::EndpointTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static LEASE_TABLE:  KS<MaybeUninit<lease::LeaseTable>>         = KS(UnsafeCell::new(MaybeUninit::uninit()));
+/// Kernel root page table frame — needed by sys_task_spawn to clone kernel half.
+static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
+    core::sync::atomic::AtomicUsize::new(0);
 /// Per-hart trap scratch record. Layout: [0] = kernel sp, [1] = TrapFrame ptr.
 /// Must be static — sscratch holds a pointer to it across sret/trap boundaries.
-pub(crate) static TRAP_SCRATCH: KS<[usize; 2]> = KS(UnsafeCell::new([0usize; 2]));
+/// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save
+pub(crate) static TRAP_SCRATCH: KS<[usize; 3]> = KS(UnsafeCell::new([0usize; 3]));
 
 macro_rules! ks_init {
     ($ks:expr, $val:expr) => { unsafe { (*$ks.0.get()).write($val) } };
@@ -80,7 +107,7 @@ macro_rules! ks_get {
 ///
 /// # Safety
 /// All tables must have been initialised before any trap fires.
-/// Single-hart M2/M3; no concurrent access.
+/// Single-hart M3/M4; no concurrent access.
 pub unsafe fn get_kernel_state() -> (
     &'static mut task::tcb::TaskTable,
     &'static mut task::scheduler::Scheduler,
@@ -93,6 +120,14 @@ pub unsafe fn get_kernel_state() -> (
         ks_get!(CAP_TABLE),
         ks_get!(EP_TABLE),
     )
+}
+
+/// Return the lease table reference (used by M4 syscall handlers).
+///
+/// # Safety
+/// Must be called after `LEASE_TABLE` is initialised.
+pub unsafe fn get_lease_table() -> &'static mut lease::LeaseTable {
+    ks_get!(LEASE_TABLE)
 }
 
 // ── kprintln! — usable from trap/dispatch.rs ─────────────────────────────────
@@ -113,6 +148,19 @@ pub unsafe extern "C" fn m_mode_setup(hart_id: usize, dtb_pa: usize) -> ! {
         csr::write_medeleg(0xFFFF);
         csr::write_mideleg(0x0222);
         csr::write_mstatus(1usize << 11); // MPP = S
+
+        // Configure PMP entry 0: grant S-mode RWX access to all physical memory.
+        //
+        // RISC-V PMP is deny-by-default for S/U-mode: if no PMP entry matches,
+        // the access is denied.  Without at least one permissive entry the CPU
+        // will fault on the very first S-mode instruction fetch after mret.
+        //
+        // pmpaddr0 = all-ones: in NAPOT mode this encodes the entire 2^64-byte
+        //   address space starting at PA 0.
+        // pmpcfg0  = 0x1F: A=NAPOT(11), X=1, W=1, R=1, L=0 (unlocked).
+        csr::write_pmpaddr0(usize::MAX);
+        csr::write_pmpcfg0(0x1F);
+
         csr::write_mepc(s_mode_entry as *const () as usize);
         core::arch::asm!(
             "mv a0, {hart}", "mv a1, {dtb}", "mret",
@@ -163,28 +211,35 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let _boot = BootAllocator::new(boot_start, boot_end);
     println!("mm: boot allocator ready");
 
-    // FrameAllocator.
+    // FrameAllocator — stored in a STATIC so the trap handler (which resets
+    // sp to __stack_top on every entry) cannot overwrite it.
     let bitmap = unsafe { &mut *FRAME_BITMAP.0.get() };
-    let fa_cell = UnsafeCell::new(FrameAllocator::new(
-        (RAM_BASE >> 12) as u64,
-        ((RAM_END - RAM_BASE) / FRAME_SIZE) as u64,
-        bitmap, None,
-    ));
-    // SAFETY: single-hart M2; fa_cell is local to kmain; all accesses are
-    // sequential and non-overlapping within this function.
-    let fa_ptr = fa_cell.get();
+    unsafe {
+        FRAME_ALLOC.0.get().write(MaybeUninit::new(FrameAllocator::new(
+            (RAM_BASE >> 12) as u64,
+            ((RAM_END - RAM_BASE) / FRAME_SIZE) as u64,
+            bitmap, None,
+        )));
+    }
     macro_rules! fa { () => {
-        // SAFETY: fa_ptr is valid, aligned, and not aliased in this context.
-        unsafe { &mut *fa_ptr }
+        // SAFETY: single-hart; FRAME_ALLOC initialised above; no aliasing.
+        unsafe { (*FRAME_ALLOC.0.get()).assume_init_mut() }
     } }
+    // Expose raw pointer to trap-time task-spawn handler.
+    FA_RAW_PTR.store(
+        unsafe { (*FRAME_ALLOC.0.get()).as_mut_ptr() } as usize,
+        core::sync::atomic::Ordering::Relaxed,
+    );
 
     fa!().reserve_range(RAM_BASE, kernel_end_pa(), FrameOwner::KernelText)
          .expect("rsv kern");
     fa!().reserve_range(boot_start, boot_end, FrameOwner::ReservedBoot)
          .expect("rsv boot");
     if dtb_pa != 0 {
-        fa!().reserve_range(dtb_pa, dtb_pa + 4096, FrameOwner::Dtb)
-             .expect("rsv dtb");
+        // DTB may be placed anywhere in RAM by firmware/QEMU.  If the region
+        // overlaps an already-reserved range (e.g. it sits inside the kernel
+        // image), treat it as already accounted for rather than panicking.
+        let _ = fa!().reserve_range(dtb_pa, dtb_pa + 4096, FrameOwner::Dtb);
     }
     for &(start, end, _) in MMIO_REGIONS {
         if start < RAM_BASE { let _ = fa!().reserve_range(start, end, FrameOwner::Mmio); }
@@ -197,9 +252,20 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // SAFETY: freshly allocated 4-KiB frame.
     unsafe { core::ptr::write_bytes(kernel_root.pa() as *mut u8, 0, 4096) };
 
-    // Identity-map kernel + boot scratch.
+    // Identity-map kernel + boot scratch + kernel stack.
+    //
+    // The identity map must reach __stack_top (linker symbol) because:
+    //  - the kernel stack lives between __stack_bottom and __stack_top,
+    //    which is 4 MiB above BSS end — well above boot_end (BSS+2MiB).
+    //  - Sv39 is enabled before kmain returns, so any stack access after
+    //    enable_sv39 must be covered by the page table.
+    //
+    // boot_end (BSS + 2 MiB) is kept as the bump-allocator ceiling; the
+    // stack pages are additionally mapped here.
+    let stack_top = unsafe { &__stack_top as *const u8 as usize };
+    let map_end   = (stack_top + 0xFFF) & !0xFFF; // page-align up
     let mut va = RAM_BASE;
-    while va < boot_end {
+    while va < map_end {
         let f = PhysFrame::from_pa(va).unwrap();
         // SAFETY: kernel_root valid; sfence inside enable_sv39.
         unsafe {
@@ -221,6 +287,8 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // Enable Sv39.
     // SAFETY: all required kernel mappings present; sfence inside.
     unsafe { satp::enable_sv39(kernel_root.pfn as usize) };
+    // Store kernel root PFN for use by sys_task_spawn.
+    KERNEL_ROOT_PFN.store(kernel_root.pfn as usize, core::sync::atomic::Ordering::Relaxed);
     println!("vm: sv39 enabled");
     AUDIT.lock_free_append(AuditKindInternal::Boot, 0, 0, 0);
 
@@ -234,15 +302,17 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     ks_init!(SCHEDULER,  Scheduler::new());
     ks_init!(CAP_TABLE,  cap::table::CapTable::new());
     ks_init!(EP_TABLE,   cap::table::EndpointTable::new());
+    ks_init!(LEASE_TABLE, lease::LeaseTable::new());
+    println!("M3: capability table initialized");
+    println!("M3: endpoint table initialized");
     let table  = ks_get!(TASK_TABLE);
     let sched  = ks_get!(SCHEDULER);
-    let ct     = ks_get!(CAP_TABLE);
+    let _ct    = ks_get!(CAP_TABLE);   // not used in M4 kmain (used from trap)
     let et     = ks_get!(EP_TABLE);
 
-    // Allocate a shared IPC endpoint for M3 smoke test.
-    // user0 gets SEND|CALL rights (client), user1 gets RECV rights (server).
+    // Allocate the shared IPC endpoint for the M3 smoke test.
     let ep_obj_id = et.alloc().expect("alloc endpoint");
-    println!("ipc: endpoint {} created", ep_obj_id);
+    println!("M3: endpoint created (id={})", ep_obj_id);
 
     // Idle task — no capabilities needed.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
@@ -251,62 +321,66 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     idle.state = TaskState::Runnable;
     let idle_id = table.insert(idle).expect("idle insert");
     sched.set_idle(idle_id);
-    println!("task: idle created");
 
-    // User tasks.
-    for (i, (image, name)) in [(USER_TASK_A, "user0"), (USER_TASK_B, "user1")]
-        .iter().enumerate()
+    // ── M4: spawn fjell-init as the first user task ───────────────────────────
+    //
+    // fjell-init orchestrates the entire user-space service plane.
+    // All other services (configd, cap-broker, auditd, service-manager,
+    // sample-service) are spawned by init via sys_task_spawn / sys_task_start.
     {
-        let tid    = TaskId::new((i + 1) as u16, 0);
-        let asp_id = AddressSpaceId((i + 1) as u16);
+        use fjell_abi::service::ImageId;
+        use task::image::{SERVICE_BASE_VA, SERVICE_STACK_TOP};
+        use task::image::image_bytes;
 
-        let root_f = fa!().alloc_frame(FrameOwner::KernelPageTable).expect("user root");
+        let init_bytes = image_bytes(ImageId::INIT).expect("init image missing");
+        let tid    = TaskId::new(1, 0);
+        let asp_id = AddressSpaceId(1);
+
+        let root_f = fa!().alloc_frame(FrameOwner::KernelPageTable).expect("init root");
         let mut aspace = AddressSpace::new(asp_id, root_f);
         aspace.clone_kernel_half(kernel_root);
 
-        let text_f = fa!().alloc_frame(FrameOwner::UserText { task: tid })
-                          .expect("text frame");
-        // SAFETY: text_f freshly allocated, 4-KiB aligned.
-        unsafe {
-            let dst = core::slice::from_raw_parts_mut(text_f.pa() as *mut u8, 4096);
-            dst[..image.len()].copy_from_slice(image);
+        let uart_f = PhysFrame::from_pa(0x1000_0000).unwrap();
+        aspace.map_page(VirtAddr(0x1000_0000), uart_f,
+            VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa!())
+            .expect("init uart map");
+
+        // Map text pages (flat binary may span multiple pages)
+        let pages = (init_bytes.len() + 4095) / 4096;
+        for pg in 0..pages {
+            let f = fa!().alloc_frame(FrameOwner::UserText { task: tid }).expect("init text");
+            let start = pg * 4096;
+            let end   = (start + 4096).min(init_bytes.len());
+            unsafe {
+                let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
+                dst.fill(0);
+                dst[..(end - start)].copy_from_slice(&init_bytes[start..end]);
+            }
+            aspace.map_page(VirtAddr(SERVICE_BASE_VA + pg * 4096), f,
+                VmPerms::R | VmPerms::X | VmPerms::U, VmRegionKind::UserText, fa!())
+                .expect("init text map");
         }
-        aspace.map_page(VirtAddr(USER_TEXT_VA), text_f,
-            VmPerms::R | VmPerms::X | VmPerms::U, VmRegionKind::UserText, fa!())
-            .expect("map text");
 
-        let stack_f = fa!().alloc_frame(FrameOwner::UserStack { task: tid })
-                           .expect("stack frame");
-        aspace.map_page(VirtAddr(USER_STACK_TOP - 4096), stack_f,
+        let stack_f = fa!().alloc_frame(FrameOwner::UserStack { task: tid }).expect("init stack");
+        aspace.map_page(VirtAddr(SERVICE_STACK_TOP - 4096), stack_f,
             VmPerms::R | VmPerms::W | VmPerms::U, VmRegionKind::UserStack, fa!())
-            .expect("map stack");
+            .expect("init stack map");
 
-        let kstack_f = fa!().alloc_frame(FrameOwner::KernelStack).expect("kstack");
+        let kstack_f = fa!().alloc_frame(FrameOwner::KernelStack).expect("init kstack");
 
         let mut t = Task::new(tid, PRIORITY_USER, asp_id,
-                              kstack_f.pa() + 4096, USER_STACK_TOP);
-        t.trap_frame.sepc    = USER_ENTRY_VA;
-        t.trap_frame.gpr[2]  = USER_STACK_TOP;
-        t.trap_frame.sstatus = 1 << 5; // SPIE, SPP=0
+                              kstack_f.pa() + 4096, SERVICE_STACK_TOP);
+        t.satp_root_pfn     = root_f.pfn as usize;
+        t.trap_frame.sepc   = SERVICE_BASE_VA;
+        t.trap_frame.gpr[2] = SERVICE_STACK_TOP;   // sp
+        t.trap_frame.gpr[11] = 0;                   // a1 = BootInfo ptr (0 = use defaults)
+        t.trap_frame.sstatus = 1 << 5;              // SPIE, SPP=0
         t.state = TaskState::Runnable;
 
-        let ins_id = table.insert(t).expect("task insert");
+        let ins_id = table.insert(t).expect("init insert");
         sched.enqueue_runnable(ins_id, PRIORITY_USER);
-        AUDIT.lock_free_append(AuditKindInternal::TaskCreate, i, 0, 0);
-
-        // Install endpoint capability:
-        //   user0 (i=0) → SEND | CALL (client role)
-        //   user1 (i=1) → RECV        (server role)
-        let rights = if i == 0 {
-            fjell_cap::CapRights::SEND | fjell_cap::CapRights::CALL
-        } else {
-            fjell_cap::CapRights::RECV
-        };
-        ct.cspace_mut(ins_id.index as usize)
-          .and_then(|cs| cs.install_root(fjell_cap::CapKind::Endpoint, ep_obj_id, rights).ok())
-          .expect("install endpoint cap");
-
-        println!("task: {} created", name);
+        AUDIT.lock_free_append(AuditKindInternal::TaskCreate, 1, 0, 0);
+        println!("M4: init task ready");
     }
 
     println!("sched: started");
@@ -315,12 +389,19 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // From this point on, all scheduling is handled in trap_dispatch.
     let first_id = sched.choose_next();
     sched.set_current(first_id);
-    if let Some(t) = table.get_mut(first_id) {
+    let first_satp = if let Some(t) = table.get_mut(first_id) {
         t.state = TaskState::Running;
         t.accounting.run_count += 1;
-    }
+        t.satp_root_pfn
+    } else { 0 };
 
     let first_tf = &table.get(first_id).unwrap().trap_frame;
+
+    // Switch to the first task's address space.
+    // SAFETY: first_satp comes from the task's root PhysFrame.pfn.
+    if first_satp != 0 {
+        unsafe { satp::enable_sv39(first_satp) };
+    }
 
     // Set up sscratch pointing to the STATIC trap scratch record.
     // scratch[0] = boot stack top (kernel sp restored on trap entry).

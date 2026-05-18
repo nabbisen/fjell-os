@@ -19,6 +19,7 @@ members = [
     "crates/fjell-configd",
     "crates/fjell-proxy-text",
     "crates/fjell-sample-service",
+    "crates/fjell-cap-broker",
     "crates/fjell-tools",
 ]
 
@@ -54,11 +55,12 @@ default-members = [
     "crates/fjell-configd",
     "crates/fjell-proxy-text",
     "crates/fjell-sample-service",
+    "crates/fjell-cap-broker",
     "crates/fjell-tools",
 ]
 
 [workspace.package]
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

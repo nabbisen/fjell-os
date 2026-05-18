@@ -4,6 +4,9 @@
 
 #![no_std]
 
+pub mod boot;
 pub mod error;
+pub mod lease;
+pub mod service;
 pub mod syscall;
 pub mod task;
