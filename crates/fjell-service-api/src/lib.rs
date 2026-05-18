@@ -134,3 +134,95 @@ pub mod verifyd {
     pub const FRESHNESS_REJECTED: usize = 0x333;
     pub const ERR:                usize = 0x33F;
 }
+
+// ── RFC 038 (v0.2.0): Service Plane Separation Foundation ────────────────────
+
+/// Service READY protocol (RFC 038 §"Service-ready protocol").
+///
+/// Every separated service, on start:
+/// 1. Performs minimum initialisation.
+/// 2. Sends a `READY` message on its private endpoint.
+/// 3. Enters its cooperative service loop (RFC 037 shape).
+///
+/// `service-manager` watches:
+/// - `READY` message within `START_TIMEOUT_MS` → service is up.
+/// - Timeout without `READY` → service start failed (audit event emitted).
+/// - Fault propagated from kernel → service-manager records as Failed.
+pub mod ready {
+    /// IPC message label for the service READY signal.
+    ///
+    /// ```text
+    /// ipc_send(service_control_ep, label=SERVICE_READY_LABEL, words=0)
+    /// ```
+    pub const LABEL: usize = crate::tags::SERVICE_READY;
+
+    /// Default start timeout in milliseconds (RFC 038 §"Service manifest").
+    pub const START_TIMEOUT_MS: u64 = 1000;
+
+    /// Service fault notification from service-manager to auditd/semantic-stream.
+    pub const FAULT_LABEL: usize = 0x050;
+
+    /// Service start timeout notification.
+    pub const TIMEOUT_LABEL: usize = 0x051;
+}
+
+/// Service lifecycle tracked by `fjell-service-manager` (RFC 038).
+///
+/// Matches `fjell_abi::service::ServiceState` at the kernel level but adds
+/// the RFC 038-specific states for READY-protocol tracking.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SvcLifecycle {
+    /// Service slot is unused.
+    Empty       = 0,
+    /// Spawned; waiting for READY message.
+    Spawned     = 1,
+    /// READY received within `START_TIMEOUT_MS`.
+    Ready       = 2,
+    /// Running normally.
+    Running     = 3,
+    /// READY not received within the timeout — start failed.
+    StartFailed = 4,
+    /// Service faulted after going Ready.
+    Faulted     = 5,
+}
+
+/// Required extraction order for cooperative services (RFC 038 §"Required
+/// initial separation order").
+///
+/// Each constant is the human-readable name used in manifest TOMLs and logs.
+pub mod extraction_order {
+    pub const ORDER: &[&str] = &[
+        "storaged",
+        "bootctl",
+        "verifyd",
+        "upgraded",
+        "rootfsd",
+        "snapshotd",
+    ];
+}
+
+/// Manifest entry for a separated service (RFC 038 §"Service manifest").
+///
+/// The TOML loader in `fjell-service-manager` populates these.
+#[derive(Clone, Debug)]
+pub struct ServiceManifestEntry {
+    pub name: [u8; 16],            // ASCII null-padded
+    pub image_id: u16,
+    pub start_timeout_ms: u64,
+    pub ready_endpoint: u16,       // CSpace slot index of its ready endpoint
+}
+
+impl ServiceManifestEntry {
+    /// Build a manifest entry with the default timeout.
+    pub fn new(name: &[u8], image_id: u16, ready_endpoint: u16) -> Self {
+        let mut n = [0u8; 16];
+        for (i, &b) in name.iter().enumerate().take(15) { n[i] = b; }
+        ServiceManifestEntry {
+            name: n,
+            image_id,
+            start_timeout_ms: ready::START_TIMEOUT_MS,
+            ready_endpoint,
+        }
+    }
+}

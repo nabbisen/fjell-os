@@ -3,6 +3,60 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-alpha.5] - 2026-05-17
+
+### v0.2 Phase 5 — Cooperative Service Separation Foundation (RFC 037, RFC 038)
+
+### Added
+
+- **`fjell-kernel/src/task/tcb.rs`** (RFC 037):
+  - `TaskAccounting.quantum_violations: u32` — consecutive timer preemptions
+    without a voluntary `sys_yield`.
+  - `QUANTUM_VIOLATION_THRESHOLD: u32 = 3` — threshold before
+    `TaskQuantumExceeded` is emitted.
+- **`fjell-kernel/src/audit/ring.rs`**: `TaskQuantumExceeded = 30` audit kind.
+- **`fjell-kernel/src/trap/dispatch.rs`** (RFC 037):
+  - `TIMER_PREEMPTED: Flag` — distinguishes involuntary timer preemption from
+    voluntary `sys_yield`.
+  - `handle_timer()` sets `TIMER_PREEMPTED` in addition to `YIELD_REQUESTED`.
+  - `schedule_next()` increments `quantum_violations` on timer preemption and
+    emits `TaskQuantumExceeded` when `≥ QUANTUM_VIOLATION_THRESHOLD`.
+  - Voluntary yield or IPC block resets `quantum_violations` to 0.
+  - RFC 033 lifecycle revoke: `lt.revoke_owned_by(id)` called on task exit
+    and fault (wiring the Phase 2 lifecycle revoke path).
+- **`fjell-service-api/src/lib.rs`** (RFC 038):
+  - `ready` module: `LABEL`, `START_TIMEOUT_MS = 1000`, `FAULT_LABEL`,
+    `TIMEOUT_LABEL`.
+  - `SvcLifecycle { Empty, Spawned, Ready, Running, StartFailed, Faulted }`.
+  - `extraction_order::ORDER` — canonical separation order:
+    storaged → bootctl → verifyd → upgraded → rootfsd → snapshotd.
+  - `ServiceManifestEntry { name, image_id, start_timeout_ms, ready_endpoint }`.
+- **`tests/qemu/profiles/svc.toml`** — placeholder profile for the `svc`
+  negative-test category (CI passes, no markers until services are extracted).
+
+### Changed
+
+- Workspace version bumped to `0.2.0-alpha.5`.
+
+### Deferred (service extraction)
+
+Per RFC 038, the following work requires modifying the service binaries and
+verifying under QEMU — deferred to v0.2.0-alpha.6:
+
+- `fjell-init` switched from inline service implementations to spawning
+  services that use the READY protocol.
+- `fjell-service-manager` updated to consume READY messages with timeout
+  tracking.
+- First service pair extracted: `fjell-storaged`, `fjell-bootctl`.
+- `NEG:SVC:START_TIMEOUT_DETECTED:PASS`, `NEG:SVC:FAULT_DETECTED:PASS` markers.
+
+### Phase 5 coverage
+
+`sys_ipc_try_recv` (RFC 037 non-blocking recv) was already implemented in
+RFC 019 / v0.1.0.  RFC 037's new contribution — the timer preemptive fail-safe
+— is now wired in the kernel.  RFC 038's new contribution — the READY protocol
+type system — is in `fjell-service-api`.
+
 ## [0.2.0-alpha.4] - 2026-05-17
 
 ### v0.2 Phase 3 + Phase 4 — MMIO/DMA Boundary Closure (RFC 035, RFC 036)

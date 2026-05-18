@@ -39,6 +39,8 @@ pub enum AuditKindInternal {
     IpcCall         = 22,
     IpcReply        = 23,
     IpcDenied       = 24,
+    /// RFC 037 (v0.2.0): task consumed its quantum without voluntary yield.
+    TaskQuantumExceeded = 30,
 }
 
 /// A single audit record stored in the ring.

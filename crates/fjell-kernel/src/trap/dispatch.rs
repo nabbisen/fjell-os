@@ -134,8 +134,20 @@ fn handle_timer() {
     #[cfg(target_arch = "riscv64")]
     // SAFETY: CLINT MMIO; single hart; no concurrent access.
     unsafe { crate::arch::riscv64::timer::schedule_next_tick() };
+    // RFC 037: mark this as a timer preemption (distinct from voluntary yield).
+    TIMER_PREEMPTED.store(true);
     super::syscall::request_yield();
 }
+
+// ── RFC 037: timer-preemption flag ───────────────────────────────────────────
+
+/// Set when a timer interrupt fires; cleared in `schedule_next`.
+///
+/// Distinguishes involuntary timer preemption from voluntary `sys_yield` so
+/// the scheduler can track per-task quantum violations.
+static TIMER_PREEMPTED: super::syscall::Flag = super::syscall::Flag::new();
+
+fn take_timer_preempted() -> bool { TIMER_PREEMPTED.take() }
 
 fn handle_unhandled(tf: &mut TrapFrame, cause: usize) {
     let from_user = tf.sstatus & (1 << 8) == 0; // SPP bit
@@ -165,7 +177,11 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 let _label = task_label(id);
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
+                // RFC 033: lifecycle revoke on task exit.
+                let lt = unsafe { crate::get_lease_table() };
+                lt.revoke_owned_by(id);
                 task.state = TaskState::Exited(code);
+                task.accounting.quantum_violations = 0;
                 AUDIT.lock_free_append(AuditKindInternal::TaskExit, code as usize, 0, 0);
                 sched.on_exit();
                 check_smoke_pass(table);
@@ -174,12 +190,18 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 crate::kprintln!("{}: fault({:?}) sepc={:#x}", label, fault.cause, fault.sepc);
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
+                // RFC 033: lifecycle revoke on task fault.
+                let lt = unsafe { crate::get_lease_table() };
+                lt.revoke_owned_by(id);
                 task.state = TaskState::Faulted(fault);
+                task.accounting.quantum_violations = 0;
                 sched.on_fault();
                 check_smoke_pass(table);
             } else if super::syscall::take_yield() {
                 let _label = task_label(id);
                 task.state = TaskState::Runnable;
+                // Voluntary yield: reset quantum violation counter (RFC 037).
+                task.accounting.quantum_violations = 0;
                 AUDIT.lock_free_append(
                     AuditKindInternal::TaskSwitch, id.index as usize, 0, 0);
                 let prio = task.priority;
@@ -189,6 +211,20 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 if matches!(task.state, TaskState::Running) {
                     task.state = TaskState::Runnable;
                     let prio = task.priority;
+                    // RFC 037: track timer preemptions.
+                    if take_timer_preempted() {
+                        task.accounting.quantum_violations += 1;
+                        if task.accounting.quantum_violations
+                            >= crate::task::tcb::QUANTUM_VIOLATION_THRESHOLD
+                        {
+                            AUDIT.lock_free_append(
+                                AuditKindInternal::TaskQuantumExceeded,
+                                id.index as usize,
+                                task.accounting.quantum_violations as usize,
+                                0,
+                            );
+                        }
+                    }
                     sched.enqueue_runnable(id, prio);
                 }
             }

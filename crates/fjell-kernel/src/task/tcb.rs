@@ -107,11 +107,25 @@ pub enum BlockReason {
 
 // ── TaskAccounting ────────────────────────────────────────────────────────────
 
+/// Maximum consecutive timer preemptions before `TaskQuantumExceeded` is
+/// emitted in the audit ring (RFC 037).
+///
+/// A task that calls `sys_yield` resets its counter.  A task that consumes
+/// `QUANTUM_VIOLATION_THRESHOLD` consecutive timer quanta without yielding
+/// is considered "spinning" and is audited.
+pub const QUANTUM_VIOLATION_THRESHOLD: u32 = 3;
+
 #[derive(Default, Clone, Copy, Debug)]
 pub struct TaskAccounting {
     pub run_count:           u64,
     pub total_ticks:         u64,
     pub last_scheduled_tick: u64,
+    /// Consecutive timer preemptions without a voluntary `sys_yield` (RFC 037).
+    ///
+    /// Incremented on every timer preemption; reset to 0 on voluntary yield or
+    /// block.  Emits `TaskQuantumExceeded` audit event when ≥
+    /// `QUANTUM_VIOLATION_THRESHOLD`.
+    pub quantum_violations: u32,
 }
 
 // ── Task ─────────────────────────────────────────────────────────────────────
