@@ -149,14 +149,20 @@ pub fn spawn(
                 kind: CapKind::Endpoint, object_id: ep_obj,
                 rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
-            // Slots 31-34: MmioRegion caps (pragmatic M7.1 — proper per-driver
-            // distribution via cap-broker is M8 work).
-            let mmio_table = mmio_region_table();
-            for (i, _) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
-                let _ = cs.install_raw(31 + i, Capability {
-                    kind: CapKind::MmioRegion, object_id: i as u32,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-                });
+            // Slots 31-35: MmioRegion caps.
+            // RFC 051 (H-05): no longer granted to SVC_TIMEOUT/SVC_FAULT (no device access needed).
+            // All other services keep broad grants for now; per-service narrowing is RFC 057/058.
+            let grant_mmio =
+                image_id != fjell_abi::service::ImageId::SVC_TIMEOUT &&
+                image_id != fjell_abi::service::ImageId::SVC_FAULT;
+            if grant_mmio {
+                let mmio_table = mmio_region_table();
+                for (i, _) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
+                    let _ = cs.install_raw(31 + i, Capability {
+                        kind: CapKind::MmioRegion, object_id: i as u32,
+                        rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    });
+                }
             }
             // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).
             // Fixed in v0.2.9: was RECV (wrong right), now AUDIT_DRAIN per sys_audit_drain check.

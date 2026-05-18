@@ -63,17 +63,20 @@ pub static AUDIT: AuditRing = AuditRing::new();
 /// Single-hart: `Cell` is used for interior mutability without locking.
 /// In SMP this must be replaced with a spinlock or lock-free structure.
 pub struct AuditRing {
-    records:       [Cell<Option<AuditRecord>>; AUDIT_RING_CAPACITY],
+    records:              [Cell<Option<AuditRecord>>; AUDIT_RING_CAPACITY],
     /// Index of the OLDEST record in `records` (modular).
-    head:          Cell<usize>,
-    /// Number of records currently in the ring (pending or already drained).
-    len:           Cell<usize>,
+    head:                 Cell<usize>,
+    /// Number of records currently in the ring.
+    len:                  Cell<usize>,
     /// Next sequence number to assign.
-    seq:           Cell<u64>,
-    /// Total records dropped because the ring was full.
-    dropped_count: Cell<u64>,
-    /// Number of records (from the head) already consumed by `sys_audit_drain`.
-    drain_cursor:  Cell<usize>,
+    seq:                  Cell<u64>,
+    /// Total records dropped (lifetime counter; never decremented).
+    dropped_count:        Cell<u64>,
+    /// Records dropped since the last `advance()` call (RFC 053).
+    /// Reset to 0 on each `advance()` and returned to the caller.
+    drops_since_advance:  Cell<u64>,
+    /// Number of records (from the head) already consumed by `drain_into`.
+    drain_cursor:         Cell<usize>,
 }
 
 // SAFETY: single-hart.
@@ -83,17 +86,17 @@ impl AuditRing {
     const fn new() -> Self {
         const EMPTY: Cell<Option<AuditRecord>> = Cell::new(None);
         AuditRing {
-            records:       [EMPTY; AUDIT_RING_CAPACITY],
-            head:          Cell::new(0),
-            len:           Cell::new(0),
-            seq:           Cell::new(0),
-            dropped_count: Cell::new(0),
-            drain_cursor:  Cell::new(0),
+            records:             [EMPTY; AUDIT_RING_CAPACITY],
+            head:                Cell::new(0),
+            len:                 Cell::new(0),
+            seq:                 Cell::new(0),
+            dropped_count:       Cell::new(0),
+            drops_since_advance: Cell::new(0),
+            drain_cursor:        Cell::new(0),
         }
     }
 
-    /// Append an event.  Drops silently (incrementing `dropped_count`) when
-    /// full and no drain has happened yet.
+    /// Append an event.  Drops silently (incrementing drop counters) when full.
     pub fn lock_free_append(
         &self,
         kind:   AuditKindInternal,
@@ -104,6 +107,7 @@ impl AuditRing {
         let len = self.len.get();
         if len >= AUDIT_RING_CAPACITY {
             self.dropped_count.set(self.dropped_count.get() + 1);
+            self.drops_since_advance.set(self.drops_since_advance.get() + 1);
             return;
         }
         let seq = self.seq.get();
@@ -111,6 +115,35 @@ impl AuditRing {
         self.records[idx].set(Some(AuditRecord { seq, tick: 0, kind, arg0, arg1, result }));
         self.seq.set(seq + 1);
         self.len.set(len + 1);
+    }
+
+    /// Peek at record at logical index `i` from the head without consuming it.
+    ///
+    /// RFC 053: used by the peek-copy-advance drain loop so records are not
+    /// removed from the ring until the user-space copy succeeds.
+    /// Returns `None` if `i >= len`.
+    pub fn peek_at(&self, i: usize) -> Option<AuditRecord> {
+        if i >= self.len.get() { return None; }
+        let idx = (self.head.get() + i) % AUDIT_RING_CAPACITY;
+        self.records[idx].get()
+    }
+
+    /// Advance the ring head by `n` records, freeing those slots.
+    ///
+    /// RFC 053: called once after `n` successful user-space copies.
+    /// Returns the per-drain drop count (drops since previous `advance`);
+    /// resets that counter to 0.
+    pub fn advance(&self, n: usize) -> u64 {
+        if n > 0 {
+            let new_len  = self.len.get().saturating_sub(n);
+            let new_head = (self.head.get() + n) % AUDIT_RING_CAPACITY;
+            self.head.set(new_head);
+            self.len.set(new_len);
+            self.drain_cursor.set(0);
+        }
+        let dropped = self.drops_since_advance.get();
+        self.drops_since_advance.set(0);
+        dropped
     }
 
     /// Read a record by logical index (0 = oldest in ring).

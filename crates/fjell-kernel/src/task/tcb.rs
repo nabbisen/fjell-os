@@ -137,14 +137,15 @@ pub struct Task {
     pub state:           TaskState,
     pub address_space:   AddressSpaceId,
     /// Sv39 satp PFN for this task's root page table.
-    /// Written to `satp` on every context switch so the CPU uses the correct
-    /// virtual address space.  0 means "use kernel root" (idle task).
     pub satp_root_pfn:   usize,
     pub kernel_context:  KernelContext,
     pub trap_frame:      TrapFrame,
     pub kernel_stack_top: usize,
     pub user_stack_top:  usize,
     pub accounting:      TaskAccounting,
+    /// RFC 051: bump allocator for device VMA mappings (MMIO).
+    /// Allocates from `DEVICE_VMA_BASE..DEVICE_VMA_END`; never wraps.
+    pub dev_vma_next:    usize,
 }
 
 impl Task {
@@ -155,17 +156,19 @@ impl Task {
         kernel_stack_top: usize,
         user_stack_top: usize,
     ) -> Self {
+        use crate::platform::qemu_virt::DEVICE_VMA_BASE;
         Task {
             id,
             priority,
             state: TaskState::Created,
             address_space,
-            satp_root_pfn: 0,   // caller must set this after creating the page table
+            satp_root_pfn: 0,
             kernel_context: KernelContext::zero(),
             trap_frame: TrapFrame::zero(),
             kernel_stack_top,
             user_stack_top,
             accounting: TaskAccounting::default(),
+            dev_vma_next: DEVICE_VMA_BASE,
         }
     }
 }

@@ -2,7 +2,7 @@
 
 **RFC ID:** 051
 **Also known as:** RFC-v0.2-017
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.11
 **Phase:** MMIO/DMA/audit hardening
 **Closes review items:** RB-07, H-05

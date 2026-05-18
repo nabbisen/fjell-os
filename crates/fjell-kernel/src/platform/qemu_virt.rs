@@ -6,6 +6,16 @@
 
 /// Physical address at which QEMU loads the kernel image.
 pub const RAM_BASE: usize = 0x8000_0000;
+
+/// Per-task device VMA window (RFC 051).
+///
+/// MMIO mappings are allocated from this reserved range rather than using
+/// PA directly as VA (which could collide with user heap / stack).
+/// `0x7000_0000..0x8000_0000` = 256 MiB — enough for the PLIC (64 MiB) and
+/// other device regions.  Each task's page table is independent, so all tasks
+/// can use the same VA range without collision.
+pub const DEVICE_VMA_BASE: usize = 0x7000_0000;
+pub const DEVICE_VMA_END:  usize = RAM_BASE;  // = 0x8000_0000
 /// Default RAM size in the QEMU `virt` machine (128 MiB).
 pub const RAM_SIZE: usize = 128 * 1024 * 1024;
 /// Exclusive end of RAM.

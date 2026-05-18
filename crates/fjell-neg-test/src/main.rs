@@ -195,7 +195,7 @@ fn test_dma_zeroize() {
             // Write a non-zero pattern.
             unsafe { core::ptr::write_bytes(user_va as *mut u8, 0xAA, 4096); }
             // Explicit revoke — kernel zeroes the physical frame.
-            if sys_dma_revoke(device_pa).is_err() { return; }
+            if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() { return; }
             // Read back: PA was zeroed by revoke (frame not yet reallocated).
             // SAFETY: VA still maps to the freed PA; no preemption between
             // revoke and this read in the cooperative scheduler.
@@ -241,7 +241,7 @@ fn test_dma_rights() {
 fn test_dma_revoke_explicit() {
     match sys_dma_alloc(SLOT_DMA, 4096) {
         Ok((_user_va, device_pa)) => {
-            let revoke_ok = sys_dma_revoke(device_pa).is_ok();
+            let revoke_ok = sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_ok();
             check(revoke_ok, M::DMA_REVOKE_EXPLICIT);
         }
         Err(_) => {
@@ -439,7 +439,7 @@ fn test_policy_deny_priority() {
 fn test_audit_evidence_gap() {
     // 1. Drain current backlog so we start from a known state.
     let mut buf = [0u8; 32 * 32];   // space for 32 records
-    let _ = sys_audit_drain(&mut buf, SLOT_AUDIT);
+    let _ = sys_audit_drain(SLOT_AUDIT, &mut buf);
 
     // 2. Generate 300 cap_copy + cap_drop cycles = 600 audit events.
     for _ in 0..300u32 {
@@ -449,7 +449,7 @@ fn test_audit_evidence_gap() {
     }
 
     // 3. Drain again — dropped count should be positive.
-    let (_, dropped) = sys_audit_drain(&mut buf, SLOT_AUDIT)
+    let (_, dropped) = sys_audit_drain(SLOT_AUDIT, &mut buf)
         .unwrap_or((0, 0));
     check(dropped > 0, M::AUDIT_EVIDENCE_GAP);
 }

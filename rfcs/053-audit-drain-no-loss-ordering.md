@@ -2,7 +2,7 @@
 
 **RFC ID:** 053
 **Also known as:** RFC-v0.2-019
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.11
 **Phase:** MMIO/DMA/audit hardening
 **Closes review item:** RB-10

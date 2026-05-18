@@ -232,36 +232,33 @@ pub fn sys_lease_inspect(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoc
 /// - `n_records` — number of [`fjell_audit_format::AuditRecordBin`] records
 ///    written into `buf` (each exactly 32 bytes).
 /// - `n_dropped` — cumulative records dropped by the kernel due to ring-full.
+/// RFC 054: `cap` is first argument; RFC 053: returns per-drain drop count.
 pub fn sys_audit_drain(
-    buf: &mut [u8],
     cap: u32,
+    buf: &mut [u8],
 ) -> Result<(usize, usize), SysError> {
     let (r0, r1, r2) = ecall3(
         SyscallNumber::AuditDrain as usize,
+        cap as usize,
         buf.as_mut_ptr() as usize,
         buf.len(),
-        cap as usize,
     );
     to_result(r0)?;
     Ok((r1, r2))
 }
 
-/// Raw-pointer variant for negative testing: allows passing null / kernel addresses.
+/// Raw-pointer variant for negative testing (RFC 050).
 ///
-/// RFC 050: used by `test_user_copy_null` and `test_user_copy_kernel_addr` to
-/// obtain a typed `Result` rather than a raw status code.
-///
-/// # Safety
-/// `buf_va` must not alias live kernel state; it is expected to be either null
-/// or a kernel address so that the kernel's UserPtr check rejects it.
+/// RFC 054: `cap` is first argument; `buf_va`/`buf_len` follow.
 pub unsafe fn sys_audit_drain_ptr(
     buf_va: usize,
     buf_len: usize,
     cap: u32,
 ) -> Result<(usize, usize), SysError> {
+    // RFC 054: cap is a0, buf_va is a1, buf_len is a2.
     let (r0, r1, r2) = ecall3(
         SyscallNumber::AuditDrain as usize,
-        buf_va, buf_len, cap as usize,
+        cap as usize, buf_va, buf_len,
     );
     to_result(r0)?;
     Ok((r1, r2))
@@ -362,9 +359,14 @@ pub fn sys_cap_drop(cap: CapHandle) -> Result<(), SysError> {
 }
 
 /// `sys_dma_revoke(a0=device_pa) -> a0=status`  (RFC 036 explicit revoke)
-pub fn sys_dma_revoke(device_pa: usize) -> Result<(), SysError> {
-    let r = ecall1(SyscallNumber::DmaRevoke as usize, device_pa);
-    to_result(r).map(|_| ())
+/// RFC 052: cap-validated DMA revoke.
+///
+/// `cap_handle` must be a `DmaRegion` cap with `DMA_REVOKE` right.
+/// `device_pa` identifies the specific region (object_id-based tracking deferred to v0.3).
+pub fn sys_dma_revoke(cap_handle: CapHandle, device_pa: usize) -> Result<(), SysError> {
+    let (r0, _) = ecall2(SyscallNumber::DmaRevoke as usize,
+                         cap_handle.0 as usize, device_pa, 0, 0);
+    to_result(r0).map(|_| ())
 }
 
 /// Raw audit-drain call for negative testing (RFC 042).

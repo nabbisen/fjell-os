@@ -2,7 +2,7 @@
 
 **RFC ID:** 052
 **Also known as:** RFC-v0.2-018
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.11
 **Phase:** MMIO/DMA/audit hardening
 **Closes review items:** RB-08, RB-09 (and resolves H-03 by explicit deferral)

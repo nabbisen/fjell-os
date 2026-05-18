@@ -1,3 +1,37 @@
+## [0.2.13] - 2026-05-18 — v0.2.11 block: RFCs 051-054 (MMIO/DMA/audit hardening)
+
+### Implements RFCs 051-054 (closes RB-07, RB-08, RB-09, RB-10, H-02, H-03, H-05)
+
+**RFC 051 (RB-07, H-05): Device VMA range + MMIO mapping correctness**
+- `DEVICE_VMA_BASE = 0x7000_0000`, `DEVICE_VMA_END = 0x8000_0000` added to `qemu_virt.rs`.
+- `dev_vma_next: usize` bump allocator added to `Task` TCB (one usize per task).
+- `sys_mmio_map` now allocates user VA from `DEVICE_VMA_BASE..DEVICE_VMA_END` via the task's
+  bump allocator instead of using PA directly as VA (closed RB-07).
+- MMIO grants narrowed: SVC_TIMEOUT/SVC_FAULT now receive no MmioRegion caps (closed H-05).
+
+**RFC 052 (RB-08, RB-09, H-03): DMA rollback + cap-based revoke**
+- `DmaRegionTable::alloc` failure is no longer ignored: if table is full, the just-mapped
+  frame is zeroized, freed, and `NoMemory` is returned to the caller (closed RB-08).
+- `sys_dma_revoke(a0=cap_handle, a1=device_pa)`: now validates DmaRegion + DMA_REVOKE right
+  + lease before revoking (closed RB-09 right-check concern; PA-based lookup retained).
+- `DmaRegionTable::revoke_by_id` added (for future object_id-based tracking in v0.3).
+- H-03 (quarantine timeout) explicitly deferred to v0.3 in RFC 052 text.
+- `fjell-syscall` wrapper: `sys_dma_revoke(cap_handle, device_pa)`.
+
+**RFC 053 (RB-10): Audit drain no-loss ordering**
+- `AuditRing::peek_at(i)` — read record without consuming (non-destructive).
+- `AuditRing::advance(n)` — advance head by exactly n, returns per-drain drop count.
+- `AuditRing::drops_since_advance` field added.
+- `sys_audit_drain` rewritten to peek-copy-advance: records stay in ring until copy succeeds.
+  Partial-buffer failures no longer cause record loss.
+
+**RFC 054 (H-02): `sys_audit_drain` unified `require_cap` with lease check**
+- ABI changed: `a0=cap_handle, a1=buf_va, a2=buf_len` (cap_handle moved to first arg).
+- `require_cap_on_ct` used for handle-based check (kind, AUDIT_DRAIN right, lease epoch).
+- `fjell-syscall` wrapper updated: `sys_audit_drain(cap, buf)`.
+- `sys_audit_drain_ptr` updated accordingly.
+- `fjell-neg-test` call sites updated.
+
 ## [0.2.12] - 2026-05-18 — RFC 050: specific-error-code negative tests (completes v0.2.10 RFCs)
 
 ### Implements RFC 050 (closes H-06)

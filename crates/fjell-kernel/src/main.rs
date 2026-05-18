@@ -193,7 +193,30 @@ impl DmaRegionTable {
         false
     }
 
-    /// Explicitly revoke a DMA region by physical address (RFC 036 §2).
+    /// RFC 052: Revoke a DMA region by its `region_id` (table slot index).
+    ///
+    /// Used by the new cap-based `sys_dma_revoke(cap_handle)` where the cap's
+    /// `object_id` carries the region index.
+    pub fn revoke_by_id(&mut self, owner: crate::task::TaskId, region_id: usize) -> bool {
+        if region_id >= MAX_DMA_REGIONS { return false; }
+        let e  = &mut self.entries[region_id];
+        let fa = unsafe { crate::fa_static_ptr() };
+        if e.owner == owner && e.state == DmaRegionState::Active {
+            e.state = DmaRegionState::Revoked;
+            if e.frame_pa != 0 {
+                unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
+                e.state = DmaRegionState::Zeroized;
+                if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
+                    unsafe { let _ = (*fa).free_frame(frame); }
+                }
+            }
+            *e = DmaRegionEntry::free();
+            return true;
+        }
+        false
+    }
+
+    /// Explicitly revoke a DMA region by physical address (legacy, RFC 036 §2).
     ///
     /// Transitions: Active → Revoked → Zeroized → Freed (synchronous in v0.2).
     ///

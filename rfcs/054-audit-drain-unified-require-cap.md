@@ -2,7 +2,7 @@
 
 **RFC ID:** 054
 **Also known as:** RFC-v0.2-020
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.11
 **Phase:** MMIO/DMA/audit hardening
 **Closes review item:** H-02

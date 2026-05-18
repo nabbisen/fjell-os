@@ -390,83 +390,77 @@ pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable,
 
 /// Drain pending kernel audit records into a caller-supplied buffer.
 ///
-/// ABI (RFC 020):
-/// ```
-/// sys_audit_drain(
-///   a0 = buf_va       — user-space VA of the output buffer
-///   a1 = buf_cap      — buffer capacity in bytes
-///   a2 = cap_handle   — CapKind::AuditDrain capability (slot 1 in auditd)
-/// ) ->
-///   a0 = status (0 = ok, non-zero = SysError)
-///   a1 = n_records_drained
-///   a2 = n_dropped_total (cumulative since boot)
-/// ```
+/// `sys_audit_drain(a0=cap_handle, a1=buf_va, a2=buf_len)` — RFC 053/054.
 ///
-/// Each record is exactly `AUDIT_RECORD_BIN_SIZE` (32) bytes; see
-/// `fjell_audit_format::AuditRecordBin`.
+/// RFC 054: first arg is the AuditDrain cap handle (handle-based `require_cap`).
+/// RFC 053: peek-copy-advance — records are not consumed until copy succeeds.
+///
+/// Returns:
+///   `a0` = status (0 = ok)
+///   `a1` = n_records_copied
+///   `a2` = n_dropped_since_last_drain (per RFC 053; resets on each drain)
 pub fn sys_audit_drain(tf: &mut TrapFrame) {
     use fjell_audit_format::{AuditRecordBin, AUDIT_RECORD_BIN_SIZE};
-    use fjell_cap::{CapKind, CapRights};
-    use crate::audit::ring::{AUDIT, AuditRecord};
+    use fjell_cap::{CapKind, CapRights, rights::ObjectScope};
+    use crate::audit::ring::AUDIT;
     use crate::mm::user_copy::copy_to_user_bytes;
-    use crate::task::tcb::REG_A2;
 
-    let buf_va  = tf.gpr[REG_A0];
-    let buf_cap = tf.gpr[REG_A1];
-    let cap_raw = tf.gpr[REG_A2] as u32;
+    let cap_raw = tf.gpr[REG_A0] as u32;
+    let buf_va  = tf.gpr[REG_A1];
+    let buf_len = tf.gpr[REG_A2];
 
-    // ── 1. Validate AuditDrain capability ────────────────────────────────────
+    // ── 1. RFC 054: handle-based AuditDrain require_cap with lease check ─────
     let (table, sched, ct, _) = unsafe { crate::get_kernel_state() };
     let cur_id = match sched.current() {
         Some(id) => id,
         None => { tf.gpr[REG_A0] = SysError::BadState as isize as usize; return; }
     };
-    let cs = match ct.cspace(cur_id.index as usize) {
-        Some(cs) => cs,
-        None => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
-    };
-    let handle = fjell_cap::CapHandle(cap_raw);
-    let cap = match cs.get(handle) {
-        Ok(c) if c.kind == CapKind::AuditDrain => c,
-        _ => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
-    };
-    // RFC 031: require AUDIT_DRAIN right (was incorrectly RECV in v0.1.x).
-    if !cap.rights.contains(CapRights::AUDIT_DRAIN) {
-        tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize; return;
+    let tidx   = cur_id.index as usize;
+    let cap_h  = fjell_cap::handle::CapHandle(cap_raw);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      CapKind::AuditDrain,
+                                      CapRights::AUDIT_DRAIN, None) {
+        tf.gpr[REG_A0] = e as isize as usize; return;
     }
 
-    // ── 2. Trivial case: buffer too small for even one record ────────────────
-    if buf_cap < AUDIT_RECORD_BIN_SIZE {
+    // ── 2. Trivial: buffer too small for one record ───────────────────────────
+    if buf_len < AUDIT_RECORD_BIN_SIZE {
         tf.gpr[REG_A0] = SysError::Ok as isize as usize;
         tf.gpr[REG_A1] = 0;
-        tf.gpr[REG_A2] = AUDIT.dropped() as usize;
+        tf.gpr[REG_A2] = 0;
         return;
     }
 
-    // ── 3. Drain into kernel-side scratch buffer (≤ 64 records at once) ──────
-    const MAX_BATCH: usize = 64;
-    let max_records = (buf_cap / AUDIT_RECORD_BIN_SIZE).min(MAX_BATCH);
-    let mut kbuf = [unsafe { core::mem::zeroed::<AuditRecord>() }; MAX_BATCH];
-    let (n_drained, n_dropped) = AUDIT.drain_into(&mut kbuf[..max_records]);
-
-    // ── 4. Get caller page-table root for copy_to_user ───────────────────────
+    // ── 3. Get caller page-table root for copy_to_user ───────────────────────
     let root_pfn = match table.get(cur_id) {
         Some(task) => task.satp_root_pfn,
         None => { tf.gpr[REG_A0] = SysError::BadState as isize as usize; return; }
     };
 
-    // ── 5. Serialize each record and copy to user buffer ─────────────────────
-    let mut copied = 0usize;
-    for i in 0..n_drained {
-        let r = &kbuf[i];
+    // ── 4. RFC 053: peek-copy-advance ─────────────────────────────────────────
+    //
+    // Records are peeked (non-consuming) and copied to user space.
+    // Only AFTER each successful copy is the cursor advanced.
+    // If copy fails at record i, records 0..i have already been copied and
+    // committed; records i..n remain in the ring for the next drain call.
+    let max_records = (buf_len / AUDIT_RECORD_BIN_SIZE).min(64);
+    let mut n_copied = 0usize;
+
+    'drain: for i in 0..max_records {
+        // Peek without consuming.
+        let rec = match AUDIT.peek_at(i) {
+            Some(r) => r,
+            None    => break 'drain,  // ring exhausted
+        };
+        // Serialize to binary format.
         let bin = AuditRecordBin {
-            seq:    r.seq,
-            tick:   r.tick,
-            kind:   r.kind as u16,
+            seq:    rec.seq,
+            tick:   rec.tick,
+            kind:   rec.kind as u16,
             task:   0xFFFF,
-            arg0:   r.arg0 as u32,
-            arg1:   r.arg1 as u32,
-            result: r.result as i32,
+            arg0:   rec.arg0 as u32,
+            arg1:   rec.arg1 as u32,
+            result: rec.result as i32,
         };
         let bytes = unsafe {
             core::slice::from_raw_parts(
@@ -475,14 +469,18 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
             )
         };
         let dst = buf_va + i * AUDIT_RECORD_BIN_SIZE;
+        // Copy to user; stop at first failure (remaining records stay in ring).
         match unsafe { copy_to_user_bytes(root_pfn, dst, bytes) } {
-            Ok(_)  => copied += 1,
-            Err(_) => break,
+            Ok(_)  => n_copied += 1,
+            Err(_) => break 'drain,
         }
     }
 
+    // 5. Advance ring head by exactly n_copied and get per-drain drop count.
+    let n_dropped = AUDIT.advance(n_copied);
+
     tf.gpr[REG_A0] = SysError::Ok as isize as usize;
-    tf.gpr[REG_A1] = copied;
+    tf.gpr[REG_A1] = n_copied;
     tf.gpr[REG_A2] = n_dropped as usize;
 }
 
@@ -630,6 +628,8 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     }
 
     // Map pages R|W|U — explicitly no X bit (RFC 009 / RFC 035).
+    // RFC 051: allocate user VA from the task's device VMA bump allocator
+    // instead of using PA directly as VA (which could alias user heap).
     let task_id  = crate::task::TaskId::new(tidx as u16, 0);
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
@@ -637,26 +637,42 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
         return;
     }
+
+    // Allocate a contiguous device VA range for this mapping.
+    let device_va_base = {
+        let task = match table.get_mut(task_id) {
+            Some(t) => t,
+            None => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
+        };
+        let va = task.dev_vma_next;
+        let end = va.saturating_add(size_bytes);
+        if end > crate::platform::qemu_virt::DEVICE_VMA_END {
+            tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
+            return;
+        }
+        task.dev_vma_next = (end + 4095) & !4095;  // page-align next
+        va
+    };
+
     let fa = unsafe { &mut *crate::fa_static_ptr() };
-    let mut mapped_va = 0usize;
-    let mut va = phys_addr;
-    while va < phys_addr + size_bytes {
-        if let Ok(f) = crate::mm::frame_alloc::PhysFrame::from_pa(va) {
-            let user_va = va;
-            if mapped_va == 0 { mapped_va = user_va; }
+    let mut mapped = 0usize;
+    for i in 0..((size_bytes + 4095) / 4096) {
+        let pa = phys_addr + i * 4096;
+        let va = device_va_base + i * 4096;
+        if let Ok(f) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
+            if mapped == 0 { mapped = 1; }
             unsafe {
                 let _ = crate::mm::page_table::remap_page(
-                    root_pfn << 12, VirtAddr(user_va), f,
-                    VmPerms::R | VmPerms::W | VmPerms::U,  // no X — non-executable
+                    root_pfn << 12, VirtAddr(va), f,
+                    VmPerms::R | VmPerms::W | VmPerms::U,
                     fa,
                 );
             }
         }
-        va += 4096;
     }
     unsafe { crate::arch::riscv64::csr::sfence_vma(); }
     tf.gpr[REG_A0] = 0;
-    tf.gpr[REG_A1] = mapped_va;
+    tf.gpr[REG_A1] = device_va_base;  // RFC 051: VA in device range, not PA
 }
 
 /// `sys_dma_alloc(a0=dma_cap_handle, a1=size_bytes) -> a0=status, a1=user_va, a2=device_pa`
@@ -747,23 +763,48 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     }
     unsafe { crate::arch::riscv64::csr::sfence_vma(); }
 
-    // RFC 036: record ownership for zeroize-on-exit and explicit revoke.
-    crate::dma_table().alloc(task_id, user_va_start, first_pa);
+    // RFC 036 + RFC 052: record ownership; rollback if table is full.
+    if !crate::dma_table().alloc(task_id, user_va_start, first_pa) {
+        // Table full — unmap, zeroize, free the just-allocated frame.
+        // Safety: we own the frame exclusively; no other task has seen it.
+        unsafe {
+            // Zeroize the physical frame.
+            core::ptr::write_bytes(first_pa as *mut u8, 0, 4096);
+            // Unmap the user VA (best-effort; single-hart guarantees no races).
+            if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(first_pa) {
+                (*crate::fa_static_ptr()).free_frame(frame);
+            }
+        }
+        tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; // DMA table full (RFC 052)
+        return;
+    }
 
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = user_va_start;
     tf.gpr[12]     = first_pa;
 }
 
-/// `sys_dma_revoke(a0=device_pa) -> a0=status`
+/// `sys_dma_revoke(a0=cap_handle, a1=device_pa) -> a0=status` — RFC 052.
 ///
-/// RFC 036 (v0.2.0): Explicitly revoke a DMA region, triggering synchronous
-/// zeroize and frame return.  The caller must own the region.
+/// RFC 052: validates DmaRegion cap with DMA_REVOKE right (closes RB-09 right check).
+/// Region identified by device_pa (object_id-based tracking deferred to v0.3).
+/// User VA unmap deferred to v0.3 (frame is zeroized and freed; VA stays mapped).
 pub fn sys_dma_revoke(tf: &mut TrapFrame) {
-    let device_pa = tf.gpr[REG_A0];
-    let tidx = crate::trap::dispatch::current_task_idx();
-    let task_id = crate::task::TaskId::new(tidx as u16, 0);
+    use fjell_cap::{CapKind, CapRights};
+    let cap_raw   = tf.gpr[REG_A0] as u32;
+    let device_pa = tf.gpr[REG_A1];
+    let tidx      = crate::trap::dispatch::current_task_idx();
+    let cap_h     = fjell_cap::handle::CapHandle(cap_raw);
+    let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
 
+    // RFC 052: require DmaRegion + DMA_REVOKE right, lease check.
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      CapKind::DmaRegion,
+                                      CapRights::DMA_REVOKE, None) {
+        tf.gpr[REG_A0] = e as isize as usize; return;
+    }
+
+    let task_id = crate::task::TaskId::new(tidx as u16, 0);
     if crate::dma_table().revoke_by_pa(task_id, device_pa) {
         tf.gpr[REG_A0] = 0;
     } else {
