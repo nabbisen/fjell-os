@@ -1,6 +1,6 @@
 # ADR-0004 — Semantic Stream (ABDD)
 
-**Status:** Accepted  
+**Status:** Superseded — see ADR-0005 Semantic Stream First (RFC 045)  
 **Date:** 2026-05-04
 
 ## Context

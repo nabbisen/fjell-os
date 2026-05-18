@@ -8,19 +8,58 @@
 
 - [v0.1.0 Scope](./releases/v0.1.0-scope.md)
 - [v0.1.0 Limitations](./releases/v0.1.0-limitations.md)
+- [v0.1.x Release Checklist](./releases/v0.1.x-release-checklist.md)
 
 ---
 
 # Roadmap
 
 - [v0.1.x Stabilisation](./roadmap/v0.1.x-stabilization.md)
+- [v0.2 Preparation Backlog](./roadmap/v0.2-preparation-backlog.md)
 
 ---
 
 # Security
 
 - [v0.1.0 Known Non-Goals](./security/v0.1.0-known-non-goals.md)
-- [v0.1.0 Threat Model (skeleton)](./security/v0.1.0-threat-model.md)
+- [v0.1 Threat Model](./security/threat-model-v0.1.md)
+
+---
+
+# ABI Reference
+
+- [v0.1 ABI Inventory](./abi/v0.1-inventory.md)
+
+---
+
+# Audits
+
+- [Capability / Lease Enforcement Audit](./audit/capability-lease-enforcement-audit-v0.1.md)
+- [MMIO / DMA Boundary Audit](./audit/mmio-dma-boundary-audit-v0.1.md)
+- [Evidence Export Audit](./audit/evidence-export-audit-v0.1.md)
+
+---
+
+# Development
+
+- [Negative Tests](./development/negative-tests.md)
+
+---
+
+# Architecture Decisions
+
+- [ADR-0001 Minimal Microkernel](./adr/0001-minimal-microkernel.md)
+- [ADR-0002 Capability-Based IPC](./adr/0002-capability-based-ipc.md)
+- [ADR-0003 Lease Epoch Revocation](./adr/0003-lease-epoch-revocation.md)
+- [ADR-0004 User-Space Service Plane](./adr/0004-user-space-service-plane.md)
+- [ADR-0005 Semantic Stream First](./adr/0005-semantic-stream-first.md)
+- [ADR-0006 User-Space Driver Model](./adr/0006-user-space-driver-model.md)
+- [ADR-0007 Append-Only State Store](./adr/0007-append-only-state-store.md)
+- [ADR-0008 Verified Immutable Rootfs](./adr/0008-verified-immutable-rootfs.md)
+- [ADR-0009 A/B Boot Control](./adr/0009-ab-boot-control-health-confirmation.md)
+- [ADR-0010 Local Evidence and Recovery](./adr/0010-local-evidence-and-recovery.md)
+- [ADR-0011 Dev-Grade Crypto Before Hardware Trust](./adr/0011-development-grade-crypto-before-hardware-trust.md)
+- [ADR-0012 No Network Before Security Closure](./adr/0012-no-general-network-before-security-closure.md)
 
 ---
 

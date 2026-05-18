@@ -3,6 +3,133 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.5] - 2026-05-17
+
+### v0.1.x stabilization — v0.2 preparation backlog
+
+### Added
+
+- **RFC 047** (`rfcs/047-v02-preparation-backlog.md`, RFC-v0.1.x-011)
+  — v0.2 preparation backlog.
+- `docs/src/roadmap/v0.2-preparation-backlog.md` — 30 backlog items
+  (18 release blockers) grouped by v0.2 epic (A–G), each with severity,
+  source RFC, resolving RFC, required negative tests, and acceptance
+  criteria.
+
+### Changed
+
+- Workspace version bumped `0.1.4 → 0.1.5`.
+- `docs/src/SUMMARY.md` updated (v0.2 backlog link).
+
+### Deferred to v0.2
+
+Everything in the backlog document.
+
+---
+
+## [0.1.4] - 2026-05-17
+
+### v0.1.x stabilization — ADR sync + release checklist
+
+### Added
+
+- **RFC 045** (`rfcs/045-adr-and-documentation-synchronization.md`,
+  RFC-v0.1.x-009) — ADR and documentation synchronization.
+- **RFC 046** (`rfcs/046-v01x-release-checklist.md`,
+  RFC-v0.1.x-010) — v0.1.x release checklist.
+- **12 ADRs** (`docs/src/adr/0001`–`0012`) per the mandated list:
+  0001 Minimal Microkernel, 0002 Capability-Based IPC,
+  0003 Lease Epoch Revocation, 0004 User-Space Service Plane,
+  0005 Semantic Stream First, 0006 User-Space Driver Model,
+  0007 Append-Only State Store, 0008 Verified Immutable Rootfs,
+  0009 A/B Boot Control and Health Confirmation, 0010 Local Evidence
+  and Recovery, 0011 Development-Grade Crypto Before Hardware Trust,
+  0012 No General Network Before Security Closure.
+  Each ADR includes the required fields: Status, Context, Decision,
+  Consequences, Security Boundary Impact, Deferred Work, Related RFCs.
+- `docs/src/adr/ADR-RENAME.md` — migration note from old filenames
+  to new mandated filenames.
+- `docs/src/releases/v0.1.x-release-checklist.md` — complete
+  release gate checklist (build, test, doc, artefact, CHANGELOG rubric,
+  version bump procedure, post-release steps).
+- Old ADRs marked `**Status:** Superseded` with forward links.
+
+### Changed
+
+- Workspace version bumped `0.1.3 → 0.1.4`.
+- `docs/src/SUMMARY.md` updated (ADR index + release checklist).
+
+---
+
+## [0.1.3] - 2026-05-17
+
+### v0.1.x stabilization — Capability / Lease / MMIO / DMA / Evidence audits
+
+### Added
+
+- **RFC 029** (`rfcs/029-capability-lease-enforcement-audit.md`,
+  RFC-v0.1.x-006) — capability / lease enforcement audit.
+- **RFC 030** (`rfcs/030-mmio-dma-boundary-audit.md`,
+  RFC-v0.1.x-007) — MMIO / DMA boundary audit.
+- **RFC 044** (`rfcs/044-audit-snapshot-semantic-evidence-audit.md`,
+  RFC-v0.1.x-008) — audit / snapshot / semantic evidence audit.
+- `docs/src/audit/capability-lease-enforcement-audit-v0.1.md` —
+  classification of all 29 syscall paths (1 OK, 18 Partial, 4 Missing,
+  3 DebugOnly). Includes v0.2 enforcement checklist.
+- `docs/src/audit/mmio-dma-boundary-audit-v0.1.md` — MMIO/DMA threat
+  analysis, 5 Release Blocker gaps (all resolving to RFCs 035, 036),
+  required negative-test markers.
+- `docs/src/audit/evidence-export-audit-v0.1.md` — full 17-event
+  evidence matrix mapping to audit/store/snapshot/semantic channels.
+  7 critical gaps (no channels at all) and 6 partial gaps identified.
+  Normative post-v0.2 target matrix.
+
+### Changed
+
+- Workspace version bumped `0.1.2 → 0.1.3`.
+- `docs/src/SUMMARY.md` updated (Audits section).
+
+---
+
+## [0.1.2] - 2026-05-17
+
+### v0.1.x stabilization — Negative test harness, threat model, ABI inventory
+
+### Added
+
+- **RFC 026** (`rfcs/026-negative-test-harness.md`, RFC-v0.1.x-003)
+  — negative test harness.
+- **RFC 027** (`rfcs/027-threat-model-and-security-boundaries.md`,
+  RFC-v0.1.x-004) — threat model and security boundary documentation.
+- **RFC 028** (`rfcs/028-syscall-abi-protocol-inventory.md`,
+  RFC-v0.1.x-005) — syscall / ABI / protocol inventory.
+- `docs/src/development/negative-tests.md` — complete negative-test
+  catalogue with marker naming convention, per-category tables showing
+  testability at v0.1.x vs. deferred to v0.2, and CI integration notes.
+- `docs/src/security/threat-model-v0.1.md` — full 14-section threat
+  model (supersedes v0.1.1 skeleton): assets, TCB, attacker model,
+  trust boundaries, per-boundary enforcement, known weaknesses, deferred
+  threats, v0.2 plan.
+- `docs/src/abi/v0.1-inventory.md` — complete ABI inventory: 29
+  syscalls with number/name/registers/required-cap/enforcement/stability,
+  error code table, bootstrap ABI, service image ID table, IPC protocol
+  inventory, persistent format inventory, semantic schema inventory.
+- `tests/qemu/profiles/store.toml` — real markers for store corruption /
+  recovery rejection (testable at v0.1.x).
+- `tests/qemu/profiles/upgrade.toml` — real markers for signature
+  verification rejection (testable at v0.1.x).
+
+### Changed
+
+- Workspace version bumped `0.1.1 → 0.1.2`.
+- `docs/src/SUMMARY.md` updated (Security, ABI Reference, Development).
+
+### Known Limitations
+
+All v0.1.x limitations documented in `releases/v0.1.0-limitations.md`
+apply. The threat model full body (§6–§11) replaces the skeleton but does
+not close any enforcement gap — that is v0.2 work.
+
 ## [0.1.1] - 2026-05-17
 
 ### v0.1.x stabilization — Release freeze + CI foundation

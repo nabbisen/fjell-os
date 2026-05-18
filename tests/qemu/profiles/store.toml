@@ -1,8 +1,14 @@
 # Negative-test profile: store
-# Placeholder for v0.1.1 (RFC 025 §chicken-and-egg).
-# Real cases land via RFC 026 (v0.1.2) and per-RFC for v0.2.
+# Tests for RFC-v0.1.x-003 (RFC 026) store corruption/recovery rejection.
+# These are testable at v0.1.x: the store recovery path is in user-space
+# and the CRC32 / partial-tail rejection is part of the M5 baseline.
 
 name             = "store"
-timeout_secs     = 30
-expected_markers = []
+timeout_secs     = 60
+expected_markers = [
+    "NEG:STORE:CORRUPT_RECORD_REJECTED:PASS",
+    "NEG:STORE:PARTIAL_TAIL_IGNORED:PASS",
+    "NEG:STORE:BAD_SUPERBLOCK_MIRROR_REJECTED:PASS",
+    "NEG:STORE:VALID_PREFIX_RECOVERED:PASS",
+]
 extra_args       = []

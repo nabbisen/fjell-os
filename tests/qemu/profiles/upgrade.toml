@@ -1,8 +1,14 @@
 # Negative-test profile: upgrade
-# Placeholder for v0.1.1 (RFC 025 §chicken-and-egg).
-# Real cases land via RFC 026 (v0.1.2) and per-RFC for v0.2.
+# Tests for RFC-v0.1.x-003 (RFC 026) upgrade verification rejection.
+# These are testable at v0.1.x: release signature verification
+# is part of the M7/M8 verifyd path.
 
 name             = "upgrade"
-timeout_secs     = 30
-expected_markers = []
+timeout_secs     = 60
+expected_markers = [
+    "NEG:UPGRADE:UNSIGNED_RELEASE_REJECTED:PASS",
+    "NEG:UPGRADE:INVALID_SIGNATURE_REJECTED:PASS",
+    "NEG:UPGRADE:ACTIVE_SLOT_WRITE_REJECTED:PASS",
+    "NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS",
+]
 extra_args       = []

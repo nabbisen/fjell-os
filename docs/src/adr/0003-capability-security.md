@@ -1,6 +1,6 @@
 # ADR-0003 — Capability-Based Security
 
-**Status:** Accepted  
+**Status:** Superseded — see ADR-0002 and ADR-0003 (RFC 045)  
 **Date:** 2026-05-04
 
 ## Context

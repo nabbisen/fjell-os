@@ -1,6 +1,6 @@
 # ADR-0002 — Microkernel Boundary
 
-**Status:** Accepted  
+**Status:** Superseded — see ADR-0001 Minimal Microkernel (RFC 045)  
 **Date:** 2026-05-04
 
 ## Context

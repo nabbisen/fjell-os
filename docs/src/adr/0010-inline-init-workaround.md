@@ -1,6 +1,6 @@
 # ADR 0010: Inline init smoke workaround and service separation deprecation plan
 
-**Status:** Accepted  
+**Status:** Superseded by RFC 038 (service-plane-separation)  
 **Date:** 2026-05-12  
 **Milestone:** M6/M7 (workaround); M8 (deprecation)
 
