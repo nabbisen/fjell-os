@@ -1,7 +1,7 @@
 //! Fixed-capacity, append-only audit ring.
 //!
 //! # Drain cursor
-//! `sys_audit_drain` advances `drain_cursor` after copying records to user
+//! `sys_audit_drain` uses `peek_at` + `advance` (RFC 053) — no drain cursor needed.
 //! space.  After draining, [`AuditRing::compact`] is called to reclaim slots
 //! from the front of the ring so the ring never gets permanently stuck when
 //! full.
@@ -75,14 +75,12 @@ pub struct AuditRing {
     /// Records dropped since the last `advance()` call (RFC 053).
     /// Reset to 0 on each `advance()` and returned to the caller.
     drops_since_advance:  Cell<u64>,
-    /// Number of records (from the head) already consumed by `drain_into`.
-    drain_cursor:         Cell<usize>,
+
 }
 
 // SAFETY: single-hart.
 unsafe impl Sync for AuditRing {}
 
-#[allow(dead_code)]
 impl AuditRing {
     const fn new() -> Self {
         const EMPTY: Cell<Option<AuditRecord>> = Cell::new(None);
@@ -93,7 +91,6 @@ impl AuditRing {
             seq:                 Cell::new(0),
             dropped_count:       Cell::new(0),
             drops_since_advance: Cell::new(0),
-            drain_cursor:        Cell::new(0),
         }
     }
 
@@ -140,7 +137,6 @@ impl AuditRing {
             let new_head = (self.head.get() + n) % AUDIT_RING_CAPACITY;
             self.head.set(new_head);
             self.len.set(new_len);
-            self.drain_cursor.set(0);
         }
         let dropped = self.drops_since_advance.get();
         self.drops_since_advance.set(0);
@@ -148,6 +144,7 @@ impl AuditRing {
     }
 
     /// Read a record by logical index (0 = oldest in ring).
+    #[allow(dead_code)]  // internal helper; peek_at inlines this
     pub fn get(&self, index: usize) -> Option<AuditRecord> {
         if index >= self.len.get() { return None; }
         let idx = (self.head.get() + index) % AUDIT_RING_CAPACITY;
@@ -156,47 +153,17 @@ impl AuditRing {
 
     #[allow(dead_code)]
     pub fn len(&self) -> usize  { self.len.get() }
+    #[allow(dead_code)]  // diagnostic accessor
     pub fn dropped(&self) -> u64 { self.dropped_count.get() }
 
     /// Number of records not yet drained (available for the next drain call).
     #[allow(dead_code)]
     pub fn pending(&self) -> usize {
-        self.len.get().saturating_sub(self.drain_cursor.get())
+        self.len.get()  // drain_cursor removed (always 0 after drain_into removed in v0.2.22)
     }
 
     /// Fill `out` with pending records starting from `drain_cursor`.
     ///
-    /// Returns `(n_filled, n_dropped_total)`.  After filling, immediately
-    /// calls [`Self::compact`] to reclaim the drained slots so the ring
-    /// doesn't stay permanently full.
-    pub fn drain_into(&self, out: &mut [AuditRecord]) -> (usize, u64) {
-        let cursor  = self.drain_cursor.get();
-        let pending = self.len.get().saturating_sub(cursor);
-        let n       = pending.min(out.len());
-
-        for i in 0..n {
-            if let Some(rec) = self.get(cursor + i) {
-                out[i] = rec;
-            }
-        }
-
-        // Advance cursor then compact.
-        self.drain_cursor.set(cursor + n);
-        self.compact();
-
-        (n, self.dropped_count.get())
-    }
-
-    /// Remove all drained records from the front of the ring, reclaiming
-    /// capacity for future appends.
-    fn compact(&self) {
-        let drained = self.drain_cursor.get();
-        if drained == 0 { return; }
-
-        let new_len  = self.len.get().saturating_sub(drained);
-        let new_head = (self.head.get() + drained) % AUDIT_RING_CAPACITY;
-        self.head.set(new_head);
-        self.len.set(new_len);
-        self.drain_cursor.set(0);
-    }
 }
+
+// drain_into and compact removed in v0.2.22: fully superseded by peek_at + advance (RFC 053).

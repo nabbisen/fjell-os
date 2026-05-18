@@ -286,7 +286,6 @@ pub unsafe fn sys_audit_drain_ptr(
 /// RFC 057: request a platform reboot.  Requires a `Reboot` cap with `REBOOT` right.
 /// On success, this call never returns.
 /// RFC 057: request platform reboot. Never returns on success.
-#[allow(dead_code)]
 pub fn sys_reboot(reboot_cap: CapHandle, mode: u32) -> Result<(), SysError> {
     let r0 = ecall2(SyscallNumber::PlatformReboot as usize, reboot_cap.0 as usize, mode as usize, 0, 0).0;
     to_result(r0).map(|_| ())

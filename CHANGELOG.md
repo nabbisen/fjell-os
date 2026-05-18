@@ -1,3 +1,27 @@
+## [0.2.22] - 2026-05-18 — #[allow(dead_code)] audit
+
+Three problems found and fixed:
+
+**sys_reboot suppression removed** (`fjell-syscall`): `pub fn sys_reboot` had
+`#[allow(dead_code)]` added in v0.2.18 by mistake. Public functions in library
+crates are never warned about as dead code; the suppression was wrong. Removed.
+
+**BootState::Rollback now constructed** (`fjell-bootctl`): The `state = BootState::Rollback`
+assignment was removed in v0.2.18 to kill an `unused_assignments` warning, leaving
+the variant defined but never constructed. That was wrong: the semantic state IS
+Rollback at that point, and `BOOT_PENDING_QUERY` must return 2 for it. Restored
+the assignment with a narrow `#[allow(unused_assignments)]` block. Removed the
+now-unnecessary `#[allow(dead_code)]` from the enum.
+
+**drain_into + compact + drain_cursor removed** (`fjell-kernel/audit/ring.rs`):
+The old cursor-based drain API was fully superseded by `peek_at`/`advance` in
+RFC 053. The broad `#[allow(dead_code)]` on the `impl AuditRing` block had been
+hiding these three dead items. Removed the two methods and the `drain_cursor` struct
+field (permanently zero since no code set it after drain_into removal). `pending()`
+simplified to `self.len.get()`. Narrowed remaining dead-code suppressions to the
+specific diagnostic accessors (`get`, `dropped`) that are legitimately part of the
+AuditRing API surface.
+
 ## [0.2.18] - 2026-05-18 — Warning clean-up
 
 All 7 warnings from the v0.2.17 cross-build resolved:
