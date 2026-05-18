@@ -1,3 +1,23 @@
+## [0.2.10] - 2026-05-18 — RFC 048: handle-based `require_cap` for task/lease syscalls
+
+### Implements RFC 048 (closes RB-01)
+
+Replaces the v0.2.8 scan-based `require_cap(kind, rights)` helper with
+`require_cap_on_ct(ct, tidx, handle, kind, rights, scope)` performing all 7
+RFC 031 enforcement steps on an explicit cap handle.  Every task and lease
+syscall now passes the cap handle explicitly and has scope validated.
+
+**ABI changes (all callers updated in same release):**
+- `sys_task_spawn(cap_handle, image_id)`
+- `sys_task_start(cap_handle, task_handle, entry_pc, stack_top)` — scope: `Task(target)`
+- `sys_task_status(cap_handle, task_handle)` — scope: `Task(target)`
+- `sys_lease_create(cap_handle, flags)`
+- `sys_lease_revoke(cap_handle, lease_id)` — scope: `Lease(id)`
+- `sys_lease_inspect(cap_handle, lease_id)` — scope: `Lease(id)`
+
+All 6 dispatch functions pass `ct` and `tidx`. `fjell-init` uses slots 28-30.
+`fjell-neg-test` uses slots 5-6 and 4.
+
 # Changelog
 
 All notable changes to Fjell OS are documented here.

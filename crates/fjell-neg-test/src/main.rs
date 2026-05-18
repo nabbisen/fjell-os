@@ -44,8 +44,8 @@ const SLOT_DMA:        u32 = 2;   // DmaRegion cap
 const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 #[allow(dead_code)]
 const SLOT_LEASE_ADMIN:u32 = 4;
-#[allow(dead_code)] const SLOT_TASK_CREATE:u32 = 5;   // TaskCreate cap (kernel uses it implicitly via require_cap)
-#[allow(dead_code)] const SLOT_TASK_CONTROL:u32= 6;   // TaskControl cap   // LeaseAdmin cap
+#[allow(dead_code)] const SLOT_TASK_CREATE:u32 = 5;   // TaskCreate cap (used by sys_task_spawn)
+#[allow(dead_code)] const SLOT_TASK_CONTROL:u32= 6;   // TaskControl cap (used by sys_task_start/status)
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 const SLOT_SCRATCH_C:  u32 = 12;  // scratch slot for audit overflow loop
@@ -100,14 +100,14 @@ fn test_cap_lease_revoked() {
         Err(_) => return,
     };
     // 2. Create a lease.
-    let lease_id = match sys_lease_create(0) {
+    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
         Err(_) => return,
     };
     // 3. Bind the lease to the copied cap.
     if sys_cap_bind_lease(copied, lease_id).is_err() { return; }
     // 4. Revoke the lease — epoch increments, cap binding now stale.
-    if sys_lease_revoke(lease_id).is_err() { return; }
+    if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() { return; }
     // 5. Try to recv on the now-lease-revoked cap → LeaseRevoked.
     let result = sys_ipc_recv(SLOT_SCRATCH_A);
     check(result.is_err(), M::CAP_LEASE_REVOKED);
@@ -238,7 +238,7 @@ fn test_user_copy_kernel_addr() {
 /// printed it.
 fn test_ipc_blocked_recv() {
     // 1. Create a fresh lease (need LeaseAdmin cap in slot 4).
-    let lease_id = match sys_lease_create(0) {
+    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
         Err(_) => return,  // LeaseAdmin cap not available — skip
     };
@@ -251,7 +251,7 @@ fn test_ipc_blocked_recv() {
         lease_id.0 as usize, 0, 0,
     ) {
         Ok(0) => {} // sample-service replied OK
-        _     => { let _ = sys_lease_revoke(lease_id); return; }
+        _     => { let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id); return; }
     }
 
     // 3. At this point sample-service has replied and is running.
@@ -262,7 +262,7 @@ fn test_ipc_blocked_recv() {
 
     // 4. Revoke the lease — this triggers cancel_blocked_ipc_for_lease in
     //    the kernel which wakes sample-service with LeaseRevoked.
-    let _ = sys_lease_revoke(lease_id);
+    let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
     // (marker emitted by sample-service asynchronously)
 }
 
@@ -280,7 +280,7 @@ fn test_ipc_blocked_recv() {
 ///    → prints NEG:IPC:LATE_REPLY_REJECTED:PASS.
 fn test_ipc_blocked_call_and_late_reply() {
     // 1. Create a lease.
-    let lease_id = match sys_lease_create(0) {
+    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
         Err(_) => return,
     };
@@ -292,7 +292,7 @@ fn test_ipc_blocked_call_and_late_reply() {
         lease_id.0 as usize, 0, 0,
     ) {
         Ok(0) => {}  // sample-service replied OK and is now calling us back
-        _     => { let _ = sys_lease_revoke(lease_id); return; }
+        _     => { let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id); return; }
     }
 
     // 3. Receive sample-service's callback call.
@@ -303,7 +303,7 @@ fn test_ipc_blocked_call_and_late_reply() {
             // Got the CALL_BACK_MSG from sample-service.
             // 4. Revoke the lease — this wakes sample-service (BLOCKED_CALL marker)
             //    and cancels our reply edge.
-            let _ = sys_lease_revoke(lease_id);
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
 
             // 5. Try to reply — the edge is gone (cancelled by revoke above).
             match fjell_syscall::sys_ipc_reply(0) {
@@ -312,7 +312,7 @@ fn test_ipc_blocked_call_and_late_reply() {
             }
         }
         Err(_) => {
-            let _ = sys_lease_revoke(lease_id);
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
         }
     }
 }
@@ -408,18 +408,18 @@ fn test_svc_start_timeout() {
     const READY_WAIT_YIELDS: u32 = 20;
 
     // Spawn the timeout-test service.
-    let handle = match sys_task_spawn(ImageId::SVC_TIMEOUT) {
+    let handle = match sys_task_spawn(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
         Ok(h) => h,
         Err(_) => return,
     };
-    if sys_task_start(handle, 0, 0).is_err() { return; }
+    if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() { return; }
 
     // Wait READY_WAIT_YIELDS cooperative cycles.
     for _ in 0..READY_WAIT_YIELDS { sys_yield(); }
 
     // Check: task is still alive (running) — READY was never sent.
     // TaskLifecycle: Running=2, Runnable=1, Blocked=3 all mean "alive but no READY".
-    match sys_task_status(handle) {
+    match sys_task_status(SLOT_TASK_CONTROL, handle) {
         Ok(lc) if lc == TaskLifecycle::Running  as u8
                || lc == TaskLifecycle::Runnable as u8
                || lc == TaskLifecycle::Blocked  as u8 => {
@@ -435,17 +435,17 @@ fn test_svc_start_timeout() {
 /// svc-fault yields once then dereferences NULL → page fault →
 /// `TaskState::Faulted`.  neg-test detects this and emits the marker.
 fn test_svc_fault_detected() {
-    let handle = match sys_task_spawn(ImageId::SVC_FAULT) {
+    let handle = match sys_task_spawn(SLOT_TASK_CREATE, ImageId::SVC_FAULT) {
         Ok(h) => h,
         Err(_) => return,
     };
-    if sys_task_start(handle, 0, 0).is_err() { return; }
+    if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() { return; }
 
     // Yield a few times to let svc-fault run, yield, then fault.
     for _ in 0..10u32 { sys_yield(); }
 
     // Check: task is Faulted.
-    match sys_task_status(handle) {
+    match sys_task_status(SLOT_TASK_CONTROL, handle) {
         Ok(lc) if lc == TaskLifecycle::Faulted as u8 => {
             check(true, M::SVC_FAULT);
         }

@@ -164,57 +164,59 @@ pub fn sys_ipc_reply(reply_tag: usize) -> Result<(), SysError> {
 
 // ── M4 task syscalls ──────────────────────────────────────────────────────────
 
-/// Spawn a task from the embedded image identified by `image_id`.
-/// Returns `(task_handle_raw, task_control_cap_slot)` on success.
-#[inline]
-/// Returns `(task_handle, 0)` where `task_handle` encodes `index | (generation << 16)`
-/// (RFC 010).  Pass the handle to `sys_task_start` / `sys_task_status`.
+/// RFC 048: first arg is the `TaskCreate` cap handle; second is the image id.
 /// Returns the packed task handle `(index | generation<<16)` on success.
-pub fn sys_task_spawn(image_id: ImageId) -> Result<usize, SysError> {
+#[inline]
+pub fn sys_task_spawn(cap_handle: u32, image_id: ImageId) -> Result<usize, SysError> {
     let (r0, r1) = ecall2(SyscallNumber::TaskSpawn as usize,
-                           image_id.0 as usize, 0, 0, 0);
-    to_result(r0).map(|_| r1)   // returns Ok(handle) or Err
+                          cap_handle as usize, image_id.0 as usize, 0, 0);
+    to_result(r0).map(|_| r1)
 }
 
 /// Start a spawned task (transition to Runnable).
 /// `entry_pc` and `stack_top` may be 0 to use the image's default entry.
 #[inline]
-pub fn sys_task_start(task_handle: usize, entry_pc: usize, stack_top: usize)
+/// RFC 048: first arg is `TaskControl` cap handle.
+pub fn sys_task_start(cap_handle: u32, task_handle: usize, entry_pc: usize, stack_top: usize)
     -> Result<(), SysError>
 {
     to_result(ecall2(SyscallNumber::TaskStart as usize,
-                     task_handle, entry_pc, stack_top, 0).0)
+                     cap_handle as usize, task_handle, entry_pc, stack_top).0)
         .map(|_| ())
 }
 
-/// Query a task's lifecycle state.  Returns raw `TaskLifecycle` byte.
+/// RFC 048: first arg is `TaskControl` cap handle; second is the task handle.
 #[inline]
-pub fn sys_task_status(task_handle: usize) -> Result<u8, SysError> {
-    to_result(ecall1(SyscallNumber::TaskStatus as usize, task_handle))
+pub fn sys_task_status(cap_handle: u32, task_handle: usize) -> Result<u8, SysError> {
+    to_result(ecall2(SyscallNumber::TaskStatus as usize,
+                     cap_handle as usize, task_handle, 0, 0).0)
         .map(|v| v as u8)
 }
 
 // ── M4 lease syscalls ─────────────────────────────────────────────────────────
 
-/// Create a new lease; returns the `LeaseId`.
+/// RFC 048: first arg is `LeaseAdmin` cap handle; second is flags.
 #[inline]
-pub fn sys_lease_create(flags: u32) -> Result<LeaseId, SysError> {
-    to_result(ecall1(SyscallNumber::LeaseCreate as usize, flags as usize))
-        .map(|v| LeaseId(v as u32))
+pub fn sys_lease_create(cap_handle: u32, flags: u32) -> Result<LeaseId, SysError> {
+    let (r0, r1) = ecall2(SyscallNumber::LeaseCreate as usize,
+                          cap_handle as usize, flags as usize, 0, 0);
+    to_result(r0).map(|_| LeaseId(r1 as u32))
 }
 
-/// Revoke a lease; returns the new epoch.
+/// RFC 048: first arg is `LeaseAdmin` cap handle; second is the lease id.
 #[inline]
-pub fn sys_lease_revoke(lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
-    to_result(ecall1(SyscallNumber::LeaseRevoke as usize, lease_id.0 as usize))
-        .map(|v| LeaseEpoch(v as u32))
+pub fn sys_lease_revoke(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
+    let (r0, r1) = ecall2(SyscallNumber::LeaseRevoke as usize,
+                          cap_handle as usize, lease_id.0 as usize, 0, 0);
+    to_result(r0).map(|_| LeaseEpoch(r1 as u32))
 }
 
-/// Inspect a lease; returns its current epoch.
+/// RFC 048: first arg is `LeaseAdmin` cap handle; second is the lease id.
 #[inline]
-pub fn sys_lease_inspect(lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
-    to_result(ecall1(SyscallNumber::LeaseInspect as usize, lease_id.0 as usize))
-        .map(|v| LeaseEpoch(v as u32))
+pub fn sys_lease_inspect(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
+    let (r0, r1) = ecall2(SyscallNumber::LeaseInspect as usize,
+                          cap_handle as usize, lease_id.0 as usize, 0, 0);
+    to_result(r0).map(|_| LeaseEpoch(r1 as u32))
 }
 
 // ── M4 audit syscalls ─────────────────────────────────────────────────────────

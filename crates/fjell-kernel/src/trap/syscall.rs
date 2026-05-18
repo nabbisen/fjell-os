@@ -68,34 +68,37 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 
 // ── Individual syscall implementations ───────────────────────────────────────
 
-// ── RFC 014 + RFC 031: capability gating helper ───────────────────────────────
+// ── RFC 048: handle-based capability gating helper ───────────────────────────
 
-/// Require that the calling task holds a capability of `kind` with at least
-/// `required_rights`, and whose lease (if any) is still active.
+/// Handle-based capability enforcement (RFC 048).
 ///
-/// This is the v0.1.x scan-based approach, retained as a transition aid.
-/// Per RFC 031, the v0.2 production path passes the cap handle explicitly.
-/// Migration of task/lease syscalls to handle-based `require_cap` is tracked
-/// in V02-A-001 of the v0.2 preparation backlog.
-pub(crate) fn require_cap(kind: fjell_cap::CapKind, required_rights: fjell_cap::CapRights) -> Result<(), SysError> {
-    use crate::trap::dispatch::current_task_idx;
-    let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
+/// Replaces the v0.1/v0.2.8 scan-based `require_cap`.  The caller explicitly
+/// names the cap handle, which is validated through all 7 RFC 031 steps:
+/// CSpace lookup, generation, slot-state, kind, rights, scope, lease epoch.
+///
+/// `required_scope = None` skips the scope check (used for creation ops
+/// where no target object exists yet).
+pub(crate) fn require_cap_on_ct(
+    ct:              &crate::cap::CapTable,
+    tidx:            usize,
+    handle:          fjell_cap::handle::CapHandle,
+    expected_kind:   fjell_cap::CapKind,
+    required_rights: fjell_cap::CapRights,
+    required_scope:  Option<&fjell_cap::rights::ObjectScope>,
+) -> Result<(), SysError> {
+    use fjell_cap::rights::CapError;
     let lt = unsafe { crate::get_lease_table() };
-    let tidx = current_task_idx();
-    let cs = match cap_table.cspace(tidx) {
-        Some(c) => c,
-        None    => return Err(SysError::InternalError),
-    };
-    let found = cs.slots().iter().any(|slot| {
-        if let Some(cap) = &slot.cap {
-            cap.kind == kind
-            && cap.rights.contains(required_rights)
-            && cap.check_lease(lt).is_ok()
-        } else {
-            false
-        }
-    });
-    if found { Ok(()) } else { Err(SysError::PermissionDenied) }
+    let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
+    fjell_cap::enforcement::require_cap(cs, handle, expected_kind, required_rights,
+                                        required_scope, lt)
+        .map(|_| ())
+        .map_err(|e| match e {
+            CapError::InvalidHandle | CapError::GenerationMismatch
+                | CapError::EmptySlot | CapError::WrongKind => SysError::InvalidCap,
+            CapError::MissingRight | CapError::ScopeMismatch => SysError::PermissionDenied,
+            CapError::LeaseRevoked => SysError::LeaseRevoked,
+            _                      => SysError::PermissionDenied,
+        })
 }
 
 
@@ -198,20 +201,26 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
 
 /// `sys_task_spawn(a0=image_id) -> a0=task_handle_raw, a1=0`
 /// Requires `CapKind::TaskCreate` capability (RFC 004).
+/// `sys_task_spawn(a0=cap_handle, a1=image_id)` — RFC 048: handle-based ABI.
 pub fn sys_task_spawn(
     tf: &mut TrapFrame,
     table:       &mut crate::task::tcb::TaskTable,
     sched:       &mut crate::task::scheduler::Scheduler,
     kernel_root: crate::mm::frame_alloc::PhysFrame,
     fa:          *mut crate::mm::frame_alloc::FrameAllocator<'static>,
+    ct:          &crate::cap::CapTable,
+    tidx:        usize,
 ) {
     use fjell_abi::service::ImageId;
     use crate::task::spawn::spawn;
-    // RFC 014: require TaskCreate capability with full rights.
-    if let Err(e) = require_cap(fjell_cap::CapKind::TaskCreate, fjell_cap::CapRights::TASK_CREATE) {
+    // RFC 048: require TaskCreate capability via handle in a0.
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      fjell_cap::CapKind::TaskCreate,
+                                      fjell_cap::CapRights::TASK_CREATE, None) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
-    let image_id = ImageId(tf.gpr[REG_A0] as u16);
+    let image_id = ImageId(tf.gpr[REG_A1] as u16);
     let fa_ref = unsafe { &mut *fa };
     match spawn(image_id, table, sched, kernel_root, fa_ref) {
         Ok(tid) => {
@@ -227,24 +236,32 @@ pub fn sys_task_spawn(
     }
 }
 
-/// `sys_task_start(a0=handle, a1=entry_pc, a2=stack_top)`
+/// `sys_task_start(a0=cap_handle, a1=task_handle, a2=entry_pc, a3=stack_top)` — RFC 048.
 pub fn sys_task_start(
     tf:    &mut TrapFrame,
     table: &mut crate::task::tcb::TaskTable,
     sched: &mut crate::task::scheduler::Scheduler,
+    ct:    &crate::cap::CapTable,
+    tidx:  usize,
 ) {
     use fjell_abi::error::SysError;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
-    // RFC 014: require TaskControl capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, fjell_cap::CapRights::TASK_START) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
-    }
-    // RFC 010: decode (index, generation) from packed u32 handle.
-    let raw        = tf.gpr[REG_A0] as u32;
+    use fjell_cap::rights::ObjectScope;
+    // RFC 048: decode target task handle from a1; scope-check the TaskControl cap.
+    let cap_h  = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let raw    = tf.gpr[REG_A1] as u32;
     let index      = (raw & 0xFFFF) as u16;
     let generation = (raw >> 16) as u16;
-    let entry  = tf.gpr[10 + 1]; // a1
-    let stack  = tf.gpr[10 + 2]; // a2
+    let target_tid = TaskId::new(index, generation);
+    let req_scope  = ObjectScope::Task(target_tid);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      fjell_cap::CapKind::TaskControl,
+                                      fjell_cap::CapRights::TASK_START,
+                                      Some(&req_scope)) {
+        tf.gpr[REG_A0] = e as isize as usize; return;
+    }
+    let entry  = tf.gpr[REG_A2]; // a2
+    let stack  = tf.gpr[REG_A3]; // a3
 
     // RFC 022: validate entry_pc and stack_top are in user address range.
     // Kernel RAM starts at RAM_BASE = 0x8000_0000; user code must be below it.
@@ -275,19 +292,24 @@ pub fn sys_task_start(
     }
 }
 
-/// `sys_task_status(a0=handle) -> a0=lifecycle_byte`
-/// Requires `CapKind::TaskControl` with `INSPECT` rights (RFC 014).
-pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) {
+/// `sys_task_status(a0=cap_handle, a1=task_handle) -> a0=lifecycle_byte` — RFC 048.
+pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable,
+                       ct: &crate::cap::CapTable, tidx: usize) {
     use fjell_abi::error::SysError;
     use fjell_abi::service::TaskLifecycle;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
-    // RFC 031: require TaskControl | TASK_STATUS capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, fjell_cap::CapRights::TASK_STATUS) {
+    use fjell_cap::rights::ObjectScope;
+    // RFC 048: handle-based TaskControl check with Task-scope validation.
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let raw   = tf.gpr[REG_A1] as u32;
+    let tid   = TaskId::new((raw & 0xFFFF) as u16, (raw >> 16) as u16);
+    let req_scope = ObjectScope::Task(tid);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      fjell_cap::CapKind::TaskControl,
+                                      fjell_cap::CapRights::TASK_STATUS,
+                                      Some(&req_scope)) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
-    // RFC 010: decode (index, generation) from packed u32 handle.
-    let raw        = tf.gpr[REG_A0] as u32;
-    let tid = TaskId::new((raw & 0xFFFF) as u16, (raw >> 16) as u16);
     match table.get(tid) {
         Some(task) => {
             let lc = match task.state {
@@ -305,15 +327,18 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) 
     }
 }
 
-/// `sys_lease_create(a0=flags) -> a0=LeaseId.0`
+/// `sys_lease_create(a0=cap_handle, a1=flags) -> a0=ok, a1=LeaseId` — RFC 048.
 pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
-                         tidx: usize) {
-    // RFC 014: require LeaseAdmin capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_CREATE) {
+                        ct: &crate::cap::CapTable, tidx: usize) {
+    // RFC 048: handle-based LeaseAdmin check; no scope (creation, no target yet).
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      fjell_cap::CapKind::LeaseAdmin,
+                                      fjell_cap::CapRights::LEASE_CREATE, None) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     use fjell_abi::task::TaskId;
-    let flags = tf.gpr[REG_A0] as u32;
+    let flags = tf.gpr[REG_A1] as u32;
     let owner = TaskId::new(tidx as u16, 0);
     match lt.create(owner, flags) {
         Ok(id) => { tf.gpr[REG_A0] = 0; tf.gpr[REG_A1] = id.0 as usize; }
@@ -321,30 +346,42 @@ pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
     }
 }
 
-/// `sys_lease_revoke(a0=lease_id) -> a0=new_epoch`
-/// Requires `CapKind::LeaseAdmin` (RFC 014).
-pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable) {
-    // RFC 031: require LeaseAdmin + LEASE_REVOKE.
-    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_REVOKE) {
+/// `sys_lease_revoke(a0=cap_handle, a1=lease_id) -> a0=ok, a1=new_epoch` — RFC 048.
+pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
+                        ct: &crate::cap::CapTable, tidx: usize) {
+    // RFC 048: handle-based LeaseAdmin check with Lease-scope validation.
+    use fjell_cap::rights::ObjectScope;
+    use fjell_abi::lease::LeaseId;
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let id    = LeaseId(tf.gpr[REG_A1] as u32);
+    let req_scope = ObjectScope::Lease(id);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      fjell_cap::CapKind::LeaseAdmin,
+                                      fjell_cap::CapRights::LEASE_REVOKE,
+                                      Some(&req_scope)) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
-    use fjell_abi::lease::LeaseId;
-    let id = LeaseId(tf.gpr[REG_A0] as u32);
     match lt.revoke(id) {
         Ok(ep) => { tf.gpr[REG_A0] = 0; tf.gpr[REG_A1] = ep.0 as usize; }
         Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
     }
 }
 
-/// `sys_lease_inspect(a0=lease_id) -> a0=epoch`
-/// Requires `CapKind::LeaseAdmin` with `INSPECT` rights (RFC 014).
-pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable) {
-    // RFC 031: require LeaseAdmin | LEASE_INSPECT capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_INSPECT) {
+/// `sys_lease_inspect(a0=cap_handle, a1=lease_id) -> a0=epoch` — RFC 048.
+pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable,
+                         ct: &crate::cap::CapTable, tidx: usize) {
+    // RFC 048: handle-based LeaseAdmin check with Lease-scope validation.
+    use fjell_cap::rights::ObjectScope;
+    use fjell_abi::lease::LeaseId;
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let id    = LeaseId(tf.gpr[REG_A1] as u32);
+    let req_scope = ObjectScope::Lease(id);
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
+                                      fjell_cap::CapKind::LeaseAdmin,
+                                      fjell_cap::CapRights::LEASE_INSPECT,
+                                      Some(&req_scope)) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
-    use fjell_abi::lease::LeaseId;
-    let id = LeaseId(tf.gpr[REG_A0] as u32);
     match lt.current_epoch(id) {
         Ok(ep) => { tf.gpr[REG_A0] = ep.0 as usize; }
         Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
@@ -454,41 +491,44 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
 
 fn dispatch_task_spawn(tf: &mut TrapFrame) {
     use crate::mm::frame_alloc::PhysFrame;
-    let (table, sched, _ct, _et) = unsafe { crate::get_kernel_state() };
+    let (table, sched, ct, _et) = unsafe { crate::get_kernel_state() };
+    let tidx = crate::trap::dispatch::current_task_idx();
     let pfn = crate::KERNEL_ROOT_PFN.load(core::sync::atomic::Ordering::Relaxed);
     let kernel_root = PhysFrame::from_pfn(pfn as u64).unwrap();
-    // SAFETY: single-hart, kernel frame allocator accessed exclusively.
     let fa_ptr = unsafe { crate::fa_static_ptr() };
-    sys_task_spawn(tf, table, sched, kernel_root, fa_ptr);
+    sys_task_spawn(tf, table, sched, kernel_root, fa_ptr, ct, tidx);
 }
 
 fn dispatch_task_start(tf: &mut TrapFrame) {
-    let (table, sched, _ct, _et) = unsafe { crate::get_kernel_state() };
-    sys_task_start(tf, table, sched);
+    let (table, sched, ct, _et) = unsafe { crate::get_kernel_state() };
+    let tidx = crate::trap::dispatch::current_task_idx();
+    sys_task_start(tf, table, sched, ct, tidx);
 }
 
 fn dispatch_task_status(tf: &mut TrapFrame) {
-    let (table, _, _ct, _et) = unsafe { crate::get_kernel_state() };
-    sys_task_status(tf, table);
+    let (table, _, ct, _et) = unsafe { crate::get_kernel_state() };
+    let tidx = crate::trap::dispatch::current_task_idx();
+    sys_task_status(tf, table, ct, tidx);
 }
 
 fn dispatch_lease_create(tf: &mut TrapFrame) {
     let lt   = unsafe { crate::get_lease_table() };
+    let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
-    sys_lease_create(tf, lt, tidx);
+    sys_lease_create(tf, lt, ct, tidx);
 }
 
 fn dispatch_lease_revoke(tf: &mut TrapFrame) {
     use crate::cap::syscall::cancel_blocked_ipc_for_lease;
     let lt   = unsafe { crate::get_lease_table() };
+    let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
+    let tidx = crate::trap::dispatch::current_task_idx();
     use fjell_abi::lease::LeaseId;
-    let id = LeaseId(tf.gpr[REG_A0] as u32);
-    // Revoke and capture the old epoch before the increment.
+    // RFC 048: lease_id is now in a1 (a0 is cap_handle).
+    let id = LeaseId(tf.gpr[REG_A1] as u32);
     let old_epoch_result = lt.current_epoch(id).map(|ep| ep.0);
-    sys_lease_revoke(tf, lt);
-    // After successful revoke, wake blocked IPC tasks (RFC 034).
-    if tf.gpr[REG_A0] == 0 {  // revoke succeeded
-        let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
+    sys_lease_revoke(tf, lt, ct, tidx);
+    if tf.gpr[REG_A0] == 0 {
         if let Ok(old_epoch) = old_epoch_result {
             cancel_blocked_ipc_for_lease(id, old_epoch, ct, et, table, sched);
         }
@@ -497,7 +537,9 @@ fn dispatch_lease_revoke(tf: &mut TrapFrame) {
 
 fn dispatch_lease_inspect(tf: &mut TrapFrame) {
     let lt = unsafe { crate::get_lease_table() };
-    sys_lease_inspect(tf, lt);
+    let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+    let tidx = crate::trap::dispatch::current_task_idx();
+    sys_lease_inspect(tf, lt, ct, tidx);
 }
 
 // ── M6 syscall handlers ───────────────────────────────────────────────────────
