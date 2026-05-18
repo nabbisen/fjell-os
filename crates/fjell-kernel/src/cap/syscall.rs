@@ -26,6 +26,13 @@ fn err(tf: &mut TrapFrame, e: SysError){ tf.gpr[REG_A0] = e as isize as usize; }
 pub fn sys_cap_copy(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src = CapHandle(tf.gpr[10] as u32);
     let dst  = tf.gpr[11];
+    // RFC 015: validate source cap lease before copying.
+    {
+        let lt = unsafe { crate::get_lease_table() };
+        let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
+        let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
+        if let Err(e) = cap.check_lease(lt) { err(tf, e); return; }
+    }
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     match cs.copy(src, dst) {
         Ok(h)  => { ok(tf); tf.gpr[REG_A1] = h.0 as usize; }
@@ -38,6 +45,13 @@ pub fn sys_cap_mint(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src    = CapHandle(tf.gpr[10] as u32);
     let dst    = tf.gpr[11];
     let rights = CapRights(tf.gpr[12] as u32);
+    // RFC 015: validate source cap lease before minting a derived capability.
+    {
+        let lt = unsafe { crate::get_lease_table() };
+        let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
+        let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
+        if let Err(e) = cap.check_lease(lt) { err(tf, e); return; }
+    }
     let badge  = tf.gpr[13] as u64;
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     match cs.mint(src, dst, rights, badge) {
@@ -62,8 +76,14 @@ pub fn sys_cap_revoke(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 }
 
 pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
-    let h = CapHandle(tf.gpr[10] as u32);
+    let h  = CapHandle(tf.gpr[10] as u32);
+    let lt = unsafe { crate::get_lease_table() };
     let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
+    // RFC 015: validate lease before exposing cap metadata.
+    match cs.get(h) {
+        Ok(cap) => { if let Err(e) = cap.check_lease(lt) { err(tf, e); return; } }
+        Err(e)  => { err(tf, e); return; }
+    }
     match cs.inspect(h) {
         Ok((kind, rights, badge)) => {
             ok(tf);
@@ -116,7 +136,11 @@ fn check_right(tf: &TrapFrame, tidx: usize, ct: &CapTable, right: CapRights) -> 
     let ep_h = CapHandle(tf.gpr[10] as u32);
     let cs   = ct.cspace(tidx).ok_or(SysError::InternalError)?;
     let cap  = cs.get(ep_h)?;
-    if !cap.rights.contains(right) { Err(SysError::PermissionDenied) } else { Ok(()) }
+    if !cap.rights.contains(right) { return Err(SysError::PermissionDenied); }
+    // RFC 015: validate lease binding — revoked caps must not be used for IPC.
+    let lt = unsafe { crate::get_lease_table() };
+    cap.check_lease(lt)?;
+    Ok(())
 }
 
 /// Deliver a PendingMessage into the current task's TrapFrame (for recv/call).

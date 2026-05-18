@@ -9,6 +9,45 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.11] — 2026-05-12 — M7.1 Security Hardening Round 2 (RFC 014, 015, 018, 022)
+
+Third batch of architect-review-driven fixes.  Implements RFC 014, 015, 018, 022.
+RFCs 016, 017, 019–021, 023 are specified and accepted; implementation deferred to
+M8 or requires service separation (RFC 019) as prerequisite.
+
+### Fixed / Added
+
+- **RFC 014** (`trap/syscall.rs`): Replaced `caller_has_cap(kind)` with
+  `require_cap(kind, rights)` — validates CapKind, CapRights, AND lease liveness.
+  Added missing capability gates: `sys_task_status` now requires
+  `TaskControl | INSPECT`; `sys_lease_revoke` and `sys_lease_inspect` now require
+  `LeaseAdmin`.  All 6 task/lease syscalls are gated (RFC 004 gated only 3).
+
+- **RFC 015** (`cap/syscall.rs`): Lease validation wired into all capability check
+  paths.  `check_right()` (IPC send/recv/call) calls `cap.check_lease()`.
+  `sys_cap_copy` and `sys_cap_mint` validate source cap lease before derivation.
+  `sys_cap_inspect` validates lease before returning metadata.  Revoked caps now
+  fail all IPC and cap operations.
+
+- **RFC 018** (`link.ld`, `main.rs`): W^X three-region kernel permissions achieved.
+  Linker script adds `ALIGN(4096)` between .text / .rodata / .data / .bss and
+  includes RISC-V orphan sections (.srodata, .sdata, .sbss, .got).  The map loop
+  now uses three regions: `.text=R|X`, `.rodata=R`, `.data/.bss/stack=R|W`.
+  Section starts are page-aligned; no page straddles two permission regions.
+  Verified: `__rodata_start=0x80005000`, `__data_start=0x8000c000` (both page-aligned).
+
+- **RFC 022** (`trap/syscall.rs`): `sys_task_start` validates `entry_pc` and
+  `stack_top` against user address range (`[0x1000, RAM_BASE)` and `[0x2000, RAM_BASE)`
+  respectively).  Kernel addresses are rejected with `InvalidCap`.
+
+### Accepted / Deferred
+
+RFC 016 (MmioRegion cap), RFC 017 (DmaRegion cap), RFC 019 (try_recv + service loop),
+RFC 020 (audit drain), RFC 021 (cap-broker policy), RFC 023 (BCB mirror tests) — all
+specified in `rfcs/`; implementation targets M8 or requires RFC 019 as prerequisite.
+
+---
+
 ## [0.0.10] — 2026-05-12 — M7.1 hardening (RFC 006, 007, 009, 013)
 
 Second batch of architect-review-driven fixes.  Implements RFC 006, 007, 009, 013.

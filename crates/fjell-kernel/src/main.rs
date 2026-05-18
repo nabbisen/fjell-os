@@ -282,19 +282,21 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // stack pages are additionally mapped here.
     let stack_top  = unsafe { &__stack_top   as *const u8 as usize };
     let text_end   = unsafe { &__text_end    as *const u8 as usize };
+    let rodata_end = unsafe { &__rodata_end  as *const u8 as usize };
     let map_end    = (stack_top + 0xFFF) & !0xFFF;
 
-    // RFC 009: W^X — two-region split.
-    //   .text  (RAM_BASE .. __text_end)  → R | X   (execute, no write)
-    //   rest   (__text_end .. map_end)   → R | W   (read-write, no execute)
-    // This enforces the core W^X invariant: no page is simultaneously
-    // writable and executable.  Full three-section split (separate rodata=R)
-    // is deferred to M8 when we can verify .rodata contains no writable statics.
+    // RFC 009/018: W^X — three-region split (sections are 4 KiB page-aligned).
+    //   .text   [RAM_BASE  .. text_end)   → R | X   (execute, not writable)
+    //   .rodata [text_end  .. rodata_end) → R        (read-only, not executable)
+    //   rest    [rodata_end.. map_end)    → R | W   (read-write, not executable)
+    // link.ld ALIGN(4096) ensures no page straddles two regions (RFC 018).
     let mut va = RAM_BASE;
     while va < map_end {
         let f = PhysFrame::from_pa(va).unwrap();
         let perms = if va < text_end {
             VmPerms::R | VmPerms::X    // .text: execute only, not writable
+        } else if va < rodata_end {
+            VmPerms::R                  // .rodata: read-only, not executable
         } else {
             VmPerms::R | VmPerms::W    // .data / .bss / stack: read-write, not executable
         };
