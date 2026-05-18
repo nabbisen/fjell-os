@@ -207,7 +207,6 @@ pub mod tests {
     }
 
 
-    #[test]
     // Note (RFC 055): cap-broker now reads requester from attested sender identity,
     // not from w0.  The evaluate() function still takes explicit requester for host tests.
     #[test]

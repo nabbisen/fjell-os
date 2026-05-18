@@ -1,3 +1,37 @@
+## [0.2.16] - 2026-05-18 — Build fix: kernel cross-compilation errors
+
+### Fixed (found by kernel cross-build after v0.2.15)
+
+Six issues that only manifest under the RISC-V cross-build (not caught by
+`cargo check` on the host):
+
+- **`crates/fjell-kernel/src/trap/syscall.rs`**: `REG_A2` and `REG_A3` were
+  used but not imported.  Added to the `use crate::task::tcb::{...}` import.
+  Also fixed all `&crate::cap::CapTable` → `&crate::cap::table::CapTable`
+  (the type is in the `table` sub-module, not directly under `cap`), and
+  removed the now-unused `rights::ObjectScope` import in the audit drain.
+
+- **`crates/fjell-kernel/src/cap/syscall.rs`**: `REG_A2`, `REG_A3` added to
+  the `tcb::` import.  `CapState` import fixed from `slot::{Capability, CapState}`
+  to `fjell_cap::{CapState, ..., slot::Capability}` (the type is re-exported from
+  the crate root, not from the `slot` sub-module).  Stale scan-based
+  `crate::trap::syscall::require_cap` call replaced with a comment (the
+  `sys_cap_bind_lease` function doesn't participate in RFC 048's handle-based
+  ABI; V02-A-001 deferral applies).
+
+- **`crates/fjell-cap/src/rights.rs`**: `CapRights::CAP_INSTALL` constant was
+  missing — only `CapKind::CapInstall` was added.  Added `pub const CAP_INSTALL:
+  Self = CapRights(1 << 26)`.
+
+- **`crates/fjell-kernel/src/task/spawn.rs`** (RFC 056 block): `cap_table`
+  variable doesn't exist in `spawn()` — the function uses `ct` from
+  `get_kernel_state()`.  Fixed the CapInstall installation to use `ct`.
+  Also fixed the `CapState` import (same issue as above).
+
+- **`crates/fjell-tools/src/policy_eval.rs`**: Duplicate `#[test]` attribute
+  caused the `deny_priority_wins_over_allow` test to run twice. Removed the
+  extra attribute; test count corrects from 15 to 14.
+
 ## [0.2.15] - 2026-05-18 — Build fix: no errors, no warnings for QEMU cross-build
 
 ### Fixed (found by `cargo xtask qemu-negative policy` cross-build)

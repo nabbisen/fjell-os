@@ -64,6 +64,8 @@ impl CapRights {
     pub const AUDIT_DRAIN:   Self = CapRights(1 << 23);
     pub const BOOT_READ:     Self = CapRights(1 << 24);
     pub const REBOOT:        Self = CapRights(1 << 25);
+    /// RFC 056: authority to call `sys_cap_install` (meta-right; bit 26).
+    pub const CAP_INSTALL:   Self = CapRights(1 << 26);
 
     /// All defined rights.
     pub const ALL:  Self = CapRights((1 << 26) - 1);

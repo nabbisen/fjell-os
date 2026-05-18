@@ -230,9 +230,11 @@ pub fn spawn(
 
     // RFC 056: CapInstall cap for CAP_BROKER (slot 10).
     {
-        use fjell_cap::{CapKind, CapRights, slot::{Capability, CapState}, rights::ObjectScope};
+        use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
+        use fjell_cap::slot::Capability;
         if image_id == fjell_abi::service::ImageId::CAP_BROKER {
-            if let Some(cs) = cap_table.cspace_mut(ins_id.index as usize) {
+            let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+            if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(10, Capability {
                     kind: CapKind::CapInstall, object_id: 0,
                     rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,

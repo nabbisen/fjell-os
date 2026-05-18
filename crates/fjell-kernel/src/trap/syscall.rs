@@ -5,7 +5,7 @@
 //!   TRAP-001  sepc is advanced by 4 after every ecall.
 //!   TRAP-002  Unknown syscall → SysError::UnknownSyscall, no panic.
 
-use crate::task::tcb::{TrapFrame, REG_A0, REG_A1, REG_A7};
+use crate::task::tcb::{TrapFrame, REG_A0, REG_A1, REG_A2, REG_A3, REG_A7};
 use fjell_abi::{error::SysError, syscall::SyscallNumber};
 
 /// Dispatch a syscall.
@@ -79,7 +79,7 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 /// `required_scope = None` skips the scope check (used for creation ops
 /// where no target object exists yet).
 pub(crate) fn require_cap_on_ct(
-    ct:              &crate::cap::CapTable,
+    ct:              &crate::cap::table::CapTable,
     tidx:            usize,
     handle:          fjell_cap::handle::CapHandle,
     expected_kind:   fjell_cap::CapKind,
@@ -208,7 +208,7 @@ pub fn sys_task_spawn(
     sched:       &mut crate::task::scheduler::Scheduler,
     kernel_root: crate::mm::frame_alloc::PhysFrame,
     fa:          *mut crate::mm::frame_alloc::FrameAllocator<'static>,
-    ct:          &crate::cap::CapTable,
+    ct:          &crate::cap::table::CapTable,
     tidx:        usize,
 ) {
     use fjell_abi::service::ImageId;
@@ -241,7 +241,7 @@ pub fn sys_task_start(
     tf:    &mut TrapFrame,
     table: &mut crate::task::tcb::TaskTable,
     sched: &mut crate::task::scheduler::Scheduler,
-    ct:    &crate::cap::CapTable,
+    ct:    &crate::cap::table::CapTable,
     tidx:  usize,
 ) {
     use fjell_abi::error::SysError;
@@ -294,7 +294,7 @@ pub fn sys_task_start(
 
 /// `sys_task_status(a0=cap_handle, a1=task_handle) -> a0=lifecycle_byte` — RFC 048.
 pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable,
-                       ct: &crate::cap::CapTable, tidx: usize) {
+                       ct: &crate::cap::table::CapTable, tidx: usize) {
     use fjell_abi::error::SysError;
     use fjell_abi::service::TaskLifecycle;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
@@ -329,7 +329,7 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable,
 
 /// `sys_lease_create(a0=cap_handle, a1=flags) -> a0=ok, a1=LeaseId` — RFC 048.
 pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
-                        ct: &crate::cap::CapTable, tidx: usize) {
+                        ct: &crate::cap::table::CapTable, tidx: usize) {
     // RFC 048: handle-based LeaseAdmin check; no scope (creation, no target yet).
     let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
     if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
@@ -348,7 +348,7 @@ pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
 
 /// `sys_lease_revoke(a0=cap_handle, a1=lease_id) -> a0=ok, a1=new_epoch` — RFC 048.
 pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
-                        ct: &crate::cap::CapTable, tidx: usize) {
+                        ct: &crate::cap::table::CapTable, tidx: usize) {
     // RFC 048: handle-based LeaseAdmin check with Lease-scope validation.
     use fjell_cap::rights::ObjectScope;
     use fjell_abi::lease::LeaseId;
@@ -369,7 +369,7 @@ pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
 
 /// `sys_lease_inspect(a0=cap_handle, a1=lease_id) -> a0=epoch` — RFC 048.
 pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable,
-                         ct: &crate::cap::CapTable, tidx: usize) {
+                         ct: &crate::cap::table::CapTable, tidx: usize) {
     // RFC 048: handle-based LeaseAdmin check with Lease-scope validation.
     use fjell_cap::rights::ObjectScope;
     use fjell_abi::lease::LeaseId;
@@ -401,7 +401,7 @@ pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable,
 ///   `a2` = n_dropped_since_last_drain (per RFC 053; resets on each drain)
 pub fn sys_audit_drain(tf: &mut TrapFrame) {
     use fjell_audit_format::{AuditRecordBin, AUDIT_RECORD_BIN_SIZE};
-    use fjell_cap::{CapKind, CapRights, rights::ObjectScope};
+    use fjell_cap::{CapKind, CapRights};
     use crate::audit::ring::AUDIT;
     use crate::mm::user_copy::copy_to_user_bytes;
 

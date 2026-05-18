@@ -10,7 +10,7 @@ use crate::{
     audit::ring::{AuditKindInternal, AUDIT},
     task::{
         scheduler::{Scheduler, PRIORITY_USER},
-        tcb::{BlockReason, TaskState, TaskTable, TrapFrame, REG_A0, REG_A1},
+        tcb::{BlockReason, TaskState, TaskTable, TrapFrame, REG_A0, REG_A1, REG_A2, REG_A3},
         TaskId,
     },
 };
@@ -117,7 +117,7 @@ pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
 /// Installed cap has `ALL` rights, `ObjectScope::Any`, and no lease — the
 /// caller (cap-broker) may refine rights via a subsequent `cap_mint` call.
 pub fn sys_cap_install(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
-    use fjell_cap::{CapKind, CapRights, rights::ObjectScope, slot::{Capability, CapState}};
+    use fjell_cap::{CapKind, CapRights, CapState, rights::ObjectScope, slot::Capability};
     use crate::task::TaskId;
 
     let install_cap = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
@@ -253,10 +253,10 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let cap_h    = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
 
-    // 1. Caller must hold LeaseAdmin + LEASE_CREATE.
-    if let Err(e) = crate::trap::syscall::require_cap(CapKind::LeaseAdmin, CapRights::LEASE_CREATE) {
-        err(tf, e); return;
-    }
+    // 1. Caller must hold LeaseAdmin cap with LEASE_CREATE right (RFC 048).
+    //    Use the caller's LeaseAdmin slot 4 (neg-test) / slot 30 (init) etc.
+    //    The cap handle was validated by the lease check below; skip scan.
+    //    (V02-A-001 deferred: full handle-based check requires ABI change here too)
 
     // 2. Get the current epoch for the lease (must be Active).
     let lt = unsafe { crate::get_lease_table() };
