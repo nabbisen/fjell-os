@@ -772,7 +772,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
             core::ptr::write_bytes(first_pa as *mut u8, 0, 4096);
             // Unmap the user VA (best-effort; single-hart guarantees no races).
             if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(first_pa) {
-                (*crate::fa_static_ptr()).free_frame(frame);
+                let _ = (*crate::fa_static_ptr()).free_frame(frame);
             }
         }
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; // DMA table full (RFC 052)
