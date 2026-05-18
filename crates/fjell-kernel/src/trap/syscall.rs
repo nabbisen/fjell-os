@@ -478,8 +478,20 @@ fn dispatch_lease_create(tf: &mut TrapFrame) {
 }
 
 fn dispatch_lease_revoke(tf: &mut TrapFrame) {
-    let lt = unsafe { crate::get_lease_table() };
+    use crate::cap::syscall::cancel_blocked_ipc_for_lease;
+    let lt   = unsafe { crate::get_lease_table() };
+    use fjell_abi::lease::LeaseId;
+    let id = LeaseId(tf.gpr[REG_A0] as u32);
+    // Revoke and capture the old epoch before the increment.
+    let old_epoch_result = lt.current_epoch(id).map(|ep| ep.0);
     sys_lease_revoke(tf, lt);
+    // After successful revoke, wake blocked IPC tasks (RFC 034).
+    if tf.gpr[REG_A0] == 0 {  // revoke succeeded
+        let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
+        if let Ok(old_epoch) = old_epoch_result {
+            cancel_blocked_ipc_for_lease(id, old_epoch, ct, et, table, sched);
+        }
+    }
 }
 
 fn dispatch_lease_inspect(tf: &mut TrapFrame) {

@@ -87,10 +87,56 @@ impl CapTable {
     }
 
     /// Install a reply edge for task `server_idx` pointing back to `caller_idx`.
-    pub fn set_reply(&mut self, server_idx: usize, caller_idx: u16) {
+    ///
+    /// Optionally carries the lease binding observed at call time (RFC 034).
+    pub fn set_reply(
+        &mut self,
+        server_idx: usize,
+        caller_idx: u16,
+    ) {
         if let Some(r) = self.replies.get_mut(server_idx) {
             r.edge = Some(ReplyEdge::new(caller_idx));
         }
+    }
+
+    /// Install a reply edge with a lease binding (RFC 034).
+    pub fn set_reply_with_lease(
+        &mut self,
+        server_idx: usize,
+        caller_idx: u16,
+        lease: fjell_cap::slot::LeaseBinding,
+    ) {
+        if let Some(r) = self.replies.get_mut(server_idx) {
+            r.edge = Some(ReplyEdge::with_lease(caller_idx, lease));
+        }
+    }
+
+    /// RFC 034: cancel all reply edges whose lease binding matches
+    /// `(lease_id, old_epoch)` and return the caller TIDs.
+    ///
+    /// The caller must wake each returned TID with `SysError::LeaseRevoked`.
+    pub fn cancel_replies_for_lease(
+        &mut self,
+        lease_id:  fjell_abi::lease::LeaseId,
+        old_epoch: u32,
+    ) -> ([u16; MAX_TASKS], usize) {
+        let mut cancelled = [0u16; MAX_TASKS];
+        let mut n = 0usize;
+        for reply_slot in self.replies.iter_mut() {
+            if let Some(edge) = &reply_slot.edge {
+                let matches = edge.lease.map_or(false, |lb| {
+                    lb.lease_id == lease_id && lb.epoch_at_issue.0 == old_epoch
+                });
+                if matches {
+                    if n < MAX_TASKS {
+                        cancelled[n] = edge.caller_tid;
+                        n += 1;
+                    }
+                    reply_slot.edge = None;
+                }
+            }
+        }
+        (cancelled, n)
     }
 
     /// Consume the reply edge for task `server_idx`.

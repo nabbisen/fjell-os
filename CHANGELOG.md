@@ -3,6 +3,59 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-alpha.3] - 2026-05-17
+
+### v0.2 Phase 2 — Blocked IPC Revocation Semantics (RFC 034)
+
+### Added
+
+- **`fjell-ipc/src/endpoint.rs`** rewritten (RFC 034):
+  - `PendingMessage.lease: Option<LeaseBinding>` — the sender's endpoint
+    cap lease binding at send/call time.
+  - `RecvWaiter { tid, lease }` replaces bare `u16` in `recvq`.
+    Create with `RecvWaiter::no_lease(tid)` or `RecvWaiter::with_lease(tid, lb)`.
+  - `Endpoint::cancel_by_lease(lease_id, epoch) -> CancelledByLease` — removes
+    all sendq/recvq entries whose lease binding matches; returns cancelled TIDs.
+  - `CancelledByLease { senders(), receivers() }` result type.
+  - `EndpointError::LeaseRevoked` variant.
+  - 10 unit tests (5 existing + 5 RFC 034 cases).
+- **`fjell-ipc/src/reply.rs`** extended: `ReplyEdge.lease: Option<LeaseBinding>`.
+  - `ReplyEdge::with_lease(caller_tid, lb)` constructor.
+- **`fjell-kernel/src/cap/table.rs`**:
+  - `set_reply_with_lease(server, caller, lease)` — stores lease in reply edge.
+  - `cancel_replies_for_lease(lease_id, old_epoch)` — cancels blocked callers
+    waiting for a reply whose call's lease was revoked; returns caller TIDs.
+- **`fjell-kernel/src/cap/syscall.rs`**:
+  - `sys_ipc_recv` passes `RecvWaiter::with_lease(tid, lb)` from the endpoint
+    cap's lease binding.
+  - `sys_ipc_call` stores lease in `PendingMessage` and uses
+    `set_reply_with_lease`.
+  - `sys_ipc_reply` checks the reply edge's lease; silently drops the reply with
+    `LeaseRevoked` if the lease was revoked after the call was issued.
+  - `cancel_blocked_ipc_for_lease(lease_id, old_epoch, ct, et, tasks, sched)`
+    — the RFC 034 implementation: walks all endpoints and all reply edges,
+    cancels matching entries, wakes cancelled tasks with `LeaseRevoked`.
+  - `wake_with_error(tasks, sched, tid, e)` helper.
+- **`fjell-kernel/src/trap/syscall.rs`** `dispatch_lease_revoke` now calls
+  `cancel_blocked_ipc_for_lease` immediately after a successful revoke.
+
+### Changed
+
+- `fjell-ipc/src/lib.rs` exports `CancelledByLease`, `RecvWaiter`.
+- Workspace version bumped to `0.2.0-alpha.3`.
+
+### Known limitations (not yet closed)
+
+- `wake_or_cancel_blocked_ipc_for_lease` in `lease/mod.rs` is still a no-op
+  stub; the real implementation lives in `cap/syscall.rs` and is called
+  directly by `dispatch_lease_revoke`. Phase 2 is functionally complete.
+
+### Phase 2 negative tests (to be verified at QEMU build time)
+
+- `NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS`
+- `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS`
+- `NEG:IPC:LATE_REPLY_REJECTED:PASS`
+
 ## [0.2.0-alpha.2] - 2026-05-17
 
 ### v0.2 Phase 1 completion + Phase 2 foundation

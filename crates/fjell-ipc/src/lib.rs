@@ -16,6 +16,8 @@ pub mod endpoint;
 pub mod message;
 pub mod reply;
 
-pub use endpoint::{Endpoint, EndpointError};
+pub use endpoint::{
+    CancelledByLease, Endpoint, EndpointError, PendingMessage, RecvWaiter,
+};
 pub use message::{MessageTag, IPC_CAPS, IPC_WORDS};
 pub use reply::ReplyEdge;
