@@ -161,9 +161,6 @@ impl AuditRing {
     pub fn pending(&self) -> usize {
         self.len.get()  // drain_cursor removed (always 0 after drain_into removed in v0.2.22)
     }
-
-    /// Fill `out` with pending records starting from `drain_cursor`.
-    ///
 }
 
 // drain_into and compact removed in v0.2.22: fully superseded by peek_at + advance (RFC 053).
