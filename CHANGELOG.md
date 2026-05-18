@@ -3,7 +3,74 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [0.2.8] - 2026-05-18
+## [0.2.9] - 2026-05-18 — ABI / test-harness correction (post-review hardening)
+
+### Following an external static-analysis review of v0.2.8
+
+A detailed code review identified 14 release blockers and 6 high-priority
+findings.  v0.2.9 addresses the immediate ABI and test-harness correctness
+issues.  Capability enforcement, MMIO/DMA hardening, and service separation
+follow in v0.2.10 - v0.2.12.
+
+### Fixed (release blockers)
+
+- **RB-03** `crates/fjell-kernel/src/cap/syscall.rs`: `sys_cap_bind_lease`
+  previously decoded `CapHandle.0` directly as a slot index, ignoring
+  generation bits.  Now uses `slot_by_handle_mut` for generation-validated
+  lookup.
+- **RB-04a** `crates/fjell-syscall/src/lib.rs`: `sys_ipc_reply(tag)` placed
+  `tag` in `a0`, but the kernel reads the reply label from `a1`.  Every
+  service using this wrapper was actually sending reply label `0` regardless
+  of the requested tag.  Now uses `ecall2(IpcReply, 0, tag, ...)` for correct
+  placement.
+- **RB-04b** `crates/fjell-syscall/src/lib.rs`: `sys_ipc_recv_msg` hardcoded
+  `to_result(0)`, silently dropping `LeaseRevoked`, `BadState`, etc.  Now
+  reads the actual `a0` status from the syscall.
+- **RB-05** `crates/fjell-kernel/src/task/spawn.rs`: AuditDrain capability was
+  installed with `CapRights::RECV` but `sys_audit_drain` requires `AUDIT_DRAIN`.
+  Now grants `AUDIT_DRAIN`.  This means `sys_audit_drain` may have been
+  silently failing for `auditd` and `neg-test` since v0.2.0.
+- **RB-06** `crates/fjell-neg-test/src/main.rs`: `SLOT_TASK_CONTROL` (slot 6)
+  and `SLOT_SCRATCH_A` (slot 6) collided — capability tests using the
+  scratch slot could overwrite or drop the `TaskControl` cap used by SVC
+  tests.  Scratch slots moved to 10–13.
+- **RB-13** `.github/workflows/ci.yml`: negative-test matrix expanded from
+  `[capability, ipc, mmio, dma, store, upgrade]` to all 8 RFC 042 categories:
+  `[capability, ipc, mmio, dma, user-copy, audit, policy, svc]`.
+- **RB-14** `README.md` / `docs/src/releases/v0.2.0-release-gate.md` /
+  `CHANGELOG.md`: reconciled — README no longer claims `v0.1.1`, release gate
+  no longer claims `TEST:V02:PASS` earned, this CHANGELOG entry reflects
+  review-candidate state.
+- **H-01** `crates/fjell-kernel/src/mm/user_ptr.rs`: boundary check fixed
+  from `if end > USER_ADDR_MAX` to `if end >= USER_ADDR_MAX` to match the
+  test that expects `addr=KBASE-1, len=1` to be rejected.
+
+### Acknowledged for v0.2.10+
+
+The following items from the review are scoped to subsequent hardening
+releases (see release-gate document):
+
+- **RB-01** task/lease syscalls use scan-based `require_cap` → v0.2.10 ABI rev.
+- **RB-02** `cap_copy/mint/revoke/inspect` don't enforce management rights → v0.2.10.
+- **RB-07** MMIO maps PA as VA, ignores remap errors → v0.2.11.
+- **RB-08** DMA table-full result ignored → v0.2.11.
+- **RB-09** `sys_dma_revoke` takes raw PA, doesn't unmap user VA → v0.2.11.
+- **RB-10** Audit drain consumes before user-copy succeeds → v0.2.11.
+- **RB-11** cap-broker doesn't authenticate sender, doesn't install caps → v0.2.12.
+- **RB-12** bootctl / service-manager still stubs → v0.2.12.
+- **H-02** `sys_audit_drain` doesn't check lease via unified `require_cap` → v0.2.11.
+- **H-03** DMA quarantine timeout deferred → either v0.2.11 or removed from gate.
+- **H-04** cap-broker uses blocking recv despite `IpcTryRecv` availability → v0.2.12.
+- **H-05** MMIO caps pre-granted broadly at spawn time → v0.2.12.
+- **H-06** Negative tests check `is_err()` only, not specific error codes → v0.2.10.
+
+### Gate status
+
+**`TEST:V02:PASS` not yet earned.**  After v0.2.9 close, all 21 negative-test
+profiles must be re-run with the corrected ABI to confirm markers fire for
+the right reasons.
+
+## [0.2.8] - 2026-05-18 — v0.2.8 review-candidate (21 markers wired; later flagged for correctness review)
 
 ### RFC 042 Phase 8 — Service Lifecycle Negative Tests (RFC 038)
 

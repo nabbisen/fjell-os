@@ -88,24 +88,35 @@ and RFCs 024–030, 044–047 (`rfcs/`).
 | v0.1.4   | ADR sync + release checklist                | 045, 046          |
 | v0.1.5   | v0.2 preparation backlog                    | 047               |
 
-### v0.2.0 — Security Boundary Closure
+### v0.2.0 — Security Boundary Closure (in progress: v0.2.9 hardening, post-review)
 
 The first post-v0.1.x hardening milestone. Turns Fjell OS from a
 local verified prototype into a system whose core security
 boundaries are uniformly enforced. See the v0.2 RFC set (RFCs
 031–043) and [`docs/src/security/v0.1.0-threat-model.md`](docs/src/security/v0.1.0-threat-model.md) §14.
 
-| Phase | Name                                        | RFC      |
-|-------|---------------------------------------------|----------|
-| 1     | Capability Enforcement Core                 | 031, 032 |
-| 2     | Lease Revocation Semantics                  | 033, 034 |
-| 3     | MMIO Boundary Closure                       | 035      |
-| 4     | DMA Boundary Closure                        | 036      |
-| 5     | Cooperative Service Separation              | 037, 038 |
-| 6     | User Copy and Audit Drain                   | 039      |
-| 7     | cap-broker Bootstrap and Policy Enforcement | 040      |
-| 8     | Persistent Evidence Hardening               | 041      |
-| 9     | Negative Test Completion + Release Gate     | 042, 043 |
+| Phase | Name                                        | RFC      | Status |
+|-------|---------------------------------------------|----------|--------|
+| 1     | Capability Enforcement Core                 | 031, 032 | Partial (v0.2.10 closes RB-01/RB-02) |
+| 2     | Lease Revocation Semantics                  | 033, 034 | Partial (RB-04 ABI fix landed v0.2.9) |
+| 3     | MMIO Boundary Closure                       | 035      | Partial (v0.2.11 closes RB-07) |
+| 4     | DMA Boundary Closure                        | 036      | Partial (v0.2.11 closes RB-08/RB-09) |
+| 5     | Cooperative Service Separation              | 037, 038 | Partial (v0.2.12 closes RB-12) |
+| 6     | User Copy and Audit Drain                   | 039      | Partial (v0.2.11 closes RB-10/H-02) |
+| 7     | cap-broker Bootstrap and Policy Enforcement | 040      | Partial (v0.2.12 closes RB-11) |
+| 8     | Persistent Evidence Hardening               | 041      | Largely complete |
+| 9     | Negative Test Completion + Release Gate     | 042, 043 | Tests wired; re-verification after v0.2.9 |
+
+**v0.2.9 hardening releases** (in progress):
+
+| Release | Scope |
+|---------|-------|
+| v0.2.9 | ABI / test-harness correction (this release) |
+| v0.2.10 | Capability/syscall enforcement closure |
+| v0.2.11 | MMIO/DMA/audit hardening |
+| v0.2.12 | Service separation + release-gate close |
+
+`TEST:V02:PASS` will be earned at v0.2.12 close.
 
 ### Beyond v0.2
 

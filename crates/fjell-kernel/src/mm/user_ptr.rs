@@ -99,7 +99,11 @@ impl UserPtr {
         // 3. Length overflow (addr + len wraps around).
         let end = addr.checked_add(len).ok_or(UserCopyError::LengthOverflow)?;
         // 4. Range end in kernel space.
-        if end > USER_ADDR_MAX {
+        // Fixed in v0.2.9 (H-01): use `>=` so a range that ends exactly at
+        // USER_ADDR_MAX (KBASE) is rejected.  v0.2.8 used `>` which let
+        // `addr=KBASE-1, len=1` slip through, contradicting the test
+        // `range_crosses_kernel_rejected` (kept passing only by accident).
+        if end >= USER_ADDR_MAX {
             return Err(UserCopyError::RangeCrossesKernel);
         }
         Ok(UserPtr { addr, len })

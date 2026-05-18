@@ -85,6 +85,7 @@ fn ecall0(nr: usize) -> usize {
 pub fn sys_ipc_recv_msg(ep: u32)
     -> Result<(usize, usize, usize, usize, usize), SysError>
 {
+    let status: usize;
     let label: usize;
     let w0: usize;
     let w1: usize;
@@ -94,7 +95,7 @@ pub fn sys_ipc_recv_msg(ep: u32)
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
-            inlateout("a0") ep as usize => _,
+            inlateout("a0") ep as usize => status,
             lateout("a1") label,
             lateout("a2") w0,
             lateout("a3") w1,
@@ -105,8 +106,10 @@ pub fn sys_ipc_recv_msg(ep: u32)
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = ep; label = 0; w0 = 0; w1 = 0; w2 = 0; w3 = 0; }
-    to_result(0)?;  // IpcRecv never fails in current kernel
+    { let _ = ep; status = 0; label = 0; w0 = 0; w1 = 0; w2 = 0; w3 = 0; }
+    // Fixed in v0.2.9 (RB-04): actually check the a0 status — previously
+    // hardcoded `to_result(0)` silently swallowed LeaseRevoked, BadState, etc.
+    to_result(status)?;
     Ok((label & 0xFFFF, w0, w1, w2, w3))
 }
 
@@ -150,8 +153,13 @@ pub fn sys_ipc_recv(ep_handle: u32) -> Result<usize, SysError> {
 
 /// Reply to the pending reply edge with the given tag.
 #[inline]
+/// Send a reply to a pending call.
+///
+/// ABI: the kernel reads `reply_label` from `a1`; `a0` is the (ignored)
+/// ep handle slot.  `ecall1` would put the tag in `a0`, so we use `ecall2`
+/// explicitly to place it in `a1`.  Fixed in v0.2.9 — RB-04.
 pub fn sys_ipc_reply(reply_tag: usize) -> Result<(), SysError> {
-    to_result(ecall1(SyscallNumber::IpcReply as usize, reply_tag)).map(|_| ())
+    to_result(ecall2(SyscallNumber::IpcReply as usize, 0, reply_tag, 0, 0).0).map(|_| ())
 }
 
 // ── M4 task syscalls ──────────────────────────────────────────────────────────

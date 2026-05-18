@@ -144,7 +144,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        category: [capability, ipc, mmio, dma, store, upgrade]
+        # Fixed in v0.2.9 (RB-13): full v0.2 negative-test matrix.
+        # v0.2.8 omitted user-copy, audit, policy, svc — gaps the reviewer flagged.
+        category: [capability, ipc, mmio, dma, user-copy, audit, policy, svc]
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust 1.91 + QEMU + LLVM

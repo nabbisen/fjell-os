@@ -191,24 +191,27 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     };
 
     // 3. Bind the lease to the cap in the caller's CSpace.
+    // Fixed in v0.2.9 (RB-03): use slot_by_handle_mut for generation-validated
+    // lookup.  v0.2.8 used `cap_h.0 as usize` which conflated handle with slot
+    // index — fine while generations stayed at 0, but incorrect by design.
     let cs = match ct.cspace_mut(tidx) {
         Some(c) => c,
         None    => { err(tf, SysError::InternalError); return; }
     };
     let binding = fjell_cap::slot::LeaseBinding { lease_id, epoch_at_issue: epoch };
-    // Locate the slot and set its lease field.
-    let slots = cs.slots_mut();
-    let idx = cap_h.0 as usize;
-    if idx >= slots.len() {
-        err(tf, SysError::InvalidCap); return;
-    }
-    match &mut slots[idx].cap {
-        Some(cap) => {
-            cap.lease = Some(binding);
-            ok(tf);
-            AUDIT.lock_free_append(AuditKindInternal::CapMint, idx, lease_id.0 as usize, 0);
+    match cs.slot_by_handle_mut(cap_h) {
+        Ok(slot) => {
+            let idx = cap_h.slot() as usize;
+            match &mut slot.cap {
+                Some(cap) => {
+                    cap.lease = Some(binding);
+                    ok(tf);
+                    AUDIT.lock_free_append(AuditKindInternal::CapMint, idx, lease_id.0 as usize, 0);
+                }
+                None => err(tf, SysError::InvalidCap),
+            }
         }
-        None => err(tf, SysError::InvalidCap),
+        Err(_) => { err(tf, SysError::InvalidCap); }
     }
 }
 

@@ -46,12 +46,15 @@ const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 const SLOT_LEASE_ADMIN:u32 = 4;
 #[allow(dead_code)] const SLOT_TASK_CREATE:u32 = 5;   // TaskCreate cap (kernel uses it implicitly via require_cap)
 #[allow(dead_code)] const SLOT_TASK_CONTROL:u32= 6;   // TaskControl cap   // LeaseAdmin cap
-const SLOT_SCRATCH_C:  u32 = 8;   // scratch slot for audit overflow loop
+// Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
+// collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
+const SLOT_SCRATCH_C:  u32 = 12;  // scratch slot for audit overflow loop
 #[allow(dead_code)]
-const SLOT_SCRATCH_D:  u32 = 9;   // scratch for ipc blocked-call recv
-// Scratch slots used by lease-revoked and rights-denied tests
-const SLOT_SCRATCH_A:  u32 = 6;   // copy of OWN_EP with lease bound
-const SLOT_SCRATCH_B:  u32 = 7;   // minted cap with narrowed rights
+const SLOT_SCRATCH_D:  u32 = 13;  // scratch for ipc blocked-call recv
+//                       v0.2.8 layout (kept for clarity of fix):
+//                       SLOT_SCRATCH_A=6, SLOT_SCRATCH_B=7, _C=8, _D=9 ← collided with TaskControl(6).
+const SLOT_SCRATCH_A:  u32 = 10;  // copy of OWN_EP with lease bound
+const SLOT_SCRATCH_B:  u32 = 11;  // minted cap with narrowed rights
 const SLOT_MMIO_BASE:  u32 = 31;  // First MmioRegion cap (object 0)
 const SLOT_MMIO_RAM:   u32 = 35;  // MmioRegion cap for region 4 (neg-test-RAM, straddles RAM)
 

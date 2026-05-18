@@ -159,11 +159,12 @@ pub fn spawn(
                 });
             }
             // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).
+            // Fixed in v0.2.9: was RECV (wrong right), now AUDIT_DRAIN per sys_audit_drain check.
             if image_id == fjell_abi::service::ImageId::AUDITD
             || image_id == fjell_abi::service::ImageId::NEG_TEST {
                 let _ = cs.install_raw(1, Capability {
                     kind: CapKind::AuditDrain, object_id: 0,
-                    rights: CapRights::RECV, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::AUDIT_DRAIN, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slot 2: DmaAlloc cap — granted to services that perform DMA
