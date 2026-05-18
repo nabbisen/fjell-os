@@ -81,3 +81,10 @@ impl ImageId {
     pub const UPGRADED:          ImageId = ImageId(12);
     pub const POWERD:            ImageId = ImageId(13);
 }
+
+impl ImageId {
+    // M7 additions
+    pub const VERIFYD:   ImageId = ImageId(14);
+    pub const ROOTFSD:   ImageId = ImageId(15);
+    pub const SNAPSHOTD: ImageId = ImageId(16);
+}

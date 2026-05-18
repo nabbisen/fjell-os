@@ -8,7 +8,6 @@ mod rt;
 
 use fjell_semantic_format::*;
 use fjell_syscall::{sys_exit, sys_debug_writeln};
-use fjell_service_api::tags;
 
 // ── Semantic ring (memory-backed) ─────────────────────────────────────────────
 
@@ -16,7 +15,7 @@ struct SemanticRing {
     items:    [Option<SemanticEnvelope>; 32],
     head:     usize,
     sequence: u64,
-    dropped:  u64,
+    #[allow(dead_code)] dropped: u64,
 }
 
 impl SemanticRing {

@@ -343,12 +343,7 @@ pub fn sys_platform_info_get(tf: &mut TrapFrame) {
 /// Maps the requested MMIO range (page-aligned) into the calling task's
 /// address space.  Returns the identity-mapped user VA (= phys_addr).
 pub fn sys_mmio_map(tf: &mut TrapFrame) {
-    use crate::mm::{
-        address::{PhysFrame, VirtAddr},
-        frame_alloc::PhysFrame as _,
-        vspace::VmPerms,
-        region::VmRegionKind,
-    };
+    use crate::mm::{address::VirtAddr, vspace::VmPerms};
     let phys_addr  = tf.gpr[REG_A0] & !0xFFF;      // page-align down
     let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF; // page-align up
 

@@ -1,0 +1,13 @@
+[package]
+name = "fjell-verifyd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+[[bin]]
+name = "fjell-verifyd"
+path = "src/main.rs"
+[dependencies]
+fjell-abi     = { path = "../fjell-abi" }
+fjell-syscall = { path = "../fjell-syscall" }

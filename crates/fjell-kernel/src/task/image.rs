@@ -60,7 +60,10 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::BOOTCTL           => Some(BOOTCTL_BIN),
         ImageId::UPGRADED          => Some(UPGRADED_BIN),
         ImageId::POWERD            => Some(POWERD_BIN),
-        _                          => None,
+        ImageId::VERIFYD   => Some(VERIFYD_BIN),
+        ImageId::ROOTFSD   => Some(ROOTFSD_BIN),
+        ImageId::SNAPSHOTD => Some(SNAPSHOTD_BIN),
+        _                  => None,
     }
 }
 
@@ -71,3 +74,8 @@ static STORAGED_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-storaged.bin"
 static BOOTCTL_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-bootctl.bin");
 static UPGRADED_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-upgraded.bin");
 static POWERD_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-powerd.bin");
+
+// M7 services
+static VERIFYD_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-verifyd.bin");
+static ROOTFSD_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-rootfsd.bin");
+static SNAPSHOTD_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-snapshotd.bin");

@@ -25,6 +25,10 @@ pub const SERVICES: &[&str] = &[
     "fjell-bootctl",
     "fjell-upgraded",
     "fjell-powerd",
+    // M7
+    "fjell-verifyd",
+    "fjell-rootfsd",
+    "fjell-snapshotd",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.

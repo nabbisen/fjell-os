@@ -17,7 +17,7 @@ use fjell_service_api::tags;
 /// For M4 this is a statically validated Rust constant.
 struct ServiceManifest {
     name: &'static str,
-    restart: RestartPolicy,
+    #[allow(dead_code)] restart: RestartPolicy,
 }
 enum RestartPolicy { Never, OnFailure }
 

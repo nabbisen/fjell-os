@@ -25,6 +25,12 @@ members = [
     "crates/fjell-bootctl",
     "crates/fjell-upgraded",
     "crates/fjell-powerd",
+    "crates/fjell-verifyd",
+    "crates/fjell-rootfsd",
+    "crates/fjell-snapshotd",
+    "crates/fjell-verify-format",
+    "crates/fjell-rootfs-format",
+    "crates/fjell-snapshot-format",
     "crates/fjell-device-format",
     "crates/fjell-block-format",
     "crates/fjell-store-format",
@@ -50,7 +56,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.0.6"
+version = "0.0.7"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

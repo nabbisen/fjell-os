@@ -14,12 +14,14 @@ use fjell_service_api::tags;
 // ── Policy table (M4: static, compile-time) ───────────────────────────────────
 
 #[derive(Clone, Copy)]
+#[allow(dead_code)]
 struct PolicyRule {
     requester: &'static str,  // service name requesting the capability
     target_ep: u16,           // target endpoint slot
     allow:     bool,
 }
 
+#[allow(dead_code)]
 const POLICY: &[PolicyRule] = &[
     PolicyRule { requester: "svc.svc-manager", target_ep: 1, allow: true  },
     PolicyRule { requester: "svc.auditd",      target_ep: 2, allow: true  },
@@ -45,7 +47,7 @@ pub extern "C" fn service_main() -> ! {
 
     // Smoke test: demonstrate lease revoke
     let lease_result = sys_lease_create(0);
-    let lease_ok = lease_result.is_ok();
+    let _lease_ok = lease_result.is_ok();
     if let Ok(lid) = lease_result {
         let _epoch1 = sys_lease_inspect(lid);
         let _epoch2 = sys_lease_revoke(lid);

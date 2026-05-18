@@ -16,3 +16,6 @@ fjell-semantic-format  = { path = "../fjell-semantic-format" }
 fjell-proxy-text       = { path = "../fjell-proxy-text" }
 fjell-store-format     = { path = "../fjell-store-format" }
 fjell-upgrade-format   = { path = "../fjell-upgrade-format" }
+fjell-verify-format   = { path = "../fjell-verify-format" }
+fjell-rootfs-format   = { path = "../fjell-rootfs-format" }
+fjell-snapshot-format = { path = "../fjell-snapshot-format" }

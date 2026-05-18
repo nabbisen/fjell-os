@@ -9,6 +9,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.7] — 2026-05-12 — M7: Verified Immutable System / Snapshot / Complete Rollback Foundation
+
+### Added
+- `fjell-verify-format`: `DevSignature`, `TrustAnchor`, `SignedObject`, `ObjectKind`,
+  `VerificationResult`, `BootEvidence`, `ReleaseManifest`, `RootfsManifest`,
+  `PolicyBundle`; development-grade Ed25519 placeholder with hardcoded `DevSignature::VALID`
+- `fjell-rootfs-format`: `ServiceImageRef`, `RootfsNamespace`, `RootfsStatus`
+- `fjell-snapshot-format`: `SnapshotId`, `SnapshotReason`, `SnapshotDigest`,
+  `SystemSnapshot`; reasons: Boot, PreUpgrade, PostConfirmation, Rollback, Periodic
+- `fjell-verifyd`, `fjell-rootfsd`, `fjell-snapshotd`: stubs (verification and
+  snapshot logic driven inline by fjell-init for M7 smoke test)
+- `ImageId::VERIFYD` (14), `ImageId::ROOTFSD` (15), `ImageId::SNAPSHOTD` (16)
+- fjell-init M7 scenario:
+  - Boot evidence loading (`BootEvidence::for_slot`, `TrustAnchor::DEV.is_valid()`)
+  - Release manifest, rootfs manifest, policy bundle signature verification
+    (`SignedObject::verify_dev()`)
+  - Immutable rootfs namespace (`RootfsNamespace::empty() + add()`)
+  - Pre-upgrade system snapshot (`SystemSnapshot::new(SnapshotReason::PreUpgrade)`)
+  - Upgrade staging with verified bundle, slot marking, candidate set
+  - Candidate boot simulation → health check → `slot confirmed after health`
+  - Post-confirmation snapshot (`SnapshotReason::PostConfirmation`)
+  - Semantic state export: `[STATE][Ok] Verified boot status`, `Immutable rootfs`,
+    `System snapshot`, `[EVENT][Normal][Ok] Slot confirmed after health`
+  - Negative test: `ReleaseManifest::invalid_dev` → signature rejected
+  - Health failure rollback: `rollback selected as expected` + rollback snapshot
+- `MAX_TASKS` increased from 16 to 32 to accommodate M4–M7 services (17 tasks)
+
+### Fixed
+- Task table overflow: M7 requires 17+ tasks; `MAX_TASKS=16` caused spawn failure
+  at `fjell-rootfsd`; increased to 32 in `tcb.rs` and `scheduler.rs`
+
+---
+
 ## [0.0.6] — 2026-05-12 — M6: Device / Persistent State / Immutable Upgrade Foundation
 
 ### Added

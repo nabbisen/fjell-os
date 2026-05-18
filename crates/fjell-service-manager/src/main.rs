@@ -18,7 +18,7 @@ use fjell_service_api::tags;
 enum SvcState { Pending, Spawned, Running, Ready, Failed }
 
 struct ServiceEntry {
-    name: &'static str,
+    #[allow(dead_code)] name: &'static str,
     image: ImageId,
     state: SvcState,
     handle: usize,

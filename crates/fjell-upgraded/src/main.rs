@@ -3,7 +3,7 @@
 #![no_main]
 mod rt;
 use fjell_syscall::{sys_exit, sys_debug_writeln};
-use fjell_upgrade_format::{UpgradeState, SlotId};
+
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
