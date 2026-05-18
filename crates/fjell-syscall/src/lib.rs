@@ -312,3 +312,20 @@ pub fn sys_mmio_map(mmio_cap: CapHandle, offset: usize, size: usize) -> Result<u
                           mmio_cap.0 as usize, offset, size, 0);
     to_result(r0).map(|_| r1)
 }
+/// `sys_cap_drop(cap_handle) -> Ok(()) | Err`
+///
+/// RFC 032 (v0.2.0): Explicitly drop a capability slot so it can be reused.
+///
+/// Unlike `sys_cap_delete`, this syscall succeeds even when the capability's
+/// lease has been revoked — a task must always be able to release a dead slot.
+///
+/// # ABI
+/// ```text
+/// a7 = SyscallNumber::CapDrop (15)
+/// a0 = cap_handle (u32)
+/// → a0 = SysError (0 = Ok)
+/// ```
+pub fn sys_cap_drop(cap: CapHandle) -> Result<(), SysError> {
+    let r0 = ecall1(SyscallNumber::CapDrop as usize, cap.0 as usize);
+    to_result(r0).map(|_| ())
+}

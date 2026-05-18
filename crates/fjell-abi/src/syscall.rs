@@ -30,6 +30,11 @@ pub enum SyscallNumber {
     CapRevoke  = 13,
     /// Inspect a capability slot (debug / introspection).
     CapInspect = 14,
+    /// Explicitly drop a capability slot, freeing it for reuse (RFC 032 / v0.2).
+    ///
+    /// Unlike `CapDelete`, this succeeds even when the capability's lease has
+    /// been revoked.  Existence check (ownership + generation) still applies.
+    CapDrop    = 15,
 
     // ── M3 IPC syscalls ────────────────────────────────────────────────────
     /// Synchronous send (blocks until a receiver is ready).
@@ -89,6 +94,7 @@ impl SyscallNumber {
             12 => Some(Self::CapDelete),
             13 => Some(Self::CapRevoke),
             14 => Some(Self::CapInspect),
+            15 => Some(Self::CapDrop),
             20 => Some(Self::IpcSend),
             21 => Some(Self::IpcRecv),
             22 => Some(Self::IpcCall),

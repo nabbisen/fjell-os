@@ -41,6 +41,13 @@ pub enum SysError {
     NotMapped         = -32,
     InvalidAddress    = -33,
     NotSupported      = -34,
+    // ── Lease / v0.2 errors ────────────────────────────────────────────────
+    /// The capability's lease has been revoked (epoch mismatch or state Revoked).
+    LeaseRevoked      = -40,
+    /// Lease not yet active or epoch check invalid.
+    LeaseExpired      = -41,
+    /// Handle generation does not match the slot's current generation.
+    GenerationMismatch = -42,
 }
 
 impl SysError {
@@ -65,6 +72,10 @@ impl SysError {
             -31 => Self::AlreadyMapped,
             -32 => Self::NotMapped,
             -33 => Self::InvalidAddress,
+            -34 => Self::NotSupported,
+            -40 => Self::LeaseRevoked,
+            -41 => Self::LeaseExpired,
+            -42 => Self::GenerationMismatch,
             _   => Self::InternalError,
         }
     }

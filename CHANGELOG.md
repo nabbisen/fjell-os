@@ -3,6 +3,89 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-alpha.1] - 2026-05-17
+
+### v0.2 Phase 1 — Capability Enforcement Core (RFC 031, RFC 032)
+
+First implementation drop of v0.2.0 *Security Boundary Closure*.
+Contains the pure-logic enforcement infrastructure; kernel syscall
+migration (wiring every call site to `require_cap`) is subsequent work
+requiring QEMU testing.
+
+### Added
+
+- **`fjell-cap` — new types (RFC 031 §2.1–§2.7)**:
+  - `CapRights` extended from `u32` to `u64` with 26 named bits
+    (READ, WRITE, EXECUTE, SEND, RECV, CALL, REPLY, COPY, MINT,
+    REVOKE, INSPECT, DROP, TASK_CREATE, TASK_START, TASK_STATUS,
+    TASK_KILL, LEASE_CREATE, LEASE_REVOKE, LEASE_INSPECT, MMIO_MAP,
+    DMA_ALLOC, DMA_USE, DMA_REVOKE, AUDIT_DRAIN, BOOT_READ, REBOOT).
+  - `CapKind` extended with all RFC 031 variants (MmioRegion,
+    DmaRegion, AuditDrain, BootEvidence, Reboot, PersistentStore,
+    BootControl, UpgradeTransaction, Verification, RootfsRead,
+    SnapshotCreate, SnapshotRead, TaskInspect, TaskCreate).
+  - `CapState` — Active / Dropped / Revoked.
+  - `ObjectScope` — Any, Task, Endpoint, Lease, MmioRegion, DmaRegion,
+    Object, StoreNamespace, BootSlot.
+  - `CapError` — 12-variant typed enforcement error with
+    `to_sys_error()` mapping.
+  - `CapSlotState` — Empty / Active / Dropped (RFC 032 §2.1).
+  - `Capability` gains `state: CapState` and `scope: ObjectScope`.
+  - `CapSlot` gains explicit `CapSlotState`.
+  - `NoLease` / `AlwaysRevoked` test helpers.
+
+- **`fjell-cap/src/enforcement.rs`** — new module (RFC 031 §2.5):
+  - `require_cap(cspace, handle, expected_kind, required_rights,
+    required_scope, checker)` — unified 7-step enforcement function
+    (normative check order: lookup → generation → state → kind →
+    rights → scope → lease).
+  - `cap_drop(cspace, handle)` — explicit slot release (RFC 032 §2.4);
+    succeeds on revoked-lease caps.
+
+- **`fjell-cap` unit tests** — 16 tests covering all 7 check steps and
+  the `cap_drop` invariants (NEG:CAP:MISSING_RIGHT, WRONG_KIND,
+  GENERATION_MISMATCH, SCOPE_MISMATCH, REVOKED_LEASE, NULL_HANDLE,
+  EMPTY_SLOT; DROPPED_HANDLE, STALE_AFTER_DROP, DROP_REVOKED_CAP,
+  CSpace_REUSE_AFTER_DROP, DROP_NULL_REJECTED, MINT_RIGHTS_AMPLIFICATION).
+
+- **`fjell-abi`**:
+  - `SyscallNumber::CapDrop = 15` (RFC 032 §2.3).
+  - `SysError::LeaseRevoked = -40`, `LeaseExpired = -41`,
+    `GenerationMismatch = -42` (RFC 031 §2.7).
+
+- **`fjell-syscall`**: `sys_cap_drop(cap: CapHandle) -> Result<(), SysError>`.
+
+### Changed
+
+- `CapRights` inner type changed from `u32` to `u64`.
+  Old constants `GRANT`, `MAP_R`, `MAP_W`, `MAP_X` removed;
+  use `SEND/RECV/CALL/COPY/MINT/READ/WRITE/EXECUTE` instead.
+  Service crates that embed raw `u32` constants are noted as needing
+  migration (see `docs/src/audit/capability-lease-enforcement-audit-v0.1.md`).
+- `Capability::derive()` signature extended with `new_scope` and
+  `self_slot` parameters.
+- Workspace version bumped to `0.2.0-alpha.1`.
+
+### Deferred to subsequent Phase 1 work
+
+- Kernel syscall entry migration: replacing `caller_has_cap(kind)` with
+  `require_cap()` in every syscall path (`fjell-kernel`). Requires QEMU
+  cross-compile and smoke-test verification.
+- `fjell-cap-broker`, `fjell-init`, `fjell-auditd`, `fjell-storaged`
+  migration to new `CapRights` constants (v0.2 service crate work).
+
+### Known Limitations
+
+This alpha implements the enforcement *library*. The kernel is not yet
+calling `require_cap()` at syscall boundaries — enforcement gaps listed
+in `docs/src/audit/capability-lease-enforcement-audit-v0.1.md` remain
+until the kernel migration lands.
+
+### Deferred to Phase 2 (RFC 033, RFC 034)
+
+- Lease epoch revocation connected to every use site.
+- Blocked-IPC wake/cancel on lease revoke.
+
 ## [0.1.5] - 2026-05-17
 
 ### v0.1.x stabilization — v0.2 preparation backlog
