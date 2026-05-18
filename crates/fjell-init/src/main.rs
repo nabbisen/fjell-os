@@ -11,8 +11,6 @@ use fjell_abi::service::ImageId;
 // RFC 048: init's pre-installed TaskCreate/TaskControl/LeaseAdmin cap slots.
 const INIT_SLOT_TASK_CREATE:  u32 = 28;
 const INIT_SLOT_TASK_CONTROL: u32 = 29;
-#[allow(dead_code)]
-const INIT_SLOT_LEASE_ADMIN:  u32 = 30;
 use fjell_syscall::{
     sys_exit, sys_task_spawn, sys_task_start, sys_debug_writeln,
     sys_platform_info_get, sys_yield, sys_ipc_call_words,
