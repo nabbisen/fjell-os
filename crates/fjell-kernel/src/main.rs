@@ -193,6 +193,7 @@ impl DmaRegionTable {
         false
     }
 
+    #[allow(dead_code)]
     /// RFC 052: Revoke a DMA region by its `region_id` (table slot index).
     ///
     /// Used by the new cap-based `sys_dma_revoke(cap_handle)` where the cap's

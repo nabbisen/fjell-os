@@ -82,6 +82,7 @@ pub struct AuditRing {
 // SAFETY: single-hart.
 unsafe impl Sync for AuditRing {}
 
+#[allow(dead_code)]
 impl AuditRing {
     const fn new() -> Self {
         const EMPTY: Cell<Option<AuditRecord>> = Cell::new(None);

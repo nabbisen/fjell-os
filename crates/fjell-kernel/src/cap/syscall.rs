@@ -134,7 +134,7 @@ pub fn sys_cap_install(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     // 2. Parse target task id.
     let target_idx = (target_raw & 0xFFFF) as u16;
     let target_gen  = (target_raw >> 16) as u16;
-    let target_id   = TaskId::new(target_idx, target_gen);
+    let _target_id  = TaskId::new(target_idx, target_gen);  // scope-check deferred (V02-A-005)
 
     // 3. Map cap_kind discriminant to CapKind.
     let kind = CapKind::from_u8(cap_kind_n).unwrap_or(CapKind::Endpoint);

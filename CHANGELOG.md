@@ -1,3 +1,15 @@
+## [0.2.18] - 2026-05-18 — Warning clean-up
+
+All 7 warnings from the v0.2.17 cross-build resolved:
+
+| Warning | Fix |
+|---------|-----|
+| `unused variable: target_id` (cap/syscall.rs) | Renamed to `_target_id` (scope-check deferred V02-A-005) |
+| `method revoke_by_id never used` (main.rs) | Added `#[allow(dead_code)]` — RFC 052 deferred path |
+| `methods get/dropped/drain_into/compact never used` (ring.rs) | Added `#[allow(dead_code)]` on the `impl AuditRing` block |
+| `REG_A4/A5/A6 never used` (tcb.rs) | Added `#[allow(dead_code)]` per constant |
+| `unused Result from free_frame` (trap/syscall.rs) | Added `let _ =` as suggested by the compiler |
+
 ## [0.2.17] - 2026-05-18 — Build fix: REG_A3 missing and stale unused import
 
 ### Fixed

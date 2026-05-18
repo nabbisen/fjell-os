@@ -11,9 +11,9 @@ pub const REG_A0: usize = 10;
 pub const REG_A1: usize = 11;
 pub const REG_A2: usize = 12;
 pub const REG_A3: usize = 13;
-pub const REG_A4: usize = 14;
-pub const REG_A5: usize = 15;
-pub const REG_A6: usize = 16;
+#[allow(dead_code)] pub const REG_A4: usize = 14;
+#[allow(dead_code)] pub const REG_A5: usize = 15;
+#[allow(dead_code)] pub const REG_A6: usize = 16;
 /// `a7` register index (syscall number).
 pub const REG_A7: usize = 17;
 
