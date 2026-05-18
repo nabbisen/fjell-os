@@ -106,21 +106,48 @@ static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
 pub(crate) const DMA_USER_VA_BASE: usize = 0x6000_0000;
 
 
-// ── RFC 017: DmaRegion ownership table ───────────────────────────────────────
+// ── RFC 036 (v0.2.0): DmaRegion state machine ────────────────────────────────
 
 /// Maximum concurrent DMA allocations across all tasks.
 const MAX_DMA_REGIONS: usize = 16;
 
-/// One entry in the per-kernel DMA region tracking table.
-#[derive(Clone, Copy)]
-struct DmaRegionEntry {
-    /// Task that owns this DMA region.  `TaskId { index: 0xFFFF, generation: 0 }` = free.
-    owner:   crate::task::TaskId,
+/// RFC 036 §2 — DmaRegion cleanup state machine.
+///
+/// Transitions:
+/// ```text
+/// Active → Revoked → Zeroized → Freed
+///        ↘ Quarantined → Zeroized → Freed   (uncertain device quiesce)
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DmaRegionState {
+    /// Region is in use by the owning task.
+    Active,
+    /// Revoked: device access prevented; zeroize pending.
+    Revoked,
+    /// Quarantined: device quiesce uncertain; await timeout.
+    ///
+    /// RFC 036: in v0.2.0 the quarantine timeout is a DEFERRED stub —
+    /// the timer-callback path needed for real quarantine is planned for
+    /// the first device driver that requires it.  At v0.2 scale (virtio-blk
+    /// cooperative model), synchronous zeroize on revoke is sufficient.
+    Quarantined,
+    /// Physical page zeroed; safe to return to allocator.
+    Zeroized,
+    /// Frame returned to allocator; slot is free.
+    Freed,
+}
+
+/// One entry in the per-kernel DMA region tracking table (RFC 036 §2).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct DmaRegionEntry {
+    /// Task that owns this DMA region (`index == 0xFFFF` = Freed/empty).
+    pub owner:    crate::task::TaskId,
     /// User VA where the frame is mapped in `owner`'s page table.
-    #[allow(dead_code)]
-    user_va: usize,
-    /// Physical frame (used for zeroize + free on task exit).
-    frame_pa: usize,
+    pub user_va:  usize,
+    /// Physical frame address.
+    pub frame_pa: usize,
+    /// Cleanup state.
+    pub state:    DmaRegionState,
 }
 
 impl DmaRegionEntry {
@@ -129,39 +156,77 @@ impl DmaRegionEntry {
             owner:    crate::task::TaskId::new(0xFFFF, 0),
             user_va:  0,
             frame_pa: 0,
+            state:    DmaRegionState::Freed,
         }
     }
-    fn is_free(self) -> bool { self.owner.index == 0xFFFF }
+    pub fn is_free(self) -> bool { self.owner.index == 0xFFFF }
 }
 
-struct DmaRegionTable { entries: [DmaRegionEntry; MAX_DMA_REGIONS] }
+pub(crate) struct DmaRegionTable {
+    entries: [DmaRegionEntry; MAX_DMA_REGIONS],
+}
+
 impl DmaRegionTable {
     const fn new() -> Self {
         DmaRegionTable { entries: [const { DmaRegionEntry::free() }; MAX_DMA_REGIONS] }
     }
-    fn alloc(&mut self, owner: crate::task::TaskId, user_va: usize, frame_pa: usize) -> bool {
+
+    /// Allocate a new Active region.  Returns false if the table is full.
+    pub fn alloc(
+        &mut self,
+        owner: crate::task::TaskId,
+        user_va: usize,
+        frame_pa: usize,
+    ) -> bool {
         for e in self.entries.iter_mut() {
-            if e.is_free() { *e = DmaRegionEntry { owner, user_va, frame_pa }; return true; }
+            if e.is_free() {
+                *e = DmaRegionEntry {
+                    owner, user_va, frame_pa,
+                    state: DmaRegionState::Active,
+                };
+                return true;
+            }
         }
         false
     }
-    /// Zeroize and release all DMA regions owned by `owner` (RFC 017 task-exit cleanup).
+
+    /// Explicitly revoke a DMA region by physical address (RFC 036 §2).
     ///
-    /// Steps:
-    /// 1. Zeroize the physical frame (security: clear DMA buffers).
-    /// 2. Free the frame back to the allocator (prevent leak).
-    fn release_task(&mut self, owner: crate::task::TaskId) {
+    /// Transitions: Active → Revoked → Zeroized → Freed (synchronous in v0.2).
+    ///
+    /// The quarantine path (`Active → Quarantined`) is a DEFERRED stub.
+    pub fn revoke_by_pa(&mut self, owner: crate::task::TaskId, frame_pa: usize) -> bool {
         let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
-            if e.owner == owner {
+            if e.owner == owner && e.frame_pa == frame_pa && e.state == DmaRegionState::Active {
+                e.state = DmaRegionState::Revoked;
+                // Synchronous zeroize + free (v0.2; quarantine deferred).
+                if e.frame_pa != 0 {
+                    unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
+                    e.state = DmaRegionState::Zeroized;
+                    if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
+                        unsafe { let _ = (*fa).free_frame(frame); }
+                    }
+                }
+                *e = DmaRegionEntry::free();
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Lifecycle revoke: zeroize and release all Active regions owned by `task`.
+    ///
+    /// Called on task exit, fault, or restart.  Invariant DMA-004.
+    pub fn release_task(&mut self, owner: crate::task::TaskId) {
+        let fa = unsafe { crate::fa_static_ptr() };
+        for e in self.entries.iter_mut() {
+            if e.owner == owner && e.state == DmaRegionState::Active {
                 let pa = e.frame_pa;
                 if pa != 0 {
-                    // Step 1: zeroize before free (security invariant).
+                    // Zeroize before free — invariant DMA-001.
                     unsafe { core::ptr::write_bytes(pa as *mut u8, 0, 4096); }
-                    // Step 2: return frame to allocator.
-                    if let Ok(frame) =
-                        crate::mm::frame_alloc::PhysFrame::from_pa(pa)
-                    {
+                    if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
                         unsafe { let _ = (*fa).free_frame(frame); }
                     }
                 }
@@ -180,9 +245,10 @@ pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
 }
 
 /// Per-request DMA VA bump allocator (RFC 007).
-/// Monotonically increases; no free list needed for M7.1.
+/// Monotonically increases; no free list needed for v0.2.
 pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
     core::sync::atomic::AtomicUsize::new(DMA_USER_VA_BASE);
+
 
 /// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save,
 /// [3]=temp_user_t6_save  (RFC 001: slot added to fix t6 register save correctness)

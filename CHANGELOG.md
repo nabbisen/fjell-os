@@ -3,6 +3,54 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-alpha.4] - 2026-05-17
+
+### v0.2 Phase 3 + Phase 4 — MMIO/DMA Boundary Closure (RFC 035, RFC 036)
+
+### Added
+
+- **`fjell-kernel/src/platform/qemu_virt.rs`** (RFC 035):
+  - `MmioRegionState { Active, Revoked }`.
+  - `MmioRegionObject` gains `id: u32` and `state: MmioRegionState` fields.
+  - `MmioRegionObject::is_accessible(offset, size)` helper.
+  - `mmio_region_table()` now populates `id` and `state` on each entry.
+- **`sys_mmio_map`** updated (RFC 035 §2):
+  - Now calls `fjell_cap::enforcement::require_cap(cs, handle, MmioRegion,
+    MMIO_MAP, None, lt)` — full 7-step check replaces manual kind + lease.
+  - `is_accessible(offset, size)` replaces manual bounds check.
+  - Mapping is explicitly `R|W|U` without `X` (non-executable).
+  - Error code `InvalidArg` (was `InvalidCap`) for zero-size and out-of-bounds.
+- **`sys_dma_alloc`** updated (RFC 036):
+  - Accepts both `DmaRegion` (new) and `DmaAlloc` (legacy alias) `CapKind`.
+  - Checks `DMA_ALLOC` right and lease via `require_cap` path.
+- **`sys_dma_revoke`** — new syscall handler (RFC 036):
+  - `sys_dma_revoke(a0=device_pa) -> a0=status`.
+  - Transitions: Active → Zeroized → Freed (synchronous in v0.2).
+  - Dispatched at `SyscallNumber::DmaRevoke = 112`.
+- **`DmaRegionState { Active, Revoked, Quarantined, Zeroized, Freed }`** (RFC 036 §2).
+- **`DmaRegionEntry`** gains `state: DmaRegionState`.
+- **`DmaRegionTable::revoke_by_pa(owner, pa)`** — explicit per-region revoke
+  with synchronous zeroize + frame return.
+- **`DmaRegionTable::release_task`** updated to check `state == Active`
+  explicitly, so it does not double-free Revoked/Quarantined regions.
+
+### Changed
+
+- `docs/src/audit/capability-lease-enforcement-audit-v0.1.md` updated:
+  `mmio_map` reclassified `Missing → OK`; `dma_alloc` reclassified
+  `Missing → Partial`; `dma_revoke` updated; enforcement checklist
+  entries ticked.
+- Workspace version bumped to `0.2.0-alpha.4`.
+
+### Known limitations
+
+- Owner-task scope check for MMIO caps is deferred: a task that receives a
+  MmioRegion cap can map to its own address space (which is correct), but
+  the cap-broker-enforced "this cap is only for task X" scope is pending RFC 040.
+- DMA quarantine timeout (RFC 036 §"Quarantine"): synchronous zeroize is used;
+  the timer-callback path for device-quiesce uncertainty is `DEFERRED`.
+- `dma_share` (nr 111): no capability check — still `Missing` (no use case).
+
 ## [0.2.0-alpha.3] - 2026-05-17
 
 ### v0.2 Phase 2 — Blocked IPC Revocation Semantics (RFC 034)

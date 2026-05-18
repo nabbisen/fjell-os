@@ -38,34 +38,67 @@ pub fn qemu_virt_platform() -> PlatformInfo {
     }
 }
 
-// ── RFC 016: MmioRegionTable ──────────────────────────────────────────────────
+// ── RFC 035: MmioRegionTable (v0.2.0 — static interim design) ────────────────
 
-/// A single bounded MMIO region that a driver may request via `sys_mmio_map`.
+/// Lifecycle state of an MMIO region object (RFC 035 §2.2).
+///
+/// Static table entries are always `Active`.  If a region is revoked (future:
+/// via cap-broker lease revocation), it transitions to `Revoked` and all
+/// subsequent `sys_mmio_map` calls for that region are rejected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MmioRegionState {
+    /// Region is in use.
+    Active,
+    /// Region has been revoked; no further mappings are allowed.
+    Revoked,
+}
+
+/// A single bounded MMIO region (RFC 035 §2.2).
+///
+/// The static table (interim design) owns these.  In a future milestone the
+/// device manager populates the table from the DTB.
 #[derive(Clone, Copy, Debug)]
 pub struct MmioRegionObject {
+    /// Index in the static `MmioRegionTable`.
+    pub id:    u32,
     /// Physical base address of this MMIO region.
-    pub base: usize,
+    pub base:  usize,
     /// Total size in bytes.
-    pub size: usize,
+    pub size:  usize,
+    /// Lifecycle state.
+    pub state: MmioRegionState,
     /// Human-readable ASCII description (null-padded to 16 bytes).
     pub description: [u8; 16],
 }
 
-/// Build the static MMIO region table from `MMIO_REGIONS`.
+impl MmioRegionObject {
+    /// True if the region is active and a given `offset + size` is in bounds.
+    pub fn is_accessible(&self, offset: usize, size: usize) -> bool {
+        self.state == MmioRegionState::Active
+            && size > 0
+            && offset.saturating_add(size) <= self.size
+    }
+}
+
+/// Build the static MMIO region table.
 ///
-/// Called once at kernel init to populate `MmioRegionObject` entries that
-/// are then installed as `MmioRegion` capabilities in init's CSpace.
-pub fn mmio_region_table() -> [MmioRegionObject; 4] {
-    let make = |base: usize, size: usize, desc: &[u8]| {
+/// The interim design (RFC 035 §"Static region table") hard-codes the QEMU
+/// `virt` device layout.  DTB-driven discovery is deferred to v0.3.
+pub fn mmio_region_table() -> [MmioRegionObject; MMIO_REGION_COUNT] {
+    let make = |id: u32, base: usize, size: usize, desc: &[u8]| {
         let mut d = [0u8; 16];
         for (i, &b) in desc.iter().enumerate().take(15) { d[i] = b; }
-        MmioRegionObject { base, size, description: d }
+        MmioRegionObject {
+            id, base, size,
+            state: MmioRegionState::Active,
+            description: d,
+        }
     };
     [
-        make(0x0000_0000, 0x1000_0000, b"CLINT/boot-ROM"),
-        make(0x1000_0000, 0x0000_1000, b"UART0"),
-        make(0x0C00_0000, 0x0400_0000, b"PLIC"),
-        make(0x1000_1000, 0x0000_F000, b"virtio-mmio"),
+        make(0, 0x0000_0000, 0x1000_0000, b"CLINT/boot-ROM"),
+        make(1, 0x1000_0000, 0x0000_1000, b"UART0"),
+        make(2, 0x0C00_0000, 0x0400_0000, b"PLIC"),
+        make(3, 0x1000_1000, 0x0000_F000, b"virtio-mmio"),
     ]
 }
 

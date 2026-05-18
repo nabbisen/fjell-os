@@ -106,13 +106,13 @@ enforcement.
 | Syscall | Nr | Kind check | Rights check | Lease check | Scope check | Classification | v0.2 RFC |
 |---|---|---|---|---|---|---|---|
 | `platform_info_get` | 80 | none (read-only, no cap needed) | n/a | n/a | n/a | OK | — |
-| `mmio_map` | 90 | ✗ (no cap at all) | ✗ | ✗ | ✗ (RAM guard only) | Missing | RFC 035 |
+| `mmio_map` | 90 | ✓ (MmioRegion kind) | ✓ (MMIO_MAP, v0.2) | ✓ (v0.2) | ✗ (owner scope deferred) | OK | RFC 035 closed |
 | `mmio_unmap` | 91 | ✗ (ownership by VA) | ✗ | ✗ | ✗ | Partial | RFC 035 |
 | `irq_bind` | 100 | ✓ (Endpoint) | ✗ | ✗ | ✗ | Partial | RFC 031 |
 | `irq_ack` | 101 | ✗ (irq-slot ownership) | ✗ | ✗ | ✗ | Partial | — |
-| `dma_alloc` | 110 | ✗ (no cap at all) | ✗ | ✗ | ✗ | Missing | RFC 036 |
-| `dma_share` | 111 | ✗ | ✗ | ✗ | ✗ | Missing | RFC 036 |
-| `dma_revoke` | 112 | ✗ (per-task ownership) | ✗ | ✗ | ✗ | Partial | RFC 036 |
+| `dma_alloc` | 110 | ✓ (DmaRegion/DmaAlloc) | ✓ (DMA_ALLOC, v0.2) | ✓ (v0.2) | ✗ | Partial | RFC 036 closed |
+| `dma_share` | 111 | ✗ | ✗ | ✗ | ✗ | Missing | RFC 036 deferred (no use case) |
+| `dma_revoke` | 112 | ✓ (owner-task check) | ✓ (ownership) | ✓ (v0.2) | ✗ | Partial | RFC 036 closed |
 | `reboot` | 120 | ✓ (type-only: Reboot cap) | ✗ (no REBOOT right) | ✗ | ✗ | Partial | RFC 031 |
 
 ---

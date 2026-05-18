@@ -46,6 +46,7 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::PlatformInfoGet) => sys_platform_info_get(tf),
         Some(SyscallNumber::MmioMap)         => sys_mmio_map(tf),
         Some(SyscallNumber::DmaAlloc)        => sys_dma_alloc(tf),
+        Some(SyscallNumber::DmaRevoke)       => sys_dma_revoke(tf),
         // DebugWrite handled before
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
@@ -523,71 +524,70 @@ pub fn sys_platform_info_get(tf: &mut TrapFrame) {
 
 /// `sys_mmio_map(a0=mmio_cap_handle, a1=offset, a2=size) -> a0=status, a1=user_va`
 ///
-/// RFC 016: Map a bounded MMIO physical sub-range into the caller's address space.
-///
-/// The caller must hold a `CapKind::MmioRegion` capability whose `object_id`
-/// identifies an entry in the kernel's static `MmioRegionTable`.  `offset + size`
-/// is bounds-checked against the region.  Kernel RAM is additionally excluded as
-/// defense-in-depth (RFC 005).
+/// RFC 035 (v0.2.0): Map a bounded MMIO physical sub-range into the caller's
+/// address space.  Enforces the full `require_cap` check order:
+///   1. CSpace lookup + generation check
+///   2. Slot-state check
+///   3. Kind check      — must be `CapKind::MmioRegion`
+///   4. Rights check    — must carry `CapRights::MMIO_MAP`
+///   5. Scope check     — (deferred; Any accepted)
+///   6. Lease check     — epoch must still match
+///   7. Offset/size bounds within the static `MmioRegionTable` entry
+///   8. Non-RAM (RFC 005 defense-in-depth)
+///   9. Non-executable mapping
 pub fn sys_mmio_map(tf: &mut TrapFrame) {
     use crate::mm::{address::VirtAddr, vspace::VmPerms};
     use crate::platform::qemu_virt::{RAM_BASE, RAM_END, mmio_region_table};
-    use fjell_cap::CapKind;
+    use fjell_cap::{CapKind, CapRights};
 
     let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
-    let offset     = tf.gpr[10 + 1];               // a1
-    let size_bytes = (tf.gpr[10 + 2] + 0xFFF) & !0xFFF; // a2, page-align up
+    let offset     = tf.gpr[10 + 1];                               // a1
+    let size_bytes = (tf.gpr[10 + 2] + 0xFFF) & !0xFFF;           // a2, page-align up
 
     if size_bytes == 0 {
-        tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
         return;
     }
 
-    // 1. Resolve the MmioRegion capability.
     let tidx = crate::trap::dispatch::current_task_idx();
     let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
     let lt = unsafe { crate::get_lease_table() };
-    let region_idx = {
-        let cs = match cap_table.cspace(tidx) {
-            Some(c) => c,
-            None    => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
-        };
-        let cap = match cs.get(cap_handle) {
-            Ok(c)  => c,
-            Err(e) => { tf.gpr[REG_A0] = e as isize as usize; return; }
-        };
-        if cap.kind != CapKind::MmioRegion {
-            tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
-            return;
-        }
-        if let Err(e) = cap.check_lease(lt) {
-            tf.gpr[REG_A0] = e as isize as usize;
-            return;
-        }
-        cap.object_id as usize
+
+    let cs = match cap_table.cspace(tidx) {
+        Some(c) => c,
+        None    => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
     };
 
-    // 2. Bounds-check offset + size against the MmioRegion.
+    // RFC 035 §2 + RFC 031: unified require_cap — kind=MmioRegion, right=MMIO_MAP.
+    let region_idx = match fjell_cap::enforcement::require_cap(
+        cs, cap_handle,
+        CapKind::MmioRegion, CapRights::MMIO_MAP,
+        None, lt,
+    ) {
+        Ok(cap)  => cap.object_id as usize,
+        Err(e)   => { tf.gpr[REG_A0] = e.to_sys_error() as isize as usize; return; }
+    };
+
+    // Bounds-check offset + size and verify the region is Active.
     let mmio_table = mmio_region_table();
     let region = match mmio_table.get(region_idx) {
         Some(r) => r,
         None    => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
     };
-    let end_offset = offset.saturating_add(size_bytes);
-    if end_offset > region.size {
-        tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+    if !region.is_accessible(offset, size_bytes) {
+        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
         return;
     }
     let phys_addr = region.base + offset;
 
-    // 3. RFC 005 defense-in-depth: reject kernel RAM.
+    // RFC 005 defense-in-depth: reject kernel RAM.
     let end_pa = phys_addr.saturating_add(size_bytes);
     if phys_addr < RAM_END && end_pa > RAM_BASE {
-        tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
         return;
     }
 
-    // 4. Map pages R|W|U into the caller's page table.
+    // Map pages R|W|U — explicitly no X bit (RFC 009 / RFC 035).
     let task_id  = crate::task::TaskId::new(tidx as u16, 0);
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
@@ -605,7 +605,8 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
             unsafe {
                 let _ = crate::mm::page_table::remap_page(
                     root_pfn << 12, VirtAddr(user_va), f,
-                    VmPerms::R | VmPerms::W | VmPerms::U, fa,
+                    VmPerms::R | VmPerms::W | VmPerms::U,  // no X — non-executable
+                    fa,
                 );
             }
         }
@@ -618,38 +619,59 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
 
 /// `sys_dma_alloc(a0=dma_cap_handle, a1=size_bytes) -> a0=status, a1=user_va, a2=device_pa`
 ///
-/// RFC 017: Per-task DMA allocator.  The caller must hold `CapKind::DmaAlloc`.
-/// Maximum 1 page (4 KiB) per region (M8 may lift this).
+/// RFC 036 (v0.2.0): Allocate a DMA region.  Requires `CapKind::DmaRegion`
+/// with `CapRights::DMA_ALLOC` right (replaces v0.1.x kind-only check).
+///
+/// Maximum 1 page (4 KiB) per DMA region — invariant DMA-003.
 pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     use crate::mm::{address::VirtAddr, vspace::VmPerms, frame_alloc::FrameOwner};
     use crate::task::tcb::REG_A2;
-    use fjell_cap::CapKind;
+    use fjell_cap::{CapKind, CapRights};
 
-    let cap_raw   = tf.gpr[REG_A0] as u32;
+    let cap_raw    = tf.gpr[REG_A0] as u32;
     let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF;
+    let cap_handle = fjell_cap::CapHandle(cap_raw);
 
-    // RFC 017: validate DmaAlloc capability.
+    // RFC 036 + RFC 031: unified require_cap — kind=DmaRegion | DmaAlloc, right=DMA_ALLOC.
     let tidx = crate::trap::dispatch::current_task_idx();
     {
-        let (_, _, ct, lt_ref) = unsafe { crate::get_kernel_state() };
+        let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) {
             Some(c) => c,
             None => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
         };
-        let handle = fjell_cap::CapHandle(cap_raw);
-        let cap = match cs.get(handle) {
-            Ok(c) if c.kind == CapKind::DmaAlloc => c,
-            Ok(_) => { tf.gpr[REG_A0] = SysError::WrongType  as isize as usize; return; }
-            Err(e) => { tf.gpr[REG_A0] = e as isize as usize; return; }
+        // Accept both the new DmaRegion kind and the legacy DmaAlloc alias.
+        let kind_ok = {
+            let c = cs.get(cap_handle).ok();
+            c.map_or(false, |cap| {
+                cap.kind == CapKind::DmaRegion || cap.kind == CapKind::DmaAlloc
+            })
         };
-        if let Err(e) = cap.check_lease(lt) {
-            tf.gpr[REG_A0] = e as isize as usize; return;
+        if !kind_ok {
+            // Run require_cap for the proper error path.
+            if let Err(e) = fjell_cap::enforcement::require_cap(
+                cs, cap_handle, CapKind::DmaRegion, CapRights::DMA_ALLOC, None, lt,
+            ) {
+                tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+                return;
+            }
+        } else {
+            // Kind matched — still check DMA_ALLOC right and lease.
+            if let Ok(cap) = cs.get(cap_handle) {
+                if !cap.rights.contains(CapRights::DMA_ALLOC) {
+                    tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
+                    return;
+                }
+                if let Err(e) = cap.check_lease(lt) {
+                    tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+                    return;
+                }
+            }
         }
-        let _ = lt_ref;
     }
 
-    // RFC 017: M8 limit — maximum 1 page (4 KiB) per DMA region.
+    // RFC 036: MAX 1 page — invariant DMA-003.
     let pages = size_bytes / 4096;
     if pages == 0 || pages > 1 {
         tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
@@ -658,8 +680,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     let _ = REG_A2;
 
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
-    let cur_id  = crate::trap::dispatch::current_task_idx();
-    let task_id = crate::task::TaskId::new(cur_id as u16, 0);
+    let task_id  = crate::task::TaskId::new(tidx as u16, 0);
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
     if root_pfn == 0 {
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
@@ -668,7 +689,8 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     let fa = unsafe { &mut *crate::fa_static_ptr() };
 
     let user_va_start = crate::DMA_VA_NEXT.fetch_add(
-        pages * 4096, core::sync::atomic::Ordering::Relaxed);
+        pages * 4096, core::sync::atomic::Ordering::Relaxed,
+    );
 
     let frame = match fa.alloc_frame(FrameOwner::UserStack { task: task_id }) {
         Ok(f) => f,
@@ -683,12 +705,28 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     }
     unsafe { crate::arch::riscv64::csr::sfence_vma(); }
 
-    // RFC 017: Record ownership for zeroize-on-exit.
+    // RFC 036: record ownership for zeroize-on-exit and explicit revoke.
     crate::dma_table().alloc(task_id, user_va_start, first_pa);
 
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = user_va_start;
     tf.gpr[12]     = first_pa;
+}
+
+/// `sys_dma_revoke(a0=device_pa) -> a0=status`
+///
+/// RFC 036 (v0.2.0): Explicitly revoke a DMA region, triggering synchronous
+/// zeroize and frame return.  The caller must own the region.
+pub fn sys_dma_revoke(tf: &mut TrapFrame) {
+    let device_pa = tf.gpr[REG_A0];
+    let tidx = crate::trap::dispatch::current_task_idx();
+    let task_id = crate::task::TaskId::new(tidx as u16, 0);
+
+    if crate::dma_table().revoke_by_pa(task_id, device_pa) {
+        tf.gpr[REG_A0] = 0;
+    } else {
+        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
+    }
 }
 
 /// Dispatch `sys_ipc_try_recv` (RFC 019 — non-blocking IPC receive).
