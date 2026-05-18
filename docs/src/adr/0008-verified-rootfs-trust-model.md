@@ -1,6 +1,6 @@
 # ADR 0008: Verified immutable rootfs and signed artifact model
 
-**Status:** Accepted  
+**Status:** Superseded — see [ADR-0008 Verified Immutable Rootfs](./0008-verified-immutable-rootfs.md) (RFC 045 rename)  
 **Date:** 2026-05-12  
 **Milestone:** M7
 

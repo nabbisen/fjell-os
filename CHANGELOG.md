@@ -1,3 +1,38 @@
+## [0.2.24] - 2026-05-18 — Documentation and CI corrections
+
+### docs/
+
+- **SUMMARY.md**: Added v0.2.0 Release Gate link; merged duplicate ADR sections
+  into one with a Historical subsection; added all 10 superseded old ADR files
+  and the v0.1.1 developer summary.
+- **releases/v0.2.0-release-gate.md**: Fully rewritten to reflect v0.2.23 reality
+  (29 markers, 9 categories, full hardening closure matrix, post-gate shipment table).
+- **internals/qemu-tests.md**: Rewritten to describe M8 and the full 9-category
+  negative-test matrix with correct marker counts.
+- **adr/0006-0009 (old files)**: Status corrected from `Accepted` to `Superseded`
+  to match the ADR-RENAME.md table.
+- **security/v0.1.0-threat-model.md**: Deleted (empty skeleton; real doc is
+  security/threat-model-v0.1.md).
+- **dev-summary-v0_1_1.md**: Moved from docs/src root to docs/src/releases/.
+
+### README.md
+
+- Version updated from v0.2.9 to v0.2.23.
+- Smoke test updated from `qemu-test m4` to `qemu-test m8`.
+- Negative-test description updated to reflect gate earned and 29-marker count.
+
+### .github/workflows/ci.yml
+
+- **New `ci-cross-check` job**: `cargo check --target riscv64gc-unknown-none-elf`
+  for `fjell-kernel`, `fjell-init`, `fjell-auditd`, `fjell-cap-broker`,
+  `fjell-neg-test`, `fjell-bootctl`, `fjell-service-manager`, `fjell-sample-service`.
+  Closes the silent failure mode that caused v0.2.15-v0.2.23 build fixes.
+- **New `ci-docs` job**: `mdbook build` using pre-built mdBook binary.
+- **`ci-check`**: Added `fjell-cap`, `fjell-ipc`, `fjell-syscall`,
+  `fjell-cap-broker`, `fjell-neg-test`, `fjell-service-manager`, `fjell-bootctl`.
+- **`ci-test-host`**: Added `fjell-cap` (16 tests) and `fjell-ipc` (10 tests).
+- **`ci-qemu-negative` matrix**: Added `harness` category (RFC 050, missing since v0.2.12).
+
 ## [0.2.22] - 2026-05-18 — #[allow(dead_code)] audit
 
 Three problems found and fixed:

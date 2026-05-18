@@ -17,9 +17,10 @@ Fjell OS is a research operating system that combines:
 - **ABDD** (Accessible by Default and by Design) — services emit structured *intent* streams
   rather than pixel data, letting a Presentation Proxy render them for any modality
 
-Current version: **v0.2.9** (Security Boundary Closure hardening line, post-v0.2.8 review).  
-Previous milestone: **v0.2.8** (21/21 negative-test markers wired, with reviewer-identified gaps now being addressed in the v0.2.9-v0.2.12 hardening line — see [docs/src/releases/v0.2.0-release-gate.md](docs/src/releases/v0.2.0-release-gate.md)).  
-Initial milestone release: **v0.1.0** (M8 complete, May 2026).
+Current version: **v0.2.23** — Security Boundary Closure complete, `TEST:V02:PASS` earned.  
+Hardening line: v0.2.9–v0.2.23 (12 RFCs, 48–059) addressed all 20 post-review findings from v0.2.8.  
+Previous milestone: **v0.1.0** (M1–M8 complete, May 2026) — 29/29 QEMU negative-test markers across 9 categories confirmed.  
+For full release history see [docs/src/releases/v0.2.0-release-gate.md](docs/src/releases/v0.2.0-release-gate.md).
 
 > ⚠ **v0.1.0 is a local verified prototype, not a production OS.**
 > See [docs/src/releases/v0.1.0-limitations.md](docs/src/releases/v0.1.0-limitations.md)
@@ -90,8 +91,8 @@ RUSTC_BOOTSTRAP=1 cargo build \
 
 # Or: do both in one command and launch QEMU
 cargo xtask qemu                  # interactive  — exit with Ctrl-A then X
-cargo xtask qemu-test             # smoke test   — checks for TEST:M4:PASS
-cargo xtask qemu-test m4          # same as above, explicit milestone
+cargo xtask qemu-test             # smoke test   — checks for TEST:M8:PASS
+cargo xtask qemu-test m8          # same as above, explicit milestone
 ```
 
 > **Note on build order**: `fjell-kernel` embeds pre-built service binaries

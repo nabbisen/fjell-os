@@ -8,7 +8,10 @@
 
 - [v0.1.0 Scope](./releases/v0.1.0-scope.md)
 - [v0.1.0 Limitations](./releases/v0.1.0-limitations.md)
+- [v0.1.1 Developer Summary](./releases/v0.1.1-dev-summary.md)
 - [v0.1.x Release Checklist](./releases/v0.1.x-release-checklist.md)
+- [v0.2.0 Release Gate](./releases/v0.2.0-release-gate.md)
+- [v0.2.x Developer Summary](./roadmap/v0.2.x-dev-summary.md)
 
 ---
 
@@ -95,10 +98,15 @@
 
 ---
 
-# Architecture Decision Records
+## Historical ADRs (superseded at v0.1.4 by RFC 045 rename)
 
-- [ADR-0001 — Target Architecture](./adr/0001-target-architecture.md)
-- [ADR-0002 — Microkernel Boundary](./adr/0002-microkernel-boundary.md)
-- [ADR-0003 — Capability Security](./adr/0003-capability-security.md)
-- [ADR-0004 — Semantic Stream](./adr/0004-semantic-stream.md)
-- [ADR-0005 — v0.1.0 Scope](./adr/0005-v010-scope.md)
+- [ADR-0001 — Target Architecture (superseded)](./adr/0001-target-architecture.md)
+- [ADR-0002 — Microkernel Boundary (superseded)](./adr/0002-microkernel-boundary.md)
+- [ADR-0003 — Capability Security (superseded)](./adr/0003-capability-security.md)
+- [ADR-0004 — Semantic Stream (superseded)](./adr/0004-semantic-stream.md)
+- [ADR-0005 — v0.1.0 Scope (superseded)](./adr/0005-v010-scope.md)
+- [ADR-0006 — Device Driver Model (superseded)](./adr/0006-device-driver-model.md)
+- [ADR-0007 — Persistent Store Model (superseded)](./adr/0007-persistent-store-model.md)
+- [ADR-0008 — Verified Rootfs Trust Model (superseded)](./adr/0008-verified-rootfs-trust-model.md)
+- [ADR-0009 — A/B Boot Control (superseded)](./adr/0009-ab-boot-control.md)
+- [ADR-0010 — Inline Init Workaround (superseded)](./adr/0010-inline-init-workaround.md)

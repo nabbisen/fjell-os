@@ -1,6 +1,7 @@
 # QEMU Tests
 
-Fjell OS uses UART-based smoke tests to gate each milestone.
+Fjell OS uses two test harnesses under QEMU: milestone smoke tests
+and category-based negative tests.
 
 ## Running interactively
 
@@ -9,53 +10,50 @@ cargo xtask qemu
 # Press Ctrl-A X to exit QEMU
 ```
 
-## Running a smoke test
+## Milestone smoke tests
+
+Each milestone gate has a unique `TEST:Mn:PASS` token emitted to UART.
 
 ```sh
-cargo xtask qemu-test        # M1 — checks for "Fjell OS kernel started"
-cargo xtask qemu-test m2     # M2 — checks for TEST:M2:PASS
-cargo xtask qemu-test m3     # M3 — checks for TEST:M3:PASS
+cargo xtask qemu-test        # current milestone (M8)
+cargo xtask qemu-test m8     # explicit — checks for TEST:M8:PASS
+cargo xtask qemu-test m4     # earlier milestone
 ```
 
 The tool builds `fjell-kernel` in release mode, runs it under
-`qemu-system-riscv64 -machine virt -bios none -nographic` with a 10-second
-timeout, and scans UART output for the expected marker string.
+`qemu-system-riscv64 -machine virt -bios none -nographic` with a configurable
+timeout, and scans UART output for the expected token.
 
-## M1 expected output
+## Negative tests
 
+Negative tests verify that the kernel rejects bad operations with the correct
+error codes.  Each test category has a TOML profile in `tests/qemu/profiles/`
+listing the expected `NEG:*:PASS` markers.
+
+```sh
+cargo xtask qemu-negative capability   # 8 markers — cap enforcement (RFC 031/049)
+cargo xtask qemu-negative mmio         # 3 markers — MMIO boundary (RFC 035)
+cargo xtask qemu-negative dma          # 3 markers — DMA boundary (RFC 036)
+cargo xtask qemu-negative user-copy    # 2 markers — UserPtr rejection (RFC 039)
+cargo xtask qemu-negative policy       # 4 markers — cap-broker policy (RFC 040/055)
+cargo xtask qemu-negative audit        # 1 marker  — audit ring evidence gap (RFC 041)
+cargo xtask qemu-negative ipc          # 3 markers — IPC lease revocation (RFC 034)
+cargo xtask qemu-negative svc          # 4 markers — service lifecycle (RFC 038/058)
+cargo xtask qemu-negative harness      # 1 marker  — CSpace layout self-check (RFC 050)
 ```
-=============================
-  Fjell OS kernel started.
-=============================
 
-arch  : riscv64
-mach  : qemu-virt
-stage : M1 bootable kernel
-```
-
-## M2 expected output (target)
-
-```
-Fjell OS kernel started.
-mode: S
-platform: qemu-virt
-mm: boot allocator ready
-mm: frame allocator ready
-vm: sv39 enabled
-trap: stvec installed
-task: idle created
-task: user0 created
-task: user1 created
-sched: started
-user0: yield
-user1: yield
-user0: exit(0)
-user1: fault(load page fault)
-sched: idle
-TEST:M2:PASS
-```
+A test run for a single category fails if any expected marker is absent or if
+the build produces any warning or error.
 
 ## CI integration
 
-Smoke tests run automatically in `.github/workflows/ci.yml` on every push
-to `main` and all `dev/**` branches.
+All jobs run automatically in `.github/workflows/ci.yml` on every push to
+`main` and on pull requests.  Jobs:
+
+- `ci-format` — `cargo fmt --check`
+- `ci-check` — host-buildable crates (format, cap, ipc, syscall, tools, ...)
+- `ci-cross-check` — RISC-V cross-build check (kernel + service binaries)
+- `ci-test-host` — host unit tests (14 policy + 16 cap + 10 ipc)
+- `ci-docs` — `mdbook build`
+- `ci-qemu-smoke` — all 8 milestone smoke tests in parallel
+- `ci-qemu-negative` — all 9 negative-test categories in parallel

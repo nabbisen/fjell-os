@@ -1,6 +1,6 @@
 # ADR 0009: A/B boot-control and health-based confirmation model
 
-**Status:** Accepted  
+**Status:** Superseded — see [ADR-0009 A/B Boot Control with Health Confirmation](./0009-ab-boot-control-health-confirmation.md) (RFC 045 rename)  
 **Date:** 2026-05-12  
 **Milestone:** M6/M7
 

@@ -1,6 +1,6 @@
 # ADR 0007: Persistent append-only store and recovery model
 
-**Status:** Accepted  
+**Status:** Superseded — see [ADR-0007 Append-Only State Store](./0007-append-only-state-store.md) (RFC 045 rename)  
 **Date:** 2026-05-12  
 **Milestone:** M6
 

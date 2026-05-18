@@ -1,12 +1,13 @@
-# GitHub Actions CI for Fjell OS — five jobs per RFC 025
-# (also known as RFC-v0.1.x-002).
+# GitHub Actions CI for Fjell OS.
 #
 # Job topology:
 #   ci-format          — cargo fmt --check
-#   ci-check           — cargo check --workspace --exclude fjell-kernel
-#   ci-test-host       — host unit tests on format / api / tools crates
-#   ci-qemu-smoke      — qemu-test m1..m8 with artefact upload
-#   ci-qemu-negative   — qemu-negative <cat> per category with artefacts
+#   ci-check           — cargo check (host-buildable crates)
+#   ci-cross-check     — cargo check (RISC-V service + kernel crates)
+#   ci-test-host       — host unit tests
+#   ci-docs            — mdbook build
+#   ci-qemu-smoke      — qemu-test m1..m8
+#   ci-qemu-negative   — qemu-negative <cat> per category
 
 name: ci
 
@@ -51,14 +52,21 @@ jobs:
           ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: cargo check (host-buildable subset)
-        # fjell-kernel and the service binaries pin a bare-metal target
-        # (`riscv64gc-unknown-none-elf`) and use riscv-specific inline
-        # asm; they are exercised by the qemu-smoke job.  This job
-        # covers the host-pure crates only.
+      - name: cargo check (host-buildable crates)
+        # Covers format/api/tools crates plus the enforcement and syscall
+        # libraries added in v0.2.  The RISC-V kernel and service binaries
+        # are covered by ci-cross-check.
         run: |
           cargo check \
               -p fjell-tools \
+              -p fjell-cap \
+              -p fjell-ipc \
+              -p fjell-syscall \
+              -p fjell-service-api \
+              -p fjell-cap-broker \
+              -p fjell-neg-test \
+              -p fjell-service-manager \
+              -p fjell-bootctl \
               -p fjell-attestation-format \
               -p fjell-audit-format \
               -p fjell-block-format \
@@ -68,11 +76,41 @@ jobs:
               -p fjell-recovery-format \
               -p fjell-rootfs-format \
               -p fjell-semantic-format \
-              -p fjell-service-api \
               -p fjell-snapshot-format \
               -p fjell-store-format \
               -p fjell-upgrade-format \
               -p fjell-verify-format
+
+  ci-cross-check:
+    name: cross-check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91 + rust-src + LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src llvm
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo check (riscv64gc-unknown-none-elf)
+        # Type-checks the kernel and all service binaries for the RISC-V
+        # bare-metal target.  This catches register-constant gaps, wrong
+        # import paths, and asm errors that the host ci-check cannot see.
+        # Requires rust-src for -Z build-std.
+        run: |
+          cargo check \
+              --target riscv64gc-unknown-none-elf \
+              -Z build-std=core,compiler_builtins \
+              -p fjell-kernel \
+              -p fjell-init \
+              -p fjell-auditd \
+              -p fjell-cap-broker \
+              -p fjell-neg-test \
+              -p fjell-bootctl \
+              -p fjell-service-manager \
+              -p fjell-sample-service
 
   ci-test-host:
     name: test-host
@@ -88,11 +126,13 @@ jobs:
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: cargo test (host-pure crates)
-        # The format and api crates compile for the host; their unit
-        # tests are the primary host-side coverage at v0.1.x.
+        # Includes fjell-cap (16 enforcement tests) and fjell-ipc (10 endpoint
+        # tests) added in v0.2, in addition to the format/api/tools crates.
         run: |
           cargo test --lib --bins \
               -p fjell-tools \
+              -p fjell-cap \
+              -p fjell-ipc \
               -p fjell-attestation-format \
               -p fjell-audit-format \
               -p fjell-block-format \
@@ -107,6 +147,18 @@ jobs:
               -p fjell-store-format \
               -p fjell-upgrade-format \
               -p fjell-verify-format
+
+  ci-docs:
+    name: docs
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install mdBook
+        run: |
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C /usr/local/bin
+      - name: mdbook build
+        run: cd docs && mdbook build
 
   ci-qemu-smoke:
     name: qemu-smoke
@@ -144,9 +196,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Fixed in v0.2.9 (RB-13): full v0.2 negative-test matrix.
-        # v0.2.8 omitted user-copy, audit, policy, svc — gaps the reviewer flagged.
-        category: [capability, ipc, mmio, dma, user-copy, audit, policy, svc]
+        # v0.2.23: full matrix including harness (RFC 050) added at v0.2.12.
+        category: [capability, ipc, mmio, dma, user-copy, audit, policy, svc, harness]
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust 1.91 + QEMU + LLVM

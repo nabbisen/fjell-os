@@ -1,6 +1,6 @@
 # ADR 0006: User-space driver model and MMIO/DMA capability boundary
 
-**Status:** Accepted  
+**Status:** Superseded — see [ADR-0006 User-Space Driver Model](./0006-user-space-driver-model.md) (RFC 045 rename)  
 **Date:** 2026-05-12  
 **Milestone:** M6
 
