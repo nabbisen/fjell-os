@@ -22,6 +22,8 @@ pub mod tests {
     const SVC_MANAGER:    u16 = 4;
     const SEMANTIC_STREAM:u16 = 6;
     const PROXY_TEXT:     u16 = 7;
+    /// RFC 042: neg-test service (ImageId 20).
+    const NEG_TEST:       u16 = 20;
     const DEVMGR:         u16 = 8;
     const VIRTIO_DRIVER:  u16 = 9;
     const STORAGED:       u16 = 10;
@@ -204,6 +206,13 @@ pub mod tests {
         assert_eq!(evaluate(PROXY_TEXT, RC_TASK_CONTROL, TASK_MGMT), Verdict::Denied);
     }
 
+
+    #[test]
+    fn deny_priority_wins_over_allow() {
+        // NEG_TEST has both a deny and an allow rule for Config.
+        // Deny must win (BROKER-002).
+        assert_eq!(evaluate(NEG_TEST, RC_CONFIG, EP_RW), Verdict::Denied);
+    }
     #[test]
     fn partial_rights_request() {
         // storaged requests only DMA_ALLOC — DMA_REVOKE must not be granted.

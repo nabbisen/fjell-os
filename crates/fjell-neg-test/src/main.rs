@@ -27,7 +27,9 @@ use fjell_syscall::{
     sys_mmio_map, sys_dma_alloc, sys_dma_revoke,
     sys_audit_drain_raw, sys_ipc_call_words,
     sys_cap_copy, sys_cap_mint, sys_cap_bind_lease,
+    sys_cap_drop as _sys_cap_drop,
     sys_lease_create, sys_lease_revoke, sys_ipc_recv,
+    sys_audit_drain,
 };
 use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
@@ -40,6 +42,7 @@ const SLOT_DMA:        u32 = 2;   // DmaRegion cap
 const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 #[allow(dead_code)]
 const SLOT_LEASE_ADMIN:u32 = 4;   // LeaseAdmin cap
+const SLOT_SCRATCH_C:  u32 = 8;   // scratch slot for audit overflow loop
 // Scratch slots used by lease-revoked and rights-denied tests
 const SLOT_SCRATCH_A:  u32 = 6;   // copy of OWN_EP with lease bound
 const SLOT_SCRATCH_B:  u32 = 7;   // minted cap with narrowed rights
@@ -213,6 +216,50 @@ fn test_policy_bootstrap_guard() {
     }
 }
 
+
+/// POLICY: deny takes precedence over allow for same requester + resource.
+///
+/// NEG_TEST (ImageId 20) has both a Deny and an Allow rule for Config.
+/// Phase 1 (deny scan) fires first → returns CAP_DENIED → BROKER-002.
+fn test_policy_deny_priority() {
+    // Resource class 6 = Config.
+    match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        20,   // w0 = requester (NEG_TEST — has deny AND allow for Config)
+        6,    // w1 = resource: Config
+        0xFF, // w2 = requested rights
+    ) {
+        Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
+            check(true, M::POLICY_DENY_PRIORITY);
+        }
+        _ => {}
+    }
+}
+
+/// AUDIT: overflow the 256-entry audit ring, drain, check dropped count.
+///
+/// Strategy: drain current backlog, then do 300 cap_copy+cap_drop cycles
+/// (600 events > 256 ring capacity → guaranteed overflow).  A positive
+/// dropped count confirms RFC 041 gap detection infrastructure works.
+fn test_audit_evidence_gap() {
+    // 1. Drain current backlog so we start from a known state.
+    let mut buf = [0u8; 32 * 32];   // space for 32 records
+    let _ = sys_audit_drain(&mut buf, SLOT_AUDIT);
+
+    // 2. Generate 300 cap_copy + cap_drop cycles = 600 audit events.
+    for _ in 0..300u32 {
+        if let Ok(h) = sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_C) {
+            let _ = _sys_cap_drop(h);
+        }
+    }
+
+    // 3. Drain again — dropped count should be positive.
+    let (_, dropped) = sys_audit_drain(&mut buf, SLOT_AUDIT)
+        .unwrap_or((0, 0));
+    check(dropped > 0, M::AUDIT_EVIDENCE_GAP);
+}
+
 // ── Service entry point ───────────────────────────────────────────────────────
 
 #[unsafe(no_mangle)]
@@ -246,6 +293,10 @@ pub extern "C" fn service_main() -> ! {
     sys_yield(); sys_yield(); sys_yield();
     test_policy_default_deny();
     test_policy_bootstrap_guard();
+    test_policy_deny_priority();
+
+    // ── Audit evidence gap (RFC 041) ─────────────────────────────────────────
+    test_audit_evidence_gap();
 
     sys_debug_writeln("neg-test: all scenarios complete");
     sys_exit(0)

@@ -1,7 +1,9 @@
-# RFC 041 (v0.2): audit evidence.
-# Markers deferred until auditd→storaged pipeline is wired.
+# RFC 041 (v0.2): audit evidence gap detection.
+# NEG_TEST overflows the 256-entry audit ring then checks the dropped count.
 
 name             = "audit"
-timeout_secs     = 60
-expected_markers = []
+timeout_secs     = 90
+expected_markers = [
+  "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS",
+]
 extra_args       = []

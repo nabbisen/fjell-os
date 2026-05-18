@@ -3,6 +3,45 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.4] - 2026-05-18
+
+### RFC 042 Phase 4 — Policy Deny-Priority and Audit Evidence Gap
+
+### Added
+
+- **`fjell-cap-broker`**: `NEG_TEST = 20` image-id constant.  Two new policy rules:
+  - `Deny(NEG_TEST, Config)` — explicit deny for the neg-test service.
+  - `Allow(NEG_TEST, Config, EP_RW)` — explicit allow for the same pair.
+  - Evaluation: phase 1 deny fires before phase 2 allow → `CAP_DENIED` →
+    demonstrates BROKER-002 (deny priority) to the neg-test service.
+- **`fjell-neg-test`**: two new test functions:
+  - `test_policy_deny_priority()` — sends `CAP_REQUEST(NEG_TEST, Config)` →
+    deny rule wins → `CAP_DENIED` → `NEG:POLICY:DENY_PRIORITY:PASS`.
+  - `test_audit_evidence_gap()` — drains the audit ring, runs 300
+    `cap_copy + cap_drop` cycles (600 events > 256 ring capacity), drains
+    again, checks `n_dropped > 0` → `NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS`.
+- **`fjell-tools/src/policy_eval.rs`**: `NEG_TEST` constant + 14th test
+  `deny_priority_wins_over_allow`.
+
+### Changed
+
+- `tests/qemu/profiles/policy.toml`: 3 markers now expected.
+- `tests/qemu/profiles/audit.toml`: `NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS` expected.
+- Workspace version bumped to `0.2.4`.
+
+### Marker count: 14/21 live
+
+| Category | Live | Remaining |
+|----------|------|-----------|
+| capability | 4/4 ✓ | — |
+| mmio | 2/3 | RAM_GUARD (untriggerable with current regions) |
+| dma | 2/3 | ZEROIZE_ON_EXIT (needs multi-task) |
+| user-copy | 2/2 ✓ | — |
+| policy | 3/3 ✓ | — |
+| audit | 1/1 ✓ | — |
+| ipc | 0/3 | all need multi-task + lease-bound caps |
+| svc | 0/2 | needs service extraction (RFC 038 backlog) |
+
 ## [0.2.3] - 2026-05-18
 
 ### RFC 042 Phase 3 — Capability Lifecycle Negative Tests

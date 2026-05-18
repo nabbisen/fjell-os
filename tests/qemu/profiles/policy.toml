@@ -1,11 +1,11 @@
-# RFC 040 (v0.2): cap-broker Bootstrap/Enforcing + default-deny policy.
-# NEG_TEST sends CAP_REQUEST as ImageId 20 (not in policy) → CAP_DENIED.
-# NEG_TEST sends BOOTSTRAP_COMPLETE when broker is already Enforcing → rejected.
+# RFC 040 (v0.2): cap-broker policy enforcement.
+# Three markers: default deny, bootstrap guard, deny takes priority over allow.
 
 name             = "policy"
 timeout_secs     = 90
 expected_markers = [
   "NEG:POLICY:DEFAULT_DENY:PASS",
   "NEG:POLICY:BOOTSTRAP_GUARD:PASS",
+  "NEG:POLICY:DENY_PRIORITY:PASS",
 ]
 extra_args       = []

@@ -150,6 +150,8 @@ const UPGRADED:       u16 = 12;
 const VERIFYD:        u16 = 14;
 const SEMANTIC_STREAM:u16 = 6;
 const PROXY_TEXT:     u16 = 7;
+/// RFC 042: dedicated negative-test service (ImageId 20).
+const NEG_TEST:       u16 = 20;
 
 // ── Policy table ─────────────────────────────────────────────────────────────
 //
@@ -169,6 +171,16 @@ const POLICY: &[PolicyRule] = &[
                                                 | RIGHT_LEASE_REVOKE },
     PolicyRule { requester: INIT, resource: ResourceClass::Endpoint as u16,
                  kind: PolicyKind::Allow, rights: EP_RW | RIGHT_MINT },
+
+    // ── RFC 042: neg-test policy rules (demonstrate DENY_PRIORITY) ────────────
+    // NEG_TEST is denied from Config — explicit deny takes precedence even when
+    // an allow rule for the same requester+resource exists (BROKER-002).
+    PolicyRule { requester: NEG_TEST, resource: ResourceClass::Config as u16,
+                 kind: PolicyKind::Deny, rights: 0 },
+    // This allow would grant Config access to NEG_TEST, but the deny above
+    // is evaluated first (phase 1 > phase 2), so it never fires.
+    PolicyRule { requester: NEG_TEST, resource: ResourceClass::Config as u16,
+                 kind: PolicyKind::Allow, rights: EP_RW },
 
     // service-manager: task lifecycle + endpoint management.
     PolicyRule { requester: SVC_MANAGER, resource: ResourceClass::TaskControl as u16,
