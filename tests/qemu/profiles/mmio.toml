@@ -1,10 +1,11 @@
-# RFC 035 (v0.2): MmioRegion bounds check + rights check.
-# NEG_TEST service emits both markers.
+# RFC 035 + RFC 005 (v0.2): MmioRegion capability enforcement.
+# Three markers: wrong cap kind, bounds check, RAM-guard check.
 
 name             = "mmio"
 timeout_secs     = 60
 expected_markers = [
   "NEG:MMIO:RIGHTS_CHECK:PASS",
   "NEG:MMIO:BOUNDS_REJECTED:PASS",
+  "NEG:MMIO:RAM_GUARD_REJECTS:PASS",
 ]
 extra_args       = []

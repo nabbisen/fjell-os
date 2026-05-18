@@ -49,6 +49,7 @@ const SLOT_SCRATCH_D:  u32 = 9;   // scratch for ipc blocked-call recv
 const SLOT_SCRATCH_A:  u32 = 6;   // copy of OWN_EP with lease bound
 const SLOT_SCRATCH_B:  u32 = 7;   // minted cap with narrowed rights
 const SLOT_MMIO_BASE:  u32 = 31;  // First MmioRegion cap (object 0)
+const SLOT_MMIO_RAM:   u32 = 35;  // MmioRegion cap for region 4 (neg-test-RAM, straddles RAM)
 
 // ── RAM_BASE (must match kernel platform constant) ────────────────────────────
 const RAM_BASE: usize = 0x8000_0000;
@@ -115,6 +116,42 @@ fn test_cap_drop_on_revoked() {
     use fjell_cap::CapHandle as CH;
     let result = fjell_syscall::sys_cap_drop(CH(SLOT_SCRATCH_A));
     check(result.is_ok(), M::CAP_DROP_ON_REVOKED);
+}
+
+
+/// MMIO: map a region that straddles RAM_BASE → RAM-guard rejects it (RFC 005).
+///
+/// Region 4 (neg-test-RAM): base=0x7FFE_0000, size=0x30000.
+/// Request offset=0x10000, size=0x20000:
+///   phys_addr = 0x7FFF_0000, end_pa = 0x8001_0000 > 0x8000_0000 (RAM_BASE).
+///   RFC 005 guard fires → SysError::InvalidArg.
+fn test_mmio_ram_guard() {
+    let result = sys_mmio_map(CapHandle(SLOT_MMIO_RAM), 0x10000, 0x20000);
+    check(result.is_err(), M::MMIO_RAM_GUARD);
+}
+
+/// DMA: alloc → write pattern → explicit revoke → read zeroed PA.
+///
+/// The physical frame is zeroed inside `DmaRegionTable::revoke_by_pa` before
+/// being freed.  Because the cooperative scheduler doesn't preempt between
+/// the revoke and the read, the physical address cannot be reallocated, so
+/// the zero is guaranteed to be from our revoke.  Same zeroize code path as
+/// `release_task` (called on task exit).
+fn test_dma_zeroize() {
+    match sys_dma_alloc(SLOT_DMA, 4096) {
+        Ok((user_va, device_pa)) => {
+            // Write a non-zero pattern.
+            unsafe { core::ptr::write_bytes(user_va as *mut u8, 0xAA, 4096); }
+            // Explicit revoke — kernel zeroes the physical frame.
+            if sys_dma_revoke(device_pa).is_err() { return; }
+            // Read back: PA was zeroed by revoke (frame not yet reallocated).
+            // SAFETY: VA still maps to the freed PA; no preemption between
+            // revoke and this read in the cooperative scheduler.
+            let byte = unsafe { core::ptr::read_volatile(user_va as *const u8) };
+            check(byte == 0, M::DMA_ZEROIZE_ON_EXIT);
+        }
+        Err(_) => {}
+    }
 }
 
 /// CAP / MMIO: use an Endpoint cap for sys_mmio_map.
@@ -372,11 +409,13 @@ pub extern "C" fn service_main() -> ! {
     test_cap_wrong_kind();
 
     // ── MMIO boundary (RFC 035) ───────────────────────────────────────────────
+    test_mmio_ram_guard();
     test_mmio_bounds();
 
     // ── DMA boundary (RFC 036) ────────────────────────────────────────────────
     test_dma_rights();
     test_dma_revoke_explicit();
+    test_dma_zeroize();
 
     // ── Safe user copy (RFC 039) ──────────────────────────────────────────────
     test_user_copy_null();

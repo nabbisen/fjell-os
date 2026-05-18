@@ -84,6 +84,7 @@ impl MmioRegionObject {
 ///
 /// The interim design (RFC 035 §"Static region table") hard-codes the QEMU
 /// `virt` device layout.  DTB-driven discovery is deferred to v0.3.
+/// RFC 042: region 4 straddles RAM_BASE for the RAM-guard negative test.
 pub fn mmio_region_table() -> [MmioRegionObject; MMIO_REGION_COUNT] {
     let make = |id: u32, base: usize, size: usize, desc: &[u8]| {
         let mut d = [0u8; 16];
@@ -99,10 +100,13 @@ pub fn mmio_region_table() -> [MmioRegionObject; MMIO_REGION_COUNT] {
         make(1, 0x1000_0000, 0x0000_1000, b"UART0"),
         make(2, 0x0C00_0000, 0x0400_0000, b"PLIC"),
         make(3, 0x1000_1000, 0x0000_F000, b"virtio-mmio"),
+        // RFC 042: synthetic region straddling RAM_BASE (base=0x7FFE_0000, end=0x8001_0000).
+        // Mapping offset=0x10000 size=0x20000 crosses RAM_BASE → RAM-guard fires.
+        make(4, 0x7FFE_0000, 0x0003_0000, b"neg-test-RAM"),
     ]
 }
 
 /// Number of MMIO region entries in the static table.
-pub const MMIO_REGION_COUNT: usize = 4;
+pub const MMIO_REGION_COUNT: usize = 5;
 /// MMIO region index for the virtio-mmio block device region.
 pub const MMIO_REGION_VIRTIO: u32 = 3;

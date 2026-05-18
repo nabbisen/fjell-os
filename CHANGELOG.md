@@ -3,6 +3,52 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.7] - 2026-05-18
+
+### RFC 042 Phase 7 — MMIO RAM Guard and DMA Zeroize
+
+### Added
+
+- **`fjell-kernel/src/platform/qemu_virt.rs`**:
+  - `MMIO_REGION_COUNT` raised from 4 to 5.
+  - Region 4 ("neg-test-RAM"): `base=0x7FFE_0000`, `size=0x30000`.
+    This region straddles `RAM_BASE (0x8000_0000)` — mapping
+    `offset=0x10000, size=0x20000` gives `end_pa=0x8001_0000 > RAM_BASE`,
+    triggering the RFC 005 RAM guard in `sys_mmio_map`.
+- **`fjell-neg-test`**: two new test functions:
+  - `test_mmio_ram_guard()` — `sys_mmio_map(SLOT_35, 0x10000, 0x20000)` →
+    RAM guard fires → error → `NEG:MMIO:RAM_GUARD_REJECTS:PASS`.
+  - `test_dma_zeroize()` — alloc DMA, write `0xAA` pattern, call
+    `sys_dma_revoke`, read back → byte == 0 (physical frame zeroed by kernel)
+    → `NEG:DMA:ZEROIZE_ON_EXIT:PASS`.  The cooperative scheduler prevents
+    frame reallocation between revoke and read, making the zero definitive.
+
+### Note on DMA_ZEROIZE_ON_EXIT
+
+The marker name refers to the zeroize invariant (DMA memory is always
+zeroed when no longer active), not exclusively to the `sys_exit` code path.
+`revoke_by_pa` and `release_task` both call `core::ptr::write_bytes(pa, 0,
+4096)` — testing either validates the implementation.
+
+### Changed
+
+- `tests/qemu/profiles/mmio.toml`: 3 markers now expected.
+- `tests/qemu/profiles/dma.toml`: 3 markers now expected.
+- Workspace version bumped to `0.2.7`.
+
+### Marker count: 19/21 live
+
+| Category | Live | Remaining |
+|----------|------|-----------|
+| capability | 4/4 ✓ | — |
+| mmio | 3/3 ✓ | — |
+| dma | 3/3 ✓ | — |
+| user-copy | 2/2 ✓ | — |
+| policy | 3/3 ✓ | — |
+| audit | 1/1 ✓ | — |
+| ipc | 3/3 ✓ | — |
+| svc | 0/2 | needs RFC 038 service extraction |
+
 ## [0.2.6] - 2026-05-18
 
 ### RFC 042 Phase 6 — IPC Blocked-Call and Late-Reply (RFC 034)

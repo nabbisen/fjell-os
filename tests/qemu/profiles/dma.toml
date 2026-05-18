@@ -1,10 +1,11 @@
-# RFC 036 (v0.2): DMA rights check + explicit revoke.
-# NEG_TEST service emits both markers.
+# RFC 036 (v0.2): DmaRegion state machine + zeroize invariant.
+# Three markers: rights check, explicit revoke, zeroize verification.
 
 name             = "dma"
 timeout_secs     = 60
 expected_markers = [
   "NEG:DMA:RIGHTS_CHECK:PASS",
   "NEG:DMA:REVOKE_EXPLICIT:PASS",
+  "NEG:DMA:ZEROIZE_ON_EXIT:PASS",
 ]
 extra_args       = []
