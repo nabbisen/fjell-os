@@ -195,6 +195,11 @@ pub struct StateNode {
 pub enum StateKind {
     SystemOverview, ServiceGraph, ServiceStatus, ConfigStatus,
     AuditSummary, CapabilitySummary, LeaseSummary, PowerSummary,
+    // v0.2.0 RFC 041 — persistent evidence hardening
+    /// Evidence matrix showing per-event audit coverage.
+    EvidenceMatrix,
+    /// Audit-trail health: last seq, dropped count, persistence lag.
+    SecurityAuditState,
     // M8
     MeasurementStatus, AttestationStatus, BundleFreshnessStatus, RecoveryStatus,
 }
@@ -235,6 +240,14 @@ pub enum EventKind {
     CapabilityGranted, CapabilityDenied, LeaseRevoked,
     AuditExported, ActionAccepted, ActionDenied,
     ActionCompleted, ActionFailed,
+    // v0.2.0 RFC 041 — persistent evidence hardening
+    /// DMA region quarantine timeout expired (zeroize forced).
+    DmaQuarantineTimeout,
+    /// System rollback was initiated (pre or post upgrade).
+    RollbackInitiated,
+    /// A security boundary was crossed in violation of policy
+    /// (e.g., capability denied in Enforcing state, unauthorized MMIO request).
+    SecurityBoundaryViolation,
     // M8
     MeasurementAppended, AttestationGenerated,
     BundleFreshnessValid, BundleFreshnessRejected,
@@ -356,6 +369,89 @@ impl StreamFilter {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExportFormat { PlainText, JsonLines, TomlSummary }
+
+// ── RFC 041: evidence matrix ─────────────────────────────────────────────────
+
+/// Maximum number of rows in a `EvidenceMatrix` state node.
+pub const MAX_EVIDENCE_ROWS: usize = 16;
+
+/// One row in the evidence matrix (RFC 041 §"Evidence matrix").
+///
+/// Maps a security event kind to its audit coverage status.
+#[derive(Clone, Copy, Debug)]
+pub struct EvidenceRow {
+    /// Human-readable event label (e.g., "cap.denied", "lease.revoked").
+    pub event_label:   BoundedText,
+    /// Numeric audit kind discriminant (`AuditKind as u16`).
+    pub audit_kind:    u16,
+    /// Total occurrences recorded since boot.
+    pub count:         u64,
+    /// Whether at least one occurrence was confirmed persisted to storage.
+    pub persisted:     bool,
+    /// Times this event was dropped before it could be drained.
+    pub dropped:       u32,
+}
+
+impl EvidenceRow {
+    pub fn new(event_label: &str, audit_kind: u16) -> Self {
+        EvidenceRow {
+            event_label: BoundedText::from_str(event_label),
+            audit_kind,
+            count: 0,
+            persisted: false,
+            dropped: 0,
+        }
+    }
+
+    /// Return `true` if there are gaps in evidence for this event type.
+    pub fn has_gaps(&self) -> bool { self.dropped > 0 }
+}
+
+// ── RFC 041: security audit state node ────────────────────────────────────────
+
+/// Build a `StateNode` reporting the current audit-trail health
+/// (RFC 041 §"SecurityAuditState").
+pub fn security_audit_state_node(
+    audit_last_seq:      u64,
+    audit_dropped_count: u64,
+    pending_drain:       u64,
+) -> StateNode {
+    let status = if audit_dropped_count > 0 {
+        Status::Warning
+    } else {
+        Status::Ok
+    };
+
+    let mut facts = FixedVec::new();
+
+    facts.push(StateFact {
+        key: TextToken::new("audit_last_seq"),
+        value: FactValue::U64(audit_last_seq),
+        importance: Importance::High,
+    });
+    facts.push(StateFact {
+        key: TextToken::new("dropped_count"),
+        value: FactValue::U64(audit_dropped_count),
+        importance: if audit_dropped_count > 0 { Importance::High } else { Importance::Normal },
+    });
+    facts.push(StateFact {
+        key: TextToken::new("pending_drain"),
+        value: FactValue::U64(pending_drain),
+        importance: Importance::Normal,
+    });
+
+    StateNode {
+        kind:    StateKind::SecurityAuditState,
+        title:   TextToken::new("Audit Trail Health"),
+        summary: TextToken::new(if audit_dropped_count > 0 {
+            "Evidence gaps detected"
+        } else {
+            "Audit trail continuous"
+        }),
+        status,
+        facts,
+    }
+}
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 #[cfg(test)]

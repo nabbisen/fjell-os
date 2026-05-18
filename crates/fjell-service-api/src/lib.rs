@@ -226,3 +226,79 @@ impl ServiceManifestEntry {
         }
     }
 }
+
+// ── RFC 042 (v0.2.0): Negative-test marker constants ─────────────────────────
+//
+// Each constant is the exact string the relevant service or kernel prints to
+// the QEMU serial log when a negative-test scenario is confirmed to behave
+// correctly.  The `qemu-log-check` tool verifies these at CI time.
+//
+// Format: `NEG:<CATEGORY>:<DESCRIPTION>:PASS`
+//
+// Host tests that exercise the same logic at compile time are noted inline.
+
+pub mod negative_markers {
+    // ── capability enforcement ────────────────────────────────────────────────
+    /// `require_cap` rejects a capability with the wrong kind.
+    pub const CAP_WRONG_KIND: &str         = "NEG:CAP:WRONG_KIND_REJECTED:PASS";
+    /// `require_cap` rejects a capability with insufficient rights.
+    pub const CAP_RIGHTS_DENIED: &str      = "NEG:CAP:RIGHTS_DENIED:PASS";
+    /// A lease-bound capability is rejected after the lease is revoked.
+    pub const CAP_LEASE_REVOKED: &str      = "NEG:CAP:LEASE_REVOKED:PASS";
+    /// `sys_cap_drop` succeeds even on a revoked capability.
+    pub const CAP_DROP_ON_REVOKED: &str    = "NEG:CAP:DROP_ON_REVOKED:PASS";
+
+    // ── blocked IPC revocation (RFC 034) ─────────────────────────────────────
+    /// A task blocked in `ipc_call` is woken with `LeaseRevoked` when its
+    /// endpoint cap's lease is revoked.
+    pub const IPC_BLOCKED_CALL: &str       = "NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS";
+    /// A task blocked in `ipc_recv` is woken with `LeaseRevoked`.
+    pub const IPC_BLOCKED_RECV: &str       = "NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS";
+    /// `ipc_reply` is rejected (silently dropped) when the call's lease
+    /// was revoked while the caller was blocked.
+    pub const IPC_LATE_REPLY: &str         = "NEG:IPC:LATE_REPLY_REJECTED:PASS";
+
+    // ── MMIO boundary (RFC 035) ───────────────────────────────────────────────
+    /// `sys_mmio_map` rejects a cap without `MMIO_MAP` right.
+    pub const MMIO_RIGHTS: &str            = "NEG:MMIO:RIGHTS_CHECK:PASS";
+    /// `sys_mmio_map` rejects an out-of-bounds offset+size.
+    pub const MMIO_BOUNDS: &str            = "NEG:MMIO:BOUNDS_REJECTED:PASS";
+    /// `sys_mmio_map` rejects a request that would map into kernel RAM.
+    pub const MMIO_RAM_GUARD: &str         = "NEG:MMIO:RAM_GUARD_REJECTS:PASS";
+
+    // ── DMA boundary (RFC 036) ────────────────────────────────────────────────
+    /// Physical DMA page is zeroed when the owning task exits.
+    pub const DMA_ZEROIZE_ON_EXIT: &str    = "NEG:DMA:ZEROIZE_ON_EXIT:PASS";
+    /// `sys_dma_revoke` correctly zeroizes and frees the page.
+    pub const DMA_REVOKE_EXPLICIT: &str    = "NEG:DMA:REVOKE_EXPLICIT:PASS";
+    /// `sys_dma_alloc` rejects a cap without `DMA_ALLOC` right.
+    pub const DMA_RIGHTS: &str             = "NEG:DMA:RIGHTS_CHECK:PASS";
+
+    // ── cap-broker policy (RFC 040) ───────────────────────────────────────────
+    /// An unknown service is denied by the default-deny policy.
+    pub const POLICY_DEFAULT_DENY: &str    = "NEG:POLICY:DEFAULT_DENY:PASS";
+    /// `CAP_REQUEST` sent before `BOOTSTRAP_COMPLETE` is rejected.
+    pub const POLICY_BOOTSTRAP_GUARD: &str = "NEG:POLICY:BOOTSTRAP_GUARD:PASS";
+    /// An explicit `Deny` rule takes precedence over an `Allow` rule.
+    pub const POLICY_DENY_PRIORITY: &str   = "NEG:POLICY:DENY_PRIORITY:PASS";
+
+    // ── safe user copy (RFC 039) ──────────────────────────────────────────────
+    /// `copy_to_user` rejects a null destination pointer.
+    pub const USER_COPY_NULL: &str         = "NEG:USER_COPY:NULL_REJECTED:PASS";
+    /// `copy_to_user` rejects a kernel-space destination address.
+    pub const USER_COPY_KERNEL_ADDR: &str  = "NEG:USER_COPY:KERNEL_ADDR_REJECTED:PASS";
+
+    // ── service separation (RFC 038) ──────────────────────────────────────────
+    /// Service-manager detects a service that failed to send READY in time.
+    pub const SVC_START_TIMEOUT: &str      = "NEG:SVC:START_TIMEOUT_DETECTED:PASS";
+    /// Service-manager detects a service fault after READY.
+    pub const SVC_FAULT: &str             = "NEG:SVC:FAULT_DETECTED:PASS";
+
+    // ── audit evidence (RFC 041) ──────────────────────────────────────────────
+    /// Snapshot continuity check reports dropped records correctly.
+    pub const AUDIT_EVIDENCE_GAP: &str     = "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS";
+
+    // ── v0.2 release gate ─────────────────────────────────────────────────────
+    /// All v0.2 negative-test categories have been exercised.
+    pub const V02_RELEASE_GATE: &str       = "TEST:V02:PASS";
+}

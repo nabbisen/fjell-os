@@ -1,8 +1,11 @@
-# Negative-test profile: ipc
-# Placeholder for v0.1.1 (RFC 025 §chicken-and-egg).
-# Real cases land via RFC 026 (v0.1.2) and per-RFC for v0.2.
+# RFC 034 (v0.2): blocked IPC revocation semantics.
+# Host-side equivalents: fjell-ipc tests (10 tests).
 
 name             = "ipc"
-timeout_secs     = 30
-expected_markers = []
+timeout_secs     = 60
+expected_markers = [
+  "NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS",
+  "NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS",
+  "NEG:IPC:LATE_REPLY_REJECTED:PASS",
+]
 extra_args       = []

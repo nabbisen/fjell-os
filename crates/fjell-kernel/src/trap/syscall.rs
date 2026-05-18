@@ -135,10 +135,10 @@ pub(crate) struct Flag(core::cell::Cell<bool>);
 // SAFETY: single-hart, no concurrent access in M2.
 unsafe impl Sync for Flag {}
 impl Flag {
-    const fn new() -> Self { Flag(core::cell::Cell::new(false)) }
-    fn store(&self, v: bool) { self.0.set(v); }
-    fn load(&self) -> bool { self.0.get() }
-    fn take(&self) -> bool { let v = self.0.get(); self.0.set(false); v }
+    pub(crate) const fn new() -> Self { Flag(core::cell::Cell::new(false)) }
+    pub(crate) fn store(&self, v: bool) { self.0.set(v); }
+    pub(crate) fn load(&self) -> bool { self.0.get() }
+    pub(crate) fn take(&self) -> bool { let v = self.0.get(); self.0.set(false); v }
 }
 
 pub(crate) struct I32Cell(core::cell::Cell<i32>);
@@ -279,8 +279,7 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) 
     use fjell_abi::error::SysError;
     use fjell_abi::service::TaskLifecycle;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
-    use fjell_cap::CapRights;
-    // RFC 014: require TaskControl | INSPECT capability.
+    // RFC 031: require TaskControl | TASK_STATUS capability.
     if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, fjell_cap::CapRights::TASK_STATUS) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
@@ -338,8 +337,7 @@ pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable) {
 /// `sys_lease_inspect(a0=lease_id) -> a0=epoch`
 /// Requires `CapKind::LeaseAdmin` with `INSPECT` rights (RFC 014).
 pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable) {
-    use fjell_cap::CapRights;
-    // RFC 014: require LeaseAdmin | INSPECT capability.
+    // RFC 031: require LeaseAdmin | LEASE_INSPECT capability.
     if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_INSPECT) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }

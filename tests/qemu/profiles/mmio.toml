@@ -1,8 +1,10 @@
-# Negative-test profile: mmio
-# Placeholder for v0.1.1 (RFC 025 §chicken-and-egg).
-# Real cases land via RFC 026 (v0.1.2) and per-RFC for v0.2.
+# RFC 035 (v0.2): MmioRegion capability ABI enforcement.
 
 name             = "mmio"
-timeout_secs     = 30
-expected_markers = []
+timeout_secs     = 60
+expected_markers = [
+  "NEG:MMIO:RIGHTS_CHECK:PASS",
+  "NEG:MMIO:BOUNDS_REJECTED:PASS",
+  "NEG:MMIO:RAM_GUARD_REJECTS:PASS",
+]
 extra_args       = []

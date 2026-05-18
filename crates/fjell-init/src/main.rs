@@ -32,7 +32,7 @@ use fjell_service_api::storaged as storaged_proto;
 use fjell_service_api::measuredd as measuredd_proto;
 use fjell_service_api::attestd   as attestd_proto;
 use fjell_service_api::recoveryd as recoveryd_proto;
-use fjell_recovery_format::{BundleMetadataV2, FreshnessStatus};
+use fjell_recovery_format::{BundleMetadataV2};
 use fjell_measure_format::Digest32;
 
 /// IpcCall: send label+words, block until reply; return reply label.

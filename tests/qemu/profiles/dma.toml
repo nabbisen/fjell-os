@@ -1,8 +1,10 @@
-# Negative-test profile: dma
-# Placeholder for v0.1.1 (RFC 025 §chicken-and-egg).
-# Real cases land via RFC 026 (v0.1.2) and per-RFC for v0.2.
+# RFC 036 (v0.2): DmaRegion state machine + zeroize-on-exit.
 
 name             = "dma"
-timeout_secs     = 30
-expected_markers = []
+timeout_secs     = 60
+expected_markers = [
+  "NEG:DMA:ZEROIZE_ON_EXIT:PASS",
+  "NEG:DMA:REVOKE_EXPLICIT:PASS",
+  "NEG:DMA:RIGHTS_CHECK:PASS",
+]
 extra_args       = []

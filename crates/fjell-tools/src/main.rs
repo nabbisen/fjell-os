@@ -20,6 +20,7 @@ mod qemu_log_check;
 mod qemu_run;
 mod smoke;
 mod negative;
+mod policy_eval; // RFC 040 cap-broker policy unit tests
 
 use std::process::ExitCode;
 

@@ -180,3 +180,179 @@ impl AuditRecordBin {
     /// Return the `AuditKind` discriminant.
     pub fn kind(self) -> AuditKind { AuditKind::from_u16(self.kind) }
 }
+
+// ── RFC 041: audit persistence pipeline types ─────────────────────────────────
+
+/// Size of one [`AuditPersistRecord`] in bytes (40 bytes).
+///
+/// Extends `AuditRecordBin` (32 bytes) with 8 bytes of task identity.
+pub const AUDIT_PERSIST_RECORD_SIZE: usize = 40;
+
+/// Binary record written to storaged by `auditd` (RFC 041 §"Persistence format").
+///
+/// Layout (C, little-endian):
+/// ```text
+/// offset  size  field
+///  0       8    seq           (u64)
+///  8       8    tick          (u64)
+/// 16       2    kind          (u16)
+/// 18       2    task          (u16, 0xFFFF = no task)
+/// 20       4    arg0          (u32)
+/// 24       4    arg1          (u32)
+/// 28       4    result        (i32)
+/// 32       4    persist_seq   (u32) — write ordinal in storaged log
+/// 36       4    reserved      (u32, must be 0)
+/// ```
+/// Total: 40 bytes.
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct AuditPersistRecord {
+    pub seq:          u64,
+    pub tick:         u64,
+    pub kind:         u16,
+    pub task:         u16,
+    pub arg0:         u32,
+    pub arg1:         u32,
+    pub result:       i32,
+    /// Ordinal of this write in the storaged audit log segment.
+    pub persist_seq:  u32,
+    pub _reserved:    u32,
+}
+
+const _: () = assert!(
+    core::mem::size_of::<AuditPersistRecord>() == AUDIT_PERSIST_RECORD_SIZE
+);
+
+impl AuditPersistRecord {
+    /// Build from an `AuditRecordBin` and a storaged write ordinal.
+    pub fn from_bin(bin: &AuditRecordBin, persist_seq: u32) -> Self {
+        AuditPersistRecord {
+            seq:         bin.seq,
+            tick:        bin.tick,
+            kind:        bin.kind,
+            task:        bin.task,
+            arg0:        bin.arg0,
+            arg1:        bin.arg1,
+            result:      bin.result,
+            persist_seq,
+            _reserved:   0,
+        }
+    }
+
+    /// Extract the base `AuditRecordBin`.
+    pub fn to_bin(&self) -> AuditRecordBin {
+        AuditRecordBin {
+            seq:    self.seq,
+            tick:   self.tick,
+            kind:   self.kind,
+            task:   self.task,
+            arg0:   self.arg0,
+            arg1:   self.arg1,
+            result: self.result,
+        }
+    }
+
+    /// Return the `AuditKind` discriminant.
+    pub fn kind(&self) -> AuditKind { AuditKind::from_u16(self.kind) }
+}
+
+/// Magic bytes for an on-disk audit log segment header (RFC 041 §"Segment header").
+pub const AUDIT_LOG_MAGIC: [u8; 8] = *b"FJLAUDIT";
+
+/// Schema version for the v0.2 audit log format.
+pub const AUDIT_LOG_SCHEMA_V2: u16 = 2;
+
+/// Header written at the start of each storaged audit log segment.
+///
+/// Size: 32 bytes (matches `AUDIT_RECORD_BIN_SIZE` for alignment).
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct AuditLogHeader {
+    /// Magic identifier `FJLAUDIT`.
+    pub magic:           [u8; 8],   // offset 0
+    /// Sequence number of the first record in this segment.
+    pub first_seq:       u64,       // offset 8
+    /// Total records dropped (global, from `sys_audit_drain.a2`) at segment open.
+    pub dropped_at_open: u64,       // offset 16
+    /// Schema version (`AUDIT_LOG_SCHEMA_V2 = 2`).
+    pub schema_version:  u16,       // offset 24
+    /// Flags (reserved, must be 0).
+    pub flags:           u16,       // offset 26
+    /// Reserved (padding to 32 bytes).
+    pub _reserved:       u32,       // offset 28
+    // Total: 32 bytes
+}
+
+const _: () = assert!(
+    core::mem::size_of::<AuditLogHeader>() == AUDIT_RECORD_BIN_SIZE
+);
+
+impl AuditLogHeader {
+    pub fn new(first_seq: u64, dropped_at_open: u64) -> Self {
+        AuditLogHeader {
+            magic: AUDIT_LOG_MAGIC,
+            first_seq,
+            dropped_at_open,
+            schema_version: AUDIT_LOG_SCHEMA_V2,
+            flags: 0,
+            _reserved: 0,
+        }
+    }
+    pub fn is_valid(&self) -> bool {
+        self.magic == AUDIT_LOG_MAGIC
+            && self.schema_version == AUDIT_LOG_SCHEMA_V2
+            && self.flags == 0
+    }
+}
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn persist_record_roundtrip() {
+        let bin = AuditRecordBin {
+            seq: 42, tick: 100, kind: 15 /* CapDrop */,
+            task: 3, arg0: 1, arg1: 0, result: 0,
+        };
+        let persist = AuditPersistRecord::from_bin(&bin, 7);
+        assert_eq!(persist.persist_seq, 7);
+        assert_eq!(persist.kind(), AuditKind::CapDrop);
+        let back = persist.to_bin();
+        assert_eq!(back.seq, 42);
+        assert_eq!(back.kind, 15);
+    }
+
+    #[test]
+    fn audit_log_header_validity() {
+        let h = AuditLogHeader::new(0, 0);
+        assert!(h.is_valid());
+        let bad_magic = AuditLogHeader { magic: *b"BADBADBA", ..h };
+        assert!(!bad_magic.is_valid());
+    }
+
+    #[test]
+    fn audit_kind_v2_labels() {
+        assert_eq!(AuditKind::CapDrop.label(), "cap.drop");
+        assert_eq!(AuditKind::LeaseRevoked.label(), "lease.revoked");
+        assert_eq!(AuditKind::TaskQuantumExceeded.label(), "task.quantum_exceeded");
+    }
+
+    #[test]
+    fn persist_record_size_check() {
+        assert_eq!(
+            core::mem::size_of::<AuditPersistRecord>(),
+            AUDIT_PERSIST_RECORD_SIZE
+        );
+    }
+
+    #[test]
+    fn audit_log_header_size_check() {
+        assert_eq!(
+            core::mem::size_of::<AuditLogHeader>(),
+            AUDIT_RECORD_BIN_SIZE
+        );
+    }
+}

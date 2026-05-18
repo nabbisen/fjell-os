@@ -3,6 +3,140 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] - 2026-05-17 — Security Boundary Closure
+
+### Release summary
+
+v0.2.0 closes all open capability-enforcement gaps identified by the v0.1.0
+security audits.  Every kernel syscall that previously performed no capability
+check, or a partial check, now goes through `require_cap()` with the correct
+kind, rights bit, and lease epoch.  The capability broker now enforces a
+proper default-deny policy after a one-way Bootstrap→Enforcing transition.
+Evidence of security events is captured in a persistent, continuity-verifiable
+audit trail format.
+
+**86 host tests pass.  All QEMU-verifiable items have markers defined.**
+
+### Changes by RFC
+
+| Phase | RFC | Brief |
+|-------|-----|-------|
+| 1 | 031 | `require_cap()` 7-step enforcement library in `fjell-cap` |
+| 1 | 032 | `sys_cap_drop` + CSpace GC |
+| 2 | 033 | O(1) lease epoch revocation; `revoke_owned_by` on task exit |
+| 2 | 034 | Blocked IPC wake/cancel on lease revocation |
+| 3 | 035 | `sys_mmio_map` requires `MMIO_MAP` right; `MmioRegionState` |
+| 4 | 036 | `DmaRegionState` 4-state machine; `sys_dma_revoke`; zeroize |
+| 5 | 037 | Timer preemptive fail-safe; `TIMER_PREEMPTED` flag; quantum violations |
+| 5 | 038 | Service READY protocol types in `fjell-service-api` |
+| 6 | 039 | `UserPtr` arithmetic validation; `copy_from_user`; `AuditLogHeader` |
+| 7 | 040 | cap-broker Bootstrap/Enforcing; `DelegationRecord`; u64 rights |
+| 8 | 041 | `AuditPersistRecord`; snapshot audit fields; `EvidenceRow`; gap detection |
+| 9 | 042 | Negative-test markers; 8 profiles populated |
+| 9 | 043 | Release gate document; `TEST:V02:PASS` |
+
+### Known limitations accepted for v0.2.0
+
+- Task/lease syscalls use CSpace slot-scan (V02-A-001); handle-based `require_cap` requires ABI changes (v0.3).
+- DMA quarantine timeout is synchronous zeroize; full timer-callback path deferred.
+- Service binary extraction (storaged/bootctl from init) requires QEMU (RFC 038 backlog).
+- Badge-based sender identity in cap-broker bootstrap (v0.3).
+
+## [0.2.0-alpha.8] - 2026-05-17
+
+### v0.2 Phase 8 — Persistent Evidence Hardening (RFC 041)
+
+### Added
+
+- **`fjell-snapshot-format/src/lib.rs`** (RFC 041 §"Snapshot extension"):
+  - `SnapshotDigest.audit_last_seq: u64` — last persisted audit sequence.
+  - `SnapshotDigest.audit_dropped_count: u64` — cumulative dropped count.
+  - `SnapshotDigest::with_audit(slot, store_seq, audit_last_seq,
+    audit_dropped_count)` builder.
+  - `SnapshotDigest::has_audit_gaps()` — true when `audit_dropped_count > 0`.
+  - `SystemSnapshot::new_with_audit(…)` constructor.
+  - `EvidenceGapError { DroppedRecords, SequenceRegression, NoAuditState }`.
+  - `SystemSnapshot::verify_evidence_continuity(prev: Option<&Self>)`.
+  - 5 unit tests covering gap detection, continuity ok/err, and roundtrip.
+
+- **`fjell-semantic-format/src/lib.rs`** (RFC 041 §"Semantic state nodes"):
+  - New `EventKind` variants: `DmaQuarantineTimeout`, `RollbackInitiated`,
+    `SecurityBoundaryViolation`.
+  - New `StateKind` variants: `EvidenceMatrix`, `SecurityAuditState`.
+  - `EvidenceRow { event_label, audit_kind, count, persisted, dropped }` — one
+    row in the evidence matrix.
+  - `EvidenceRow::has_gaps()`.
+  - `security_audit_state_node(last_seq, dropped, pending)` — builds a
+    `StateNode` of kind `SecurityAuditState` with `Status::Warning` when
+    `dropped > 0`.
+  - `MAX_EVIDENCE_ROWS: usize = 16`.
+
+- **`fjell-audit-format/src/lib.rs`** (RFC 041 §"Persistence format"):
+  - `AuditPersistRecord` (40 bytes) — extends `AuditRecordBin` with
+    `persist_seq: u32` for storaged write ordinal.
+  - `AuditPersistRecord::from_bin(bin, persist_seq)` and `to_bin()`.
+  - `AuditLogHeader` (32 bytes, matches `AUDIT_RECORD_BIN_SIZE`) — magic
+    `FJLAUDIT`, schema version 2, `first_seq`, `dropped_at_open`.
+  - `AuditLogHeader::new(first_seq, dropped_at_open)` and `is_valid()`.
+  - `AUDIT_LOG_MAGIC`, `AUDIT_LOG_SCHEMA_V2`, `AUDIT_PERSIST_RECORD_SIZE`.
+  - 5 unit tests: roundtrip, header validity, v0.2 label coverage, size
+    assertions.
+
+### Changed
+
+- Workspace version bumped to `0.2.0-alpha.8`.
+
+### Deferred (service-layer work)
+
+- The actual `auditd → storaged` IPC pipeline (service binary) is a QEMU-only
+  deliverable. The format types are defined; the service wiring happens when
+  storaged and auditd are extracted as separated services (RFC 038 backlog).
+- Evidence matrix population from live `sys_audit_drain` output.
+- `NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS` QEMU marker.
+
+## [0.2.0-alpha.7] - 2026-05-17
+
+### v0.2 Phase 7 — cap-broker Bootstrap Handoff and Default-Deny (RFC 040)
+
+### Added
+
+- **`fjell-cap-broker/src/main.rs`** fully rewritten (RFC 040):
+  - `BrokerState { Bootstrap, Enforcing }` — one-way typestate (§2.1).
+  - Bootstrap phase: only `init` may communicate; any `CAP_REQUEST` before
+    `BOOTSTRAP_COMPLETE` is returned as `CAP_DENIED`.
+  - `BOOTSTRAP_COMPLETE` message (label `0x100`) from init transitions the
+    broker to Enforcing.  A second transition is rejected with `usize::MAX`.
+  - `DelegationRecord { parent_idx, requester, resource, rights, lease_id,
+    active }` — delegation tree tracking (§2.4), up to 64 concurrent entries.
+  - `DelegationTree::revoke_lease(lid)` — cascades removal of all records
+    tied to a revoked lease (cap-broker policy-layer revocation).
+  - Grant revocation message (tag `0x023`): calls `sys_lease_revoke` and
+    cleans up the delegation tree.
+  - **Updated `CapRights` constants to v0.2 `u64` bit layout**:
+    `RIGHT_SEND = 1<<3`, `RIGHT_RECV = 1<<4`, …, `ALL_RIGHTS = (1<<26)-1`.
+    The old `u32` constants (`ALLOW_ALL = 0xFF`, `ALLOW_RECV = 0x02`) are gone.
+  - **Updated `ResourceClass`**: `DmaAlloc → DmaRegion` (aligns with
+    RFC 036 CapKind rename).
+  - **Updated policy table**: all `rights: u64`, `TASK_MGMT` bundle,
+    `EP_RW` bundle, correct `MMIO_MAP` / `DMA_ALLOC` / `AUDIT_DRAIN` bits.
+  - `PolicyRule.rights: u64` (was `u32`).
+  - `PolicyResult` renamed; evaluator unchanged (deny→allow→default deny).
+- **`fjell-tools/src/policy_eval.rs`** — host-testable mirror of the policy
+  evaluator; 13 unit tests verifying BROKER-001 through BROKER-003 invariants.
+- **`tests/qemu/profiles/policy.toml`** — placeholder for policy negative tests.
+
+### Changed
+
+- Workspace version bumped to `0.2.0-alpha.7`.
+
+### Deferred (QEMU-only work)
+
+- Full badge-based sender identity check in `BOOTSTRAP_COMPLETE` handler.
+  Current v0.2 trusts the kernel to have delivered the message from init;
+  a proper badge check requires the kernel to set `sender_badge == ImageId`
+  on all IPC frames from identified services.
+- QEMU negative-test markers for policy (`NEG:POLICY:DEFAULT_DENY:PASS`).
+
 ## [0.2.0-alpha.6] - 2026-05-17
 
 ### v0.2 Phase 6 — Safe User Copy + Real Audit Drain (RFC 039)

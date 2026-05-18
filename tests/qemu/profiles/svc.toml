@@ -1,9 +1,10 @@
-# Negative-test profile: svc
-# RFC 037 (timer fail-safe) + RFC 038 (service separation).
-# Real markers added when service-separation binaries land (QEMU work).
-# Infrastructure: kernel timer quantum violation tracking (RFC 037 alpha.5).
+# RFC 037-038 (v0.2): cooperative service separation + READY protocol.
+# Markers deferred until service-separation binaries land.
 
 name             = "svc"
-timeout_secs     = 60
-expected_markers = []
+timeout_secs     = 90
+expected_markers = [
+  "NEG:SVC:START_TIMEOUT_DETECTED:PASS",
+  "NEG:SVC:FAULT_DETECTED:PASS",
+]
 extra_args       = []

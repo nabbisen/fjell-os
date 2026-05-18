@@ -1,8 +1,12 @@
-# Negative-test profile: capability
-# Placeholder for v0.1.1 (RFC 025 §chicken-and-egg).
-# Real cases land via RFC 026 (v0.1.2) and per-RFC for v0.2.
+# RFC 031-034 (v0.2): require_cap enforcement + lease-bound revocation.
+# Host-side equivalents: fjell-cap tests (16 tests).
 
 name             = "capability"
-timeout_secs     = 30
-expected_markers = []
+timeout_secs     = 90
+expected_markers = [
+  "NEG:CAP:WRONG_KIND_REJECTED:PASS",
+  "NEG:CAP:RIGHTS_DENIED:PASS",
+  "NEG:CAP:LEASE_REVOKED:PASS",
+  "NEG:CAP:DROP_ON_REVOKED:PASS",
+]
 extra_args       = []

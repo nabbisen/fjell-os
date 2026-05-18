@@ -130,6 +130,7 @@ pub(crate) enum DmaRegionState {
     /// the timer-callback path needed for real quarantine is planned for
     /// the first device driver that requires it.  At v0.2 scale (virtio-blk
     /// cooperative model), synchronous zeroize on revoke is sufficient.
+    #[allow(dead_code)]  // RFC 036 deferred path — constructed when timer-callback lands
     Quarantined,
     /// Physical page zeroed; safe to return to allocator.
     Zeroized,
@@ -143,6 +144,8 @@ pub(crate) struct DmaRegionEntry {
     /// Task that owns this DMA region (`index == 0xFFFF` = Freed/empty).
     pub owner:    crate::task::TaskId,
     /// User VA where the frame is mapped in `owner`'s page table.
+    /// Read when unmapping the page during explicit revoke (v0.3 unmap path).
+    #[allow(dead_code)]  // stored for future unmap; read path lands in v0.3
     pub user_va:  usize,
     /// Physical frame address.
     pub frame_pa: usize,

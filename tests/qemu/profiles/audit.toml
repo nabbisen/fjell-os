@@ -1,8 +1,9 @@
-# Negative-test profile: audit (RFC 039)
-# Tests that audit_drain requires AuditDrain capability and
-# that dropped count is visible.
+# RFC 041 (v0.2): persistent evidence hardening + gap detection.
+# Host-side equivalents: fjell-snapshot-format continuity tests (5 tests).
 
 name             = "audit"
 timeout_secs     = 60
-expected_markers = []
+expected_markers = [
+  "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS",
+]
 extra_args       = []

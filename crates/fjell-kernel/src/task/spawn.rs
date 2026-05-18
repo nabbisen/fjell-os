@@ -122,7 +122,7 @@ pub fn spawn(
     // Install bootstrap capabilities in the new task's CSpace (RFC 016, M7.1).
     // Uses ins_id.index (the actual slot) so the index is always correct.
     {
-        use fjell_cap::{CapKind, CapRights};
+        use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
         use fjell_cap::slot::Capability;
         use crate::platform::qemu_virt::{mmio_region_table, MMIO_REGION_COUNT};
 
@@ -144,7 +144,7 @@ pub fn spawn(
             };
             let _ = cs.install_raw(0, Capability {
                 kind: CapKind::Endpoint, object_id: ep_obj,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 31-34: MmioRegion caps (pragmatic M7.1 — proper per-driver
             // distribution via cap-broker is M8 work).
@@ -152,14 +152,14 @@ pub fn spawn(
             for (i, _) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
                 let _ = cs.install_raw(31 + i, Capability {
                     kind: CapKind::MmioRegion, object_id: i as u32,
-                    rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).
             if image_id == fjell_abi::service::ImageId::AUDITD {
                 let _ = cs.install_raw(1, Capability {
                     kind: CapKind::AuditDrain, object_id: 0,
-                    rights: CapRights::RECV, badge: 0, parent: None, lease: None,
+                    rights: CapRights::RECV, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slot 2: DmaAlloc cap — granted to services that perform DMA
@@ -172,7 +172,7 @@ pub fn spawn(
             if needs_dma {
                 let _ = cs.install_raw(2, Capability {
                     kind: CapKind::DmaAlloc, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
         }

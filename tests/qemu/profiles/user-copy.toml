@@ -1,9 +1,10 @@
-# Negative-test profile: user-copy (RFC 039)
-# Tests that copy_to_user rejects invalid pointer ranges.
-# Pure-arithmetic validation is unit-tested on the host in user_ptr.rs.
-# QEMU markers land when the syscall ABI exposes copy_to_user failures.
+# RFC 039 (v0.2): UserPtr arithmetic validation.
+# Host-side equivalents: mm/user_ptr.rs tests (8 cases, verified by standalone rustc).
 
 name             = "user-copy"
 timeout_secs     = 60
-expected_markers = []
+expected_markers = [
+  "NEG:USER_COPY:NULL_REJECTED:PASS",
+  "NEG:USER_COPY:KERNEL_ADDR_REJECTED:PASS",
+]
 extra_args       = []

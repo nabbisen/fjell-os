@@ -88,6 +88,7 @@ pub unsafe fn copy_to_user_bytes(
 ///
 /// # Safety
 /// See module-level safety note.
+#[allow(dead_code)]  // RFC 039: defined for completeness; wired when syscalls need in-copy
 pub unsafe fn copy_from_user_bytes(
     root_pfn: usize,
     src_va:   usize,

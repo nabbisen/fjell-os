@@ -4,7 +4,7 @@
 
 use fjell_abi::error::SysError;
 use fjell_cap::{CapHandle, CapKind, CapRights};
-use fjell_ipc::endpoint::{PendingMessage, RecvWaiter, SendResult, RecvResult};
+use fjell_ipc::endpoint::{PendingMessage, SendResult, RecvResult};
 use fjell_ipc::message::{MessageTag, IPC_WORDS};
 use crate::{
     audit::ring::{AuditKindInternal, AUDIT},
@@ -321,7 +321,6 @@ pub fn sys_ipc_reply(
     // the case where revoke arrived after take_reply but before delivery.
     if let Some(lb) = edge.lease {
         let lt = unsafe { crate::get_lease_table() };
-        use fjell_cap::slot::LeaseChecker;
         if lt.check_active(lb.lease_id, lb.epoch_at_issue).is_err() {
             // Lease revoked: drop the reply silently.  The caller is already
             // either woken (by wake_or_cancel) or will fail on next use.

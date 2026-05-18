@@ -6,7 +6,7 @@
 mod rt;
 
 use fjell_syscall::{sys_debug_writeln, sys_exit, sys_mmio_map, sys_dma_alloc,
-                    sys_yield, sys_platform_info_get};
+                    sys_yield};
 use core::sync::atomic::{fence, Ordering};
 
 #[panic_handler]
@@ -92,35 +92,39 @@ use fjell_cap::CapHandle;
 // ── MMIO helpers ──────────────────────────────────────────────────────────────
 #[inline(always)]
 unsafe fn rd32(base: usize, off: usize) -> u32 {
-    core::ptr::read_volatile((base + off) as *const u32)
+    unsafe { core::ptr::read_volatile((base + off) as *const u32) }
 }
 #[inline(always)]
 unsafe fn wr32(base: usize, off: usize, val: u32) {
-    core::ptr::write_volatile((base + off) as *mut u32, val)
+    unsafe { core::ptr::write_volatile((base + off) as *mut u32, val) }
 }
 
 // ── Descriptor write ──────────────────────────────────────────────────────────
 unsafe fn write_desc(va: usize, idx: usize, addr: u64, len: u32, flags: u16, next: u16) {
-    let p = (va + idx * 16) as *mut u8;
-    core::ptr::write_volatile(p.add(0) as *mut u64, addr);
-    core::ptr::write_volatile(p.add(8) as *mut u32, len);
-    core::ptr::write_volatile(p.add(12) as *mut u16, flags);
-    core::ptr::write_volatile(p.add(14) as *mut u16, next);
+    unsafe {
+        let p = (va + idx * 16) as *mut u8;
+        core::ptr::write_volatile(p.add(0) as *mut u64, addr);
+        core::ptr::write_volatile(p.add(8) as *mut u32, len);
+        core::ptr::write_volatile(p.add(12) as *mut u16, flags);
+        core::ptr::write_volatile(p.add(14) as *mut u16, next);
+    }
 }
 
 // ── Avail ring push ───────────────────────────────────────────────────────────
 unsafe fn avail_push(va: usize, head: u16) {
-    let idx_ptr = (va + OFF_AVAIL + 2) as *mut u16;
-    let idx = core::ptr::read_volatile(idx_ptr);
-    let slot = (idx as usize) % (QUEUE_SIZE as usize);
-    core::ptr::write_volatile((va + OFF_AVAIL + 4 + slot * 2) as *mut u16, head);
-    fence(Ordering::SeqCst);
-    core::ptr::write_volatile(idx_ptr, idx.wrapping_add(1));
+    unsafe {
+        let idx_ptr = (va + OFF_AVAIL + 2) as *mut u16;
+        let idx = core::ptr::read_volatile(idx_ptr);
+        let slot = (idx as usize) % (QUEUE_SIZE as usize);
+        core::ptr::write_volatile((va + OFF_AVAIL + 4 + slot * 2) as *mut u16, head);
+        fence(Ordering::SeqCst);
+        core::ptr::write_volatile(idx_ptr, idx.wrapping_add(1));
+    }
 }
 
 // ── Used ring index ───────────────────────────────────────────────────────────
 unsafe fn used_idx(va: usize) -> u16 {
-    core::ptr::read_volatile((va + OFF_USED + 2) as *const u16)
+    unsafe { core::ptr::read_volatile((va + OFF_USED + 2) as *const u16) }
 }
 
 // ── Single virtio-blk I/O (returns true on success) ──────────────────────────

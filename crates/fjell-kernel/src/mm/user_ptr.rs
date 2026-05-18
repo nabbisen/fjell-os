@@ -108,6 +108,7 @@ impl UserPtr {
     /// The validated base address.
     #[inline] pub fn addr(self) -> usize { self.addr }
     /// The length in bytes.
+    #[allow(dead_code)]  // part of UserPtr API; used by copy_from_user_bytes callers
     #[inline] pub fn len(self) -> usize { self.len }
     /// True if the range is empty.
     #[inline] pub fn is_empty(self) -> bool { self.len == 0 }
