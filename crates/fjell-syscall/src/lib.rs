@@ -181,3 +181,38 @@ pub fn sys_debug_writeln(s: &str) {
     sys_debug_write_byte(b'\n');
 }
 
+
+
+// ── M6 syscall wrappers ───────────────────────────────────────────────────────
+
+/// `sys_platform_info_get() -> virtio_base_pa`
+pub fn sys_platform_info_get() -> Result<usize, SysError> {
+    let (a0, a1) = ecall2(SyscallNumber::PlatformInfoGet as usize, 0, 0, 0, 0);
+    if a0 != 0 { Err(SysError::from_isize(a0 as isize)) } else { Ok(a1) }
+}
+
+/// `sys_mmio_map(phys_addr, size_bytes) -> user_va`
+pub fn sys_mmio_map(phys_addr: usize, size_bytes: usize) -> Result<usize, SysError> {
+    let (a0, a1) = ecall2(SyscallNumber::MmioMap as usize, phys_addr, size_bytes, 0, 0);
+    if a0 != 0 { Err(SysError::from_isize(a0 as isize)) } else { Ok(a1) }
+}
+
+/// `sys_dma_alloc(size_bytes) -> (user_va, phys_addr)`
+pub fn sys_dma_alloc(size_bytes: usize) -> Result<(usize, usize), SysError> {
+    let nr = SyscallNumber::DmaAlloc as usize;
+    let r0: usize; let r1: usize; let r2: usize;
+    #[cfg(target_arch = "riscv64")]
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7") nr,
+            inlateout("a0") size_bytes => r0,
+            out("a1") r1,
+            out("a2") r2,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    { let _ = (nr, size_bytes); r0 = 0; r1 = 0; r2 = 0; }
+    if r0 != 0 { Err(SysError::from_isize(r0 as isize)) } else { Ok((r1, r2)) }
+}

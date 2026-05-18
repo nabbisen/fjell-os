@@ -283,7 +283,7 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
         crate::kprintln!("sched: idle");
     } else if done(1) {
         crate::kprintln!("sched: idle");
-        crate::kprintln!("TEST:M4:FAIL (init did not exit cleanly)");
+        crate::kprintln!("TEST:M6:FAIL (init did not exit cleanly)");
     }
 }
 

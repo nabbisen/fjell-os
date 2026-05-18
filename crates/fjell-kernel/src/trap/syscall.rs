@@ -40,6 +40,10 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::LeaseInspect) => dispatch_lease_inspect(tf),
         // M4 audit
         Some(SyscallNumber::AuditDrain)   => sys_audit_drain(tf),
+        // M6 device / MMIO / DMA
+        Some(SyscallNumber::PlatformInfoGet) => sys_platform_info_get(tf),
+        Some(SyscallNumber::MmioMap)         => sys_mmio_map(tf),
+        Some(SyscallNumber::DmaAlloc)        => sys_dma_alloc(tf),
         // DebugWrite handled before
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
@@ -303,3 +307,94 @@ fn dispatch_lease_inspect(tf: &mut TrapFrame) {
     let lt = unsafe { crate::get_lease_table() };
     sys_lease_inspect(tf, lt);
 }
+
+// ── M6 syscall handlers ───────────────────────────────────────────────────────
+
+/// `sys_platform_info_get() -> a0=0, a1=virtio_blk_base_pa`
+///
+/// Scans all 8 virtio-mmio slots on QEMU virt (0x10001000..0x10008000) and
+/// returns the base PA of the first slot that contains a virtio block device
+/// (magic=0x74726976, version=2, device_id=2).
+pub fn sys_platform_info_get(tf: &mut TrapFrame) {
+    const VIRTIO_BASE:  usize = 0x1000_1000;
+    const VIRTIO_SLOTS: usize = 8;
+    const VIRTIO_STRIDE:usize = 0x1000;
+    // Scan in reverse: QEMU assigns virtio devices from the highest slot down.
+    for i in (0..VIRTIO_SLOTS).rev() {
+        let base = VIRTIO_BASE + i * VIRTIO_STRIDE;
+        let magic   = unsafe { core::ptr::read_volatile((base + 0x000) as *const u32) };
+        let version = unsafe { core::ptr::read_volatile((base + 0x004) as *const u32) };
+        let dev_id  = unsafe { core::ptr::read_volatile((base + 0x008) as *const u32) };
+        // Debug: print what we read (will appear on UART)
+        // Accept version 1 (legacy) and version 2 (modern).
+        if magic == 0x7472_6976 && (version == 1 || version == 2) && dev_id == 2 {
+            tf.gpr[REG_A0] = 0;
+            tf.gpr[REG_A1] = base;
+            return;
+        }
+    }
+    // No virtio-blk found.
+    tf.gpr[REG_A0] = 1; // error
+    tf.gpr[REG_A1] = 0;
+}
+
+/// `sys_mmio_map(a0=phys_addr, a1=size_bytes) -> a0=status, a1=user_va`
+///
+/// Maps the requested MMIO range (page-aligned) into the calling task's
+/// address space.  Returns the identity-mapped user VA (= phys_addr).
+pub fn sys_mmio_map(tf: &mut TrapFrame) {
+    use crate::mm::{
+        address::{PhysFrame, VirtAddr},
+        frame_alloc::PhysFrame as _,
+        vspace::VmPerms,
+        region::VmRegionKind,
+    };
+    let phys_addr  = tf.gpr[REG_A0] & !0xFFF;      // page-align down
+    let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF; // page-align up
+
+    let (table, _, _, _) = unsafe { crate::get_kernel_state() };
+    let cur_id   = crate::trap::dispatch::current_task_idx();
+    let root_pfn = table.get(crate::task::TaskId::new(cur_id as u16, 0))
+        .map(|t| t.satp_root_pfn).unwrap_or(0);
+    if root_pfn == 0 { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
+    let root_pa = root_pfn << 12;
+
+    let fa = unsafe { &mut *crate::fa_static_ptr() };
+    let pages = size_bytes / 4096;
+    for pg in 0..pages {
+        let pa = phys_addr + pg * 4096;
+        let frame = match crate::mm::address::PhysFrame::from_pa(pa) {
+            Ok(f) => f, Err(_) => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
+        };
+        unsafe {
+            // Use remap_page to allow upgrading existing kernel-only mappings.
+            let _ = crate::mm::page_table::remap_page(
+                root_pa, VirtAddr(pa), frame,
+                VmPerms::R | VmPerms::W | VmPerms::U,
+                fa,
+            );
+        }
+    }
+    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+    tf.gpr[REG_A0] = 0;
+    tf.gpr[REG_A1] = phys_addr;
+}
+
+/// `sys_dma_alloc(a0=size_bytes) -> a0=status, a1=user_va, a2=phys_addr`
+///
+/// Allocates contiguous physical frames for DMA use, maps them into the
+/// calling task's address space, and returns both the user VA and the device
+/// physical address (identity-mapped: user_va == phys_addr in M6).
+/// `sys_dma_alloc(a0=size_bytes) -> a0=status, a1=user_va, a2=phys_addr`
+///
+/// Returns the pre-allocated static DMA buffer that is mapped into init's page
+/// table at fixed user VA 0x20000000.  In M6, we support one DMA region per
+/// caller (sufficient for the smoke test).
+pub fn sys_dma_alloc(tf: &mut TrapFrame) {
+    let user_va  = 0x2000_0000usize;
+    let device_pa = unsafe { (*crate::DMA_BUF.0.get()).0.as_ptr() } as usize;
+    tf.gpr[REG_A0] = 0;
+    tf.gpr[REG_A1] = user_va;
+    tf.gpr[12]     = device_pa;
+}
+

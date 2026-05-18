@@ -59,6 +59,36 @@ pub unsafe fn map_page(
     Ok(())
 }
 
+/// Map or remap a single 4 KiB page, overwriting any existing mapping.
+///
+/// Use this instead of `map_page` when upgrading permissions (e.g. adding the
+/// User bit to an existing kernel-mode-only mapping).
+///
+/// # Safety
+/// Same requirements as `map_page`.
+pub unsafe fn remap_page(
+    root_pa: usize,
+    va: VirtAddr,
+    frame: PhysFrame,
+    perms: VmPerms,
+    fa: &mut FrameAllocator<'_>,
+) -> Result<(), MmError> {
+    let flags = perms_to_pte_flags(perms);
+    let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
+    unsafe {
+        let l2 = root_pa as *mut Pte;
+        let pte2 = &mut *l2.add(vpn2);
+        let l1_pa = ensure_next_level(pte2, fa)?;
+        let l1 = l1_pa as *mut Pte;
+        let pte1 = &mut *l1.add(vpn1);
+        let l0_pa = ensure_next_level(pte1, fa)?;
+        let l0 = l0_pa as *mut Pte;
+        let pte0 = &mut *l0.add(vpn0);
+        *pte0 = Pte::leaf(frame.pfn, flags);  // overwrite unconditionally
+    }
+    Ok(())
+}
+
 /// Unmap a single 4 KiB page, returning the freed frame.
 ///
 /// Does not free intermediate page-table pages (they may still be needed

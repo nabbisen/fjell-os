@@ -9,6 +9,57 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [0.0.6] — 2026-05-12 — M6: Device / Persistent State / Immutable Upgrade Foundation
+
+### Added
+- `fjell-device-format`: `DeviceDescriptor`, `DeviceKind`, `MmioRegionDescriptor`,
+  `DeviceState`; hardcoded `QEMU_VIRTIO_BLK` descriptor
+- `fjell-block-format`: `BlockDeviceInfo`, `BlockError`
+- `fjell-store-format`: `StoreSuperblock` (magic `FJSTORE\0`), `RecordHeader`
+  (magic `0x464A4C52`), `RecordKind`, `LBA_*` layout constants
+- `fjell-upgrade-format`: `BootControlBlock` (magic `FJBOOT\0\0`), `SlotInfo`,
+  `SlotState`, `SlotId`, `UpgradeState`
+- `fjell-devmgr`: calls `sys_platform_info_get`, emits "M6: virtio-mmio blk discovered"
+- `fjell-driver-virtio-blk`: stub (virtio I/O done inline by fjell-init in M6)
+- `fjell-storaged`, `fjell-bootctl`, `fjell-upgraded`, `fjell-powerd`: stubs
+- Kernel syscalls: `sys_platform_info_get` (80), `sys_mmio_map` (90),
+  `sys_dma_alloc` (110); all wired in dispatch table
+- `sys_platform_info_get`: scans virtio-mmio slots 0..7 in reverse, returns base
+  PA of first slot with magic=0x74726976 and device_id=2
+- `sys_mmio_map`: calls `remap_page` to add R|W|U to an existing kernel-mode
+  mapping; uses identity map (user_va == phys_addr)
+- `sys_dma_alloc`: returns pre-allocated static `DMA_BUF` at user VA 0x20000000
+- `DMA_BUF`: `#[repr(align(4096))]` 16 KiB static DMA buffer; mapped with R|W|U
+  into init's page table during task creation (4 pages at 0x20000000-0x20004000)
+- `remap_page`: new page-table primitive that overwrites existing PTEs
+  (needed to upgrade R|W kernel-only mappings to R|W|U user-accessible)
+- Kernel identity-maps all 8 virtio-mmio slots (0x10001000-0x10008000) with R|W
+  in all user page tables so `sys_platform_info_get` can scan from kernel mode
+- fjell-init M6: inline virtio-blk driver (legacy v1 init, split virtqueue,
+  block write), storaged simulation, bootctl A/B mirror write, upgrade staging
+- `cargo xtask build-services` and `cargo xtask qemu-test m6` with disk image
+  creation (`qemu-img create -f raw fjell-disk.img 16M`)
+
+### Fixed
+- `sys_platform_info_get`: added VPN[2]=0 virtio-mmio mapping to ALL user page
+  tables (kernel-mode mapping in spawn.rs + kmain init) so scan works from
+  within the user task's satp context
+- `blk_write_sector` `base` re-read after ecalls: local variable `base` holding
+  the MMIO VA was potentially corrupted by t5/t6 register-save bug across ecalls;
+  fixed by calling `sys_mmio_map` again to reload `base` from the syscall
+- virtio-blk QueueAlign: changed from 4096 to 512 so desc+avail+used fit in
+  one DMA page; with QueueAlign=4096 the used ring was at page+4096 which was
+  beyond the mapped DMA region
+- virtio-blk avail ring offset: was 0x200 (wrong ALIGN interpretation); corrected
+  to 0x080 (= N*16 = 8*16 = 128, immediately after descriptor table)
+- virtio-blk poll: increased from 500_000 to 5_000_000 iterations to handle
+  QEMU subprocess execution slower than interactive mode
+- `sys_dma_alloc`: replaced dynamic frame allocation + user-VA mapping with
+  pre-mapped static DMA_BUF to avoid `AlreadyMapped` errors when kernel-shared
+  L1 tables prevented adding U bit via `map_page`
+
+---
+
 ## [0.0.5] — 2026-05-12 — M5: Semantic Operations Plane
 
 ### Added

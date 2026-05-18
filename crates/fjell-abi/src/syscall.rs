@@ -62,6 +62,16 @@ pub enum SyscallNumber {
     // ── M4 audit syscalls ──────────────────────────────────────────────────
     /// Copy pending audit records from the kernel ring into user buffer.
     AuditDrain = 60,
+    // ── M6: device / MMIO / DMA primitives ─────────────────────────────────
+    PlatformInfoGet = 80,
+    MmioMap         = 90,
+    MmioUnmap       = 91,
+    IrqBind         = 100,
+    IrqAck          = 101,
+    DmaAlloc        = 110,
+    DmaShare        = 111,
+    DmaRevoke       = 112,
+    Reboot          = 120,
 }
 
 impl SyscallNumber {
@@ -89,6 +99,15 @@ impl SyscallNumber {
             51 => Some(Self::LeaseRevoke),
             52 => Some(Self::LeaseInspect),
             60 => Some(Self::AuditDrain),
+            80 => Some(Self::PlatformInfoGet),
+            90 => Some(Self::MmioMap),
+            91 => Some(Self::MmioUnmap),
+            100 => Some(Self::IrqBind),
+            101 => Some(Self::IrqAck),
+            110 => Some(Self::DmaAlloc),
+            111 => Some(Self::DmaShare),
+            112 => Some(Self::DmaRevoke),
+            120 => Some(Self::Reboot),
             _  => None,
         }
     }

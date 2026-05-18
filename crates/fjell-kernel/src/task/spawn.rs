@@ -49,6 +49,17 @@ pub fn spawn(
         VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa)
         .map_err(|_| SysError::NoMemory)?;
 
+    // Map all 8 virtio-mmio slots (0x10001000..0x10008000) with R|W (no U).
+    // Supervisor-mode trap handlers (sys_platform_info_get, sys_mmio_map) can
+    // then scan/access them.  User-mode drivers call sys_mmio_map to get U+R+W.
+    for i in 0..8usize {
+        let mmio_pa = 0x1000_1000 + i * 0x1000;
+        if let Ok(f) = PhysFrame::from_pa(mmio_pa) {
+            let _ = aspace.map_page(VirtAddr(mmio_pa), f,
+                VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa);
+        }
+    }
+
     // Allocate text frame, copy flat binary.
     if bytes.len() > 4096 {
         // Allocate additional pages if needed (up to 8 pages for now)

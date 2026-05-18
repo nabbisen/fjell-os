@@ -200,3 +200,9 @@ pub unsafe fn write_pmpaddr0(v: usize) {
 pub unsafe fn write_pmpcfg0(v: usize) {
     unsafe { core::arch::asm!("csrw pmpcfg0, {}", in(reg) v) };
 }
+
+/// Execute `sfence.vma` to flush the TLB after page table modifications.
+#[inline(always)]
+pub unsafe fn sfence_vma() {
+    unsafe { core::arch::asm!("sfence.vma", options(nostack)); }
+}

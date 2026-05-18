@@ -18,6 +18,13 @@ pub const SERVICES: &[&str] = &[
     // M5
     "fjell-semantic-stream",
     "fjell-proxy-text",
+    // M6
+    "fjell-devmgr",
+    "fjell-driver-virtio-blk",
+    "fjell-storaged",
+    "fjell-bootctl",
+    "fjell-upgraded",
+    "fjell-powerd",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.
@@ -95,9 +102,18 @@ pub fn cmd_qemu() -> ExitCode {
     let kernel = build_all();
     println!("[xtask] launching QEMU  (exit: Ctrl-A then X)");
     println!();
+    // Create a 16 MiB disk image if it does not exist.
+    let disk = "fjell-disk.img";
+    if !std::path::Path::new(disk).exists() {
+        let _ = Command::new("qemu-img")
+            .args(["create", "-f", "raw", disk, "16M"])
+            .status();
+    }
     let status = Command::new("qemu-system-riscv64")
         .args(["-machine", "virt", "-bios", "none",
-               "-nographic", "-kernel", &kernel])
+               "-nographic", "-kernel", &kernel,
+               "-drive", &format!("file={disk},format=raw,if=none,id=hd0"),
+               "-device", "virtio-blk-device,drive=hd0"])
         .status()
         .expect("failed to launch qemu-system-riscv64 — is it installed?");
 

@@ -54,6 +54,20 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::SAMPLE_SERVICE  => Some(SAMPLE_BIN),
         ImageId::SEMANTIC_STREAM => Some(SEMANTIC_STREAM_BIN),
         ImageId::PROXY_TEXT      => Some(PROXY_TEXT_BIN),
-        _                        => None,
+        ImageId::DEVMGR            => Some(DEVMGR_BIN),
+        ImageId::DRIVER_VIRTIO_BLK => Some(VIRTIO_BLK_BIN),
+        ImageId::STORAGED          => Some(STORAGED_BIN),
+        ImageId::BOOTCTL           => Some(BOOTCTL_BIN),
+        ImageId::UPGRADED          => Some(UPGRADED_BIN),
+        ImageId::POWERD            => Some(POWERD_BIN),
+        _                          => None,
     }
 }
+
+// M6 services
+static DEVMGR_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-devmgr.bin");
+static VIRTIO_BLK_BIN:&[u8] = include_bytes!("../../prebuilt/fjell-driver-virtio-blk.bin");
+static STORAGED_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-storaged.bin");
+static BOOTCTL_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-bootctl.bin");
+static UPGRADED_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-upgraded.bin");
+static POWERD_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-powerd.bin");

@@ -93,6 +93,15 @@ static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
     core::sync::atomic::AtomicUsize::new(0);
 /// Per-hart trap scratch record. Layout: [0] = kernel sp, [1] = TrapFrame ptr.
 /// Must be static — sscratch holds a pointer to it across sret/trap boundaries.
+/// Pre-allocated 16 KiB DMA buffer for user-space drivers (M6).
+///
+/// MUST be page-aligned: QueuePFN = dma_pa >> 12 requires the base address to
+/// be a multiple of 4096 so the virtio device and the kernel agree on where
+/// descriptors, rings, and request data reside.
+#[repr(align(4096))]
+pub(crate) struct DmaBuf(pub [u8; 16384]);
+pub(crate) static DMA_BUF: KS<DmaBuf> = KS(UnsafeCell::new(DmaBuf([0u8; 16384])));
+
 /// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save
 pub(crate) static TRAP_SCRATCH: KS<[usize; 3]> = KS(UnsafeCell::new([0usize; 3]));
 
@@ -284,6 +293,18 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             .expect("uart map");
     }
 
+    // Map all 8 virtio-mmio slots (0x10001000..0x10009000) in the kernel
+    // page table so sys_platform_info_get can scan them from kernel mode.
+    for i in 0..8usize {
+        let va_pa = 0x1000_1000 + i * 0x1000;
+        if let Ok(f) = PhysFrame::from_pa(va_pa) {
+            unsafe {
+                let _ = mm::page_table::map_page(kernel_root.pa(), VirtAddr(va_pa),
+                    f, VmPerms::R | VmPerms::W, fa!());
+            }
+        }
+    }
+
     // Enable Sv39.
     // SAFETY: all required kernel mappings present; sfence inside.
     unsafe { satp::enable_sv39(kernel_root.pfn as usize) };
@@ -345,6 +366,15 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa!())
             .expect("init uart map");
 
+        // Map all 8 virtio-mmio slots (R|W, no U) for kernel-mode scanning.
+        for i in 0..8usize {
+            let mmio_pa = 0x1000_1000 + i * 0x1000;
+            if let Ok(f) = PhysFrame::from_pa(mmio_pa) {
+                let _ = aspace.map_page(VirtAddr(mmio_pa), f,
+                    VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa!());
+            }
+        }
+
         // Map text pages (flat binary may span multiple pages)
         let pages = (init_bytes.len() + 4095) / 4096;
         for pg in 0..pages {
@@ -359,6 +389,22 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             aspace.map_page(VirtAddr(SERVICE_BASE_VA + pg * 4096), f,
                 VmPerms::R | VmPerms::X | VmPerms::U, VmRegionKind::UserText, fa!())
                 .expect("init text map");
+        }
+
+        // Map static DMA buffer pages at fixed user VA 0x20000000 (R|W|U).
+        // Each page of DMA_BUF maps to a different offset within the static.
+        {
+            let dma_pa_base = unsafe { (*DMA_BUF.0.get()).0.as_ptr() } as usize;
+            for pg in 0..4usize {
+                let dma_page_pa = dma_pa_base + pg * 4096;
+                if let Ok(f) = PhysFrame::from_pa(dma_page_pa & !0xFFF) {
+                    let _ = aspace.map_page(
+                        VirtAddr(0x2000_0000 + pg * 4096), f,
+                        VmPerms::R | VmPerms::W | VmPerms::U,
+                        VmRegionKind::Mmio, fa!()
+                    );
+                }
+            }
         }
 
         // Map all 16 stack pages (64 KiB, from 0x80000 to 0x90000).

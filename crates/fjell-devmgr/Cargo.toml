@@ -1,0 +1,18 @@
+[package]
+name = "fjell-devmgr"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+[[bin]]
+name = "fjell-devmgr"
+path = "src/main.rs"
+[dependencies]
+fjell-abi               = { path = "../fjell-abi" }
+fjell-syscall           = { path = "../fjell-syscall" }
+fjell-service-api       = { path = "../fjell-service-api" }
+fjell-device-format     = { path = "../fjell-device-format" }
+fjell-block-format      = { path = "../fjell-block-format" }
+fjell-store-format      = { path = "../fjell-store-format" }
+fjell-upgrade-format    = { path = "../fjell-upgrade-format" }

@@ -19,6 +19,16 @@ members = [
     "crates/fjell-configd",
     "crates/fjell-proxy-text",
     "crates/fjell-sample-service",
+    "crates/fjell-devmgr",
+    "crates/fjell-driver-virtio-blk",
+    "crates/fjell-storaged",
+    "crates/fjell-bootctl",
+    "crates/fjell-upgraded",
+    "crates/fjell-powerd",
+    "crates/fjell-device-format",
+    "crates/fjell-block-format",
+    "crates/fjell-store-format",
+    "crates/fjell-upgrade-format",
     "crates/fjell-semantic-stream",
     "crates/fjell-cap-broker",
     "crates/fjell-tools",
@@ -40,7 +50,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.0.5"
+version = "0.0.6"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

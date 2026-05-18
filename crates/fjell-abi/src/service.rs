@@ -71,3 +71,13 @@ impl ImageId {
     pub const SEMANTIC_STREAM: ImageId = ImageId(6);
     pub const PROXY_TEXT:      ImageId = ImageId(7);
 }
+
+impl ImageId {
+    // M6 additions
+    pub const DEVMGR:            ImageId = ImageId(8);
+    pub const DRIVER_VIRTIO_BLK: ImageId = ImageId(9);
+    pub const STORAGED:          ImageId = ImageId(10);
+    pub const BOOTCTL:           ImageId = ImageId(11);
+    pub const UPGRADED:          ImageId = ImageId(12);
+    pub const POWERD:            ImageId = ImageId(13);
+}

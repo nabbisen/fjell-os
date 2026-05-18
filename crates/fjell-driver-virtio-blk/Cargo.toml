@@ -1,0 +1,16 @@
+[package]
+name = "fjell-driver-virtio-blk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+[[bin]]
+name = "fjell-driver-virtio-blk"
+path = "src/main.rs"
+[dependencies]
+fjell-abi            = { path = "../fjell-abi" }
+fjell-syscall        = { path = "../fjell-syscall" }
+fjell-service-api    = { path = "../fjell-service-api" }
+fjell-device-format  = { path = "../fjell-device-format" }
+fjell-block-format   = { path = "../fjell-block-format" }
