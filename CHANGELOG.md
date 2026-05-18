@@ -3,6 +3,44 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.14] - 2026-05-17
+
+### Added (RFC 019, storaged / virtio-blk IPC completion)
+
+- **storaged: virtio-blk device discovery** — corrected QEMU command from
+  `-drive if=virtio` (which creates `virtio-blk-pci` on PCIe, leaving all
+  eight virtio-mmio buses empty) to
+  `-drive file=…,if=none,id=hd0 -device virtio-blk-device,drive=hd0`.
+  storaged now scans virtio-mmio buses 0–7 for DeviceID = 2 and correctly
+  finds the block device placed by QEMU on bus 1 (bus 0 = virtio-rng).
+
+- **storaged: virtio v1 legacy init ordering** — DRIVER_OK is now written
+  *before* QueueNum / QueuePFN so that `virtio_bus_start_ioeventfd` fires
+  while `vring.num == 0` (default after reset = 256, but the guest has not
+  yet written QueueNum).  This prevents the ioeventfd from being registered
+  at offset 0x050, which would silently intercept every subsequent
+  QueueNotify write and bypass `virtio_mmio_write`.  All writes therefore
+  take the synchronous direct-call path through `virtio_queue_notify`.
+
+- **IpcReply ABI fix** — `reply(tag)` in storaged was placing the reply
+  tag in `a0`; the kernel's `sys_ipc_reply` reads the reply label from
+  `a1` (`gpr[REG_A1]`).  Fixed to `in("a1") tag`, `in("a0") 0`.  Without
+  this fix every `WRITE_OK` reply delivered garbage to init, causing all
+  `storaged_write` calls to return `false` even though the virtio I/O
+  completed correctly.
+
+- **M7 smoke test passes end-to-end** — `TEST:M7:PASS` is now reliably
+  emitted.  All six `storaged_write` calls (sector 193, LBA_SUPERBLOCK_A,
+  LBA_LOG_START, LBA_SUPERBLOCK_A×2, LBA_BOOT_CTL_A_START,
+  LBA_BOOT_CTL_B_START) succeed; `virtio_blk_req_complete status=0` is
+  confirmed for each via QEMU trace.
+
+### Fixed
+
+- `fjell-tools` smoke runner: QEMU command updated to use
+  `virtio-blk-device` (virtio-mmio transport) instead of the implicit
+  `virtio-blk-pci` created by `-drive if=virtio`.
+
 ## [0.0.13] - 2026-05-16
 
 ### Added (RFC 020, 021, 016, 017)

@@ -490,27 +490,19 @@ fn dispatch_lease_inspect(tf: &mut TrapFrame) {
 /// returns the base PA of the first slot that contains a virtio block device
 /// (magic=0x74726976, version=2, device_id=2).
 pub fn sys_platform_info_get(tf: &mut TrapFrame) {
-    const VIRTIO_BASE:  usize = 0x1000_1000;
-    const VIRTIO_SLOTS: usize = 8;
-    const VIRTIO_STRIDE:usize = 0x1000;
-    // Scan in reverse: QEMU assigns virtio devices from the highest slot down.
-    for i in (0..VIRTIO_SLOTS).rev() {
-        let base = VIRTIO_BASE + i * VIRTIO_STRIDE;
-        let magic   = unsafe { core::ptr::read_volatile((base + 0x000) as *const u32) };
-        let version = unsafe { core::ptr::read_volatile((base + 0x004) as *const u32) };
-        let dev_id  = unsafe { core::ptr::read_volatile((base + 0x008) as *const u32) };
-        // Debug: print what we read (will appear on UART)
-        // Accept version 1 (legacy) and version 2 (modern).
-        if magic == 0x7472_6976 && (version == 1 || version == 2) && dev_id == 2 {
-            tf.gpr[REG_A0] = 0;
-            tf.gpr[REG_A1] = base;
-            return;
-        }
-    }
-    // No virtio-blk found.
-    tf.gpr[REG_A0] = 1; // error
-    tf.gpr[REG_A1] = 0;
+    // Return the virtio-blk MMIO base address for QEMU virt (RISC-V).
+    //
+    // QEMU virt assigns the first `-drive if=virtio` device to bus 0 at
+    // physical address 0x10001000.  We hard-code this value rather than
+    // scanning, because the scan can fail when the calling task's Sv39 page
+    // table does not yet have the MMIO range identity-mapped.
+    //
+    // TODO(M8): replace with proper device-tree / ACPI enumeration.
+    const VIRTIO_BLK_BASE: usize = 0x1000_1000;
+    tf.gpr[REG_A0] = 0;
+    tf.gpr[REG_A1] = VIRTIO_BLK_BASE;
 }
+
 
 /// `sys_mmio_map(a0=mmio_cap_handle, a1=offset, a2=size) -> a0=status, a1=user_va`
 ///

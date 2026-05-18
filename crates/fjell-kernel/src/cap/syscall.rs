@@ -160,7 +160,21 @@ pub fn sys_ipc_send(
     tasks: &mut TaskTable, sched: &mut Scheduler,
     cur_id: TaskId,
 ) {
-    if let Err(e) = check_right(tf, tidx, ct, CapRights::SEND) { err(tf, e); return; }
+    // Diagnostic: print "S<tidx>" to UART when IpcSend is entered.
+    unsafe {
+        let uart = 0x1000_0000usize as *mut u8;
+        uart.write_volatile(b'S');
+        uart.write_volatile(b'0' + tidx as u8);
+        uart.write_volatile(b'a');
+        uart.write_volatile(tf.gpr[10] as u8 + b'0'); // cap slot
+    }
+    if let Err(e) = check_right(tf, tidx, ct, CapRights::SEND) {
+        unsafe {
+            let uart = 0x1000_0000usize as *mut u8;
+            uart.write_volatile(b'F');
+        }
+        err(tf, e); return;
+    }
     let (ep_id, msg) = match build_msg(tf, tidx, ct, false) { Ok(x) => x, Err(e) => { err(tf, e); return; } };
     let ep = match et.get_mut(ep_id) { Some(e) => e, None => { err(tf, SysError::InvalidCap); return; } };
 

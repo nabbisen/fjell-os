@@ -38,6 +38,14 @@ pub mod storaged {
     pub const WRITE_ACK:        usize = 0x204;  // ack for BEGIN/CHUNK
     pub const WRITE_OK:         usize = 0x205;
     pub const WRITE_ERR:        usize = 0x206;
+    // Read protocol
+    pub const READ_BEGIN:  usize = 0x207;
+    pub const READ_CHUNK:  usize = 0x208;
+    pub const READ_COMMIT: usize = 0x209;
+    pub const READ_ACK:    usize = 0x20A;
+    pub const READ_DATA:   usize = 0x20B;
+    pub const READ_OK:     usize = 0x20C;
+    pub const READ_ERR:    usize = 0x20D;
 }
 
 // ── RFC 019: bootctl IPC protocol ─────────────────────────────────────────────

@@ -274,6 +274,7 @@ pub fn sys_platform_info_get() -> Result<usize, SysError> {
 /// The caller must pass `dma_cap`, a `CapKind::DmaAlloc` handle (slot 2
 /// for storaged / driver-virtio-blk).  RFC 017.
 pub fn sys_dma_alloc(dma_cap: u32, size_bytes: usize) -> Result<(usize, usize), SysError> {
+    #[allow(unused_variables)]
     let nr = SyscallNumber::DmaAlloc as usize;
     let r0: usize; let r1: usize; let r2: usize;
     #[cfg(target_arch = "riscv64")]
