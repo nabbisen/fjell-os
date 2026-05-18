@@ -31,6 +31,8 @@ pub enum AuditKindInternal {
     CapMint         = 11,
     CapDelete       = 12,
     CapRevoke       = 13,
+    /// RFC 032 (v0.2.0): explicit slot drop via sys_cap_drop.
+    CapDrop         = 15,
     // M3 IPC events
     IpcSend         = 20,
     IpcRecv         = 21,

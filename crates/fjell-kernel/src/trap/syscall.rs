@@ -25,6 +25,7 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::CapDelete) |
         Some(SyscallNumber::CapRevoke) |
         Some(SyscallNumber::CapInspect) |
+        Some(SyscallNumber::CapDrop)    |
         // M3 IPC syscalls
         Some(SyscallNumber::IpcSend) |
         Some(SyscallNumber::IpcRecv) |
@@ -65,13 +66,15 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 
 // ── Individual syscall implementations ───────────────────────────────────────
 
-// ── RFC 014: capability gating helper ────────────────────────────────────────
+// ── RFC 014 + RFC 031: capability gating helper ───────────────────────────────
 
 /// Require that the calling task holds a capability of `kind` with at least
 /// `required_rights`, and whose lease (if any) is still active.
 ///
-/// This replaces the v0.0.9 `caller_has_cap(kind)` which ignored rights and
-/// lease binding (RFC 014).
+/// This is the v0.1.x scan-based approach, retained as a transition aid.
+/// Per RFC 031, the v0.2 production path passes the cap handle explicitly.
+/// Migration of task/lease syscalls to handle-based `require_cap` is tracked
+/// in V02-A-001 of the v0.2 preparation backlog.
 fn require_cap(kind: fjell_cap::CapKind, required_rights: fjell_cap::CapRights) -> Result<(), SysError> {
     use crate::trap::dispatch::current_task_idx;
     let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
@@ -82,7 +85,7 @@ fn require_cap(kind: fjell_cap::CapKind, required_rights: fjell_cap::CapRights) 
         None    => return Err(SysError::InternalError),
     };
     let found = cs.slots().iter().any(|slot| {
-        if let Some(cap) = slot.cap {
+        if let Some(cap) = &slot.cap {
             cap.kind == kind
             && cap.rights.contains(required_rights)
             && cap.check_lease(lt).is_ok()
@@ -179,6 +182,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
         Some(SyscallNumber::CapDelete)  => sys_cap_delete(tf, tidx, ct),
         Some(SyscallNumber::CapRevoke)  => sys_cap_revoke(tf, tidx, ct),
         Some(SyscallNumber::CapInspect) => sys_cap_inspect(tf, tidx, ct),
+        Some(SyscallNumber::CapDrop)    => sys_cap_drop(tf, tidx, ct),
         Some(SyscallNumber::IpcSend)    => sys_ipc_send(tf, tidx, ct, et, table, sched, cur_id),
         Some(SyscallNumber::IpcRecv)    => sys_ipc_recv(tf, tidx, ct, et, table, sched, cur_id),
         Some(SyscallNumber::IpcCall)    => sys_ipc_call(tf, tidx, ct, et, table, sched, cur_id),
@@ -201,7 +205,7 @@ pub fn sys_task_spawn(
     use fjell_abi::service::ImageId;
     use crate::task::spawn::spawn;
     // RFC 014: require TaskCreate capability with full rights.
-    if let Err(e) = require_cap(fjell_cap::CapKind::TaskCreate, fjell_cap::CapRights::ALL) {
+    if let Err(e) = require_cap(fjell_cap::CapKind::TaskCreate, fjell_cap::CapRights::TASK_CREATE) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     let image_id = ImageId(tf.gpr[REG_A0] as u16);
@@ -229,7 +233,7 @@ pub fn sys_task_start(
     use fjell_abi::error::SysError;
     use crate::task::TaskId; use crate::task::tcb::TaskState;
     // RFC 014: require TaskControl capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, fjell_cap::CapRights::ALL) {
+    if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, fjell_cap::CapRights::TASK_START) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     // RFC 010: decode (index, generation) from packed u32 handle.
@@ -276,7 +280,7 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) 
     use crate::task::TaskId; use crate::task::tcb::TaskState;
     use fjell_cap::CapRights;
     // RFC 014: require TaskControl | INSPECT capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, CapRights::INSPECT) {
+    if let Err(e) = require_cap(fjell_cap::CapKind::TaskControl, fjell_cap::CapRights::TASK_STATUS) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     // RFC 010: decode (index, generation) from packed u32 handle.
@@ -303,7 +307,7 @@ pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable) 
 pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
                          tidx: usize) {
     // RFC 014: require LeaseAdmin capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::ALL) {
+    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_CREATE) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     use fjell_abi::task::TaskId;
@@ -318,8 +322,8 @@ pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
 /// `sys_lease_revoke(a0=lease_id) -> a0=new_epoch`
 /// Requires `CapKind::LeaseAdmin` (RFC 014).
 pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable) {
-    // RFC 014: require LeaseAdmin capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::ALL) {
+    // RFC 031: require LeaseAdmin + LEASE_REVOKE.
+    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_REVOKE) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     use fjell_abi::lease::LeaseId;
@@ -335,7 +339,7 @@ pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable) {
 pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable) {
     use fjell_cap::CapRights;
     // RFC 014: require LeaseAdmin | INSPECT capability.
-    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, CapRights::INSPECT) {
+    if let Err(e) = require_cap(fjell_cap::CapKind::LeaseAdmin, fjell_cap::CapRights::LEASE_INSPECT) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     use fjell_abi::lease::LeaseId;
@@ -388,7 +392,8 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
         Ok(c) if c.kind == CapKind::AuditDrain => c,
         _ => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
     };
-    if !cap.rights.contains(CapRights::RECV) {
+    // RFC 031: require AUDIT_DRAIN right (was incorrectly RECV in v0.1.x).
+    if !cap.rights.contains(CapRights::AUDIT_DRAIN) {
         tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize; return;
     }
 

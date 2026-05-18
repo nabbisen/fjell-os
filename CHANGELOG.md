@@ -3,6 +3,61 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0-alpha.2] - 2026-05-17
+
+### v0.2 Phase 1 completion + Phase 2 foundation
+
+Wires the Phase 1 enforcement library into the kernel, and delivers
+the Phase 2 lease epoch revocation table.
+
+### Added
+
+- **`fjell-kernel/src/lease/mod.rs`** rewritten (RFC 033 Phase 2):
+  - `LeaseState { Empty, Active, Revoked }` — explicit state enum.
+  - `LeaseObject` gains `owner: TaskId` field for lifecycle revoke.
+  - `create()` now starts epoch at `1` (RFC 033 §2.3: `0` is reserved).
+  - `revoke()` is O(1): increments epoch + marks `Revoked` + calls
+    `wake_or_cancel_blocked_ipc_for_lease` hook (RFC 034 stub).
+  - `check_active()` returns `SysError::LeaseRevoked` (not PermissionDenied).
+  - `revoke_owned_by(task)` — lifecycle revoke for all leases owned by a
+    task; called on task exit/fault/restart.
+  - `wake_or_cancel_blocked_ipc_for_lease` stub (RFC 034 hook, Phase 2).
+  - 7 unit tests: `LEASE-001` through `LEASE-006` invariants verified.
+- **`fjell-cap/src/rights.rs`**: `impl From<CapError> for SysError` — allows
+  kernel code to use `?` on `check_lease` / `require_cap` results.
+
+### Changed
+
+- **`fjell-kernel/src/cap/syscall.rs`**:
+  - `CapRights(tf.gpr[12] as u32)` → `CapRights(tf.gpr[12] as u64)`.
+  - All `cap.check_lease(lt)?` and `err(tf, e)` → `err(tf, e.into())`.
+  - `check_right` uses `.map_err(SysError::from)?`.
+  - `sys_audit_drain` rights check corrected from `RECV` to `AUDIT_DRAIN`.
+  - New function: `sys_cap_drop` (RFC 032 kernel entry point).
+- **`fjell-kernel/src/trap/syscall.rs`**:
+  - `CapDrop` added to the syscall dispatch table (calls `sys_cap_drop`).
+  - Task/lease `require_cap` calls now use specific rights (TASK_CREATE,
+    TASK_START, TASK_STATUS, LEASE_CREATE, LEASE_REVOKE, LEASE_INSPECT)
+    instead of the broad `CapRights::ALL`.
+  - Local `require_cap` comment clarifies it is a transition aid;
+    V02-A-001 tracks migration to handle-based enforcement.
+- **`fjell-kernel/src/audit/ring.rs`**: `CapDrop = 15` audit kind added.
+- **`fjell-kernel/src/main.rs`**:
+  - All `Capability { ... }` literals updated: `state: CapState::Active,
+    scope: ObjectScope::Any` fields added.
+  - Import extended: `use fjell_cap::{CapKind, CapRights, CapState, ObjectScope}`.
+- **`fjell-kernel/src/lease/mod.rs`**: `LeaseChecker` impl now returns
+  `CapError::LeaseRevoked` instead of `SysError::PermissionDenied`.
+
+### Known limitations (not changed from alpha.1)
+
+- The task/lease syscalls still use a CSpace slot-scan for capability
+  checking. Full handle-based `require_cap` at each call site is tracked
+  as V02-A-001 (requires ABI changes to pass the handle in `a0`/`a2`).
+- `wake_or_cancel_blocked_ipc_for_lease` is a no-op stub. Blocked IPC
+  wake/cancel lands when the Phase 2 CallFrame epoch-tracking data
+  structures are added (RFC 034 completion).
+
 ## [0.2.0-alpha.1] - 2026-05-17
 
 ### v0.2 Phase 1 — Capability Enforcement Core (RFC 031, RFC 032)

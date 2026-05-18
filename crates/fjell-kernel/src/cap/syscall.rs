@@ -31,7 +31,7 @@ pub fn sys_cap_copy(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
-        if let Err(e) = cap.check_lease(lt) { err(tf, e); return; }
+        if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; }
     }
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     match cs.copy(src, dst) {
@@ -44,13 +44,13 @@ pub fn sys_cap_copy(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 pub fn sys_cap_mint(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src    = CapHandle(tf.gpr[10] as u32);
     let dst    = tf.gpr[11];
-    let rights = CapRights(tf.gpr[12] as u32);
+    let rights = CapRights(tf.gpr[12] as u64);  // v0.2: CapRights is u64
     // RFC 015: validate source cap lease before minting a derived capability.
     {
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
-        if let Err(e) = cap.check_lease(lt) { err(tf, e); return; }
+        if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; }
     }
     let badge  = tf.gpr[13] as u64;
     let cs = match ct.cspace_mut(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
@@ -81,7 +81,7 @@ pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
     let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     // RFC 015: validate lease before exposing cap metadata.
     match cs.get(h) {
-        Ok(cap) => { if let Err(e) = cap.check_lease(lt) { err(tf, e); return; } }
+        Ok(cap) => { if let Err(e) = cap.check_lease(lt) { err(tf, e.into()); return; } }
         Err(e)  => { err(tf, e); return; }
     }
     match cs.inspect(h) {
@@ -139,8 +139,27 @@ fn check_right(tf: &TrapFrame, tidx: usize, ct: &CapTable, right: CapRights) -> 
     if !cap.rights.contains(right) { return Err(SysError::PermissionDenied); }
     // RFC 015: validate lease binding — revoked caps must not be used for IPC.
     let lt = unsafe { crate::get_lease_table() };
-    cap.check_lease(lt)?;
+    cap.check_lease(lt).map_err(SysError::from)?;
     Ok(())
+}
+
+/// `sys_cap_drop(a0=cap_handle) -> a0=status`
+///
+/// RFC 032 (v0.2.0): Explicitly drop a capability slot so it can be reused.
+/// Unlike `cap_delete`, succeeds even when the capability's lease is revoked.
+pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
+    let h  = CapHandle(tf.gpr[10] as u32);
+    let cs = match ct.cspace_mut(tidx) {
+        Some(c) => c,
+        None    => { err(tf, SysError::InternalError); return; }
+    };
+    match fjell_cap::enforcement::cap_drop(cs, h) {
+        Ok(()) => {
+            ok(tf);
+            AUDIT.lock_free_append(AuditKindInternal::CapDrop, h.0 as usize, 0, 0);
+        }
+        Err(e) => err(tf, e.into()),
+    }
 }
 
 /// Deliver a PendingMessage into the current task's TrapFrame (for recv/call).

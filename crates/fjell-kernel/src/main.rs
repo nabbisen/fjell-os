@@ -527,48 +527,48 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         // services and manage leases.  Service-manager receives TaskCreate
         // and TaskControl via cap_derive after init spawns it.
         {
-            use fjell_cap::{CapKind, CapRights};
+            use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
             use fjell_cap::slot::Capability;
             let cs = cap_table.cspace_mut(1 /* init task index */)
                 .expect("init CSpace");
             // Slot 28: TaskCreate — init can spawn service tasks.
             let _ = cs.install_raw(28, Capability {
                 kind: CapKind::TaskCreate, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 29: TaskControl — init can start spawned tasks.
             let _ = cs.install_raw(29, Capability {
                 kind: CapKind::TaskControl, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 30: LeaseAdmin — init can create/revoke leases.
             let _ = cs.install_raw(30, Capability {
                 kind: CapKind::LeaseAdmin, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
 
             // Slot 0: shared IPC endpoint (for service broadcasts).
             let _ = cs.install_raw(0, Capability {
                 kind: CapKind::Endpoint, object_id: 0,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 2: storaged private endpoint (endpoint id=1).
             let _ = cs.install_raw(2, Capability {
                 kind: CapKind::Endpoint, object_id: 1,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 3-5: M8 service private endpoints.
             let _ = cs.install_raw(3, Capability {  // measuredd (ep id=2)
                 kind: CapKind::Endpoint, object_id: 2,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             let _ = cs.install_raw(4, Capability {  // attestd (ep id=3)
                 kind: CapKind::Endpoint, object_id: 3,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             let _ = cs.install_raw(5, Capability {  // recoveryd (ep id=4)
                 kind: CapKind::Endpoint, object_id: 4,
-                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).
             let mmio_table = mmio_region_table();
@@ -578,7 +578,8 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     kind: CapKind::MmioRegion,
                     object_id: i as u32,
                     rights: CapRights::ALL,
-                    badge: 0, parent: None, lease: None,
+                    badge: 0, scope: ObjectScope::Any, state: CapState::Active,
+                    parent: None, lease: None,
                 });
             }
         }

@@ -287,3 +287,15 @@ impl CapError {
         }
     }
 }
+
+// ── Conversions ───────────────────────────────────────────────────────────────
+
+impl From<CapError> for fjell_abi::error::SysError {
+    /// Map `CapError` to the stable `SysError` ABI code.
+    ///
+    /// Used in kernel syscall handlers that return `SysError` and internally
+    /// call `require_cap()` / `check_lease()` which now return `CapError`.
+    fn from(e: CapError) -> Self {
+        e.to_sys_error()
+    }
+}
