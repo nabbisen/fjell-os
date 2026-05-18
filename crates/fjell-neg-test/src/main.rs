@@ -179,6 +179,47 @@ fn test_user_copy_kernel_addr() {
 }
 
 
+
+/// IPC: send BIND_LEASE_FOR_IPC_TEST to sample-service; it blocks in ipc_recv
+/// with a lease-bound cap; neg-test revokes the lease → sample-service woken.
+///
+/// RFC 034 §2: `cancel_blocked_ipc_for_lease` removes RecvWaiter entries
+/// whose `LeaseBinding` matches the revoked (lease_id, epoch).
+///
+/// The marker `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS` is emitted by
+/// sample-service when it observes `LeaseRevoked` from `sys_ipc_recv`.
+/// qemu-log-check finds it in the serial log regardless of which service
+/// printed it.
+fn test_ipc_blocked_recv() {
+    // 1. Create a fresh lease (need LeaseAdmin cap in slot 4).
+    let lease_id = match sys_lease_create(0) {
+        Ok(id) => id,
+        Err(_) => return,  // LeaseAdmin cap not available — skip
+    };
+
+    // 2. Send BIND_LEASE_FOR_IPC_TEST(w0=lease_id) to endpoint 0 (sample-service).
+    //    This is an ipc_call — we block until sample-service replies.
+    match sys_ipc_call_words(
+        SLOT_OWN_EP,                       // endpoint 0 → sample-service
+        tags::BIND_LEASE_FOR_IPC_TEST,
+        lease_id.0 as usize, 0, 0,
+    ) {
+        Ok(0) => {} // sample-service replied OK
+        _     => { let _ = sys_lease_revoke(lease_id); return; }
+    }
+
+    // 3. At this point sample-service has replied and is running.
+    //    By the cooperative-scheduling contract, sample-service immediately
+    //    calls sys_ipc_recv(SLOT_LEASED_EP) and blocks before the scheduler
+    //    returns to neg-test.  One defensive yield is included for safety.
+    sys_yield();
+
+    // 4. Revoke the lease — this triggers cancel_blocked_ipc_for_lease in
+    //    the kernel which wakes sample-service with LeaseRevoked.
+    let _ = sys_lease_revoke(lease_id);
+    // (marker emitted by sample-service asynchronously)
+}
+
 /// POLICY: send CAP_REQUEST as unknown ImageId — default deny expected.
 ///
 /// RFC 040: cap-broker is in Enforcing state (init sent BOOTSTRAP_COMPLETE).
@@ -287,6 +328,9 @@ pub extern "C" fn service_main() -> ! {
     // ── Safe user copy (RFC 039) ──────────────────────────────────────────────
     test_user_copy_null();
     test_user_copy_kernel_addr();
+
+    // ── IPC blocked-recv revocation (RFC 034) ────────────────────────────────
+    test_ipc_blocked_recv();
 
     // ── Cap-broker policy (RFC 040) ───────────────────────────────────────────
     // Additional yields so the system is fully settled before IPC.

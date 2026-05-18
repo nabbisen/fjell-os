@@ -180,6 +180,16 @@ pub fn spawn(
                     rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
+            // Slot 1: LeaseAdmin for SAMPLE_SERVICE (RFC 042 IPC blocked-recv test).
+            // sample-service binds a lease to a copied endpoint cap and blocks
+            // in ipc_recv to allow the lease-revoked wakeup scenario to be tested.
+            if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
+                let _ = cs.install_raw(1, Capability {
+                    kind: CapKind::LeaseAdmin, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any,
+                    state: CapState::Active, parent: None, lease: None,
+                });
+            }
             // Slot 3: cap-broker endpoint cap for NEG_TEST (RFC 042 policy tests).
             // object_id=5 is cap-broker's dedicated endpoint.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {

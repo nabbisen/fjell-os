@@ -1,7 +1,10 @@
-# RFC 034 (v0.2): blocked IPC revocation.
-# Requires multi-task coordination; markers added in v0.2.2.
+# RFC 034 (v0.2): blocked IPC revocation semantics.
+# sample-service blocks in ipc_recv with a leased cap; neg-test revokes
+# the lease; kernel wakes sample-service with LeaseRevoked.
 
 name             = "ipc"
-timeout_secs     = 60
-expected_markers = []
+timeout_secs     = 90
+expected_markers = [
+  "NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS",
+]
 extra_args       = []

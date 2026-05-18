@@ -23,6 +23,11 @@ pub mod tags {
     pub const SM_STATUS_REPLY:    usize = 0x043;
     pub const SM_CORE_TARGET_READY: usize = 0x044;
     pub const BOOTSTRAP_COMPLETE: usize = 0x100;
+
+    // ── RFC 042: neg-test IPC protocol ───────────────────────────────────────
+    /// Sent by neg-test to a helper service: "bind lease_id (in w0) to your
+    /// endpoint cap and block in ipc_recv so we can test revocation wakeup."
+    pub const BIND_LEASE_FOR_IPC_TEST: usize = 0x060;
 }
 
 // ── RFC 019: storaged IPC protocol ────────────────────────────────────────────

@@ -3,6 +3,56 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.5] - 2026-05-18
+
+### RFC 042 Phase 5 — IPC Blocked-Recv Revocation (RFC 034)
+
+Wires `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS` using sample-service as a
+cooperative helper.
+
+### Added
+
+- **`fjell-service-api/src/lib.rs`**: `tags::BIND_LEASE_FOR_IPC_TEST = 0x060` —
+  IPC protocol tag for the neg-test ↔ sample-service coordination.
+- **`fjell-sample-service/src/main.rs`** (rewritten): handles the new protocol:
+  1. Receives `BIND_LEASE_FOR_IPC_TEST(w0=lease_id)` from neg-test.
+  2. `sys_cap_copy(slot_0, SLOT_5)` + `sys_cap_bind_lease(SLOT_5, lease_id)`.
+  3. Replies OK (neg-test unblocks).
+  4. `sys_ipc_recv(SLOT_5)` → blocks in recvq with the lease binding.
+  5. Woken by `cancel_blocked_ipc_for_lease` with `LeaseRevoked`.
+  6. Prints `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS` and drops SLOT_5.
+  Now uses `sys_ipc_recv_msg` in the main loop to read data words (w0).
+- **`fjell-sample-service/Cargo.toml`**: adds `fjell-cap` dependency
+  (for `CapHandle`).
+- **`fjell-kernel/src/task/spawn.rs`**: `SAMPLE_SERVICE` gets slot 1 =
+  `LeaseAdmin` (required for `sys_cap_bind_lease`).
+- **`fjell-neg-test/src/main.rs`**: `test_ipc_blocked_recv()`:
+  creates a lease, calls `BIND_LEASE_FOR_IPC_TEST` on endpoint 0, yields
+  once, then revokes the lease.
+- **`tests/qemu/profiles/ipc.toml`**: `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS`
+  now expected.
+
+### Cooperative scheduling guarantee
+
+When sample-service calls `sys_ipc_reply` (step 3), it remains the running
+task.  It immediately calls `sys_ipc_recv(SLOT_5)` — which blocks since there
+is no sender — and the scheduler switches to neg-test.  By the time neg-test
+gets CPU, sample-service is already in the recvq with the lease binding,
+making the `sys_lease_revoke` → `cancel_blocked_ipc_for_lease` path reliable.
+
+### Marker count: 15/21 live
+
+| Category | Live | Remaining |
+|----------|------|-----------|
+| capability | 4/4 ✓ | — |
+| mmio | 2/3 | RAM_GUARD (untriggerable) |
+| dma | 2/3 | ZEROIZE_ON_EXIT |
+| user-copy | 2/2 ✓ | — |
+| policy | 3/3 ✓ | — |
+| audit | 1/1 ✓ | — |
+| ipc | 1/3 | BLOCKED_CALL, LATE_REPLY (need 3-party coordination) |
+| svc | 0/2 | needs service extraction |
+
 ## [0.2.4] - 2026-05-18
 
 ### RFC 042 Phase 4 — Policy Deny-Priority and Audit Evidence Gap
