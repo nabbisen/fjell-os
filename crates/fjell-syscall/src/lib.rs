@@ -82,15 +82,21 @@ fn ecall0(nr: usize) -> usize {
 ///
 /// Returns `Ok((label, w0, w1, w2, w3))` on success.
 /// Use this variant when the caller needs the full 4-word payload.
+/// RFC 055: returns 6-tuple; a6 carries kernel-attested sender identity.
+///
+/// The 6th element packs `(sender_tid as u16) | (sender_image_id << 16)`.
+/// This allows receivers (e.g. cap-broker) to authenticate the sender without
+/// trusting message payload words.
 pub fn sys_ipc_recv_msg(ep: u32)
-    -> Result<(usize, usize, usize, usize, usize), SysError>
+    -> Result<(usize, usize, usize, usize, usize, usize), SysError>
 {
     let status: usize;
-    let label: usize;
-    let w0: usize;
-    let w1: usize;
-    let w2: usize;
-    let w3: usize;
+    let label:  usize;
+    let w0:     usize;
+    let w1:     usize;
+    let w2:     usize;
+    let w3:     usize;
+    let sender: usize;
     #[cfg(target_arch = "riscv64")]
     unsafe {
         core::arch::asm!(
@@ -101,17 +107,22 @@ pub fn sys_ipc_recv_msg(ep: u32)
             lateout("a3") w1,
             lateout("a4") w2,
             lateout("a5") w3,
+            lateout("a6") sender,
             lateout("a7") _,
             options(nostack),
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = ep; status = 0; label = 0; w0 = 0; w1 = 0; w2 = 0; w3 = 0; }
-    // Fixed in v0.2.9 (RB-04): actually check the a0 status — previously
-    // hardcoded `to_result(0)` silently swallowed LeaseRevoked, BadState, etc.
+    { let _ = ep; status = 0; label = 0; w0 = 0; w1 = 0; w2 = 0; w3 = 0; sender = 0; }
     to_result(status)?;
-    Ok((label & 0xFFFF, w0, w1, w2, w3))
+    Ok((label & 0xFFFF, w0, w1, w2, w3, sender))
 }
+
+/// Decode the sender identity word from `sys_ipc_recv_msg`'s 6th return value.
+#[inline]
+pub fn ipc_sender_image_id(identity: usize) -> u16 { (identity >> 16) as u16 }
+#[inline]
+pub fn ipc_sender_tid(identity: usize) -> u16 { (identity & 0xFFFF) as u16 }
 
 fn to_result(raw: usize) -> Result<usize, SysError> {
     let code = raw as isize;
@@ -203,6 +214,14 @@ pub fn sys_lease_create(cap_handle: u32, flags: u32) -> Result<LeaseId, SysError
     to_result(r0).map(|_| LeaseId(r1 as u32))
 }
 
+
+/// One-way IPC send (no reply expected).  If no receiver is waiting the
+/// message is queued.  Returns `WouldBlock` if the endpoint sendq is full.
+pub fn sys_ipc_try_send(ep_slot: u32, label: usize) -> Result<(), SysError> {
+    to_result(ecall2(SyscallNumber::IpcSend as usize, ep_slot as usize, label, 0, 0).0)
+        .map(|_| ())
+}
+
 /// RFC 048: first arg is `LeaseAdmin` cap handle; second is the lease id.
 #[inline]
 pub fn sys_lease_revoke(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
@@ -262,6 +281,15 @@ pub unsafe fn sys_audit_drain_ptr(
     );
     to_result(r0)?;
     Ok((r1, r2))
+}
+
+/// RFC 057: request a platform reboot.  Requires a `Reboot` cap with `REBOOT` right.
+/// On success, this call never returns.
+/// RFC 057: request platform reboot. Never returns on success.
+#[allow(dead_code)]
+pub fn sys_reboot(reboot_cap: CapHandle, mode: u32) -> Result<(), SysError> {
+    let r0 = ecall2(SyscallNumber::PlatformReboot as usize, reboot_cap.0 as usize, mode as usize, 0, 0).0;
+    to_result(r0).map(|_| ())
 }
 
 // ── Debug write (testing only) ────────────────────────────────────────────────
@@ -460,6 +488,26 @@ pub fn sys_cap_mint(src: CapHandle, dst_slot: u32, rights: u64) -> Result<CapHan
 pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
     to_result(ecall2(SyscallNumber::CapRevoke as usize, cap.0 as usize, 0, 0, 0).0)
         .map(|_| ())
+}
+
+/// RFC 056: install a capability into another task's CSpace.
+/// `target_tid` = packed `(index | generation << 16)` task handle.
+/// Returns `Ok(handle)` — the new slot handle in the target's CSpace.
+pub fn sys_cap_install(
+    install_cap: CapHandle,
+    target_tid:  usize,
+    cap_kind:    u8,
+    object_id:   u32,
+) -> Result<CapHandle, SysError> {
+    let (r0, r1) = ecall2(
+        SyscallNumber::CapInstall as usize,
+        install_cap.0 as usize,
+        target_tid,
+        cap_kind as usize,
+        object_id as usize,
+    );
+    to_result(r0)?;
+    Ok(CapHandle(r1 as u32))
 }
 
 /// `sys_cap_inspect(cap) → Ok((kind, rights, badge))` — RFC 049: requires INSPECT right.

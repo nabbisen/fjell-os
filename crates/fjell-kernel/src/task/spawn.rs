@@ -228,5 +228,23 @@ pub fn spawn(
         }
     }
 
+    // RFC 056: CapInstall cap for CAP_BROKER (slot 10).
+    {
+        use fjell_cap::{CapKind, CapRights, slot::{Capability, CapState}, rights::ObjectScope};
+        if image_id == fjell_abi::service::ImageId::CAP_BROKER {
+            if let Some(cs) = cap_table.cspace_mut(ins_id.index as usize) {
+                let _ = cs.install_raw(10, Capability {
+                    kind: CapKind::CapInstall, object_id: 0,
+                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                });
+            }
+        }
+    }
+
+    // RFC 055: store the image_id in the TCB for kernel-attested IPC identity.
+    if let Some(task) = table.get_mut(ins_id) {
+        task.image_id = image_id;
+    }
+
     Ok(ins_id)
 }

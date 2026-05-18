@@ -2,7 +2,7 @@
 
 **RFC ID:** 057
 **Also known as:** RFC-v0.2-023
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.12
 **Phase:** Service separation + release-gate close
 **Closes review item:** RB-12 (bootctl half)

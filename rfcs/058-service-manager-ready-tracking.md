@@ -2,7 +2,7 @@
 
 **RFC ID:** 058
 **Also known as:** RFC-v0.2-024
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.12
 **Phase:** Service separation + release-gate close
 **Closes review items:** RB-12 (service-manager half), H-04

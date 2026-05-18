@@ -108,6 +108,60 @@ pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
     }
 }
 
+
+/// `sys_cap_install(a0=install_cap, a1=target_tid_raw, a2=cap_kind, a3=object_id)` — RFC 056.
+///
+/// Installs a capability into `target_tid`'s CSpace.  Requires a `CapInstall` cap
+/// with `CAP_INSTALL` right.  Returns `Ok(cap_handle)` on success.
+///
+/// Installed cap has `ALL` rights, `ObjectScope::Any`, and no lease — the
+/// caller (cap-broker) may refine rights via a subsequent `cap_mint` call.
+pub fn sys_cap_install(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
+    use fjell_cap::{CapKind, CapRights, rights::ObjectScope, slot::{Capability, CapState}};
+    use crate::task::TaskId;
+
+    let install_cap = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let target_raw  = tf.gpr[REG_A1] as u32;
+    let cap_kind_n  = tf.gpr[REG_A2] as u8;
+    let object_id   = tf.gpr[REG_A3] as u32;
+
+    // 1. Validate the CapInstall authority.
+    if let Err(e) = crate::trap::syscall::require_cap_on_ct(ct, tidx, install_cap,
+                                        CapKind::CapInstall, CapRights::CAP_INSTALL, None) {
+        err(tf, e); return;
+    }
+
+    // 2. Parse target task id.
+    let target_idx = (target_raw & 0xFFFF) as u16;
+    let target_gen  = (target_raw >> 16) as u16;
+    let target_id   = TaskId::new(target_idx, target_gen);
+
+    // 3. Map cap_kind discriminant to CapKind.
+    let kind = CapKind::from_u8(cap_kind_n).unwrap_or(CapKind::Endpoint);
+
+    // 4. Install into target CSpace.
+    let cap = Capability {
+        kind, object_id,
+        rights: CapRights::ALL,
+        badge: 0,
+        scope: ObjectScope::Any,
+        state: CapState::Active,
+        parent: None,
+        lease: None,
+    };
+    let target_tidx = target_idx as usize;
+    let ts = match ct.cspace_mut(target_tidx) {
+        Some(c) => c,
+        None    => { err(tf, SysError::InvalidCap); return; }
+    };
+    match ts.install_any(cap) {
+        Ok(h)  => { ok(tf); tf.gpr[REG_A1] = h.0 as usize; }
+        Err(e) => { err(tf, e); }
+    }
+    AUDIT.lock_free_append(AuditKindInternal::CapMint,
+                           target_idx as usize, object_id as usize, 0);
+}
+
 // ── IPC syscalls ──────────────────────────────────────────────────────────────
 
 /// Build a PendingMessage from the trap frame.
@@ -135,14 +189,22 @@ fn build_msg(
     let mut words = [0u64; IPC_WORDS];
     for i in 0..(tag.words as usize).min(4) { words[i] = tf.gpr[12 + i] as u64; }
 
+    // RFC 055: look up sender's image_id for kernel-attested identity.
+    let sender_image_id = {
+        let (table, _, _, _) = unsafe { crate::get_kernel_state() };
+        let sender_id = crate::task::TaskId::new(tidx as u16, 0);
+        table.get(sender_id).map(|t| t.image_id.0).unwrap_or(0xFFFF)
+    };
+
     Ok((cap.object_id, PendingMessage {
         tag,
-        sender_tid:   tidx as u16,
-        sender_badge: cap.badge,
+        sender_tid:      tidx as u16,
+        sender_image_id,
+        sender_badge:    cap.badge,
         words,
         cap_present: false, cap_kind: 0, cap_obj_id: 0, cap_rights: 0,
         is_call,
-        lease: cap.lease,   // RFC 034: carry lease binding for revoke wake path
+        lease: cap.lease,
     }))
 }
 
@@ -237,6 +299,8 @@ fn deliver(tf: &mut TrapFrame, msg: &PendingMessage) {
     tf.gpr[REG_A1] = packed;
     tf.gpr[12]     = msg.sender_badge as usize;
     for i in 0..(msg.tag.words as usize).min(4) { tf.gpr[13 + i] = msg.words[i] as usize; }
+    // RFC 055: a6 = (sender_tid | sender_image_id << 16) — kernel-attested identity.
+    tf.gpr[16] = (msg.sender_tid as usize) | ((msg.sender_image_id as usize) << 16);
 }
 
 pub fn sys_ipc_send(

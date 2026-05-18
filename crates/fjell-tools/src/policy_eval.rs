@@ -208,6 +208,9 @@ pub mod tests {
 
 
     #[test]
+    // Note (RFC 055): cap-broker now reads requester from attested sender identity,
+    // not from w0.  The evaluate() function still takes explicit requester for host tests.
+    #[test]
     fn deny_priority_wins_over_allow() {
         // NEG_TEST has both a deny and an allow rule for Config.
         // Deny must win (BROKER-002).

@@ -83,19 +83,20 @@ impl<T: Copy, const N: usize> FixedQueue<T, N> {
 /// `lease` carries the sender's endpoint-cap lease binding (RFC 034).
 #[derive(Clone, Copy, Debug)]
 pub struct PendingMessage {
-    pub tag:          MessageTag,
-    pub sender_tid:   u16,
-    pub sender_badge: u64,
-    pub words:        [u64; IPC_WORDS],
-    pub cap_present:  bool,
-    pub cap_kind:     u8,
-    pub cap_obj_id:   u32,
-    pub cap_rights:   u32,
+    pub tag:              MessageTag,
+    pub sender_tid:       u16,
+    /// RFC 055: kernel-attested ImageId of the sender.  Filled by the kernel
+    /// from the sender's TCB at message-build time; cannot be forged by user space.
+    pub sender_image_id:  u16,
+    pub sender_badge:     u64,
+    pub words:            [u64; IPC_WORDS],
+    pub cap_present:      bool,
+    pub cap_kind:         u8,
+    pub cap_obj_id:       u32,
+    pub cap_rights:       u32,
     /// True if sent via `ipc_call` (expects a reply).
     pub is_call: bool,
     /// RFC 034: endpoint cap lease binding at send/call time.
-    ///
-    /// `None` for bootstrap messages or unbound caps.
     pub lease: Option<LeaseBinding>,
 }
 
@@ -229,7 +230,7 @@ impl Endpoint {
 
     /// Cancel all pending entries for `tid`.
     pub fn cancel(&mut self, tid: u16) {
-        let mut rm = [PendingMessage { tag: MessageTag::new(0,0,0), sender_tid: 0,
+        let mut rm = [PendingMessage { tag: MessageTag::new(0,0,0), sender_tid: 0, sender_image_id: 0,
             sender_badge: 0, words: [0; IPC_WORDS], cap_present: false,
             cap_kind: 0, cap_obj_id: 0, cap_rights: 0, is_call: false, lease: None,
         }; QUEUE_DEPTH];
@@ -258,7 +259,7 @@ impl Endpoint {
 
         // --- cancelled senders ---
         let dummy_msg = PendingMessage {
-            tag: MessageTag::new(0,0,0), sender_tid: 0, sender_badge: 0,
+            tag: MessageTag::new(0,0,0), sender_tid: 0, sender_image_id: 0, sender_badge: 0,
             words: [0; IPC_WORDS], cap_present: false, cap_kind: 0,
             cap_obj_id: 0, cap_rights: 0, is_call: false, lease: None,
         };
@@ -318,7 +319,7 @@ mod tests {
     fn msg(tid: u16, badge: u64, is_call: bool, lease: Option<LeaseBinding>) -> PendingMessage {
         PendingMessage {
             tag: MessageTag::new(1, 0, 0),
-            sender_tid: tid, sender_badge: badge,
+            sender_tid: tid, sender_image_id: 0, sender_badge: badge,
             words: [0; IPC_WORDS],
             cap_present: false, cap_kind: 0, cap_obj_id: 0, cap_rights: 0,
             is_call, lease,

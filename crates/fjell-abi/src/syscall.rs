@@ -40,7 +40,11 @@ pub enum SyscallNumber {
     /// After binding, `require_cap` step 7 checks whether the lease is still
     /// active before allowing the cap to be used.  Used by the neg-test service
     /// to create lease-bound caps for negative testing.
-    CapBindLease = 16,
+    CapBindLease  = 16,
+    /// RFC 056: install a cap directly into another task's CSpace.
+    CapInstall    = 17,
+    /// RFC 057: platform reboot (alias for existing Reboot=120 — use number 18 → platform reset).
+    PlatformReboot = 18,
 
     // ── M3 IPC syscalls ────────────────────────────────────────────────────
     /// Synchronous send (blocks until a receiver is ready).
@@ -102,6 +106,8 @@ impl SyscallNumber {
             14 => Some(Self::CapInspect),
             15 => Some(Self::CapDrop),
             16 => Some(Self::CapBindLease),
+            17 => Some(Self::CapInstall),
+            18 => Some(Self::PlatformReboot),
             20 => Some(Self::IpcSend),
             21 => Some(Self::IpcRecv),
             22 => Some(Self::IpcCall),
@@ -124,6 +130,7 @@ impl SyscallNumber {
             111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
             120 => Some(Self::Reboot),
+            18  => Some(Self::PlatformReboot),
             _  => None,
         }
     }

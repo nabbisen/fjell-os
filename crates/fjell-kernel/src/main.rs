@@ -623,6 +623,12 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             use fjell_cap::slot::Capability;
             let cs = cap_table.cspace_mut(1 /* init task index */)
                 .expect("init CSpace");
+            // Slot 27: CapInstall — init can delegate caps during bootstrap;
+            // revoked after BOOTSTRAP_COMPLETE is sent to cap-broker (v0.3 cleanup).
+            let _ = cs.install_raw(27, Capability {
+                kind: CapKind::CapInstall, object_id: 0,
+                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+            });
             // Slot 28: TaskCreate — init can spawn service tasks.
             let _ = cs.install_raw(28, Capability {
                 kind: CapKind::TaskCreate, object_id: 0,

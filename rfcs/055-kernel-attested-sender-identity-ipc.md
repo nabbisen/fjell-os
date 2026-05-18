@@ -2,7 +2,7 @@
 
 **RFC ID:** 055
 **Also known as:** RFC-v0.2-021
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.12
 **Phase:** Service separation + release-gate close
 **Closes review item:** RB-11 (identity half)

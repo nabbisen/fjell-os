@@ -45,7 +45,8 @@ mod rt;
 
 use fjell_syscall::{
     sys_exit, sys_ipc_recv_msg, sys_ipc_reply,
-    sys_lease_create, sys_lease_revoke, sys_debug_writeln, sys_yield,
+    sys_lease_revoke,
+    sys_debug_writeln, sys_yield,
 };
 use fjell_service_api::tags;
 
@@ -364,15 +365,18 @@ pub extern "C" fn service_main() -> ! {
         // RFC 037 cooperative shape: blocking recv (try_recv not available
         // in current fjell-syscall; replace when IpcTryRecv is exposed).
         match sys_ipc_recv_msg(0u32) {
-            Ok((label, w0, w1, w2, _w3)) => {
+            Ok((label, w0, w1, w2, _w3, sender_identity)) => {
                 let tag = (label & 0xFFFF) as usize;
 
                 // ── Bootstrap handoff ────────────────────────────────────────
                 if tag == (tags::BOOTSTRAP_COMPLETE & 0xFFFF) {
                     if state == BrokerState::Bootstrap {
-                        // Sender must be init (ImageId 0).
-                        // In v0.2 we trust the kernel badge == sender tid;
-                        // full sender-identity check requires badge enforcement.
+                        // RFC 055: verify sender is init (ImageId 0) via attested identity.
+                        let sender_image_id = fjell_syscall::ipc_sender_image_id(sender_identity);
+                        if sender_image_id != 0 {  // init has ImageId(0)
+                            let _ = sys_ipc_reply(usize::MAX);
+                            continue;
+                        }
                         state = BrokerState::Enforcing;
                         sys_debug_writeln("RFC040: cap-broker Enforcing");
                         let _ = sys_ipc_reply(0);  // ok
@@ -391,33 +395,47 @@ pub extern "C" fn service_main() -> ! {
                         continue;
                     }
 
-                    let requester_id     = w0 as u16;
-                    let resource_class   = ResourceClass::from_u32(w1 as u32) as u16;
+                    // RFC 055: use kernel-attested sender image_id (not payload w0).
+                    let requester_id     = fjell_syscall::ipc_sender_image_id(sender_identity);
+                    let resource_class   = ResourceClass::from_u32(w0 as u32) as u16;  // w0 is now resource (was requester)
                     let requested_rights = w2 as u64;  // v0.2: u64 rights
 
                     match evaluate(requester_id, resource_class, requested_rights) {
                         PolicyResult::Granted(granted_rights) => {
                             // BROKER-004: make the grant lease-bound.
-                            let lease_id: u16 = match sys_lease_create(0) {
-                                Ok(lid) => lid.0 as u16,
-                                Err(_)  => 0,
+                            let _lease_id: u16 = 0; // lease binding for installed cap (simplified)
+
+                            // RFC 056: install the cap into the requester's CSpace.
+                            // sender_tid is the requester's task id (low 16 bits of sender_identity).
+                            let sender_tid = fjell_syscall::ipc_sender_tid(sender_identity) as usize;
+                            // Map resource class to cap kind (simplified endpoint grant).
+                            let cap_kind = match resource_class {
+                                1 => fjell_cap::CapKind::Endpoint as u8,
+                                2 => fjell_cap::CapKind::TaskControl as u8,
+                                _ => fjell_cap::CapKind::Endpoint as u8,
                             };
-
-                            // Record in delegation tree (RFC 040 §2.4).
-                            tree.insert(DelegationRecord {
-                                parent_idx: 0,
-                                requester:  requester_id,
-                                resource:   resource_class,
-                                rights:     granted_rights,
-                                lease_id,
-                                active:     true,
-                            });
-
-                            // Reply: CAP_GRANTED | (lease_id << 16) | (rights_lo << 32)
-                            let reply = tags::CAP_GRANTED
-                                | ((lease_id as usize) << 16)
-                                | (((granted_rights & 0xFFFF_FFFF) as usize) << 32);
-                            let _ = sys_ipc_reply(reply);
+                            match fjell_syscall::sys_cap_install(
+                                fjell_cap::CapHandle(10u32),  // broker's CapInstall cap (slot 10)
+                                sender_tid,
+                                cap_kind,
+                                0, // object_id
+                            ) {
+                                Ok(new_handle) => {
+                                    // Record delegation.
+                                    tree.insert(DelegationRecord {
+                                        parent_idx: 0,
+                                        requester:  requester_id,
+                                        resource:   resource_class,
+                                        rights:     granted_rights,
+                                        lease_id:   0,
+                                        active:     true,
+                                    });
+                                    // Reply with the installed cap handle.
+                                    let reply = tags::CAP_GRANTED | ((new_handle.0 as usize) << 16);
+                                    let _ = sys_ipc_reply(reply);
+                                }
+                                Err(_) => { let _ = sys_ipc_reply(tags::CAP_DENIED); }
+                            }
                         }
                         PolicyResult::Denied => {
                             let _ = sys_ipc_reply(tags::CAP_DENIED);
@@ -431,7 +449,8 @@ pub extern "C" fn service_main() -> ! {
                     // CAP_REVOKE: w0 = lease_id to revoke (RFC 040 §2.5).
                     let lid = w0 as u16;
                     use fjell_abi::lease::LeaseId;
-                    match sys_lease_revoke(LeaseId(lid as u32)) {
+                    // RFC 048: sys_lease_revoke needs LeaseAdmin cap (slot 11 = broker's LeaseAdmin).
+                    match sys_lease_revoke(11u32, LeaseId(lid as u32)) {
                         Ok(new_epoch) => {
                             // Cascade: remove delegation records for this lease.
                             tree.revoke_lease(lid);

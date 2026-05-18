@@ -1,10 +1,11 @@
-# RFC 038 (v0.2): service lifecycle — start timeout and fault detection.
-# neg-test spawns svc-timeout (never sends READY) and svc-fault (faults after yield).
+# RFC 038/058 (v0.2): service lifecycle — READY tracking, timeout, fault detection.
 
 name             = "svc"
 timeout_secs     = 90
 expected_markers = [
   "NEG:SVC:START_TIMEOUT_DETECTED:PASS",
   "NEG:SVC:FAULT_DETECTED:PASS",
+  "NEG:SVC:READY_ACCEPTED:PASS",
+  "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS",
 ]
 extra_args       = []

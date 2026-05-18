@@ -1,3 +1,45 @@
+## [0.2.14] - 2026-05-18 — v0.2.12 block: RFCs 055-059 (service separation + release-gate close)
+
+### Implements RFCs 055-059 — closes RB-11, RB-12, H-04; earns TEST:V02:PASS
+
+**RFC 055 (RB-11 identity half): Kernel-attested sender identity in IPC**
+- `PendingMessage::sender_image_id: u16` — filled by kernel from sender's TCB.
+- `Task::image_id: ImageId` field added to TCB; stored at spawn time.
+- `deliver()` writes `a6 = (sender_tid | sender_image_id << 16)`.
+- `sys_ipc_recv_msg` returns 6-tuple including sender identity.
+- `ipc_sender_image_id(u)` / `ipc_sender_tid(u)` helper decoders in fjell-syscall.
+- cap-broker reads requester from `ipc_sender_image_id`, not payload `w0`.
+  `w0` now carries resource class; `w1` carries requested rights.
+- New QEMU marker: `NEG:POLICY:IDENTITY_SPOOFING_REJECTED:PASS`.
+
+**RFC 056 (RB-11 install half): cap-broker capability installation**
+- `CapKind::CapInstall` and `CapRights::CAP_INSTALL` (bit 26) added.
+- `SyscallNumber::CapInstall = 17`; `sys_cap_install` kernel syscall + wrapper.
+- `CSpace::install_any` + `CapKind::from_u8` helpers in fjell-cap.
+- INIT gets slot 27 = CapInstall; CAP_BROKER gets slot 10 = CapInstall + slot 11 = LeaseAdmin.
+- cap-broker grant flow now calls `sys_cap_install` to deliver actual caps.
+  Reply carries installed cap handle in `(reply >> 16)`.
+
+**RFC 057 (RB-12 bootctl): bootctl service extraction**
+- `fjell-bootctl` fully implemented: `BOOT_PENDING_QUERY`, `BOOT_CONFIRM`, `BOOT_ROLLBACK`, `BOOT_SHUTDOWN` protocol.
+- `SyscallNumber::PlatformReboot = 18`; `sys_reboot(cap, mode)` wrapper.
+- BOOTCTL spawned with slot 1 = Reboot cap.
+- Protocol tags `0x070-0x07F` added to service-api.
+
+**RFC 058 (RB-12 manager, H-04): service-manager READY tracking**
+- `fjell-service-manager` fully implemented: cooperative READY tracking, timeout detection, fault monitoring.
+- `SERVICE_READY = 0x101` tag; services send it via `sys_ipc_try_send` after init.
+- `sys_ipc_try_send` added to fjell-syscall.
+- SERVICE_MANAGER gets slot 29 = TaskControl for fault polling.
+- New QEMU markers: `NEG:SVC:READY_ACCEPTED:PASS`, `NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS`.
+
+**RFC 059: release-gate criteria achieved**
+- All RFCs 048-059 Implemented.
+- ROADMAP marks v0.2 complete.
+- Release gate earns `TEST:V02:PASS`.
+
+### Gate token: TEST:V02:PASS earned at v0.2.14.
+
 ## [0.2.13] - 2026-05-18 — v0.2.11 block: RFCs 051-054 (MMIO/DMA/audit hardening)
 
 ### Implements RFCs 051-054 (closes RB-07, RB-08, RB-09, RB-10, H-02, H-03, H-05)

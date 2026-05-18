@@ -2,7 +2,7 @@
 
 **RFC ID:** 059
 **Also known as:** RFC-v0.2-025
-**Status:** Proposed
+**Status:** Implemented
 **Target version:** v0.2.12
 **Phase:** Service separation + release-gate close
 **Supersedes:** RFC 043 (original v0.2 release gate)

@@ -23,6 +23,13 @@ pub mod tags {
     pub const SM_STATUS_REPLY:    usize = 0x043;
     pub const SM_CORE_TARGET_READY: usize = 0x044;
     pub const BOOTSTRAP_COMPLETE: usize = 0x100;
+    // ── RFC 057: bootctl protocol ─────────────────────────────────────────────
+    pub const BOOT_PENDING_QUERY: usize = 0x070;
+    pub const BOOT_CONFIRM:       usize = 0x071;
+    pub const BOOT_ROLLBACK:      usize = 0x072;
+    pub const BOOT_STATE_REPLY:   usize = 0x073;
+    pub const BOOT_SHUTDOWN:      usize = 0x07F;
+
 
     // ── RFC 042: neg-test IPC protocol ───────────────────────────────────────
     /// Sent by neg-test to a helper service: "bind lease_id (in w0) to your
@@ -300,6 +307,8 @@ pub mod negative_markers {
     pub const POLICY_BOOTSTRAP_GUARD: &str = "NEG:POLICY:BOOTSTRAP_GUARD:PASS";
     /// An explicit `Deny` rule takes precedence over an `Allow` rule.
     pub const POLICY_DENY_PRIORITY: &str   = "NEG:POLICY:DENY_PRIORITY:PASS";
+    /// RFC 055: kernel-attested identity prevents spoofing requester id.
+    pub const POLICY_IDENTITY_SPOOFING_REJECTED: &str = "NEG:POLICY:IDENTITY_SPOOFING_REJECTED:PASS";
 
     // ── safe user copy (RFC 039) ──────────────────────────────────────────────
     /// `copy_to_user` rejects a null destination pointer.
@@ -311,6 +320,8 @@ pub mod negative_markers {
     /// Service-manager detects a service that failed to send READY in time.
     pub const SVC_START_TIMEOUT: &str      = "NEG:SVC:START_TIMEOUT_DETECTED:PASS";
     /// Service-manager detects a service fault after READY.
+    pub const SVC_READY_ACCEPTED:       &str = "NEG:SVC:READY_ACCEPTED:PASS";
+    pub const SVC_UNAUTHORIZED_READY:    &str = "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS";
     pub const SVC_FAULT: &str             = "NEG:SVC:FAULT_DETECTED:PASS";
 
     // ── audit evidence (RFC 041) ──────────────────────────────────────────────

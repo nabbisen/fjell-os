@@ -29,11 +29,14 @@ const SLOT_OWN_EP:    u32 = 0;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
+    // RFC 058: signal service-manager we are ready.
+    // RFC 058: signal READY to service-manager (best-effort; no reply expected).
+    let _ = fjell_syscall::sys_ipc_try_send(0, fjell_service_api::tags::SERVICE_READY);
     let ep: u32 = 0;  // slot 0 = own endpoint (object 0)
 
     loop {
         // Use recv_msg to capture data words (needed for BIND_LEASE_FOR_IPC_TEST).
-        let (label, w0, _, _, _) = match sys_ipc_recv_msg(ep) {
+        let (label, w0, _, _, _, _) = match sys_ipc_recv_msg(ep) {  // RFC 055: ignore sender identity
             Ok(v)  => v,
             Err(_) => { let _ = sys_ipc_reply(0); continue; }
         };

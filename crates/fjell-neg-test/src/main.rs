@@ -382,9 +382,9 @@ fn test_policy_default_deny() {
     match sys_ipc_call_words(
         SLOT_CAP_BROKER,
         tags::CAP_REQUEST,
-        20,       // w0 = requester_id (ImageId::NEG_TEST, not in policy)
-        2,        // w1 = resource class: TaskControl
-        0xFF,     // w2 = requested rights (some bits)
+        2,        // w0 = resource class: TaskControl (requester from attested identity = NEG_TEST, RFC 055)
+        0xFF,     // w1 = requested rights
+        0,        // w2 unused
     ) {
         Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
             check(true, M::POLICY_DEFAULT_DENY);
@@ -420,12 +420,35 @@ fn test_policy_deny_priority() {
     match sys_ipc_call_words(
         SLOT_CAP_BROKER,
         tags::CAP_REQUEST,
-        20,   // w0 = requester (NEG_TEST — has deny AND allow for Config)
-        6,    // w1 = resource: Config
-        0xFF, // w2 = requested rights
+        6,    // w0 = resource: Config (requester = attested NEG_TEST, RFC 055)
+        0xFF, // w1 = requested rights
+        0,    // w2 unused
     ) {
         Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
             check(true, M::POLICY_DENY_PRIORITY);
+        }
+        _ => {}
+    }
+}
+
+
+/// POLICY: sender identity cannot be spoofed — broker uses attested ImageId.
+///
+/// RFC 055: neg-test requests MmioRegion (resource class 4), which STORAGED
+/// is allowed but NEG_TEST is not.  Before RFC 055, a malicious caller could
+/// pass w0=STORAGED(10) and potentially get a grant.  After RFC 055, the
+/// broker ignores the payload for identity and uses the kernel-attested
+/// sender_image_id = NEG_TEST(20) → default deny fires.
+fn test_policy_identity_spoofing() {
+    match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        4,    // w0 = resource: MmioRegion (STORAGED can get this; NEG_TEST cannot)
+        0xFF, // w1 = requested rights
+        0,
+    ) {
+        Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
+            check(true, M::POLICY_IDENTITY_SPOOFING_REJECTED);
         }
         _ => {}
     }
@@ -572,6 +595,10 @@ pub extern "C" fn service_main() -> ! {
 
     sys_debug_writeln("neg-test: starting v0.2 negative test scenarios");
 
+    // RFC 058: signal service-manager we are ready.
+    // RFC 058: signal READY to service-manager (best-effort; no reply expected).
+    let _ = fjell_syscall::sys_ipc_try_send(0, fjell_service_api::tags::SERVICE_READY);
+
     // ── RFC 050: CSpace layout self-check (must run first) ────────────────────
     harness_cspace_check();
 
@@ -609,6 +636,7 @@ pub extern "C" fn service_main() -> ! {
     test_policy_default_deny();
     test_policy_bootstrap_guard();
     test_policy_deny_priority();
+    test_policy_identity_spoofing();
 
     // ── Audit evidence gap (RFC 041) ─────────────────────────────────────────
     test_audit_evidence_gap();

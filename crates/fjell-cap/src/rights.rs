@@ -137,6 +137,9 @@ pub enum CapKind {
     BootEvidence,
     /// Authority to call `reboot`.
     Reboot,
+    /// RFC 056: authority to install caps into other tasks' CSpaces.
+    /// Granted only to cap-broker and init during bootstrap.
+    CapInstall,
     /// Authority over the persistent state store namespace.
     PersistentStore,
     /// Authority over boot-control operations.
@@ -209,6 +212,27 @@ impl ObjectScope {
         match self {
             ObjectScope::Any => true,
             other => other == requested,
+        }
+    }
+}
+
+impl CapKind {
+    /// Convert a raw u8 discriminant to a `CapKind`.  Returns `Endpoint` for unknown.
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0  => Some(Self::Endpoint),
+            1  => Some(Self::Endpoint),
+            2  => Some(Self::TaskControl),
+            3  => Some(Self::TaskCreate),
+            4  => Some(Self::LeaseAdmin),
+            5  => Some(Self::MmioRegion),
+            6  => Some(Self::DmaRegion),
+            7  => Some(Self::DmaRegion),
+            8  => Some(Self::AuditDrain),
+            9  => Some(Self::BootEvidence),
+            10 => Some(Self::Reboot),
+            16 => Some(Self::CapInstall),
+            _  => None,
         }
     }
 }

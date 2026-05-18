@@ -143,9 +143,10 @@ pub struct Task {
     pub kernel_stack_top: usize,
     pub user_stack_top:  usize,
     pub accounting:      TaskAccounting,
-    /// RFC 051: bump allocator for device VMA mappings (MMIO).
-    /// Allocates from `DEVICE_VMA_BASE..DEVICE_VMA_END`; never wraps.
+    /// RFC 051: device VMA bump allocator.
     pub dev_vma_next:    usize,
+    /// RFC 055: kernel-attested image id (set by spawn.rs; used in IPC identity).
+    pub image_id:        fjell_abi::service::ImageId,
 }
 
 impl Task {
@@ -169,6 +170,7 @@ impl Task {
             user_stack_top,
             accounting: TaskAccounting::default(),
             dev_vma_next: DEVICE_VMA_BASE,
+            image_id: fjell_abi::service::ImageId(0xFFFF),  // set by spawn
         }
     }
 }

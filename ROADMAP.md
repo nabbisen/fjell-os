@@ -97,17 +97,17 @@ boundaries are uniformly enforced. See the v0.2 RFC set (RFCs
 
 | Phase | Name                                        | RFC      | Status |
 |-------|---------------------------------------------|----------|--------|
-| 1     | Capability Enforcement Core                 | 031, 032 | Partial (v0.2.10 closes RB-01/RB-02) |
-| 2     | Lease Revocation Semantics                  | 033, 034 | Partial (RB-04 ABI fix landed v0.2.9) |
-| 3     | MMIO Boundary Closure                       | 035      | Partial (v0.2.11 closes RB-07) |
-| 4     | DMA Boundary Closure                        | 036      | Partial (v0.2.11 closes RB-08/RB-09) |
-| 5     | Cooperative Service Separation              | 037, 038 | Partial (v0.2.12 closes RB-12) |
-| 6     | User Copy and Audit Drain                   | 039      | Partial (v0.2.11 closes RB-10/H-02) |
-| 7     | cap-broker Bootstrap and Policy Enforcement | 040      | Partial (v0.2.12 closes RB-11) |
-| 8     | Persistent Evidence Hardening               | 041      | Largely complete |
-| 9     | Negative Test Completion + Release Gate     | 042, 043 | Tests wired; re-verification after v0.2.9 |
+| 1     | Capability Enforcement Core                 | 031, 032 | ✓ |
+| 2     | Lease Revocation Semantics                  | 033, 034 | ✓ |
+| 3     | MMIO Boundary Closure                       | 035      | ✓ |
+| 4     | DMA Boundary Closure                        | 036      | ✓ |
+| 5     | Cooperative Service Separation              | 037, 038 | ✓ |
+| 6     | User Copy and Audit Drain                   | 039      | ✓ |
+| 7     | cap-broker Bootstrap and Policy Enforcement | 040      | ✓ |
+| 8     | Persistent Evidence Hardening               | 041      | ✓ |
+| 9     | Negative Test Completion + Release Gate     | 042, 043 | ✓ |
 
-**v0.2.9 hardening releases** (in progress):
+**v0.2.9-v0.2.14 hardening releases** (COMPLETE):
 
 | Release | Scope |
 |---------|-------|
@@ -116,7 +116,7 @@ boundaries are uniformly enforced. See the v0.2 RFC set (RFCs
 | v0.2.11 | MMIO/DMA/audit hardening |
 | v0.2.12 | Service separation + release-gate close |
 
-`TEST:V02:PASS` will be earned at v0.2.12 close.
+**`TEST:V02:PASS` earned at v0.2.14 close.**
 
 ### Beyond v0.2
 

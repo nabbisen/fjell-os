@@ -32,6 +32,22 @@ impl CSpace {
             .ok_or(SysError::NoMemory)
     }
 
+
+    /// Install a capability into the first available empty slot.
+    /// Returns the handle of the installed slot, or `Err(CSpaceFull)`.
+    pub fn install_any(&mut self, cap: Capability) -> Result<CapHandle, SysError> {
+        use fjell_abi::error::SysError;
+        for (i, slot) in self.slots.iter_mut().enumerate() {
+            if slot.state == CapSlotState::Empty {
+                slot.cap        = Some(cap);
+                slot.state      = CapSlotState::Active;
+                let h = CapHandle::new(i as u16, slot.generation);
+                return Ok(h);
+            }
+        }
+        Err(SysError::NoMemory)
+    }
+
     /// Build a handle for slot `idx` using its current generation.
     fn handle_for(&self, idx: usize) -> CapHandle {
         CapHandle::new(idx as u16, self.slots[idx].generation)

@@ -12,5 +12,6 @@ path = "src/main.rs"
 
 [dependencies]
 fjell-abi         = { path = "../fjell-abi" }
+fjell-cap         = { path = "../fjell-cap" }
 fjell-syscall     = { path = "../fjell-syscall" }
 fjell-service-api = { path = "../fjell-service-api" }
