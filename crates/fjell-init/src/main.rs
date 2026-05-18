@@ -23,9 +23,83 @@ use core::sync::atomic::{fence, Ordering};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
+// ── RFC 019: storaged IPC helpers (IpcCall protocol) ──────────────────────────
+
+use fjell_service_api::storaged as storaged_proto;
+
+/// IpcCall: send label+words, block until reply; return reply label.
+/// `nwords` = number of data words (w0..w3) to send (max 4 here).
+fn ipc_call(ep: usize, label: usize, w0: usize, w1: usize, w2: usize, w3: usize) -> usize {
+    // Pack word count into label bits 16-23 so the kernel can copy them.
+    let packed_label = (label & 0xFFFF) | (4usize << 16); // always 4 data words
+    let reply: usize;
+    unsafe {
+        core::arch::asm!(
+            "li a7, 22", "ecall",
+            inlateout("a0") ep           => _,
+            inlateout("a1") packed_label => reply,
+            in("a2") w0, in("a3") w1, in("a4") w2, in("a5") w3,
+            // a7 is written by "li a7, 22". Declare as clobber so the compiler
+            // does not allocate a7 for a live variable across this ecall.
+            lateout("a7") _,
+            options(nostack),
+        );
+    }
+    reply & 0xFFFF
+}
+
+/// Write a 512-byte sector via storaged IPC (IpcCall protocol).
+///
+/// Each message is a separate IpcCall with 32B payload:
+///   WRITE_BEGIN(lba_lo, lba_hi)   → ACK
+///   WRITE_CHUNK(w0..w3) ×16       → ACK each  (16 × 32B = 512B)
+///   WRITE_COMMIT                   → WRITE_OK or WRITE_ERR
+fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool {
+    use storaged_proto::*;
+    let ep = ep.0 as usize;
+    // BEGIN
+    let _ = ipc_call(ep, WRITE_BEGIN, lba as usize, (lba >> 32) as usize, 0, 0);
+    // 16 × 32-byte chunks (4 words each)
+    for chunk in 0..16usize {
+        let off = chunk * 32;
+        let mut words = [0usize; 4];
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                data.as_ptr().add(off),
+                words.as_mut_ptr() as *mut u8, 32);
+        }
+        let _ = ipc_call(ep, WRITE_CHUNK, words[0], words[1], words[2], words[3]);
+    }
+    // COMMIT
+    let reply = ipc_call(ep, WRITE_COMMIT, 0, 0, 0, 0);
+    reply == WRITE_OK
+}
+
+/// Wait for storaged READY signal (blocking IpcRecv on endpoint slot 0).
+fn wait_storaged_ready(ep: usize) {
+    loop {
+        let tag: usize;
+        unsafe {
+            // deliver() always writes a2=sender_badge (and a3..a5 for words).
+            // Declare them as clobbers so the compiler does not cache the READY
+            // constant in a2 across the ecall, which would corrupt the comparison.
+            core::arch::asm!(
+                "li a7, 21", "ecall",
+                inlateout("a0") ep => _,
+                lateout("a1") tag,
+                lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
+                lateout("a7") _,
+                options(nostack),
+            );
+        }
+        if (tag & 0xFFFF) == storaged_proto::READY { break; }
+    }
+}
+
+
 fn spawn(img: ImageId, label: &str) -> usize {
     match sys_task_spawn(img) {
-        Ok((h, _)) => { let _ = sys_task_start(h, 0, 0); if !label.is_empty() { sys_debug_writeln(label); } h }
+        Ok(h) => { let _ = sys_task_start(h, 0, 0); if !label.is_empty() { sys_debug_writeln(label); } h }
         Err(_)     => { sys_debug_writeln("init: spawn error"); sys_exit(1); }
     }
 }
@@ -116,53 +190,42 @@ pub extern "C" fn service_main() -> ! {
     let virtio_base = sys_platform_info_get().unwrap_or(0x1000_1000);
     if virtio_base != 0 { sys_debug_writeln("M6: virtio-mmio blk discovered"); }
 
+    // RFC 019: storaged is now a real IPC service owning virtio-blk.
     spawn(ImageId::DRIVER_VIRTIO_BLK, "");
-    let base = sys_mmio_map(virtio_base, 0x1000).unwrap_or(virtio_base);
+    spawn(ImageId::STORAGED, "");
+    wait_storaged_ready(2);   // slot 2 = storaged private endpoint
+    sys_debug_writeln("M6: storaged ready");
+    use fjell_cap::CapHandle;
+    let storaged_ep = CapHandle::new(2, 0);  // slot 2 = storaged private endpoint (ep id=1)
 
-    // Virtio legacy init
-    mmw32(base, 0x070, 0); fence(Ordering::SeqCst);
-    mmw32(base, 0x070, 1); mmw32(base, 0x070, 3);
-    let _f = mmr32(base, 0x010); mmw32(base, 0x020, 0);
-
-    let (dma_va, dma_pa) = sys_dma_alloc(8192).unwrap_or((0x2000_0000, 0));
-    unsafe { core::ptr::write_bytes(dma_va as *mut u8, 0, 8192); }
-
-    mmw32(base, 0x028, 4096); mmw32(base, 0x030, 0);
-    mmw32(base, 0x038, 8);   mmw32(base, 0x03C, 512);
-    mmw32(base, 0x040, (dma_pa >> 12) as u32);
-    fence(Ordering::SeqCst);
-    mmw32(base, 0x070, 0xB); fence(Ordering::SeqCst);
-    mmw32(base, 0x070, 0xF); fence(Ordering::SeqCst);
-    sys_debug_writeln("M6: virtio-blk ready");
-
-    // base holds the MMIO VA for the virtio device (RFC 001: t5/t6 save fixed;
-    // re-reading sys_mmio_map after each ecall is no longer necessary).
-
-    let mut sec = [0u8; 512];
-    for (i, b) in sec.iter_mut().enumerate() { *b = (i & 0xFF) as u8; }
-    if blk_write_sector(base, dma_va, dma_pa, 193, &sec) {
-        sys_debug_writeln("M6: block read ok");
+    // RFC 019: virtio I/O is now handled by storaged. Use storaged_write().
+    {
+        let mut sec = [0u8; 512];
+        for (i, b) in sec.iter_mut().enumerate() { *b = (i & 0xFF) as u8; }
+        if !storaged_write(storaged_ep, 193, &sec) {
+            sys_debug_writeln("M6: block I/O error"); sys_exit(1);
+        }
         sys_debug_writeln("M6: block write ok");
-        sys_debug_writeln("M6: block flush ok");
-    } else {
-        sys_debug_writeln("M6: block I/O error"); sys_exit(1);
     }
 
-    spawn(ImageId::STORAGED, "");
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     // Write superblock A (LBA 65)
     let mut sb = StoreSuperblock::new(1);
     sb.seal();  // RFC 008: compute CRC32 before writing
     let sb_b = unsafe { core::slice::from_raw_parts(&sb as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut s = [0u8; 512]; s[..sb_b.len()].copy_from_slice(sb_b);
-    blk_write_sector(base, dma_va, dma_pa, LBA_SUPERBLOCK_A, &s);
+    if !storaged_write(storaged_ep, LBA_SUPERBLOCK_A, &s) {
+        sys_debug_writeln("M6: block I/O error"); sys_exit(1);
+    }
     sys_debug_writeln("M6: store formatted or recovered");
 
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let rec = RecordHeader::new(RecordKind::ServiceState, 1, 0);
     let rec_b = unsafe { core::slice::from_raw_parts(&rec as *const _ as *const u8, core::mem::size_of::<RecordHeader>()) };
     let mut r = [0u8; 512]; r[..rec_b.len()].copy_from_slice(rec_b);
-    blk_write_sector(base, dma_va, dma_pa, LBA_LOG_START, &r);
+    if !storaged_write(storaged_ep, LBA_LOG_START, &r) {
+        sys_debug_writeln("M6: block I/O error"); sys_exit(1);
+    }
     sys_debug_writeln("M6: store append ok");
 
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
@@ -170,7 +233,9 @@ pub extern "C" fn service_main() -> ! {
     sb2.seal();  // RFC 008
     let sb2_b = unsafe { core::slice::from_raw_parts(&sb2 as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut cs = [0u8; 512]; cs[..sb2_b.len()].copy_from_slice(sb2_b);
-    blk_write_sector(base, dma_va, dma_pa, LBA_SUPERBLOCK_A, &cs);
+    if !storaged_write(storaged_ep, LBA_SUPERBLOCK_A, &cs) {
+        sys_debug_writeln("M6: block I/O error"); sys_exit(1);
+    }
     sys_debug_writeln("M6: checkpoint created");
 
     spawn(ImageId::BOOTCTL, "");
@@ -179,9 +244,13 @@ pub extern "C" fn service_main() -> ! {
     bcb.seal();  // RFC 008: compute CRC32 before writing
     let bcb_b = unsafe { core::slice::from_raw_parts(&bcb as *const _ as *const u8, core::mem::size_of::<BootControlBlock>().min(512)) };
     let mut bs = [0u8; 512]; bs[..bcb_b.len()].copy_from_slice(bcb_b);
-    blk_write_sector(base, dma_va, dma_pa, LBA_BOOT_CTL_A_START, &bs);
+    if !storaged_write(storaged_ep, LBA_BOOT_CTL_A_START, &bs) {
+        sys_debug_writeln("M6: block I/O error"); sys_exit(1);
+    }
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
-    blk_write_sector(base, dma_va, dma_pa, LBA_BOOT_CTL_B_START, &bs);
+    if !storaged_write(storaged_ep, LBA_BOOT_CTL_B_START, &bs) {
+        sys_debug_writeln("M6: block I/O error"); sys_exit(1);
+    }
     sys_debug_writeln("M6: boot-control mirror valid");
 
     spawn(ImageId::UPGRADED, "");

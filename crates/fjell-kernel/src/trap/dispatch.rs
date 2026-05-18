@@ -163,20 +163,22 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         if let Some(task) = table.get_mut(id) {
             if let Some(code) = super::syscall::take_exit() {
                 let label = task_label(id);
-                crate::kprintln!("{}: exit({})", label, code);
+                // RFC 017: zeroize and release DMA regions before marking exited.
+                crate::dma_table().release_task(id);
                 task.state = TaskState::Exited(code);
                 AUDIT.lock_free_append(AuditKindInternal::TaskExit, code as usize, 0, 0);
                 sched.on_exit();
                 check_smoke_pass(table);
             } else if let Some(fault) = super::fault::take_fault() {
                 let label = task_label(id);
-                crate::kprintln!("{}: fault({:?})", label, fault.cause);
+                crate::kprintln!("{}: fault({:?}) sepc={:#x}", label, fault.cause, fault.sepc);
+                // RFC 017: also zeroize DMA on fault.
+                crate::dma_table().release_task(id);
                 task.state = TaskState::Faulted(fault);
                 sched.on_fault();
                 check_smoke_pass(table);
             } else if super::syscall::take_yield() {
                 let label = task_label(id);
-                crate::kprintln!("{}: yield", label);
                 task.state = TaskState::Runnable;
                 AUDIT.lock_free_append(
                     AuditKindInternal::TaskSwitch, id.index as usize, 0, 0);
@@ -210,6 +212,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         // be overwritten by the next trap_dispatch call).
         return current_tf;
     }
+
 
     // Mark next task as running and switch to its address space.
     let next_tf = if let Some(task) = table.get_mut(next_id) {
@@ -260,6 +263,12 @@ fn task_label(id: TaskId) -> &'static str {
         4 => "auditd",
         5 => "svc-manager",
         6 => "sample",
+        7 => "sem-stream",
+        8 => "proxy-text",
+        9 => "devmgr",
+        10 => "virtio-blk",
+        11 => "storaged",
+        12 => "bootctl",
         _ => "task",
     }
 }
@@ -280,9 +289,8 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
     };
 
     if exited_ok(1) {
-        crate::kprintln!("sched: idle");
+        crate::kprintln!("TEST:M7:PASS");
     } else if done(1) {
-        crate::kprintln!("sched: idle");
         crate::kprintln!("TEST:M7:FAIL (init did not exit cleanly)");
     }
 }

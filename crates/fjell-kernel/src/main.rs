@@ -34,7 +34,7 @@ use mm::{
     region::VmRegionKind,
     vspace::{AddressSpace, AddressSpaceId, VmPerms},
 };
-use platform::qemu_virt::{MMIO_REGIONS, RAM_BASE, RAM_END};
+use platform::qemu_virt::{MMIO_REGIONS, RAM_BASE, RAM_END, mmio_region_table, MMIO_REGION_COUNT, MMIO_REGION_VIRTIO};
 use task::{
     scheduler::{Scheduler, PRIORITY_IDLE, PRIORITY_USER},
     tcb::{Task, TaskState, TaskTable},
@@ -104,6 +104,68 @@ static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
 /// 0x0000_0000+).  This avoids the AlreadyMapped conflict that arose when
 /// DMA frames were placed at their kernel identity-map VA.
 pub(crate) const DMA_USER_VA_BASE: usize = 0x6000_0000;
+
+
+// ── RFC 017: DmaRegion ownership table ───────────────────────────────────────
+
+/// Maximum concurrent DMA allocations across all tasks.
+const MAX_DMA_REGIONS: usize = 16;
+
+/// One entry in the per-kernel DMA region tracking table.
+#[derive(Clone, Copy)]
+struct DmaRegionEntry {
+    /// Task that owns this DMA region.  `TaskId { index: 0xFFFF, generation: 0 }` = free.
+    owner:   crate::task::TaskId,
+    /// User VA where the frame is mapped in `owner`'s page table.
+    user_va: usize,
+    /// Physical frame (used for zeroize + free on task exit).
+    frame_pa: usize,
+}
+
+impl DmaRegionEntry {
+    const fn free() -> Self {
+        DmaRegionEntry {
+            owner:    crate::task::TaskId::new(0xFFFF, 0),
+            user_va:  0,
+            frame_pa: 0,
+        }
+    }
+    fn is_free(self) -> bool { self.owner.index == 0xFFFF }
+}
+
+struct DmaRegionTable { entries: [DmaRegionEntry; MAX_DMA_REGIONS] }
+impl DmaRegionTable {
+    const fn new() -> Self {
+        DmaRegionTable { entries: [const { DmaRegionEntry::free() }; MAX_DMA_REGIONS] }
+    }
+    fn alloc(&mut self, owner: crate::task::TaskId, user_va: usize, frame_pa: usize) -> bool {
+        for e in self.entries.iter_mut() {
+            if e.is_free() { *e = DmaRegionEntry { owner, user_va, frame_pa }; return true; }
+        }
+        false
+    }
+    /// Zeroize and release all DMA regions owned by `owner` (RFC 017 task-exit cleanup).
+    fn release_task(&mut self, owner: crate::task::TaskId) {
+        for e in self.entries.iter_mut() {
+            if e.owner == owner {
+                // Zeroize the physical frame.
+                let pa = e.frame_pa;
+                if pa != 0 {
+                    unsafe { core::ptr::write_bytes(pa as *mut u8, 0, 4096); }
+                }
+                *e = DmaRegionEntry::free();
+            }
+        }
+    }
+}
+
+struct DmaRegionTableStatic(core::cell::UnsafeCell<DmaRegionTable>);
+unsafe impl Sync for DmaRegionTableStatic {}
+static DMA_REGION_TABLE: DmaRegionTableStatic =
+    DmaRegionTableStatic(core::cell::UnsafeCell::new(DmaRegionTable::new()));
+pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
+    unsafe { &mut *DMA_REGION_TABLE.0.get() }
+}
 
 /// Per-request DMA VA bump allocator (RFC 007).
 /// Monotonically increases; no free list needed for M7.1.
@@ -357,6 +419,9 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // Allocate the shared IPC endpoint for the M3 smoke test.
     let ep_obj_id = et.alloc().expect("alloc endpoint");
     println!("M3: endpoint created (id={})", ep_obj_id);
+    // Endpoint 1: storaged private endpoint (storaged listens; init calls).
+    let storaged_ep_id = et.alloc().expect("alloc storaged endpoint");
+    let _ = storaged_ep_id;  // id=1
 
     // Idle task — no capabilities needed.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
@@ -465,6 +530,29 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 kind: CapKind::LeaseAdmin, object_id: 0,
                 rights: CapRights::ALL, badge: 0, parent: None, lease: None,
             });
+
+            // Slot 0: shared IPC endpoint (for service broadcasts).
+            let _ = cs.install_raw(0, Capability {
+                kind: CapKind::Endpoint, object_id: 0,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+            });
+            // Slot 2: storaged private endpoint — init waits for READY here
+            // and sends WRITE_BEGIN/CHUNK/COMMIT IpcCalls via this cap.
+            let _ = cs.install_raw(2, Capability {
+                kind: CapKind::Endpoint, object_id: 1,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+            });
+            // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).
+            let mmio_table = mmio_region_table();
+            for (i, _region) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
+                let slot = 31 + i;
+                let _ = cs.install_raw(slot, Capability {
+                    kind: CapKind::MmioRegion,
+                    object_id: i as u32,
+                    rights: CapRights::ALL,
+                    badge: 0, parent: None, lease: None,
+                });
+            }
         }
         println!("M4: init task ready");
     }

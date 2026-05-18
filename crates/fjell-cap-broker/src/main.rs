@@ -43,7 +43,7 @@ pub extern "C" fn service_main() -> ! {
     let ep = 0u32;
 
     // Announce ready
-    let _ = sys_ipc_reply(tags::SERVICE_READY);
+    // M7.1: startup IPC reply removed (nobody IpcCall'd us).
 
     // Smoke test: demonstrate lease revoke
     let lease_result = sys_lease_create(0);

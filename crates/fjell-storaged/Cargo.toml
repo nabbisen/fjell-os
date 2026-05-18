@@ -9,6 +9,7 @@ publish = false
 name = "fjell-storaged"
 path = "src/main.rs"
 [dependencies]
+fjell-cap = { path = "../fjell-cap" }
 fjell-abi               = { path = "../fjell-abi" }
 fjell-syscall           = { path = "../fjell-syscall" }
 fjell-service-api       = { path = "../fjell-service-api" }

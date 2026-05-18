@@ -37,3 +37,39 @@ pub fn qemu_virt_platform() -> PlatformInfo {
         dtb_pa: 0,
     }
 }
+
+// ── RFC 016: MmioRegionTable ──────────────────────────────────────────────────
+
+/// A single bounded MMIO region that a driver may request via `sys_mmio_map`.
+#[derive(Clone, Copy, Debug)]
+pub struct MmioRegionObject {
+    /// Physical base address of this MMIO region.
+    pub base: usize,
+    /// Total size in bytes.
+    pub size: usize,
+    /// Human-readable ASCII description (null-padded to 16 bytes).
+    pub description: [u8; 16],
+}
+
+/// Build the static MMIO region table from `MMIO_REGIONS`.
+///
+/// Called once at kernel init to populate `MmioRegionObject` entries that
+/// are then installed as `MmioRegion` capabilities in init's CSpace.
+pub fn mmio_region_table() -> [MmioRegionObject; 4] {
+    let make = |base: usize, size: usize, desc: &[u8]| {
+        let mut d = [0u8; 16];
+        for (i, &b) in desc.iter().enumerate().take(15) { d[i] = b; }
+        MmioRegionObject { base, size, description: d }
+    };
+    [
+        make(0x0000_0000, 0x1000_0000, b"CLINT/boot-ROM"),
+        make(0x1000_0000, 0x0000_1000, b"UART0"),
+        make(0x0C00_0000, 0x0400_0000, b"PLIC"),
+        make(0x1000_1000, 0x0000_F000, b"virtio-mmio"),
+    ]
+}
+
+/// Number of MMIO region entries in the static table.
+pub const MMIO_REGION_COUNT: usize = 4;
+/// MMIO region index for the virtio-mmio block device region.
+pub const MMIO_REGION_VIRTIO: u32 = 3;

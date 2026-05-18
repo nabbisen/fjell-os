@@ -118,5 +118,35 @@ pub fn spawn(
     t.state = TaskState::Created;
 
     let ins_id = table.insert(t).map_err(|_| SysError::NoMemory)?;
+
+    // Install bootstrap capabilities in the new task's CSpace (RFC 016, M7.1).
+    // Uses ins_id.index (the actual slot) so the index is always correct.
+    {
+        use fjell_cap::{CapKind, CapRights};
+        use fjell_cap::slot::Capability;
+        use crate::platform::qemu_virt::{mmio_region_table, MMIO_REGION_COUNT};
+
+        let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+        if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+            // Slot 0: IPC endpoint.
+            // storaged gets endpoint 1 (private, only init knows it).
+            // All other tasks get endpoint 0 (shared).
+            let ep_obj: u32 = if image_id == fjell_abi::service::ImageId::STORAGED { 1 } else { 0 };
+            let _ = cs.install_raw(0, Capability {
+                kind: CapKind::Endpoint, object_id: ep_obj,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+            });
+            // Slots 31-34: MmioRegion caps (pragmatic M7.1 — proper per-driver
+            // distribution via cap-broker is M8 work).
+            let mmio_table = mmio_region_table();
+            for (i, _) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
+                let _ = cs.install_raw(31 + i, Capability {
+                    kind: CapKind::MmioRegion, object_id: i as u32,
+                    rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+                });
+            }
+        }
+    }
+
     Ok(ins_id)
 }

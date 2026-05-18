@@ -164,8 +164,12 @@ pub fn sys_ipc_send(
     let (ep_id, msg) = match build_msg(tf, tidx, ct, false) { Ok(x) => x, Err(e) => { err(tf, e); return; } };
     let ep = match et.get_mut(ep_id) { Some(e) => e, None => { err(tf, SysError::InvalidCap); return; } };
 
-    match ep.send(msg) {
+    match ep.send(msg.clone()) {
         Ok(SendResult::Delivered { receiver_tid }) => {
+            let recv_id = fjell_abi::task::TaskId::new(receiver_tid, 0);
+            if let Some(recv_task) = tasks.get_mut(recv_id) {
+                deliver(&mut recv_task.trap_frame, &msg);
+            }
             wake(tasks, sched, receiver_tid);
             ok(tf);
             AUDIT.lock_free_append(AuditKindInternal::IpcSend, tidx, receiver_tid as usize, 0);
@@ -205,12 +209,10 @@ pub fn sys_ipc_recv(
                 wake(tasks, sched, msg.sender_tid);
             }
             deliver(tf, &msg);
-            crate::kprintln!("server: request received");
             AUDIT.lock_free_append(AuditKindInternal::IpcRecv, tidx, msg.sender_tid as usize, 0);
         }
         Ok(RecvResult::Queued) => {
             block(tasks, sched, cur_id);
-            crate::kprintln!("server: recv waiting");
             AUDIT.lock_free_append(AuditKindInternal::IpcRecv, tidx, 0, 0);
         }
         Err(e) => err(tf, e.into()),
@@ -225,25 +227,23 @@ pub fn sys_ipc_call(
 ) {
     if let Err(e) = check_right(tf, tidx, ct, CapRights::CALL) {
         err(tf, e);
-        crate::kprintln!("denied: ipc denied as expected");
-        crate::kprintln!("audit: capability.denied");
         AUDIT.lock_free_append(AuditKindInternal::IpcDenied, tidx, 0, 0);
         return;
     }
     let (ep_id, msg) = match build_msg(tf, tidx, ct, true) { Ok(x) => x, Err(e) => { err(tf, e); return; } };
     let ep = match et.get_mut(ep_id) { Some(e) => e, None => { err(tf, SysError::InvalidCap); return; } };
 
-    match ep.send(msg) {
+    match ep.send(msg.clone()) {
         Ok(SendResult::Delivered { receiver_tid }) => {
-            // A receiver was already waiting — deliver directly and block caller
-            // until the server calls ipc_reply.
+            let recv_id = fjell_abi::task::TaskId::new(receiver_tid, 0);
+            if let Some(recv_task) = tasks.get_mut(recv_id) {
+                deliver(&mut recv_task.trap_frame, &msg);
+                } else {
+                }
             ct.set_reply(receiver_tid as usize, tidx as u16);
             wake(tasks, sched, receiver_tid);
             block(tasks, sched, cur_id);
             ok(tf);
-            crate::kprintln!("client: call sent");
-            crate::kprintln!("server: request received");
-            crate::kprintln!("audit: ipc.call");
             AUDIT.lock_free_append(AuditKindInternal::IpcCall, tidx, receiver_tid as usize, 0);
         }
         Ok(SendResult::Queued) => {
@@ -251,8 +251,6 @@ pub fn sys_ipc_call(
             // and then replies.
             block(tasks, sched, cur_id);
             ok(tf);
-            crate::kprintln!("client: call sent");
-            crate::kprintln!("audit: ipc.call");
             AUDIT.lock_free_append(AuditKindInternal::IpcCall, tidx, 0, 0);
         }
         Err(e) => {
@@ -273,20 +271,50 @@ pub fn sys_ipc_reply(
         // Guard: only deliver reply to a task that is still blocked waiting for it.
         // If the caller already exited or faulted, silently drop the reply.
         if matches!(caller.state, crate::task::tcb::TaskState::Blocked(_)) {
-            let tag_raw = tf.gpr[10] as usize;
+            // Reply label is in a1 (gpr[11]); a0 is the ep handle arg (ignored).
+            let reply_label = tf.gpr[REG_A1] as usize;
             caller.trap_frame.gpr[REG_A0] = SysError::Ok as isize as usize;
-            caller.trap_frame.gpr[REG_A1] = tag_raw;
-            for i in 0..4usize { caller.trap_frame.gpr[12 + i] = tf.gpr[11 + i]; }
+            caller.trap_frame.gpr[REG_A1] = reply_label;
+            for i in 0..4usize { caller.trap_frame.gpr[12 + i] = tf.gpr[12 + i]; }
             caller.state = crate::task::tcb::TaskState::Runnable;
             sched.enqueue_runnable(caller_id, PRIORITY_USER);
-            crate::kprintln!("server: reply sent");
-            crate::kprintln!("client: reply received");
-            crate::kprintln!("audit: ipc.reply");
         }
     }
     ok(tf);
     AUDIT.lock_free_append(AuditKindInternal::IpcReply, tidx, edge.caller_tid as usize, 0);
 }
+
+/// `sys_ipc_try_recv(a0=ep_handle) -> a0=status [, a1..=message]`
+///
+/// RFC 019: Non-blocking receive.  Returns `WouldBlock` immediately if no
+/// message is pending on the endpoint, without sleeping the calling task.
+/// Used by cooperative service loops to avoid deadlock without preemption.
+pub fn sys_ipc_try_recv(
+    tf:    &mut TrapFrame,
+    tidx:  usize,
+    ct:    &CapTable,
+    et:    &mut EndpointTable,
+    table: &crate::task::tcb::TaskTable,
+) {
+    // Validate endpoint cap (including lease).
+    if let Err(e) = check_right(tf, tidx, ct, CapRights::RECV) {
+        err(tf, e);
+        return;
+    }
+    let ep_h    = CapHandle(tf.gpr[10] as u32);
+    let cs      = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
+    let cap     = match cs.get(ep_h) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
+    let ep      = match et.get_mut(cap.object_id) { Some(e) => e, None => { err(tf, SysError::InvalidCap); return; }};
+
+    use fjell_ipc::endpoint::EndpointError;
+    match ep.try_recv() {
+        Ok(msg) => deliver(tf, &msg),
+        Err(EndpointError::WouldBlock) => err(tf, SysError::WouldBlock),
+        Err(_)                         => err(tf, SysError::InternalError),
+    }
+    let _ = table; // future: per-task stats
+}
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

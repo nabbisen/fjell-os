@@ -22,6 +22,12 @@ pub enum CapKind {
     /// Authority to call `sys_lease_create`, `sys_lease_revoke`, and
     /// `sys_lease_inspect`.
     LeaseAdmin,
+    // ── M7.1 additions (RFC 016, RFC 017) ───────────────────────────────────
+    /// A bounded MMIO physical region.  The `object_id` indexes `MmioRegionTable`.
+    /// Holder may call `sys_mmio_map(cap, offset, size)`.
+    MmioRegion,
+    /// A per-task DMA physical region.  The `object_id` indexes `DmaRegionTable`.
+    DmaAlloc,
 }
 
 /// Permission bits attached to a capability.

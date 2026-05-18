@@ -43,7 +43,7 @@ pub extern "C" fn service_main() -> ! {
     let mut seq = 0u32;
 
     // Announce ready
-    let _ = sys_ipc_reply(tags::SERVICE_READY);
+    // M7.1: startup IPC reply removed (nobody IpcCall'd us).
 
     loop {
         match sys_ipc_recv(ep) {

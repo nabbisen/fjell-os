@@ -24,3 +24,9 @@ target
 # OS built result
 *.img
 *.iso
+
+*.log
+
+.npm
+
+.local

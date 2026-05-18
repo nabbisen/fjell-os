@@ -3,6 +3,29 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.12] - 2026-05-14
+
+### Added
+- RFC 019: `storaged` IPC service separation — virtio-blk block I/O is now
+  owned by the `storaged` service; `fjell-init` communicates with it via
+  structured IPC (WRITE_BEGIN / WRITE_CHUNK×16 / WRITE_COMMIT protocol).
+- M7 smoke test (`TEST:M7:PASS`): verifies end-to-end IPC block writes,
+  store format operations, and boot-slot confirmation simulation.
+
+### Fixed
+- `wait_storaged_ready`: declared `a2`–`a5` as asm clobbers so the compiler
+  does not cache the READY constant in `a2` across the `ecall` (which
+  `deliver()` always overwrites with `sender_badge = 0`).
+- `ipc_call` / `wait_storaged_ready` / storaged IPC wrappers: declared `a7`
+  as an asm clobber for all `"li a7, N", "ecall"` blocks.  Without this, the
+  compiler allocated `a7` as a live loop variable (e.g. the chunk pointer in
+  `storaged_write`); the kernel restores `a7 = ecall_nr` from the trapframe on
+  wake, corrupting the variable.
+- Removed duplicate `spawn(ImageId::STORAGED)` call that created a second
+  storaged instance competing on endpoint 1.
+- `sys_ipc_reply`: now reads the reply label from `a1` (was incorrectly
+  reading from `a0 = 0`) and copies reply words to the caller's trapframe.
+
 ---
 
 ## [Unreleased]

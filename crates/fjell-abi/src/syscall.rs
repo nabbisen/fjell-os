@@ -39,7 +39,9 @@ pub enum SyscallNumber {
     /// Send + block waiting for a one-shot reply.
     IpcCall    = 22,
     /// Consume the one-shot reply edge and deliver a reply.
-    IpcReply   = 23,
+    IpcReply    = 23,
+    /// Non-blocking IPC recv — returns WouldBlock if no message pending.
+    IpcTryRecv  = 24,
 
     // ── M4 task-spawn syscalls ─────────────────────────────────────────────
     /// Spawn a new task from a named embedded image; returns task_handle.
@@ -91,6 +93,7 @@ impl SyscallNumber {
             21 => Some(Self::IpcRecv),
             22 => Some(Self::IpcCall),
             23 => Some(Self::IpcReply),
+            24 => Some(Self::IpcTryRecv),
             40 => Some(Self::TaskSpawn),
             41 => Some(Self::TaskStart),
             42 => Some(Self::TaskStatus),

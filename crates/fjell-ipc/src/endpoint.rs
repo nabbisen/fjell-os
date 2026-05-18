@@ -72,6 +72,8 @@ pub enum EndpointError {
     RecvQueueFull,
     AlreadyQueued,
     InvalidTag,
+    /// No message pending; for non-blocking try_recv (RFC 019).
+    WouldBlock,
 }
 
 impl From<EndpointError> for SysError {
@@ -81,6 +83,7 @@ impl From<EndpointError> for SysError {
             EndpointError::RecvQueueFull  => SysError::QueueFull,
             EndpointError::AlreadyQueued  => SysError::BadState,
             EndpointError::InvalidTag     => SysError::InvalidArg,
+            EndpointError::WouldBlock     => SysError::WouldBlock,
         }
     }
 }
@@ -133,6 +136,19 @@ impl Endpoint {
         }
         if !self.recvq.push(receiver_tid) { return Err(EndpointError::RecvQueueFull); }
         Ok(RecvResult::Queued)
+    }
+
+    /// Non-blocking receive: return a queued message without sleeping.
+    ///
+    /// Returns `Ok(PendingMessage)` if a message is waiting, or
+    /// `Err(EndpointError::WouldBlock)` if the send queue is empty.
+    /// Never modifies `recvq`.
+    pub fn try_recv(&mut self) -> Result<PendingMessage, EndpointError> {
+        if let Some(msg) = self.sendq.pop() {
+            Ok(msg)
+        } else {
+            Err(EndpointError::WouldBlock)
+        }
     }
 
     /// Cancel all pending entries for `tid`.

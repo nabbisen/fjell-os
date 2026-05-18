@@ -18,6 +18,7 @@ use fjell_abi::error::SysError;
 use fjell_abi::lease::{LeaseEpoch, LeaseId};
 use fjell_abi::service::ImageId;
 use fjell_abi::syscall::SyscallNumber;
+use fjell_cap::CapHandle;
 
 // ── raw ecall primitive ───────────────────────────────────────────────────────
 
@@ -105,10 +106,11 @@ pub fn sys_ipc_reply(reply_tag: usize) -> Result<(), SysError> {
 #[inline]
 /// Returns `(task_handle, 0)` where `task_handle` encodes `index | (generation << 16)`
 /// (RFC 010).  Pass the handle to `sys_task_start` / `sys_task_status`.
-pub fn sys_task_spawn(image_id: ImageId) -> Result<(usize, usize), SysError> {
+/// Returns the packed task handle `(index | generation<<16)` on success.
+pub fn sys_task_spawn(image_id: ImageId) -> Result<usize, SysError> {
     let (r0, r1) = ecall2(SyscallNumber::TaskSpawn as usize,
                            image_id.0 as usize, 0, 0, 0);
-    to_result(r0).map(|handle| (handle, r1))
+    to_result(r0).map(|_| r1)   // returns Ok(handle) or Err
 }
 
 /// Start a spawned task (transition to Runnable).
@@ -193,11 +195,7 @@ pub fn sys_platform_info_get() -> Result<usize, SysError> {
     if a0 != 0 { Err(SysError::from_isize(a0 as isize)) } else { Ok(a1) }
 }
 
-/// `sys_mmio_map(phys_addr, size_bytes) -> user_va`
-pub fn sys_mmio_map(phys_addr: usize, size_bytes: usize) -> Result<usize, SysError> {
-    let (a0, a1) = ecall2(SyscallNumber::MmioMap as usize, phys_addr, size_bytes, 0, 0);
-    if a0 != 0 { Err(SysError::from_isize(a0 as isize)) } else { Ok(a1) }
-}
+
 
 /// `sys_dma_alloc(size_bytes) -> (user_va, phys_addr)`
 pub fn sys_dma_alloc(size_bytes: usize) -> Result<(usize, usize), SysError> {
@@ -217,4 +215,23 @@ pub fn sys_dma_alloc(size_bytes: usize) -> Result<(usize, usize), SysError> {
     #[cfg(not(target_arch = "riscv64"))]
     { let _ = (nr, size_bytes); r0 = 0; r1 = 0; r2 = 0; }
     if r0 != 0 { Err(SysError::from_isize(r0 as isize)) } else { Ok((r1, r2)) }
+}
+
+/// `sys_ipc_try_recv(ep_handle) -> Ok(tag_packed) | Err(WouldBlock | ...)`
+///
+/// RFC 019: Non-blocking IPC receive.  Returns `Err(SysError::WouldBlock)` if
+/// no message is pending, without blocking the calling task.
+pub fn sys_ipc_try_recv(ep: CapHandle) -> Result<usize, SysError> {
+    let (r0, r1) = ecall2(SyscallNumber::IpcTryRecv as usize, ep.0 as usize, 0, 0, 0);
+    to_result(r0).map(|_| r1)
+}
+
+/// `sys_mmio_map(mmio_cap, offset, size) → Ok(user_va) | Err`
+///
+/// RFC 016: Caller must hold a `CapKind::MmioRegion` capability.
+/// `offset + size` is bounds-checked against the region by the kernel.
+pub fn sys_mmio_map(mmio_cap: CapHandle, offset: usize, size: usize) -> Result<usize, SysError> {
+    let (r0, r1) = ecall2(SyscallNumber::MmioMap as usize,
+                          mmio_cap.0 as usize, offset, size, 0);
+    to_result(r0).map(|_| r1)
 }

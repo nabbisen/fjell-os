@@ -16,7 +16,7 @@ pub extern "C" fn service_main() -> ! {
     let ep = 0u32;
 
     // Announce readiness
-    let _ = sys_ipc_reply(tags::SERVICE_READY);
+    // M7.1: startup IPC reply removed (nobody IpcCall'd us).
 
     // Serve requests
     loop {
