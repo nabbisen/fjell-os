@@ -62,8 +62,11 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::POWERD            => Some(POWERD_BIN),
         ImageId::VERIFYD   => Some(VERIFYD_BIN),
         ImageId::ROOTFSD   => Some(ROOTFSD_BIN),
-        ImageId::SNAPSHOTD => Some(SNAPSHOTD_BIN),
-        _                  => None,
+        ImageId::SNAPSHOTD  => Some(SNAPSHOTD_BIN),
+        ImageId::MEASUREDD  => Some(MEASUREDD_BIN),
+        ImageId::ATTESTD    => Some(ATTESTD_BIN),
+        ImageId::RECOVERYD  => Some(RECOVERYD_BIN),
+        _                   => None,
     }
 }
 
@@ -78,4 +81,9 @@ static POWERD_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-powerd.bin");
 // M7 services
 static VERIFYD_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-verifyd.bin");
 static ROOTFSD_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-rootfsd.bin");
-static SNAPSHOTD_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-snapshotd.bin");
+static SNAPSHOTD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-snapshotd.bin");
+
+// M8: Evidence / Attestation / Recovery
+static MEASUREDD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-measuredd.bin");
+static ATTESTD_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-attestd.bin");
+static RECOVERYD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-recoveryd.bin");

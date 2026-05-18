@@ -29,6 +29,10 @@ pub const SERVICES: &[&str] = &[
     "fjell-verifyd",
     "fjell-rootfsd",
     "fjell-snapshotd",
+    // M8
+    "fjell-measuredd",
+    "fjell-attestd",
+    "fjell-recoveryd",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.

@@ -1,0 +1,16 @@
+[package]
+name = "fjell-recoveryd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+[[bin]]
+name = "fjell-recoveryd"
+path = "src/main.rs"
+[dependencies]
+fjell-syscall         = { path = "../fjell-syscall" }
+fjell-cap             = { path = "../fjell-cap" }
+fjell-recovery-format = { path = "../fjell-recovery-format" }
+fjell-service-api     = { path = "../fjell-service-api" }
+fjell-measure-format  = { path = "../fjell-measure-format" }

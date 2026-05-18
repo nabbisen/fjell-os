@@ -3,6 +3,71 @@
 All notable changes to Fjell OS are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.0.15] - 2026-05-17
+
+### Added (M8: Local Evidence / Attestation / Recovery Plane)
+
+- **PR-M8-01 — Format crates**: three new `no_std` library crates establish
+  the M8 data model.
+  - `fjell-measure-format`: append-only measurement chain types.  Implements
+    a compact SHA-256 (no external crate) for deterministic chain-digest
+    computation: `chain_digest[n] = SHA256(domain || seq || kind || source ||
+    subject || subject_digest || metadata_digest || prev_chain_digest)`.
+    `MeasurementEvent`, `MeasurementHead`, `MeasurementKind/Source/Subject`
+    enums.  24 unit tests pass including SHA-256 known-answer vectors,
+    determinism, chain-linkage, and metadata influence.
+  - `fjell-attestation-format`: `AttestationRecord`, `SignedAttestationRecord`,
+    `DevAttestation` (development-grade Ed25519 stand-in via SHA-256 keyed
+    under `dev-attest-m8-01`).  Canonical digest covers all claims fields.
+    Tamper-detection unit tests confirm that modified records fail verify.
+  - `fjell-recovery-format`: `RecoveryRequest/Response`, `BundleMetadataV2`,
+    `FreshnessCheck`, `FreshnessStatus`, `SlotInspection`, rollback types.
+    `BundleMetadataV2::check_freshness` enforces validity window, generation
+    anti-rollback, and key-epoch anti-rollback.  8 unit tests cover all
+    rejection paths (expired, not-yet-valid, generation rollback, key-epoch
+    rollback, unsupported schema).
+
+- **PR-M8-02 — Service API extension**: `fjell-service-api` extended with
+  `measuredd`, `attestd`, `recoveryd`, and `verifyd` protocol modules
+  (tags 0x300–0x33F).  Backward-compatible with all M7 tags (0x200–0x215).
+
+- **PR-M8-03 — measuredd**: new `fjell-measuredd` service.  Maintains an
+  in-memory append-only measurement chain (up to 64 events, ring buffer).
+  Accepts `APPEND_EVENT` (kind | source | subject | digest), replies with
+  `APPEND_OK` carrying the new sequence number and chain-digest prefix.
+  `GET_HEAD` returns current chain state.  Announces readiness on private
+  endpoint 2.
+
+- **PR-M8-04 — verifyd freshness**: bundle freshness validation implemented
+  in `fjell-recovery-format::BundleMetadataV2::check_freshness` and exercised
+  in `fjell-init`.  Valid bundle (gen=5, epoch=3, tick∈[1000,9000]) is
+  admitted.  Expired bundle (tick=9999) and generation-rollback bundle
+  (last_gen=6 > gen=5) are both rejected, satisfying FRESH-INV-001 through
+  FRESH-INV-003.
+
+- **PR-M8-05 — attestd**: new `fjell-attestd` service.  Generates local
+  development-grade attestation records from measurement chain state.  Signs
+  with `DevAttestation` (SHA-256 keyed under `dev-attest-m8-01`).  Reports
+  `GENERATED` and passes `VERIFY_LATEST` check in the smoke test.
+
+- **PR-M8-06 — recoveryd**: new `fjell-recoveryd` service with
+  `LIST_SNAPSHOTS`, `INSPECT_SLOT`, `ENTER_RECOVERY`, `SELECT_ROLLBACK`, and
+  `EXPORT_DIAGNOSTICS` handlers.  Enforces `REC-001`: `SELECT_ROLLBACK`
+  without `confirmed_by_operator=true` returns `ERR::NotConfirmed`.  Confirmed
+  rollback returns `ROLLBACK_SELECTED`.
+
+- **Kernel endpoint allocation**: endpoints 2, 3, 4 pre-allocated in
+  `main.rs` for measuredd, attestd, recoveryd respectively.  `spawn.rs`
+  updated to assign private endpoint IDs per service.  Init's CSpace gains
+  slots 3–5 for the M8 service endpoints.
+
+- **M8 smoke test**: `cargo xtask qemu-test m8` now emits `TEST:M8:PASS`
+  after exercising all six M8 acceptance criteria: (1) boot evidence import,
+  (2) verification result append, (3) freshness valid path, (4) expired-bundle
+  rejection, (5) generation-rollback rejection, (6) attestation generation and
+  verification, (7) unconfirmed-rollback rejection, (8) confirmed-rollback
+  acceptance.  `TEST:M7:PASS` is preserved.
+
 ## [0.0.14] - 2026-05-17
 
 ### Added (RFC 019, storaged / virtio-blk IPC completion)

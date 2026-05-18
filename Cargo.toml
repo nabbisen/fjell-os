@@ -14,6 +14,12 @@ members = [
     "crates/fjell-semantic-format",
     "crates/fjell-service-api",
     "crates/fjell-init",
+    "crates/fjell-recoveryd",
+    "crates/fjell-attestd",
+    "crates/fjell-measuredd",
+    "crates/fjell-recovery-format",
+    "crates/fjell-attestation-format",
+    "crates/fjell-measure-format",
     "crates/fjell-service-manager",
     "crates/fjell-auditd",
     "crates/fjell-configd",
@@ -56,7 +62,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.0.14"
+version = "0.0.15"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

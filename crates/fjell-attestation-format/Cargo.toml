@@ -1,0 +1,12 @@
+[package]
+name = "fjell-attestation-format"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-verify-format  = { path = "../fjell-verify-format" }
+fjell-abi            = { path = "../fjell-abi" }

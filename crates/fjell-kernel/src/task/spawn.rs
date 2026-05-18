@@ -129,9 +129,19 @@ pub fn spawn(
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             // Slot 0: IPC endpoint.
-            // storaged gets endpoint 1 (private, only init knows it).
-            // All other tasks get endpoint 0 (shared).
-            let ep_obj: u32 = if image_id == fjell_abi::service::ImageId::STORAGED { 1 } else { 0 };
+            // Private endpoint assignments (init holds caps to these):
+            //   0 = shared (all non-special services)
+            //   1 = storaged (RFC 019)
+            //   2 = measuredd (M8)
+            //   3 = attestd   (M8)
+            //   4 = recoveryd (M8)
+            let ep_obj: u32 = match image_id {
+                fjell_abi::service::ImageId::STORAGED  => 1,
+                fjell_abi::service::ImageId::MEASUREDD => 2,
+                fjell_abi::service::ImageId::ATTESTD   => 3,
+                fjell_abi::service::ImageId::RECOVERYD => 4,
+                _                                      => 0,
+            };
             let _ = cs.install_raw(0, Capability {
                 kind: CapKind::Endpoint, object_id: ep_obj,
                 rights: CapRights::ALL, badge: 0, parent: None, lease: None,

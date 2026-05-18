@@ -1,0 +1,18 @@
+[package]
+name = "fjell-attestd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+[[bin]]
+name = "fjell-attestd"
+path = "src/main.rs"
+[dependencies]
+fjell-syscall            = { path = "../fjell-syscall" }
+fjell-cap                = { path = "../fjell-cap" }
+fjell-measure-format     = { path = "../fjell-measure-format" }
+fjell-attestation-format = { path = "../fjell-attestation-format" }
+fjell-service-api        = { path = "../fjell-service-api" }
+fjell-abi                = { path = "../fjell-abi" }
+fjell-verify-format      = { path = "../fjell-verify-format" }

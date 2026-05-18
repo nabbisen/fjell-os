@@ -88,3 +88,10 @@ impl ImageId {
     pub const ROOTFSD:   ImageId = ImageId(15);
     pub const SNAPSHOTD: ImageId = ImageId(16);
 }
+
+impl ImageId {
+    // M8 additions
+    pub const MEASUREDD:  ImageId = ImageId(17);
+    pub const ATTESTD:    ImageId = ImageId(18);
+    pub const RECOVERYD:  ImageId = ImageId(19);
+}

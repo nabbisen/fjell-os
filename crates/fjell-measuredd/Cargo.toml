@@ -1,0 +1,17 @@
+[package]
+name = "fjell-measuredd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-measuredd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall       = { path = "../fjell-syscall" }
+fjell-cap           = { path = "../fjell-cap" }
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-service-api   = { path = "../fjell-service-api" }

@@ -434,6 +434,10 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // Endpoint 1: storaged private endpoint (storaged listens; init calls).
     let storaged_ep_id = et.alloc().expect("alloc storaged endpoint");
     let _ = storaged_ep_id;  // id=1
+    // Endpoints 2-4: M8 service private endpoints.
+    let measuredd_ep_id = et.alloc().expect("alloc measuredd endpoint"); let _ = measuredd_ep_id; // id=2
+    let attestd_ep_id   = et.alloc().expect("alloc attestd endpoint");   let _ = attestd_ep_id;   // id=3
+    let recoveryd_ep_id = et.alloc().expect("alloc recoveryd endpoint"); let _ = recoveryd_ep_id; // id=4
 
     // Idle task — no capabilities needed.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
@@ -548,10 +552,22 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 kind: CapKind::Endpoint, object_id: 0,
                 rights: CapRights::ALL, badge: 0, parent: None, lease: None,
             });
-            // Slot 2: storaged private endpoint — init waits for READY here
-            // and sends WRITE_BEGIN/CHUNK/COMMIT IpcCalls via this cap.
+            // Slot 2: storaged private endpoint (endpoint id=1).
             let _ = cs.install_raw(2, Capability {
                 kind: CapKind::Endpoint, object_id: 1,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+            });
+            // Slots 3-5: M8 service private endpoints.
+            let _ = cs.install_raw(3, Capability {  // measuredd (ep id=2)
+                kind: CapKind::Endpoint, object_id: 2,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+            });
+            let _ = cs.install_raw(4, Capability {  // attestd (ep id=3)
+                kind: CapKind::Endpoint, object_id: 3,
+                rights: CapRights::ALL, badge: 0, parent: None, lease: None,
+            });
+            let _ = cs.install_raw(5, Capability {  // recoveryd (ep id=4)
+                kind: CapKind::Endpoint, object_id: 4,
                 rights: CapRights::ALL, badge: 0, parent: None, lease: None,
             });
             // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).

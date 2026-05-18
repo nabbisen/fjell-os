@@ -59,3 +59,78 @@ pub mod bootctl {
     pub const WRITE_OK:         usize = 0x214;
     pub const ERR:              usize = 0x215;
 }
+
+// ── M8: measuredd IPC protocol ────────────────────────────────────────────────
+pub mod measuredd {
+    /// Service is ready.
+    pub const READY:            usize = 0x300;
+    /// Append one measurement event.
+    /// words[0] = kind<<24|source<<16|subject<<8|flags
+    /// words[1] = subject_digest lo64
+    /// words[2] = subject_digest hi64 (bytes 8-15)
+    /// Reply: APPEND_OK (seq in words[0]) or ERR.
+    pub const APPEND_EVENT:     usize = 0x301;
+    pub const APPEND_OK:        usize = 0x302;
+    /// Get chain head (latest seq + chain_digest).
+    pub const GET_HEAD:         usize = 0x303;
+    pub const HEAD_REPLY:       usize = 0x304;
+    /// Get a specific event by seq.
+    pub const GET_EVENT:        usize = 0x305;
+    pub const EVENT_REPLY:      usize = 0x306;
+    /// Start log export.
+    pub const EXPORT_LOG:       usize = 0x307;
+    pub const EXPORT_CHUNK:     usize = 0x308;
+    pub const EXPORT_DONE:      usize = 0x309;
+    pub const ERR:              usize = 0x30F;
+}
+
+// ── M8: attestd IPC protocol ──────────────────────────────────────────────────
+pub mod attestd {
+    pub const READY:            usize = 0x310;
+    /// Generate a local attestation record.
+    pub const GENERATE:         usize = 0x311;
+    pub const GENERATED:        usize = 0x312;
+    /// Verify the latest record.
+    pub const VERIFY_LATEST:    usize = 0x313;
+    pub const VERIFY_OK:        usize = 0x314;
+    pub const VERIFY_FAIL:      usize = 0x315;
+    /// Export attestation record (PlainText projection).
+    pub const EXPORT:           usize = 0x316;
+    pub const EXPORT_CHUNK:     usize = 0x317;
+    pub const EXPORT_DONE:      usize = 0x318;
+    pub const ERR:              usize = 0x31F;
+}
+
+// ── M8: recoveryd IPC protocol ────────────────────────────────────────────────
+pub mod recoveryd {
+    pub const READY:               usize = 0x320;
+    /// List snapshots.
+    pub const LIST_SNAPSHOTS:      usize = 0x321;
+    pub const SNAPSHOT_LIST:       usize = 0x322;
+    /// Inspect a slot (words[0] = SlotId).
+    pub const INSPECT_SLOT:        usize = 0x323;
+    pub const SLOT_INSPECTION:     usize = 0x324;
+    /// Inspect latest failure.
+    pub const INSPECT_FAILURE:     usize = 0x325;
+    pub const FAILURE_SUMMARY:     usize = 0x326;
+    /// Enter recovery target (words[0] = reason).
+    pub const ENTER_RECOVERY:      usize = 0x327;
+    pub const RECOVERY_ENTERED:    usize = 0x328;
+    /// Request manual rollback (words[0]=slot, words[1]=reason, words[2]=confirmed).
+    pub const SELECT_ROLLBACK:     usize = 0x329;
+    pub const ROLLBACK_SELECTED:   usize = 0x32A;
+    /// Export diagnostics (words[0] = format).
+    pub const EXPORT_DIAGNOSTICS:  usize = 0x32B;
+    pub const DIAGNOSTICS_CHUNK:   usize = 0x32C;
+    pub const DIAGNOSTICS_DONE:    usize = 0x32D;
+    pub const ERR:                 usize = 0x32F;
+}
+
+// ── M8: verifyd freshness extension ──────────────────────────────────────────
+pub mod verifyd {
+    pub const READY:              usize = 0x330;
+    pub const CHECK_FRESHNESS:    usize = 0x331;
+    pub const FRESHNESS_OK:       usize = 0x332;
+    pub const FRESHNESS_REJECTED: usize = 0x333;
+    pub const ERR:                usize = 0x33F;
+}
