@@ -17,8 +17,11 @@ Fjell OS is a research operating system that combines:
 - **ABDD** (Accessible by Default and by Design) — services emit structured *intent* streams
   rather than pixel data, letting a Presentation Proxy render them for any modality
 
-Current version: **v0.2.23** — Security Boundary Closure complete, `TEST:V02:PASS` earned.  
-Hardening line: v0.2.9–v0.2.23 (12 RFCs, 48–059) addressed all 20 post-review findings from v0.2.8.  
+Current version: **v0.3.0-alpha.1** — first alpha of the v0.3 line.  
+`fjell-trust-provider` and `fjell-keyring` crates land; revised RFC pack
+covering v0.3 through v0.9 published.  
+v0.2.x history: `TEST:V02:PASS` earned at v0.2.14; v0.2.9–v0.2.23 hardening
+line (12 RFCs, 48–059) addressed all 20 post-review findings from v0.2.8.  
 Previous milestone: **v0.1.0** (M1–M8 complete, May 2026) — 29/29 QEMU negative-test markers across 9 categories confirmed.  
 For full release history see [docs/src/releases/v0.2.0-release-gate.md](docs/src/releases/v0.2.0-release-gate.md).
 

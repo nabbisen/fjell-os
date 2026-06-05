@@ -10,3 +10,6 @@ publish = false
 fjell-measure-format = { path = "../fjell-measure-format" }
 fjell-verify-format  = { path = "../fjell-verify-format" }
 fjell-abi            = { path = "../fjell-abi" }
+fjell-trust-provider = { path = "../fjell-trust-provider" }
+fjell-keyring        = { path = "../fjell-keyring" }
+fjell-upgrade-format = { path = "../fjell-upgrade-format" }

@@ -1,4 +1,148 @@
-## [0.2.24] - 2026-05-18 — Documentation and CI corrections
+## [0.3.0] - 2026-05-19 — Hardware Trust Abstraction complete
+
+Full v0.3.0 release: all four RFC v0.3 epics land.  Services produce
+`AttestationRecordV2` in Enforcing phase and enforce the anti-rollback
+counter floor before confirming an A/B slot.
+
+### Added since v0.3.0-alpha.1
+
+- **RFC v0.3-003 — Anti-Rollback Metadata** (`fjell-upgrade-format` extension):
+  `ReleaseMetadata` (v1) with `metadata_digest` covering counter, channel,
+  epoch, provider, and measurement chain; `RollbackRecord` with
+  `AdvanceSource` enum; `check_rollback` / `advance_min_counter` helpers.
+  18 new host unit tests.
+- **RFC v0.3-004 — `AttestationRecordV2`** (`fjell-attestation-format`
+  extension): `ProviderClaims`, `KeyringClaims`, `RollbackClaims`,
+  `FreshnessClaimsV2`, `NonceClass`; canonical digest under `"FJELL-ATTEST-V2"`;
+  `SignedAttestationRecordV2` signed by `HardwareTrustProvider`.  17 new
+  host unit tests (total 22 in `fjell-attestation-format`).
+- **upgraded** enforces rollback floor: rejects any candidate whose
+  `release_counter < persisted_min_counter`; advances `min_counter` on
+  confirmation.
+- **attestd** produces v2 records when provider registry is in Enforcing phase;
+  falls back to v1 in Bootstrap/dev mode.
+- **`AttestationProfile::FjellLocalV2Binary = 0x21`** and
+  **`FjellLocalV2Json = 0x22`** profile tags added.
+
+### Test baseline: **174 host library tests, all passing**
+
+| Crate                       | Tests |
+|-----------------------------|-------|
+| fjell-trust-provider        |   37  |
+| fjell-keyring               |   29  |
+| fjell-upgrade-format        |   27  |
+| fjell-attestation-format    |   22  |
+| fjell-cap                   |   16  |
+| fjell-ipc                   |   10  |
+| fjell-measure-format        |   11  |
+| fjell-verify-format         |    8  |
+| fjell-attestation-format v1 |    5  |
+| fjell-audit-format          |    5  |
+| other format crates         |    4  |
+
+---
+
+## [0.3.0-alpha.1] - 2026-05-19 — Trust provider + keyring foundations land
+
+First alpha of the v0.3 line (Hardware Trust Abstraction).  This release
+introduces the two foundational user-space crates for the v0.3 epic — the
+provider-neutral hardware trust interface and the per-purpose keyring with
+its signature-provider abstraction — alongside a fully revised RFC pack
+covering v0.3 through v0.9.
+
+### New crates
+
+- **`crates/fjell-trust-provider`**: provider-neutral `HardwareTrustProvider`
+  trait, `ProviderRegistry` with the one-way Bootstrap→Enforcing handoff,
+  `DevelopmentTrustProvider` (deterministic software provider for QEMU/
+  local tests), and `NullTrustProvider` (test-only "always rejects" that
+  the registry refuses to admit in Enforcing phase).  37 host unit tests
+  pass; cross-compiles cleanly to `riscv64gc-unknown-none-elf`.
+- **`crates/fjell-keyring`**: `KeyPurpose`-keyed anchor container with
+  monotonic `KeyEpoch`, `TrustAnchor` and `AuthorityClass` types, the
+  `SignatureProvider` trait, the development `DevSignatureProvider`
+  (SHA-256 domain-separated digest), and `KeyringSnapshot` v1 persistence
+  with canonical digest under the `FJELL-KEYRING-V1 / SNAP-V1` domain.
+  29 host unit tests pass.
+
+Total v0.3.0-alpha.1 host test surface: **66 new tests** (37 +
+29), exceeding the per-RFC ≥25 / ≥22 floors and bringing the workspace's
+host-testable library total to **139** (all passing).
+
+### RFC pack — full revision of v0.3 through v0.9
+
+Every skeletal RFC in `rfcs/v0.3/` through `rfcs/v0.9/` has been
+re-authored to v0.2-RFC depth.  Each RFC now carries field-level data
+models, canonical digest formulas with explicit domain separators,
+threat-model deltas with named mitigations, named negative-test markers,
+compatibility/migration plans, and explicit open questions.
+
+| Phase  | RFCs | Lines |
+|--------|------|-------|
+| v0.3   |  4   |  ~2,022 |
+| v0.4   |  5   |  ~2,400 |
+| v0.5   |  5   |  ~2,059 |
+| v0.6   |  4   |  ~1,587 |
+| v0.7   |  4   |  ~1,778 |
+| v0.8   |  5   |  ~1,937 |
+| v0.9   |  5   |  ~1,175 |
+| **Total** | **32** | **12,958** |
+
+Notable design decisions recorded in the revised pack and now binding:
+
+- **v0.3**: `MAX_PROVIDERS=8`, `ANCHORS_PER_PURPOSE=4`,
+  `SIGNATURE_LEN_MAX=64`, `KeyPurpose` enum tags 0x01–0x06,
+  `AttestationRecordV2` profile tag 0x21 with digest under
+  `FJELL-ATTEST-V2`, `RollbackRecord` `AdvanceSource` enum.
+- **v0.4**: new cap kinds `Interrupt=0x14` / `NetDevice=0x15`, single
+  TLS 1.3 cipher suite (`TLS_AES_128_GCM_SHA256` + X25519), staged-update
+  pipeline `Idle→Fetching→…→Confirmed`.
+- **v0.5**: `PlatformProfile` / `BoardProfile` signed and measured,
+  new `KeyPurpose::BoardProfile=0x07`, semantic catalog v1 frozen with
+  full tag table 0x0100–0x017X, arch-trait monomorphised behind
+  `fjell-arch-riscv64` + ARM64 stub.
+- **v0.6**: 10 proptest properties for cap/IPC/lease, 13 model-test
+  properties for storaged/bootctl, 8 fuzz targets, an
+  `UNSAFE_CHARTER` + machine-checked inventory.
+- **v0.7**: `NodeIdentity` with 16-byte node_id derived from sealed seed,
+  `SnapshotEnvelope` with allow-listed record kinds 0x10–0x17 and atomic
+  apply, anti-rollback ratchet on import, `ConflictDomain` (Own /
+  ForeignAuthoritative / ForeignAdvisory).
+- **v0.8**: `KeyPurpose::FleetRoot=0x08`, `FleetRoster` (max 256 members),
+  `RolloutPlan` with cohort assignment via
+  `SHA256("FJELL-ROLLOUT-COHORT-V1" || plan_id || node_id) mod cohort_count`,
+  enumerated `RecoveryAction` set, atomic `FleetPolicyEnvelope` accept
+  with section tags 0x0010–0x0060.
+- **v0.9**: `fjell-sdk` re-export crate with Stable / Provisional /
+  Deprecated tiers and a semver-gate, TOML `CapManifest` + lint, typed
+  semantic Emitter API, `ServiceBundle` with
+  `KeyPurpose::ServiceSigning=0x09`, QEMU developer workflow with
+  hermetic baselines.
+
+### Workspace
+
+- `Cargo.toml`: version bumped `0.2.24` → `0.3.0-alpha.1`; new workspace
+  members `fjell-trust-provider` and `fjell-keyring`.
+
+### Roadmap
+
+- v0.3 Epic A (Trust Provider Boundary) and Epic B (Keyring) milestones
+  marked complete in this alpha.  Remaining v0.3 epics — anti-rollback
+  hardening (RFC v0.3-003) and local-attestation profile v2 (RFC
+  v0.3-004) — land in subsequent v0.3.0-alpha.x / v0.3.0-rc.y releases.
+
+### Notes
+
+- The `DevelopmentTrustProvider` and `DevSignatureProvider`/`DevDigest32`
+  algorithm are **dev-only**.  Both paths are explicitly refused once the
+  trust-provider registry enters Enforcing phase or the keyring enters
+  release mode.
+- No kernel changes in this release.  All new surfaces are user-space
+  libraries.
+
+---
+
+
 
 ### docs/
 

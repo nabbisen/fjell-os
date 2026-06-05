@@ -1,0 +1,17 @@
+[package]
+name = "fjell-keyring"
+description = "Keyring, key-purpose / signature-provider abstraction, and key-epoch model for Fjell OS."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "fjell_keyring"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format   = { path = "../fjell-measure-format" }
+fjell-trust-provider   = { path = "../fjell-trust-provider" }

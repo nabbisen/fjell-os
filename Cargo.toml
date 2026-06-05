@@ -47,6 +47,8 @@ members = [
     "crates/fjell-semantic-stream",
     "crates/fjell-cap-broker",
     "crates/fjell-tools",
+    "crates/fjell-trust-provider",
+    "crates/fjell-keyring",
 ]
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
@@ -65,7 +67,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.2.24"
+version = "0.3.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

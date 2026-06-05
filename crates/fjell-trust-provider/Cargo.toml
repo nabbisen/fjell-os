@@ -1,0 +1,16 @@
+[package]
+name = "fjell-trust-provider"
+description = "Hardware trust provider abstraction and provider registry for Fjell OS."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "fjell_trust_provider"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }

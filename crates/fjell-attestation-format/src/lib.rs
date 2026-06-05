@@ -14,6 +14,13 @@
 //! (JSON/TOML/PlainText) are unsigned and advisory.
 #![no_std]
 
+pub mod v2;
+pub use v2::{
+    AttestationRecordV2, SignedAttestationRecordV2, SignedByDescriptor,
+    ProviderClaims, KeyringClaims, RollbackClaims, FreshnessClaimsV2,
+    NonceClass, ATTEST_V2_DOMAIN,
+};
+
 use fjell_measure_format::Digest32;
 
 // ── ID types ─────────────────────────────────────────────────────────────────
@@ -68,12 +75,17 @@ pub enum AttestationProfile {
     FjellLocalV1Toml     = 0x03,
     /// Plain-text projection (unsigned, advisory).
     FjellLocalV1PlainText = 0x04,
+    /// NEW v0.3.0: normative signed binary form with trust-provider,
+    /// keyring epoch, and rollback binding (RFC v0.3-004).
+    FjellLocalV2Binary    = 0x21,
+    /// NEW v0.3.0: JSON projection of v2 (unsigned, advisory).
+    FjellLocalV2Json      = 0x22,
 }
 
 // ── Claims structs ────────────────────────────────────────────────────────────
 
 /// Boot-related claims extracted from BootEvidence.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct BootClaims {
     /// Which slot was booted.
     pub selected_slot: u8,      // 0=A, 1=B
@@ -84,7 +96,7 @@ pub struct BootClaims {
 }
 
 /// Verification results from verifyd.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct VerificationClaims {
     /// Digest of the loaded release manifest.
     pub release_digest: Digest32,
@@ -98,7 +110,7 @@ pub struct VerificationClaims {
 }
 
 /// Measurement chain summary at attestation time.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct MeasurementClaims {
     /// Sequence number of the latest measurement event.
     pub head_seq: u64,
@@ -110,7 +122,7 @@ pub struct MeasurementClaims {
 }
 
 /// Snapshot claims.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct SnapshotClaims {
     /// 8-byte ASCII snapshot identifier.
     pub snapshot_id: [u8; 8],
@@ -121,7 +133,7 @@ pub struct SnapshotClaims {
 }
 
 /// Health target result claims.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct HealthClaims {
     /// 8-byte ASCII health target name.
     pub target: [u8; 8],
@@ -140,7 +152,7 @@ pub struct FreshnessClaims {
 }
 
 /// Optional advisory provenance claims (sidecar if present).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ProvenanceClaims {
     pub sidecar_digest: Digest32,
     /// 0=verified, 1=advisory, 2=rejected, 3=absent.
@@ -398,3 +410,6 @@ mod tests {
         assert_ne!(with_prov, without_prov);
     }
 }
+
+#[cfg(test)]
+mod tests_v2;

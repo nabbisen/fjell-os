@@ -16,3 +16,6 @@ fjell-attestation-format = { path = "../fjell-attestation-format" }
 fjell-service-api        = { path = "../fjell-service-api" }
 fjell-abi                = { path = "../fjell-abi" }
 fjell-verify-format      = { path = "../fjell-verify-format" }
+fjell-trust-provider = { path = "../fjell-trust-provider" }
+fjell-keyring        = { path = "../fjell-keyring" }
+fjell-upgrade-format = { path = "../fjell-upgrade-format" }

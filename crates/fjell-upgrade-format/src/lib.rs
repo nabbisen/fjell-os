@@ -1,6 +1,17 @@
 //! A/B upgrade and boot-control block types for Fjell OS M6.
 #![no_std]
 
+pub mod release_metadata;
+pub mod rollback_record;
+
+pub use release_metadata::{ReleaseMetadata, Provenance,
+    RELEASE_METADATA_VERSION, RELEASE_METADATA_DOMAIN};
+pub use rollback_record::{
+    RollbackRecord, AdvanceSource, RollbackCheckResult,
+    ROLLBACK_RECORD_VERSION, ROLLBACK_RECORD_DOMAIN,
+    check_rollback, advance_min_counter,
+};
+
 // ── CRC32 (ISO 3309 / Castagnoli) — no lookup table, no_std safe ─────────────
 
 /// Compute CRC32 over `data`.  Uses the standard 0xEDB88320 polynomial.
@@ -227,3 +238,6 @@ mod tests {
         let mut b = BootControlBlock::new(3); b.seal();
         assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::BothValidSameGeneration(_)));
     }
+
+#[cfg(test)]
+mod tests_v03;

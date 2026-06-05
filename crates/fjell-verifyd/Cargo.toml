@@ -5,9 +5,14 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 publish = false
+
 [[bin]]
 name = "fjell-verifyd"
 path = "src/main.rs"
+
 [dependencies]
-fjell-abi     = { path = "../fjell-abi" }
-fjell-syscall = { path = "../fjell-syscall" }
+fjell-abi            = { path = "../fjell-abi" }
+fjell-syscall        = { path = "../fjell-syscall" }
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-keyring        = { path = "../fjell-keyring" }
+fjell-trust-provider = { path = "../fjell-trust-provider" }

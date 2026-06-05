@@ -6,3 +6,6 @@ authors.workspace = true
 license.workspace = true
 publish = false
 [dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-keyring        = { path = "../fjell-keyring" }
+fjell-trust-provider = { path = "../fjell-trust-provider" }
