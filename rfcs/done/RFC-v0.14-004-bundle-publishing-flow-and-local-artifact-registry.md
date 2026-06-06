@@ -1,6 +1,6 @@
 # RFC-v0.14-004 — Bundle Publishing Flow and Local Artifact Registry
 
-**Status:** Proposed
+**Status:** Implemented (v0.14.0)
 **Target version:** v0.14.0
 **Parent:** v0.14-001.
 **Cross-refs:** RFC v0.9-004 (bundle format), v0.11-003 (signing).

@@ -1,6 +1,6 @@
 # RFC-v0.14-003 — Typed Catalog Structs and Service Cookbook
 
-**Status:** Proposed
+**Status:** Implemented (v0.14.0)
 **Target version:** v0.14.0
 **Parent:** v0.14-001.
 **Cross-refs:** RFC v0.9-003 (semantic toolkit), v0.5-004 (catalog v1).

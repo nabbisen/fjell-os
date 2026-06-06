@@ -1,6 +1,6 @@
 # RFC-v0.15-002 — Threat Model Finalization
 
-**Status:** Proposed
+**Status:** Implemented (v0.15.0)
 **Target version:** v0.15.0
 **Parent:** v0.15-001.
 **Cross-refs:** RFC 027 (v0.1 threat model), RFC 042 (v0.2 boundary

@@ -1,6 +1,6 @@
 # RFC-v0.14-001 — Developer Ecosystem Trial Overview
 
-**Status:** Proposed
+**Status:** Implemented (v0.14.0)
 **Target version:** v0.14.0
 **Parent:** RFC 061 §10.
 **Cross-refs:** v0.14-002 through v0.14-005.

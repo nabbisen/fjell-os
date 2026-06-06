@@ -12,7 +12,6 @@
 //! revoked key rejects it with `SigError::SignatureVerifyFailed`
 //! after checking the revocation table.
 
-use crate::anchor::TrustAnchor;
 use crate::epoch::KeyEpoch;
 
 /// Lifecycle state of a trust anchor.

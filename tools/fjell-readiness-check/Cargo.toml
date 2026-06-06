@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-readiness-check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Parse the v1.0 readiness matrix and fail if any cell is OPEN (RFC-v0.10-007 §4)."
+publish     = false
+
+[[bin]]
+name = "fjell-readiness-check"
+path = "src/main.rs"

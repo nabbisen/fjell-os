@@ -1,6 +1,6 @@
 # RFC-v0.15-001 — v1.0 Freeze Candidate Overview
 
-**Status:** Proposed
+**Status:** Implemented (v0.15.0)
 **Target version:** v0.15.0
 **Parent:** RFC 061 §10.
 **Cross-refs:** v0.15-002 through v0.15-005, all earlier milestones.

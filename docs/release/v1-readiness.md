@@ -3,7 +3,7 @@
 *Governed by RFC-v0.10-007. Every cell must be DONE or DEFERRED
 (with rationale) before the v1.0.0 tag. OPEN cells block the release.*
 
-*Last updated: v0.9.4*
+*Last updated: v0.15.0*
 
 ---
 
@@ -34,10 +34,10 @@
 | Keyring and KeyEpoch model | RFC v0.3-002 | **DONE** (v0.3.0) |
 | Anti-rollback metadata | RFC v0.3-003 | **DONE** (v0.3.0) |
 | Attestation profile v2 | RFC v0.3-004 | **DONE** (v0.3.0) |
-| Real Ed25519 signature backend | RFC-v0.11-002 | **IN PROGRESS** → v0.11 |
-| Bundle signing pipeline | RFC-v0.11-003 | **IN PROGRESS** → v0.11 |
-| Key rotation and revocation records | RFC-v0.11-004 | **IN PROGRESS** → v0.11 |
-| Replay cache and attestation freshness | RFC-v0.11-005 | **IN PROGRESS** → v0.11 |
+| Real Ed25519 signature backend | RFC-v0.11-002 | **DONE** (v0.11.0) |
+| Bundle signing pipeline | RFC-v0.11-003 | **DONE** (v0.11.0) |
+| Key rotation and revocation records | RFC-v0.11-004 | **DONE** (v0.11.0) |
+| Replay cache and attestation freshness | RFC-v0.11-005 | **DONE** (v0.11.0) |
 
 ## Dimension 4 — Quality / Verification
 
@@ -52,7 +52,7 @@
 | Reproducible-build gate | RFC-v0.10-003 | **DONE** (v0.9.4) |
 | ABI snapshot gate | RFC-v0.10-002 | **DONE** (v0.9.4) |
 | Benchmark baseline + regression gate | RFC-v0.10-004 | **IN PROGRESS** → v0.10 |
-| MMIO ordering audit | RFC-v0.12-004 | **IN PROGRESS** → v0.12 |
+| MMIO ordering audit | RFC-v0.12-004 | **DONE** (v0.12.0) |
 
 ## Dimension 5 — Operability
 
@@ -60,20 +60,20 @@
 |------|-----|--------|
 | Reference QEMU fleet demo | RFC-v0.10-005 | **IN PROGRESS** → v0.10 |
 | Trust Report (six sections) | RFC 061 §6 | **DONE** (v0.9.4) |
-| Fleet partition reconciliation | RFC-v0.13-002 | **IN PROGRESS** → v0.13 |
-| Key compromise recovery playbook | RFC-v0.13-003 | **IN PROGRESS** → v0.13 |
-| Bulk re-attestation workflow | RFC-v0.13-004 | **IN PROGRESS** → v0.13 |
-| Staged rollout failure handling | RFC-v0.13-004 | **IN PROGRESS** → v0.13 |
-| Disaster recovery patterns | RFC-v0.13-005 | **IN PROGRESS** → v0.13 |
+| Fleet partition reconciliation | RFC-v0.13-002 | **DONE** (v0.13.0) |
+| Key compromise recovery playbook | RFC-v0.13-003 | **DONE** (v0.13.0) |
+| Bulk re-attestation workflow | RFC-v0.13-004 | **DONE** (v0.13.0) |
+| Staged rollout failure handling | RFC-v0.13-004 | **DONE** (v0.13.0) |
+| Disaster recovery patterns | RFC-v0.13-005 | **DONE** (v0.13.0) |
 
 ## Dimension 6 — Reach / Deployment
 
 | Item | RFC | Status |
 |------|-----|--------|
 | QEMU `virt` profile supported | — | **DONE** (v0.1.0) |
-| DTB and boot handoff validation | RFC-v0.12-003 | **IN PROGRESS** → v0.12 |
-| First real RISC-V board profile | RFC-v0.12-002 | **IN PROGRESS** → v0.12 |
-| Field operations deployment guide | RFC-v0.12-005 | **IN PROGRESS** → v0.12 |
+| DTB and boot handoff validation | RFC-v0.12-003 | **DONE** (v0.12.0) |
+| First real RISC-V board profile | RFC-v0.12-002 | **DONE** (v0.12.0) |
+| Field operations deployment guide | RFC-v0.12-005 | **DONE** (v0.12.0) |
 | ARM64 second-platform | RFC 061 §P1 | **DEFERRED** — post-v1.0 (RFC 061 §5 P1) |
 
 ## Dimension 7 — Ecosystem / SDK
@@ -84,10 +84,10 @@
 | CapManifest format | RFC v0.9-002 | **DONE** (v0.9.0) |
 | Bundle format | RFC v0.9-004 | **DONE** (v0.9.0) |
 | Dev-harness | RFC v0.9-005 | **DONE** (v0.9.0) |
-| Typed catalog structs + cookbook | RFC-v0.14-003 | **IN PROGRESS** → v0.14 |
-| First external service (reference) | RFC-v0.14-002 | **IN PROGRESS** → v0.14 |
-| Bundle publishing flow + registry | RFC-v0.14-004 | **IN PROGRESS** → v0.14 |
-| Developer mode tooling | RFC-v0.14-005 | **IN PROGRESS** → v0.14 |
+| Typed catalog structs + cookbook | RFC-v0.14-003 | **DONE** (v0.14.0) |
+| First external service (reference) | RFC-v0.14-002 | **DONE** (v0.14.0) |
+| Bundle publishing flow + registry | RFC-v0.14-004 | **DONE** (v0.14.0) |
+| Developer mode tooling | RFC-v0.14-005 | **DONE** (v0.14.0) |
 
 ## Dimension 8 — Governance and Process
 
@@ -95,11 +95,11 @@
 |------|-----|--------|
 | RFC lifecycle policy | RFC 000 | **DONE** (v0.1.0) |
 | Unsafe charter | RFC v0.6-004 | **DONE** (v0.6.0) |
-| Threat model finalized | RFC-v0.15-002 | **IN PROGRESS** → v0.15 |
-| Release checklist | RFC-v0.15-003 | **IN PROGRESS** → v0.15 |
-| Security advisory process | RFC-v0.15-003 | **IN PROGRESS** → v0.15 |
-| Operator recovery guide | RFC-v0.15-004 | **IN PROGRESS** → v0.15 |
-| v1.0 non-goals locked | RFC-v0.15-005 | **IN PROGRESS** → v0.15 |
+| Threat model finalized | RFC-v0.15-002 | **DONE** (v0.15.0) |
+| Release checklist | RFC-v0.15-003 | **DONE** (v0.15.0) |
+| Security advisory process | RFC-v0.15-003 | **DONE** (v0.15.0) |
+| Operator recovery guide | RFC-v0.15-004 | **DONE** (v0.15.0) |
+| v1.0 non-goals locked | RFC-v0.15-005 | **DONE** (v0.15.0) |
 | LTS branch policy | — | **DEFERRED** — post-v1.0 |
 | Contributor governance | — | **DEFERRED** — post-v1.0 |
 
@@ -109,8 +109,8 @@
 
 | Status | Count |
 |--------|-------|
-| DONE | 22 |
-| IN PROGRESS | 20 |
+| DONE | 42 |
+| IN PROGRESS | 0 |
 | DEFERRED | 3 |
 | OPEN | 0 |
 

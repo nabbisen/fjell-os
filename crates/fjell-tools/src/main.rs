@@ -28,7 +28,9 @@ mod test_all;     // full test-all runner with log bundle
 mod trust_report; // RFC 061 §6 Trust Report
 mod bench;
 mod fleet_demo;
-mod sign_bundle;  // RFC-v0.11-003 bundle signing pipeline   // RFC-v0.10-005 three-node fleet demo        // RFC-v0.10-004 criterion bench runner
+mod sign_bundle;
+mod registry;
+mod dev_modes;   // RFC-v0.14-005 --trace/--measure/--gdb    // RFC-v0.14-004 publish/install  // RFC-v0.11-003 bundle signing pipeline   // RFC-v0.10-005 three-node fleet demo        // RFC-v0.10-004 criterion bench runner
 
 use std::process::ExitCode;
 
@@ -64,6 +66,23 @@ fn main() -> ExitCode {
             };
             qemu_run::cmd_qemu_run(profile)
         }
+        Some("dev") => {
+            if args.get(1).map(String::as_str) == Some("run") {
+                dev_modes::cmd_dev_run(&args[2.min(args.len())..])
+            } else if args.get(1).map(String::as_str) == Some("log-check") {
+                dev::cmd_dev_log_check(
+                    args.get(2).map(String::as_str),
+                    args.get(3).map(String::as_str),
+                )
+            } else {
+                dev::cmd_dev(
+                    args.get(1).map(String::as_str),
+                    &args[2.min(args.len())..],
+                )
+            }
+        }
+        Some("publish") => { registry::cmd_publish(&args[1..]) }
+        Some("install") => { registry::cmd_install(&args[1..]) }
         Some("sign-bundle") => {
             sign_bundle::cmd_sign_bundle(&args[1..])
         }
@@ -78,6 +97,18 @@ fn main() -> ExitCode {
                 args.get(1).map(String::as_str),
                 &args[2.min(args.len())..],
             )
+        }
+        Some("toolkit") => {
+            if args.get(1).map(String::as_str) == Some("regenerate") {
+                println!("[toolkit] regenerating typed emitters from catalog v1 …");
+                let status = std::process::Command::new("python3")
+                    .args(["-c", "import subprocess; subprocess.run(['cargo', 'build', '-p', 'fjell-semantic-toolkit'], check=True); print('[toolkit] regenerate: OK')"]) 
+                    .status().map(|s| s.code().unwrap_or(1)).unwrap_or(1);
+                if status == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+            } else {
+                eprintln!("Usage: cargo xtask toolkit regenerate");
+                ExitCode::FAILURE
+            }
         }
         Some("bench") => {
             bench::cmd_bench(&args[1..])
@@ -100,25 +131,18 @@ fn main() -> ExitCode {
                 .status().map(|s| s.code().unwrap_or(1)).unwrap_or(1);
             if status == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
         }
+        Some("readiness-check") => {
+            let path = args.get(1).map(String::as_str).unwrap_or("docs/release/v1-readiness.md");
+            let status = std::process::Command::new("cargo")
+                .args(["run", "-p", "fjell-readiness-check", "--", "--matrix", path])
+                .status().map(|s| s.code().unwrap_or(1)).unwrap_or(1);
+            if status == 0 { ExitCode::SUCCESS } else { ExitCode::from(status as u8) }
+        }
         Some("trust-report") => {
             trust_report::cmd_trust_report(&args[1..])
         }
         Some("test-all") => {
             test_all::cmd_test_all(&args[1..])
-        }
-        Some("dev") => {
-            // `dev log-check` is a distinct leaf; route it before cmd_dev.
-            if args.get(1).map(String::as_str) == Some("log-check") {
-                dev::cmd_dev_log_check(
-                    args.get(2).map(String::as_str),
-                    args.get(3).map(String::as_str),
-                )
-            } else {
-                dev::cmd_dev(
-                    args.get(1).map(String::as_str),
-                    &args[2.min(args.len())..],
-                )
-            }
         }
         Some(other) => {
             eprintln!("fjell-tools: unknown subcommand `{other}`");

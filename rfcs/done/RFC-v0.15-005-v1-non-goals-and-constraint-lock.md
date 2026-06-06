@@ -1,6 +1,6 @@
 # RFC-v0.15-005 — v1.0 Non-Goals and Constraint Lock
 
-**Status:** Proposed
+**Status:** Implemented (v0.15.0)
 **Target version:** v0.15.0
 **Parent:** v0.15-001.
 **Cross-refs:** RFC 061 §3.4, §4, §7.

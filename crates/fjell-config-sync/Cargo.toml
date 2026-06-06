@@ -1,0 +1,15 @@
+[package]
+name        = "fjell-config-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Reference configuration-sync service for the Fjell SDK trial (RFC-v0.14-002)."
+publish     = false
+
+# Exactly ONE Fjell dependency — the SDK boundary (RFC-v0.14-002 §3).
+[dependencies]
+fjell-sdk = { path = "../fjell-sdk" }
+
+# Runtime flag: if this dependency is referenced outside fjell-sdk, CI
+# gate `ci-sdk-purity` will fail (tools/fjell-sdk-purity/).

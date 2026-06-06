@@ -1,6 +1,6 @@
 # RFC-v0.14-005 — Developer Mode Tooling (`--trace`, `--measure`, `--gdb`)
 
-**Status:** Proposed
+**Status:** Implemented (v0.14.0)
 **Target version:** v0.14.0
 **Parent:** v0.14-001.
 **Cross-refs:** RFC v0.9-005 (dev-harness), v0.10-006 (docs).
