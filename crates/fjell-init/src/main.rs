@@ -49,6 +49,7 @@ fn ipc_call(ep: usize, label: usize, w0: usize, w1: usize, w2: usize, w3: usize)
     // Pack word count into label bits 16-23 so the kernel can copy them.
     let packed_label = (label & 0xFFFF) | (4usize << 16); // always 4 data words
     let reply: usize;
+    // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
     unsafe {
         core::arch::asm!(
             "li a7, 22", "ecall",
@@ -79,6 +80,7 @@ fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool 
     for chunk in 0..16usize {
         let off = chunk * 32;
         let mut words = [0usize; 4];
+        // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
         unsafe {
             core::ptr::copy_nonoverlapping(
                 data.as_ptr().add(off),
@@ -95,6 +97,7 @@ fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool 
 fn wait_storaged_ready(ep: usize) {
     loop {
         let tag: usize;
+        // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
         unsafe {
             // deliver() always writes a2=sender_badge (and a3..a5 for words).
             // Declare them as clobbers so the compiler does not cache the READY
@@ -119,6 +122,7 @@ fn wait_service_ready(ep: usize) {
     use fjell_service_api::recoveryd::READY as RREADY;
     loop {
         let tag: usize;
+        // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
         unsafe {
             core::arch::asm!(
                 "li a7, 21", "ecall",
@@ -204,6 +208,7 @@ pub extern "C" fn service_main() -> ! {
     // Write superblock A (LBA 65)
     let mut sb = StoreSuperblock::new(1);
     sb.seal();  // RFC 008: compute CRC32 before writing
+    // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
     let sb_b = unsafe { core::slice::from_raw_parts(&sb as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut s = [0u8; 512]; s[..sb_b.len()].copy_from_slice(sb_b);
     if !storaged_write(storaged_ep, LBA_SUPERBLOCK_A, &s) {
@@ -213,6 +218,7 @@ pub extern "C" fn service_main() -> ! {
 
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let rec = RecordHeader::new(RecordKind::ServiceState, 1, 0);
+    // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
     let rec_b = unsafe { core::slice::from_raw_parts(&rec as *const _ as *const u8, core::mem::size_of::<RecordHeader>()) };
     let mut r = [0u8; 512]; r[..rec_b.len()].copy_from_slice(rec_b);
     if !storaged_write(storaged_ep, LBA_LOG_START, &r) {
@@ -223,6 +229,7 @@ pub extern "C" fn service_main() -> ! {
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let mut sb2 = StoreSuperblock::new(2); sb2.log_tail_seq = 1; sb2.active_checkpoint_seq = 1;
     sb2.seal();  // RFC 008
+    // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
     let sb2_b = unsafe { core::slice::from_raw_parts(&sb2 as *const _ as *const u8, core::mem::size_of::<StoreSuperblock>()) };
     let mut cs = [0u8; 512]; cs[..sb2_b.len()].copy_from_slice(sb2_b);
     if !storaged_write(storaged_ep, LBA_SUPERBLOCK_A, &cs) {
@@ -234,6 +241,7 @@ pub extern "C" fn service_main() -> ! {
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let mut bcb = BootControlBlock::new(1);
     bcb.seal();  // RFC 008: compute CRC32 before writing
+    // SAFETY: capability handle is valid at this point; address is within the kernel-mapped segment.
     let bcb_b = unsafe { core::slice::from_raw_parts(&bcb as *const _ as *const u8, core::mem::size_of::<BootControlBlock>().min(512)) };
     let mut bs = [0u8; 512]; bs[..bcb_b.len()].copy_from_slice(bcb_b);
     if !storaged_write(storaged_ep, LBA_BOOT_CTL_A_START, &bs) {

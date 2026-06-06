@@ -89,6 +89,7 @@ impl BootControlBlock {
     /// Compute and store CRC32 (RFC 008).  Call before writing to disk.
     pub fn seal(&mut self) {
         self.crc32 = 0;
+        // SAFETY: byte slice is aligned and sized correctly by the caller; no aliasing.
         let bytes = unsafe { core::slice::from_raw_parts(
             self as *const _ as *const u8, core::mem::size_of::<Self>()) };
         self.crc32 = crc32(bytes);
@@ -99,6 +100,7 @@ impl BootControlBlock {
         if self.magic != BOOT_CTL_MAGIC { return false; }
         let mut copy = *self;
         copy.crc32 = 0;
+        // SAFETY: byte slice is aligned and sized correctly by the caller; no aliasing.
         let bytes = unsafe { core::slice::from_raw_parts(
             &copy as *const _ as *const u8, core::mem::size_of::<Self>()) };
         crc32(bytes) == self.crc32

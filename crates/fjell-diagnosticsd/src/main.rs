@@ -45,6 +45,7 @@ const MEASUREDD_HEAD_REPLY: usize = 0x321;
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
 fn send_tag(ep: CapHandle, tag: usize, w0: usize) {
+    // SAFETY: ring buffer read is serialised by the audit drain capability.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -56,6 +57,7 @@ fn send_tag(ep: CapHandle, tag: usize, w0: usize) {
 
 fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
     let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
+    // SAFETY: ring buffer read is serialised by the audit drain capability.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",

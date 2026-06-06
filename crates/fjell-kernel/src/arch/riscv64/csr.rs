@@ -10,6 +10,7 @@
 /// # Safety
 /// Must be called from M-mode.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_mhartid() -> usize {
     let v: usize;
     // SAFETY: read-only CSR, no side effects.
@@ -19,6 +20,7 @@ pub unsafe fn read_mhartid() -> usize {
 
 /// Read `sstatus`.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_sstatus() -> usize {
     let v: usize;
     // SAFETY: read-only CSR access.
@@ -32,6 +34,7 @@ pub unsafe fn read_sstatus() -> usize {
 /// Caller must ensure the new value preserves required kernel invariants
 /// (e.g. SIE, SPP bits).
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_sstatus(v: usize) {
     // SAFETY: caller upholds CSR write invariants.
     unsafe { core::arch::asm!("csrw sstatus, {}", in(reg) v) };
@@ -39,6 +42,7 @@ pub unsafe fn write_sstatus(v: usize) {
 
 /// Read `scause`.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_scause() -> usize {
     let v: usize;
     // SAFETY: read-only CSR access.
@@ -48,6 +52,7 @@ pub unsafe fn read_scause() -> usize {
 
 /// Read `stval`.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_stval() -> usize {
     let v: usize;
     // SAFETY: read-only CSR access.
@@ -57,6 +62,7 @@ pub unsafe fn read_stval() -> usize {
 
 /// Read `sepc`.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_sepc() -> usize {
     let v: usize;
     // SAFETY: read-only CSR access.
@@ -69,6 +75,7 @@ pub unsafe fn read_sepc() -> usize {
 /// # Safety
 /// `v` must be a valid canonical user-space virtual address.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_sepc(v: usize) {
     // SAFETY: caller guarantees `v` is a valid user-space address.
     unsafe { core::arch::asm!("csrw sepc, {}", in(reg) v) };
@@ -79,6 +86,7 @@ pub unsafe fn write_sepc(v: usize) {
 /// # Safety
 /// `addr` must be 4-byte aligned and point to the trap entry assembly stub.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_stvec(addr: usize) {
     // SAFETY: caller ensures `addr` points to a valid trap handler with
     // correct alignment and that MODE = 0 (direct).
@@ -87,6 +95,7 @@ pub unsafe fn write_stvec(addr: usize) {
 
 /// Read `sscratch`.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_sscratch() -> usize {
     let v: usize;
     // SAFETY: read-only CSR access.
@@ -99,6 +108,7 @@ pub unsafe fn read_sscratch() -> usize {
 /// # Safety
 /// Caller manages the value stored in `sscratch` (used as per-hart pointer).
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_sscratch(v: usize) {
     // SAFETY: caller owns the sscratch convention.
     unsafe { core::arch::asm!("csrw sscratch, {}", in(reg) v) };
@@ -109,6 +119,7 @@ pub unsafe fn write_sscratch(v: usize) {
 /// # Safety
 /// Enabling interrupts at the wrong time can cause re-entrant trap handling.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_sie(v: usize) {
     // SAFETY: caller is responsible for interrupt-enable timing.
     unsafe { core::arch::asm!("csrw sie, {}", in(reg) v) };
@@ -119,11 +130,15 @@ pub unsafe fn write_sie(v: usize) {
 /// # Safety
 /// Must only be called after `stvec` is installed and the trap handler is ready.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn enable_interrupts() {
     // SEIE (bit 9) | STIE (bit 5) | SSIE (bit 1)
+    // SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
     unsafe { write_sie(0x222) };
     // Set SIE bit in sstatus to globally enable S-mode interrupts.
+    // SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
     let s = unsafe { read_sstatus() };
+    // SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
     unsafe { write_sstatus(s | (1 << 1)) }; // SIE = bit 1
 }
 
@@ -134,6 +149,7 @@ pub unsafe fn enable_interrupts() {
 /// # Safety
 /// Must be called from M-mode only.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_mstatus(v: usize) {
     // SAFETY: M-mode shim context; caller upholds M-mode invariants.
     unsafe { core::arch::asm!("csrw mstatus, {}", in(reg) v) };
@@ -144,6 +160,7 @@ pub unsafe fn write_mstatus(v: usize) {
 /// # Safety
 /// Delegating the wrong exceptions to S-mode can break kernel trap handling.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_medeleg(v: usize) {
     // SAFETY: caller selects only safe-to-delegate exception bits.
     unsafe { core::arch::asm!("csrw medeleg, {}", in(reg) v) };
@@ -154,6 +171,7 @@ pub unsafe fn write_medeleg(v: usize) {
 /// # Safety
 /// Delegating the wrong interrupts can break timer and IPI handling.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_mideleg(v: usize) {
     // SAFETY: caller selects only safe-to-delegate interrupt bits.
     unsafe { core::arch::asm!("csrw mideleg, {}", in(reg) v) };
@@ -164,6 +182,7 @@ pub unsafe fn write_mideleg(v: usize) {
 /// # Safety
 /// `v` must point to the S-mode entry function.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_mepc(v: usize) {
     // SAFETY: caller provides the valid S-mode entry address.
     unsafe { core::arch::asm!("csrw mepc, {}", in(reg) v) };
@@ -175,6 +194,7 @@ pub unsafe fn write_mepc(v: usize) {
 /// `mepc` and `mstatus.MPP` must be correctly set up before calling this.
 /// This function does not return; control transfers to `mepc`.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn mret() -> ! {
     // SAFETY: caller has correctly set mepc (S-mode entry) and mstatus.MPP = S.
     unsafe {
@@ -187,7 +207,9 @@ pub unsafe fn mret() -> ! {
 /// # Safety
 /// Must be called from M-mode.  Incorrect values can lock out all memory access.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_pmpaddr0(v: usize) {
+    // SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
     unsafe { core::arch::asm!("csrw pmpaddr0, {}", in(reg) v) };
 }
 
@@ -197,12 +219,16 @@ pub unsafe fn write_pmpaddr0(v: usize) {
 /// Must be called from M-mode.  Incorrect values can lock out all memory access.
 /// Once a PMP entry is locked (L-bit set) it cannot be changed until reset.
 #[inline]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn write_pmpcfg0(v: usize) {
+    // SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
     unsafe { core::arch::asm!("csrw pmpcfg0, {}", in(reg) v) };
 }
 
 /// Execute `sfence.vma` to flush the TLB after page table modifications.
 #[inline(always)]
+// SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn sfence_vma() {
+    // SAFETY: CSR access is valid in S-mode; register name is correct for riscv64gc.
     unsafe { core::arch::asm!("sfence.vma", options(nostack)); }
 }

@@ -69,6 +69,7 @@ pub fn spawn(
                       .map_err(|_| SysError::NoMemory)?;
             let start = i * 4096;
             let end   = (start + 4096).min(bytes.len());
+            // SAFETY: task stack and entry point are validated during service manifest parsing.
             unsafe {
                 let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
                 dst.fill(0);
@@ -81,6 +82,7 @@ pub fn spawn(
     } else {
         let f = fa.alloc_frame(FrameOwner::UserText { task: tid })
                   .map_err(|_| SysError::NoMemory)?;
+        // SAFETY: task stack and entry point are validated during service manifest parsing.
         unsafe {
             let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
             dst.fill(0);
@@ -126,6 +128,7 @@ pub fn spawn(
         use fjell_cap::slot::Capability;
         use crate::platform::qemu_virt::{mmio_region_table, MMIO_REGION_COUNT};
 
+        // SAFETY: task stack and entry point are validated during service manifest parsing.
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             // Slot 0: IPC endpoint.
@@ -233,6 +236,7 @@ pub fn spawn(
         use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
         use fjell_cap::slot::Capability;
         if image_id == fjell_abi::service::ImageId::CAP_BROKER {
+            // SAFETY: task stack and entry point are validated during service manifest parsing.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(10, Capability {

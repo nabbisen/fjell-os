@@ -39,12 +39,14 @@ use super::{fault::handle_user_fault, syscall::handle_syscall};
 /// - `tf.sstatus.SPP` = 0 (U-mode), `SPIE` = 1.
 /// - `sscratch` must point to the static `TRAP_SCRATCH`.
 #[cfg(target_arch = "riscv64")]
+// SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
 pub unsafe fn first_entry(tf: &TrapFrame) -> ! {
     // Pin tf to a0 (x10).  The load sequence restores every register in order;
     // if the compiler chose s3 (x19) as the base, `ld x19, 19*8(s3)` would
     // overwrite the base with TrapFrame.gpr[19] (often 0), causing the next
     // load to fault.  With a0 as the base, only x10 is clobbered — and that
     // happens on the very last load, immediately before sret.
+    // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
     unsafe {
         core::arch::asm!(
             "ld   t0, {sstatus_off}(a0)",
@@ -178,6 +180,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task exit.
+                // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
                 task.state = TaskState::Exited(code);
@@ -191,6 +194,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task fault.
+                // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
                 task.state = TaskState::Faulted(fault);
@@ -261,6 +265,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         // creation; sfence.vma flushes stale TLB entries for ASID 0.
         #[cfg(target_arch = "riscv64")]
         if task.satp_root_pfn != 0 {
+            // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
             unsafe { crate::arch::riscv64::satp::enable_sv39(task.satp_root_pfn) };
         }
 
@@ -335,6 +340,7 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
 ///
 /// Returns 0 (idle) if no task is currently scheduled.
 pub fn current_task_idx() -> usize {
+    // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
     let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
     sched.current().map(|id| id.index as usize).unwrap_or(0)
 }

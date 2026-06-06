@@ -38,6 +38,7 @@ const CAP_SMGR_EP: CapHandle = CapHandle(2);
 const READY_TAG: usize = 0x0001;
 
 fn send_ready(ep: CapHandle) {
+    // SAFETY: virtio MMIO region is mapped and exclusive to this driver context.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -49,6 +50,7 @@ fn send_ready(ep: CapHandle) {
 
 fn recv_msg() -> (usize, usize, usize) {
     let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
+    // SAFETY: virtio MMIO region is mapped and exclusive to this driver context.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",

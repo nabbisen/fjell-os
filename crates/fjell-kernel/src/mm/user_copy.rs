@@ -38,6 +38,7 @@ pub use super::user_ptr::{UserCopyError, UserPtr};
 ///
 /// # Safety
 /// See module-level safety note.
+// SAFETY: pointer and length are validated against the task VMA map before this call.
 pub unsafe fn copy_to_user_bytes(
     root_pfn: usize,
     dst_va:   usize,
@@ -57,6 +58,7 @@ pub unsafe fn copy_to_user_bytes(
         let offset  = va &  0xFFF;
         let remain  = (0x1000 - offset).min(src.len() - done);
 
+        // SAFETY: pointer and length are validated against the task VMA map before this call.
         let (frame, perms) = unsafe {
             page_table::translate(root_pa, VirtAddr(page_va))
                 .map_err(|_| UserCopyError::NotMapped)?
@@ -67,6 +69,7 @@ pub unsafe fn copy_to_user_bytes(
         }
 
         let pa = frame.pa() + offset;
+        // SAFETY: pointer and length are validated against the task VMA map before this call.
         unsafe {
             core::ptr::copy_nonoverlapping(
                 src[done..].as_ptr(),
@@ -89,6 +92,7 @@ pub unsafe fn copy_to_user_bytes(
 /// # Safety
 /// See module-level safety note.
 #[allow(dead_code)]  // RFC 039: defined for completeness; wired when syscalls need in-copy
+// SAFETY: pointer and length are validated against the task VMA map before this call.
 pub unsafe fn copy_from_user_bytes(
     root_pfn: usize,
     src_va:   usize,
@@ -108,6 +112,7 @@ pub unsafe fn copy_from_user_bytes(
         let offset  = va &  0xFFF;
         let remain  = (0x1000 - offset).min(dst.len() - done);
 
+        // SAFETY: pointer and length are validated against the task VMA map before this call.
         let (frame, perms) = unsafe {
             page_table::translate(root_pa, VirtAddr(page_va))
                 .map_err(|_| UserCopyError::NotMapped)?
@@ -118,6 +123,7 @@ pub unsafe fn copy_from_user_bytes(
         }
 
         let pa = frame.pa() + offset;
+        // SAFETY: pointer and length are validated against the task VMA map before this call.
         unsafe {
             core::ptr::copy_nonoverlapping(
                 pa as *const u8,

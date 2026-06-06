@@ -1,0 +1,4 @@
+# Regression seed: P10 — cap table capacity respected
+# Sequence: 65 consecutive CapRegister ops for distinct CapIds.
+# Expected: the 65th returns CapacityExhausted; live_cap_count stays ≤ 64.
+cc 1 0 0 0 0 0 0 0 0 0 0

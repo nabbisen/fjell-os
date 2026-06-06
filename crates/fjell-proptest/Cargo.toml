@@ -1,0 +1,17 @@
+[package]
+name = "fjell-proptest"
+description = "Capability, IPC, and lease property-test harness for Fjell OS (RFC v0.6-001)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_proptest"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-cap  = { path = "../fjell-cap" }
+fjell-abi  = { path = "../fjell-abi" }
+proptest   = "1.6"

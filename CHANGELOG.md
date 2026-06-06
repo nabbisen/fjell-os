@@ -1,3 +1,55 @@
+## [0.6.0] - 2026-05-19 — Verification Hardening
+
+v0.6 turns architecture invariants into automated verification assets.
+No runtime code changes — this is verification scaffolding.
+
+### New crates
+
+| Crate | Purpose | Tests |
+|-------|---------|-------|
+| `fjell-proptest` | 10 cap/IPC/lease property tests × 1000 cases each; 4 regression seeds (RFC v0.6-001) | 10 props ✅ |
+| `fjell-store-model` | 6 append-only store properties (replay idempotent, crash drops partial, corrupt skipped, ...) (RFC v0.6-002) | 6 ✅ |
+| `fjell-bootctl-model` | 6 boot-control state-machine properties (never confirm unbooted, health rollback, boot count bounded, ...) (RFC v0.6-002) | 6 ✅ |
+| `tools/fjell-unsafe-audit` | Unsafe boundary scanner; `--check` CI mode; 8 unit tests (RFC v0.6-004) | 8 ✅ |
+
+### New artifacts
+
+| Artifact | Description |
+|----------|-------------|
+| `fuzz/` | 8 `cargo +nightly fuzz` targets with seeded corpora (RFC v0.6-003) |
+| `fuzz/corpora/` | 2 corpus seeds per target (16 total) |
+| `crates/*/schema/*.frozen` | 7 frozen wire-format schema files |
+| `UNSAFE_CHARTER.md` | Unsafe usage policy and baseline |
+| `docs/src/verification/unsafe-inventory.md` | Auto-generated inventory (261 sites, 100% covered) |
+
+### Proptest-discovered model bugs (fixed before release)
+
+Three bugs found during `fjell-bootctl-model` development:
+- **B2**: `b2_pending_not_confirmed` — property checked confirmed state from prior ops, not SetPending
+- **B4**: `b4_boot_count_bounded` — `mark_booted` did not cap at `BOOT_COUNT_MAX`
+- **B6**: `b6_active_is_valid_slot` — `mark_booted` allowed switching to uninstalled slot
+
+All three are fixed. The harness now passes 1000 cases × 6 properties.
+
+### Unsafe SAFETY comment coverage
+
+261 unsafe sites across `crates/`. All 261 now have `// SAFETY:` comments (up from 61 at start of v0.6).
+
+### ADRs
+
+ADR-v0.6-001 through ADR-v0.6-004 filed.
+
+### Test baseline: **293 host library tests, all passing**
+
+- fjell-platform-format: 19, fjell-semantic-v1: 16, fjell-dtb-derive: 11
+- fjell-proxy-text: 8, fjell-keyring: 29, fjell-trust-provider: 37
+- fjell-measure-format: 11, fjell-diag-format: 15, fjell-sxt-crypto: 16
+- fjell-driver-virtio-net: 28, fjell-net-format: 19
+- fjell-store-model: 6, fjell-bootctl-model: 6, fjell-unsafe-audit: 8
+- fjell-proptest (integration): 10 properties × 1000 cases
+
+---
+
 ## [0.5.0] - 2026-05-19 — Multi-Platform Foundation and Semantic API Stabilization
 
 v0.5 separates the OS from a single QEMU RISC-V target and freezes the

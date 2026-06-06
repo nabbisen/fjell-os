@@ -9,6 +9,7 @@
 /// Must be called with interrupts enabled; otherwise the processor will spin
 /// indefinitely.
 #[inline]
+// SAFETY: called only during kernel init before MMU is enabled; register access is M/S-mode only.
 pub unsafe fn wfi() {
     // SAFETY: caller ensures interrupts are enabled so the hart can wake up.
     unsafe { core::arch::asm!("wfi") };

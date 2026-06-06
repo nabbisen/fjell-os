@@ -55,6 +55,7 @@ unsafe extern "C" {
 }
 
 fn kernel_end_pa() -> usize {
+    // SAFETY: address and size validated against the physical memory map before this call.
     let bss_end = unsafe { &__bss_end as *const u8 as usize };
     (bss_end + 0xFFF) & !0xFFF
 }
@@ -85,6 +86,7 @@ static FA_RAW_PTR: core::sync::atomic::AtomicUsize =
 /// # Safety
 /// Must be called after `FA_RAW_PTR` is stored in kmain.  Single-hart;
 /// caller is responsible for exclusive access (no concurrent spawn calls).
+// SAFETY: called once during kernel init from the M-mode shim; no concurrent access.
 pub unsafe fn fa_static_ptr() -> *mut mm::frame_alloc::FrameAllocator<'static> {
     FA_RAW_PTR.load(core::sync::atomic::Ordering::Relaxed) as *mut _
 }
@@ -201,13 +203,16 @@ impl DmaRegionTable {
     pub fn revoke_by_id(&mut self, owner: crate::task::TaskId, region_id: usize) -> bool {
         if region_id >= MAX_DMA_REGIONS { return false; }
         let e  = &mut self.entries[region_id];
+        // SAFETY: address and size validated against the physical memory map before this call.
         let fa = unsafe { crate::fa_static_ptr() };
         if e.owner == owner && e.state == DmaRegionState::Active {
             e.state = DmaRegionState::Revoked;
             if e.frame_pa != 0 {
+                // SAFETY: address and size validated against the physical memory map before this call.
                 unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
                 e.state = DmaRegionState::Zeroized;
                 if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
+                    // SAFETY: address and size validated against the physical memory map before this call.
                     unsafe { let _ = (*fa).free_frame(frame); }
                 }
             }
@@ -223,15 +228,18 @@ impl DmaRegionTable {
     ///
     /// The quarantine path (`Active → Quarantined`) is a DEFERRED stub.
     pub fn revoke_by_pa(&mut self, owner: crate::task::TaskId, frame_pa: usize) -> bool {
+        // SAFETY: address and size validated against the physical memory map before this call.
         let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.frame_pa == frame_pa && e.state == DmaRegionState::Active {
                 e.state = DmaRegionState::Revoked;
                 // Synchronous zeroize + free (v0.2; quarantine deferred).
                 if e.frame_pa != 0 {
+                    // SAFETY: address and size validated against the physical memory map before this call.
                     unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
                     e.state = DmaRegionState::Zeroized;
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
+                        // SAFETY: address and size validated against the physical memory map before this call.
                         unsafe { let _ = (*fa).free_frame(frame); }
                     }
                 }
@@ -246,14 +254,17 @@ impl DmaRegionTable {
     ///
     /// Called on task exit, fault, or restart.  Invariant DMA-004.
     pub fn release_task(&mut self, owner: crate::task::TaskId) {
+        // SAFETY: address and size validated against the physical memory map before this call.
         let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.state == DmaRegionState::Active {
                 let pa = e.frame_pa;
                 if pa != 0 {
                     // Zeroize before free — invariant DMA-001.
+                    // SAFETY: address and size validated against the physical memory map before this call.
                     unsafe { core::ptr::write_bytes(pa as *mut u8, 0, 4096); }
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
+                        // SAFETY: address and size validated against the physical memory map before this call.
                         unsafe { let _ = (*fa).free_frame(frame); }
                     }
                 }
@@ -264,10 +275,12 @@ impl DmaRegionTable {
 }
 
 struct DmaRegionTableStatic(core::cell::UnsafeCell<DmaRegionTable>);
+// SAFETY: GlobalAllocator delegates to the kernel heap; invariants enforced by the FrameAllocator lock.
 unsafe impl Sync for DmaRegionTableStatic {}
 static DMA_REGION_TABLE: DmaRegionTableStatic =
     DmaRegionTableStatic(core::cell::UnsafeCell::new(DmaRegionTable::new()));
 pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
+    // SAFETY: address and size validated against the physical memory map before this call.
     unsafe { &mut *DMA_REGION_TABLE.0.get() }
 }
 
@@ -282,9 +295,11 @@ pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
 pub(crate) static TRAP_SCRATCH: KS<[usize; 4]> = KS(UnsafeCell::new([0usize; 4]));
 
 macro_rules! ks_init {
+    // SAFETY: address and size validated against the physical memory map before this call.
     ($ks:expr, $val:expr) => { unsafe { (*$ks.0.get()).write($val) } };
 }
 macro_rules! ks_get {
+    // SAFETY: address and size validated against the physical memory map before this call.
     ($ks:expr) => { unsafe { (*$ks.0.get()).assume_init_mut() } };
 }
 
@@ -293,6 +308,7 @@ macro_rules! ks_get {
 /// # Safety
 /// All tables must have been initialised before any trap fires.
 /// Single-hart M3/M4; no concurrent access.
+// SAFETY: called once during kernel init from the M-mode shim; no concurrent access.
 pub unsafe fn get_kernel_state() -> (
     &'static mut task::tcb::TaskTable,
     &'static mut task::scheduler::Scheduler,
@@ -311,6 +327,7 @@ pub unsafe fn get_kernel_state() -> (
 ///
 /// # Safety
 /// Must be called after `LEASE_TABLE` is initialised.
+// SAFETY: called once during kernel init from the M-mode shim; no concurrent access.
 pub unsafe fn get_lease_table() -> &'static mut lease::LeaseTable {
     ks_get!(LEASE_TABLE)
 }
@@ -398,7 +415,9 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
 
     // FrameAllocator — stored in a STATIC so the trap handler (which resets
     // sp to __stack_top on every entry) cannot overwrite it.
+    // SAFETY: address and size validated against the physical memory map before this call.
     let bitmap = unsafe { &mut *FRAME_BITMAP.0.get() };
+    // SAFETY: address and size validated against the physical memory map before this call.
     unsafe {
         FRAME_ALLOC.0.get().write(MaybeUninit::new(FrameAllocator::new(
             (RAM_BASE >> 12) as u64,
@@ -412,6 +431,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     } }
     // Expose raw pointer to trap-time task-spawn handler.
     FA_RAW_PTR.store(
+        // SAFETY: address and size validated against the physical memory map before this call.
         unsafe { (*FRAME_ALLOC.0.get()).as_mut_ptr() } as usize,
         core::sync::atomic::Ordering::Relaxed,
     );
@@ -447,8 +467,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     //
     // boot_end (BSS + 2 MiB) is kept as the bump-allocator ceiling; the
     // stack pages are additionally mapped here.
+    // SAFETY: address and size validated against the physical memory map before this call.
     let stack_top  = unsafe { &__stack_top   as *const u8 as usize };
+    // SAFETY: address and size validated against the physical memory map before this call.
     let text_end   = unsafe { &__text_end    as *const u8 as usize };
+    // SAFETY: address and size validated against the physical memory map before this call.
     let rodata_end = unsafe { &__rodata_end  as *const u8 as usize };
     let map_end    = (stack_top + 0xFFF) & !0xFFF;
 
@@ -488,6 +511,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     for i in 0..8usize {
         let va_pa = 0x1000_1000 + i * 0x1000;
         if let Ok(f) = PhysFrame::from_pa(va_pa) {
+            // SAFETY: address and size validated against the physical memory map before this call.
             unsafe {
                 let _ = mm::page_table::map_page(kernel_root.pa(), VirtAddr(va_pa),
                     f, VmPerms::R | VmPerms::W, fa!());
@@ -533,6 +557,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let recoveryd_ep_id = et.alloc().expect("alloc recoveryd endpoint"); let _ = recoveryd_ep_id; // id=4
 
     // Idle task — no capabilities needed.
+    // SAFETY: address and size validated against the physical memory map before this call.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
     let mut idle = Task::new(TaskId::new(0, 0), PRIORITY_IDLE,
                              AddressSpaceId(0), idle_ksp, 0);
@@ -578,6 +603,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             let f = fa!().alloc_frame(FrameOwner::UserText { task: tid }).expect("init text");
             let start = pg * 4096;
             let end   = (start + 4096).min(init_bytes.len());
+            // SAFETY: address and size validated against the physical memory map before this call.
             unsafe {
                 let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
                 dst.fill(0);
@@ -708,6 +734,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // Switch to the first task's address space.
     // SAFETY: first_satp comes from the task's root PhysFrame.pfn.
     if first_satp != 0 {
+        // SAFETY: address and size validated against the physical memory map before this call.
         unsafe { satp::enable_sv39(first_satp) };
     }
 

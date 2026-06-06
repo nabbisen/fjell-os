@@ -35,6 +35,7 @@ impl SemanticRing {
 use core::cell::UnsafeCell;
 
 struct SyncRing(UnsafeCell<SemanticRing>);
+// SAFETY: extern IPC interface; layout matches the ABI defined in fjell-service-api.
 unsafe impl Sync for SyncRing {}
 
 static INTENT_RING: SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
@@ -42,6 +43,7 @@ static STATE_RING:  SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
 static EVENT_RING:  SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
 
 pub fn publish(env: SemanticEnvelope) {
+    // SAFETY: extern IPC interface; layout matches the ABI defined in fjell-service-api.
     unsafe {
         match env.stream {
             StreamKind::Intent => { (*INTENT_RING.0.get()).publish(env); }

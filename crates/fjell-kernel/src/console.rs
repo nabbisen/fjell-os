@@ -37,6 +37,7 @@ static UART: SyncUnsafeCell = SyncUnsafeCell(UnsafeCell::new(Uart::new()));
 /// # Safety
 /// Caller must guarantee single-threaded context and that `init` has not
 /// already been called.
+// SAFETY: UART MMIO address is set once during init; single-writer access guaranteed by the console lock.
 pub unsafe fn init() {
     // SAFETY: single boot hart; `init` called exactly once before any print.
     unsafe { (*UART.0.get()).init() }
@@ -49,6 +50,7 @@ pub fn _print(args: fmt::Arguments) {
     //   - `UART.0.get()` always returns a valid, aligned pointer.
     //   - No other reference to `*UART.0.get()` exists concurrently.
     // TODO(M2+): replace with a spinlock-protected write.
+    // SAFETY: UART MMIO address is set once during init; single-writer access guaranteed by the console lock.
     unsafe {
         (*UART.0.get()).write_fmt(args).unwrap();
     }

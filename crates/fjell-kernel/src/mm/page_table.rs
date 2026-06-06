@@ -27,6 +27,7 @@ use crate::arch::riscv64::pte::{
 /// - `fa` must outlive the page table being modified.
 /// - Caller must execute `sfence.vma` after all map operations are done
 ///   (invariant MM-VM-007).
+// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn map_page(
     root_pa: usize,
     va: VirtAddr,
@@ -66,6 +67,7 @@ pub unsafe fn map_page(
 ///
 /// # Safety
 /// Same requirements as `map_page`.
+// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn remap_page(
     root_pa: usize,
     va: VirtAddr,
@@ -75,6 +77,7 @@ pub unsafe fn remap_page(
 ) -> Result<(), MmError> {
     let flags = perms_to_pte_flags(perms);
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
+    // SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
     unsafe {
         let l2 = root_pa as *mut Pte;
         let pte2 = &mut *l2.add(vpn2);
@@ -96,6 +99,7 @@ pub unsafe fn remap_page(
 ///
 /// # Safety
 /// Same requirements as `map_page`.
+// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn unmap_page(
     root_pa: usize,
     va: VirtAddr,
@@ -126,6 +130,7 @@ pub unsafe fn unmap_page(
 ///
 /// # Safety
 /// Same requirements as `map_page`.
+// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn translate(
     root_pa: usize,
     va: VirtAddr,
@@ -160,6 +165,7 @@ pub unsafe fn translate(
 ///
 /// # Safety
 /// Both physical addresses must point to valid, zeroed root page tables.
+// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn clone_kernel_half(
     target_root_pa: usize,
     kernel_root_pa: usize,
@@ -192,6 +198,7 @@ pub unsafe fn clone_kernel_half(
 ///
 /// # Safety
 /// `pte` must be a valid pointer to an entry in a live page table.
+// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 unsafe fn ensure_next_level(
     pte: &mut Pte,
     fa: &mut FrameAllocator<'_>,

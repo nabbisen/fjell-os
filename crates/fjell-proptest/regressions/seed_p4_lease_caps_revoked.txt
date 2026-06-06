@@ -1,0 +1,7 @@
+# Regression seed: P4 — lease expiry revokes all caps under it
+# Sequence:
+#   CapRegister(id=CapId(2), kind=Endpoint, rights=SEND, lease=LeaseId(0))
+#   CapRegister(id=CapId(3), kind=Endpoint, rights=RECV, lease=LeaseId(0))
+#   LeaseExpire(lease_id=LeaseId(0))
+# Expected: both CapId(2) and CapId(3) become Revoked in one step.
+cc 1 0 0 0 0 0 0 0 0 0 0

@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3bc47a3f2a88ae6a543d1c3daea34422e2454a817f8e0cae547228dd317c08cd # shrinks to ops = [MarkBooted(B), ConfirmSlot(B)]
+cc 1feab3df16d193e52f1bc79e4a42e593902aebecc61d34ced3474b2dd848b2b7 # shrinks to ops = [MarkBooted(A), MarkBooted(A), MarkBooted(A), MarkBooted(A)]
+cc 47a906207167504664ce0fba5614d1a1bb260a14b51feda9eb92db3484e93494 # shrinks to ops = [MarkBooted(B)]

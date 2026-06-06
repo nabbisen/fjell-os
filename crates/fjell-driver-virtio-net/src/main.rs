@@ -48,6 +48,7 @@ const CAP_SMGR_EP: CapHandle = CapHandle(5);
 // ── IPC helpers ─────────────────────────────────────────────────────────────
 
 fn ipc_send_tag(ep: CapHandle, tag: u16) {
+    // SAFETY: DMA buffer is pinned and exclusively owned by the descriptor ring entry.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",

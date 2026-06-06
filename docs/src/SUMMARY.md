@@ -73,6 +73,11 @@
 - [ADR-v0.5-003 Arch Trait Monomorphised](./adr/ADR-v0.5-003-arch-trait-monomorphised.md)
 - [ADR-v0.5-004 Semantic Catalog v1 Frozen](./adr/ADR-v0.5-004-semantic-catalog-v1-frozen.md)
 - [ADR-v0.5-005 proxy-text Output-Only](./adr/ADR-v0.5-005-proxy-text-no-input.md)
+- [ADR-v0.6-001 Property-Test Harness](./adr/ADR-v0.6-001-property-test-harness.md)
+- [ADR-v0.6-002 Store/Bootctl Model Tests](./adr/ADR-v0.6-002-store-bootctl-model-tests.md)
+- [ADR-v0.6-003 Format Fuzzing](./adr/ADR-v0.6-003-format-fuzzing.md)
+- [ADR-v0.6-004 Unsafe Audit Automation](./adr/ADR-v0.6-004-unsafe-audit-automation.md)
+
 
 
 

@@ -1,0 +1,18 @@
+[package]
+name = "fjell-bootctl-model"
+description = "Model-based state-machine tests for Fjell OS (RFC v0.6-002)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_bootctl_model"
+path = "src/lib.rs"
+
+[dependencies]
+proptest = "1.6"
+
+[dev-dependencies]
+proptest = "1.6"

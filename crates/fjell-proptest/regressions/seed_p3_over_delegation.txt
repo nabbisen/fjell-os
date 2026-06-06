@@ -1,0 +1,7 @@
+# Regression seed: P3 — delegate may not exceed source rights
+# Sequence:
+#   CapRegister(id=CapId(0), kind=Endpoint, rights=SEND, lease=LeaseId(0))
+#   CapDelegate(src=CapId(0), new_id=CapId(1), dst=TaskId(1),
+#               sub_rights=SEND|RECV|MINT)   ← attempt = 0x23 > src = 0x01
+# Expected: CapDelegate → RightsDenied
+cc 1 0 0 0 0 0 0 0 0 0 0

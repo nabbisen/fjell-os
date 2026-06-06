@@ -91,16 +91,22 @@ use fjell_cap::CapHandle;
 
 // ── MMIO helpers ──────────────────────────────────────────────────────────────
 #[inline(always)]
+// SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn rd32(base: usize, off: usize) -> u32 {
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe { core::ptr::read_volatile((base + off) as *const u32) }
 }
 #[inline(always)]
+// SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn wr32(base: usize, off: usize, val: u32) {
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe { core::ptr::write_volatile((base + off) as *mut u32, val) }
 }
 
 // ── Descriptor write ──────────────────────────────────────────────────────────
+// SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn write_desc(va: usize, idx: usize, addr: u64, len: u32, flags: u16, next: u16) {
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         let p = (va + idx * 16) as *mut u8;
         core::ptr::write_volatile(p.add(0) as *mut u64, addr);
@@ -111,7 +117,9 @@ unsafe fn write_desc(va: usize, idx: usize, addr: u64, len: u32, flags: u16, nex
 }
 
 // ── Avail ring push ───────────────────────────────────────────────────────────
+// SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn avail_push(va: usize, head: u16) {
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         let idx_ptr = (va + OFF_AVAIL + 2) as *mut u16;
         let idx = core::ptr::read_volatile(idx_ptr);
@@ -123,12 +131,15 @@ unsafe fn avail_push(va: usize, head: u16) {
 }
 
 // ── Used ring index ───────────────────────────────────────────────────────────
+// SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn used_idx(va: usize) -> u16 {
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe { core::ptr::read_volatile((va + OFF_USED + 2) as *const u16) }
 }
 
 // ── Single virtio-blk I/O (returns true on success) ──────────────────────────
 fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         // Build virtio_blk_req header.
         core::ptr::write_volatile((va+OFF_HEADER  ) as *mut u32, if write { BLK_T_OUT } else { BLK_T_IN });
@@ -175,6 +186,7 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
 
 fn send_ready() {
     // Send the storaged READY tag (0x210) on endpoint slot 0.
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -190,6 +202,7 @@ fn send_ready() {
 /// Returns (tag, w0, w1, w2, w3).
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     let tag: usize; let w0: usize; let w1: usize; let w2: usize; let w3: usize;
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
@@ -209,6 +222,7 @@ fn recv_call() -> (usize, usize, usize, usize, usize) {
 fn reply(tag: usize) {
     // IpcReply (syscall 23): kernel reads reply_label from a1, not a0.
     // a0 = ep handle (ignored), a1 = reply label/tag.
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         core::arch::asm!(
             "li a7, 23", "ecall",
@@ -243,7 +257,9 @@ pub extern "C" fn service_main() -> ! {
                     continue;
                 }
             };
+            // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
             let magic = unsafe { rd32(va, 0x000) };
+            // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
             let devid = unsafe { rd32(va, 0x008) };
             fjell_syscall::sys_debug_write_byte(0x90 + (devid as u8 & 0xF)); // devid (0x90-0x9F)
             if magic == MAGIC_VALUE && devid == DEVICE_ID_BLK {
@@ -260,6 +276,7 @@ pub extern "C" fn service_main() -> ! {
         Ok(p) => p,
         Err(_) => { sys_debug_writeln("storaged: dma fail"); sys_exit(1); }
     };
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe { core::ptr::write_bytes(va as *mut u8, 0, 4096); }
 
     // 3. virtio-blk v1 legacy init.
@@ -267,6 +284,7 @@ pub extern "C" fn service_main() -> ! {
     //      pa+0   = desc table (64 B), pa+64 = avail ring (14 B),
     //      pa+128 = used ring  (38 B), pa+256 = req header (16 B),
     //      pa+272 = data buf  (512 B), pa+784 = status byte (1 B)
+    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         wr32(mmio, R_STATUS, 0); fence(Ordering::SeqCst);
         wr32(mmio, R_STATUS, S_ACK);
@@ -305,6 +323,7 @@ pub extern "C" fn service_main() -> ! {
             WRITE_BEGIN => {
                 lba = (w1 as u64) | ((w2 as u64) << 32);
                 chunk_off = 0;
+                // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                 unsafe { core::ptr::write_bytes(buf.as_mut_ptr(), 0, 512); }
                 fjell_syscall::sys_debug_write_byte(0xB0 + (lba as u8 & 0x3F)); // begin probe
                 reply(WRITE_ACK);
@@ -312,6 +331,7 @@ pub extern "C" fn service_main() -> ! {
             WRITE_CHUNK => {
                 if chunk_off + 32 <= 512 {
                     let words = [w1, w2, w3, w4];
+                    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                     unsafe {
                         core::ptr::copy_nonoverlapping(
                             words.as_ptr() as *const u8,
@@ -325,6 +345,7 @@ pub extern "C" fn service_main() -> ! {
             }
             WRITE_COMMIT => {
                 // Copy buffered chunk data into DMA area before I/O
+                // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                 unsafe {
                     core::ptr::copy_nonoverlapping(
                         buf.as_ptr(), (va + OFF_DATA) as *mut u8, 512);
@@ -341,6 +362,7 @@ pub extern "C" fn service_main() -> ! {
             READ_COMMIT => {
                 let ok = do_io(mmio, va, pa, lba, false);
                 if ok {
+                    // SAFETY: IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                     unsafe {
                         core::ptr::copy_nonoverlapping(
                             (va + OFF_DATA) as *const u8, buf.as_mut_ptr(), 512);

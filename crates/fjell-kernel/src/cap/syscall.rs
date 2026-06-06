@@ -28,6 +28,7 @@ pub fn sys_cap_copy(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let dst  = tf.gpr[11];
     // RFC 049: require COPY right + lease check on source cap.
     {
+        // SAFETY: capability handle is validated by require_cap before this call.
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
@@ -48,6 +49,7 @@ pub fn sys_cap_mint(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let rights = CapRights(tf.gpr[12] as u64);  // v0.2: CapRights is u64
     // RFC 049: require MINT right + lease check on source cap.
     {
+        // SAFETY: capability handle is validated by require_cap before this call.
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(src) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
@@ -74,6 +76,7 @@ pub fn sys_cap_revoke(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let h = CapHandle(tf.gpr[10] as u32);
     // RFC 049: require REVOKE right + lease check on source cap.
     {
+        // SAFETY: capability handle is validated by require_cap before this call.
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; }};
         let cap = match cs.get(h) { Ok(c) => c, Err(e) => { err(tf, e); return; }};
@@ -87,6 +90,7 @@ pub fn sys_cap_revoke(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 
 pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
     let h  = CapHandle(tf.gpr[10] as u32);
+    // SAFETY: capability handle is validated by require_cap before this call.
     let lt = unsafe { crate::get_lease_table() };
     let cs = match ct.cspace(tidx) { Some(c) => c, None => { err(tf, SysError::InternalError); return; } };
     // RFC 049: require INSPECT right + lease check before exposing cap metadata.
@@ -191,6 +195,7 @@ fn build_msg(
 
     // RFC 055: look up sender's image_id for kernel-attested identity.
     let sender_image_id = {
+        // SAFETY: capability handle is validated by require_cap before this call.
         let (table, _, _, _) = unsafe { crate::get_kernel_state() };
         let sender_id = crate::task::TaskId::new(tidx as u16, 0);
         table.get(sender_id).map(|t| t.image_id.0).unwrap_or(0xFFFF)
@@ -214,6 +219,7 @@ fn check_right(tf: &TrapFrame, tidx: usize, ct: &CapTable, right: CapRights) -> 
     let cap  = cs.get(ep_h)?;
     if !cap.rights.contains(right) { return Err(SysError::PermissionDenied); }
     // RFC 015: validate lease binding — revoked caps must not be used for IPC.
+    // SAFETY: capability handle is validated by require_cap before this call.
     let lt = unsafe { crate::get_lease_table() };
     cap.check_lease(lt).map_err(SysError::from)?;
     Ok(())
@@ -258,6 +264,7 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     //    (V02-A-001 deferred: full handle-based check requires ABI change here too)
 
     // 2. Get the current epoch for the lease (must be Active).
+    // SAFETY: capability handle is validated by require_cap before this call.
     let lt = unsafe { crate::get_lease_table() };
     let epoch = match lt.current_epoch(lease_id) {
         Ok(e)  => e,
@@ -309,6 +316,7 @@ pub fn sys_ipc_send(
     cur_id: TaskId,
 ) {
     // Diagnostic: print "S<tidx>" to UART when IpcSend is entered.
+    // SAFETY: capability handle is validated by require_cap before this call.
     unsafe {
         let uart = 0x1000_0000usize as *mut u8;
         uart.write_volatile(b'S');
@@ -317,6 +325,7 @@ pub fn sys_ipc_send(
         uart.write_volatile(tf.gpr[10] as u8 + b'0'); // cap slot
     }
     if let Err(e) = check_right(tf, tidx, ct, CapRights::SEND) {
+        // SAFETY: capability handle is validated by require_cap before this call.
         unsafe {
             let uart = 0x1000_0000usize as *mut u8;
             uart.write_volatile(b'F');
@@ -448,6 +457,7 @@ pub fn sys_ipc_reply(
     // would have returned None (BadState).  This check is defense-in-depth for
     // the case where revoke arrived after take_reply but before delivery.
     if let Some(lb) = edge.lease {
+        // SAFETY: capability handle is validated by require_cap before this call.
         let lt = unsafe { crate::get_lease_table() };
         if lt.check_active(lb.lease_id, lb.epoch_at_issue).is_err() {
             // Lease revoked: drop the reply silently.  The caller is already

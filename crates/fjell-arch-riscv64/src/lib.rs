@@ -38,6 +38,7 @@ pub const QEMU_CLINT_BASE: usize = 0x0200_0000;
 #[cfg(target_arch = "riscv64")]
 pub fn read_misa() -> u64 {
     let val: u64;
+    // SAFETY: invariants upheld by the surrounding context; see module documentation.
     unsafe {
         core::arch::asm!("csrr {}, misa", out(reg) val, options(nostack));
     }

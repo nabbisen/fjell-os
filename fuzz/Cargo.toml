@@ -1,0 +1,68 @@
+[package]
+name = "fjell-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+fjell-attestation-format = { path = "../crates/fjell-attestation-format" }
+fjell-upgrade-format      = { path = "../crates/fjell-upgrade-format" }
+fjell-keyring             = { path = "../crates/fjell-keyring" }
+fjell-platform-format     = { path = "../crates/fjell-platform-format" }
+fjell-diag-format         = { path = "../crates/fjell-diag-format" }
+fjell-semantic-v1         = { path = "../crates/fjell-semantic-v1" }
+fjell-measure-format      = { path = "../crates/fjell-measure-format" }
+fjell-store-format        = { path = "../crates/fjell-store-format" }
+
+# Prevent this from being included in a standard `cargo build`.
+[[bin]]
+name = "attestation_v2_parse"
+path = "fuzz_targets/attestation_v2_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "release_metadata_parse"
+path = "fuzz_targets/release_metadata_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "rollback_record_parse"
+path = "fuzz_targets/rollback_record_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "keyring_snapshot_parse"
+path = "fuzz_targets/keyring_snapshot_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "board_profile_parse"
+path = "fuzz_targets/board_profile_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "update_index_parse"
+path = "fuzz_targets/update_index_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "diagnostic_bundle_parse"
+path = "fuzz_targets/diagnostic_bundle_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "semantic_record_parse"
+path = "fuzz_targets/semantic_record_parse.rs"
+test = false
+doc = false

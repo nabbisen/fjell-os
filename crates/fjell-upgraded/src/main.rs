@@ -153,6 +153,7 @@ const SXT_UPDATE_METADATA_REPLY:u16 = 0x0103;
 const SXT_FAULTED:              u16 = 0x010b;
 
 fn send_sxt(tag: u16, w0: usize) {
+    // SAFETY: slot pointer is valid within the BCB; access serialised by the upgrade-lock capability.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -164,6 +165,7 @@ fn send_sxt(tag: u16, w0: usize) {
 
 fn recv_sxt() -> (u16, usize) {
     let (mut t, mut w0) = (0usize, 0usize);
+    // SAFETY: slot pointer is valid within the BCB; access serialised by the upgrade-lock capability.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",

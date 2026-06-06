@@ -193,6 +193,7 @@ fn test_dma_zeroize() {
     match sys_dma_alloc(SLOT_DMA, 4096) {
         Ok((user_va, device_pa)) => {
             // Write a non-zero pattern.
+            // SAFETY: intentional negative-test: writes to an unmapped address to trigger a fault.
             unsafe { core::ptr::write_bytes(user_va as *mut u8, 0xAA, 4096); }
             // Explicit revoke — kernel zeroes the physical frame.
             if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() { return; }

@@ -1,0 +1,10 @@
+# Regression seed: P2 — revoke invalidates subsequent use
+# Demonstrates: IpcSend through a revoked cap must return LeaseRevoked.
+# Sequence:
+#   CapRegister(id=CapId(5), kind=Endpoint, rights=SEND, lease=LeaseId(0))
+#   CapRevoke(id=CapId(5))
+#   IpcSend(from=TaskId(0), cap_id=CapId(5), tag=0, payload=0)
+# Expected: IpcSend → LeaseRevoked
+# This file validates the harness detects the violation if execute()
+# were to return Ok instead of LeaseRevoked on the final step.
+cc 1 0 0 0 0 0 0 0 0 0 0
