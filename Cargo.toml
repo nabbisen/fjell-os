@@ -119,7 +119,7 @@ default-members = [
     "tools/fjell-unsafe-audit",
 ]
 [workspace.package]
-version = "0.7.2"
+version = "0.7.3"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

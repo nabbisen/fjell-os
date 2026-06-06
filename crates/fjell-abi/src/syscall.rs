@@ -136,3 +136,10 @@ impl SyscallNumber {
         }
     }
 }
+// v0.7.x additions
+impl SyscallNumber {
+    // PlatformRegionResolve: resolve a symbolic RegionId to (pa, size).
+    // Requires DeviceInventory capability with REGION_RESOLVE right.
+    // Reserved slot; implementation in v0.8.
+    pub const PLATFORM_REGION_RESOLVE: usize = 0x60;
+}

@@ -52,7 +52,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 const EP_SLOT: u32 = 0;
 
 fn send_ready() {
-    // SAFETY: shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
+    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -64,7 +64,7 @@ fn send_ready() {
 
 fn recv_call() -> (usize, usize, usize) {
     let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
-    // SAFETY: shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
+    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
@@ -77,7 +77,7 @@ fn recv_call() -> (usize, usize, usize) {
 }
 
 fn reply(tag: usize) {
-    // SAFETY: shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
+    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
     unsafe {
         core::arch::asm!(
             "li a7, 23", "ecall",
@@ -277,7 +277,7 @@ const SXT_FAULTED:           u16 = 0x010b;
 static mut CACHED_NONCE: [u8; 16] = [0u8; 16];
 
 fn sxt_send(tag: u16, w0: usize) {
-    // SAFETY: shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
+    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -289,7 +289,7 @@ fn sxt_send(tag: u16, w0: usize) {
 
 fn sxt_recv() -> (u16, usize) {
     let (mut t, mut w0) = (0usize, 0usize);
-    // SAFETY: shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
+    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
@@ -322,7 +322,7 @@ pub fn push_attestation(record_seq: u32) -> bool {
 
     if ack == SXT_ATTEST_CHALLENGE {
         // Cache the returned nonce (lower 8 bytes from w0 in alpha.1 stub).
-        // SAFETY: shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
+        // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
         unsafe {
             let b = (nonce_lo as u64).to_le_bytes();
             CACHED_NONCE[..8].copy_from_slice(&b);

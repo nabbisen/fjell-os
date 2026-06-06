@@ -16,7 +16,7 @@ pub extern "C" fn service_main() -> ! {
     sys_yield();
 
     // Deliberately fault: read from null pointer → page fault → kernel marks Faulted.
-    // SAFETY: intentional fault for negative testing.
+    // SAFETY: category=raw-pointer-deref intentional fault for negative testing.
     let _ = unsafe { core::ptr::read_volatile(0usize as *const u8) };
 
     // Unreachable — fault above will trap and the kernel will Faulted the task.

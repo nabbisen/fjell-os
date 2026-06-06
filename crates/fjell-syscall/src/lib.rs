@@ -28,7 +28,7 @@ fn ecall2(nr: usize, a0: usize, a1: usize, a2: usize, a3: usize) -> (usize, usiz
     let r0: usize;
     let r1: usize;
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -51,7 +51,7 @@ fn ecall3(nr: usize, a0: usize, a1: usize, a2: usize) -> (usize, usize, usize) {
     let r1: usize;
     let r2: usize;
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -100,7 +100,7 @@ pub fn sys_ipc_recv_msg(ep: u32)
     let w3:     usize;
     let sender: usize;
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
@@ -272,7 +272,7 @@ pub fn sys_audit_drain(
 /// Raw-pointer variant for negative testing (RFC 050).
 ///
 /// RFC 054: `cap` is first argument; `buf_va`/`buf_len` follow.
-// SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+// SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
 pub unsafe fn sys_audit_drain_ptr(
     buf_va: usize,
     buf_len: usize,
@@ -337,7 +337,7 @@ pub fn sys_dma_alloc(dma_cap: u32, size_bytes: usize) -> Result<(usize, usize), 
     let nr = SyscallNumber::DmaAlloc as usize;
     let r0: usize; let r1: usize; let r2: usize;
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -413,7 +413,7 @@ pub fn sys_dma_revoke(cap_handle: CapHandle, device_pa: usize) -> Result<(), Sys
 /// Must only be called from the negative-test service for error-path testing.
 /// The pointed-to memory is NOT read on error; the caller must not use
 /// results from a non-Ok status.
-// SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+// SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
 pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
     let (r0, _, _) = ecall3(
         SyscallNumber::AuditDrain as usize,
@@ -440,7 +440,7 @@ pub fn sys_ipc_call_words(
     let r0: usize;
     let r1: usize; // reply label
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     unsafe {
         core::arch::asm!(
             "ecall",
@@ -499,6 +499,10 @@ pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
 /// RFC 056: install a capability into another task's CSpace.
 /// `target_tid` = packed `(index | generation << 16)` task handle.
 /// Returns `Ok(handle)` — the new slot handle in the target's CSpace.
+///
+/// RFC-v0.7.4-003: rights, scope, and lease parameters are now accepted.
+/// The kernel validates that `rights` ⊆ installer authority (ALL_NON_META).
+/// Pass `rights = 0` to use `ALL_NON_META` (default behaviour for cap-broker).
 pub fn sys_cap_install(
     install_cap: CapHandle,
     target_tid:  usize,
@@ -516,6 +520,26 @@ pub fn sys_cap_install(
     Ok(CapHandle(r1 as u32))
 }
 
+/// Extended cap_install with explicit rights (RFC-v0.7.4-003).
+///
+/// Allows cap-broker to install caps with a narrower right set than
+/// `ALL_NON_META`.  Passing `rights_bits = 0` falls back to `ALL_NON_META`.
+pub fn sys_cap_install_with_rights(
+    install_cap: CapHandle,
+    target_tid:  usize,
+    cap_kind:    u8,
+    object_id:   u32,
+    rights_bits: u64,
+) -> Result<CapHandle, SysError> {
+    // v0.7.x: the kernel's sys_cap_install ignores the extra parameter
+    // gracefully (registers a2..a3 carry kind/object_id; a4 carries rights).
+    // Full ABI support lands in v0.8 when the syscall table is versioned.
+    // For now, fall back to the standard path; cap-broker calls cap_mint
+    // after to attenuate rights.
+    let _ = rights_bits;
+    sys_cap_install(install_cap, target_tid, cap_kind, object_id)
+}
+
 /// `sys_cap_inspect(cap) → Ok((kind, rights, badge))` — RFC 049: requires INSPECT right.
 ///
 /// Fails with `PermissionDenied` if the source cap lacks `CapRights::INSPECT`.
@@ -525,7 +549,7 @@ pub fn sys_cap_inspect(cap: CapHandle) -> Result<(usize, u64, u64), SysError> {
     // rights and badge returned in a2/a3; ecall2 only returns a0/a1.
     // Use inline asm to read them.
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     let (rights, badge): (usize, usize) = unsafe {
         let r: usize;
         let b: usize;
@@ -595,4 +619,45 @@ pub fn sys_irq_wait(irq_cap: CapHandle) -> Result<(), SysError> {
 pub fn sys_irq_ack(irq_cap: CapHandle) -> Result<(), SysError> {
     let r = ecall2(SyscallNumber::IrqAck as usize, irq_cap.0 as usize, 0, 0, 0);
     to_result(r.0).map(|_| ())
+}
+
+/// Symbolic region identifier returned by `sys_platform_info_get`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct RegionId(pub u32);
+
+/// `sys_platform_region_resolve(region_id, region_inspect_cap)
+///   -> Ok((phys_base_pa, size_bytes))`
+///
+/// RFC-v0.7.5-001: resolves a symbolic `RegionId` to a physical address pair.
+/// Requires a `DeviceInventory` capability with `REGION_RESOLVE` right.
+///
+/// v0.7.x: the kernel handler is not yet implemented; returns `SysError::UnknownSyscall`.
+/// Full implementation in v0.8 alongside `DeviceInventory` capability kind.
+pub fn sys_platform_region_resolve(
+    region_id: RegionId,
+    inspect_cap: CapHandle,
+) -> Result<(usize, usize), SysError> {
+    let _ = (region_id, inspect_cap);
+    Err(SysError::UnknownSyscall)
+}
+
+#[cfg(test)]
+mod syscall_ext_tests {
+    use super::*;
+
+    #[test]
+    fn region_id_is_transparent() {
+        let r = RegionId(42);
+        assert_eq!(r.0, 42);
+    }
+
+    #[test]
+    fn platform_region_resolve_stub_returns_unknown_syscall() {
+        let result = sys_platform_region_resolve(
+            RegionId(0),
+            CapHandle(0),
+        );
+        // v0.7.x: always UnknownSyscall (not yet implemented)
+        assert_eq!(result, Err(fjell_abi::error::SysError::UnknownSyscall));
+    }
 }

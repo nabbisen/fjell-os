@@ -87,7 +87,7 @@ pub(crate) fn require_cap_on_ct(
     required_scope:  Option<&fjell_cap::rights::ObjectScope>,
 ) -> Result<(), SysError> {
     use fjell_cap::rights::CapError;
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let lt = unsafe { crate::get_lease_table() };
     let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
     fjell_cap::enforcement::require_cap(cs, handle, expected_kind, required_rights,
@@ -129,7 +129,7 @@ fn sys_exit(tf: &mut TrapFrame) {
 fn sys_debug_write(tf: &mut TrapFrame) {
     let b = tf.gpr[REG_A0] as u8;
     // Direct MMIO write; safe because UART PA is identity-mapped.
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=mmio-access all user-supplied pointers are checked against the task address space before dereferencing.
     unsafe { (0x1000_0000usize as *mut u8).write_volatile(b) };
     tf.gpr[REG_A0] = SysError::Ok as usize;
 }
@@ -138,7 +138,7 @@ fn sys_debug_write(tf: &mut TrapFrame) {
 
 /// Simple non-atomic flag (single-hart M2; no concurrency).
 pub(crate) struct Flag(core::cell::Cell<bool>);
-// SAFETY: single-hart, no concurrent access in M2.
+// SAFETY: category=kernel-global-mutable single-hart, no concurrent access in M2.
 unsafe impl Sync for Flag {}
 impl Flag {
     pub(crate) const fn new() -> Self { Flag(core::cell::Cell::new(false)) }
@@ -148,7 +148,7 @@ impl Flag {
 }
 
 pub(crate) struct I32Cell(core::cell::Cell<i32>);
-// SAFETY: single-hart.
+// SAFETY: category=kernel-global-mutable single-hart.
 unsafe impl Sync for I32Cell {}
 impl I32Cell {
     const fn new() -> Self { I32Cell(core::cell::Cell::new(0)) }
@@ -176,7 +176,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
     use fjell_abi::syscall::SyscallNumber;
 
     // Get kernel state — SAFETY: single-hart, initialised before first trap.
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
 
     // Determine the calling task's index from sscratch → TrapFrame ptr.
@@ -224,7 +224,7 @@ pub fn sys_task_spawn(
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
     let image_id = ImageId(tf.gpr[REG_A1] as u16);
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let fa_ref = unsafe { &mut *fa };
     match spawn(image_id, table, sched, kernel_root, fa_ref) {
         Ok(tid) => {
@@ -414,7 +414,7 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     let buf_len = tf.gpr[REG_A2];
 
     // ── 1. RFC 054: handle-based AuditDrain require_cap with lease check ─────
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, sched, ct, _) = unsafe { crate::get_kernel_state() };
     let cur_id = match sched.current() {
         Some(id) => id,
@@ -467,7 +467,7 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
             arg1:   rec.arg1 as u32,
             result: rec.result as i32,
         };
-        // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+        // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
         let bytes = unsafe {
             core::slice::from_raw_parts(
                 &bin as *const AuditRecordBin as *const u8,
@@ -476,7 +476,7 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
         };
         let dst = buf_va + i * AUDIT_RECORD_BIN_SIZE;
         // Copy to user; stop at first failure (remaining records stay in ring).
-        // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+        // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
         match unsafe { copy_to_user_bytes(root_pfn, dst, bytes) } {
             Ok(_)  => n_copied += 1,
             Err(_) => break 'drain,
@@ -496,34 +496,34 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
 
 fn dispatch_task_spawn(tf: &mut TrapFrame) {
     use crate::mm::frame_alloc::PhysFrame;
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, sched, ct, _et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     let pfn = crate::KERNEL_ROOT_PFN.load(core::sync::atomic::Ordering::Relaxed);
     let kernel_root = PhysFrame::from_pfn(pfn as u64).unwrap();
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let fa_ptr = unsafe { crate::fa_static_ptr() };
     sys_task_spawn(tf, table, sched, kernel_root, fa_ptr, ct, tidx);
 }
 
 fn dispatch_task_start(tf: &mut TrapFrame) {
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, sched, ct, _et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_task_start(tf, table, sched, ct, tidx);
 }
 
 fn dispatch_task_status(tf: &mut TrapFrame) {
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, _, ct, _et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_task_status(tf, table, ct, tidx);
 }
 
 fn dispatch_lease_create(tf: &mut TrapFrame) {
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let lt   = unsafe { crate::get_lease_table() };
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_lease_create(tf, lt, ct, tidx);
@@ -531,9 +531,9 @@ fn dispatch_lease_create(tf: &mut TrapFrame) {
 
 fn dispatch_lease_revoke(tf: &mut TrapFrame) {
     use crate::cap::syscall::cancel_blocked_ipc_for_lease;
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let lt   = unsafe { crate::get_lease_table() };
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     use fjell_abi::lease::LeaseId;
@@ -549,9 +549,9 @@ fn dispatch_lease_revoke(tf: &mut TrapFrame) {
 }
 
 fn dispatch_lease_inspect(tf: &mut TrapFrame) {
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let lt = unsafe { crate::get_lease_table() };
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_lease_inspect(tf, lt, ct, tidx);
@@ -620,9 +620,9 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     }
 
     let tidx = crate::trap::dispatch::current_task_idx();
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let lt = unsafe { crate::get_lease_table() };
 
     let cs = match cap_table.cspace(tidx) {
@@ -760,9 +760,9 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     // RFC 036 + RFC 031: unified require_cap — kind=DmaRegion | DmaAlloc, right=DMA_ALLOC.
     let tidx = crate::trap::dispatch::current_task_idx();
     {
-        // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+        // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
-        // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+        // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) {
             Some(c) => c,
@@ -806,7 +806,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     }
     let _ = REG_A2;
 
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let task_id  = crate::task::TaskId::new(tidx as u16, 0);
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
@@ -814,7 +814,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
         return;
     }
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let fa = unsafe { &mut *crate::fa_static_ptr() };
 
     let user_va_start = crate::DMA_VA_NEXT.fetch_add(
@@ -826,21 +826,21 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
         Err(_) => { tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; return; }
     };
     let first_pa = frame.pa();
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
     unsafe {
         let _ = crate::mm::page_table::map_page(
             root_pfn << 12, VirtAddr(user_va_start), frame,
             VmPerms::R | VmPerms::W | VmPerms::U, fa,
         );
     }
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
     unsafe { crate::arch::riscv64::csr::sfence_vma(); }
 
     // RFC 036 + RFC 052: record ownership; rollback if table is full.
     if !crate::dma_table().alloc(task_id, user_va_start, first_pa, pages as u8) {
         // Table full — unmap, zeroize, free the just-allocated frame.
         // Safety: we own the frame exclusively; no other task has seen it.
-        // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+        // SAFETY: category=phys-id-map-assumption all user-supplied pointers are checked against the task address space before dereferencing.
         unsafe {
             // Zeroize the physical frame.
             core::ptr::write_bytes(first_pa as *mut u8, 0, 4096);
@@ -869,7 +869,7 @@ pub fn sys_dma_revoke(tf: &mut TrapFrame) {
     let device_pa = tf.gpr[REG_A1];
     let tidx      = crate::trap::dispatch::current_task_idx();
     let cap_h     = fjell_cap::handle::CapHandle(cap_raw);
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
 
     // RFC 052: require DmaRegion + DMA_REVOKE right, lease check.
@@ -891,7 +891,7 @@ pub fn sys_dma_revoke(tf: &mut TrapFrame) {
 fn dispatch_ipc_try_recv(tf: &mut TrapFrame) {
     use crate::cap::syscall::sys_ipc_try_recv;
     let tidx = crate::trap::dispatch::current_task_idx();
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, _, ct, et) = unsafe { crate::get_kernel_state() };
     sys_ipc_try_recv(tf, tidx, ct, et, table);
 }

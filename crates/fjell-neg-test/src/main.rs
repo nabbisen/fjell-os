@@ -193,12 +193,12 @@ fn test_dma_zeroize() {
     match sys_dma_alloc(SLOT_DMA, 4096) {
         Ok((user_va, device_pa)) => {
             // Write a non-zero pattern.
-            // SAFETY: intentional negative-test: writes to an unmapped address to trigger a fault.
+            // SAFETY: category=page-table-mutation intentional negative-test: writes to an unmapped address to trigger a fault.
             unsafe { core::ptr::write_bytes(user_va as *mut u8, 0xAA, 4096); }
             // Explicit revoke — kernel zeroes the physical frame.
             if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() { return; }
             // Read back: PA was zeroed by revoke (frame not yet reallocated).
-            // SAFETY: VA still maps to the freed PA; no preemption between
+            // SAFETY: category=raw-pointer-deref VA still maps to the freed PA; no preemption between
             // revoke and this read in the cooperative scheduler.
             let byte = unsafe { core::ptr::read_volatile(user_va as *const u8) };
             check(byte == 0, M::DMA_ZEROIZE_ON_EXIT);
@@ -255,7 +255,7 @@ fn test_dma_revoke_explicit() {
 ///
 /// `UserPtr::new(0, 4096)` → NullPointer → SysError::InvalidArg.
 fn test_user_copy_null() {
-    // SAFETY: we intentionally pass 0 (null) to test the kernel's rejection.
+    // SAFETY: category=raw-pointer-deref we intentionally pass 0 (null) to test the kernel's rejection.
     // RFC 050: pass null pointer — kernel UserPtr check rejects with InvalidAddress.
     let result = unsafe { fjell_syscall::sys_audit_drain_ptr(0, 4096, SLOT_AUDIT) };
     check_err(result, fjell_abi::error::SysError::InvalidAddress, M::USER_COPY_NULL);
@@ -265,7 +265,7 @@ fn test_user_copy_null() {
 ///
 /// `UserPtr::new(RAM_BASE, 4096)` → KernelAddress → SysError::InvalidArg.
 fn test_user_copy_kernel_addr() {
-    // SAFETY: we intentionally pass a kernel address to test rejection.
+    // SAFETY: category=raw-pointer-deref we intentionally pass a kernel address to test rejection.
     // RFC 050: pass a kernel-space address — UserPtr rejects with InvalidAddress.
     let result = unsafe { fjell_syscall::sys_audit_drain_ptr(RAM_BASE, 4096, SLOT_AUDIT) };
     check_err(result, fjell_abi::error::SysError::InvalidAddress, M::USER_COPY_KERNEL_ADDR);

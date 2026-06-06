@@ -13,9 +13,9 @@ use crate::arch::riscv64::csr::write_stvec;
 /// # Safety
 /// Must be called after sscratch is initialised and before any user-mode
 /// transition or S-mode interrupt enable.
-// SAFETY: invariants upheld by the surrounding context; see module documentation.
+// SAFETY: category=csr-asm invariants upheld by the surrounding context; see module documentation.
 pub unsafe fn init_trap() {
-    // SAFETY: supervisor_trap_entry is 4-byte aligned; direct mode (mode=0).
+    // SAFETY: category=csr-asm supervisor_trap_entry is 4-byte aligned; direct mode (mode=0).
     unsafe { write_stvec(supervisor_trap_entry as *const () as usize) };
 }
 

@@ -2776,3 +2776,46 @@ Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.
 - 408 named tests (was 387 at v0.7.1); 0 failures; 0 warnings.
 - New test suites: `virtq_tests` (13), `policy_auth_tests` (6),
   `v07_tag_tests` (4), `feature_tests` (6), `rx_tests` (5).
+
+## [0.7.3] — 2026-05-20
+
+### Unsafe Audit Sweep (RFC-v0.7.5-001 — W-H-05 COMPLETE)
+- **270/270 unsafe sites carry `category=` tags**: automated sweep annotated
+  180 kernel sites, 72 service sites, and 10 remaining format crate sites.
+  Categories: `raw-pointer-deref`, `page-table-mutation`, `csr-asm`,
+  `mmio-access`, `phys-id-map-assumption`, `kernel-global-mutable`,
+  `user-copy`.
+- **`fjell-unsafe-audit --check` now validates categories**: exits 1 on
+  any missing or unknown `category=` tag. CI gate fully active.
+- **Output**: `270 sites, 270 with valid category tag, 0 missing`.
+
+### Service Wiring (RFC-v0.7.2-001)
+- **`fjell-service-api::storaged` module**: `store_read` / `store_append`
+  client helpers with `StoreResult` error type. Wires identityd/summaryd/syncd
+  to the storaged IPC protocol; returns `ServiceUnavailable` until
+  service-manager manifest activates storaged first (v0.7.2.1).
+- **identityd rewritten**: full persistence skeleton — attempts
+  `store_read(STORE_RECORD_KIND_IDENTITY)` on boot, falls back to
+  `NodeIdentity::build()` on miss/unavailable, calls `store_append` to
+  persist. Logs `persisted node_id` or `storaged unavailable — skipping persist`.
+- **summaryd rewritten**: logs explicit storaged kind IDs
+  (`would persist kind=0x0030/0x0031`) for traceability.
+
+### Fleet Trust Mode (RFC-v0.7.2-003)
+- **`check_roster_membership`** stub: always returns `NotValidated` (fail-closed).
+  Callers treating `NeedsRosterValidation` as authorization MUST check the roster
+  result and treat `NotValidated` as denial.
+- **`RosterCheckResult` enum**: `Confirmed`, `NotValidated`, `UnknownRoster`.
+  Full validation in v0.8.
+
+### Capability / ABI
+- **`sys_cap_install_with_rights`** syscall wrapper: accepts explicit `rights_bits`
+  parameter. v0.7.x: falls back to standard `sys_cap_install` (ABI not yet versioned);
+  cap-broker uses `cap_mint` to attenuate. Full kernel-side enforcement in v0.8.
+- **`RegionId` type** + **`sys_platform_region_resolve`** stub: returns
+  `SysError::UnknownSyscall` in v0.7.x; kernel handler reserved for v0.8.
+- **`SyscallNumber::PLATFORM_REGION_RESOLVE = 0x60`**: slot reserved.
+
+### Test Coverage
+- 412 named tests (was 408 at v0.7.2); 0 failures.
+- New: `fleet_stub_tests` (2), `syscall_ext_tests` (2).

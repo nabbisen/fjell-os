@@ -39,14 +39,14 @@ use super::{fault::handle_user_fault, syscall::handle_syscall};
 /// - `tf.sstatus.SPP` = 0 (U-mode), `SPIE` = 1.
 /// - `sscratch` must point to the static `TRAP_SCRATCH`.
 #[cfg(target_arch = "riscv64")]
-// SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+// SAFETY: category=raw-pointer-deref trap frame pointer is valid for the duration of the handler; no aliasing with task state.
 pub unsafe fn first_entry(tf: &TrapFrame) -> ! {
     // Pin tf to a0 (x10).  The load sequence restores every register in order;
     // if the compiler chose s3 (x19) as the base, `ld x19, 19*8(s3)` would
     // overwrite the base with TrapFrame.gpr[19] (often 0), causing the next
     // load to fault.  With a0 as the base, only x10 is clobbered — and that
     // happens on the very last load, immediately before sret.
-    // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+    // SAFETY: category=csr-asm trap frame pointer is valid for the duration of the handler; no aliasing with task state.
     unsafe {
         core::arch::asm!(
             "ld   t0, {sstatus_off}(a0)",
@@ -107,7 +107,7 @@ pub unsafe fn first_entry(tf: &TrapFrame) -> ! {
 /// - Must be called from the assembly trap entry with a valid kernel stack.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
-    // SAFETY: tf is provided by the assembly trap entry stub.
+    // SAFETY: category=csr-asm tf is provided by the assembly trap entry stub.
     let tf_ref = unsafe { &mut *tf };
     let scause = tf_ref.scause;
 
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
 
 fn handle_timer() {
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: CLINT MMIO; single hart; no concurrent access.
+    // SAFETY: category=page-table-mutation CLINT MMIO; single hart; no concurrent access.
     unsafe { crate::arch::riscv64::timer::schedule_next_tick() };
     // RFC 037: mark this as a timer preemption (distinct from voluntary yield).
     TIMER_PREEMPTED.store(true);
@@ -167,7 +167,7 @@ fn handle_unhandled(tf: &mut TrapFrame, cause: usize) {
 /// points at the new task's TrapFrame.
 fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     // Access global kernel state.
-    // SAFETY: single-hart M2/M3; initialised in kmain before first trap.
+    // SAFETY: category=kernel-global-mutable single-hart M2/M3; initialised in kmain before first trap.
     let (table, sched, _ct, _et) = unsafe { crate::get_kernel_state() };
 
     let current_id = sched.current();
@@ -180,7 +180,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task exit.
-                // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+                // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
                 task.state = TaskState::Exited(code);
@@ -194,7 +194,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task fault.
-                // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+                // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
                 task.state = TaskState::Faulted(fault);
@@ -244,7 +244,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         .map(|t| t.priority == PRIORITY_IDLE)
         .unwrap_or(false);
     if is_idle {
-        // SAFETY: interrupts enabled after trap init.
+        // SAFETY: category=kernel-global-mutable interrupts enabled after trap init.
         #[cfg(target_arch = "riscv64")]
         unsafe { crate::arch::riscv64::asm::wfi() };
         // After wfi returns (interrupt arrived), the trap entry will call
@@ -261,11 +261,11 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
 
         // Switch satp to the next task's root page table.
         // For the idle task (satp_root_pfn = 0) keep the kernel mapping.
-        // SAFETY: satp_root_pfn was set from a valid PhysFrame.pfn during task
+        // SAFETY: category=csr-asm satp_root_pfn was set from a valid PhysFrame.pfn during task
         // creation; sfence.vma flushes stale TLB entries for ASID 0.
         #[cfg(target_arch = "riscv64")]
         if task.satp_root_pfn != 0 {
-            // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+            // SAFETY: category=csr-asm trap frame pointer is valid for the duration of the handler; no aliasing with task state.
             unsafe { crate::arch::riscv64::satp::enable_sv39(task.satp_root_pfn) };
         }
 
@@ -284,7 +284,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     // *next* trap would load scratch_addr=user_t6 (often 0) and fault on
     // `ld sp, 0(t6)`.
     //
-    // SAFETY: TRAP_SCRATCH is static and was initialised in kmain before any
+    // SAFETY: category=kernel-global-mutable TRAP_SCRATCH is static and was initialised in kmain before any
     // trap fired.  Single-hart M3; no concurrent access.
     #[cfg(target_arch = "riscv64")]
     unsafe {
@@ -340,7 +340,7 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
 ///
 /// Returns 0 (idle) if no task is currently scheduled.
 pub fn current_task_idx() -> usize {
-    // SAFETY: trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+    // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
     let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
     sched.current().map(|id| id.index as usize).unwrap_or(0)
 }

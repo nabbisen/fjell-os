@@ -81,7 +81,7 @@ pub struct AuditRing {
 
 }
 
-// SAFETY: single-hart.
+// SAFETY: category=kernel-global-mutable single-hart.
 unsafe impl Sync for AuditRing {}
 
 impl AuditRing {

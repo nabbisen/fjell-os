@@ -32,7 +32,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 const EP_SLOT: u32 = 0;
 
 fn send_ready() {
-    // SAFETY: measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
+    // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -45,7 +45,7 @@ fn send_ready() {
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     let (mut t, mut w0, mut w1, mut w2, mut w3) =
         (0usize, 0usize, 0usize, 0usize, 0usize);
-    // SAFETY: measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
+    // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
@@ -59,7 +59,7 @@ fn recv_call() -> (usize, usize, usize, usize, usize) {
 }
 
 fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
-    // SAFETY: measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
+    // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
     unsafe {
         core::arch::asm!(
             "li a7, 23", "ecall",

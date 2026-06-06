@@ -43,7 +43,7 @@ impl Uart {
     /// and that no other code accesses the UART MMIO region concurrently.
     pub fn init(&mut self) {
         let base = UART_BASE as *mut u8;
-        // SAFETY: UART_BASE is a valid MMIO address on QEMU virt.
+        // SAFETY: category=mmio-access UART_BASE is a valid MMIO address on QEMU virt.
         // Single-threaded boot context; no concurrent access possible.
         unsafe {
             // LCR = 0b0000_0011: 8-bit word length, 1 stop bit, no parity.
@@ -60,7 +60,7 @@ impl Uart {
     /// No concurrent callers.
     pub fn putc(&mut self, byte: u8) {
         let base = UART_BASE as *mut u8;
-        // SAFETY: UART_BASE is a valid MMIO address on QEMU virt.
+        // SAFETY: category=mmio-access UART_BASE is a valid MMIO address on QEMU virt.
         // volatile write ensures the byte is not elided by the compiler.
         unsafe {
             base.add(UART_THR).write_volatile(byte);

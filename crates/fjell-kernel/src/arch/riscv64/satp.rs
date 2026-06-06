@@ -18,10 +18,10 @@ pub const SATP_MODE_SV39: usize = 8 << 60;
 /// - The `sfence.vma` fence that follows the `satp` write is mandatory to
 ///   invalidate stale TLB entries (invariant MM-VM-007).
 #[inline]
-// SAFETY: called only during kernel init before MMU is enabled; register access is M/S-mode only.
+// SAFETY: category=csr-asm called only during kernel init before MMU is enabled; register access is M/S-mode only.
 pub unsafe fn enable_sv39(root_pfn: usize) {
     let satp_val = SATP_MODE_SV39 | (root_pfn & 0x0FFF_FFFF_FFFF);
-    // SAFETY: caller guarantees the page table is valid and the kernel
+    // SAFETY: category=csr-asm caller guarantees the page table is valid and the kernel
     // continues to be reachable after the address translation switch.
     unsafe {
         core::arch::asm!(
@@ -41,8 +41,8 @@ pub unsafe fn enable_sv39(root_pfn: usize) {
 /// Caller must ensure this is called in a context where a TLB flush is safe
 /// (i.e. no concurrent hart is relying on the stale mapping being valid).
 #[inline]
-// SAFETY: called only during kernel init before MMU is enabled; register access is M/S-mode only.
+// SAFETY: category=csr-asm called only during kernel init before MMU is enabled; register access is M/S-mode only.
 pub unsafe fn sfence_vma_all() {
-    // SAFETY: caller upholds the synchronisation requirement.
+    // SAFETY: category=csr-asm caller upholds the synchronisation requirement.
     unsafe { core::arch::asm!("sfence.vma zero, zero") };
 }

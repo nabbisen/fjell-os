@@ -43,7 +43,7 @@ pub fn handle_user_fault(tf: &TrapFrame, cause: FaultCause) {
 // ── Fault signal to run-loop ──────────────────────────────────────────────────
 
 pub(crate) struct FaultCell(core::cell::Cell<Option<FaultInfo>>);
-// SAFETY: single-hart M2.
+// SAFETY: category=kernel-global-mutable single-hart M2.
 unsafe impl Sync for FaultCell {}
 impl FaultCell {
     const fn new() -> Self { FaultCell(core::cell::Cell::new(None)) }

@@ -73,7 +73,7 @@ impl AddressSpace {
     /// Create a new, empty address space backed by `root_frame`.
     pub fn new(id: AddressSpaceId, root_frame: PhysFrame) -> Self {
         // Zero the root page table.
-        // SAFETY: root_frame is freshly allocated and 4-KiB aligned.
+        // SAFETY: category=phys-id-map-assumption root_frame is freshly allocated and 4-KiB aligned.
         unsafe {
             core::ptr::write_bytes(root_frame.pa() as *mut u8, 0, 4096);
         }
@@ -109,7 +109,7 @@ impl AddressSpace {
             "user text must not have W"
         );
 
-        // SAFETY: root.pa() is a valid Sv39 root page table.
+        // SAFETY: category=csr-asm root.pa() is a valid Sv39 root page table.
         // sfence.vma is called by the caller after all maps are done.
         unsafe {
             page_table::map_page(self.root.pa(), va, frame, perms, fa)?;
@@ -129,7 +129,7 @@ impl AddressSpace {
 
     /// Unmap a single page, returning its physical frame.
     pub fn unmap_page(&mut self, va: VirtAddr) -> Result<PhysFrame, MmError> {
-        // SAFETY: root.pa() is a valid Sv39 root page table.
+        // SAFETY: category=page-table-mutation root.pa() is a valid Sv39 root page table.
         let frame = unsafe { page_table::unmap_page(self.root.pa(), va)? };
 
         // Remove the region entry.
@@ -147,7 +147,7 @@ impl AddressSpace {
 
     /// Translate a virtual address to (frame, permissions).
     pub fn translate(&self, va: VirtAddr) -> Result<(PhysFrame, VmPerms), MmError> {
-        // SAFETY: root.pa() is a valid Sv39 root page table.
+        // SAFETY: category=page-table-mutation root.pa() is a valid Sv39 root page table.
         unsafe { page_table::translate(self.root.pa(), va) }
     }
 
@@ -155,7 +155,7 @@ impl AddressSpace {
     ///
     /// Invariant MM-VM-002: all address spaces share the same kernel half.
     pub fn clone_kernel_half(&mut self, kernel_root: PhysFrame) {
-        // SAFETY: both root page tables are valid and 4-KiB aligned.
+        // SAFETY: category=page-table-mutation both root page tables are valid and 4-KiB aligned.
         unsafe {
             page_table::clone_kernel_half(self.root.pa(), kernel_root.pa());
         }

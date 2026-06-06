@@ -21,9 +21,9 @@ pub const TICK_INTERVAL: u64 = 10 * TICKS_PER_MS;
 /// # Safety
 /// `CLINT_MTIME` must be a valid MMIO address (invariant on QEMU virt).
 #[inline]
-// SAFETY: CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
+// SAFETY: category=mmio-access CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
 pub unsafe fn read_mtime() -> u64 {
-    // SAFETY: CLINT_MTIME is a valid read-only MMIO register on QEMU virt.
+    // SAFETY: category=mmio-access CLINT_MTIME is a valid read-only MMIO register on QEMU virt.
     unsafe { (CLINT_MTIME as *const u64).read_volatile() }
 }
 
@@ -33,9 +33,9 @@ pub unsafe fn read_mtime() -> u64 {
 /// `CLINT_MTIMECMP0` must be a valid MMIO address.
 /// This write must happen in M-mode or from a context that has MMIO access.
 #[inline]
-// SAFETY: CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
+// SAFETY: category=mmio-access CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
 pub unsafe fn set_mtimecmp(value: u64) {
-    // SAFETY: CLINT_MTIMECMP0 is a valid writable MMIO register on QEMU virt.
+    // SAFETY: category=mmio-access CLINT_MTIMECMP0 is a valid writable MMIO register on QEMU virt.
     unsafe { (CLINT_MTIMECMP0 as *mut u64).write_volatile(value) };
 }
 
@@ -43,10 +43,10 @@ pub unsafe fn set_mtimecmp(value: u64) {
 ///
 /// # Safety
 /// See `set_mtimecmp`.
-// SAFETY: CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
+// SAFETY: category=mmio-access CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
 pub unsafe fn schedule_next_tick() {
-    // SAFETY: both MMIO accesses are to valid CLINT registers.
+    // SAFETY: category=mmio-access both MMIO accesses are to valid CLINT registers.
     let now = unsafe { read_mtime() };
-    // SAFETY: CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
+    // SAFETY: category=mmio-access CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
     unsafe { set_mtimecmp(now + TICK_INTERVAL) };
 }

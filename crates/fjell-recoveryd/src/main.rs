@@ -11,15 +11,15 @@ use fjell_syscall::{sys_debug_writeln, sys_exit};
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! { sys_debug_writeln("recoveryd: panic"); sys_exit(1); }
 const EP_SLOT: u32 = 0;
-// SAFETY: IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
+// SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
 fn send_ready() { unsafe { core::arch::asm!("li a7, 20","ecall", in("a0") EP_SLOT as usize, in("a1") proto::READY, lateout("a0") _, lateout("a7") _, options(nostack)); } }
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     let (mut t, mut w0, mut w1, mut w2, mut w3) = (0usize,0usize,0usize,0usize,0usize);
-    // SAFETY: IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
+    // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
     unsafe { core::arch::asm!("li a7, 21","ecall", in("a0") EP_SLOT as usize, lateout("a1") t, lateout("a2") w0, lateout("a3") w1, lateout("a4") w2, lateout("a5") w3, lateout("a7") _, options(nostack)); }
     (t, w0, w1, w2, w3)
 }
-// SAFETY: IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
+// SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
 fn reply(tag: usize, w0: usize, w1: usize, w2: usize) { unsafe { core::arch::asm!("li a7, 23","ecall", in("a0") 0usize, in("a1") tag, in("a2") w0, in("a3") w1, in("a4") w2, lateout("a7") _, options(nostack)); } }
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {

@@ -180,8 +180,8 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId) {
 
     // Retrieve the current epoch (just incremented by the revoke call above).
     // We use a local copy to avoid a second borrow of the lease table.
-    // SAFETY: category=kernel-global-mutable  single-hart, no races.
     let epoch = {
+        // SAFETY: category=kernel-global-mutable  single-hart, no races.
         let lt_tmp = unsafe { crate::get_lease_table() };
         match lt_tmp.current_epoch(id) {
             Ok(e) => e.0,

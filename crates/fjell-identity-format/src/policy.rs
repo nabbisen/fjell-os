@@ -123,3 +123,65 @@ impl NodeIdentityPolicy {
         }
     }
 }
+
+// ── Fleet roster validation placeholder (RFC-v0.7.2-003, v0.8 target) ─────────
+
+/// Result of a roster membership check.
+///
+/// v0.7.x: always returns `NotValidated` because roster signature verification
+/// requires fleet identity infrastructure not yet implemented.
+/// v0.8: will actually verify the roster digest against the keyring.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum RosterCheckResult {
+    /// Membership confirmed (v0.8 only; not reachable in v0.7.x).
+    Confirmed,
+    /// Roster validation not yet implemented; treat as Deny.
+    NotValidated,
+    /// The roster reference does not match any known fleet.
+    UnknownRoster,
+}
+
+/// Check whether a remote node is a member of the fleet roster.
+///
+/// v0.7.x stub: always returns `NotValidated`.
+/// Callers MUST treat `NotValidated` as a denial (fail-closed).
+pub fn check_roster_membership(
+    _roster_ref: RosterRef,
+    _node_profile_tag: u8,
+) -> RosterCheckResult {
+    RosterCheckResult::NotValidated
+}
+
+#[cfg(test)]
+mod fleet_stub_tests {
+    use super::*;
+    use fjell_measure_format::Digest32;
+
+    #[test]
+    fn roster_check_returns_not_validated() {
+        let roster = RosterRef(Digest32([0xAAu8; 32]));
+        let result = check_roster_membership(roster, 0x01);
+        assert_eq!(result, RosterCheckResult::NotValidated);
+    }
+
+    #[test]
+    fn fleet_mode_decision_requires_roster_validation() {
+        let p = NodeIdentityPolicy {
+            mode:             TrustMode::Fleet,
+            allowed_profiles: [0; 4],
+            allowed_count:    0,
+            pinned_roster:    Some(RosterRef(Digest32([0xBBu8; 32]))),
+            policy_digest:    Digest32([0u8; 32]),
+        };
+        // Fleet must return NeedsRosterValidation, not Allow
+        let d = p.permits(0x01);
+        assert!(matches!(d, Decision::NeedsRosterValidation(_)));
+
+        // Callers treating NeedsRosterValidation as a pass-through check roster:
+        if let Decision::NeedsRosterValidation(roster_ref) = d {
+            let result = check_roster_membership(roster_ref, 0x01);
+            // In v0.7.x: always NotValidated = deny
+            assert_eq!(result, RosterCheckResult::NotValidated);
+        }
+    }
+}

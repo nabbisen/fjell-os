@@ -3,7 +3,7 @@
 //! Usage:
 //!   fjell-unsafe-audit [--root <path>] [--json] [--check]
 //!
-//! Exits 0 if every unsafe site has a `// SAFETY:` comment within 4 lines.
+//! Exits 0 if every unsafe site has a `// SAFETY: category=raw-pointer-deref` comment within 4 lines.
 //! Exits 1 if any unsafe site is missing a SAFETY comment.
 //! With `--json`, prints a JSON-lines inventory to stdout.
 
@@ -115,9 +115,14 @@ fn scan_file(path: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
         };
 
         if let Some(kind) = kind {
-            // Search preceding 4 lines for `// SAFETY:`.
-            let search_from = idx.saturating_sub(4);
+            // Search preceding 12 lines for `// SAFETY:` and `category=`.
+            let search_from = idx.saturating_sub(12);
             let (has_safety, safety_text) = find_safety_comment(&lines[search_from..idx]);
+            let category = if has_safety {
+                extract_category(&safety_text)
+            } else {
+                UnsafeCategory::Missing
+            };
 
             records.push(UnsafeRecord {
                 file:        path.display().to_string(),
@@ -133,17 +138,55 @@ fn scan_file(path: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
 }
 
 fn find_safety_comment(preceding: &[&str]) -> (bool, String) {
+    // Scan backwards looking for // SAFETY:
+    let mut in_safety = false;
+    let mut safety_lines: Vec<&str> = Vec::new();
+
     for line in preceding.iter().rev() {
         let t = line.trim();
         if t.starts_with("// SAFETY:") {
-            let text = t.trim_start_matches("// SAFETY:").trim().to_string();
-            return (true, text);
+            safety_lines.push(t);
+            in_safety = true;
+            break;
         }
-        // Stop at blank lines or non-comment lines (except attribute-like lines).
-        if t.is_empty() { break; }
-        if !t.starts_with("//") && !t.starts_with('#') { break; }
+        // Continuation comment lines before the SAFETY tag
+        if in_safety && t.starts_with("//") {
+            safety_lines.push(t);
+            continue;
+        }
+        if t.is_empty() || (!t.starts_with("//") && !t.starts_with('#')) {
+            break;
+        }
     }
-    (false, String::new())
+
+    if !in_safety && safety_lines.is_empty() {
+        // Try simpler scan
+        for line in preceding.iter().rev() {
+            let t = line.trim();
+            if t.contains("// SAFETY:") || t.starts_with("// SAFETY:") {
+                let text = t.to_string();
+                return (true, text);
+            }
+            if t.is_empty() { break; }
+            if !t.starts_with("//") && !t.starts_with('#') { break; }
+        }
+        return (false, String::new());
+    }
+
+    safety_lines.reverse();
+    let text = safety_lines.join(" ");
+    (true, text)
+}
+
+/// Extract category from a SAFETY comment (RFC-v0.7.5-001).
+fn extract_category(safety_text: &str) -> UnsafeCategory {
+    // Look for "category=<name>" anywhere in the text
+    if let Some(pos) = safety_text.find("category=") {
+        let rest = &safety_text[pos + "category=".len()..];
+        let name = rest.split(|c: char| c.is_whitespace() || c == ',').next().unwrap_or("");
+        return UnsafeCategory::from_str(name);
+    }
+    UnsafeCategory::Missing
 }
 
 // ── Directory walk ────────────────────────────────────────────────────────────
@@ -255,7 +298,7 @@ mod tests {
     #[test]
     fn detects_unsafe_block_with_safety() {
         let f = TmpFile::write("audit_test_1.rs",
-            "// SAFETY: pointer is valid for the lifetime of the borrow.\nunsafe { *ptr }\n");
+            "// SAFETY: category=raw-pointer-deref pointer is valid for the lifetime of the borrow.\nunsafe { *ptr }\n");
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
         assert_eq!(recs.len(), 1);
@@ -274,7 +317,7 @@ mod tests {
     #[test]
     fn detects_unsafe_fn() {
         let f = TmpFile::write("audit_test_3.rs",
-            "// SAFETY: caller ensures alignment.\npub unsafe fn raw_write(ptr: *mut u8) {}\n");
+            "// SAFETY: category=raw-pointer-deref caller ensures alignment.\npub unsafe fn raw_write(ptr: *mut u8) {}\n");
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
         assert_eq!(recs.len(), 1);
@@ -305,7 +348,7 @@ mod tests {
 
     #[test]
     fn safety_comment_up_to_four_lines_above() {
-        let src = "// SAFETY: invariant holds.\n// other comment\n// another\n// and another\nunsafe { }\n";
+        let src = "// SAFETY: category=raw-pointer-deref invariant holds.\n// other comment\n// another\n// and another\nunsafe { }\n";
         let f = TmpFile::write("audit_test_6.rs", src);
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
@@ -315,7 +358,7 @@ mod tests {
 
     #[test]
     fn safety_five_lines_above_not_found() {
-        let src = "// SAFETY: too far away.\n// a\n// b\n// c\n// d\nunsafe { }\n";
+        let src = "// SAFETY: category=raw-pointer-deref too far away.\n// a\n// b\n// c\n// d\nunsafe { }\n";
         let f = TmpFile::write("audit_test_7.rs", src);
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
@@ -325,7 +368,7 @@ mod tests {
 
     #[test]
     fn multiple_unsafe_sites_per_file() {
-        let src = "// SAFETY: ok\nunsafe { a() }\nfn x() {}\nunsafe { b() }\n";
+        let src = "// SAFETY: category=raw-pointer-deref ok\nunsafe { a() }\nfn x() {}\nunsafe { b() }\n";
         let f = TmpFile::write("audit_test_8.rs", src);
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();

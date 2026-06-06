@@ -27,7 +27,7 @@ use crate::arch::riscv64::pte::{
 /// - `fa` must outlive the page table being modified.
 /// - Caller must execute `sfence.vma` after all map operations are done
 ///   (invariant MM-VM-007).
-// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn map_page(
     root_pa: usize,
     va: VirtAddr,
@@ -38,7 +38,7 @@ pub unsafe fn map_page(
     let flags = perms_to_pte_flags(perms);
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
 
-    // SAFETY: root_pa is a valid page-table physical address provided by the
+    // SAFETY: category=page-table-mutation root_pa is a valid page-table physical address provided by the
     // caller.  We walk the three levels, allocating intermediate tables.
     unsafe {
         let l2 = root_pa as *mut Pte;
@@ -67,7 +67,7 @@ pub unsafe fn map_page(
 ///
 /// # Safety
 /// Same requirements as `map_page`.
-// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn remap_page(
     root_pa: usize,
     va: VirtAddr,
@@ -77,7 +77,7 @@ pub unsafe fn remap_page(
 ) -> Result<(), MmError> {
     let flags = perms_to_pte_flags(perms);
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
-    // SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+    // SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
     unsafe {
         let l2 = root_pa as *mut Pte;
         let pte2 = &mut *l2.add(vpn2);
@@ -99,14 +99,14 @@ pub unsafe fn remap_page(
 ///
 /// # Safety
 /// Same requirements as `map_page`.
-// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn unmap_page(
     root_pa: usize,
     va: VirtAddr,
 ) -> Result<PhysFrame, MmError> {
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
 
-    // SAFETY: caller guarantees root_pa is valid.
+    // SAFETY: category=page-table-mutation caller guarantees root_pa is valid.
     unsafe {
         let l2 = root_pa as *mut Pte;
         let pte2 = &*l2.add(vpn2);
@@ -130,14 +130,14 @@ pub unsafe fn unmap_page(
 ///
 /// # Safety
 /// Same requirements as `map_page`.
-// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=phys-id-map-assumption physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn translate(
     root_pa: usize,
     va: VirtAddr,
 ) -> Result<(PhysFrame, VmPerms), MmError> {
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
 
-    // SAFETY: caller guarantees root_pa is valid.
+    // SAFETY: category=page-table-mutation caller guarantees root_pa is valid.
     unsafe {
         let l2 = root_pa as *const Pte;
         let pte2 = &*l2.add(vpn2);
@@ -165,7 +165,7 @@ pub unsafe fn translate(
 ///
 /// # Safety
 /// Both physical addresses must point to valid, zeroed root page tables.
-// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=phys-id-map-assumption physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn clone_kernel_half(
     target_root_pa: usize,
     kernel_root_pa: usize,
@@ -181,7 +181,7 @@ pub unsafe fn clone_kernel_half(
     //
     // Sharing the entry-2 PTE is safe because user tasks never write into
     // kernel code/data pages (page faults are handled in trap/fault.rs).
-    // SAFETY: both root_pa values are valid 4-KiB-aligned page tables.
+    // SAFETY: category=page-table-mutation both root_pa values are valid 4-KiB-aligned page tables.
     unsafe {
         let src = kernel_root_pa as *const Pte;
         let dst = target_root_pa as *mut Pte;
@@ -198,7 +198,7 @@ pub unsafe fn clone_kernel_half(
 ///
 /// # Safety
 /// `pte` must be a valid pointer to an entry in a live page table.
-// SAFETY: physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 unsafe fn ensure_next_level(
     pte: &mut Pte,
     fa: &mut FrameAllocator<'_>,
@@ -209,7 +209,7 @@ unsafe fn ensure_next_level(
         let frame = fa.alloc_frame(FrameOwner::KernelPageTable)?;
         let pa = frame.pa();
         // Zero the new page-table page.
-        // SAFETY: `pa` is freshly allocated, 4-KiB aligned, and owned.
+        // SAFETY: category=phys-id-map-assumption `pa` is freshly allocated, 4-KiB aligned, and owned.
         unsafe {
             core::ptr::write_bytes(pa as *mut u8, 0, 4096);
         }

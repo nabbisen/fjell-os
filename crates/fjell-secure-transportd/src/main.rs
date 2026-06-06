@@ -43,7 +43,7 @@ const CAP_ATTEST_EP:CapHandle = CapHandle(4);
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
 fn send_tag(ep: CapHandle, tag: u16, w0: usize) {
-    // SAFETY: virtio MMIO region is mapped and exclusive to this driver context.
+    // SAFETY: category=mmio-access virtio MMIO region is mapped and exclusive to this driver context.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
@@ -55,7 +55,7 @@ fn send_tag(ep: CapHandle, tag: u16, w0: usize) {
 
 fn recv_msg(ep: CapHandle) -> (u16, usize, usize) {
     let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
-    // SAFETY: virtio MMIO region is mapped and exclusive to this driver context.
+    // SAFETY: category=mmio-access virtio MMIO region is mapped and exclusive to this driver context.
     unsafe {
         core::arch::asm!(
             "li a7, 21", "ecall",
