@@ -1,0 +1,21 @@
+[package]
+name = "fjell-driver-virtio-net"
+description = "User-space virtio-mmio network driver for Fjell OS (RFC v0.4-001)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-driver-virtio-net"
+path = "src/main.rs"
+
+[lib]
+name = "fjell_driver_virtio_net"
+path = "src/core/lib.rs"
+
+[dependencies]
+fjell-syscall    = { path = "../fjell-syscall" }
+fjell-cap        = { path = "../fjell-cap" }
+fjell-net-format = { path = "../fjell-net-format" }

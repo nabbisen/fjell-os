@@ -1,0 +1,18 @@
+[package]
+name = "fjell-secure-transportd"
+description = "Authenticated control-plane channel service for Fjell OS (RFC v0.4-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-secure-transportd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall    = { path = "../fjell-syscall" }
+fjell-cap        = { path = "../fjell-cap" }
+fjell-net-format = { path = "../fjell-net-format" }
+fjell-sxt-crypto = { path = "../fjell-sxt-crypto" }

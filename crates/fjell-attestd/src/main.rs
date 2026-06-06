@@ -250,3 +250,74 @@ pub extern "C" fn service_main() -> ! {
         let _ = last_digest;
     }
 }
+
+// ── Remote attestation push (RFC v0.4-005 §5.3) ──────────────────────────────
+
+/// Cap slot for the `secure-transportd` endpoint.
+const CAP_SXT_EP: fjell_cap::CapHandle = fjell_cap::CapHandle(5);
+
+// SXT tag constants — must match secure-transportd.
+const SXT_OPEN_CHANNEL:      u16 = 0x0100;
+const SXT_OPENED:            u16 = 0x0101;
+const SXT_ATTEST_PUSH:       u16 = 0x0106;
+const SXT_ATTEST_CHALLENGE:  u16 = 0x0107;
+const SXT_CLOSE:             u16 = 0x0109;
+const SXT_FAULTED:           u16 = 0x010b;
+
+/// Cached server nonce from the last successful attestation push.
+/// Stored in-process (alpha.1); migrates to storaged IPC in alpha.2.
+static mut CACHED_NONCE: [u8; 16] = [0u8; 16];
+
+fn sxt_send(tag: u16, w0: usize) {
+    unsafe {
+        core::arch::asm!(
+            "li a7, 20", "ecall",
+            in("a0") CAP_SXT_EP.0 as usize, in("a1") tag as usize, in("a2") w0,
+            lateout("a0") _, lateout("a7") _, options(nostack)
+        );
+    }
+}
+
+fn sxt_recv() -> (u16, usize) {
+    let (mut t, mut w0) = (0usize, 0usize);
+    unsafe {
+        core::arch::asm!(
+            "li a7, 21", "ecall",
+            in("a0") CAP_SXT_EP.0 as usize,
+            lateout("a1") t, lateout("a2") w0,
+            lateout("a3") _, lateout("a4") _, lateout("a5") _, lateout("a7") _,
+            options(nostack)
+        );
+    }
+    ((t & 0xFFFF) as u16, w0)
+}
+
+/// Push the current attestation record to the remote endpoint via
+/// `secure-transportd` (RFC v0.4-005 §5.3 attestation exchange).
+///
+/// On success updates `CACHED_NONCE` with the server's next nonce.
+/// Returns `true` if the round-trip completed.
+pub fn push_attestation(record_seq: u32) -> bool {
+    // Open an Attestation channel (kind byte = 0x03).
+    sxt_send(SXT_OPEN_CHANNEL, 0x0300_0000);
+    let (reply, w0) = sxt_recv();
+    if reply != SXT_OPENED { return false; }
+    let channel_id = w0 as u32;
+
+    // Push the signed attestation record (w0 = record sequence number).
+    sxt_send(SXT_ATTEST_PUSH, record_seq as usize);
+    let (ack, nonce_lo) = sxt_recv();
+
+    sxt_send(SXT_CLOSE, channel_id as usize);
+
+    if ack == SXT_ATTEST_CHALLENGE {
+        // Cache the returned nonce (lower 8 bytes from w0 in alpha.1 stub).
+        unsafe {
+            let b = (nonce_lo as u64).to_le_bytes();
+            CACHED_NONCE[..8].copy_from_slice(&b);
+        }
+        true
+    } else {
+        false
+    }
+}

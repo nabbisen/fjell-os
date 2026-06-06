@@ -85,6 +85,8 @@ pub enum SyscallNumber {
     MmioUnmap       = 91,
     IrqBind         = 100,
     IrqAck          = 101,
+    /// Block the calling task until the bound IRQ fires (RFC v0.4-001).
+    IrqWait         = 102,
     DmaAlloc        = 110,
     DmaShare        = 111,
     DmaRevoke       = 112,

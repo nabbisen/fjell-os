@@ -157,6 +157,14 @@ pub enum CapKind {
     /// Authority to read existing snapshots.
     SnapshotRead,
 
+    // ── v0.4 (networking) ──────────────────────────────────────────────────
+    /// A hardware interrupt line bound to a driver task (RFC v0.4-001).
+    /// Grants `IRQ_BIND | IRQ_UNBIND | IRQ_ACK` rights.
+    Interrupt,
+    /// A network device owned by `driver-virtio-net` (RFC v0.4-001).
+    /// Grants `NET_SEND | NET_RECV` rights.
+    NetDevice,
+
     // ── Backward-compatible aliases (v0.1.x names) ─────────────────────────
     // These are kept for the transition period; service code should migrate.
     /// Legacy: use `DmaRegion` for new code.
@@ -234,6 +242,8 @@ impl CapKind {
             9  => Some(Self::BootEvidence),
             10 => Some(Self::Reboot),
             16 => Some(Self::CapInstall),
+            0x14 => Some(Self::Interrupt),
+            0x15 => Some(Self::NetDevice),
             _  => None,
         }
     }

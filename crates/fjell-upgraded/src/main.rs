@@ -137,3 +137,69 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("upgraded: boot confirmation simulated");
     sys_exit(0)
 }
+
+// ── Remote metadata fetch (RFC v0.4-004) ─────────────────────────────────────
+
+/// Cap slot for the secure-transportd endpoint.
+use fjell_cap::CapHandle;
+const CAP_SXT_EP: CapHandle = CapHandle(6);
+
+/// SXT IPC tag constants (must match secure-transportd).
+const SXT_OPEN_CHANNEL:         u16 = 0x0100;
+const SXT_UPDATE_METADATA_FETCH:u16 = 0x0102;
+const SXT_CLOSE:                u16 = 0x0109;
+const SXT_OPENED:               u16 = 0x0101;
+const SXT_UPDATE_METADATA_REPLY:u16 = 0x0103;
+const SXT_FAULTED:              u16 = 0x010b;
+
+fn send_sxt(tag: u16, w0: usize) {
+    unsafe {
+        core::arch::asm!(
+            "li a7, 20", "ecall",
+            in("a0") CAP_SXT_EP.0 as usize, in("a1") tag as usize, in("a2") w0,
+            lateout("a0") _, lateout("a7") _, options(nostack)
+        );
+    }
+}
+
+fn recv_sxt() -> (u16, usize) {
+    let (mut t, mut w0) = (0usize, 0usize);
+    unsafe {
+        core::arch::asm!(
+            "li a7, 21", "ecall",
+            in("a0") CAP_SXT_EP.0 as usize,
+            lateout("a1") t, lateout("a2") w0,
+            lateout("a3") _, lateout("a4") _, lateout("a5") _, lateout("a7") _,
+            options(nostack)
+        );
+    }
+    ((t & 0xFFFF) as u16, w0)
+}
+
+/// Fetch the remote update index over a `secure-transportd` channel.
+///
+/// Returns `Some(channel_id)` on success so the caller can issue the actual
+/// `UPDATE_METADATA_FETCH` IPC, or `None` on handshake failure.
+///
+/// RFC v0.4-004 §5.1: channel kind = 0x01 (UpdateMetadata).
+pub fn fetch_update_index() -> Option<u32> {
+    // Request channel open: kind = UpdateMetadata (0x01).
+    send_sxt(SXT_OPEN_CHANNEL, 0x0100_0000);
+    let (reply_tag, w0) = recv_sxt();
+    if reply_tag != SXT_OPENED {
+        return None;
+    }
+    let channel_id = w0 as u32;
+
+    // Issue metadata fetch on the established channel.
+    send_sxt(SXT_UPDATE_METADATA_FETCH, channel_id as usize);
+    let (reply_tag2, _w0_2) = recv_sxt();
+    if reply_tag2 != SXT_UPDATE_METADATA_REPLY {
+        send_sxt(SXT_CLOSE, channel_id as usize);
+        return None;
+    }
+
+    // Caller would read the payload from a shared memory page; here we return
+    // the channel_id so the integration test can verify the round-trip.
+    Some(channel_id)
+}

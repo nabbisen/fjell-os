@@ -63,6 +63,12 @@
 - [ADR-0010 Local Evidence and Recovery](./adr/0010-local-evidence-and-recovery.md)
 - [ADR-0011 Dev-Grade Crypto Before Hardware Trust](./adr/0011-development-grade-crypto-before-hardware-trust.md)
 - [ADR-0012 No Network Before Security Closure](./adr/0012-no-general-network-before-security-closure.md)
+- [ADR-v0.4-001 User-Space virtio-net Driver](./adr/ADR-v0.4-001-user-space-virtio-net-driver.md)
+- [ADR-v0.4-002 netd Session Model](./adr/ADR-v0.4-002-netd-session-model.md)
+- [ADR-v0.4-003 secure-transportd Single-Suite TLS](./adr/ADR-v0.4-003-secure-transportd-single-suite-tls.md)
+- [ADR-v0.4-004 Operator-Initiated Update Fetch](./adr/ADR-v0.4-004-operator-initiated-update-fetch.md)
+- [ADR-v0.4-005 diagnosticsd Redaction and Authority](./adr/ADR-v0.4-005-diagnosticsd-redaction-and-authority.md)
+
 
 ---
 

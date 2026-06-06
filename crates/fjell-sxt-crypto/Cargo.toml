@@ -1,0 +1,15 @@
+[package]
+name = "fjell-sxt-crypto"
+description = "TLS 1.3 crypto primitives for secure-transportd: AES-128-GCM, X25519, HKDF-SHA256 (RFC v0.4-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_sxt_crypto"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }

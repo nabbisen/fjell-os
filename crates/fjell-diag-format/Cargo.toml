@@ -1,0 +1,16 @@
+[package]
+name = "fjell-diag-format"
+description = "DiagnosticBundle wire format and builder for Fjell OS diagnosticsd (RFC v0.4-005)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_diag_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-trust-provider = { path = "../fjell-trust-provider" }

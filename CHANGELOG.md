@@ -1,3 +1,177 @@
+## [0.4.0] - 2026-05-19 — Secure Networking Stack
+
+The first Fjell OS release with remote network capability.  All network
+access is capability-gated, operator-initiated, and single-cipher-suite.
+
+### New crates
+
+| Crate | Role | Tests |
+|-------|------|-------|
+| `fjell-driver-virtio-net` | User-space virtio-mmio driver (RFC v0.4-001) | 28 |
+| `fjell-net-format` | Session/channel/ring wire types (RFC v0.4-002) | 19 |
+| `fjell-sxt-crypto` | AES-128-GCM, X25519, HKDF-SHA256, TLS 1.3 state (RFC v0.4-003) | 16 |
+| `fjell-diag-format` | DiagnosticBundle builder with SHA-256 digest (RFC v0.4-005) | 15 |
+| `fjell-netd` | Packet/session routing service (RFC v0.4-002) | — |
+| `fjell-secure-transportd` | TLS 1.3 channel service (RFC v0.4-003) | — |
+| `fjell-diagnosticsd` | Diagnostic bundle builder and push service (RFC v0.4-005) | — |
+
+### Service integrations
+
+- **`upgraded`** — `fetch_update_index()` via `secure-transportd` UpdateMetadata
+  channel (RFC v0.4-004).
+- **`attestd`** — `push_attestation()` via `secure-transportd` Attestation
+  channel; server nonce cached in-process (RFC v0.4-005 §5.3).
+- **`cap-broker`** — new `ResourceClass` variants `NetDevice` (8), `SxtSession`
+  (9), `DiagBundle` (10); policy rows for `netd`, `VIRTIO_NET`,
+  `secure-transportd`, `upgraded`, `diagnosticsd`, `attestd`.
+  `DiagBundle` explicitly denied to all services except `diagnosticsd`.
+
+### New syscalls (RFC v0.4-001)
+
+- `SyscallNumber::IrqBind = 100`, `IrqAck = 101`, `IrqWait = 102`.
+- `CapKind::Interrupt = 0x0014`, `CapKind::NetDevice = 0x0015`.
+- `CapRights::IRQ_BIND | IRQ_UNBIND | IRQ_ACK | NET_SEND | NET_RECV`.
+
+### Architecture Decision Records
+
+- ADR-v0.4-001 — User-Space virtio-net Driver
+- ADR-v0.4-002 — netd Session Model
+- ADR-v0.4-003 — secure-transportd Single-Suite TLS 1.3
+- ADR-v0.4-004 — Operator-Initiated Update Metadata Fetch
+- ADR-v0.4-005 — diagnosticsd Typed Allow-List Redaction and Bundle Authority
+
+### Test baseline: **252 host library tests, all passing**
+
+All seven new services cross-compile to `riscv64gc-unknown-none-elf`.
+
+---
+
+## [0.4.0-alpha.3] - 2026-05-19 — Secure transport, diagnostics, and crypto
+
+### New crates
+
+- **`fjell-sxt-crypto`** — TLS 1.3 crypto primitives (RFC v0.4-003 §7.4).
+  - AES-128-GCM: table-free constant-time block cipher and GHASH; verified
+    against NIST SP 800-38D test cases.
+  - X25519: Montgomery ladder with 5×51-bit u128 field arithmetic; correct
+    `fe_invert` djb addition chain; verified against Python `cryptography`
+    library reference.
+  - HKDF-SHA256: RFC 5869 extract + expand; A1 and A2 vectors pass.
+  - TLS 1.3 client-side handshake state machine: happy path, cert-verify
+    fail, wrong order, app-data-before-handshake, fault/close error codes.
+  - **16 host unit tests**, all passing.
+
+- **`fjell-driver-virtio-net` MMIO extension** — 9 new host tests for
+  `read_le32`/`write_le32`, `read_mac`, `read_link_up`, device identity
+  verification, `init_status_sequence`. Total: **28 host tests**.
+
+- **`fjell-secure-transportd`** — Authenticated control-plane channel service
+  (RFC v0.4-003). Channel table (`MAX_SXT_CHANNELS=4`), TLS handshake state
+  machine wired from `fjell-sxt-crypto`, typed RPC tag dispatch; cross-
+  compiles to `riscv64gc-unknown-none-elf`.
+
+- **`fjell-diag-format`** — DiagnosticBundle wire format and builder
+  (RFC v0.4-005 §5.2). Typed allow-lists for audit-event kinds (14 entries,
+  §6.1) and semantic-intent tags (9 entries, §6.2). `BundleBuilder` enforces
+  allow-lists, enforces capacity limits, and finalises with a canonical
+  SHA-256 digest (§6.4). **15 host unit tests**, all passing.
+
+- **`fjell-diagnosticsd`** — Operator-initiated bundle builder and push
+  service (RFC v0.4-005). Collects synthetic boot-time records (alpha.1
+  stub), builds a `DiagnosticBundle` via `BundleBuilder`, pushes over a
+  `secure-transportd` Diagnostics channel; cross-compiles cleanly.
+
+### Service integrations
+
+- **`upgraded`** — `fetch_update_index` path added (RFC v0.4-004): opens an
+  `UpdateMetadata` channel through `secure-transportd`, issues
+  `SXT_UPDATE_METADATA_FETCH`, and receives the reply IPC; cross-compiles.
+
+- **`fjell-netd`** — `ChannelKind` and `MAX_SXT_CHANNELS` now re-exported
+  from `fjell-net-format` root; `NET_DESCRIPTOR_PAYLOAD` also added to
+  root re-exports.
+
+### Bug fixes
+
+- `fjell-sxt-crypto` X25519: `fe_mul` `b19` array now multiplies ALL five
+  limbs by 19 for wrapped-product reduction (was only multiplying limb 4).
+- `fjell-sxt-crypto` `fe_invert`: replaced broken addition chain (wrong loop
+  bounds, wrong multipliers) with the standard djb chain reaching z^(2^255-21).
+- `fjell-sxt-crypto` HKDF: `concat_slices` round-buffer was passing 128 bytes
+  to HMAC instead of the actual content length; rewritten with typed
+  `HkdfRoundBuf` carrying a length field.
+
+### Test baseline: **252 host library tests, all passing**
+
+---
+
+## [0.4.0-alpha.2] - 2026-05-19 — Virtio-net driver core + netd skeleton
+
+### New crates
+
+- **`fjell-driver-virtio-net`** — user-space virtio-mmio driver (RFC v0.4-001).
+  Host-testable core library (`fjell_driver_virtio_net::core`):
+  - `features`: `VirtioFeatureFlags`, `negotiate_features` (legacy-mode
+    detection, VIRTIO_F_VERSION_1 check, minimal accepted-feature mask).
+  - `ring`: `Ring`, `RingIndex`, `RingIndexCounter`, `RingDescriptor`;
+    push/pop with full error handling; malformed-descriptor fault detection.
+  - `state`: `DriverStateBlock`, `DriverState` (Boot→Init→Ready→HandleRx↔
+    Ready→Faulted→Quiesced→Withdrawn); `MAX_RESTARTS=3`; `attempt_restart`.
+  - **19 host unit tests**, all passing.
+  - Driver binary cross-compiles to `riscv64gc-unknown-none-elf`; uses
+    `sys_irq_bind` / `sys_irq_wait` / `sys_irq_ack` from the v0.4.0-alpha.1
+    syscall additions.
+
+- **`fjell-netd`** — packet/session routing service (RFC v0.4-002 skeleton).
+  Session table (`MAX_SESSIONS=8`), link-state tracking, `NetIpcTag`
+  demultiplexing; cross-compiles cleanly.
+
+### Test baseline: **212 host library tests, all passing**
+
+---
+
+## [0.4.0-alpha.1] - 2026-05-19 — Networking foundations land
+
+First alpha of the v0.4 line (Minimal Secure Networking).  Adds the
+kernel-surface capability kinds and syscalls needed by the virtio-net
+driver, plus the complete network format type library.
+
+### New capability kinds (`fjell-cap`)
+
+- `CapKind::Interrupt = 0x0014` — hardware interrupt line bound to a driver
+  task; guards `IRQ_BIND | IRQ_UNBIND | IRQ_ACK` rights.
+- `CapKind::NetDevice = 0x0015` — active network device; guards
+  `NET_SEND | NET_RECV` rights.
+- New `CapRights` constants: `IRQ_BIND (1<<27)`, `IRQ_UNBIND (1<<28)`,
+  `IRQ_ACK (1<<29)`, `NET_SEND (1<<30)`, `NET_RECV (1<<31)`.
+- `CapKind::from_u8` updated to decode `0x14` and `0x15`.
+
+### New syscalls (`fjell-syscall` / `fjell-abi`)
+
+- `SyscallNumber::IrqWait = 102` — block until bound IRQ fires.
+- `sys_irq_bind(irq_cap)`, `sys_irq_wait(irq_cap)`, `sys_irq_ack(irq_cap)`
+  wrapper functions.
+
+### New crate: `fjell-net-format`
+
+Complete network format type library (RFCs v0.4-001 / v0.4-002 / v0.4-003):
+
+- **Device layer**: `NetDeviceDescriptor`, `NetDeviceId`, `NetDeviceState`,
+  `InterruptDescriptor`, `NetMac`; QEMU `virt` default constants.
+- **Session layer**: `NetSession`, `SessionId`, `SessionState`, `ChannelKind`
+  (UpdateMetadata / Diagnostics / Attestation / FleetEnroll);
+  `MAX_SESSIONS=8`, `MAX_CHANNELS=4`.
+- **Transport layer**: `TransportChannel`, `ChannelState`, `ChannelId`;
+  `MAX_SXT_CHANNELS=4`; `SXT_CHANNEL_KIND_TAGS` routing table.
+- **Protocol**: `NetIpcTag` (PacketRx/Tx, TxDone, LinkUp/Down, DriverReady,
+  DeviceRevoked); `NetDriverPacket`; `NET_RING_DESCRIPTORS=16`,
+  `NET_RING_SIZE_BYTES=4096`.
+- **19 host unit tests**, all passing.
+
+### Test baseline: **193 host library tests, all passing**
+
+---
+
 ## [0.3.0] - 2026-05-19 — Hardware Trust Abstraction complete
 
 Full v0.3.0 release: all four RFC v0.3 epics land.  Services produce

@@ -332,3 +332,26 @@ pub mod negative_markers {
     /// All v0.2 negative-test categories have been exercised.
     pub const V02_RELEASE_GATE: &str       = "TEST:V02:PASS";
 }
+
+// ── RFC v0.4-005: diagnosticsd IPC protocol ───────────────────────────────────
+pub mod diagnosticsd {
+    /// diagnosticsd is ready (sent to service-manager).
+    pub const READY:              usize = 0x400;
+    /// Operator requests a bundle be built (w0 = current_tick as u64).
+    pub const BUILD_BUNDLE:       usize = 0x401;
+    /// Bundle is ready (w0 = audit_event_count).
+    pub const BUNDLE_READY:       usize = 0x402;
+    /// Operator requests a push to the remote endpoint (w0 = current_tick).
+    pub const PUSH:               usize = 0x403;
+    /// Push acknowledged (w0 = 0 on success).
+    pub const PUSH_ACK:           usize = 0x404;
+    /// Push failed (w0 = error code).
+    pub const PUSH_FAULT:         usize = 0x40F;
+    // ── auditd query sub-protocol (diagnosticsd → auditd) ────────────────────
+    /// Query auditd for recent records (w0 = max_count).
+    pub const AUDIT_QUERY:        usize = 0x410;
+    /// Single audit event record (w0 = kind_tag | seq<<16 | code<<32).
+    pub const AUDIT_RECORD:       usize = 0x411;
+    /// End of audit record stream.
+    pub const AUDIT_STREAM_END:   usize = 0x412;
+}

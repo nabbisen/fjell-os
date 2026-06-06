@@ -555,3 +555,36 @@ pub fn sys_cap_bind_lease(
     );
     to_result(r.0).map(|_| ())
 }
+
+// ── v0.4 IRQ and network syscalls (RFC v0.4-001) ─────────────────────────────
+
+/// Bind the calling task to the interrupt line described by `irq_cap`.
+///
+/// After binding, `sys_irq_wait` will block until that IRQ fires.
+/// Requires `Interrupt` cap with `IRQ_BIND` right.
+pub fn sys_irq_bind(irq_cap: CapHandle) -> Result<(), SysError> {
+    let r = ecall2(SyscallNumber::IrqBind as usize, irq_cap.0 as usize, 0, 0, 0);
+    to_result(r.0).map(|_| ())
+}
+
+/// Block the calling task until the interrupt line described by `irq_cap`
+/// fires.
+///
+/// Returns once the IRQ has been latched by the kernel.  The driver must call
+/// `sys_irq_ack` to re-arm the PLIC line after completing its handling.
+/// Requires `Interrupt` cap with `IRQ_BIND` right.
+pub fn sys_irq_wait(irq_cap: CapHandle) -> Result<(), SysError> {
+    let r = ecall2(SyscallNumber::IrqWait as usize, irq_cap.0 as usize, 0, 0, 0);
+    to_result(r.0).map(|_| ())
+}
+
+/// Re-arm the interrupt line after `sys_irq_wait` has returned.
+///
+/// Informs the PLIC that the driver has finished handling the interrupt and
+/// is ready to receive another one.  Must be called before blocking on
+/// `sys_irq_wait` again.
+/// Requires `Interrupt` cap with `IRQ_ACK` right.
+pub fn sys_irq_ack(irq_cap: CapHandle) -> Result<(), SysError> {
+    let r = ecall2(SyscallNumber::IrqAck as usize, irq_cap.0 as usize, 0, 0, 0);
+    to_result(r.0).map(|_| ())
+}

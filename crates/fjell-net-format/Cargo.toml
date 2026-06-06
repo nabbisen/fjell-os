@@ -1,0 +1,15 @@
+[package]
+name = "fjell-net-format"
+description = "Network format types for Fjell OS: device descriptors, sessions, and protocol surfaces (RFC v0.4-001/002)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_net_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }

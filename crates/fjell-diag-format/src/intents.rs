@@ -1,0 +1,28 @@
+//! Allow-listed semantic intent tags (RFC v0.4-005 §6.2).
+
+pub const INTENT_UPDATE_STAGING_STARTED:    u16 = 0x0100;
+pub const INTENT_UPDATE_STAGING_ADVANCED:   u16 = 0x0101;
+pub const INTENT_UPDATE_STAGING_FAILED:     u16 = 0x0102;
+pub const INTENT_UPDATE_STAGING_CONFIRMED:  u16 = 0x0103;
+pub const INTENT_UPDATE_ROLLBACK_BLOCKED:   u16 = 0x0110;
+pub const INTENT_ATTEST_RECORD_SIGNED:      u16 = 0x0120;
+pub const INTENT_SECURITY_REGISTRY_ENFORCING: u16 = 0x0130;
+pub const INTENT_NET_LINK_DOWN:             u16 = 0x0140;
+pub const INTENT_RECOVERY_ENTERED:          u16 = 0x0150;
+
+pub const ALLOWED_INTENT_TAGS: &[u16] = &[
+    INTENT_UPDATE_STAGING_STARTED,
+    INTENT_UPDATE_STAGING_ADVANCED,
+    INTENT_UPDATE_STAGING_FAILED,
+    INTENT_UPDATE_STAGING_CONFIRMED,
+    INTENT_UPDATE_ROLLBACK_BLOCKED,
+    INTENT_ATTEST_RECORD_SIGNED,
+    INTENT_SECURITY_REGISTRY_ENFORCING,
+    INTENT_NET_LINK_DOWN,
+    INTENT_RECOVERY_ENTERED,
+];
+
+/// Returns `true` if `intent_tag` is on the semantic-intent allow-list (§6.2).
+pub fn is_intent_allowed(intent_tag: u16) -> bool {
+    ALLOWED_INTENT_TAGS.contains(&intent_tag)
+}

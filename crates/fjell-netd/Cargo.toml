@@ -1,0 +1,17 @@
+[package]
+name = "fjell-netd"
+description = "Packet/session routing service for Fjell OS (RFC v0.4-002)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-netd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall    = { path = "../fjell-syscall" }
+fjell-cap        = { path = "../fjell-cap" }
+fjell-net-format = { path = "../fjell-net-format" }

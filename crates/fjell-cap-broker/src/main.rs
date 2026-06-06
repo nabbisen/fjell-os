@@ -100,6 +100,13 @@ pub enum ResourceClass {
     DmaRegion    = 5,
     Config       = 6,
     Semantic     = 7,
+    // ── v0.4 additions ──────────────────────────────────────────────────────
+    /// virtio-net device capability (RFC v0.4-001).
+    NetDevice    = 8,
+    /// `secure-transportd` session slot (RFC v0.4-003).
+    SxtSession   = 9,
+    /// `diagnosticsd` bundle construction authority (RFC v0.4-005).
+    DiagBundle   = 10,
 }
 
 impl ResourceClass {
@@ -112,6 +119,9 @@ impl ResourceClass {
             5 => Self::DmaRegion,
             6 => Self::Config,
             7 => Self::Semantic,
+            8 => Self::NetDevice,
+            9 => Self::SxtSession,
+            10=> Self::DiagBundle,
             _ => Self::Any,
         }
     }
@@ -153,6 +163,12 @@ const SEMANTIC_STREAM:u16 = 6;
 const PROXY_TEXT:     u16 = 7;
 /// RFC 042: dedicated negative-test service (ImageId 20).
 const NEG_TEST:       u16 = 20;
+// ── v0.4 services (RFC v0.4-001 through v0.4-005) ───────────────────────────
+const NETD:            u16 = 21;   // RFC v0.4-002 packet/session router
+const VIRTIO_NET:      u16 = 22;   // RFC v0.4-001 virtio-net driver
+const SECURE_TRANSPORTD: u16 = 23; // RFC v0.4-003 TLS channel service
+const ATTESTD:         u16 = 13;   // RFC v0.3-004; extended by v0.4-005
+const DIAGNOSTICSD:    u16 = 24;   // RFC v0.4-005 diagnostic bundle builder
 
 // ── Policy table ─────────────────────────────────────────────────────────────
 //
@@ -220,6 +236,47 @@ const POLICY: &[PolicyRule] = &[
                  kind: PolicyKind::Allow, rights: EP_RW },
     PolicyRule { requester: PROXY_TEXT, resource: ResourceClass::Semantic as u16,
                  kind: PolicyKind::Allow, rights: RIGHT_SEND | RIGHT_RECV | RIGHT_COPY },
+
+    // ── RFC v0.4-001: virtio-net driver ──────────────────────────────────────
+    // The virtio-net driver may map MMIO and DMA regions, and bind/ack IRQs.
+    PolicyRule { requester: VIRTIO_NET, resource: ResourceClass::MmioRegion as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_MMIO_MAP | RIGHT_INSPECT },
+    PolicyRule { requester: VIRTIO_NET, resource: ResourceClass::DmaRegion as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_DMA_ALLOC | RIGHT_DMA_USE
+                                                | RIGHT_DMA_REVOKE },
+    // The driver may send/recv packets on its NetDevice capability.
+    PolicyRule { requester: VIRTIO_NET, resource: ResourceClass::NetDevice as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_SEND | RIGHT_RECV | RIGHT_INSPECT },
+
+    // ── RFC v0.4-002: netd ────────────────────────────────────────────────────
+    // netd receives the NetDevice capability and allocates Session caps.
+    PolicyRule { requester: NETD, resource: ResourceClass::NetDevice as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_RECV | RIGHT_INSPECT | RIGHT_MINT },
+    PolicyRule { requester: NETD, resource: ResourceClass::Endpoint as u16,
+                 kind: PolicyKind::Allow, rights: EP_RW | RIGHT_MINT },
+
+    // ── RFC v0.4-003: secure-transportd ──────────────────────────────────────
+    // secure-transportd may acquire SxtSession caps and open Endpoint channels.
+    PolicyRule { requester: SECURE_TRANSPORTD, resource: ResourceClass::SxtSession as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_SEND | RIGHT_RECV | RIGHT_MINT },
+    PolicyRule { requester: SECURE_TRANSPORTD, resource: ResourceClass::Endpoint as u16,
+                 kind: PolicyKind::Allow, rights: EP_RW },
+    // upgraded may open an SxtSession to request update metadata.
+    PolicyRule { requester: UPGRADED, resource: ResourceClass::SxtSession as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_SEND | RIGHT_RECV },
+
+    // ── RFC v0.4-005: diagnosticsd ────────────────────────────────────────────
+    // diagnosticsd is the only service permitted to construct DiagBundle.
+    PolicyRule { requester: DIAGNOSTICSD, resource: ResourceClass::DiagBundle as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_MINT | RIGHT_INSPECT },
+    PolicyRule { requester: DIAGNOSTICSD, resource: ResourceClass::SxtSession as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_SEND | RIGHT_RECV },
+    // All other services are denied DiagBundle authority.
+    PolicyRule { requester: WILDCARD, resource: ResourceClass::DiagBundle as u16,
+                 kind: PolicyKind::Deny, rights: 0 },
+    // attestd: may request an SxtSession for attestation push (v0.4-005 §5.3).
+    PolicyRule { requester: ATTESTD, resource: ResourceClass::SxtSession as u16,
+                 kind: PolicyKind::Allow, rights: RIGHT_SEND | RIGHT_RECV },
 ];
 
 // ── Policy evaluator ─────────────────────────────────────────────────────────

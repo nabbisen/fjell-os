@@ -1,0 +1,20 @@
+[package]
+name = "fjell-diagnosticsd"
+description = "Diagnostic bundle builder and remote push service for Fjell OS (RFC v0.4-005)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-diagnosticsd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall    = { path = "../fjell-syscall" }
+fjell-cap        = { path = "../fjell-cap" }
+fjell-service-api = { path = "../fjell-service-api" }
+fjell-diag-format = { path = "../fjell-diag-format" }
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-trust-provider = { path = "../fjell-trust-provider" }

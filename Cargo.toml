@@ -49,6 +49,13 @@ members = [
     "crates/fjell-tools",
     "crates/fjell-trust-provider",
     "crates/fjell-keyring",
+    "crates/fjell-net-format",
+    "crates/fjell-driver-virtio-net",
+    "crates/fjell-netd",
+    "crates/fjell-sxt-crypto",
+    "crates/fjell-secure-transportd",
+    "crates/fjell-diag-format",
+    "crates/fjell-diagnosticsd",
 ]
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
@@ -67,7 +74,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
