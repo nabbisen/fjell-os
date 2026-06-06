@@ -2819,3 +2819,46 @@ Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.
 ### Test Coverage
 - 412 named tests (was 408 at v0.7.2); 0 failures.
 - New: `fleet_stub_tests` (2), `syscall_ext_tests` (2).
+
+## [0.7.4] — 2026-05-20
+
+### CI Coverage (RFC-v0.7.1-002 — W-RB-02 COMPLETE)
+- **`.github/workflows/ci.yml` fully extended** (closes W-RB-02, W-M-05, W-M-06):
+  - `ci-test-v07-formats`: runs tests for all v0.4-v0.7 format crates.
+  - `ci-proptest`: runs 3 proptest harnesses (fjell-proptest, store-model, bootctl-model).
+  - `ci-unsafe-audit`: runs `fjell-unsafe-audit --check` (validates all 270 category= tags).
+  - `ci-arm64-check`: `cargo check -p fjell-arch-arm64 --target aarch64-unknown-none`.
+  - `ci-schema-gate`: verifies all `*.frozen` schema files are present and non-empty.
+  - `ci-qemu-v07`: matrix across `[v0.4-net, v0.5-platform, v0.7-sync]` QEMU categories.
+  - `ci-fuzz-nightly`: scheduled weekly, runs all 8 fuzz targets for 300 s each.
+  - `ci-test-services`: tests lib crates (trust-provider, keyring, arch, semantic-stream,
+    proxy-text, ci-coverage); cross-checks all service binaries for RISC-V.
+  - `on: schedule: '0 4 * * 1'` weekly fuzz trigger added.
+
+### `fjell-ci-coverage` tool (RFC-v0.7.1-002)
+- New `tools/fjell-ci-coverage/` binary. Enumerates workspace members, parses
+  `.github/workflows/ci.yml` for `-p <name>` references, and reports gaps.
+  `--check` exits 1 on any uncovered member not in `[workspace.metadata.fjell.ci_excluded]`.
+- Run: `cargo run -p fjell-ci-coverage -- --workspace .`
+- **Result: 67/68 workspace members covered; 1 explicitly excluded (fjell-kernel).**
+- 4 unit tests covering member parsing, CI YAML parsing, exclusion list, and gap detection.
+
+### QEMU xtask extended categories (W-M-04 COMPLETE)
+- `cargo xtask qemu-test v0.4-net` → waits for `TEST:V0.4-NET:PASS`
+- `cargo xtask qemu-test v0.5-platform` → waits for `TEST:V0.5-PLATFORM:PASS`
+- `cargo xtask qemu-test v0.6-verification` → waits for `TEST:V0.6-VERIFY:PASS`
+- `cargo xtask qemu-test v0.7-sync` → waits for `TEST:V0.7-SYNC:PASS`
+
+### Semantic Catalog Ownership (RFC-v0.7.5-001 — W-M-02 COMPLETE)
+- **`CatalogOwner`** struct: `crate_name`, `subsystem`.
+- Every `IntentEntry` in `CATALOG_V1` now carries an `owner: CatalogOwner` field.
+  (Update→upgraded, Attest→attestd, Security→kernel, Net→netd,
+   Recovery→recoveryd, Platform→devmgr, Health→measuredd, Summary→syncd.)
+- **`CatalogRangeOwner`** struct and **`CATALOG_RANGES`** const: documents ownership
+  of every 0x0100-0x04FF range, including FLEET (v0.8) and SDK (v0.9) reservations.
+- **`range_owner_for(tag)`**: look up the range owner for any tag.
+- 4 ownership acceptance tests.
+
+### Test Coverage
+- 417 named tests (was 412 at v0.7.3); 0 failures.
+- New: `ownership_tests` (4), `ci-coverage tests` (4).

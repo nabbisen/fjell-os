@@ -12,6 +12,7 @@ use crate::qemu_run::{Profile, run_profile};
 
 pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
     let (mid, marker) = match milestone {
+        // Legacy M1-M8 smoke markers (v0.1-v0.3 milestones)
         Some("m1") => ("m1", "TEST:M1:PASS"),
         Some("m2") => ("m2", "TEST:M2:PASS"),
         Some("m3") => ("m3", "TEST:M3:PASS"),
@@ -20,6 +21,14 @@ pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
         Some("m6") => ("m6", "TEST:M6:PASS"),
         Some("m7") => ("m7", "TEST:M7:PASS"),
         Some("m8") => ("m8", "TEST:M8:PASS"),
+
+        // v0.4-v0.7 smoke categories (RFC-v0.7.1-003, W-M-04)
+        // These verify the service markers emitted by v0.4+ services.
+        Some("v0.4-net")        => ("v0.4-net",     "TEST:V0.4-NET:PASS"),
+        Some("v0.5-platform")   => ("v0.5-platform", "TEST:V0.5-PLATFORM:PASS"),
+        Some("v0.6-verification")=>("v0.6-verify",   "TEST:V0.6-VERIFY:PASS"),
+        Some("v0.7-sync")       => ("v0.7-sync",     "TEST:V0.7-SYNC:PASS"),
+
         _          => ("m8", "TEST:M8:PASS"), // default = current milestone
     };
 

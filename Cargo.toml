@@ -68,6 +68,7 @@ members = [
     "crates/fjell-proptest",
     "crates/fjell-bootctl-model",
     "tools/fjell-unsafe-audit",
+    "tools/fjell-ci-coverage",
     "crates/fjell-store-model",
     "crates/fjell-arch-riscv64",
 ]
@@ -117,9 +118,10 @@ default-members = [
     "crates/fjell-store-model",
     "crates/fjell-bootctl-model",
     "tools/fjell-unsafe-audit",
+    "tools/fjell-ci-coverage",
 ]
 [workspace.package]
-version = "0.7.3"
+version = "0.7.4"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

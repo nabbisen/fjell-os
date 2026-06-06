@@ -1,0 +1,12 @@
+[package]
+name = "fjell-ci-coverage"
+description = "Validates that every workspace member is covered by CI or explicitly excluded."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-ci-coverage"
+path = "src/main.rs"

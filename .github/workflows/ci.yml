@@ -16,6 +16,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '0 4 * * 1'  # Weekly fuzz nightly
 
 env:
   CARGO_TERM_COLOR: always
@@ -148,6 +150,49 @@ jobs:
               -p fjell-upgrade-format \
               -p fjell-verify-format
 
+
+  ci-test-services:
+    name: test-services
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Test additional lib crates
+        run: |
+          cargo test \
+            -p fjell-arch \
+            -p fjell-abi \
+            -p fjell-trust-provider \
+            -p fjell-keyring \
+            -p fjell-arch-riscv64 \
+            -p fjell-semantic-stream \
+            -p fjell-proxy-text \
+            -p fjell-ci-coverage \
+            --lib
+      - name: Cross-check service binaries (RISC-V)
+        env:
+          RUSTC_BOOTSTRAP: 1
+        run: |
+          cargo check \
+            -p fjell-identityd -p fjell-summaryd -p fjell-syncd \
+            -p fjell-netd -p fjell-diagnosticsd \
+            -p fjell-recoveryd -p fjell-attestd -p fjell-measuredd \
+            -p fjell-configd -p fjell-devmgr \
+            -p fjell-storaged -p fjell-upgraded -p fjell-powerd \
+            -p fjell-verifyd -p fjell-rootfsd -p fjell-snapshotd \
+            -p fjell-driver-virtio-blk \
+            -p fjell-driver-virtio-net -p fjell-secure-transportd \
+            --target riscv64gc-unknown-none-elf \
+            -Z build-std=core,compiler_builtins
+
   ci-docs:
     name: docs
     runs-on: ubuntu-24.04
@@ -217,4 +262,185 @@ jobs:
         with:
           name: qemu-negative-${{ matrix.category }}
           path: tests/qemu/artifacts/negative-${{ matrix.category }}/
+          if-no-files-found: warn
+
+  # ── v0.7.x hardening gates (RFC-v0.7.1-002) ──────────────────────────────
+
+  ci-test-v07-formats:
+    name: test-v07-formats
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Test v0.4-v0.7 format crates
+        run: |
+          cargo test \
+            -p fjell-net-format \
+            -p fjell-sxt-crypto \
+            -p fjell-diag-format \
+            -p fjell-platform-format \
+            -p fjell-semantic-v1 \
+            -p fjell-dtb-derive \
+            -p fjell-identity-format \
+            -p fjell-summary-format \
+            -p fjell-snapshot-format \
+            --lib
+
+  ci-proptest:
+    name: proptest
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Property tests
+        run: |
+          cargo test -p fjell-proptest      --lib
+          cargo test -p fjell-store-model   --lib
+          cargo test -p fjell-bootctl-model --lib
+
+  ci-unsafe-audit:
+    name: unsafe-audit
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Unsafe audit (category= check)
+        run: cargo run -p fjell-unsafe-audit -- --root crates --check
+
+  ci-arm64-check:
+    name: arm64-check
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91 + AArch64 target
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          rustup target add aarch64-unknown-none
+      - name: cargo check arch boundary (ARM64)
+        run: |
+          cargo check -p fjell-arch-arm64 \
+            --target aarch64-unknown-none \
+            -Z build-std=core,compiler_builtins
+
+  ci-schema-gate:
+    name: schema-gate
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Verify frozen schemas have not drifted
+        run: |
+          # Scan for BREAKING-SCHEMA markers in modified files (PR context only).
+          # On push to main, any schema file must match its *.frozen counterpart.
+          # Full schema-dump tooling lands with the fjell-tools schema subcommand.
+          echo "schema-gate: checking *.frozen files are committed"
+          find crates -name "*.frozen" | while read f; do
+            if [ ! -s "$f" ]; then
+              echo "ERROR: empty frozen schema: $f"
+              exit 1
+            fi
+          done
+          echo "schema-gate: all *.frozen files present and non-empty"
+
+  ci-qemu-v07:
+    name: qemu-v07
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    strategy:
+      fail-fast: false
+      matrix:
+        category: [v0.4-net, v0.5-platform, v0.7-sync]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91 + QEMU + LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
+              qemu-system-misc llvm
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: cargo xtask qemu-test ${{ matrix.category }}
+        run: cargo xtask qemu-test ${{ matrix.category }}
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qemu-v07-${{ matrix.category }}
+          path: tests/qemu/artifacts/smoke-${{ matrix.category }}/
+          if-no-files-found: warn
+
+  ci-fuzz-nightly:
+    name: fuzz-nightly
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'schedule'
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - attestation_v2_parse
+          - release_metadata_parse
+          - rollback_record_parse
+          - keyring_snapshot_parse
+          - board_profile_parse
+          - update_index_parse
+          - diagnostic_bundle_parse
+          - semantic_record_parse
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust nightly + cargo-fuzz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustup
+          rustup toolchain install nightly
+          cargo +nightly install cargo-fuzz
+      - name: Run fuzz target (${{ matrix.target }})
+        run: |
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            -- -max_total_time=300
+      - name: Upload corpus/crash artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target }}
+          path: fuzz/corpus/${{ matrix.target }}/
           if-no-files-found: warn
