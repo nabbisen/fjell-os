@@ -1,6 +1,6 @@
 # RFC-v0.11-005 — Replay Cache and Attestation Freshness
 
-**Status:** Proposed
+**Status:** Implemented (v0.11.0)
 **Target version:** v0.11.0
 **Parent:** v0.11-001.
 **Cross-refs:** RFC v0.3-004 (attestation profile v2), RFC v0.8-001..005.

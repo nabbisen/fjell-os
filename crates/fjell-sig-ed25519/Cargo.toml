@@ -1,0 +1,21 @@
+[package]
+name        = "fjell-sig-ed25519"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Ed25519 SignatureProvider implementation for Fjell OS (RFC-v0.11-002)."
+publish     = false
+
+[dependencies]
+fjell-keyring = { path = "../fjell-keyring" }
+
+# Ed25519 signing (std, host-side bundle signer). Feature-gated so the
+# no_std verifier path does not pull in std.
+ed25519-dalek = { version = "2", optional = true }
+getrandom     = { version = "0.2", features = ["std"], optional = true }
+
+[features]
+default = ["sign"]
+# "sign": host-side signing — requires alloc, enables ed25519-dalek.
+sign    = ["dep:ed25519-dalek", "dep:getrandom"]

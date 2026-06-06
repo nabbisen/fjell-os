@@ -1,6 +1,6 @@
 # RFC-v0.11-002 — Ed25519 Signature Provider and Real Crypto Backend
 
-**Status:** Proposed
+**Status:** Implemented (v0.11.0)
 **Target version:** v0.11.0
 **Parent:** v0.11-001.
 **Cross-refs:** RFC v0.3-002 (SignatureProvider trait), RFC v0.7.3-002

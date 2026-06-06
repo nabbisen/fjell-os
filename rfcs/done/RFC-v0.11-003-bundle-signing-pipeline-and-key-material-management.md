@@ -1,6 +1,6 @@
 # RFC-v0.11-003 — Bundle Signing Pipeline and Key Material Management
 
-**Status:** Proposed
+**Status:** Implemented (v0.11.0)
 **Target version:** v0.11.0
 **Parent:** v0.11-001.
 **Cross-refs:** RFC v0.9-004 (bundle format), v0.11-002 (Ed25519 provider).

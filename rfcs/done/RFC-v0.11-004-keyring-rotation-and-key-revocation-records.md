@@ -1,6 +1,6 @@
 # RFC-v0.11-004 — Keyring Rotation and Key Revocation Records
 
-**Status:** Proposed
+**Status:** Implemented (v0.11.0)
 **Target version:** v0.11.0
 **Parent:** v0.11-001.
 **Cross-refs:** RFC v0.3-002 (KeyEpoch model), RFC v0.7.4-003 (auth hardening).

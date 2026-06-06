@@ -58,3 +58,5 @@ pub use snapshot::{KeyringSnapshot, KEYRING_SNAPSHOT_MAGIC, MAX_SNAPSHOT_ANCHORS
 
 #[cfg(test)]
 mod tests;
+pub mod revocation;
+pub use revocation::{AnchorState, RevocationReason, RevocationRecord, RevocationTable};

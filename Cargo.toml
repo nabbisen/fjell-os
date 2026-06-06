@@ -83,6 +83,8 @@ members = [
     "crates/fjell-bundle-format",
     "crates/fjell-semantic-toolkit",
     "crates/fjell-dev-harness",
+    "crates/fjell-sig-ed25519",
+    "crates/fjell-replay-cache",
 ]
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
@@ -137,13 +139,15 @@ default-members = [
     "crates/fjell-fleet-format",
 ]
 [workspace.package]
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
 repository = "https://github.com/nabbisen/fjell-os"
 [workspace.dependencies]
 criterion       = { version = "0.5", features = ["html_reports"] }
+ed25519-dalek   = { version = "2" }
+rand_core       = { version = "0.6", default-features = false, features = ["getrandom"] }
 # Shared dependencies will be added here as development progresses.
 # Format crates use serde for serialization.
 # Profiles must be defined at the workspace root.

@@ -1,6 +1,6 @@
 # RFC-v0.11-001 — Trust Spine Hardening Overview
 
-**Status:** Proposed
+**Status:** Implemented (v0.11.0)
 **Target version:** v0.11.0
 **Parent:** RFC 061 §10 (roadmap).
 **Cross-refs:** v0.11-002 through v0.11-005.

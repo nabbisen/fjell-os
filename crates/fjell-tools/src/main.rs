@@ -27,7 +27,8 @@ mod dev;          // RFC v0.9-005 developer workflow
 mod test_all;     // full test-all runner with log bundle
 mod trust_report; // RFC 061 §6 Trust Report
 mod bench;
-mod fleet_demo;   // RFC-v0.10-005 three-node fleet demo        // RFC-v0.10-004 criterion bench runner
+mod fleet_demo;
+mod sign_bundle;  // RFC-v0.11-003 bundle signing pipeline   // RFC-v0.10-005 three-node fleet demo        // RFC-v0.10-004 criterion bench runner
 
 use std::process::ExitCode;
 
@@ -62,6 +63,15 @@ fn main() -> ExitCode {
                 None              => None,
             };
             qemu_run::cmd_qemu_run(profile)
+        }
+        Some("sign-bundle") => {
+            sign_bundle::cmd_sign_bundle(&args[1..])
+        }
+        Some("verify-bundle-sig") => {
+            sign_bundle::cmd_verify_bundle_sig(&args[1..])
+        }
+        Some("key") => {
+            sign_bundle::cmd_key(args.get(1).map(String::as_str), &args[2.min(args.len())..])
         }
         Some("fleet-demo") => {
             fleet_demo::cmd_fleet_demo(
