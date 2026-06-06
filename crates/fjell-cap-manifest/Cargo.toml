@@ -1,0 +1,15 @@
+[package]
+name        = "fjell-cap-manifest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "CapManifest format, parser, and host-side lint (RFC v0.9-002)."
+publish     = false
+
+# Host-only: depends on std (no_std for the workspace's kernel/services).
+# CapManifest is a build-time artefact, never loaded at runtime.
+
+[dependencies]
+fjell-cap         = { path = "../fjell-cap" }
+fjell-semantic-v1 = { path = "../fjell-semantic-v1" }

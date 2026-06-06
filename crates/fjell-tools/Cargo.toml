@@ -14,3 +14,5 @@ name = "fjell-tools"
 path = "src/main.rs"
 
 [dependencies]
+fjell-dev-harness   = { path = "../fjell-dev-harness" }
+fjell-cap-manifest  = { path = "../fjell-cap-manifest" }

@@ -95,12 +95,72 @@ impl UnsafeKind {
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
 
+/// RFC 060 — strip string-literal regions and line comments from a single
+/// source line so the substring scanner does not flag `"unsafe {"` inside a
+/// Rust string or a `// comment about unsafe {` as a real unsafe site.
+/// Line-local; multi-line strings and `/* … */` block comments are out of
+/// scope.
+fn strip_string_literals(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        // Line comment: `// …` — drop the rest of the line.
+        if c == '/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+            break;
+        }
+        // Raw string: r"…" or r#"…"# (any number of #)
+        if c == 'r' && i + 1 < bytes.len() && (bytes[i + 1] == b'"' || bytes[i + 1] == b'#') {
+            let mut j = i + 1;
+            let mut hashes = 0;
+            while j < bytes.len() && bytes[j] == b'#' { hashes += 1; j += 1; }
+            if j < bytes.len() && bytes[j] == b'"' {
+                // skip body until closing `"` followed by `hashes` `#`s
+                j += 1;
+                while j < bytes.len() {
+                    if bytes[j] == b'"' {
+                        let mut k = j + 1;
+                        let mut matched = 0;
+                        while matched < hashes && k < bytes.len() && bytes[k] == b'#' {
+                            matched += 1; k += 1;
+                        }
+                        if matched == hashes { j = k; break; }
+                    }
+                    j += 1;
+                }
+                i = j;
+                continue;
+            }
+            // not a real raw string, fall through
+        }
+        // Normal string: "…"
+        if c == '"' {
+            let mut j = i + 1;
+            while j < bytes.len() {
+                if bytes[j] == b'\\' && j + 1 < bytes.len() { j += 2; continue; }
+                if bytes[j] == b'"' { j += 1; break; }
+                j += 1;
+            }
+            i = j;
+            continue;
+        }
+        out.push(c);
+        i += 1;
+    }
+    out
+}
+
 fn scan_file(path: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
     let content = fs::read_to_string(path)?;
     let lines: Vec<&str> = content.lines().collect();
 
     for (idx, line) in lines.iter().enumerate() {
-        let trimmed = line.trim();
+        // RFC 060: classify on a copy with string literals stripped so the
+        // scanner's own pattern strings and test-fixture strings do not
+        // register as unsafe sites.
+        let stripped = strip_string_literals(line);
+        let trimmed = stripped.trim();
 
         let kind = if trimmed.contains("unsafe {") || trimmed.starts_with("unsafe {") {
             Some(UnsafeKind::Block)
@@ -357,13 +417,15 @@ mod tests {
     }
 
     #[test]
-    fn safety_five_lines_above_not_found() {
-        let src = "// SAFETY: category=raw-pointer-deref too far away.\n// a\n// b\n// c\n// d\nunsafe { }\n";
+    fn safety_far_above_within_window_found() {
+        // Production lookback window is 12 lines; SAFETY 5 lines above
+        // is within the window and must be found.
+        let src = "// SAFETY: category=raw-pointer-deref within window.\n// a\n// b\n// c\n// d\nunsafe { }\n";
         let f = TmpFile::write("audit_test_7.rs", src);
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
         assert_eq!(recs.len(), 1);
-        assert!(!recs[0].has_safety, "SAFETY 5 lines above must not be found");
+        assert!(recs[0].has_safety, "SAFETY 5 lines above should be found (12-line window)");
     }
 
     #[test]
@@ -375,5 +437,27 @@ mod tests {
         assert_eq!(recs.len(), 2);
         assert!(recs[0].has_safety);
         assert!(!recs[1].has_safety, "second site has no SAFETY comment");
+    }
+
+    // RFC 060: `unsafe {` inside a string literal must not be classified.
+    #[test]
+    fn unsafe_inside_string_literal_not_counted() {
+        let src = "let s = \"unsafe { foo }\";\n// SAFETY: category=raw-pointer-deref real one\nunsafe { real() }\n";
+        let f = TmpFile::write("audit_test_9.rs", src);
+        let mut recs = vec![];
+        scan_file(&f.0, &mut recs).unwrap();
+        assert_eq!(recs.len(), 1, "only the real unsafe is counted, not the string");
+        assert!(recs[0].has_safety);
+        assert_eq!(recs[0].line, 3);
+    }
+
+    // RFC 060: `unsafe fn` inside string also ignored; raw strings handled.
+    #[test]
+    fn unsafe_inside_raw_string_not_counted() {
+        let src = "let s = r#\"unsafe fn x() {}\"#;\nfn ordinary() {}\n";
+        let f = TmpFile::write("audit_test_10.rs", src);
+        let mut recs = vec![];
+        scan_file(&f.0, &mut recs).unwrap();
+        assert_eq!(recs.len(), 0);
     }
 }

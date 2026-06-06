@@ -21,6 +21,7 @@ mod qemu_run;
 mod smoke;
 mod negative;
 mod policy_eval; // RFC 040 cap-broker policy unit tests
+mod dev;          // RFC v0.9-005 developer workflow
 
 use std::process::ExitCode;
 
@@ -56,6 +57,9 @@ fn main() -> ExitCode {
             };
             qemu_run::cmd_qemu_run(profile)
         }
+        Some("dev") => {
+            dev::cmd_dev(args.get(1).map(String::as_str), &args[2.min(args.len())..])
+        }
         Some(other) => {
             eprintln!("fjell-tools: unknown subcommand `{other}`");
             usage();
@@ -80,6 +84,8 @@ Subcommands:
   qemu-test [m1|m2|m3|m4|m5|m6|m7|m8]
   qemu-negative <capability|ipc|mmio|dma|store|upgrade|...>
   qemu-log-check <log-file> <marker>
-  qemu-run --profile <name>"
+  qemu-run --profile <name>
+  dev run --svc <name> --kernel <path>  (RFC v0.9-005)
+  dev lint <manifest.toml>"
     );
 }

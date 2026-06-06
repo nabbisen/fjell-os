@@ -1,0 +1,14 @@
+[package]
+name        = "fjell-semantic-toolkit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Typed emitter API, fixture generator, and doc renderer for the v1 semantic catalog (RFC v0.9-003)."
+publish     = false
+
+# Host-only: generates typed structs and fixtures from the v1 catalog.
+
+[dependencies]
+fjell-semantic-v1     = { path = "../fjell-semantic-v1" }
+fjell-semantic-format = { path = "../fjell-semantic-format" }

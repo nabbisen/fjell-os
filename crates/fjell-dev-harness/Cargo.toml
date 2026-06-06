@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-dev-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Host-side QEMU launcher and service integration test harness (RFC v0.9-005)."
+publish     = false
+
+[dependencies]
+fjell-bundle-format   = { path = "../fjell-bundle-format" }
+fjell-cap-manifest    = { path = "../fjell-cap-manifest" }

@@ -1,0 +1,23 @@
+[package]
+name        = "fjell-sdk"
+version.workspace     = true
+edition.workspace     = true
+license.workspace     = true
+authors.workspace     = true
+description           = "Stable service-developer API for Fjell OS (RFC v0.9-001)."
+publish               = false
+
+[dependencies]
+# Re-exports — surface only what is curated for external service authors.
+# Internal kernel-only crates are deliberately excluded.
+fjell-abi             = { path = "../fjell-abi" }
+fjell-cap             = { path = "../fjell-cap" }
+fjell-ipc             = { path = "../fjell-ipc" }
+fjell-syscall         = { path = "../fjell-syscall" }
+fjell-service-api     = { path = "../fjell-service-api" }
+fjell-semantic-format = { path = "../fjell-semantic-format" }
+fjell-semantic-v1     = { path = "../fjell-semantic-v1" }
+fjell-audit-format    = { path = "../fjell-audit-format" }
+
+[features]
+default = []

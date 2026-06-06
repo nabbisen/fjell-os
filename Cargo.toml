@@ -75,6 +75,11 @@ members = [
     "crates/fjell-fleet-format",
     "crates/fjell-store-model",
     "crates/fjell-arch-riscv64",
+    "crates/fjell-sdk",
+    "crates/fjell-cap-manifest",
+    "crates/fjell-bundle-format",
+    "crates/fjell-semantic-toolkit",
+    "crates/fjell-dev-harness",
 ]
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
@@ -129,7 +134,7 @@ default-members = [
     "crates/fjell-fleet-format",
 ]
 [workspace.package]
-version = "0.8.1"
+version = "0.9.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
