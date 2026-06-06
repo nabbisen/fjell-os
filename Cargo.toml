@@ -68,6 +68,9 @@ members = [
     "crates/fjell-proptest",
     "crates/fjell-bootctl-model",
     "tools/fjell-unsafe-audit",
+    "tools/fjell-abi-snapshot",
+    "tools/fjell-repro-check",
+    "benches",
     "tools/fjell-ci-coverage",
     "crates/fjell-fleetd",
     "crates/fjell-policy-format",
@@ -134,12 +137,13 @@ default-members = [
     "crates/fjell-fleet-format",
 ]
 [workspace.package]
-version = "0.9.1"
+version = "0.10.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
 repository = "https://github.com/nabbisen/fjell-os"
 [workspace.dependencies]
+criterion       = { version = "0.5", features = ["html_reports"] }
 # Shared dependencies will be added here as development progresses.
 # Format crates use serde for serialization.
 # Profiles must be defined at the workspace root.

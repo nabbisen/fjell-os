@@ -1,0 +1,40 @@
+[package]
+name        = "fjell-benchmarks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Fjell OS host-side criterion benchmarks (RFC-v0.10-004)."
+publish     = false
+
+[dev-dependencies]
+criterion.workspace = true
+
+[dependencies]
+fjell-cap             = { path = "../crates/fjell-cap" }
+fjell-abi             = { path = "../crates/fjell-abi" }
+fjell-audit-format    = { path = "../crates/fjell-audit-format" }
+fjell-semantic-v1     = { path = "../crates/fjell-semantic-v1" }
+fjell-bundle-format   = { path = "../crates/fjell-bundle-format" }
+fjell-cap-manifest    = { path = "../crates/fjell-cap-manifest" }
+fjell-measure-format  = { path = "../crates/fjell-measure-format" }
+
+[[bench]]
+name    = "cap_ops"
+harness = false
+
+[[bench]]
+name    = "semantic_encode"
+harness = false
+
+[[bench]]
+name    = "audit_record"
+harness = false
+
+[[bench]]
+name    = "bundle_digest"
+harness = false
+
+[[bench]]
+name    = "manifest_parse"
+harness = false

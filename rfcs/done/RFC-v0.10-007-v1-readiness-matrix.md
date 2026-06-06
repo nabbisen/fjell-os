@@ -1,6 +1,6 @@
 # RFC-v0.10-007 — v1.0 Readiness Matrix
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 §10 (roadmap).
 **Cross-refs:** all v0.10–v0.15 RFCs.

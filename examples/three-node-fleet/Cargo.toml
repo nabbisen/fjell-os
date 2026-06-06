@@ -1,0 +1,11 @@
+[package]
+name        = "fjell-hello"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Minimal Fjell service for the three-node fleet demo (RFC-v0.10-005)."
+publish     = false
+
+[dependencies]
+fjell-sdk = { path = "../../crates/fjell-sdk" }

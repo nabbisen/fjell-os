@@ -1,0 +1,21 @@
+# Fleet demo QEMU profile — RFC-v0.10-005.
+# Exercises the three-node QEMU fleet pass markers.
+# Runs as part of the QEMU smoke tier in `cargo xtask test-all`.
+#
+# NOTE: This profile requires three simultaneous QEMU instances.
+# In CI it runs only when QEMU is available and disk ≥ 1GB free.
+
+name             = "fleet-demo"
+timeout_secs     = 120
+expected_markers = [
+    "FLEET:NODE_A:READY",
+    "FLEET:NODE_B:READY",
+    "FLEET:NODE_C:READY",
+    "TEST:V0.10-FLEET-DEMO:PASS",
+]
+extra_args       = []
+
+# Multi-node profiles use a custom runner; the standard single-QEMU runner
+# is not sufficient.  The xtask smoke runner detects the "fleet-demo"
+# profile name and delegates to `cargo xtask fleet-demo deploy` instead.
+multi_node = true

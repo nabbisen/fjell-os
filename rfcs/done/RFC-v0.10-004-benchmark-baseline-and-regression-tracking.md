@@ -1,6 +1,6 @@
 # RFC-v0.10-004 — Benchmark Baseline and Regression Tracking
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 (credibility for edge claims).
 

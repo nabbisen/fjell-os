@@ -25,6 +25,9 @@ mod negative;
 mod policy_eval; // RFC 040 cap-broker policy unit tests
 mod dev;          // RFC v0.9-005 developer workflow
 mod test_all;     // full test-all runner with log bundle
+mod trust_report; // RFC 061 §6 Trust Report
+mod bench;
+mod fleet_demo;   // RFC-v0.10-005 three-node fleet demo        // RFC-v0.10-004 criterion bench runner
 
 use std::process::ExitCode;
 
@@ -59,6 +62,36 @@ fn main() -> ExitCode {
                 None              => None,
             };
             qemu_run::cmd_qemu_run(profile)
+        }
+        Some("fleet-demo") => {
+            fleet_demo::cmd_fleet_demo(
+                args.get(1).map(String::as_str),
+                &args[2.min(args.len())..],
+            )
+        }
+        Some("bench") => {
+            bench::cmd_bench(&args[1..])
+        }
+        Some("repro-check") => {
+            let status = std::process::Command::new("cargo")
+                .args(["run", "-p", "fjell-repro-check", "--", "--skip-build"])
+                .status().map(|s| s.code().unwrap_or(1)).unwrap_or(1);
+            if status == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+        }
+        Some("abi-snapshot") => {
+            // RFC-v0.10-002: generate or verify the stable ABI surface snapshot
+            let sub = args.get(1).map(String::as_str).unwrap_or("--verify");
+            let snap = args.windows(2).find(|w| w[0]=="--snapshot").and_then(|w| w.get(1)).map(String::as_str).unwrap_or("tests/abi/snapshot.json");
+            let argv: Vec<String> = vec![sub.into(), "--snapshot".into(), snap.into()];
+            // delegate to the abi-snapshot binary
+            let status = std::process::Command::new("cargo")
+                .args(["run", "-p", "fjell-abi-snapshot", "--"])
+                .args(&argv)
+                .status().map(|s| s.code().unwrap_or(1)).unwrap_or(1);
+            if status == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+        }
+        Some("trust-report") => {
+            trust_report::cmd_trust_report(&args[1..])
         }
         Some("test-all") => {
             test_all::cmd_test_all(&args[1..])
@@ -104,6 +137,7 @@ Subcommands:
   qemu-run --profile <name>
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
   dev lint <manifest.toml>
-  test-all [--no-qemu]           run every tier, save logs to tests/runs/"
+  test-all [--no-qemu]           run every tier, save logs to tests/runs/
+  trust-report [--dry-run]       RFC 061 §6 six-section trust report"
     );
 }

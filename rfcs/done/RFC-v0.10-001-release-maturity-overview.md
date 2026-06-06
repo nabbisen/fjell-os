@@ -1,6 +1,6 @@
 # RFC-v0.10-001 — v0.10 Release Maturity Overview
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 (v1.0 Direction and Identity).
 **Cross-refs:** v0.10-002 through v0.10-007.

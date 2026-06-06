@@ -1,6 +1,6 @@
 # RFC-v0.10-002 — ABI and Semantic Schema Compatibility Policy
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 §9 (ABI freeze scope).
 **Affects:** `fjell-sdk`, `fjell-syscall`, `fjell-service-api`,

@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "version": "0.9.4",
+  "host": "x86-64 / criterion 0.5",
+  "note": "QEMU cycle counts not yet available; host x86 ns only. Re-baseline at v0.12 on real RISC-V silicon.",
+  "metrics": {
+    "audit_from_bytes_ns":          { "median": 7.7,    "unit": "ns",  "tol_pct": 20 },
+    "bundle_build_4kib_us":         { "median": 20.3,   "unit": "µs",  "tol_pct": 15 },
+    "bundle_build_1mib_ms":         { "median": 5.0,    "unit": "ms",  "tol_pct": 15 },
+    "cap_require_ok_ns":            { "median": 9.0,    "unit": "ns",  "tol_pct": 20 },
+    "cap_require_wrong_handle_ns":  { "median": 6.8,    "unit": "ns",  "tol_pct": 20 },
+    "manifest_parse_us":            { "median": 1.2,    "unit": "µs",  "tol_pct": 20 },
+    "manifest_lint_ns":             { "median": 184.0,  "unit": "ns",  "tol_pct": 20 },
+    "manifest_parse_and_lint_us":   { "median": 1.5,    "unit": "µs",  "tol_pct": 20 },
+    "semantic_encode_ns":           { "median": 34.3,   "unit": "ns",  "tol_pct": 20 },
+    "semantic_decode_ns":           { "median": 235.0,  "unit": "ns",  "tol_pct": 20 }
+  }
+}

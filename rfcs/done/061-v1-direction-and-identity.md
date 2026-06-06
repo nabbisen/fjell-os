@@ -1,6 +1,6 @@
 # RFC 061 — Fjell OS v1.0 Direction and Identity
 
-**Status:** Proposed
+**Status:** Implemented (v0.9.4)
 **Target version:** Decision in v0.10 cycle; commitments bind v0.10 → v1.0.
 **Nature:** Identity / constraint RFC. Not an implementation RFC.
 **Supersedes:** None.

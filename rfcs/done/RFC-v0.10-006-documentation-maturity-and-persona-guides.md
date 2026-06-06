@@ -1,6 +1,6 @@
 # RFC-v0.10-006 — Documentation Maturity and Persona Guides
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 (releasability).
 **Affects:** `docs/src/`, `README.md`.

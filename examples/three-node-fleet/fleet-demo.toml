@@ -1,0 +1,44 @@
+# fleet-demo.toml — RFC-v0.10-005 three-node QEMU fleet topology.
+# Used by `cargo xtask fleet-demo`.
+
+schema_version = 1
+fleet_name     = "fjell-demo-fleet"
+
+# ── Nodes ──────────────────────────────────────────────────────────────────
+# node-A is the coordinator.  node-B and node-C are members.
+
+[[nodes]]
+id       = "node-a"
+role     = "coordinator"
+qemu_port_serial = 4440
+qemu_port_gdb    = 0     # 0 = disabled
+
+[[nodes]]
+id       = "node-b"
+role     = "member"
+qemu_port_serial = 4441
+qemu_port_gdb    = 0
+
+[[nodes]]
+id       = "node-c"
+role     = "member"
+qemu_port_serial = 4442
+qemu_port_gdb    = 0
+
+# ── Expected markers for `fleet-demo verify` ───────────────────────────────
+# These are emitted by the fleet services in the kernel image.
+
+[verify]
+pass_markers = [
+    "FLEET:NODE_A:READY",
+    "FLEET:NODE_B:READY",
+    "FLEET:NODE_C:READY",
+    "TEST:V0.10-FLEET-DEMO:PASS",
+]
+timeout_secs = 120
+
+# ── Demo bundle ────────────────────────────────────────────────────────────
+[bundle]
+service = "fjell-hello"
+version = "1.0.0"
+path    = "examples/three-node-fleet/fjell-hello"

@@ -165,25 +165,7 @@ rfcs/
 
 ---
 
-## Proposed (proposed/) — 33 RFCs
-
-### Strategic
-
-| RFC | Title |
-|-----|-------|
-| 061 | [Fjell OS v1.0 Direction and Identity](./proposed/061-v1-direction-and-identity.md) |
-
-### v0.10 — Release Maturity
-
-| RFC | Title |
-|-----|-------|
-| v0.10-001 | [v0.10 Release Maturity Overview](./proposed/v0.10/RFC-v0.10-001-release-maturity-overview.md) |
-| v0.10-002 | [ABI and Semantic Schema Compatibility Policy](./proposed/v0.10/RFC-v0.10-002-abi-and-semantic-schema-compatibility-policy.md) |
-| v0.10-003 | [Reproducible Build and Release Gate](./proposed/v0.10/RFC-v0.10-003-reproducible-build-and-release-gate.md) |
-| v0.10-004 | [Benchmark Baseline and Regression Tracking](./proposed/v0.10/RFC-v0.10-004-benchmark-baseline-and-regression-tracking.md) |
-| v0.10-005 | [Reference QEMU Fleet Deployment](./proposed/v0.10/RFC-v0.10-005-reference-qemu-fleet-deployment.md) |
-| v0.10-006 | [Documentation Maturity and Persona Guides](./proposed/v0.10/RFC-v0.10-006-documentation-maturity-and-persona-guides.md) |
-| v0.10-007 | [v1.0 Readiness Matrix](./proposed/v0.10/RFC-v0.10-007-v1-readiness-matrix.md) |
+## Proposed (proposed/) — 25 RFCs
 
 ### v0.11 — Trust Spine Hardening
 
@@ -200,7 +182,7 @@ rfcs/
 | RFC | Title |
 |-----|-------|
 | v0.12-001 | [Deployment Profile Hardening Overview](./proposed/v0.12/RFC-v0.12-001-deployment-profile-hardening-overview.md) |
-| v0.12-002 | [Real-Board Target Selection (or Hardened QEMU Fallback)](./proposed/v0.12/RFC-v0.12-002-real-board-target-selection.md) |
+| v0.12-002 | [Real-Board Target Selection](./proposed/v0.12/RFC-v0.12-002-real-board-target-selection.md) |
 | v0.12-003 | [DTB and Boot Handoff Validation](./proposed/v0.12/RFC-v0.12-003-dtb-and-boot-handoff-validation.md) |
 | v0.12-004 | [Interrupt and MMIO Ordering Audit](./proposed/v0.12/RFC-v0.12-004-interrupt-and-mmio-ordering-audit.md) |
 | v0.12-005 | [Field Operations Notes and Deployment Guide](./proposed/v0.12/RFC-v0.12-005-field-operations-notes-and-deployment-guide.md) |
@@ -223,7 +205,7 @@ rfcs/
 | v0.14-002 | [First Non-Trivial External Service (Reference)](./proposed/v0.14/RFC-v0.14-002-first-non-trivial-external-service-reference.md) |
 | v0.14-003 | [Typed Catalog Structs and Service Cookbook](./proposed/v0.14/RFC-v0.14-003-typed-catalog-structs-and-service-cookbook.md) |
 | v0.14-004 | [Bundle Publishing Flow and Local Artifact Registry](./proposed/v0.14/RFC-v0.14-004-bundle-publishing-flow-and-local-artifact-registry.md) |
-| v0.14-005 | [Developer Mode Tooling (`--trace`, `--measure`, `--gdb`)](./proposed/v0.14/RFC-v0.14-005-developer-mode-tooling.md) |
+| v0.14-005 | [Developer Mode Tooling](./proposed/v0.14/RFC-v0.14-005-developer-mode-tooling.md) |
 
 ### v0.15 — v1.0 Freeze Candidate
 
@@ -234,9 +216,3 @@ rfcs/
 | v0.15-003 | [Release Checklist and Security Advisory Process](./proposed/v0.15/RFC-v0.15-003-release-checklist-and-security-advisory-process.md) |
 | v0.15-004 | [Operator Recovery Guide and Field Documentation](./proposed/v0.15/RFC-v0.15-004-operator-recovery-guide-and-field-documentation.md) |
 | v0.15-005 | [v1.0 Non-Goals and Constraint Lock](./proposed/v0.15/RFC-v0.15-005-v1-non-goals-and-constraint-lock.md) |
-
----
-
-## Archive (archive/)
-
-No RFCs withdrawn or superseded.

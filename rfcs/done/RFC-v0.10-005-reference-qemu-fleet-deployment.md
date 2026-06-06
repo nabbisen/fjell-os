@@ -1,6 +1,6 @@
 # RFC-v0.10-005 — Reference QEMU Fleet Deployment
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 (credibility).
 **Cross-refs:** RFC v0.8-001..005 (fleet ops), RFC v0.9-004 (bundles),

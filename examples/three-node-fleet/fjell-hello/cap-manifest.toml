@@ -1,0 +1,6 @@
+service     = "fjell-hello"
+sdk_api_rev = 1
+caps        = ["Endpoint", "AuditDrain"]
+rights      = ["SEND", "RECV", "AUDIT_DRAIN"]
+ipc_tags    = ["tags::READY"]
+intents     = [0x0101]

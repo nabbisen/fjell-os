@@ -1,6 +1,6 @@
 # RFC-v0.10-003 — Reproducible Build and Release Gate
 
-**Status:** Proposed
+**Status:** Implemented (v0.10.0)
 **Target version:** v0.10.0
 **Parent:** RFC 061 (release credibility).
 **Cross-refs:** RFC-v0.7.1-001 (release metadata), RFC-v0.9-004 (bundle digest).

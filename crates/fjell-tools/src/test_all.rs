@@ -102,6 +102,14 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
           "--workspace", ".", "--check"],
     ));
 
+    // ── Tier 3b: repro-check (skip-build mode — fast) ───────────────────────
+    results.push(run_tier(
+        &run_dir,
+        "03b-repro-check",
+        "Reproducible build (skip-build)",
+        &["cargo", "run", "-p", "fjell-repro-check", "--", "--skip-build"],
+    ));
+
     // ── Tier 4: QEMU smoke ───────────────────────────────────────────────────
     if qemu_available {
         // Build once before running any QEMU test.
