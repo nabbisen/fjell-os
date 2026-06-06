@@ -1,0 +1,18 @@
+[package]
+name = "fjell-summaryd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-summaryd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-abi      = { path = "../fjell-abi" }
+fjell-syscall  = { path = "../fjell-syscall" }
+fjell-summary-format   = { path = "../fjell-summary-format" }
+fjell-identity-format  = { path = "../fjell-identity-format" }
+fjell-measure-format   = { path = "../fjell-measure-format" }

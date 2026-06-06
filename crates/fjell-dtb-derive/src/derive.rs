@@ -6,7 +6,7 @@ use fjell_platform_format::{
 };
 use fjell_measure_format::Digest32;
 use crate::parser::{parse_header, FdtIter, NodeEvent, FdtProp, ParseError};
-use crate::compat::{matches_compat, CompatString, ALLOWED_COMPAT_QEMU_VIRT};
+use crate::compat::{CompatString, ALLOWED_COMPAT_QEMU_VIRT};
 
 /// Context passed to the derivation function.
 pub struct DeriveContext {

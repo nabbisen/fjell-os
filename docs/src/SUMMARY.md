@@ -77,6 +77,11 @@
 - [ADR-v0.6-002 Store/Bootctl Model Tests](./adr/ADR-v0.6-002-store-bootctl-model-tests.md)
 - [ADR-v0.6-003 Format Fuzzing](./adr/ADR-v0.6-003-format-fuzzing.md)
 - [ADR-v0.6-004 Unsafe Audit Automation](./adr/ADR-v0.6-004-unsafe-audit-automation.md)
+- [ADR-v0.7-001 Node Identity Trust Model](./adr/ADR-v0.7-001-node-identity-trust-model.md)
+- [ADR-v0.7-002 Signed Snapshot Envelope](./adr/ADR-v0.7-002-signed-snapshot-envelope.md)
+- [ADR-v0.7-003 Summary Format Sync](./adr/ADR-v0.7-003-summary-format.md)
+- [ADR-v0.7-004 Conflict Domain Snapshot v2](./adr/ADR-v0.7-004-conflict-domain-snapshot-v2.md)
+
 
 
 

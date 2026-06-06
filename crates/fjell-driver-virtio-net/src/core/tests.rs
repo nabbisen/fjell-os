@@ -1,5 +1,6 @@
 //! Host unit tests for the virtio-net driver core (RFC v0.4-001 §11.1).
 
+#[allow(unused_imports)] // v0.7: DRIVER_ACCEPTED_FEATURES used in feature negotiation tests
 use crate::features::{
     negotiate_features, VirtioFeatureFlags,
     VIRTIO_NET_F_MAC, VIRTIO_NET_F_STATUS, VIRTIO_NET_F_MRG_RXBUF,
@@ -7,6 +8,7 @@ use crate::features::{
 };
 use crate::ring::{Ring, RingError, RingIndex, RingIndexCounter, RING_SIZE};
 use crate::state::{DriverState, DriverStateBlock, DriverStateError};
+#[allow(unused_imports)] // v0.7: ring count and payload size used in descriptor allocation tests
 use fjell_net_format::{NET_RING_DESCRIPTORS, NET_DESCRIPTOR_PAYLOAD};
 
 // ── Feature negotiation ───────────────────────────────────────────────────────

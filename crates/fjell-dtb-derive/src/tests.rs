@@ -21,7 +21,7 @@ struct DtbBuilder {
 
 impl DtbBuilder {
     fn new() -> Self {
-        let mut s = Self { buf: [0u8; 4096], pos: 0x28 }; // leave room for header
+        let s = Self { buf: [0u8; 4096], pos: 0x28 }; // leave room for header
         s
     }
     fn be32(&mut self, v: u32) {

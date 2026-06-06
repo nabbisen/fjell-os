@@ -6,3 +6,4 @@ authors.workspace = true
 license.workspace = true
 publish = false
 [dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }

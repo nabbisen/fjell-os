@@ -9,7 +9,7 @@
 
 use std::{
     env, fs,
-    io::{self, BufRead},
+    io,
     path::{Path, PathBuf},
     process,
 };

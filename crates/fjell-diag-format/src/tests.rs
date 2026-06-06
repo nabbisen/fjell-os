@@ -1,7 +1,7 @@
 //! Host unit tests for `fjell-diag-format` (RFC v0.4-005 §11).
 
-use crate::bundle::{DiagnosticBundle, DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS};
 use crate::builder::{BundleBuilder, BuilderError};
+use crate::{DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS};
 use crate::events::{
     is_audit_event_allowed,
     AUDIT_KERNEL_BOOT_BANNER, AUDIT_UPGRADE_ROLLBACK_REJECTED,

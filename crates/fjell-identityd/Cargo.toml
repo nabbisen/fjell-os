@@ -1,0 +1,17 @@
+[package]
+name = "fjell-identityd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-identityd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-abi      = { path = "../fjell-abi" }
+fjell-syscall  = { path = "../fjell-syscall" }
+fjell-identity-format  = { path = "../fjell-identity-format" }
+fjell-measure-format   = { path = "../fjell-measure-format" }

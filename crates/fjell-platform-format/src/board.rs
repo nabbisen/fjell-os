@@ -101,7 +101,7 @@ impl BoardProfile {
     /// `profile_digest` is zeroed; call `board_digest` and write back.
     pub fn qemu_virt_default(platform_ref: Digest32) -> Self {
         let mut devices = [BoardDevice::EMPTY; MAX_BOARD_DEVICES];
-        let mut name_buf = |s: &[u8]| -> [u8; 16] {
+        let name_buf = |s: &[u8]| -> [u8; 16] {
             let mut b = [0u8; 16];
             let n = s.len().min(16);
             b[..n].copy_from_slice(&s[..n]);

@@ -36,6 +36,10 @@ impl Digest32 {
     }
 }
 
+impl Default for Digest32 {
+    fn default() -> Self { Self([0u8; 32]) }
+}
+
 impl core::fmt::Debug for Digest32 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut buf = [0u8; 64];

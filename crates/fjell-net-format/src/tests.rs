@@ -4,6 +4,7 @@ use crate::device::{
     InterruptDescriptor, NetDeviceDescriptor, NetDeviceId, NetDeviceState,
     NetMac, NET_MAX_MTU, NET_MIN_MTU,
 };
+#[allow(unused_imports)] // v0.7: ChannelId used in session lifecycle tests
 use crate::session::{
     ChannelId, ChannelKind, MAX_CHANNELS, MAX_SESSIONS,
     NetSession, SessionError, SessionId, SessionState,

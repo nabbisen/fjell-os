@@ -23,10 +23,12 @@ use fjell_syscall::{sys_debug_writeln, sys_exit};
 use fjell_trust_provider::descriptor::TrustProviderDescriptor;
 use fjell_trust_provider::development::DevelopmentTrustProvider;
 use fjell_trust_provider::ids::TrustProviderId;
+#[allow(unused_imports)] // v0.7: hardware attestation material
 use fjell_trust_provider::material::AttestationDigest;
 use fjell_trust_provider::profile::{
     TrustProviderCapabilities, TrustProviderKind, TrustProfile, TrustProviderState,
 };
+#[allow(unused_imports)] // v0.7: hardware trust provider integration
 use fjell_trust_provider::provider::HardwareTrustProvider;
 use fjell_trust_provider::registry::{ProviderRegistry, RegistryPhase};
 
@@ -36,6 +38,7 @@ use fjell_keyring::epoch::KeyEpoch;
 use fjell_keyring::KeyPurpose;
 use fjell_keyring::keyring::Keyring;
 
+#[allow(unused_imports)] // v0.7: AdvanceSource used in full rollback tracking
 use fjell_upgrade_format::rollback_record::{AdvanceSource, RollbackRecord};
 
 #[panic_handler]
@@ -137,6 +140,7 @@ fn sign_v2(
     keyring:    &Keyring,
     rollback:   &RollbackRecord,
     seq:        u32,
+    #[allow(dead_code)] // v0.7: forwarded to measurement chain header
     meas_seq:   u64,
     generation: u32,
 ) -> (Digest32, bool) {
@@ -265,6 +269,7 @@ const SXT_OPENED:            u16 = 0x0101;
 const SXT_ATTEST_PUSH:       u16 = 0x0106;
 const SXT_ATTEST_CHALLENGE:  u16 = 0x0107;
 const SXT_CLOSE:             u16 = 0x0109;
+    #[allow(dead_code)] // v0.7: SXT channel fault state tracking
 const SXT_FAULTED:           u16 = 0x010b;
 
 /// Cached server nonce from the last successful attestation push.

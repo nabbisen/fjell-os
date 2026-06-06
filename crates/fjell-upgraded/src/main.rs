@@ -24,7 +24,6 @@ use fjell_upgrade_format::rollback_record::{
 };
 use fjell_upgrade_format::release_metadata::{Provenance, ReleaseMetadata};
 
-use fjell_keyring::KeyEpoch;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -150,6 +149,7 @@ const SXT_UPDATE_METADATA_FETCH:u16 = 0x0102;
 const SXT_CLOSE:                u16 = 0x0109;
 const SXT_OPENED:               u16 = 0x0101;
 const SXT_UPDATE_METADATA_REPLY:u16 = 0x0103;
+#[allow(dead_code)] // v0.7: SXT channel fault state tracking
 const SXT_FAULTED:              u16 = 0x010b;
 
 fn send_sxt(tag: u16, w0: usize) {

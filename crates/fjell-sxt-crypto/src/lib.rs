@@ -16,7 +16,9 @@ pub mod sha256;
 pub mod hkdf;
 pub mod tls_state;
 
+#[allow(unused_imports)] // v0.7: AEAD constants used by SXT handshake tests
 pub use aead::{Aead128Gcm, AeadError, AEAD_KEY_LEN, AEAD_NONCE_LEN, AEAD_TAG_LEN};
+#[allow(unused_imports)] // v0.7: X25519Public used in key-exchange tests
 pub use x25519::{X25519Secret, X25519Public, x25519_diffie_hellman};
 pub use hkdf::{hkdf_extract, hkdf_expand};
 pub use tls_state::{TlsState, TlsHandshakeState, SxtError};

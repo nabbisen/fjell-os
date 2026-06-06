@@ -1,0 +1,16 @@
+[package]
+name = "fjell-identity-format"
+description = "Node identity wire format for Fjell OS distributed snapshot sync (RFC v0.7-001)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_identity_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-platform-format = { path = "../fjell-platform-format" }

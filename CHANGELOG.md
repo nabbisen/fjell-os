@@ -1,3 +1,55 @@
+## [0.7.0] - 2026-05-19 — Distributed Snapshot Sync Foundation
+
+v0.7 lays the trust infrastructure for multi-node operation.  All changes
+are in library crates and service stubs — no runtime kernel ABI changes.
+
+### New crates
+
+| Crate | Purpose | Tests |
+|-------|---------|-------|
+| `fjell-identity-format` | `NodeIdentity`, `NodeIdentityPolicy`, `TrustMode`, canonical `identity_digest` (RFC v0.7-001) | 11 ✅ |
+| `fjell-summary-format` | `MeasurementSummary` + `ReleaseSummary` with canonical digests (RFC v0.7-003) | 11 ✅ |
+
+### Updated crates
+
+| Crate | Change |
+|-------|--------|
+| `fjell-snapshot-format` | `SnapshotEnvelope` (v1/v2), `SnapshotRecord`, `ConflictDomain`, `SnapshotImportOutcome/Error`, `snapshot_digest()` (RFC v0.7-002 + v0.7-004). **BREAKING-SCHEMA v2**: `domain u8` added per record. | +8 tests (13 total) |
+| `fjell-measure-format` | `Digest32` now implements `Default`. |
+
+### New services (stubs — full IPC wiring in v0.7.x patches)
+
+- **`fjell-identityd`** — node identity lifecycle manager (RFC v0.7-001)
+- **`fjell-summaryd`** — measurement and release summary exporter (RFC v0.7-003)
+- **`fjell-syncd`** — offline-first snapshot sync daemon (RFC v0.7-004)
+
+### New frozen schemas
+
+- `fjell-identity-format/schema/node-identity-v1.frozen`
+- `fjell-summary-format/schema/measurement-summary-v1.frozen`
+- `fjell-summary-format/schema/release-summary-v1.frozen`
+- `fjell-snapshot-format/schema/snapshot-v2.frozen` (BREAKING-SCHEMA)
+
+### Warning cleanup
+
+69 warnings from v0.6.0 (uploaded log) eliminated this session:
+- Unused imports removed or suppressed with `#[allow(unused_imports)] // v0.7:` for future-use items.
+- Unnecessary `mut` bindings and stray loop variables corrected.
+- One unnecessary parenthesis in `aes128.rs::xtime()` removed.
+- All 16 lib crates now produce **zero warnings**.
+
+### ADRs
+
+ADR-v0.7-001 through ADR-v0.7-004 filed.
+
+### Test baseline: **274 tests, 0 warnings, 0 failures**
+
+- 256 host library tests across 16 crates
+- 10 proptest properties × 1000 cases (`fjell-proptest`)
+- 8 unsafe-audit unit tests
+
+---
+
 ## [0.6.0] - 2026-05-19 — Verification Hardening
 
 v0.6 turns architecture invariants into automated verification assets.

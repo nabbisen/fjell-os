@@ -93,7 +93,7 @@ fn all_catalog_entries_round_trip() {
             .unwrap_or_else(|e| panic!("decode failed for {}: {:?}", entry.name, e));
         assert_eq!(decoded.tag, entry.tag);
         assert_eq!(decoded.created_tick, 12345);
-        for (i, fd) in entry.schema.fields.iter().enumerate() {
+        for (i, _fd) in entry.schema.fields.iter().enumerate() {
             assert_ne!(decoded.fields[i], FieldValue::Absent,
                 "field {i} of {} is absent after roundtrip", entry.name);
             assert_eq!(decoded.fields[i], fv[i],

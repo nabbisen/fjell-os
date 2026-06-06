@@ -1,0 +1,17 @@
+[package]
+name = "fjell-summary-format"
+description = "Measurement and release summary wire formats for Fjell OS (RFC v0.7-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_summary_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format  = { path = "../fjell-measure-format" }
+fjell-upgrade-format  = { path = "../fjell-upgrade-format" }
+fjell-identity-format = { path = "../fjell-identity-format" }

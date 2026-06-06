@@ -351,18 +351,7 @@ fn snapshot_from_empty_keyring_is_well_formed() {
     let snap = KeyringSnapshot::from_keyring(&k);
     assert_eq!(snap.schema_version, SCHEMA_VERSION);
     assert_eq!(snap.anchor_count, 0);
-    let recomputed = {
-        // Walk the same path the constructor walks.
-        let mut s = KeyringSnapshot {
-            schema_version: snap.schema_version,
-            anchor_count: snap.anchor_count,
-            anchors: snap.anchors,
-            snapshot_digest: fjell_measure_format::Digest32::ZERO,
-        };
-        s.snapshot_digest = fjell_measure_format::Digest32::ZERO;
-        // Recompute by re-building from keyring.
-        KeyringSnapshot::from_keyring(&k).snapshot_digest
-    };
+    let recomputed = KeyringSnapshot::from_keyring(&k).snapshot_digest;
     assert_eq!(snap.snapshot_digest, recomputed);
 }
 

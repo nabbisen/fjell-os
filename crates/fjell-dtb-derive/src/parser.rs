@@ -52,6 +52,7 @@ fn be32(b: &[u8], off: usize) -> Option<u32> {
     Some(u32::from_be_bytes([s[0],s[1],s[2],s[3]]))
 }
 
+#[allow(dead_code)] // v0.7: used when multi-cell reg fields are parsed
 fn be64(b: &[u8], off: usize) -> Option<u64> {
     let s = b.get(off..off+8)?;
     Some(u64::from_be_bytes([s[0],s[1],s[2],s[3],s[4],s[5],s[6],s[7]]))

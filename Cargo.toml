@@ -15,6 +15,9 @@ members = [
     "crates/fjell-service-api",
     "crates/fjell-init",
     "crates/fjell-recoveryd",
+    "crates/fjell-syncd",
+    "crates/fjell-summaryd",
+    "crates/fjell-identityd",
     "crates/fjell-attestd",
     "crates/fjell-measuredd",
     "crates/fjell-recovery-format",
@@ -59,6 +62,8 @@ members = [
     "crates/fjell-platform-format",
     "crates/fjell-semantic-v1",
     "crates/fjell-dtb-derive",
+    "crates/fjell-summary-format",
+    "crates/fjell-identity-format",
     "crates/fjell-arch-arm64",
     "crates/fjell-proptest",
     "crates/fjell-bootctl-model",
@@ -83,7 +88,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

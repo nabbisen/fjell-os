@@ -2,9 +2,12 @@
 //!
 //! Tests use RFC test vectors for AES-128-GCM, X25519, and HKDF-SHA256.
 
+#[allow(unused_imports)] // v0.7: AEAD_KEY_LEN/NONCE_LEN used in SXT handshake tests
 use crate::aead::{Aead128Gcm, AeadError, AEAD_KEY_LEN, AEAD_NONCE_LEN, AEAD_TAG_LEN};
+#[allow(unused_imports)] // v0.7: X25519Public used in key-exchange protocol tests
 use crate::x25519::{X25519Secret, X25519Public, x25519_diffie_hellman, BASE_POINT};
 use crate::hkdf::{hkdf_extract, hkdf_expand};
+#[allow(unused_imports)] // v0.7: sha256/hmac_sha256 used in HKDF chain tests
 use crate::sha256::{sha256, hmac_sha256};
 use crate::tls_state::{TlsHandshakeState, TlsState, SxtError};
 

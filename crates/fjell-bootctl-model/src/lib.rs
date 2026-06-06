@@ -133,7 +133,7 @@ pub fn b1_never_confirm_unbooted(m: &BootModel, slot: Slot) -> Result<(), String
 }
 
 /// B2: SetPending alone never sets confirmed=true on a previously-unconfirmed slot.
-pub fn b2_pending_not_confirmed(m: &BootModel) -> Result<(), String> {
+pub fn b2_pending_not_confirmed(_m: &BootModel) -> Result<(), String> {
     // Test on a fresh sub-model where B is not confirmed.
     let mut fresh = BootModel::new();
     // Carry over nothing from m — we want to test the single-step invariant.
@@ -185,8 +185,6 @@ pub fn b5_lkg_advances_on_confirm(m: &BootModel) -> Result<(), String> {
 /// always either last_known_good, the pending slot, or the previously-active slot.
 pub fn b6_active_is_valid_slot(m: &BootModel, ops: &[BootOp]) -> Result<(), String> {
     let mut test = m.clone();
-    let initial_active = test.active;
-    let initial_lkg    = test.last_known_good;
     for op in ops { execute(&mut test, op); }
     // active must be A or B (always true) — deeper invariant: active is always
     // a slot that was once installed.

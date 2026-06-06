@@ -7,6 +7,7 @@ pub use renderer::{
     is_critical_tag, MAX_PINNED, SCROLL_BUFFER, DEFAULT_WIDTH,
 };
 
+#[allow(unused_imports)] // Provenance and other v0.7 types re-exported for downstream
 pub use fjell_semantic_format::*;
 
 fn w(s: &str) { fjell_syscall::sys_debug_write(s); }

@@ -11,7 +11,7 @@
 //! trailing sentinel u8 = 0xFF
 //! ```
 
-use crate::catalog::{lookup_tag, IntentEntry};
+use crate::catalog::lookup_tag;
 use crate::schema::{FieldKind};
 
 /// Maximum number of fields per intent (catalog v1 never exceeds this).
@@ -91,8 +91,8 @@ pub fn encode(
     if out.len() < needed { return Err(SemanticError::BufferTooSmall); }
 
     // Validate required fields.
-    for (i, _fd) in schema.fields.iter().enumerate() {
-        if _fd.required {
+    for (i, fd) in schema.fields.iter().enumerate() {
+        if fd.required {
             let fv = fields.get(i).copied().unwrap_or(FieldValue::Absent);
             if fv == FieldValue::Absent { return Err(SemanticError::RequiredFieldMissing); }
         }
@@ -103,7 +103,7 @@ pub fn encode(
     out[pos..pos+2].copy_from_slice(&tag.to_le_bytes()); pos += 2;
     out[pos..pos+8].copy_from_slice(&created_tick.to_le_bytes()); pos += 8;
 
-    for (i, fd) in schema.fields.iter().enumerate() {
+    for (i, _fd) in schema.fields.iter().enumerate() {
         let fv = fields.get(i).copied().unwrap_or(FieldValue::Absent);
         if fv == FieldValue::Absent {
             out[pos] = 0; pos += 1;

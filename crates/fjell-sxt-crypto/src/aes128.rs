@@ -37,7 +37,7 @@ static RCON: [u8; 11] = [
 ];
 
 fn xtime(x: u8) -> u8 {
-    ((x << 1) ^ (if x & 0x80 != 0 { 0x1b } else { 0 }))
+    (x << 1) ^ (if x & 0x80 != 0 { 0x1b } else { 0 })
 }
 
 fn gmul2(x: u8) -> u8 { xtime(x) }

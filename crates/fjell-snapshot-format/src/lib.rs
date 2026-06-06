@@ -214,3 +214,242 @@ mod tests {
         ));
     }
 }
+
+// ── v0.7 snapshot envelope types (RFC v0.7-002 + RFC v0.7-004) ───────────────
+
+use fjell_measure_format::Digest32;
+
+pub const SNAPSHOT_ENVELOPE_V1: u16 = 1;
+pub const SNAPSHOT_ENVELOPE_V2: u16 = 2;  // adds domain field per RFC v0.7-004
+pub const MAX_SNAPSHOT_RECORDS: usize = 64;
+
+/// Conflict-domain tag on each record (RFC v0.7-004 §6.1).
+///
+/// V2 envelopes prepend a `domain u8` to every record.
+/// V1 readers default missing domain to `ForeignAuthoritative`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[repr(u8)]
+pub enum ConflictDomain {
+    #[default]
+    LocallyConfirmed     = 0x01,
+    ForeignAuthoritative = 0x02,
+    Pending              = 0x03,
+    Contested            = 0x04,
+}
+
+impl ConflictDomain {
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0x01 => Some(Self::LocallyConfirmed),
+            0x02 => Some(Self::ForeignAuthoritative),
+            0x03 => Some(Self::Pending),
+            0x04 => Some(Self::Contested),
+            _    => None,
+        }
+    }
+}
+
+/// A single record within a signed snapshot envelope.
+#[derive(Clone, Debug)]
+pub struct SnapshotRecord {
+    /// Conflict domain (v2 only; defaults to `ForeignAuthoritative` when
+    /// decoded from a v1 envelope).
+    pub domain:   ConflictDomain,
+    pub kind:     u16,
+    pub seq:      u64,
+    pub body:     [u8; 64],   // fixed-size body slot (real body truncated to 64 B)
+    pub body_len: u32,
+}
+
+/// Outcome of a snapshot import attempt.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum SnapshotImportOutcome {
+    Accepted { records_applied: u16, records_skipped: u16 },
+    Refused  { reason: SnapshotImportError },
+}
+
+/// Reason a snapshot import was refused.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum SnapshotImportError {
+    SignatureFailed      = 0x01,
+    IdentityNotPermitted = 0x02,
+    DigestMismatch       = 0x03,
+    SchemaTooNew         = 0x04,
+    Expired              = 0x05,
+    ReplayDetected       = 0x06,
+}
+
+/// Signed snapshot envelope (v1 or v2).
+pub struct SnapshotEnvelope {
+    pub schema_version:         u16,
+    pub source_identity_digest: Digest32,
+    pub issued_tick:            u64,
+    pub nonce:                  [u8; 16],
+    pub record_count:           u16,
+    pub records:                [Option<SnapshotRecord>; MAX_SNAPSHOT_RECORDS],
+    /// Canonical digest over all the above fields.
+    pub snapshot_digest:        Digest32,
+}
+
+impl SnapshotEnvelope {
+    pub fn new_v2(
+        source_identity_digest: Digest32,
+        issued_tick:            u64,
+        nonce:                  [u8; 16],
+    ) -> Self {
+        Self {
+            schema_version:         SNAPSHOT_ENVELOPE_V2,
+            source_identity_digest,
+            issued_tick,
+            nonce,
+            record_count:           0,
+            records:                core::array::from_fn(|_| None),
+            snapshot_digest:        Digest32([0u8; 32]),
+        }
+    }
+
+    pub fn push_record(&mut self, r: SnapshotRecord) -> Result<(), ()> {
+        if self.record_count as usize >= MAX_SNAPSHOT_RECORDS { return Err(()); }
+        self.records[self.record_count as usize] = Some(r);
+        self.record_count += 1;
+        Ok(())
+    }
+}
+
+/// Compute the canonical `snapshot_digest` (RFC v0.7-002 §6.1, amended by
+/// RFC v0.7-004 §6.1 for v2 `domain` field).
+pub fn snapshot_digest(env: &SnapshotEnvelope) -> Digest32 {
+    let mut buf = [0u8; 4096];
+    let mut pos = 0usize;
+
+    macro_rules! w_u8  { ($v:expr) => { buf[pos] = $v; pos += 1; }; }
+    macro_rules! w_u16 { ($v:expr) => { buf[pos..pos+2].copy_from_slice(&($v as u16).to_le_bytes()); pos += 2; }; }
+    macro_rules! w_u32 { ($v:expr) => { buf[pos..pos+4].copy_from_slice(&($v as u32).to_le_bytes()); pos += 4; }; }
+    macro_rules! w_u64 { ($v:expr) => { buf[pos..pos+8].copy_from_slice(&($v as u64).to_le_bytes()); pos += 8; }; }
+    macro_rules! w_b   { ($b:expr) => { let bb: &[u8] = $b; buf[pos..pos+bb.len()].copy_from_slice(bb); pos += bb.len(); }; }
+
+    w_b!(b"FJELL-SNAPSHOT-V1");
+    w_u16!(env.schema_version);
+    w_b!(&env.source_identity_digest.0);
+    w_u64!(env.issued_tick);
+    w_b!(&env.nonce);
+    w_u16!(env.record_count);
+    for i in 0..env.record_count as usize {
+        if let Some(r) = &env.records[i] {
+            if env.schema_version >= SNAPSHOT_ENVELOPE_V2 {
+                w_u8!(r.domain as u8);
+            }
+            w_u16!(r.kind);
+            w_u64!(r.seq);
+            let len = r.body_len.min(64) as usize;
+            w_u32!(len as u32);
+            w_b!(&r.body[..len]);
+        }
+    }
+
+    Digest32::of(&buf[..pos])
+}
+
+// ── v0.7 envelope tests ───────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod v07_tests {
+    use super::*;
+    use fjell_measure_format::Digest32;
+
+    #[test]
+    fn snapshot_envelope_v2_version_constant() {
+        assert_eq!(SNAPSHOT_ENVELOPE_V2, 2);
+    }
+
+    #[test]
+    fn conflict_domain_roundtrip() {
+        for (byte, expected) in [
+            (0x01u8, ConflictDomain::LocallyConfirmed),
+            (0x02,   ConflictDomain::ForeignAuthoritative),
+            (0x03,   ConflictDomain::Pending),
+            (0x04,   ConflictDomain::Contested),
+        ] {
+            assert_eq!(ConflictDomain::from_u8(byte).unwrap() as u8, expected as u8);
+        }
+        assert!(ConflictDomain::from_u8(0xFF).is_none());
+    }
+
+    #[test]
+    fn envelope_push_record_increments_count() {
+        let mut env = SnapshotEnvelope::new_v2(
+            Digest32([0u8; 32]), 1000, [0u8; 16],
+        );
+        env.push_record(SnapshotRecord {
+            domain: ConflictDomain::LocallyConfirmed,
+            kind: 0x0001, seq: 1,
+            body: [0u8; 64], body_len: 0,
+        }).unwrap();
+        assert_eq!(env.record_count, 1);
+    }
+
+    #[test]
+    fn envelope_push_record_rejects_at_capacity() {
+        let mut env = SnapshotEnvelope::new_v2(
+            Digest32([0u8; 32]), 0, [0u8; 16],
+        );
+        for _ in 0..MAX_SNAPSHOT_RECORDS {
+            env.push_record(SnapshotRecord {
+                domain: ConflictDomain::Pending,
+                kind: 0, seq: 0,
+                body: [0u8; 64], body_len: 0,
+            }).unwrap();
+        }
+        assert_eq!(env.push_record(SnapshotRecord {
+            domain: ConflictDomain::Pending, kind: 0, seq: 0,
+            body: [0u8; 64], body_len: 0,
+        }), Err(()));
+    }
+
+    #[test]
+    fn snapshot_digest_nonzero() {
+        let mut env = SnapshotEnvelope::new_v2(
+            Digest32([0xAAu8; 32]), 42_000, [0x01u8; 16],
+        );
+        env.push_record(SnapshotRecord {
+            domain: ConflictDomain::LocallyConfirmed,
+            kind: 0x0010, seq: 7,
+            body: [0u8; 64], body_len: 4,
+        }).unwrap();
+        let d = snapshot_digest(&env);
+        assert_ne!(d.0, [0u8; 32]);
+    }
+
+    #[test]
+    fn snapshot_digest_deterministic() {
+        let env = SnapshotEnvelope::new_v2(Digest32([0u8; 32]), 0, [0u8; 16]);
+        assert_eq!(snapshot_digest(&env).0, snapshot_digest(&env).0);
+    }
+
+    #[test]
+    fn snapshot_digest_sensitive_to_record_domain() {
+        let mut env1 = SnapshotEnvelope::new_v2(Digest32([0u8; 32]), 0, [0u8; 16]);
+        let mut env2 = SnapshotEnvelope::new_v2(Digest32([0u8; 32]), 0, [0u8; 16]);
+        env1.push_record(SnapshotRecord {
+            domain: ConflictDomain::LocallyConfirmed,
+            kind: 1, seq: 1, body: [0u8; 64], body_len: 0,
+        }).unwrap();
+        env2.push_record(SnapshotRecord {
+            domain: ConflictDomain::Contested,       // different domain
+            kind: 1, seq: 1, body: [0u8; 64], body_len: 0,
+        }).unwrap();
+        assert_ne!(snapshot_digest(&env1).0, snapshot_digest(&env2).0);
+    }
+
+    #[test]
+    fn snapshot_import_error_variants() {
+        let outcome = SnapshotImportOutcome::Refused {
+            reason: SnapshotImportError::SignatureFailed,
+        };
+        assert!(matches!(
+            outcome,
+            SnapshotImportOutcome::Refused { reason: SnapshotImportError::SignatureFailed }
+        ));
+    }
+}

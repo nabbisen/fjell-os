@@ -2,8 +2,8 @@
 
 use crate::platform::{
     PlatformProfile, PlatformFamily, IsaExtensions, KernelAbiVersion,
-    PLATFORM_PROFILE_VERSION, ISA_MANDATORY,
-    ISA_EXT_I, ISA_EXT_M, ISA_EXT_A, ISA_EXT_F, ISA_EXT_D,
+    PLATFORM_PROFILE_VERSION,
+    ISA_EXT_I, ISA_EXT_M, ISA_EXT_A, ISA_EXT_F,
 };
 use crate::board::{
     BoardProfile, DeviceClass, RecoveryKind, BOARD_PROFILE_VERSION,

@@ -5,14 +5,14 @@
 
 use fjell_proptest::{
     generators::arb_op_sequence,
-    model::{ModelState, CapId, TaskId, LeaseId, CapKind, CapRights, CapState},
-    ops::{execute, Op, OpResult},
+    model::{ModelState, CapId, TaskId, LeaseId, CapKind, CapRights},
+    ops::{execute, Op},
     properties,
 };
 use proptest::prelude::*;
 
-/// Master seed: "Fell" in ASCII bytes, per RFC v0.6-001 §7.4.
-const MASTER_SEED: u64 = 0x46656C6C;
+/// Master seed documented in RFC v0.6-001 §7.4; passed via PROPTEST_SEED env in CI.
+// const MASTER_SEED: u64 = 0x46656C6C;  // suppress until xtask wires it up
 const CASES: u32 = 1_000;
 
 proptest! {

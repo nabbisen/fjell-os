@@ -5,8 +5,8 @@
 //! callback.
 
 use fjell_semantic_v1::{
-    catalog::{lookup_tag, catalog_len},
-    codec::{decode, FieldValue, SemanticError, MAX_ENVELOPE_BYTES},
+    catalog::lookup_tag,
+    codec::{decode, FieldValue},
     schema::FieldKind,
 };
 
@@ -406,7 +406,7 @@ mod proxy_tests {
         let (buf, n) = encode_intent(0x0150, 0, &fv);
         // Send many more than burst.
         let mut accepted = 0;
-        for i in 0..100 {
+        for _ in 0..100 {
             if ps.ingest(&buf[..n], 1, 0).is_some() { accepted += 1; }
         }
         assert_eq!(accepted, 100, "critical must never be suppressed");
