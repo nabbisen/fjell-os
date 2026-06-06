@@ -25,7 +25,6 @@
 #![forbid(unsafe_code)]
 
 extern crate alloc;
-use alloc::vec::Vec;
 
 use fjell_keyring::{
     SigError, SignatureProvider, TrustAnchor,
@@ -121,7 +120,6 @@ fn verify_ed25519(
         use ed25519_dalek::{Signature, VerifyingKey};
         let vk = VerifyingKey::from_bytes(pubkey).map_err(|_| ())?;
         let sig = Signature::from_bytes(signature);
-        use ed25519_dalek::Verifier;
         vk.verify_strict(message, &sig).map_err(|_| ())
     }
     #[cfg(not(feature = "sign"))]
@@ -234,7 +232,6 @@ impl Ed25519SigningKey {
 
     /// Return the 32-byte compressed public key.
     pub fn public_key_bytes(&self) -> [u8; 32] {
-        use ed25519_dalek::VerifyingKey;
         self.0.verifying_key().to_bytes()
     }
 
@@ -246,8 +243,8 @@ impl Ed25519SigningKey {
 
     /// Verify a signature produced by this key's public half.
     pub fn verify_message(&self, message: &[u8], signature: &[u8; 64]) -> bool {
-        use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-        let vk: VerifyingKey = self.0.verifying_key();
+        use ed25519_dalek::Signature;
+        let vk = self.0.verifying_key();
         let sig = Signature::from_bytes(signature);
         vk.verify_strict(message, &sig).is_ok()
     }
