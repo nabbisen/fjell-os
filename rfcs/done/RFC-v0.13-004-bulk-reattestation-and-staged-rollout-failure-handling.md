@@ -1,6 +1,6 @@
 # RFC-v0.13-004 — Bulk Re-attestation and Staged Rollout Failure Handling
 
-**Status:** Proposed
+**Status:** Implemented (v0.13.0)
 **Target version:** v0.13.0
 **Parent:** v0.13-001.
 **Cross-refs:** RFC v0.8-003 (staged rollout), v0.11-005 (replay

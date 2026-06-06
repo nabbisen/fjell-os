@@ -1,0 +1,13 @@
+[package]
+name        = "fjell-fleet-sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Fleet partition state machine, reconciliation, and re-attestation types (RFC-v0.13)."
+publish     = false
+
+[dependencies]
+fjell-fleet-format    = { path = "../fjell-fleet-format" }
+fjell-identity-format = { path = "../fjell-identity-format" }
+fjell-measure-format  = { path = "../fjell-measure-format" }

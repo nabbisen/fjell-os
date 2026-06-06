@@ -1,6 +1,6 @@
 # RFC-v0.13-002 — Fleet Split, Reconnect, and Reconciliation
 
-**Status:** Proposed
+**Status:** Implemented (v0.13.0)
 **Target version:** v0.13.0
 **Parent:** v0.13-001.
 **Cross-refs:** RFC v0.7-004 (ConflictDomain), v0.8-002 (semantic aggregation).

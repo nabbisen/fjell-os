@@ -1,0 +1,15 @@
+[package]
+name        = "fjell-summary-check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Semantic summary consistency checker for fleet coordinator (RFC-v0.13-005)."
+publish     = false
+
+[[bin]]
+name = "fjell-summary-check"
+path = "src/main.rs"
+
+[dependencies]
+fjell-fleet-sync = { path = "../../crates/fjell-fleet-sync" }

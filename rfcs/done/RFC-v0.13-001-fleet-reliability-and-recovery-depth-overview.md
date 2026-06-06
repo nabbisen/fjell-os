@@ -1,6 +1,6 @@
 # RFC-v0.13-001 — Fleet Reliability and Recovery Depth Overview
 
-**Status:** Proposed
+**Status:** Implemented (v0.13.0)
 **Target version:** v0.13.0
 **Parent:** RFC 061 §10.
 **Cross-refs:** v0.13-002 through v0.13-005.

@@ -1,6 +1,6 @@
 # RFC-v0.13-005 — Disaster Recovery Patterns and Semantic Summary Consistency
 
-**Status:** Proposed
+**Status:** Implemented (v0.13.0)
 **Target version:** v0.13.0
 **Parent:** v0.13-001.
 **Cross-refs:** RFC v0.8-004 (recovery intent), v0.7-003 (release
