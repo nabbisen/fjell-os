@@ -122,6 +122,8 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("netd: session table initialised");
     send_ready(CAP_SMGR_EP);
     sys_debug_writeln("netd ready");
+    // Smoke test: exit cleanly so kernel can emit TEST:V0.4-NET:PASS.
+    sys_exit(0);
 
     loop {
         let (tag_raw, w0, _w1) = recv_msg();

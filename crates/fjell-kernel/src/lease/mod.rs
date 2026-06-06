@@ -114,12 +114,11 @@ impl LeaseTable {
         // O(1) revocation: increment epoch, mark Revoked.
         slot.epoch = slot.epoch.wrapping_add(1);
         slot.state = LeaseState::Revoked;
-        // RFC 034 hook: wake/cancel blocked IPC tasks waiting on this lease.
-        // The full implementation is deferred to Phase 2 completion when
-        // the blocked-IPC data structures are ready.  This call is a no-op
-        // stub until then.
-        wake_or_cancel_blocked_ipc_for_lease(id);
-        Ok(LeaseEpoch(slot.epoch))
+        let new_epoch = slot.epoch;
+        // slot borrow ends here; wake_or_cancel receives the epoch directly so
+        // it has no reason to call get_lease_table() and alias &mut self.
+        wake_or_cancel_blocked_ipc_for_lease(id, new_epoch);
+        Ok(LeaseEpoch(new_epoch))
     }
 
     /// Check that the lease `id` is still active with the given `bound_epoch`.
@@ -173,51 +172,82 @@ impl LeaseTable {
 ///
 /// This is O(MAX_ENDPOINTS × queue_depth) — acceptable for the current
 /// MAX_ENDPOINTS=32 and QUEUE_DEPTH=8 (256 operations worst-case).
-fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId) {
+fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
     // SAFETY: category=kernel-global-mutable
     //   Single-hart kernel; all global pointers are exclusively owned in this call.
     let (tasks, sched, _, et) = unsafe { crate::get_kernel_state() };
 
-    // Retrieve the current epoch (just incremented by the revoke call above).
-    // We use a local copy to avoid a second borrow of the lease table.
-    let epoch = {
-        // SAFETY: category=kernel-global-mutable  single-hart, no races.
-        let lt_tmp = unsafe { crate::get_lease_table() };
-        match lt_tmp.current_epoch(id) {
-            Ok(e) => e.0,
-            Err(_) => return,
+    // new_epoch was passed in by revoke() immediately after the wrapping_add.
+    // old_epoch is the epoch that in-flight IPC waiters stored at issue time.
+    // No second get_lease_table() call — that would alias the &mut self held by
+    // the revoke() caller (RFC-v0.7.4-003 implementation note).
+    let old_epoch: u32 = new_epoch.wrapping_sub(1);
+
+    // Walk every endpoint by ID and cancel matching waiters.
+    // We iterate IDs first to avoid a mutable borrow conflict between 'et'
+    // and 'tasks'/'sched' (all come from the same get_kernel_state() call).
+    let ep_ids: [u32; crate::cap::table::MAX_ENDPOINTS] = {
+        let mut arr = [0u32; crate::cap::table::MAX_ENDPOINTS];
+        let mut count = 0usize;
+        for id_val in et.iter_allocated_ids() {
+            if count < arr.len() { arr[count] = id_val; count += 1; }
         }
+        arr
     };
 
-    // Epoch before the revoke is epoch - 1 (the epoch in-flight tasks had).
-    // cancel_by_lease checks if the stored epoch matches the old epoch.
-    let old_epoch = epoch.wrapping_sub(1);
-
-    // Walk every endpoint and cancel matching waiters.
-    for (_ep_id, ep) in et.iter_allocated() {
+    for &ep_id in ep_ids.iter() {
+        let ep = match et.get_mut(ep_id) {
+            Some(e) => e,
+            None    => continue,
+        };
         let cancelled = ep.cancel_by_lease(id, old_epoch);
+
         // Wake cancelled senders.
         for i in 0..cancelled.n_senders {
             let tid = cancelled.sender_tids[i];
-            let task_id = crate::task::TaskId::new(tid, 0);
-            if let Some(task) = tasks.get_mut(task_id) {
-                // Deliver LeaseRevoked status to the sender's trap frame.
-                task.trap_frame.gpr[crate::task::tcb::REG_A0] =
-                    fjell_abi::error::SysError::LeaseRevoked as isize as usize;
-                task.state = crate::task::tcb::TaskState::Runnable;
+            // Safety note: CancelledSet holds raw u16 indices (no generation).
+            // We probe the task table with generation=0 (the most common first
+            // generation). If the task has been replaced with a newer generation,
+            // get_mut returns None and we skip — the new occupant is unrelated.
+            //
+            // CRITICAL: we must NOT call sched.enqueue_runnable for tasks we
+            // cannot find.  Enqueuing a stale TaskId::new(idx, 0) can reschedule
+            // an already-exited task whose slot now holds generation=0 for a new
+            // service.  That service would resume from its saved PC into BSS
+            // (zeros), decode zeros as `lb x0, 0(x0)`, and fault.
+            let task_id = fjell_abi::task::TaskId::new(tid, 0);
+            // Only wake a task if it is in a terminal-safe state.
+            // Exited and Faulted tasks must never be re-enqueued — they would
+            // resume from a stale PC into BSS (zeros), causing LoadPageFault.
+            let task_is_wakeable = matches!(
+                tasks.get(task_id).map(|t| &t.state),
+                Some(crate::task::tcb::TaskState::Blocked(_))
+            );
+            if task_is_wakeable {
+                if let Some(task) = tasks.get_mut(task_id) {
+                    task.trap_frame.gpr[crate::task::tcb::REG_A0] =
+                        fjell_abi::error::SysError::LeaseRevoked as isize as usize;
+                    task.state = crate::task::tcb::TaskState::Runnable;
+                    sched.enqueue_runnable(task_id, 128);
+                }
             }
-            sched.enqueue(task_id, 128);
         }
         // Wake cancelled receivers.
         for i in 0..cancelled.n_receivers {
             let tid = cancelled.receiver_tids[i];
-            let task_id = crate::task::TaskId::new(tid, 0);
-            if let Some(task) = tasks.get_mut(task_id) {
-                task.trap_frame.gpr[crate::task::tcb::REG_A0] =
-                    fjell_abi::error::SysError::LeaseRevoked as isize as usize;
-                task.state = crate::task::tcb::TaskState::Runnable;
+            let task_id = fjell_abi::task::TaskId::new(tid, 0);
+            let task_is_wakeable = matches!(
+                tasks.get(task_id).map(|t| &t.state),
+                Some(crate::task::tcb::TaskState::Blocked(_))
+            );
+            if task_is_wakeable {
+                if let Some(task) = tasks.get_mut(task_id) {
+                    task.trap_frame.gpr[crate::task::tcb::REG_A0] =
+                        fjell_abi::error::SysError::LeaseRevoked as isize as usize;
+                    task.state = crate::task::tcb::TaskState::Runnable;
+                    sched.enqueue_runnable(task_id, 128);
+                }
             }
-            sched.enqueue(task_id, 128);
         }
     }
 
@@ -225,7 +255,7 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId) {
     // (The audit call is best-effort; failure here must not abort the revoke.)
     crate::audit::ring::AUDIT.lock_free_append(
         crate::audit::ring::AuditKindInternal::LeaseRevoked,
-        id.0 as usize, epoch as usize, 0,
+        id.0 as usize, new_epoch as usize, 0,
     );
 }
 

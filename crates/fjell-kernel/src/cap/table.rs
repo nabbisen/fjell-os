@@ -148,3 +148,17 @@ impl CapTable {
             .ok_or(SysError::BadState)
     }
 }
+
+impl EndpointTable {
+    /// Iterate over all allocated endpoints with their IDs.
+    ///
+    /// Used by the unified lease-revocation path to walk every endpoint
+    /// and cancel waiters whose lease has been revoked
+    /// (RFC-v0.7.4-003 / W-H-02).
+    pub fn iter_allocated_ids(&self) -> impl Iterator<Item = u32> + '_ {
+        self.used
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &u)| if u { Some(i as u32) } else { None })
+    }
+}

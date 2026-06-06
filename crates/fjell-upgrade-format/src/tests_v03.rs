@@ -1,6 +1,11 @@
 //! Host unit tests for `fjell-upgrade-format` v0.3 additions.
 //!
 //! Source of truth: RFC v0.3-003 §11.1.
+//!
+//! The `stable_record` helper and `TapMeta`/`TapRecord` builder traits
+//! are fixture utilities used by a subset of tests. Suppress dead_code
+//! lint: these will be exercised by future property-test expansion.
+#![allow(dead_code)]
 
 extern crate alloc;
 

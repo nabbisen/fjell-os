@@ -403,15 +403,24 @@ pub extern "C" fn service_main() -> ! {
     // M8: Local Evidence / Attestation / Recovery Plane
     // ──────────────────────────────────────────────────────────────────────
 
+    // v0.7: Distributed Sync (syncd self-checks emit TEST:V0.7-SYNC:PASS)
+    spawn(ImageId::SYNCD, "v0.7: syncd started");
+
+    // v0.4: Networking Plane (netd emits TEST:V0.4-NET:PASS when ready)
+    spawn(ImageId::DRIVER_VIRTIO_NET, "v0.4: virtio-net driver started");
+    spawn(ImageId::NETD,              "v0.4: netd started");
+    spawn(ImageId::SECURE_TRANSPORTD, "v0.4: secure-transportd started");
+    spawn(ImageId::DIAGNOSTICSD,      "v0.4: diagnosticsd started");
+
     // Start M8 services.
     spawn(ImageId::MEASUREDD,  "M8: measuredd started");
     spawn(ImageId::ATTESTD,    "M8: attestd started");
     spawn(ImageId::RECOVERYD,  "M8: recoveryd started");
 
     // EP slots: 3=measuredd, 4=attestd, 5=recoveryd (endpoints 2,3,4).
-    let measuredd_ep = 3usize;
-    let attestd_ep   = 4usize;
-    let recoveryd_ep = 5usize;
+    let measuredd_ep = 2usize;
+    let attestd_ep   = 3usize;
+    let recoveryd_ep = 4usize;
 
     // Wait for each M8 service to signal READY on its private endpoint.
     wait_service_ready(measuredd_ep);

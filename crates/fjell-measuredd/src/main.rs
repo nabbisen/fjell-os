@@ -3,6 +3,7 @@
 //! v0.3.0-alpha.1: calls `set_measurement()` on the trust provider after
 //! every chain append, keeping the provider's chain-head view current for
 //! attestation (RFC v0.3-001 §5.3).
+#![allow(unused_assignments)]  // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;

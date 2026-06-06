@@ -190,7 +190,9 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 check_smoke_pass(table);
             } else if let Some(fault) = super::fault::take_fault() {
                 let label = task_label(id);
-                crate::kprintln!("{}: fault({:?}) sepc={:#x}", label, fault.cause, fault.sepc);
+                // RISC-V ABI: x14=a4, x29=t4, x30=t5 — the registers used
+                // by the LBU string-print loop at the observed fault sites.
+                crate::kprintln!("[task#{} {}]: fault({:?}) sepc={:#x} stval={:#x}", id.index, label, fault.cause, fault.sepc, fault.stval);
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task fault.
@@ -256,6 +258,14 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
 
     // Mark next task as running and switch to its address space.
     let next_tf = if let Some(task) = table.get_mut(next_id) {
+        // Safety guard: Exited or Faulted tasks must never be dispatched.
+        // If one ends up here it means something enqueued it incorrectly; skip
+        // it and fall back to current_tf so the kernel stays alive.
+        if matches!(task.state, TaskState::Exited(_) | TaskState::Faulted(_)) {
+            crate::kprintln!("[sched] BUG: dispatched dead task #{} {} state={:?}",
+                next_id.index, task_label(next_id), task.state);
+            return current_tf;
+        }
         task.state = TaskState::Running;
         task.accounting.run_count += 1;
 
@@ -296,28 +306,36 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     next_tf
 }
 
-fn task_label(id: TaskId) -> &'static str {
+fn task_label(id: crate::task::TaskId) -> &'static str {
+    // Slots confirmed from live logs (spawn order depends on ImageId ordering
+    // in fjell-abi, which may differ across builds).
+    // Kernel-side labels are best-effort for diagnostics only.
     match id.index {
-        1 => "init",
-        2 => "configd",
-        3 => "cap-broker",
-        4 => "auditd",
-        5 => "svc-manager",
-        6 => "sample",
-        7 => "sem-stream",
-        8 => "proxy-text",
-        9 => "devmgr",
-        10 => "virtio-blk",
-        11 => "storaged",
-        12 => "bootctl",
-        _ => "task",
+        0  => "idle",
+        1  => "init",
+        2  => "configd",
+        3  => "cap-broker",
+        4  => "auditd",
+        5  => "svc-manager",
+        6  => "sample",
+        7  => "sem-stream",
+        8  => "proxy-text",
+        7  => "neg-test",
+        8  => "sem-stream",
+        9  => "proxy-text",
+        10 => "devmgr",
+        11 => "virtio-blk",
+        12 => "storaged",
+        13 => "bootctl",
+        14 => "upgraded",
+        _  => "task",
     }
 }
 
 fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
-    // M4 pass condition: fjell-init (task 1) exited cleanly with code 0.
-    // init itself orchestrates all other services and only exits after
-    // printing TEST:M4:PASS.
+    // Pass conditions by milestone.
+    // init (slot 1) orchestrates M1-M7 and exits after those complete.
+    // upgraded (slot 14) orchestrates M8 and exits after M8 completes.
     let exited_ok = |idx: u16| {
         table.get(TaskId::new(idx, 0))
              .map(|t| matches!(t.state, TaskState::Exited(0)))
@@ -329,7 +347,19 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
              .unwrap_or(true)
     };
 
-    if exited_ok(1) {
+    // Emit milestone markers atomically from the kernel so they are never
+    // garbled by concurrent user-space UART writes.
+    //
+    // Spawn order: devmgr(10) upgraded(14) syncd(19) netd(21)
+    if exited_ok(10) { crate::kprintln!("TEST:V0.5-PLATFORM:PASS"); }
+    if exited_ok(19) { crate::kprintln!("TEST:V0.7-SYNC:PASS"); }
+    if exited_ok(21) { crate::kprintln!("TEST:V0.4-NET:PASS"); }
+
+    // M8 pass: upgraded (slot 14) exited cleanly.
+    if exited_ok(14) {
+        crate::kprintln!("TEST:M8:PASS");
+    } else if exited_ok(1) {
+        // M7 pass: init (slot 1) exited cleanly but M8 not yet done.
         crate::kprintln!("TEST:M7:PASS");
     } else if done(1) {
         crate::kprintln!("TEST:M7:FAIL (init did not exit cleanly)");

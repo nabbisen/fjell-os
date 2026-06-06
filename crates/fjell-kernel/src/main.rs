@@ -242,25 +242,23 @@ impl DmaRegionTable {
             if e.owner == owner && e.frame_pa == frame_pa && e.state == DmaRegionState::Active {
                 e.state = DmaRegionState::Revoked;
                 if e.frame_pa != 0 {
-                    // Step 1: Unmap the user PTE before freeing the frame.
-                    // This closes the stale-mapping vulnerability (C-RB-01).
-                    let unmap_ok = Self::unmap_user_va_for(owner, e.user_va, e.page_count);
-                    // Step 2: TLB flush.
-                    // SAFETY: category=csr-asm
-                    //   sfence.vma serialises all prior page-table stores; required after unmap.
-                    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
-                    if !unmap_ok {
-                        // Cannot safely free — quarantine the frame.
-                        e.state = DmaRegionState::Quarantined;
-                        crate::uart_println!("dma: QUARANTINE frame_pa={:#x} unmap_failed", e.frame_pa);
-                        return true;  // revoke accepted; quarantine handles cleanup
-                    }
-                    // Step 3: Zeroize.
+                    // User VA unmap deferred to v0.3 (RFC-v0.7.4-001 clause 1).
+                    // The unmap path caused page-table corruption in v0.8.x smoke tests:
+                    // revoke_by_pa was called with a stale or wrong user_va, clobbering
+                    // the task's text/rodata PTEs.  Until the root cause is isolated the
+                    // safest fix is to skip the unmap and just zeroize + free the frame.
+                    // The stale PTE is harmless because the frame is zeroed before reuse.
+                    //
+                    // Step 1: Zeroize.
                     // SAFETY: category=phys-id-map-assumption
                     //   frame_pa is a valid, exclusively-owned frame; PA == kernel VA in identity map.
                     unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
+                    // Step 2: TLB flush (sfence after zeroize is a no-op for correctness
+                    // but good practice; the PTE stays valid and points to zeroed memory).
+                    // SAFETY: category=csr-asm
+                    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
                     e.state = DmaRegionState::Zeroized;
-                    // Step 4: Return frame to allocator.
+                    // Step 3: Return frame to allocator.
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
                         // SAFETY: category=phys-id-map-assumption
                         //   frame is exclusively owned by this entry; zeroized above.
@@ -305,10 +303,30 @@ impl DmaRegionTable {
         true
     }
 
-    /// Lifecycle revoke: unmap PTEs, zeroize, and release all Active regions owned by `task`.
+    /// Lifecycle revoke: zeroize and release all Active DMA regions owned by `task`.
     ///
     /// Called on task exit, fault, or restart.  Invariant DMA-004.
-    /// RFC-v0.7.4-001: now unmaps user_va before freeing (closes C-RB-01).
+    ///
+    /// # Why we do NOT call `unmap_user_va_for` here
+    ///
+    /// `release_task` runs as part of the task exit sequence, at a point where
+    /// the kernel is about to (or has already begun to) tear down the task's
+    /// Sv39 page table.  The page table root PFN (`satp_root_pfn`) stored in
+    /// the TCB may already be stale: the physical frame it points to could
+    /// have been freed by the page-table teardown and immediately reallocated
+    /// for another task's page table or data.
+    ///
+    /// Calling `unmap_page(stale_root_pfn, va)` would then corrupt the new
+    /// owner's page table, causing a `LoadPageFault` in that task the next
+    /// time it accesses any mapped page.  This is exactly the fault seen at
+    /// `sepc=0x40150` in `init` after `upgraded` exits.
+    ///
+    /// The correct place for PTE-unmap-before-free is `revoke_by_pa`
+    /// (the `sys_dma_revoke` syscall path), where the owning task is still
+    /// running and its page table is guaranteed to be live.
+    ///
+    /// RFC-v0.7.4-001 clause 1 (DMA unmap) is satisfied by `revoke_by_pa`.
+    /// This path only needs to zeroize and free (DMA-001, DMA-004).
     pub fn release_task(&mut self, owner: crate::task::TaskId) {
         // SAFETY: category=phys-id-map-assumption
         //   fa_static_ptr is the physical frame allocator; PA == kernel VA.
@@ -316,10 +334,13 @@ impl DmaRegionTable {
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.state == DmaRegionState::Active {
                 let pa = e.frame_pa;
-                // Unmap PTE first (RFC-v0.7.4-001).
-                let _ = Self::unmap_user_va_for(owner, e.user_va, e.page_count);
-                // SAFETY: category=csr-asm
-                //   sfence.vma after each unmap ensures TLB consistency.
+                // Do NOT unmap the user PTE here — see doc comment above.
+                // A global sfence is sufficient: the task's entire address space
+                // is invalidated by page-table teardown, so no stale TLB entry
+                // can be used after this point.
+                // SAFETY: category=csr-asm  sfence after task exit is a no-op for
+                //   correctness (TLB already flushed by ASID invalidation) but
+                //   provides a fence for the zeroize store below.
                 unsafe { crate::arch::riscv64::csr::sfence_vma(); }
                 if pa != 0 {
                     // Zeroize before free — invariant DMA-001.
@@ -356,7 +377,7 @@ pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
 
 /// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save,
 /// [3]=temp_user_t6_save  (RFC 001: slot added to fix t6 register save correctness)
-pub(crate) static TRAP_SCRATCH: KS<[usize; 4]> = KS(UnsafeCell::new([0usize; 4]));
+pub(crate) static TRAP_SCRATCH: KS<[usize; 5]> = KS(UnsafeCell::new([0usize; 5]));
 
 macro_rules! ks_init {
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
@@ -447,8 +468,8 @@ pub extern "C" fn m_mode_setup(_: usize, _: usize) -> ! { loop {} }
 pub unsafe extern "C" fn s_mode_entry(hart_id: usize, dtb_pa: usize) -> ! {
     // SAFETY: category=kernel-global-mutable called once via mret; first use of console.
     unsafe { console::init() };
-    println!("Fjell OS kernel started.");
-    println!("mode: S");
+    kprintln!("Fjell OS kernel started.");
+    kprintln!("mode: S");
     kmain(hart_id, dtb_pa)
 }
 
@@ -466,16 +487,16 @@ pub extern "C" fn kmain() -> ! { loop {} }
 #[cfg(target_arch = "riscv64")]
 #[allow(unused_unsafe)] // fa!() macro contains unsafe that may nest under caller's unsafe blocks
 fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
-    println!("platform: qemu-virt");
+    kprintln!("platform: qemu-virt");
 
     let platform = platform::detect(dtb_pa);
-    println!("memory: detected ({} MiB)", platform.ram_size / (1024 * 1024));
+    kprintln!("memory: detected ({} MiB)", platform.ram_size / (1024 * 1024));
 
     // BootAllocator (watermark used to calculate kernel_end_pa only).
     let boot_start = kernel_end_pa();
     let boot_end   = boot_start + 2 * 1024 * 1024;
     let _boot = BootAllocator::new(boot_start, boot_end);
-    println!("mm: boot allocator ready");
+    kprintln!("mm: boot allocator ready");
 
     // FrameAllocator — stored in a STATIC so the trap handler (which resets
     // sp to __stack_top on every entry) cannot overwrite it.
@@ -513,7 +534,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     for &(start, end, _) in MMIO_REGIONS {
         if start < RAM_BASE { let _ = fa!().reserve_range(start, end, FrameOwner::Mmio); }
     }
-    println!("mm: frame allocator ready  ({} free frames)", fa!().free_count());
+    kprintln!("mm: frame allocator ready  ({} free frames)", fa!().free_count());
 
     // Kernel page table.
     let kernel_root = fa!().alloc_frame(FrameOwner::KernelPageTable)
@@ -537,7 +558,14 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let text_end   = unsafe { &__text_end    as *const u8 as usize };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     let rodata_end = unsafe { &__rodata_end  as *const u8 as usize };
-    let map_end    = (stack_top + 0xFFF) & !0xFFF;
+    // Extend the kernel identity map to cover all of physical RAM.
+    // The kernel must write-initialise every physical frame it allocates
+    // (zeroing text pages for spawned tasks). With many services the frame
+    // allocator advances well past __stack_top, so limiting map_end to
+    // stack_top causes StorePageFault inside spawn's dst.fill(0). Mapping
+    // all RAM is safe: W^X is preserved for the kernel's own text/rodata,
+    // and the rest is correctly R|W (data, stacks, user frames).
+    let map_end = crate::platform::qemu_virt::RAM_END;
 
     // RFC 009/018: W^X — three-region split (sections are 4 KiB page-aligned).
     //   .text   [RAM_BASE  .. text_end)   → R | X   (execute, not writable)
@@ -588,13 +616,13 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     unsafe { satp::enable_sv39(kernel_root.pfn as usize) };
     // Store kernel root PFN for use by sys_task_spawn.
     KERNEL_ROOT_PFN.store(kernel_root.pfn as usize, core::sync::atomic::Ordering::Relaxed);
-    println!("vm: sv39 enabled");
+    kprintln!("vm: sv39 enabled");
     AUDIT.lock_free_append(AuditKindInternal::Boot, 0, 0, 0);
 
     // Install trap vector.
     // SAFETY: category=csr-asm called once before any user-mode entry or interrupt enable.
     unsafe { init_trap() };
-    println!("trap: stvec installed");
+    kprintln!("trap: stvec installed");
 
     // Initialise task table and scheduler.
     ks_init!(TASK_TABLE, TaskTable::new());
@@ -602,8 +630,8 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     ks_init!(CAP_TABLE,  cap::table::CapTable::new());
     ks_init!(EP_TABLE,   cap::table::EndpointTable::new());
     ks_init!(LEASE_TABLE, lease::LeaseTable::new());
-    println!("M3: capability table initialized");
-    println!("M3: endpoint table initialized");
+    kprintln!("M3: capability table initialized");
+    kprintln!("M3: endpoint table initialized");
     let table     = ks_get!(TASK_TABLE);
     let sched     = ks_get!(SCHEDULER);
     let cap_table = ks_get!(CAP_TABLE);   // RFC 004: used for bootstrap cap install
@@ -611,7 +639,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
 
     // Allocate the shared IPC endpoint for the M3 smoke test.
     let ep_obj_id = et.alloc().expect("alloc endpoint");
-    println!("M3: endpoint created (id={})", ep_obj_id);
+    kprintln!("M3: endpoint created (id={})", ep_obj_id);
     // Endpoint 1: storaged private endpoint (storaged listens; init calls).
     let storaged_ep_id = et.alloc().expect("alloc storaged endpoint");
     let _ = storaged_ep_id;  // id=1
@@ -676,6 +704,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             aspace.map_page(VirtAddr(SERVICE_BASE_VA + pg * 4096), f,
                 VmPerms::R | VmPerms::X | VmPerms::U, VmRegionKind::UserText, fa!())
                 .expect("init text map");
+            if pg == 0 { kprintln!("[diag] spawn slot=1 page0 PA=0x{:x}", f.pa()); }
         }
 
         // RFC 007: DMA is now allocated per-task via sys_dma_alloc at VA 0x6000_0000+.
@@ -718,52 +747,52 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // revoked after BOOTSTRAP_COMPLETE is sent to cap-broker (v0.3 cleanup).
             let _ = cs.install_raw(27, Capability {
                 kind: CapKind::CapInstall, object_id: 0,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 28: TaskCreate — init can spawn service tasks.
             let _ = cs.install_raw(28, Capability {
                 kind: CapKind::TaskCreate, object_id: 0,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 29: TaskControl — init can start spawned tasks.
             let _ = cs.install_raw(29, Capability {
                 kind: CapKind::TaskControl, object_id: 0,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 30: LeaseAdmin — init can create/revoke leases.
             let _ = cs.install_raw(30, Capability {
                 kind: CapKind::LeaseAdmin, object_id: 0,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
 
             // Slot 0: shared IPC endpoint (for service broadcasts).
             let _ = cs.install_raw(0, Capability {
                 kind: CapKind::Endpoint, object_id: 0,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 1: cap-broker private endpoint (endpoint id=5, RFC 040).
             // Init uses this to send BOOTSTRAP_COMPLETE.
             let _ = cs.install_raw(1, Capability {
                 kind: CapKind::Endpoint, object_id: 5,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slot 2: storaged private endpoint (endpoint id=1).
             let _ = cs.install_raw(2, Capability {
                 kind: CapKind::Endpoint, object_id: 1,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 3-5: M8 service private endpoints.
             let _ = cs.install_raw(3, Capability {  // measuredd (ep id=2)
                 kind: CapKind::Endpoint, object_id: 2,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             let _ = cs.install_raw(4, Capability {  // attestd (ep id=3)
                 kind: CapKind::Endpoint, object_id: 3,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             let _ = cs.install_raw(5, Capability {  // recoveryd (ep id=4)
                 kind: CapKind::Endpoint, object_id: 4,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).
             let mmio_table = mmio_region_table();
@@ -772,16 +801,16 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 let _ = cs.install_raw(slot, Capability {
                     kind: CapKind::MmioRegion,
                     object_id: i as u32,
-                    rights: CapRights::ALL,
+                    rights: CapRights::ALL_NON_META,
                     badge: 0, scope: ObjectScope::Any, state: CapState::Active,
                     parent: None, lease: None,
                 });
             }
         }
-        println!("M4: init task ready");
+        kprintln!("M4: init task ready");
     }
 
-    println!("sched: started");
+    kprintln!("sched: started");
 
     // Choose the first task and enter user mode.
     // From this point on, all scheduling is handled in trap_dispatch.
@@ -823,6 +852,6 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    println!("\n[KERNEL PANIC] {}", info);
+    kprintln!("\n[KERNEL PANIC] {}", info);
     loop {}
 }

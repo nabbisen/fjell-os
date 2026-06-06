@@ -1,4 +1,5 @@
 [package]
+build = "build.rs"
 name = "fjell-secure-transportd"
 description = "Authenticated control-plane channel service for Fjell OS (RFC v0.4-003)."
 version.workspace = true

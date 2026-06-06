@@ -15,7 +15,8 @@ use std::path::Path;
 use crate::qemu_run::{Profile, run_profile};
 
 const KNOWN_V01X_CATEGORIES: &[&str] = &[
-    "capability", "ipc", "mmio", "dma", "store", "upgrade",
+    "capability", "cap",  // "cap" is an accepted alias for "capability"
+    "ipc", "mmio", "dma", "store", "upgrade",
 ];
 
 const KNOWN_V02_CATEGORIES: &[&str] = &[

@@ -62,14 +62,13 @@ pub fn spawn(
 
     // Allocate text frame, copy flat binary.
     if bytes.len() > 4096 {
-        // Allocate additional pages if needed (up to 8 pages for now)
         let pages = (bytes.len() + 4095) / 4096;
         for i in 0..pages {
             let f = fa.alloc_frame(FrameOwner::UserText { task: tid })
                       .map_err(|_| SysError::NoMemory)?;
             let start = i * 4096;
             let end   = (start + 4096).min(bytes.len());
-            // SAFETY: category=raw-pointer-deref task stack and entry point are validated during service manifest parsing.
+            // SAFETY: category=raw-pointer-deref frame is exclusively owned; within physical RAM.
             unsafe {
                 let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
                 dst.fill(0);
@@ -82,7 +81,7 @@ pub fn spawn(
     } else {
         let f = fa.alloc_frame(FrameOwner::UserText { task: tid })
                   .map_err(|_| SysError::NoMemory)?;
-        // SAFETY: category=raw-pointer-deref task stack and entry point are validated during service manifest parsing.
+        // SAFETY: category=raw-pointer-deref frame is exclusively owned; within physical RAM.
         unsafe {
             let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
             dst.fill(0);
@@ -92,6 +91,7 @@ pub fn spawn(
             VmPerms::R | VmPerms::X | VmPerms::U, VmRegionKind::UserText, fa)
             .map_err(|_| SysError::NoMemory)?;
     }
+
 
     // Allocate and map all stack pages (64 KiB = 16 pages).
     // The linker script places __stack_bottom = 0x80000, __stack_top = 0x90000.
@@ -150,7 +150,7 @@ pub fn spawn(
             };
             let _ = cs.install_raw(0, Capability {
                 kind: CapKind::Endpoint, object_id: ep_obj,
-                rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 31-35: MmioRegion caps.
             // RFC-v0.7.4-003 (closes C-RB-03): MMIO caps now granted ONLY to the driver
@@ -163,22 +163,46 @@ pub fn spawn(
             //   - driver-virtio-net: network device driver (region 1).
             //   - neg-test: integration test harness (all regions for test coverage).
             let mmio_table = mmio_region_table();
+            // Region index → CSpace slot: slot = 31 + region_idx
+            //   region 0 (id=0): CLINT/boot-ROM   → slot 31
+            //   region 1 (id=1): UART0             → slot 32
+            //   region 2 (id=2): PLIC              → slot 33
+            //   region 3 (id=3): virtio-mmio range → slot 34  ← MMIO_REGION_VIRTIO
+            //   region 4 (id=4): neg-test-RAM       → slot 35
+            //
+            // RFC-v0.7.4-003: MMIO caps granted only to services that have
+            // documented device access at this architectural phase.
+            //
+            // STORAGED is here as a transitional exception: it still maps
+            // virtio-mmio (region 3) directly to drive virtio-blk.  Full
+            // decoupling (storaged → driver-virtio-blk via IPC) is the
+            // RFC-v0.7.4-003 follow-on, targeted for v0.8.x once driver-virtio-blk
+            // exposes a stable service-api endpoint.
             let mmio_regions_for_service: Option<&[usize]> = match image_id {
                 fjell_abi::service::ImageId::DEVMGR => {
-                    // devmgr needs the full table to enumerate devices on first boot.
+                    // devmgr reads every region to enumerate the board profile.
                     static ALL: &[usize] = &[0, 1, 2, 3, 4];
                     Some(ALL)
                 }
+                fjell_abi::service::ImageId::STORAGED => {
+                    // storaged maps region 3 (virtio-mmio) for virtio-blk I/O.
+                    // CSpace slot 34 = 31 + 3 = the slot storaged looks up (MMIO_SLOT).
+                    static VQ: &[usize] = &[3];
+                    Some(VQ)
+                }
                 fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK => {
-                    static BLK: &[usize] = &[0];
-                    Some(BLK)
+                    // Dedicated virtio-blk driver — region 3 (virtio-mmio range).
+                    static VQ: &[usize] = &[3];
+                    Some(VQ)
                 }
                 fjell_abi::service::ImageId::DRIVER_VIRTIO_NET => {
-                    static NET: &[usize] = &[1];
-                    Some(NET)
+                    // Dedicated virtio-net driver — region 3 (same virtio-mmio range).
+                    static VQ: &[usize] = &[3];
+                    Some(VQ)
                 }
                 fjell_abi::service::ImageId::NEG_TEST => {
-                    // Kept for integration test coverage; audited exception.
+                    // Integration test harness — needs all regions for negative-test
+                    // coverage. Audited exception.
                     static ALL: &[usize] = &[0, 1, 2, 3, 4];
                     Some(ALL)
                 }
@@ -218,7 +242,7 @@ pub fn spawn(
             if needs_dma {
                 let _ = cs.install_raw(2, Capability {
                     kind: CapKind::DmaAlloc, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slot 1: LeaseAdmin for SAMPLE_SERVICE (RFC 042 IPC blocked-recv test).
@@ -227,7 +251,7 @@ pub fn spawn(
             if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
                 let _ = cs.install_raw(1, Capability {
                     kind: CapKind::LeaseAdmin, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any,
                     state: CapState::Active, parent: None, lease: None,
                 });
             }
@@ -236,7 +260,7 @@ pub fn spawn(
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
                 let _ = cs.install_raw(3, Capability {
                     kind: CapKind::Endpoint, object_id: 5,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slot 4: LeaseAdmin cap for NEG_TEST — required by sys_cap_bind_lease
@@ -244,7 +268,7 @@ pub fn spawn(
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
                 let _ = cs.install_raw(4, Capability {
                     kind: CapKind::LeaseAdmin, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slots 5-6: TaskCreate + TaskControl for NEG_TEST (RFC 042 SVC tests).
@@ -252,11 +276,11 @@ pub fn spawn(
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
                 let _ = cs.install_raw(5, Capability {
                     kind: CapKind::TaskCreate, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
                 let _ = cs.install_raw(6, Capability {
                     kind: CapKind::TaskControl, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
         }
@@ -272,7 +296,7 @@ pub fn spawn(
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(10, Capability {
                     kind: CapKind::CapInstall, object_id: 0,
-                    rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
         }

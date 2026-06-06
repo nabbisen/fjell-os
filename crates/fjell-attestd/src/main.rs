@@ -3,6 +3,7 @@
 //! v0.3.0: produces `AttestationRecordV2` when the trust-provider registry
 //! is in Enforcing phase (RFC v0.3-004).  Falls back to the v1 dev path
 //! when still in Bootstrap (development / early boot).
+#![allow(unused_assignments, unused_imports, dead_code)]  // M7 stub: IPC polling + planned fields
 #![no_std]
 #![no_main]
 mod rt;
@@ -141,7 +142,7 @@ fn sign_v2(
     rollback:   &RollbackRecord,
     seq:        u32,
     #[allow(dead_code)] // v0.7: forwarded to measurement chain header
-    meas_seq:   u64,
+    _meas_seq:  u64,
     generation: u32,
 ) -> (Digest32, bool) {
     let record = AttestationRecordV2::dev(

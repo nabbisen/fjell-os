@@ -66,14 +66,3 @@ impl CSpaceTable {
         self.spaces.get_mut(task_index)
     }
 }
-
-impl EndpointTable {
-    /// Iterate over all allocated endpoints with their IDs.
-    /// Used by the unified lease-revocation path (RFC-v0.7.4-003 / W-H-02).
-    pub fn iter_allocated(&mut self) -> impl Iterator<Item = (u32, &mut Endpoint)> {
-        self.endpoints
-            .iter_mut()
-            .enumerate()
-            .filter_map(|(i, slot)| slot.as_mut().map(|ep| (i as u32, ep)))
-    }
-}

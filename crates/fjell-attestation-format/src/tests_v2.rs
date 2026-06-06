@@ -3,6 +3,7 @@
 //! Covers: digest coverage, mutation sensitivity, signed-by envelope
 //! exclusion, round-trip, profile-type gating, and dev/v1 compatibility.
 
+#![allow(unused_imports)]  // test fixtures; future tests will use these
 extern crate alloc;
 
 use crate::v2::{

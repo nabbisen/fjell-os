@@ -6,7 +6,8 @@
 //! suffices for complete local-trust validation.
 
 use fjell_measure_format::Digest32;
-use fjell_keyring::KeyEpoch;
+// KeyEpoch imported only when key-epoch validation tests are added (v0.8).
+// use fjell_keyring::KeyEpoch;
 use fjell_trust_provider::ids::TrustProviderId;
 use fjell_trust_provider::profile::{TrustProviderKind, TrustProfile};
 use fjell_trust_provider::material::{AttestationDigest, Signature};

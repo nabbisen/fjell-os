@@ -69,6 +69,13 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::NEG_TEST   => Some(NEG_TEST_BIN),
         ImageId::SVC_TIMEOUT => Some(SVC_TIMEOUT_BIN),
         ImageId::SVC_FAULT   => Some(SVC_FAULT_BIN),
+        // v0.7 Distributed Sync
+        ImageId::SYNCD            => Some(SYNCD_BIN),
+        // v0.4 Networking
+        ImageId::DRIVER_VIRTIO_NET => Some(VIRTIO_NET_BIN),
+        ImageId::NETD              => Some(NETD_BIN),
+        ImageId::SECURE_TRANSPORTD => Some(SECURE_TRANSPORT_BIN),
+        ImageId::DIAGNOSTICSD      => Some(DIAGNOSTICSD_BIN),
         _                   => None,
     }
 }
@@ -94,3 +101,10 @@ static RECOVERYD_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-recoveryd.bi
 static NEG_TEST_BIN:    &[u8] = include_bytes!("../../prebuilt/fjell-neg-test.bin");
 static SVC_TIMEOUT_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-svc-timeout.bin");
 static SVC_FAULT_BIN:   &[u8] = include_bytes!("../../prebuilt/fjell-svc-fault.bin");
+// v0.7 Distributed Sync
+static SYNCD_BIN:       &[u8] = include_bytes!("../../prebuilt/fjell-syncd.bin");
+// v0.4 Networking
+static VIRTIO_NET_BIN:  &[u8] = include_bytes!("../../prebuilt/fjell-driver-virtio-net.bin");
+static NETD_BIN:        &[u8] = include_bytes!("../../prebuilt/fjell-netd.bin");
+static SECURE_TRANSPORT_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-secure-transportd.bin");
+static DIAGNOSTICSD_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-diagnosticsd.bin");

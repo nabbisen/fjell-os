@@ -2,6 +2,7 @@
 //!
 //! Provides snapshot listing, slot inspection, and capability-controlled
 //! rollback.  Manual rollback always requires confirmed_by_operator = true.
+#![allow(unused_assignments)]  // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;

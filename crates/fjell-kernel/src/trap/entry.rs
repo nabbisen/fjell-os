@@ -24,23 +24,26 @@ pub unsafe fn init_trap() {
 /// sscratch[0] = kernel sp, sscratch[8] = &TrapFrame,
 /// sscratch[16] = temp user sp, sscratch[24] = temp user t6.
 ///
-/// # RFC 001 — corrected save sequence for t5 (x30) and t6 (x31)
+/// # Bug fix — x30 (t5) was saved AFTER csrr clobbered it with user_t6
 ///
-/// Entry state: t6 is about to be clobbered by `csrrw t6, sscratch, t6`.
-/// We must save the true user_t6 into scratch[3] BEFORE that swap.
+/// The original step 8 (`sd x30, 30*8(t6)`) ran AFTER step 2 (`csrr t5, sscratch`)
+/// which overwrites x30 with user_t6.  So gpr[30] contained user_t6, not user_t5.
+/// On every ecall return, t5 was silently set to user_t6 (often 0), corrupting
+/// any loop that relied on t5 as a stable pointer (e.g. end-of-string pointer).
 ///
-/// Step-by-step:
+/// Fixed step-by-step:
 ///   1. csrrw t6, sscratch, t6   → t6 = scratch_addr,  sscratch = user_t6
-///   2. csrr  t5, sscratch       → t5 = user_t6
-///   3. sd    t5, 24(t6)         → scratch[3] = user_t6  (saved before anything clobbers it)
-///   4. sd    sp, 16(t6)         → scratch[2] = user_sp
-///   5. ld    sp, 0(t6)          → sp = kernel_sp
-///   6. csrw  sscratch, t6       → sscratch = scratch_addr  (restored for next entry)
-///   7. ld    t6, 8(t6)          → t6 = &TrapFrame
-///   8. sd    x30, 30*8(t6)      → gpr[30] = true user_t5  ✓  (x30 is still live here)
-///   9. … save x1..x29 (x30 already saved) …
-///  10. Retrieve user_sp from scratch[2]; save as gpr[2]       ✓
-///  11. Retrieve user_t6 from scratch[3]; save as gpr[31]      ✓
+///   2. sd    x30, 32(t6)        → scratch[4] = user_t5  ✓  (BEFORE csrr clobbers x30)
+///   3. csrr  t5, sscratch       → x30 = user_t6  (now safe to clobber)
+///   4. sd    t5, 24(t6)         → scratch[3] = user_t6
+///   5. sd    sp, 16(t6)         → scratch[2] = user_sp
+///   6. ld    sp, 0(t6)          → sp = kernel_sp
+///   7. csrw  sscratch, t6       → sscratch = scratch_addr
+///   8. ld    t6, 8(t6)          → t6 = &TrapFrame
+///   9. … save x1..x29 …
+///  10. Retrieve user_sp  from scratch[2]; save as gpr[2]   ✓
+///  11. Retrieve user_t5  from scratch[4]; save as gpr[30]  ✓  (fixed)
+///  12. Retrieve user_t6  from scratch[3]; save as gpr[31]  ✓
 #[cfg(target_arch = "riscv64")]
 #[unsafe(no_mangle)]
 #[unsafe(naked)]
@@ -50,8 +53,12 @@ unsafe extern "C" fn supervisor_trap_entry() {
         // Step 1: t6 ↔ sscratch swap.  After: t6=scratch_addr, sscratch=user_t6.
         "csrrw  t6, sscratch, t6",
 
-        // Step 2-3: save true user_t6 into scratch[3] before anything clobbers it.
-        "csrr   t5, sscratch",       // t5 = user_t6  (via sscratch)
+        // Step 2: save true user_t5 (x30) into scratch[4] BEFORE csrr clobbers x30.
+        // csrr reads sscratch into t5 (=x30), destroying the user's t5 value.
+        "sd     x30, 32(t6)",        // scratch[4] = user_t5  ✓ (x30 still live here)
+
+        // Step 3: save user_t6 (read from sscratch where step 1 left it).
+        "csrr   t5, sscratch",       // t5 = user_t6  (now safe: user_t5 already saved)
         "sd     t5, 24(t6)",         // scratch[3] = user_t6
 
         // Step 4: save user_sp into scratch[2] before we overwrite sp.
@@ -66,13 +73,9 @@ unsafe extern "C" fn supervisor_trap_entry() {
         // Step 7: load TrapFrame ptr from scratch[1].
         "ld     t6, 8(t6)",          // t6 = &TrapFrame
 
-        // Step 8: save true user_t5 (x30) IMMEDIATELY while x30 is still live.
-        // (all subsequent csrr/ld instructions may overwrite x30/t5)
-        "sd     x30, 30*8(t6)",      // gpr[30] = true user_t5  ✓
-
-        // Save x1..x29 (x30 already saved above; x31 saved below).
+        // Save x1..x29 (x30 and x31 handled separately below).
         "sd     x1,   1*8(t6)",
-        // Step 10: gpr[2] = user_sp — retrieved from scratch[2] via sscratch.
+        // gpr[2] = user_sp — retrieved from scratch[2] via sscratch.
         "csrr   t5, sscratch",       // t5 = scratch_addr
         "ld     t5, 16(t5)",         // t5 = scratch[2] = user_sp
         "sd     t5,  2*8(t6)",       // gpr[2] = user_sp  ✓
@@ -103,8 +106,11 @@ unsafe extern "C" fn supervisor_trap_entry() {
         "sd     x27, 27*8(t6)",
         "sd     x28, 28*8(t6)",
         "sd     x29, 29*8(t6)",
-        // x30 already saved at step 8 above.
-        // Step 11: gpr[31] = true user_t6 — retrieved from scratch[3].
+        // gpr[30] = true user_t5 — retrieved from scratch[4].
+        "csrr   t5, sscratch",       // t5 = scratch_addr
+        "ld     t5, 32(t5)",         // t5 = scratch[4] = user_t5
+        "sd     t5, 30*8(t6)",       // gpr[30] = user_t5  ✓
+        // gpr[31] = true user_t6 — retrieved from scratch[3].
         "csrr   t5, sscratch",       // t5 = scratch_addr
         "ld     t5, 24(t5)",         // t5 = scratch[3] = user_t6
         "sd     t5, 31*8(t6)",       // gpr[31] = user_t6  ✓

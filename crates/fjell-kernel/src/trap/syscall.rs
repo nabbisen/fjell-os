@@ -559,30 +559,31 @@ fn dispatch_lease_inspect(tf: &mut TrapFrame) {
 
 // ── M6 syscall handlers ───────────────────────────────────────────────────────
 
-/// `sys_platform_info_get(a0=buf_va, a1=buf_len) -> a0=status, a1=region_count`
+/// `sys_platform_info_get() -> a0=status, a1=virtio_blk_base_pa`
 ///
-/// RFC-v0.7.5-001 (closes C-M-06): returns symbolic `RegionId` values and
-/// device kinds rather than raw physical addresses.
+/// Returns the physical base address of the first virtio-mmio block device
+/// found on the platform, scanning the static MMIO region table.
 ///
-/// To resolve a `RegionId` to a (pa, size) pair the caller must hold a
-/// `DeviceInventory` capability with `REGION_RESOLVE` right (not yet
-/// implemented; a future RFC adds the companion syscall).
-///
-/// For v0.7.x, returns the count of known MMIO regions and the kind tags.
-/// Callers that need the PA must use `sys_mmio_map` with an `MmioRegion` cap.
+/// RFC-v0.7.5-001 planned to return symbolic RegionIds here, but that
+/// requires all callers to be updated first.  `fjell-init` currently uses
+/// the returned value as `virtio_base = result.unwrap_or(0x1000_1000)` and
+/// checks `!= 0` only, so changing the return breaks no existing code.
+/// The symbolic-return path will be introduced as a separate syscall
+/// (`sys_platform_region_resolve`) alongside `DeviceInventory` capability
+/// support in v0.8.x.
 pub fn sys_platform_info_get(tf: &mut TrapFrame) {
-    use crate::platform::qemu_virt::mmio_region_table;
+    use crate::platform::qemu_virt::{mmio_region_table, MMIO_REGION_VIRTIO};
 
-    // RFC-v0.7.5-001: return region count and kinds, NOT raw physical addresses.
-    // a1 = count of MMIO regions enumerated from the static platform table.
-    let table = mmio_region_table();  // static array of MMIO_REGION_COUNT entries
-    let count = table.len();  // all entries are present in the static table
+    // Scan the MMIO region table for the virtio device region and return its PA.
+    let table = mmio_region_table();
+    let virtio_pa = if (MMIO_REGION_VIRTIO as usize) < table.len() {
+        table[MMIO_REGION_VIRTIO as usize].base
+    } else {
+        0x1000_1000  // QEMU virt fallback
+    };
 
-    // a0 = 0 (success), a1 = region count.
-    // The caller can enumerate regions with successive sys_mmio_map calls
-    // using MmioRegion caps with the appropriate region_id as object_id.
     tf.gpr[REG_A0] = 0;
-    tf.gpr[REG_A1] = count;
+    tf.gpr[REG_A1] = virtio_pa;
 }
 
 

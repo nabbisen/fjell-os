@@ -3,11 +3,11 @@
 //! v0.3.0-alpha.1: registers a `DevelopmentTrustProvider`, initialises a dev
 //! `Keyring` with a `DevDigest32` anchor, and verifies signatures via
 //! `DevSignatureProvider` (RFC v0.3-002 §5.3).
+#![allow(unused_assignments)]  // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_measure_format::Digest32;
 use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 use fjell_keyring::algorithm::SignatureAlgorithm;

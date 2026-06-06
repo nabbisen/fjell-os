@@ -163,6 +163,7 @@ const OWN_NETD:      CatalogOwner = CatalogOwner::new("fjell-netd",     "network
 const OWN_RECOVERYD: CatalogOwner = CatalogOwner::new("fjell-recoveryd","recovery");
 const OWN_DEVMGR:    CatalogOwner = CatalogOwner::new("fjell-devmgr",   "platform");
 const OWN_MEASUREDD: CatalogOwner = CatalogOwner::new("fjell-measuredd","health");
+#[allow(dead_code)]  // v0.8: used when SUMMARY-domain intents land in CATALOG_V1
 const OWN_SYNCD:     CatalogOwner = CatalogOwner::new("fjell-syncd",    "distributed-sync");
 
 /// The frozen v1 catalog.

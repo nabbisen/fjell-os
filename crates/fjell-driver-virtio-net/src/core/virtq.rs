@@ -198,7 +198,7 @@ mod virtq_tests {
 
     #[test]
     fn descriptor_allocator_starts_full() {
-        let mut alloc = DescriptorAllocator::new(4);
+        let alloc = DescriptorAllocator::new(4);
         assert_eq!(alloc.available(), 4);
     }
 

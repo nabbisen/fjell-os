@@ -36,6 +36,13 @@ pub const SERVICES: &[&str] = &[
     "fjell-measuredd",
     "fjell-attestd",
     "fjell-recoveryd",
+    // v0.7 Distributed Sync
+    "fjell-syncd",
+    // v0.4 Networking
+    "fjell-driver-virtio-net",
+    "fjell-netd",
+    "fjell-secure-transportd",
+    "fjell-diagnosticsd",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.
@@ -155,8 +162,27 @@ fn run_objcopy(elf: &PathBuf, flat: &PathBuf) -> bool {
         c
     };
 
+    // Determine the BSS end address from the ELF so we can pad the flat binary
+    // to cover BSS pages.  If .bss falls in a page beyond the last PROGBITS
+    // section, objcopy -O binary (which excludes NOBITS) would produce a binary
+    // too small to trigger a second-page mapping in spawn.rs.  We pad with
+    // zeros so spawn maps the right number of pages and BSS is zero-filled.
+    let pad_to: Option<String> = bss_end_page_aligned(elf);
+    if let Some(ref addr) = pad_to {
+        println!("[xtask]     BSS end → padding flat binary to {addr}");
+    }
+
     for prog in &candidates {
-        match Command::new(prog).args(["-O", "binary"]).arg(elf).arg(flat).status() {
+        let mut cmd = Command::new(prog);
+        cmd.args(["-O", "binary"]);
+        if let Some(ref addr) = pad_to {
+            // --pad-to extends the binary with the gap-fill byte (default 0)
+            // up to the given address, covering any BSS pages.
+            cmd.arg("--gap-fill").arg("0");
+            cmd.arg(format!("--pad-to={addr}"));
+        }
+        cmd.arg(elf).arg(flat);
+        match cmd.status() {
             Ok(s) if s.success() => return true,
             Ok(_) => {
                 eprintln!("[xtask] {prog} failed (exit non-zero)");
@@ -173,4 +199,103 @@ fn run_objcopy(elf: &PathBuf, flat: &PathBuf) -> bool {
     eprintln!("[xtask]   Alternative:   sudo apt install gcc-riscv64-unknown-elf");
     eprintln!("[xtask]   Override:      FJELL_OBJCOPY=/path/to/objcopy cargo xtask build-services");
     false
+}
+
+/// Read ELF symbols `__bss_start` / `__bss_end` and PROGBITS section boundaries
+/// to determine whether service BSS falls in a page beyond the flat binary.
+/// If so, returns the pad-to address (end of the last BSS page) as a hex string
+/// for use with `objcopy --pad-to`.
+///
+/// Returns None if BSS fits within the binary's existing pages (no pad needed).
+fn bss_end_page_aligned(elf: &PathBuf) -> Option<String> {
+    const PAGE: u64 = 0x1000;
+
+    // --- 1. Get __bss_start and __bss_end from nm --------------------------
+    let nm_candidates = ["riscv64-linux-gnu-nm", "riscv64-unknown-elf-nm",
+                         "llvm-nm", "nm"];
+    let nm_out = nm_candidates.iter().find_map(|t| {
+        Command::new(t).arg(elf).output().ok().filter(|o| o.status.success())
+    })?;
+    let nm_str = String::from_utf8_lossy(&nm_out.stdout);
+
+    let get_sym = |name: &str| -> Option<u64> {
+        nm_str.lines()
+            .find(|l| l.split_whitespace().last() == Some(name))
+            .and_then(|l| l.split_whitespace().next())
+            .and_then(|h| u64::from_str_radix(h, 16).ok())
+    };
+
+    let bss_start = get_sym("__bss_start")?;
+    let bss_end   = get_sym("__bss_end")?;
+
+    // If BSS is empty and both symbols are the same, treat as no BSS.
+    // Code accessing the address at bss_start still needs the page mapped
+    // because the runtime may compute a pointer to __bss_start.
+    // So we proceed even for empty BSS if it starts at a new page.
+
+    // --- 2. Get highest ALLOC PROGBITS section end -------------------------
+    let re_candidates = ["riscv64-linux-gnu-readelf", "riscv64-unknown-elf-readelf",
+                         "llvm-readelf"];
+    let re_out = re_candidates.iter().find_map(|t| {
+        Command::new(t).args(["-S", "--wide"]).arg(elf)
+            .output().ok().filter(|o| o.status.success())
+    })?;
+    let re_str = String::from_utf8_lossy(&re_out.stdout);
+
+    // readelf -S --wide line format (space-split tokens):
+    //  [Nr] Name Type Address Offset Size ES Flg ...
+    //   0    1    2    3      4      5    6  7
+    // After splitting by whitespace:
+    //  "[" "Nr]" Name Type Address Offset Size ES Flg...
+    //   0    1    2    3    4       5      6    7  8
+    let progbits_end: u64 = re_str.lines()
+        .filter(|l| l.contains("PROGBITS") && l.contains(" A"))  // ALLOC flag
+        .filter_map(|l| {
+            let p: Vec<&str> = l.split_whitespace().collect();
+            // Address at index 4, Size at index 6
+            let addr = u64::from_str_radix(p.get(4)?, 16).ok()?;
+            let size = u64::from_str_radix(p.get(6)?, 16).ok()?;
+            // Skip sections at address 0 (debug/comment sections)
+            if addr == 0 { return None; }
+            Some(addr + size)
+        })
+        .max()
+        .unwrap_or(0);
+
+    if progbits_end == 0 { return None; }
+
+    // --- 3. Decide whether to pad ------------------------------------------
+    // Round progbits_end up to the page boundary (= exclusive end of the
+    // last binary page loaded by spawn).
+    let binary_page_end = (progbits_end + PAGE - 1) & !(PAGE - 1);
+
+    // KEY: compare bss_END (not bss_start) against binary_page_end.
+    // A service may have bss_start inside the binary's pages (e.g. at 0x40248)
+    // but bss_end far beyond (e.g. at 0x4a000) when static buffers are large.
+    // Using bss_start for the check caused false-None returns in that case.
+    let bss_cover_end = if bss_end <= bss_start {
+        // Empty BSS — if it sits exactly at a page boundary we still want
+        // that page mapped so runtime code using __bss_start doesn't fault.
+        let bss_page_start = bss_start & !(PAGE - 1);
+        bss_page_start + PAGE
+    } else {
+        // Non-empty BSS — round bss_end up to the next page boundary.
+        // This gives the exclusive end of the last BSS page.
+        (bss_end + PAGE - 1) & !(PAGE - 1)
+    };
+
+    if bss_cover_end <= binary_page_end {
+        // BSS is entirely within the pages the binary already provides.
+        eprintln!("[bss-pad] {}: bss=[0x{:x}..0x{:x}] cover=0x{:x} <= binary_page_end=0x{:x} → no pad",
+            elf.file_name().unwrap_or_default().to_string_lossy(),
+            bss_start, bss_end, bss_cover_end, binary_page_end);
+        return None;
+    }
+
+    eprintln!("[bss-pad] {}: bss=[0x{:x}..0x{:x}] binary_end=0x{:x} → pad to 0x{:x} ({} pages)",
+        elf.file_name().unwrap_or_default().to_string_lossy(),
+        bss_start, bss_end, binary_page_end, bss_cover_end,
+        (bss_cover_end - 0x40000 + PAGE - 1) / PAGE);
+
+    Some(format!("0x{bss_cover_end:x}"))
 }

@@ -185,6 +185,18 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     } else {
         eprintln!("[xtask] profile `{}` FAIL — see {}",
                   p.name, log_path.display());
+        // Print the last 60 lines of serial.log directly so failures are
+        // visible without opening a separate file (RFC-v0.7.1-003 §smoke).
+        if let Ok(log_bytes) = fs::read(&log_path) {
+            let log_text = String::from_utf8_lossy(&log_bytes);
+            let lines: Vec<&str> = log_text.lines().collect();
+            let tail = if lines.len() > 60 { &lines[lines.len()-60..] } else { &lines[..] };
+            eprintln!("[xtask] --- serial.log tail ({} lines) ---", tail.len());
+            for line in tail {
+                eprintln!("[serial] {line}");
+            }
+            eprintln!("[xtask] --- end serial.log ---");
+        }
         ExitCode::FAILURE
     }
 }
