@@ -278,12 +278,15 @@ mod tests {
 
     // ── RFC 8032 §7.1 test vector 1 ──────────────────────────────────────────
     // SOURCE: https://www.rfc-editor.org/rfc/rfc8032#section-7.1
-
+    // Seed cross-verified against three independent implementations
+    // (ed25519-dalek, OpenSSL via pyca/cryptography, libsodium via PyNaCl):
+    // all derive TV1_PUBLIC from TV1_SECRET and produce TV1_SIG over the
+    // empty message. See RFC-v0.16-001 for the reconciliation record.
     const TV1_SECRET: [u8; 32] = [
         0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60,
-        0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c, 0x44,
-        0xda, 0x4e, 0x81, 0x0f, 0x70, 0x98, 0x10, 0x01,
-        0x11, 0x28, 0x4d, 0x23, 0xa5, 0xd3, 0x6e, 0xca,
+        0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c, 0xc4,
+        0x44, 0x49, 0xc5, 0x69, 0x7b, 0x32, 0x69, 0x19,
+        0x70, 0x3b, 0xac, 0x03, 0x1c, 0xae, 0x7f, 0x60,
     ];
     const TV1_PUBLIC: [u8; 32] = [
         0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7,
@@ -373,6 +376,29 @@ mod tests {
         let msg = b"round-trip test payload";
         let sig = key.sign_message(msg);
         assert!(key.verify_message(msg, &sig), "freshly signed must verify");
+    }
+
+    #[cfg(feature = "sign")]
+    #[test]
+    fn from_seed_matches_tv1_public() {
+        // RFC 8032 §7.1 TV1: deriving the public key from the seed must
+        // produce the canonical public key. Cross-verified against
+        // OpenSSL and libsodium (RFC-v0.16-001).
+        let key = Ed25519SigningKey::from_seed(&TV1_SECRET);
+        assert_eq!(key.public_key_bytes(), TV1_PUBLIC,
+            "public key derived from TV1 seed must match canonical RFC 8032 TV1");
+    }
+
+    #[cfg(feature = "sign")]
+    #[test]
+    fn sign_tv1_produces_tv1_sig() {
+        // RFC 8032 §7.1 TV1: signing the empty message with the TV1 seed
+        // must reproduce the canonical signature byte-for-byte. This is the
+        // sign-path conformance proof for the trust spine (RFC-v0.16-001).
+        let key = Ed25519SigningKey::from_seed(&TV1_SECRET);
+        let sig = key.sign_message(TV1_MESSAGE);
+        assert_eq!(sig, TV1_SIG,
+            "signing empty message with TV1 seed must reproduce RFC 8032 TV1 signature");
     }
 
     #[cfg(feature = "sign")]

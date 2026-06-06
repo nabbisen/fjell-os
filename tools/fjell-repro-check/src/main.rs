@@ -137,17 +137,25 @@ fn digest_file(path: &Path) -> Option<String> {
     let mut f = fs::File::open(path).ok()?;
     let mut buf = Vec::new();
     f.read_to_end(&mut buf).ok()?;
-    Some(format!("{:016x}", fnv64(&buf)))
+    Some(sha256_hex(&buf))
 }
 
-/// FNV-1a 64-bit hash — fast, deterministic, sufficient for change detection.
-fn fnv64(data: &[u8]) -> u64 {
-    let mut h: u64 = 0xcbf29ce484222325;
-    for &b in data {
-        h ^= b as u64;
-        h = h.wrapping_mul(0x100000001b3);
+/// SHA-256 of the file contents, lowercase hex.
+///
+/// Switched from FNV-1a in RFC-v0.16-005 (architect review H-04): the gate's
+/// purpose is change detection, but a cryptographic digest avoids the
+/// external confusion of a non-cryptographic hash appearing in a trust-
+/// oriented project's tooling, at negligible cost.
+fn sha256_hex(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let out = hasher.finalize();
+    let mut s = String::with_capacity(64);
+    for b in out {
+        s.push_str(&format!("{:02x}", b));
     }
-    h
+    s
 }
 
 // ── Comparison and report ─────────────────────────────────────────────────────
@@ -220,9 +228,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fnv64_deterministic() {
-        assert_eq!(fnv64(b"hello"), fnv64(b"hello"));
-        assert_ne!(fnv64(b"hello"), fnv64(b"world"));
+    fn sha256_deterministic() {
+        assert_eq!(sha256_hex(b"hello"), sha256_hex(b"hello"));
+        assert_ne!(sha256_hex(b"hello"), sha256_hex(b"world"));
+        // Known SHA-256 of "hello"
+        assert_eq!(
+            sha256_hex(b"hello"),
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
     }
 
     #[test]

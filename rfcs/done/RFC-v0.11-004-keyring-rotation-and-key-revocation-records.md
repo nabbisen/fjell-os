@@ -1,6 +1,8 @@
 # RFC-v0.11-004 — Keyring Rotation and Key Revocation Records
 
-**Status:** Implemented (v0.11.0)
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-003 in `docs/rfcs/ERRATA.md`; reconciled by (v0.15.x).
+
+**Status:** Implemented-with-Errata (v0.11.0)
 **Target version:** v0.11.0
 **Parent:** v0.11-001.
 **Cross-refs:** RFC v0.3-002 (KeyEpoch model), RFC v0.7.4-003 (auth hardening).

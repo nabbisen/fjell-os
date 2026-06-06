@@ -1,6 +1,8 @@
 # RFC-v0.15-002 — Threat Model Finalization
 
-**Status:** Implemented (v0.15.0)
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-007 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-005.
+
+**Status:** Implemented-with-Errata (v0.15.0)
 **Target version:** v0.15.0
 **Parent:** v0.15-001.
 **Cross-refs:** RFC 027 (v0.1 threat model), RFC 042 (v0.2 boundary

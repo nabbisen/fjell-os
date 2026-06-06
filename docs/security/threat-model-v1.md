@@ -180,7 +180,7 @@ Every threat is keyed to an adversary capability, not a named actor.
 ### T20 — Reproducibility-failure-as-substitution
 
 **Adversary:** C-SUPPLY  
-**Defence:** RFC-v0.10-003 (reproducible build gate). Two-build FNV64 digest comparison.  
+**Defence:** RFC-v0.10-003 (reproducible build gate). Two-build SHA-256 digest comparison (hardened from FNV-1a in RFC-v0.16-005, H-04).  
 **Residual:** Malicious toolchain that produces identical output for different inputs.
 
 ---

@@ -57,7 +57,7 @@ pub fn cmd_sign_bundle(args: &[String]) -> ExitCode {
         Err(e) => { eprintln!("sign-bundle: cannot read bundle: {}", e); return ExitCode::FAILURE; }
     };
 
-    let (secret_seed, key_id) = match load_key(&key_path, &key_id_hex) {
+    let (secret_seed, key_id) = match load_key(&key_path, &key_id_hex, args) {
         Ok(v) => v,
         Err(e) => { eprintln!("sign-bundle: {}", e); return ExitCode::FAILURE; }
     };
@@ -141,18 +141,39 @@ fn key_gen(args: &[String]) -> ExitCode {
         Err(e) => { eprintln!("key gen: getrandom failed: {}", e); return ExitCode::FAILURE; }
     };
 
-    // Derive public key
     let pubkey = ed25519_pubkey(&seed);
-
-    // Derive a 16-byte key_id: first 16 bytes of SHA-like hash of pubkey
     let key_id = key_id_from_pubkey(&pubkey);
 
-    // Write key file (format: magic(4) || seed(32) || pubkey(32) = 68 bytes)
-    // v0.11.x will add passphrase encryption; for v0.11.0 this is plaintext.
-    let mut key_file = Vec::with_capacity(68);
-    key_file.extend_from_slice(b"FJKY");   // magic
-    key_file.extend_from_slice(&seed);
-    key_file.extend_from_slice(&pubkey);
+    let insecure = args.iter().any(|a| a == "--insecure-plaintext");
+
+    let key_file: Vec<u8> = if insecure {
+        // Legacy plaintext FJKY format — only for CI fixtures.
+        let mut f = Vec::with_capacity(68);
+        f.extend_from_slice(b"FJKY");
+        f.extend_from_slice(&seed);
+        f.extend_from_slice(&pubkey);
+        f
+    } else {
+        // Encrypted FJK2 format (RFC-v0.16-006). Requires a passphrase.
+        let pass = match crate::key_crypto::resolve_passphrase(args) {
+            Some(p) => p,
+            None => {
+                eprintln!("key gen: {}", crate::key_crypto::KeyCryptoError::NoPassphrase);
+                eprintln!("key gen: (or pass --insecure-plaintext for an unencrypted CI fixture)");
+                return ExitCode::FAILURE;
+            }
+        };
+        let mut salt = [0u8; 16];
+        let mut nonce = [0u8; 12];
+        if getrandom::getrandom(&mut salt).is_err() || getrandom::getrandom(&mut nonce).is_err() {
+            eprintln!("key gen: getrandom failed for salt/nonce");
+            return ExitCode::FAILURE;
+        }
+        match crate::key_crypto::encrypt_key(&seed, &pubkey, &pass, &salt, &nonce) {
+            Ok(f) => f,
+            Err(e) => { eprintln!("key gen: {}", e); return ExitCode::FAILURE; }
+        }
+    };
 
     if let Some(parent) = Path::new(&out_path).parent() {
         fs::create_dir_all(parent).ok();
@@ -162,7 +183,11 @@ fn key_gen(args: &[String]) -> ExitCode {
             println!("key gen: wrote key to {}", out_path);
             println!("key gen: public key = {}", hex(&pubkey));
             println!("key gen: key_id     = {}", hex(&key_id));
-            println!("key gen: NOTE: passphrase encryption lands in v0.11.x (RFC-v0.11-003 §5)");
+            if insecure {
+                println!("key gen: WARNING: plaintext key (FJKY) — CI fixture only, do not deploy");
+            } else {
+                println!("key gen: encrypted at rest (FJK2, Argon2id + AES-256-GCM)");
+            }
             ExitCode::SUCCESS
         }
         Err(e) => { eprintln!("key gen: write error: {}", e); ExitCode::FAILURE }
@@ -174,7 +199,9 @@ fn key_show(args: &[String]) -> ExitCode {
         Some(p) => p,
         None => { eprintln!("key show: --in <file> required"); return ExitCode::FAILURE; }
     };
-    let (_, pubkey) = match load_raw_key(&in_path) {
+    // For `key show` we only need the public key, which is stored cleartext
+    // in both formats — no passphrase required.
+    let pubkey = match read_pubkey_only(&in_path) {
         Ok(v) => v,
         Err(e) => { eprintln!("key show: {}", e); return ExitCode::FAILURE; }
     };
@@ -186,8 +213,8 @@ fn key_show(args: &[String]) -> ExitCode {
 
 // ── Signing internals ─────────────────────────────────────────────────────────
 
-fn load_key(path: &str, key_id_override: &Option<String>) -> Result<([u8; 32], [u8; 16]), String> {
-    let (seed, pubkey) = load_raw_key(path)?;
+fn load_key(path: &str, key_id_override: &Option<String>, args: &[String]) -> Result<([u8; 32], [u8; 16]), String> {
+    let (seed, pubkey) = load_raw_key_with_args(path, args)?;
     let key_id = match key_id_override {
         Some(hex_str) => unhex16(hex_str)?,
         None => key_id_from_pubkey(&pubkey),
@@ -196,9 +223,40 @@ fn load_key(path: &str, key_id_override: &Option<String>) -> Result<([u8; 32], [
 }
 
 fn load_raw_key(path: &str) -> Result<([u8; 32], [u8; 32]), String> {
+    load_raw_key_with_args(path, &[])
+}
+
+/// Read only the public key, which is stored cleartext in both the
+/// encrypted `FJK2` format (offset 34) and the plaintext `FJKY` format
+/// (offset 36). No passphrase required.
+fn read_pubkey_only(path: &str) -> Result<[u8; 32], String> {
     let bytes = fs::read(path).map_err(|e| format!("cannot read key file: {}", e))?;
+    if crate::key_crypto::is_encrypted(&bytes) {
+        if bytes.len() < 66 { return Err("truncated FJK2 key file".into()); }
+        return Ok(bytes[34..66].try_into().unwrap());
+    }
     if bytes.len() < 68 || &bytes[..4] != b"FJKY" {
-        return Err("invalid key file format".into());
+        return Err("invalid key file format (neither FJK2 nor FJKY)".into());
+    }
+    Ok(bytes[36..68].try_into().unwrap())
+}
+
+/// Load a key file, decrypting if it is the encrypted `FJK2` format.
+/// Passphrase is resolved from `args` (`--passphrase`) or the
+/// `FJELL_KEY_PASSPHRASE` environment variable.
+fn load_raw_key_with_args(path: &str, args: &[String]) -> Result<([u8; 32], [u8; 32]), String> {
+    let bytes = fs::read(path).map_err(|e| format!("cannot read key file: {}", e))?;
+
+    if crate::key_crypto::is_encrypted(&bytes) {
+        let pass = crate::key_crypto::resolve_passphrase(args)
+            .ok_or_else(|| crate::key_crypto::KeyCryptoError::NoPassphrase.to_string())?;
+        return crate::key_crypto::decrypt_key(&bytes, &pass)
+            .map_err(|e| e.to_string());
+    }
+
+    // Legacy plaintext FJKY
+    if bytes.len() < 68 || &bytes[..4] != b"FJKY" {
+        return Err("invalid key file format (neither FJK2 nor FJKY)".into());
     }
     let seed: [u8; 32] = bytes[4..36].try_into().unwrap();
     let pubkey: [u8; 32] = bytes[36..68].try_into().unwrap();

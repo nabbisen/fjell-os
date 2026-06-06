@@ -18,3 +18,5 @@ fjell-dev-harness   = { path = "../fjell-dev-harness" }
 fjell-cap-manifest  = { path = "../fjell-cap-manifest" }
 fjell-sig-ed25519   = { path = "../fjell-sig-ed25519" }
 getrandom           = { version = "0.2", features = ["std"] }
+argon2              = "0.5"
+aes-gcm             = "0.10"

@@ -1,0 +1,96 @@
+═══════════════════════════════════════════════════════════════
+                    FJELL OS TRUST REPORT
+═══════════════════════════════════════════════════════════════
+Generated : 2026-05-28 08:00:46 UTC
+Version   : 0.16.0
+Mode      : full
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+§1. CAPABILITY INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1 cap-manifest(s) found:
+
+  ┌ ./examples/three-node-fleet/fjell-hello/cap-manifest.toml
+  │  service     = "fjell-hello"
+  │  sdk_api_rev = 1
+  │  caps        = ["Endpoint", "AuditDrain"]
+  └
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+§2. LEASE INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  LeaseId usage sites   : 79
+  LeaseEpoch usage sites: 27
+  Runtime lease state   : (available from running fleet in v0.11)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+§3. MEASUREMENT AND BUNDLE DIGEST CHAIN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Service binaries in prebuilt/: 28
+    fjell-rootfsd.bin (54 bytes)
+    fjell-init.bin (17928 bytes)
+    fjell-powerd.bin (134 bytes)
+    fjell-snapshotd.bin (54 bytes)
+    fjell-bootctl.bin (481 bytes)
+    fjell-secure-transportd.bin (1455 bytes)
+    fjell-svc-fault.bin (50 bytes)
+    fjell-diagnosticsd.bin (3776 bytes)
+    fjell-devmgr.bin (4600 bytes)
+    fjell-attestd.bin (6465 bytes)
+    fjell-syncd.bin (3559 bytes)
+    fjell-service-manager.bin (1272 bytes)
+    fjell-storaged.bin (1915 bytes)
+    fjell-configd.bin (472 bytes)
+    fjell-neg-test.bin (5680 bytes)
+    fjell-sample-service.bin (626 bytes)
+    fjell-upgraded.bin (3974 bytes)
+    fjell-measuredd.bin (3760 bytes)
+    fjell-driver-virtio-net.bin (1006 bytes)
+    fjell-svc-timeout.bin (32 bytes)
+    fjell-cap-broker.bin (1728 bytes)
+    fjell-auditd.bin (2720 bytes)
+    fjell-netd.bin (795 bytes)
+    fjell-semantic-stream.bin (189 bytes)
+    fjell-recoveryd.bin (581 bytes)
+    fjell-verifyd.bin (3592 bytes)
+    fjell-proxy-text.bin (138 bytes)
+    fjell-driver-virtio-blk.bin (54 bytes)
+  Bundle signatures: (available after v0.11 signing pipeline)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+§4. SEMANTIC CATALOG BINDING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Catalog version : unknown
+  Total entries   : 20
+  Schema digest   : (computed by fjell-semantic-toolkit)
+  Frozen          : yes (RFC v0.5-004)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+§5. UNSAFE SITE INVENTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  total unsafe sites : 268
+  with SAFETY comment: 268
+  missing comment    : 0
+  Gate verdict      : PASS
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+§6. CI EVIDENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Latest test-all run: 20260523-231825
+  16    QEMU negative: harness                                     SKIP (skipped via --no-qemu)
+  ───────────────────────────────────────────────────────────────────────────
+  Total: 16  |  PASS: 3  |  FAIL: 0  |  SKIP: 13
+  
+  ✓ ALL REQUIRED TIERS PASSED
+
+  Live host test count:
+    Host tests   : 566 passed, 0 failed  [PASS]
+    Proptest     : 10 properties × 1000 cases
+    QEMU smoke   : see last test-all run for live verdicts
+

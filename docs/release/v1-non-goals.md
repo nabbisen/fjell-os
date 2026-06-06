@@ -181,4 +181,42 @@ individually justified below. Changes require an identity-level RFC.*
 
 ---
 
-*Adversarial review attested at `docs/release/v1-non-goals-review.md`.*
+## N21 — Kernel-mediated IPC for the SDK reference service
+
+**Fjell does not provide (validated):** Proof that `fjell-config-sync`
+operates over live kernel-mediated IPC. The v0.16 runtime trial
+(RFC-v0.16-007) exercises the service's handler logic and state machine
+directly, not transport over the kernel switchboard.
+
+**Why:** transport-level validation in QEMU is v1.x work. The SDK
+*surface* is proven runtime-sufficient; the *delivery path* is not yet
+exercised.
+
+---
+
+## N22 — Multi-VM / wire-level fleet validation
+
+**Fjell does not provide (validated):** Multi-VM fleet partition testing.
+The v0.16 partition drill (RFC-v0.16-002) is host-simulated and exercises
+the real reconcile runtime path end-to-end, but not wire-level heartbeat
+transport across separate VMs.
+
+**Why:** the reconcile *logic* is validated; the *network substrate* is
+deferred to v1.x.
+
+---
+
+## N23 — Byte-level key-erasure guarantee
+
+**Fjell does not provide (verified):** A byte-level `ZeroizeOnDrop`
+guarantee on in-memory signing-key material. Keys are now encrypted at
+rest (RFC-v0.16-006), but the in-memory erase-on-drop path is not
+independently verified.
+
+**Why:** verifying memory state after drop requires tooling beyond v1.0
+scope. Listed so no reader assumes it is done.
+
+---
+
+*Adversarial review attested at `docs/security/adversarial-review-v0.16.md`
+(closes errata E-007, E-009).*

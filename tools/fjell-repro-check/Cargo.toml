@@ -10,3 +10,6 @@ publish     = false
 [[bin]]
 name = "fjell-repro-check"
 path = "src/main.rs"
+
+[dependencies]
+sha2 = "0.10"

@@ -100,6 +100,33 @@ grep "OPEN" docs/release/v1-readiness.md
 
 ---
 
+## Step 7b — RFC Errata gate: zero OPEN errata (RFC-v0.16-004)
+
+```bash run-verified
+grep -E "\| (OPEN) \|" docs/rfcs/ERRATA.md
+# Expected: empty output. ACCEPTED items are permitted but must each
+# appear in the release notes limitations section.
+```
+
+---
+
+## Step 7c — Validation drill gate (RFC-v0.16-008)
+
+All validation-closure drills must pass and emit their markers:
+
+```bash run-verified
+cargo test -p fjell-sig-ed25519 from_seed_matches_tv1_public sign_tv1_produces_tv1_sig
+cargo test -p fjell-fleet-sync --test partition_drill -- --nocapture | grep DRILL:
+cargo test -p fjell-config-sync --test runtime_trial -- --nocapture | grep DRILL:
+# Expected markers:
+#   DRILL:FLEET-PARTITION-RECONCILE:PASS
+#   DRILL:FLEET-PARTITION-ROLLBACK-REJECTED:PASS
+#   DRILL:SDK-CONFIG-SYNC-RUNTIME:PASS
+#   DRILL:SDK-CONFIG-SYNC-CONVERGENCE:PASS
+```
+
+---
+
 ## Step 8 — Release bundle
 
 ```bash run-verified

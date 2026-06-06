@@ -1,6 +1,8 @@
 # RFC-v0.15-005 — v1.0 Non-Goals and Constraint Lock
 
-**Status:** Implemented (v0.15.0)
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-009 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-005.
+
+**Status:** Implemented-with-Errata (v0.15.0)
 **Target version:** v0.15.0
 **Parent:** v0.15-001.
 **Cross-refs:** RFC 061 §3.4, §4, §7.

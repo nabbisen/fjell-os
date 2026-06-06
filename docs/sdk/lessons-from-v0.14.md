@@ -99,4 +99,33 @@ crate and warn on mismatch.
 
 ---
 
-*Total lessons recorded: 4 (RFC-v0.14-002 §8 acceptance criterion: ≥ 1).*
+## L5 — Runtime dispatch held at the SDK boundary (RFC-v0.16-007)
+
+**What we learned:**
+Driving `fjell-config-sync` through a full update lifecycle via its real
+`handle_ipc` entry point — cold start, update, idempotent re-apply, query,
+unknown-tag rejection — exercised cleanly without reaching past the SDK
+surface. The v0.14 library-only trial could not have shown this; a service
+can compile against the SDK yet still need a non-public hook at runtime.
+It did not.
+
+**Why it matters:**
+This is the first evidence that the SDK surface is *runtime-sufficient*,
+not merely *link-sufficient*, for a stateful reference service.
+
+## L6 — Digest determinism is the convergence precondition (RFC-v0.16-007)
+
+**What we learned:**
+Two independent service instances applying the same config blob converged
+to the same `ConfigDigest`. Fleet-wide config sync is only viable if this
+holds, and it could only be confirmed by running two instances — exactly
+what the library-only trial omitted.
+
+**Caveat:**
+The trial drives handler logic directly, not kernel-mediated IPC delivery
+in QEMU. Runtime *transport* viability remains unproven and is listed as a
+v1.0 limitation.
+
+---
+
+*Total lessons recorded: 6 (RFC-v0.14-002 §8 acceptance criterion: ≥ 1).*

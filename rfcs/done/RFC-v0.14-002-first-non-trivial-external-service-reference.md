@@ -1,6 +1,8 @@
 # RFC-v0.14-002 — First Non-Trivial External Service (Reference)
 
-**Status:** Implemented (v0.14.0)
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-006 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-007.
+
+**Status:** Implemented-with-Errata (v0.14.0)
 **Target version:** v0.14.0
 **Parent:** v0.14-001.
 **Cross-refs:** RFC v0.9-001 (SDK), v0.9-002 (CapManifest),
