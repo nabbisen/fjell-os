@@ -14,6 +14,8 @@
 //!                                        captured log  (RFC 025)
 //!   qemu-run --profile <name>          — run an explicit profile from
 //!                                        tests/qemu/profiles/<name>.toml
+//!   test-all [--no-qemu]              — run every test tier; write
+//!                                        dated log bundle to tests/runs/
 
 mod qemu;
 mod qemu_log_check;
@@ -22,6 +24,7 @@ mod smoke;
 mod negative;
 mod policy_eval; // RFC 040 cap-broker policy unit tests
 mod dev;          // RFC v0.9-005 developer workflow
+mod test_all;     // full test-all runner with log bundle
 
 use std::process::ExitCode;
 
@@ -57,8 +60,22 @@ fn main() -> ExitCode {
             };
             qemu_run::cmd_qemu_run(profile)
         }
+        Some("test-all") => {
+            test_all::cmd_test_all(&args[1..])
+        }
         Some("dev") => {
-            dev::cmd_dev(args.get(1).map(String::as_str), &args[2.min(args.len())..])
+            // `dev log-check` is a distinct leaf; route it before cmd_dev.
+            if args.get(1).map(String::as_str) == Some("log-check") {
+                dev::cmd_dev_log_check(
+                    args.get(2).map(String::as_str),
+                    args.get(3).map(String::as_str),
+                )
+            } else {
+                dev::cmd_dev(
+                    args.get(1).map(String::as_str),
+                    &args[2.min(args.len())..],
+                )
+            }
         }
         Some(other) => {
             eprintln!("fjell-tools: unknown subcommand `{other}`");
@@ -86,6 +103,7 @@ Subcommands:
   qemu-log-check <log-file> <marker>
   qemu-run --profile <name>
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
-  dev lint <manifest.toml>"
+  dev lint <manifest.toml>
+  test-all [--no-qemu]           run every tier, save logs to tests/runs/"
     );
 }

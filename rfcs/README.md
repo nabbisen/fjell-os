@@ -165,17 +165,75 @@ rfcs/
 
 ---
 
-## Proposed (proposed/) — 5 RFCs
+## Proposed (proposed/) — 33 RFCs
 
-### v0.9 — Service SDK and Ecosystem
+### Strategic
 
 | RFC | Title |
 |-----|-------|
-| v0.9-001 | [Service SDK and Stable Service API Subset](./proposed/v0.9/RFC-v0.9-001-service-sdk-and-stable-service-api-subset.md) |
-| v0.9-002 | [Capability Request Manifest and Policy Lint](./proposed/v0.9/RFC-v0.9-002-capability-request-manifest-and-policy-lint.md) |
-| v0.9-003 | [Semantic Node Authoring Toolkit](./proposed/v0.9/RFC-v0.9-003-semantic-node-authoring-toolkit.md) |
-| v0.9-004 | [Bundle Builder and Signed Service Package](./proposed/v0.9/RFC-v0.9-004-bundle-builder-and-signed-service-package.md) |
-| v0.9-005 | [QEMU Developer Workflow and Service Test Harness](./proposed/v0.9/RFC-v0.9-005-qemu-developer-workflow-and-service-test-harness.md) |
+| 061 | [Fjell OS v1.0 Direction and Identity](./proposed/061-v1-direction-and-identity.md) |
+
+### v0.10 — Release Maturity
+
+| RFC | Title |
+|-----|-------|
+| v0.10-001 | [v0.10 Release Maturity Overview](./proposed/v0.10/RFC-v0.10-001-release-maturity-overview.md) |
+| v0.10-002 | [ABI and Semantic Schema Compatibility Policy](./proposed/v0.10/RFC-v0.10-002-abi-and-semantic-schema-compatibility-policy.md) |
+| v0.10-003 | [Reproducible Build and Release Gate](./proposed/v0.10/RFC-v0.10-003-reproducible-build-and-release-gate.md) |
+| v0.10-004 | [Benchmark Baseline and Regression Tracking](./proposed/v0.10/RFC-v0.10-004-benchmark-baseline-and-regression-tracking.md) |
+| v0.10-005 | [Reference QEMU Fleet Deployment](./proposed/v0.10/RFC-v0.10-005-reference-qemu-fleet-deployment.md) |
+| v0.10-006 | [Documentation Maturity and Persona Guides](./proposed/v0.10/RFC-v0.10-006-documentation-maturity-and-persona-guides.md) |
+| v0.10-007 | [v1.0 Readiness Matrix](./proposed/v0.10/RFC-v0.10-007-v1-readiness-matrix.md) |
+
+### v0.11 — Trust Spine Hardening
+
+| RFC | Title |
+|-----|-------|
+| v0.11-001 | [Trust Spine Hardening Overview](./proposed/v0.11/RFC-v0.11-001-trust-spine-hardening-overview.md) |
+| v0.11-002 | [Ed25519 Signature Provider and Real Crypto Backend](./proposed/v0.11/RFC-v0.11-002-ed25519-signature-provider-and-real-crypto-backend.md) |
+| v0.11-003 | [Bundle Signing Pipeline and Key Material Management](./proposed/v0.11/RFC-v0.11-003-bundle-signing-pipeline-and-key-material-management.md) |
+| v0.11-004 | [Keyring Rotation and Key Revocation Records](./proposed/v0.11/RFC-v0.11-004-keyring-rotation-and-key-revocation-records.md) |
+| v0.11-005 | [Replay Cache and Attestation Freshness](./proposed/v0.11/RFC-v0.11-005-replay-cache-and-attestation-freshness.md) |
+
+### v0.12 — First Real-World Deployment Profile
+
+| RFC | Title |
+|-----|-------|
+| v0.12-001 | [Deployment Profile Hardening Overview](./proposed/v0.12/RFC-v0.12-001-deployment-profile-hardening-overview.md) |
+| v0.12-002 | [Real-Board Target Selection (or Hardened QEMU Fallback)](./proposed/v0.12/RFC-v0.12-002-real-board-target-selection.md) |
+| v0.12-003 | [DTB and Boot Handoff Validation](./proposed/v0.12/RFC-v0.12-003-dtb-and-boot-handoff-validation.md) |
+| v0.12-004 | [Interrupt and MMIO Ordering Audit](./proposed/v0.12/RFC-v0.12-004-interrupt-and-mmio-ordering-audit.md) |
+| v0.12-005 | [Field Operations Notes and Deployment Guide](./proposed/v0.12/RFC-v0.12-005-field-operations-notes-and-deployment-guide.md) |
+
+### v0.13 — Fleet Reliability and Recovery Depth
+
+| RFC | Title |
+|-----|-------|
+| v0.13-001 | [Fleet Reliability and Recovery Depth Overview](./proposed/v0.13/RFC-v0.13-001-fleet-reliability-and-recovery-depth-overview.md) |
+| v0.13-002 | [Fleet Split, Reconnect, and Reconciliation](./proposed/v0.13/RFC-v0.13-002-fleet-split-reconnect-and-reconciliation.md) |
+| v0.13-003 | [Key Compromise Recovery Playbook](./proposed/v0.13/RFC-v0.13-003-key-compromise-recovery-playbook.md) |
+| v0.13-004 | [Bulk Re-attestation and Staged Rollout Failure Handling](./proposed/v0.13/RFC-v0.13-004-bulk-reattestation-and-staged-rollout-failure-handling.md) |
+| v0.13-005 | [Disaster Recovery Patterns and Semantic Summary Consistency](./proposed/v0.13/RFC-v0.13-005-disaster-recovery-patterns-and-semantic-summary-consistency.md) |
+
+### v0.14 — Developer Ecosystem Trial
+
+| RFC | Title |
+|-----|-------|
+| v0.14-001 | [Developer Ecosystem Trial Overview](./proposed/v0.14/RFC-v0.14-001-developer-ecosystem-trial-overview.md) |
+| v0.14-002 | [First Non-Trivial External Service (Reference)](./proposed/v0.14/RFC-v0.14-002-first-non-trivial-external-service-reference.md) |
+| v0.14-003 | [Typed Catalog Structs and Service Cookbook](./proposed/v0.14/RFC-v0.14-003-typed-catalog-structs-and-service-cookbook.md) |
+| v0.14-004 | [Bundle Publishing Flow and Local Artifact Registry](./proposed/v0.14/RFC-v0.14-004-bundle-publishing-flow-and-local-artifact-registry.md) |
+| v0.14-005 | [Developer Mode Tooling (`--trace`, `--measure`, `--gdb`)](./proposed/v0.14/RFC-v0.14-005-developer-mode-tooling.md) |
+
+### v0.15 — v1.0 Freeze Candidate
+
+| RFC | Title |
+|-----|-------|
+| v0.15-001 | [v1.0 Freeze Candidate Overview](./proposed/v0.15/RFC-v0.15-001-v1-freeze-candidate-overview.md) |
+| v0.15-002 | [Threat Model Finalization](./proposed/v0.15/RFC-v0.15-002-threat-model-finalization.md) |
+| v0.15-003 | [Release Checklist and Security Advisory Process](./proposed/v0.15/RFC-v0.15-003-release-checklist-and-security-advisory-process.md) |
+| v0.15-004 | [Operator Recovery Guide and Field Documentation](./proposed/v0.15/RFC-v0.15-004-operator-recovery-guide-and-field-documentation.md) |
+| v0.15-005 | [v1.0 Non-Goals and Constraint Lock](./proposed/v0.15/RFC-v0.15-005-v1-non-goals-and-constraint-lock.md) |
 
 ---
 
