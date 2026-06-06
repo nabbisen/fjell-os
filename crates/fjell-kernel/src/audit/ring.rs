@@ -41,6 +41,9 @@ pub enum AuditKindInternal {
     IpcDenied       = 24,
     /// RFC 037 (v0.2.0): task consumed its quantum without voluntary yield.
     TaskQuantumExceeded = 30,
+    // Lease events (RFC-v0.7.4-003 / W-H-02)
+    LeaseRevoked   = 40,
+    CapDenied      = 41,
 }
 
 /// A single audit record stored in the ring.

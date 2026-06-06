@@ -355,3 +355,64 @@ pub mod diagnosticsd {
     /// End of audit record stream.
     pub const AUDIT_STREAM_END:   usize = 0x412;
 }
+
+/// v0.7 distributed sync IPC tags (RFC-v0.7.2-001).
+///
+/// IPC tags use u16 to fit in the standard packed message tag format.
+pub mod v0_7 {
+    // identityd tags (0x0700–0x070F)
+    pub const IPC_IDENTITY_LOAD:    u16 = 0x0700;
+    pub const IPC_IDENTITY_PERSIST: u16 = 0x0701;
+    pub const IPC_IDENTITY_GET:     u16 = 0x0702;
+
+    // summaryd tags (0x0710–0x071F)
+    pub const IPC_SUMMARY_MEASURE:  u16 = 0x0710;
+    pub const IPC_SUMMARY_RELEASE:  u16 = 0x0711;
+    pub const IPC_SUMMARY_PERSIST:  u16 = 0x0712;
+
+    // syncd tags (0x0720–0x072F)
+    pub const IPC_SYNC_IMPORT:      u16 = 0x0720;
+    pub const IPC_SYNC_EXPORT:      u16 = 0x0721;
+    pub const IPC_SYNC_STATUS:      u16 = 0x0722;
+}
+
+#[cfg(test)]
+mod v07_tag_tests {
+    use super::v0_7::*;
+
+    #[test]
+    fn identity_tags_stable() {
+        assert_eq!(IPC_IDENTITY_LOAD,    0x0700);
+        assert_eq!(IPC_IDENTITY_PERSIST, 0x0701);
+        assert_eq!(IPC_IDENTITY_GET,     0x0702);
+    }
+
+    #[test]
+    fn summary_tags_stable() {
+        assert_eq!(IPC_SUMMARY_MEASURE,  0x0710);
+        assert_eq!(IPC_SUMMARY_RELEASE,  0x0711);
+        assert_eq!(IPC_SUMMARY_PERSIST,  0x0712);
+    }
+
+    #[test]
+    fn sync_tags_stable() {
+        assert_eq!(IPC_SYNC_IMPORT,  0x0720);
+        assert_eq!(IPC_SYNC_EXPORT,  0x0721);
+        assert_eq!(IPC_SYNC_STATUS,  0x0722);
+    }
+
+    #[test]
+    fn no_tag_overlap() {
+        let all = [
+            IPC_IDENTITY_LOAD, IPC_IDENTITY_PERSIST, IPC_IDENTITY_GET,
+            IPC_SUMMARY_MEASURE, IPC_SUMMARY_RELEASE, IPC_SUMMARY_PERSIST,
+            IPC_SYNC_IMPORT, IPC_SYNC_EXPORT, IPC_SYNC_STATUS,
+        ];
+        // All tags must be unique
+        for i in 0..all.len() {
+            for j in (i+1)..all.len() {
+                assert_ne!(all[i], all[j], "duplicate tag: {:#06x}", all[i]);
+            }
+        }
+    }
+}

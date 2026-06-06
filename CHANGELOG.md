@@ -2710,3 +2710,69 @@ Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.
 
 ### Test Coverage
 - 387 named tests (was 348 at v0.7.0); 0 failures; 0 warnings.
+
+## [0.7.2] — 2026-05-20
+
+### Security / Authority Model
+- **sys_cap_bind_lease: LeaseAdmin authority enforced** (RFC-v0.7.4-003, closes C-RB-05):
+  `sys_cap_bind_lease` now scans the caller's CSpace for a `LeaseAdmin` cap with
+  `LEASE_CREATE` right before allowing a lease binding. Callers without authority
+  receive `PermissionDenied` and an audit event.
+- **Unified lease-revocation IPC wake** (RFC-v0.7.4-003, closes W-H-02):
+  `wake_or_cancel_blocked_ipc_for_lease` is fully implemented. Every
+  lease-revocation path (syscall, task exit, expiry) now walks all endpoints,
+  cancels matching waiters, delivers `LeaseRevoked` to their trap frames, and
+  re-enqueues them. Audit events `LeaseRevoked` and `CapDenied` added.
+- **Provider replace/remove policy gate** (RFC-v0.7.4-003, closes W-H-06):
+  `ProviderRegistry::replace()` and `remove()` now accept a `PolicyAuth` token.
+  In `Enforcing` phase, an empty token returns `PolicyAuthorizationRequired`.
+  `PolicyAuth` type added to the crate's public surface.
+
+### Capability Model
+- **CSpace::iter_occupied()**: iterate all active caps in a CSpace (used by
+  LeaseAdmin scan in sys_cap_bind_lease).
+- **cap_copy parent=None documented** (closes C-M-09): the intentional design
+  is now explained inline with ADR-v0.7.4-003 reference. Lease-based revocation
+  is the correct cascading mechanism.
+- **EndpointTable::iter_allocated()**: exposes allocated endpoints for the
+  revocation walk.
+
+### Kernel / Syscall
+- **Debug UART writes removed from sys_ipc_send** (closes C-M-07): the
+  `volatile_write` diagnostics in the IPC hot path are gone. IPC events
+  now route through the audit ring only.
+- **sys_platform_info_get symbolic output** (closes C-M-06): returns the
+  count of MMIO regions instead of raw physical addresses. Callers use
+  `sys_mmio_map` with an `MmioRegion` cap to resolve regions.
+- **AuditKindInternal** extended: `LeaseRevoked = 40`, `CapDenied = 41`.
+
+### Networking (RFC-v0.7.3-001 — W-RB-04)
+- **VirtQueue + AvailRing + UsedRing**: new `virtq.rs` module in
+  `fjell-driver-virtio-net` core implements the real virtio split-queue
+  descriptor management. `VirtQueue::post_tx`, `post_rx_buffer`, `pop_used`
+  are fully tested (13 new tests covering alloc, wrap, full, TX, RX, pop).
+- **`negotiate_features_checked()`** returns `Err(FeatureError::MissingRequired)`
+  when the device doesn't offer MAC + STATUS. Driver binary uses it and exits
+  on negotiation failure instead of silently continuing.
+- **Driver main updated**: IRQ loop uses `rx_virtq.pop_used()` to consume
+  completed descriptors from the used ring; each completed entry notifies
+  `netd` via `PacketRx`.
+- **`simulated-transport` feature**: `fjell-secure-transportd` release builds
+  fail-closed on TLS handshakes; simulated path requires explicit feature.
+
+### Service-API
+- **`fjell-service-api::v0_7` module**: IPC tag constants for identityd
+  (0x0700-0x0702), summaryd (0x0710-0x0712), syncd (0x0720-0x0722).
+  4 new tests verify tag stability and uniqueness.
+
+### Unsafe Audit Tool (RFC-v0.7.5-001 — W-H-05)
+- **`fjell-unsafe-audit` v2**: now parses `category=<name>` from SAFETY
+  comments. Known categories: `raw-pointer-deref`, `page-table-mutation`,
+  `csr-asm`, `mmio-access`, `phys-id-map-assumption`, `kernel-global-mutable`,
+  `user-copy`. `--check` mode exits 1 on missing or unknown categories.
+  JSON output includes `category` field.
+
+### Test Coverage
+- 408 named tests (was 387 at v0.7.1); 0 failures; 0 warnings.
+- New test suites: `virtq_tests` (13), `policy_auth_tests` (6),
+  `v07_tag_tests` (4), `feature_tests` (6), `rx_tests` (5).

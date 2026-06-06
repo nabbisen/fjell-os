@@ -73,6 +73,8 @@ pub use profile::{
     TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
 pub use provider::HardwareTrustProvider;
+// PolicyAuth exported below
+pub use registry::PolicyAuth;
 pub use registry::{ProviderRegistry, RegistryError, RegistryPhase};
 
 /// Schema version for `TrustProviderDescriptor` serialization.

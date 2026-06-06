@@ -40,6 +40,28 @@ pub enum RegistryError {
     StaleHandle,
     /// The handle refers to a slot that does not contain a provider.
     NotFound,
+    /// `Enforcing` mode requires a policy-authorization token for replace/remove
+    /// (RFC-v0.7.4-003 / W-H-06).
+    PolicyAuthorizationRequired,
+}
+
+/// Opaque policy-authorization token required for replace/remove in Enforcing mode.
+///
+/// In v0.7.x the token is checked for non-emptiness only; full signature
+/// verification against the PolicyAdmin keyring anchor is v0.8.
+/// See RFC-v0.7.4-003 §6 "Provider registry constraints".
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PolicyAuth {
+    /// Non-zero = token present.  Full Ed25519 sig verification in v0.8.
+    pub token: u32,
+}
+
+impl PolicyAuth {
+    /// An empty (invalid) token — rejected in Enforcing mode.
+    pub const EMPTY: Self = Self { token: 0 };
+    /// A non-empty token — accepted in v0.7.x as "policy authorised".
+    pub fn valid(token: u32) -> Self { Self { token } }
+    pub fn is_present(self) -> bool { self.token != 0 }
 }
 
 /// Owning storage for one provider slot.
@@ -150,15 +172,23 @@ impl ProviderRegistry {
     }
 
     /// Replace the descriptor in an existing slot.  Increments the slot's
-    /// generation so old handles fail.  In `Enforcing` phase, `Null`
-    /// descriptors are rejected.
+    /// generation so old handles fail.
+    ///
+    /// In `Enforcing` phase: requires a non-empty `PolicyAuth` token
+    /// (RFC-v0.7.4-003 / W-H-06) and rejects `Null` descriptors.
     pub fn replace(
         &mut self,
         handle: ProviderHandle,
         mut new_descriptor: TrustProviderDescriptor,
+        auth: PolicyAuth,
     ) -> Result<ProviderHandle, RegistryError> {
-        if self.phase == RegistryPhase::Enforcing && !new_descriptor.permitted_in_release() {
-            return Err(RegistryError::NullProviderForbidden);
+        if self.phase == RegistryPhase::Enforcing {
+            if !auth.is_present() {
+                return Err(RegistryError::PolicyAuthorizationRequired);
+            }
+            if !new_descriptor.permitted_in_release() {
+                return Err(RegistryError::NullProviderForbidden);
+            }
         }
         let id = handle.id;
         for slot in self.slots.iter_mut() {
@@ -179,7 +209,13 @@ impl ProviderRegistry {
 
     /// Remove a provider slot.  After removal, any stale handle fails the
     /// generation check.
-    pub fn remove(&mut self, handle: ProviderHandle) -> Result<(), RegistryError> {
+    ///
+    /// In `Enforcing` phase: requires a non-empty `PolicyAuth` token
+    /// (RFC-v0.7.4-003 / W-H-06).
+    pub fn remove(&mut self, handle: ProviderHandle, auth: PolicyAuth) -> Result<(), RegistryError> {
+        if self.phase == RegistryPhase::Enforcing && !auth.is_present() {
+            return Err(RegistryError::PolicyAuthorizationRequired);
+        }
         for slot in self.slots.iter_mut() {
             if slot.occupied && slot.descriptor.id == handle.id {
                 if slot.generation != handle.generation {

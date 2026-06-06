@@ -15,6 +15,7 @@
 extern crate alloc;
 
 use crate::descriptor::TrustProviderDescriptor;
+use crate::registry::PolicyAuth;
 use crate::development::DevelopmentTrustProvider;
 use crate::error::TrustError;
 use crate::ids::{KeyPurpose, ProviderHandle, TrustProviderId};
@@ -219,7 +220,7 @@ fn registry_enforcing_rejects_new_non_null_provider() {
 fn registry_replace_rotates_generation() {
     let mut reg = ProviderRegistry::new();
     let h1 = reg.register(dev_descriptor()).expect("register");
-    let h2 = reg.replace(h1, dev_descriptor()).expect("replace");
+    let h2 = reg.replace(h1, dev_descriptor(), PolicyAuth::valid(1)).expect("replace");
     assert_eq!(h1.id, h2.id);
     assert_ne!(h1.generation, h2.generation);
     assert!(h2.generation > h1.generation);
@@ -230,10 +231,10 @@ fn registry_replace_in_enforcing_rejects_null() {
     let mut reg = ProviderRegistry::new();
     let h1 = reg.register(dev_descriptor()).expect("register");
     reg.enter_enforcing();
-    let err = reg.replace(h1, null_descriptor()).unwrap_err();
+    let err = reg.replace(h1, null_descriptor(), PolicyAuth::valid(1)).unwrap_err();
     assert_eq!(err, RegistryError::NullProviderForbidden);
     // Non-null replace still works in Enforcing phase:
-    let h2 = reg.replace(h1, dev_descriptor()).expect("non-null replace");
+    let h2 = reg.replace(h1, dev_descriptor(), PolicyAuth::valid(1)).expect("non-null replace");
     assert_eq!(h1.id, h2.id);
     assert!(h2.generation > h1.generation);
 }
@@ -242,7 +243,7 @@ fn registry_replace_in_enforcing_rejects_null() {
 fn registry_remove_rotates_generation() {
     let mut reg = ProviderRegistry::new();
     let h = reg.register(dev_descriptor()).expect("register");
-    reg.remove(h).expect("remove");
+    reg.remove(h, PolicyAuth::valid(1)).expect("remove");
     // The slot is now free; further lookup must report NotFound.
     let err = reg.lookup(h).unwrap_err();
     assert_eq!(err, RegistryError::NotFound);
@@ -253,7 +254,7 @@ fn registry_remove_rotates_generation() {
 fn registry_stale_handle_after_replace_rejected() {
     let mut reg = ProviderRegistry::new();
     let h1 = reg.register(dev_descriptor()).expect("register");
-    let _h2 = reg.replace(h1, dev_descriptor()).expect("replace");
+    let _h2 = reg.replace(h1, dev_descriptor(), PolicyAuth::valid(1)).expect("replace");
     // Old handle must now fail with StaleHandle.
     let err = reg.lookup(h1).unwrap_err();
     assert_eq!(err, RegistryError::StaleHandle);
@@ -263,7 +264,7 @@ fn registry_stale_handle_after_replace_rejected() {
 fn registry_stale_handle_after_remove_rejected() {
     let mut reg = ProviderRegistry::new();
     let h = reg.register(dev_descriptor()).expect("register");
-    reg.remove(h).expect("remove");
+    reg.remove(h, PolicyAuth::valid(1)).expect("remove");
     // After removal, the slot is empty; lookup is NotFound (the handle
     // can't be stale against a non-existent generation).
     let err = reg.lookup(h).unwrap_err();
@@ -276,7 +277,7 @@ fn registry_descriptors_iterate_only_live_slots() {
     let h1 = reg.register(dev_descriptor()).expect("register 1");
     let _h2 = reg.register(dev_descriptor()).expect("register 2");
     let h3 = reg.register(dev_descriptor()).expect("register 3");
-    reg.remove(h1).expect("remove h1");
+    reg.remove(h1, PolicyAuth::valid(1)).expect("remove h1");
     let live: alloc::vec::Vec<TrustProviderDescriptor> = reg.descriptors().collect();
     assert_eq!(live.len(), 2);
     // Removed id must not appear.
@@ -553,3 +554,58 @@ fn trust_error_codes_are_stable() {
 
 // Bring `alloc` in for the debug-format test.  `no_std` crates may still use
 // `extern crate alloc` under cfg(test) on a hosted target.  (moved to top.)
+
+// ── RFC-v0.7.4-003: provider replace/remove policy gate ──────────────────────
+
+#[test]
+fn registry_enforcing_replace_requires_policy_auth() {
+    let mut reg = ProviderRegistry::new();
+    let h = reg.register(dev_descriptor()).unwrap();
+    reg.enter_enforcing();
+
+    // Replace with EMPTY auth must be rejected in Enforcing.
+    let err = reg.replace(h, dev_descriptor(), PolicyAuth::EMPTY).unwrap_err();
+    assert_eq!(err, crate::registry::RegistryError::PolicyAuthorizationRequired);
+}
+
+#[test]
+fn registry_enforcing_replace_with_valid_auth_succeeds() {
+    let mut reg = ProviderRegistry::new();
+    let h = reg.register(dev_descriptor()).unwrap();
+    reg.enter_enforcing();
+
+    // Replace with valid auth token succeeds.
+    let h2 = reg.replace(h, dev_descriptor(), PolicyAuth::valid(0xDEAD_BEEF)).unwrap();
+    assert_ne!(h2, h, "generation should increment");
+}
+
+#[test]
+fn registry_enforcing_remove_requires_policy_auth() {
+    let mut reg = ProviderRegistry::new();
+    let h = reg.register(dev_descriptor()).unwrap();
+    reg.enter_enforcing();
+
+    let err = reg.remove(h, PolicyAuth::EMPTY).unwrap_err();
+    assert_eq!(err, crate::registry::RegistryError::PolicyAuthorizationRequired);
+}
+
+#[test]
+fn registry_enforcing_remove_with_valid_auth_succeeds() {
+    let mut reg = ProviderRegistry::new();
+    let h = reg.register(dev_descriptor()).unwrap();
+    reg.enter_enforcing();
+
+    reg.remove(h, PolicyAuth::valid(1)).unwrap();
+    assert_eq!(reg.len(), 0);
+}
+
+#[test]
+fn policy_auth_empty_is_not_present() {
+    assert!(!PolicyAuth::EMPTY.is_present());
+}
+
+#[test]
+fn policy_auth_valid_is_present() {
+    assert!(PolicyAuth::valid(1).is_present());
+    assert!(PolicyAuth::valid(0xFFFF_FFFF).is_present());
+}

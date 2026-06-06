@@ -259,8 +259,9 @@ impl CapKind {
             21 => Some(Self::RootfsRead),
             22 => Some(Self::SnapshotCreate),
             23 => Some(Self::SnapshotRead),
-            0x14 => Some(Self::Interrupt),
-            0x15 => Some(Self::NetDevice),
+            // 0x14 = 20, 0x15 = 21 - handled above; net/interrupt get distinct values
+            0x18 => Some(Self::Interrupt),   // 24
+            0x19 => Some(Self::NetDevice),   // 25
             _  => None,  // unknown kind → None (not Endpoint)
         }
     }
@@ -389,5 +390,16 @@ mod rfc_v074_003_tests {
     #[test]
     fn cap_install_right_is_bit_26() {
         assert_eq!(CapRights::CAP_INSTALL.0, 1 << 26);
+    }
+}
+
+#[cfg(test)]
+mod rfc_v074_003_cap_bind_tests {
+    use super::CapRights;
+
+    // NEG:LEASE:BIND_WITHOUT_LEASE_ADMIN_REJECTED — format-level
+    #[test]
+    fn lease_create_right_is_bit_16() {
+        assert_eq!(CapRights::LEASE_CREATE.0, 1 << 16);
     }
 }

@@ -10,6 +10,7 @@ pub mod features;
 pub mod mmio;
 pub mod ring;
 pub mod state;
+pub mod virtq;
 
 pub use mmio::{
     read_le32, write_le32, read_mac, read_link_up,
@@ -28,6 +29,11 @@ pub use ring::{
     RING_SIZE, RingError,
 };
 pub use state::{DriverState, DriverStateBlock, DriverStateError};
+pub use virtq::{VirtQueue, VirtqDesc, AvailRing, UsedRing, DescriptorAllocator,
+    QUEUE_SIZE, VRING_DESC_F_WRITE, VRING_DESC_F_NEXT};
+pub use features::{
+    FeatureError, negotiate_features_checked,
+};
 
 #[cfg(test)]
 mod tests;

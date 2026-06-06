@@ -14,6 +14,56 @@ use std::{
     process,
 };
 
+/// Known unsafe site categories (RFC-v0.7.5-001 / W-H-05).
+///
+/// Every unsafe block MUST name its category in the SAFETY comment:
+///   `// SAFETY: category=<known-name>`
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnsafeCategory {
+    RawPointerDeref,
+    PageTableMutation,
+    CsrAsm,
+    MmioAccess,
+    PhysIdMapAssumption,
+    KernelGlobalMutable,
+    UserCopy,
+    Unknown,      // category= present but not a recognised name
+    Missing,      // no category= tag at all
+}
+
+impl UnsafeCategory {
+    fn from_str(s: &str) -> Self {
+        match s.trim() {
+            "raw-pointer-deref"       => Self::RawPointerDeref,
+            "page-table-mutation"     => Self::PageTableMutation,
+            "csr-asm"                 => Self::CsrAsm,
+            "mmio-access"             => Self::MmioAccess,
+            "phys-id-map-assumption"  => Self::PhysIdMapAssumption,
+            "kernel-global-mutable"   => Self::KernelGlobalMutable,
+            "user-copy"               => Self::UserCopy,
+            _                         => Self::Unknown,
+        }
+    }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::RawPointerDeref      => "raw-pointer-deref",
+            Self::PageTableMutation    => "page-table-mutation",
+            Self::CsrAsm               => "csr-asm",
+            Self::MmioAccess           => "mmio-access",
+            Self::PhysIdMapAssumption  => "phys-id-map-assumption",
+            Self::KernelGlobalMutable  => "kernel-global-mutable",
+            Self::UserCopy             => "user-copy",
+            Self::Unknown              => "unknown",
+            Self::Missing              => "missing",
+        }
+    }
+
+    fn is_valid(self) -> bool {
+        !matches!(self, Self::Unknown | Self::Missing)
+    }
+}
+
 #[derive(Debug)]
 struct UnsafeRecord {
     file:          String,
@@ -21,6 +71,7 @@ struct UnsafeRecord {
     kind:          UnsafeKind,
     has_safety:    bool,
     safety_text:   String,
+    category:      UnsafeCategory,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,6 +125,7 @@ fn scan_file(path: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
                 kind,
                 has_safety,
                 safety_text,
+                category,
             });
         }
     }
@@ -144,11 +196,12 @@ fn main() {
     if json {
         for r in &records {
             println!(
-                r#"{{"file":"{f}","line":{l},"kind":"{k}","has_safety":{s},"safety_text":"{t}"}}"#,
+                r#"{{"file":"{f}","line":{l},"kind":"{k}","has_safety":{s},"category":"{cat}","safety_text":"{t}"}}"#,
                 f = r.file.replace('\\', "/"),
                 l = r.line,
                 k = r.kind.as_str(),
                 s = r.has_safety,
+                    cat = r.category.as_str(),
                 t = r.safety_text.replace('"', "\\\""),
             );
         }
@@ -156,6 +209,12 @@ fn main() {
         println!("fjell-unsafe-audit  root={}", root.display());
         println!("  total unsafe sites : {total}");
         println!("  with SAFETY comment: {covered}");
+        let valid_cats = records.iter().filter(|r| r.has_safety && r.category.is_valid()).count();
+        let missing_cats = records.iter().filter(|r| r.has_safety && !r.category.is_valid()).count();
+        println!("  with valid category tag: {valid_cats}");
+        if missing_cats > 0 {
+            println!("  MISSING/UNKNOWN category: {missing_cats}");
+        }
         println!("  missing comment    : {missing}");
         if missing > 0 {
             println!();

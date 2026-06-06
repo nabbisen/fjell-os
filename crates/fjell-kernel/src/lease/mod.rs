@@ -163,20 +163,70 @@ impl LeaseTable {
     }
 }
 
-// ── RFC 034 hook ──────────────────────────────────────────────────────────────
+// ── RFC-v0.7.4-003 / W-H-02: unified lease-revocation IPC wake ────────────────
 
 /// Wake or cancel any tasks blocked in IPC that are bound to `lease_id`.
 ///
-/// Phase 2 (RFC 034) stub.  When IPC blocking data structures carry
-/// `lease_epoch_at_call` this function will:
-///   1. Walk the per-lease waiter list (O(waiters), bounded by CSPACE_SLOTS).
-///   2. Wake blocked receivers with `LeaseRevoked`.
-///   3. Cancel blocked callers' `CallFrame`s.
+/// RFC-v0.7.4-003 (closes W-H-02): implements the RFC 034 hook properly.
+/// Walks every endpoint, cancels sender/receiver queue entries whose
+/// lease epoch matches the revoked lease, then wakes the affected tasks.
 ///
-/// Until then it is a no-op so that the O(1) revoke path compiles and runs.
-#[inline(always)]
-fn wake_or_cancel_blocked_ipc_for_lease(_id: LeaseId) {
-    // RFC 034 implementation goes here.
+/// This is O(MAX_ENDPOINTS × queue_depth) — acceptable for the current
+/// MAX_ENDPOINTS=32 and QUEUE_DEPTH=8 (256 operations worst-case).
+fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId) {
+    // SAFETY: category=kernel-global-mutable
+    //   Single-hart kernel; all global pointers are exclusively owned in this call.
+    let (tasks, sched, _, et) = unsafe { crate::get_kernel_state() };
+
+    // Retrieve the current epoch (just incremented by the revoke call above).
+    // We use a local copy to avoid a second borrow of the lease table.
+    // SAFETY: category=kernel-global-mutable  single-hart, no races.
+    let epoch = {
+        let lt_tmp = unsafe { crate::get_lease_table() };
+        match lt_tmp.current_epoch(id) {
+            Ok(e) => e.0,
+            Err(_) => return,
+        }
+    };
+
+    // Epoch before the revoke is epoch - 1 (the epoch in-flight tasks had).
+    // cancel_by_lease checks if the stored epoch matches the old epoch.
+    let old_epoch = epoch.wrapping_sub(1);
+
+    // Walk every endpoint and cancel matching waiters.
+    for (_ep_id, ep) in et.iter_allocated() {
+        let cancelled = ep.cancel_by_lease(id, old_epoch);
+        // Wake cancelled senders.
+        for i in 0..cancelled.n_senders {
+            let tid = cancelled.sender_tids[i];
+            let task_id = crate::task::TaskId::new(tid, 0);
+            if let Some(task) = tasks.get_mut(task_id) {
+                // Deliver LeaseRevoked status to the sender's trap frame.
+                task.trap_frame.gpr[crate::task::tcb::REG_A0] =
+                    fjell_abi::error::SysError::LeaseRevoked as isize as usize;
+                task.state = crate::task::tcb::TaskState::Runnable;
+            }
+            sched.enqueue(task_id, 128);
+        }
+        // Wake cancelled receivers.
+        for i in 0..cancelled.n_receivers {
+            let tid = cancelled.receiver_tids[i];
+            let task_id = crate::task::TaskId::new(tid, 0);
+            if let Some(task) = tasks.get_mut(task_id) {
+                task.trap_frame.gpr[crate::task::tcb::REG_A0] =
+                    fjell_abi::error::SysError::LeaseRevoked as isize as usize;
+                task.state = crate::task::tcb::TaskState::Runnable;
+            }
+            sched.enqueue(task_id, 128);
+        }
+    }
+
+    // Emit a pinned-critical audit event for every revoke that affects waiters.
+    // (The audit call is best-effort; failure here must not abort the revoke.)
+    crate::audit::ring::AUDIT.lock_free_append(
+        crate::audit::ring::AuditKindInternal::LeaseRevoked,
+        id.0 as usize, epoch as usize, 0,
+    );
 }
 
 // ── RFC 006 + RFC 033: implement LeaseChecker for the kernel lease table ──────

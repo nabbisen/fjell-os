@@ -153,6 +153,23 @@ impl CSpace {
     }
 
     /// `cap_copy`: copy capability `src` into `dst_slot`.
+    ///
+    /// # Parent tracking (RFC-v0.7.4-003 / C-M-09 — intentional design)
+    ///
+    /// `new_cap.parent = None` is deliberate. Kernel-local `cap_revoke` does NOT
+    /// cascade across copies; this is by design:
+    ///
+    ///   - Copies are **independent authorities**. Kernel revoke only clears the
+    ///     single slot being revoked; other copies of the same object remain valid.
+    ///   - **Recursive revocation is done via lease revocation**, not cap-parent
+    ///     links. Any copied cap that shares the same `LeaseBinding` as the
+    ///     original is automatically invalidated when that lease is revoked.
+    ///
+    /// If your code expects recursive revocation across copies you MUST:
+    ///   1. Bind both source and copy to the same lease via `sys_cap_bind_lease`.
+    ///   2. Use `sys_lease_revoke` rather than `sys_cap_revoke`.
+    ///
+    /// See ADR-v0.7.4-003.
     pub fn copy(
         &mut self,
         src:      CapHandle,
@@ -167,7 +184,9 @@ impl CSpace {
         }
 
         let mut new_cap = cap;
-        new_cap.parent = None;  // copied cap has no parent link
+        // Intentional: parent = None. See doc comment above for the rationale.
+        // Lease-based revocation is the correct mechanism for cascading revoke.
+        new_cap.parent = None;
         self.slots[dst_slot].cap   = Some(new_cap);
         self.slots[dst_slot].state = CapSlotState::Active;
         Ok(self.handle_for(dst_slot))
@@ -271,5 +290,17 @@ impl CSpace {
     /// Mutable view of all slots (test/bootstrap use only).
     pub fn slots_mut(&mut self) -> &mut [CapSlot; CSPACE_SLOTS] {
         &mut self.slots
+    }
+
+    /// Iterate over all occupied capability slots, yielding `&Capability`.
+    /// Used by the kernel to scan CSpaces for authority checks (RFC-v0.7.4-003).
+    pub fn iter_occupied(&self) -> impl Iterator<Item = &Capability> {
+        self.slots.iter().filter_map(|slot| {
+            if slot.state == crate::slot::CapSlotState::Active {
+                slot.cap.as_ref()
+            } else {
+                None
+            }
+        })
     }
 }

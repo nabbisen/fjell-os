@@ -265,13 +265,36 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let cap_h    = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
 
-    // 1. Caller must hold LeaseAdmin cap with LEASE_CREATE right (RFC 048).
-    //    Use the caller's LeaseAdmin slot 4 (neg-test) / slot 30 (init) etc.
-    //    The cap handle was validated by the lease check below; skip scan.
-    //    (V02-A-001 deferred: full handle-based check requires ABI change here too)
+    // RFC-v0.7.4-003 (closes C-RB-05): enforce documented LeaseAdmin authority.
+    // The caller MUST hold CapKind::LeaseAdmin with CapRights::LEASE_CREATE.
+    // Previously this check was deferred (V02-A-001); now fully enforced.
+    //
+    // We scan the caller's CSpace for any LeaseAdmin cap with LEASE_CREATE.
+    // This is O(CSPACE_SLOTS) but bind_lease is rare (setup-time only).
+    {
+        // SAFETY: category=kernel-global-mutable
+        //   single-hart kernel; get_kernel_state returns globally unique ptrs.
+        let (_, _, ct_ref, _) = unsafe { crate::get_kernel_state() };
+        // SAFETY: category=kernel-global-mutable  lease table single-threaded.
+        let lt_ref = unsafe { crate::get_lease_table() };
+        let cs = match ct_ref.cspace(tidx) {
+            Some(c) => c,
+            None    => { err(tf, SysError::InternalError); return; }
+        };
+        let found = cs.iter_occupied().any(|cap| {
+            cap.kind == CapKind::LeaseAdmin
+                && cap.rights.contains(CapRights::LEASE_CREATE)
+                && cap.check_lease(lt_ref).is_ok()
+        });
+        if !found {
+            err(tf, SysError::PermissionDenied);
+            AUDIT.lock_free_append(AuditKindInternal::CapDenied, tidx, 0, 0);
+            return;
+        }
+    }
 
     // 2. Get the current epoch for the lease (must be Active).
-    // SAFETY: capability handle is validated by require_cap before this call.
+    // SAFETY: category=kernel-global-mutable  lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
     let epoch = match lt.current_epoch(lease_id) {
         Ok(e)  => e,
@@ -322,21 +345,9 @@ pub fn sys_ipc_send(
     tasks: &mut TaskTable, sched: &mut Scheduler,
     cur_id: TaskId,
 ) {
-    // Diagnostic: print "S<tidx>" to UART when IpcSend is entered.
-    // SAFETY: capability handle is validated by require_cap before this call.
-    unsafe {
-        let uart = 0x1000_0000usize as *mut u8;
-        uart.write_volatile(b'S');
-        uart.write_volatile(b'0' + tidx as u8);
-        uart.write_volatile(b'a');
-        uart.write_volatile(tf.gpr[10] as u8 + b'0'); // cap slot
-    }
+    // RFC-v0.7.4-003 / C-M-07: debug UART writes removed from production IPC path.
+    // IPC events are recorded in the audit ring via AuditKindInternal::IpcSend.
     if let Err(e) = check_right(tf, tidx, ct, CapRights::SEND) {
-        // SAFETY: capability handle is validated by require_cap before this call.
-        unsafe {
-            let uart = 0x1000_0000usize as *mut u8;
-            uart.write_volatile(b'F');
-        }
         err(tf, e); return;
     }
     let (ep_id, msg) = match build_msg(tf, tidx, ct, false) { Ok(x) => x, Err(e) => { err(tf, e); return; } };

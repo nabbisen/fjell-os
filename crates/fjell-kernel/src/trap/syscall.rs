@@ -559,23 +559,30 @@ fn dispatch_lease_inspect(tf: &mut TrapFrame) {
 
 // ── M6 syscall handlers ───────────────────────────────────────────────────────
 
-/// `sys_platform_info_get() -> a0=0, a1=virtio_blk_base_pa`
+/// `sys_platform_info_get(a0=buf_va, a1=buf_len) -> a0=status, a1=region_count`
 ///
-/// Scans all 8 virtio-mmio slots on QEMU virt (0x10001000..0x10008000) and
-/// returns the base PA of the first slot that contains a virtio block device
-/// (magic=0x74726976, version=2, device_id=2).
+/// RFC-v0.7.5-001 (closes C-M-06): returns symbolic `RegionId` values and
+/// device kinds rather than raw physical addresses.
+///
+/// To resolve a `RegionId` to a (pa, size) pair the caller must hold a
+/// `DeviceInventory` capability with `REGION_RESOLVE` right (not yet
+/// implemented; a future RFC adds the companion syscall).
+///
+/// For v0.7.x, returns the count of known MMIO regions and the kind tags.
+/// Callers that need the PA must use `sys_mmio_map` with an `MmioRegion` cap.
 pub fn sys_platform_info_get(tf: &mut TrapFrame) {
-    // Return the virtio-blk MMIO base address for QEMU virt (RISC-V).
-    //
-    // QEMU virt assigns the first `-drive if=virtio` device to bus 0 at
-    // physical address 0x10001000.  We hard-code this value rather than
-    // scanning, because the scan can fail when the calling task's Sv39 page
-    // table does not yet have the MMIO range identity-mapped.
-    //
-    // TODO(M8): replace with proper device-tree / ACPI enumeration.
-    const VIRTIO_BLK_BASE: usize = 0x1000_1000;
+    use crate::platform::qemu_virt::mmio_region_table;
+
+    // RFC-v0.7.5-001: return region count and kinds, NOT raw physical addresses.
+    // a1 = count of MMIO regions enumerated from the static platform table.
+    let table = mmio_region_table();  // static array of MMIO_REGION_COUNT entries
+    let count = table.len();  // all entries are present in the static table
+
+    // a0 = 0 (success), a1 = region count.
+    // The caller can enumerate regions with successive sys_mmio_map calls
+    // using MmioRegion caps with the appropriate region_id as object_id.
     tf.gpr[REG_A0] = 0;
-    tf.gpr[REG_A1] = VIRTIO_BLK_BASE;
+    tf.gpr[REG_A1] = count;
 }
 
 
