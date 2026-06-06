@@ -51,14 +51,14 @@
 | QEMU negative tier (≥ 9 categories) | RFC-v0.7.1-002 | **DONE** (v0.7.4) |
 | Reproducible-build gate | RFC-v0.10-003 | **DONE** (v0.9.4) |
 | ABI snapshot gate | RFC-v0.10-002 | **DONE** (v0.9.4) |
-| Benchmark baseline + regression gate | RFC-v0.10-004 | **IN PROGRESS** → v0.10 |
+| Benchmark baseline + regression gate | RFC-v0.10-004 | **DONE** (v1.0.0) |
 | MMIO ordering audit | RFC-v0.12-004 | **DONE** (v0.12.0) |
 
 ## Dimension 5 — Operability
 
 | Item | RFC | Status |
 |------|-----|--------|
-| Reference QEMU fleet demo | RFC-v0.10-005 | **IN PROGRESS** → v0.10 |
+| Reference QEMU fleet demo | RFC-v0.10-005 | **DONE** (v1.0.0) |
 | Trust Report (six sections) | RFC 061 §6 | **DONE** (v0.9.4) |
 | Fleet partition reconciliation | RFC-v0.13-002 | **DONE** (v0.13.0) |
 | Key compromise recovery playbook | RFC-v0.13-003 | **DONE** (v0.13.0) |
@@ -114,7 +114,7 @@
 | DEFERRED | 3 |
 | OPEN | 0 |
 
-*No OPEN cells. Every IN PROGRESS item has a target milestone.*
+*v1.0.0 released. Zero OPEN cells. Zero IN PROGRESS items.*
 
 ---
 
