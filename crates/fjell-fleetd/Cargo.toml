@@ -1,0 +1,20 @@
+[package]
+name = "fjell-fleetd"
+description = "Fleet manager service for Fjell OS v0.8 (fleet operations plane)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-fleetd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall          = { path = "../fjell-syscall" }
+fjell-fleet-format     = { path = "../fjell-fleet-format" }
+fjell-remote-diag-format = { path = "../fjell-remote-diag-format" }
+fjell-policy-format    = { path = "../fjell-policy-format" }
+fjell-identity-format  = { path = "../fjell-identity-format" }
+fjell-measure-format   = { path = "../fjell-measure-format" }

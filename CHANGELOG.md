@@ -2862,3 +2862,77 @@ Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.
 ### Test Coverage
 - 417 named tests (was 412 at v0.7.3); 0 failures.
 - New: `ownership_tests` (4), `ci-coverage tests` (4).
+
+## [0.8.0] — 2026-05-20
+
+**Theme: Fleet / Edge Operations Plane.**
+
+```text
+v0.8 = fleet operations without remote shell
+```
+
+This is the first milestone that lets a fleet manager operate across
+multiple Fjell nodes using typed semantic intents. No general remote
+shell. No arbitrary command execution.
+
+### New crates (4)
+
+#### `fjell-fleet-format` (RFC v0.8-001..004)
+- **`NodeRoster`**: signed set of fleet members with `add_member`,
+  `is_member`, `revoke_member`, and `active_count`. Rejects duplicate
+  identity_digest entries. `roster_digest()` via streaming hasher.
+- **`FleetPolicy`**: first-match policy evaluation over `PolicyAction ×
+  PolicyCondition → Allow/Deny`. Default deny. `permits()` and
+  `permits_under()`.
+- **`FleetRolloutPlan`**: staged rollout (canary → regional → full) with
+  `RolloutStrategy` (AllConfirmed, Quorum, ManualApproval, Frozen),
+  `confirm_active_stage()`, `try_advance()`.
+- **`FleetAction`**: typed capability-controlled remote operations.
+  `FleetActionKind`: RequestDiag, InitiateRecovery, RevokeMember,
+  AdvanceRollout, PauseRollout, CollectAttestation, QueryState.
+  No ExecuteShell, no RunCommand — design invariant tested.
+- **`CatalogRangeOwner`** FLEET range 0x0200-0x02FF: `owner_crate =
+  "fjell-syncd"`, `reserved_for_version = Some("v0.8")`.
+- 14 unit tests.
+
+#### `fjell-remote-diag-format` (RFC v0.8-005)
+- **`RemoteDiagRequest`** / **`RemoteDiagResponse`**: strictly
+  one-directional. The fleet manager requests; the node controls what
+  it exports. `DiagRequestKind`: MeasurementSummary, ReleaseSummary,
+  AuditBundle, BootEvidence, FullSnapshot.
+- **`DiagResponseStatus`**: Ok, SignatureInvalid, NotAuthorized,
+  DataUnavailable, InternalError, Replay.
+- 4 unit tests.
+
+#### `fjell-policy-format` (RFC v0.8-006)
+- **`PolicyBundle`**: signed collection of policy statements. Governs
+  which capabilities cap-broker may install, which fleet actions are
+  permitted, and which services may be spawned.
+- **`PolicySubject`**: CapInstall, CapDelegate, FleetAction,
+  ServiceSpawn, TrustProvider.
+- Wildcard `object_tag = 0xFF` matches any object. First-match wins.
+  Default deny.
+- 5 unit tests.
+
+#### `fjell-fleetd` (v0.8 fleet manager service)
+- Stub service that self-checks all four v0.8 format crates at boot:
+  - Roster digest is non-zero.
+  - Policy allow/deny semantics work.
+  - Rollout advance fires on stage confirmation.
+  - FleetAction fleet-wide detection works.
+  - RemoteDiagRequest can be constructed.
+  - PolicyBundle wildcard permissions work.
+- Emits `fleetd: all v0.8 format self-checks passed` before exiting.
+
+### Fleet identity integration
+- `fjell-fleet-format::roster::RosterRef` now has a concrete
+  `from_digest(Digest32)` constructor. The v0.7.x `RosterRef` in
+  `fjell-identity-format` remains for compatibility.
+- `TrustMode::Fleet` in v0.8: callers with `NeedsRosterValidation`
+  should now create a `NodeRoster` and call `is_member()` with the
+  peer's identity_digest. The `check_roster_membership` stub in
+  v0.7.3 is superseded.
+
+### Test Coverage
+- 443 named tests (was 417 at v0.7.4); 0 failures.
+- New: fleet-format (14), remote-diag-format (4), policy-format (5).

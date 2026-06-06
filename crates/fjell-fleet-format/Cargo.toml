@@ -1,0 +1,16 @@
+[package]
+name = "fjell-fleet-format"
+description = "Fleet identity, roster, policy, and rollout wire formats for Fjell OS v0.8."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_fleet_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format   = { path = "../fjell-measure-format" }
+fjell-identity-format  = { path = "../fjell-identity-format" }

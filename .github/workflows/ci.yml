@@ -173,6 +173,9 @@ jobs:
             -p fjell-trust-provider \
             -p fjell-keyring \
             -p fjell-arch-riscv64 \
+            -p fjell-fleet-format \
+            -p fjell-remote-diag-format \
+            -p fjell-policy-format \
             -p fjell-semantic-stream \
             -p fjell-proxy-text \
             -p fjell-ci-coverage \
@@ -190,6 +193,7 @@ jobs:
             -p fjell-verifyd -p fjell-rootfsd -p fjell-snapshotd \
             -p fjell-driver-virtio-blk \
             -p fjell-driver-virtio-net -p fjell-secure-transportd \
+            -p fjell-fleetd \
             --target riscv64gc-unknown-none-elf \
             -Z build-std=core,compiler_builtins
 

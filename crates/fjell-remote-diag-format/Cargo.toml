@@ -1,0 +1,16 @@
+[package]
+name = "fjell-remote-diag-format"
+description = "Remote diagnostics request/response wire formats for Fjell OS v0.8."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_remote_diag_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-diag-format    = { path = "../fjell-diag-format" }
