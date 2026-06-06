@@ -1,6 +1,6 @@
 # RFC-v0.12-001 — Deployment Profile Hardening Overview
 
-**Status:** Proposed
+**Status:** Implemented (v0.12.0)
 **Target version:** v0.12.0
 **Parent:** RFC 061 §10 (roadmap), §3 archetypes A1/A2/A3.
 **Cross-refs:** v0.12-002 through v0.12-005.

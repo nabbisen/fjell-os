@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-dtb-validate"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "DTB header and required-device validation for boot handoff (RFC-v0.12-003)."
+publish     = false
+
+[dependencies]
+fjell-platform-format = { path = "../fjell-platform-format" }
+fjell-measure-format  = { path = "../fjell-measure-format" }

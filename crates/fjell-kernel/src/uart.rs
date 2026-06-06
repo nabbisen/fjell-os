@@ -47,7 +47,9 @@ impl Uart {
         // Single-threaded boot context; no concurrent access possible.
         unsafe {
             // LCR = 0b0000_0011: 8-bit word length, 1 stop bit, no parity.
+            // MMIO-ORDER: device_setup
             base.add(UART_LCR).write_volatile(0b0000_0011);
+            // MMIO-ORDER: device_setup
             // FCR = 0b0000_0001: enable TX/RX FIFO.
             base.add(UART_FCR).write_volatile(0b0000_0001);
         }
@@ -63,6 +65,7 @@ impl Uart {
         // SAFETY: category=mmio-access UART_BASE is a valid MMIO address on QEMU virt.
         // volatile write ensures the byte is not elided by the compiler.
         unsafe {
+            // MMIO-ORDER: device_kick
             base.add(UART_THR).write_volatile(byte);
         }
     }

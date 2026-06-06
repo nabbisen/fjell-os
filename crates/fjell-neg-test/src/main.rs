@@ -200,6 +200,7 @@ fn test_dma_zeroize() {
             // Read back: PA was zeroed by revoke (frame not yet reallocated).
             // SAFETY: category=raw-pointer-deref VA still maps to the freed PA; no preemption between
             // revoke and this read in the cooperative scheduler.
+            // MMIO-ORDER: poll
             let byte = unsafe { core::ptr::read_volatile(user_va as *const u8) };
             check(byte == 0, M::DMA_ZEROIZE_ON_EXIT);
         }

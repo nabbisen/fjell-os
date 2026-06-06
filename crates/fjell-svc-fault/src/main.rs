@@ -17,6 +17,7 @@ pub extern "C" fn service_main() -> ! {
 
     // Deliberately fault: read from null pointer → page fault → kernel marks Faulted.
     // SAFETY: category=raw-pointer-deref intentional fault for negative testing.
+    // MMIO-ORDER: poll
     let _ = unsafe { core::ptr::read_volatile(0usize as *const u8) };
 
     // Unreachable — fault above will trap and the kernel will Faulted the task.

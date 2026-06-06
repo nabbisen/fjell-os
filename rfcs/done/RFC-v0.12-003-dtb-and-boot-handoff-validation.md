@@ -1,6 +1,6 @@
 # RFC-v0.12-003 — DTB and Boot Handoff Validation
 
-**Status:** Proposed
+**Status:** Implemented (v0.12.0)
 **Target version:** v0.12.0
 **Parent:** v0.12-001.
 **Cross-refs:** RFC v0.5-002 (DTB derivation), v0.12-002 (target).

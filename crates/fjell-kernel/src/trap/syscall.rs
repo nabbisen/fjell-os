@@ -130,6 +130,7 @@ fn sys_debug_write(tf: &mut TrapFrame) {
     let b = tf.gpr[REG_A0] as u8;
     // Direct MMIO write; safe because UART PA is identity-mapped.
     // SAFETY: category=mmio-access all user-supplied pointers are checked against the task address space before dereferencing.
+    // MMIO-ORDER: device_kick
     unsafe { (0x1000_0000usize as *mut u8).write_volatile(b) };
     tf.gpr[REG_A0] = SysError::Ok as usize;
 }

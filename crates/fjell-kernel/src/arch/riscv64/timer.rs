@@ -24,6 +24,7 @@ pub const TICK_INTERVAL: u64 = 10 * TICKS_PER_MS;
 // SAFETY: category=mmio-access CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
 pub unsafe fn read_mtime() -> u64 {
     // SAFETY: category=mmio-access CLINT_MTIME is a valid read-only MMIO register on QEMU virt.
+    // MMIO-ORDER: status_read
     unsafe { (CLINT_MTIME as *const u64).read_volatile() }
 }
 
@@ -35,6 +36,7 @@ pub unsafe fn read_mtime() -> u64 {
 #[inline]
 // SAFETY: category=mmio-access CLINT MMIO address is fixed at boot; access is serialised by the single hart context.
 pub unsafe fn set_mtimecmp(value: u64) {
+    // MMIO-ORDER: device_kick
     // SAFETY: category=mmio-access CLINT_MTIMECMP0 is a valid writable MMIO register on QEMU virt.
     unsafe { (CLINT_MTIMECMP0 as *mut u64).write_volatile(value) };
 }

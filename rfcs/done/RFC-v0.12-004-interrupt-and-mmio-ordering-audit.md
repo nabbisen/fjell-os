@@ -1,6 +1,6 @@
 # RFC-v0.12-004 — Interrupt and MMIO Ordering Audit
 
-**Status:** Proposed
+**Status:** Implemented (v0.12.0)
 **Target version:** v0.12.0
 **Parent:** v0.12-001.
 **Cross-refs:** RFC 016 (MmioRegion), v0.5-001..003, v0.12-002.

@@ -1,6 +1,6 @@
 # RFC-v0.12-002 — Real-Board Target Selection (or Hardened QEMU Fallback)
 
-**Status:** Proposed
+**Status:** Implemented (v0.12.0)
 **Target version:** v0.12.0
 **Parent:** v0.12-001.
 **Cross-refs:** RFC v0.5-001 (PlatformProfile), v0.5-002 (DTB discovery).
@@ -55,18 +55,19 @@ The candidates considered:
 | SiFive HiFive Unmatched | ✓ | EOL | ✓ | ✓ | ✓ | ✓ | partial | ✗ | ✓ | ✓ |
 | QEMU `sifive_u` | n/a | n/a | ✓ | ✓ | ✓ | ✓ | n/a | n/a | ✓ | n/a |
 
-Final selection is deferred to landing time of this RFC (supply status
-will be re-verified). v0.12-002 commits to:
+**Selected target (recorded at landing):**
+- **Primary (Path A):** StarFive VisionFive 2 — satisfies all of C1–C7, dual-core RV64GC
+  SoC (JH7110), 8 GB LPDDR4, OpenSBI + U-Boot available upstream, active community.
+- **Secondary (Path A backup):** Milk-V Mars — same JH7110 SoC, confirmed available.
+- **Fallback (Path B, not taken):** QEMU `sifive_u` — deferred; Path A is achievable.
 
-- **Primary (Path A):** the candidate satisfying all of C1–C7 with the
-  best documentation quality at landing time. Initial preference:
-  StarFive VisionFive 2.
-- **Secondary (Path A backup):** Milk-V Mars or BeagleV-Ahead,
-  whichever is in stock.
-- **Fallback (Path B):** QEMU `sifive_u` if Path A is impractical.
+The `BoardProfile` for VisionFive 2 is committed at
+`platform/starfive-visionfive2/board-profile.toml`
+(see RFC-v0.12-005 and the `fjell-platform-format::BoardProfile` type).
 
-The choice is captured at landing as a one-line update to this RFC
-section before merge to `done/`.
+The choice is captured here as required by this RFC's §3.
+
+### 2.1 (cont.) — Path B note
 
 ## 4. BoardProfile content
 

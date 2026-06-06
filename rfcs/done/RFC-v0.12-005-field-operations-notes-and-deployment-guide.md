@@ -1,6 +1,6 @@
 # RFC-v0.12-005 — Field Operations Notes and Deployment Guide
 
-**Status:** Proposed
+**Status:** Implemented (v0.12.0)
 **Target version:** v0.12.0
 **Parent:** v0.12-001.
 **Cross-refs:** v0.12-002 (target), v0.12-003 (DTB validation),

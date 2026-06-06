@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-mmio-audit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Scan workspace for MMIO sites and verify MMIO-ORDER annotations (RFC-v0.12-004)."
+publish     = false
+
+[[bin]]
+name = "fjell-mmio-audit"
+path = "src/main.rs"

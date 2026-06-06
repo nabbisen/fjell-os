@@ -94,12 +94,14 @@ use fjell_cap::CapHandle;
 // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn rd32(base: usize, off: usize) -> u32 {
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
+    // MMIO-ORDER: status_read
     unsafe { core::ptr::read_volatile((base + off) as *const u32) }
 }
 #[inline(always)]
 // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn wr32(base: usize, off: usize, val: u32) {
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
+    // MMIO-ORDER: device_kick
     unsafe { core::ptr::write_volatile((base + off) as *mut u32, val) }
 }
 
@@ -109,9 +111,13 @@ unsafe fn write_desc(va: usize, idx: usize, addr: u64, len: u32, flags: u16, nex
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         let p = (va + idx * 16) as *mut u8;
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile(p.add(0) as *mut u64, addr);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile(p.add(8) as *mut u32, len);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile(p.add(12) as *mut u16, flags);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile(p.add(14) as *mut u16, next);
     }
 }
@@ -122,10 +128,13 @@ unsafe fn avail_push(va: usize, head: u16) {
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         let idx_ptr = (va + OFF_AVAIL + 2) as *mut u16;
+        // MMIO-ORDER: descriptor_publish
         let idx = core::ptr::read_volatile(idx_ptr);
         let slot = (idx as usize) % (QUEUE_SIZE as usize);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile((va + OFF_AVAIL + 4 + slot * 2) as *mut u16, head);
         fence(Ordering::SeqCst);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile(idx_ptr, idx.wrapping_add(1));
     }
 }
@@ -134,6 +143,7 @@ unsafe fn avail_push(va: usize, head: u16) {
 // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
 unsafe fn used_idx(va: usize) -> u16 {
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
+    // MMIO-ORDER: status_read
     unsafe { core::ptr::read_volatile((va + OFF_USED + 2) as *const u16) }
 }
 
@@ -142,9 +152,13 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         // Build virtio_blk_req header.
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile((va+OFF_HEADER  ) as *mut u32, if write { BLK_T_OUT } else { BLK_T_IN });
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile((va+OFF_HEADER+4) as *mut u32, 0);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile((va+OFF_HEADER+8) as *mut u64, lba);
+        // MMIO-ORDER: descriptor_publish
         core::ptr::write_volatile((va+OFF_STATUS  ) as *mut u8,  0xFF);
         fence(Ordering::SeqCst);
 
@@ -179,6 +193,7 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
             sys_yield();
         }
 
+        // MMIO-ORDER: status_read
         let st = core::ptr::read_volatile((va+OFF_STATUS) as *const u8);
         st == BLK_S_OK
     }

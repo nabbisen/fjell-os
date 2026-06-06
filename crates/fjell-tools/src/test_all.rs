@@ -102,6 +102,14 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
           "--workspace", ".", "--check"],
     ));
 
+    // ── Tier 3c: MMIO ordering audit ───────────────────────────────────────
+    results.push(run_tier(
+        &run_dir,
+        "03c-mmio-audit",
+        "MMIO ordering audit",
+        &["cargo", "run", "-p", "fjell-mmio-audit", "--", "--workspace", ".", "--check"],
+    ));
+
     // ── Tier 3b: repro-check (skip-build mode — fast) ───────────────────────
     results.push(run_tier(
         &run_dir,

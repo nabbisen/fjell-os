@@ -1,0 +1,41 @@
+# platform/starfive-visionfive2/board-profile.toml
+# StarFive VisionFive 2 — Fjell OS v0.12 primary deployment target.
+# RFC-v0.12-002.
+#
+# SoC: StarFive JH7110 (quad-core RV64GCB, up to 1.5 GHz)
+# RAM: 8 GB LPDDR4 (at PA 0x4000_0000)
+# Firmware: OpenSBI + U-Boot (upstream, no binary blobs on critical path)
+
+schema_version  = 1
+target_name     = "starfive-visionfive2"
+architecture    = "rv64gc"
+extensions      = ["I", "M", "A", "F", "D", "C"]
+
+# JH7110 memory map (from downstream Linux kernel dts and upstream U-Boot)
+ram_base_pa     = "0x40000000"
+ram_size_bytes  = "0x200000000"   # 8 GiB
+
+# Primary console UART (UART0 at 0x10000000 in U-Boot environment)
+uart_mmio_base  = "0x10000000"
+
+# VirtIO devices are not native on this board; QEMU-style virtio-mmio
+# is not present. Fjell v0.12 uses storaged over the native eMMC/SD
+# path wired through the in-tree block driver.
+# virtio_blk_base = n/a
+
+# Required devices at v0.12
+required_devices = ["uart", "plic", "clint"]
+
+# Optional devices that may be present depending on firmware version
+optional_devices = ["wdt", "rtc"]
+
+firmware_kind    = "opensbi"
+firmware_min_ver = "1.5"
+boot_protocol    = "linux-image-hdr-v6+dtb"
+
+# On DTB mismatch, attempt to boot recovery path rather than halting.
+# Appropriate for a development board where DT may vary across firmware.
+boot_failure_policy = "fail_safe"
+
+# Note: ARM64 (Cortex-A55 companion) is not targeted at v0.12.
+# Only the RISC-V hart cluster is supported.

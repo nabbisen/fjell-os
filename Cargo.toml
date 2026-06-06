@@ -70,6 +70,7 @@ members = [
     "tools/fjell-unsafe-audit",
     "tools/fjell-abi-snapshot",
     "tools/fjell-repro-check",
+    "tools/fjell-mmio-audit",
     "benches",
     "tools/fjell-ci-coverage",
     "crates/fjell-fleetd",
@@ -85,6 +86,7 @@ members = [
     "crates/fjell-dev-harness",
     "crates/fjell-sig-ed25519",
     "crates/fjell-replay-cache",
+    "crates/fjell-dtb-validate",
 ]
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
@@ -139,7 +141,7 @@ default-members = [
     "crates/fjell-fleet-format",
 ]
 [workspace.package]
-version = "0.11.0"
+version = "0.12.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
