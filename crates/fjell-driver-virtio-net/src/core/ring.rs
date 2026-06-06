@@ -143,3 +143,86 @@ impl Ring {
     /// Return the head-counter modulo `RING_SIZE` (for IPC ring_idx field).
     pub fn head_idx(&self) -> RingIndex { self.head.idx() }
 }
+
+// ── RFC-v0.7.3-001: RX ring receive helpers ───────────────────────────────────
+
+/// A received packet reference — descriptor slot and byte length.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct RxPacket {
+    /// Ring slot that held this packet (must be released after processing).
+    pub descriptor: RingIndex,
+    /// Number of valid payload bytes.
+    pub len: u16,
+}
+
+impl Ring {
+    /// Poll for a received packet.
+    ///
+    /// Returns the descriptor index and length, or `None` if the ring is empty.
+    /// The caller MUST call `release_rx(descriptor)` after processing to refill
+    /// the ring slot (RFC-v0.7.3-001).
+    pub fn poll_rx(&mut self) -> Option<RxPacket> {
+        if self.is_empty() { return None; }
+        let idx = self.tail.idx();
+        let desc = self.descriptors[idx.as_usize()];
+        if !desc.used { return None; }
+        Some(RxPacket { descriptor: idx, len: desc.len })
+    }
+
+    /// Release a consumed RX descriptor and return the slot to the ring.
+    pub fn release_rx(&mut self, descriptor: RingIndex) -> Result<(), RingError> {
+        if descriptor.as_usize() >= RING_SIZE { return Err(RingError::IndexOutOfBounds); }
+        if !self.descriptors[descriptor.as_usize()].used {
+            return Err(RingError::SlotAlreadyFree);
+        }
+        self.descriptors[descriptor.as_usize()].used = false;
+        self.tail = self.tail.advance();
+        self.occupied -= 1;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod rx_tests {
+    use super::*;
+
+    #[test]
+    fn rx_poll_returns_none_on_empty_ring() {
+        let mut r = Ring::new();
+        assert_eq!(r.poll_rx(), None);
+    }
+
+    #[test]
+    fn rx_poll_returns_packet_after_push() {
+        let mut r = Ring::new();
+        let idx = r.push(100, 0).unwrap();
+        let pkt = r.poll_rx().unwrap();
+        assert_eq!(pkt.descriptor, idx);
+        assert_eq!(pkt.len, 100);
+    }
+
+    #[test]
+    fn rx_release_decrements_occupied() {
+        let mut r = Ring::new();
+        let idx = r.push(50, 0).unwrap();
+        r.release_rx(idx).unwrap();
+        assert_eq!(r.occupied(), 0);
+        assert!(r.is_empty());
+    }
+
+    #[test]
+    fn rx_poll_then_release_then_poll_none() {
+        let mut r = Ring::new();
+        r.push(10, 0).unwrap();
+        let pkt = r.poll_rx().unwrap();
+        r.release_rx(pkt.descriptor).unwrap();
+        assert_eq!(r.poll_rx(), None);
+    }
+
+    #[test]
+    fn rx_release_out_of_bounds_returns_error() {
+        let mut r = Ring::new();
+        let bad = RingIndex(RING_SIZE as u8);
+        assert_eq!(r.release_rx(bad), Err(RingError::IndexOutOfBounds));
+    }
+}

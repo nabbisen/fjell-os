@@ -140,28 +140,31 @@ pub(crate) enum DmaRegionState {
     Freed,
 }
 
-/// One entry in the per-kernel DMA region tracking table (RFC 036 §2).
+/// One entry in the per-kernel DMA region tracking table.
+/// Extended in RFC-v0.7.4-001: adds region_id, page_count, quarantine support.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct DmaRegionEntry {
     /// Task that owns this DMA region (`index == 0xFFFF` = Freed/empty).
-    pub owner:    crate::task::TaskId,
+    pub owner:      crate::task::TaskId,
     /// User VA where the frame is mapped in `owner`'s page table.
-    /// Read when unmapping the page during explicit revoke (v0.3 unmap path).
-    #[allow(dead_code)]  // stored for future unmap; read path lands in v0.3
-    pub user_va:  usize,
-    /// Physical frame address.
-    pub frame_pa: usize,
+    /// Actively used in revoke to unmap PTEs (RFC-v0.7.4-001, closes C-RB-01).
+    pub user_va:    usize,
+    /// Physical frame base address.
+    pub frame_pa:   usize,
+    /// Number of consecutive 4 KiB pages (1 in current allocator).
+    pub page_count: u8,
     /// Cleanup state.
-    pub state:    DmaRegionState,
+    pub state:      DmaRegionState,
 }
 
 impl DmaRegionEntry {
     const fn free() -> Self {
         DmaRegionEntry {
-            owner:    crate::task::TaskId::new(0xFFFF, 0),
-            user_va:  0,
-            frame_pa: 0,
-            state:    DmaRegionState::Freed,
+            owner:      crate::task::TaskId::new(0xFFFF, 0),
+            user_va:    0,
+            frame_pa:   0,
+            page_count: 0,
+            state:      DmaRegionState::Freed,
         }
     }
     pub fn is_free(self) -> bool { self.owner.index == 0xFFFF }
@@ -179,14 +182,15 @@ impl DmaRegionTable {
     /// Allocate a new Active region.  Returns false if the table is full.
     pub fn alloc(
         &mut self,
-        owner: crate::task::TaskId,
-        user_va: usize,
-        frame_pa: usize,
+        owner:      crate::task::TaskId,
+        user_va:    usize,
+        frame_pa:   usize,
+        page_count: u8,
     ) -> bool {
         for e in self.entries.iter_mut() {
             if e.is_free() {
                 *e = DmaRegionEntry {
-                    owner, user_va, frame_pa,
+                    owner, user_va, frame_pa, page_count,
                     state: DmaRegionState::Active,
                 };
                 return true;
@@ -222,24 +226,44 @@ impl DmaRegionTable {
         false
     }
 
-    /// Explicitly revoke a DMA region by physical address (legacy, RFC 036 §2).
+    /// Explicitly revoke a DMA region by physical address.
     ///
-    /// Transitions: Active → Revoked → Zeroized → Freed (synchronous in v0.2).
+    /// RFC-v0.7.4-001 (closes C-RB-01 CRITICAL): Sequence is now:
+    ///   1. Unmap user PTE for user_va.
+    ///   2. sfence.vma — TLB consistency.
+    ///   3. Zeroize the physical frame.
+    ///   4. Return the frame to the allocator.
     ///
-    /// The quarantine path (`Active → Quarantined`) is a DEFERRED stub.
+    /// If step 1 fails, the frame is Quarantined (not returned to allocator).
     pub fn revoke_by_pa(&mut self, owner: crate::task::TaskId, frame_pa: usize) -> bool {
         // SAFETY: address and size validated against the physical memory map before this call.
         let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.frame_pa == frame_pa && e.state == DmaRegionState::Active {
                 e.state = DmaRegionState::Revoked;
-                // Synchronous zeroize + free (v0.2; quarantine deferred).
                 if e.frame_pa != 0 {
-                    // SAFETY: address and size validated against the physical memory map before this call.
+                    // Step 1: Unmap the user PTE before freeing the frame.
+                    // This closes the stale-mapping vulnerability (C-RB-01).
+                    let unmap_ok = Self::unmap_user_va_for(owner, e.user_va, e.page_count);
+                    // Step 2: TLB flush.
+                    // SAFETY: category=csr-asm
+                    //   sfence.vma serialises all prior page-table stores; required after unmap.
+                    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+                    if !unmap_ok {
+                        // Cannot safely free — quarantine the frame.
+                        e.state = DmaRegionState::Quarantined;
+                        crate::uart_println!("dma: QUARANTINE frame_pa={:#x} unmap_failed", e.frame_pa);
+                        return true;  // revoke accepted; quarantine handles cleanup
+                    }
+                    // Step 3: Zeroize.
+                    // SAFETY: category=phys-id-map-assumption
+                    //   frame_pa is a valid, exclusively-owned frame; PA == kernel VA in identity map.
                     unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
                     e.state = DmaRegionState::Zeroized;
+                    // Step 4: Return frame to allocator.
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
-                        // SAFETY: address and size validated against the physical memory map before this call.
+                        // SAFETY: category=phys-id-map-assumption
+                        //   frame is exclusively owned by this entry; zeroized above.
                         unsafe { let _ = (*fa).free_frame(frame); }
                     }
                 }
@@ -250,21 +274,61 @@ impl DmaRegionTable {
         false
     }
 
-    /// Lifecycle revoke: zeroize and release all Active regions owned by `task`.
+    /// Unmap the DMA frame's user PTE in `owner`'s page table.
+    /// Returns true if all pages were successfully unmapped.
+    fn unmap_user_va_for(
+        owner: crate::task::TaskId,
+        user_va: usize,
+        page_count: u8,
+    ) -> bool {
+        // SAFETY: category=page-table-mutation
+        //   We hold the DMA table lock (single-threaded kernel); the task's root PFN
+        //   is obtained from the live task table. Unmap is a single PTE clear.
+        let (table, _, _, _) = unsafe { crate::get_kernel_state() };
+        let root_pfn = match table.get(owner) {
+            Some(t) => t.satp_root_pfn,
+            None    => return false,
+        };
+        if root_pfn == 0 || user_va == 0 { return false; }
+        let n = (page_count as usize).max(1);
+        for i in 0..n {
+            let va = crate::mm::address::VirtAddr(user_va + i * 4096);
+            // SAFETY: category=page-table-mutation
+            //   root_pfn is valid; VA is the DMA user mapping we installed at alloc time.
+            let result = unsafe {
+                crate::mm::page_table::unmap_page(root_pfn << 12, va)
+            };
+            if result.is_err() {
+                return false;
+            }
+        }
+        true
+    }
+
+    /// Lifecycle revoke: unmap PTEs, zeroize, and release all Active regions owned by `task`.
     ///
     /// Called on task exit, fault, or restart.  Invariant DMA-004.
+    /// RFC-v0.7.4-001: now unmaps user_va before freeing (closes C-RB-01).
     pub fn release_task(&mut self, owner: crate::task::TaskId) {
-        // SAFETY: address and size validated against the physical memory map before this call.
+        // SAFETY: category=phys-id-map-assumption
+        //   fa_static_ptr is the physical frame allocator; PA == kernel VA.
         let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.state == DmaRegionState::Active {
                 let pa = e.frame_pa;
+                // Unmap PTE first (RFC-v0.7.4-001).
+                let _ = Self::unmap_user_va_for(owner, e.user_va, e.page_count);
+                // SAFETY: category=csr-asm
+                //   sfence.vma after each unmap ensures TLB consistency.
+                unsafe { crate::arch::riscv64::csr::sfence_vma(); }
                 if pa != 0 {
                     // Zeroize before free — invariant DMA-001.
-                    // SAFETY: address and size validated against the physical memory map before this call.
+                    // SAFETY: category=phys-id-map-assumption
+                    //   pa is valid, exclusively owned; PA == kernel VA.
                     unsafe { core::ptr::write_bytes(pa as *mut u8, 0, 4096); }
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
-                        // SAFETY: address and size validated against the physical memory map before this call.
+                        // SAFETY: category=phys-id-map-assumption
+                        //   frame zeroized above; safe to return.
                         unsafe { let _ = (*fa).free_frame(frame); }
                     }
                 }

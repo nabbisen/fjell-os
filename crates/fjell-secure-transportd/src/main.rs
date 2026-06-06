@@ -67,23 +67,41 @@ fn recv_msg(ep: CapHandle) -> (u16, usize, usize) {
     ((t & 0xFFFF) as u16, w0, w1)
 }
 
-// ── TLS handshake skeleton ────────────────────────────────────────────────────
+// ── TLS handshake (RFC-v0.7.3-001) ───────────────────────────────────────────
 //
-// Performs a simulated TLS 1.3 handshake using the state machine from
-// `fjell-sxt-crypto`. Full wire-protocol and cert verification land in
-// v0.4.0-alpha.2; here we validate the state machine transitions are wired.
+// In release builds (default features): the simulated path is ABSENT.
+// Real certificate verification against a keyring anchor is the only path.
+//
+// In development builds (feature = "simulated-transport"): the old simulated
+// state-machine path is still available for off-device testing.
 
+#[cfg(feature = "simulated-transport")]
 fn perform_tls_handshake(_channel_id: u32, _server_name: &[u8; 64]) -> Result<u32, SxtError> {
+    // DEVELOPMENT PATH ONLY — do not enable in release builds.
     let mut hs = TlsHandshakeState::new();
     hs.start().map_err(|_| SxtError::HandshakeFailed)?;
-    // Simulate receipt of ServerHello + Certificate + CertVerify (v0.4.0-alpha.1 stub).
     hs.on_server_hello().map_err(|_| SxtError::HandshakeFailed)?;
     hs.on_certificate().map_err(|_| SxtError::HandshakeFailed)?;
-    // Anchor epoch 0: pre-provisioned trust anchor for the update server.
     hs.on_cert_verify_pass(0).map_err(|_| SxtError::CertVerifyFailed)?;
     hs.on_finished().map_err(|_| SxtError::HandshakeFailed)?;
     hs.enter_app_data().map_err(|_| SxtError::HandshakeFailed)?;
     Ok(hs.anchor_epoch)
+}
+
+#[cfg(not(feature = "simulated-transport"))]
+fn perform_tls_handshake(_channel_id: u32, _server_name: &[u8; 64]) -> Result<u32, SxtError> {
+    // Release path: real peer certificate verification.
+    // The keyring's ReleaseVerification anchor is used to verify the server cert.
+    // Full implementation in v0.7.3 (RFC-v0.7.3-001); for now fails closed.
+    //
+    // Steps when implemented:
+    //   1. Receive ServerHello over sys_net_recv (netd session).
+    //   2. Receive Certificate chain.
+    //   3. Verify cert against keyring::find_anchor(KeyPurpose::ReleaseVerification).
+    //   4. Complete Finished exchange.
+    //
+    // Current behaviour: return HandshakeFailed (fail closed — no simulated trust).
+    Err(SxtError::HandshakeFailed)
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────

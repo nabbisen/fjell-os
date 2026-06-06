@@ -153,18 +153,49 @@ pub fn spawn(
                 rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
             });
             // Slots 31-35: MmioRegion caps.
-            // RFC 051 (H-05): no longer granted to SVC_TIMEOUT/SVC_FAULT (no device access needed).
-            // All other services keep broad grants for now; per-service narrowing is RFC 057/058.
-            let grant_mmio =
-                image_id != fjell_abi::service::ImageId::SVC_TIMEOUT &&
-                image_id != fjell_abi::service::ImageId::SVC_FAULT;
-            if grant_mmio {
-                let mmio_table = mmio_region_table();
-                for (i, _) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
-                    let _ = cs.install_raw(31 + i, Capability {
-                        kind: CapKind::MmioRegion, object_id: i as u32,
-                        rights: CapRights::ALL, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-                    });
+            // RFC-v0.7.4-003 (closes C-RB-03): MMIO caps now granted ONLY to the driver
+            // that owns the specific device, not to all services.
+            // Non-driver services must request device authority from cap-broker.
+            //
+            // Bootstrap exceptions (require MMIO at spawn, cannot yet use cap-broker):
+            //   - devmgr: reads BoardProfile to enumerate devices; needs all regions.
+            //   - driver-virtio-blk: block device driver (region 0).
+            //   - driver-virtio-net: network device driver (region 1).
+            //   - neg-test: integration test harness (all regions for test coverage).
+            let mmio_table = mmio_region_table();
+            let mmio_regions_for_service: Option<&[usize]> = match image_id {
+                fjell_abi::service::ImageId::DEVMGR => {
+                    // devmgr needs the full table to enumerate devices on first boot.
+                    static ALL: &[usize] = &[0, 1, 2, 3, 4];
+                    Some(ALL)
+                }
+                fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK => {
+                    static BLK: &[usize] = &[0];
+                    Some(BLK)
+                }
+                fjell_abi::service::ImageId::DRIVER_VIRTIO_NET => {
+                    static NET: &[usize] = &[1];
+                    Some(NET)
+                }
+                fjell_abi::service::ImageId::NEG_TEST => {
+                    // Kept for integration test coverage; audited exception.
+                    static ALL: &[usize] = &[0, 1, 2, 3, 4];
+                    Some(ALL)
+                }
+                _ => None,
+            };
+            if let Some(regions) = mmio_regions_for_service {
+                for &region_idx in regions {
+                    if region_idx < MMIO_REGION_COUNT {
+                        if let Some(_r) = mmio_table.get(region_idx) {
+                            let _ = cs.install_raw(31 + region_idx, Capability {
+                                kind: CapKind::MmioRegion, object_id: region_idx as u32,
+                                rights: CapRights::MMIO_MAP, badge: 0,
+                                scope: ObjectScope::Any, state: CapState::Active,
+                                parent: None, lease: None,
+                            });
+                        }
+                    }
                 }
             }
             // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).

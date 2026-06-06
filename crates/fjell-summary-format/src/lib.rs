@@ -20,3 +20,5 @@ pub use digest::{measurement_summary_digest, release_summary_digest};
 
 #[cfg(test)]
 mod tests;
+
+pub use measurement::SummaryError;

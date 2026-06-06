@@ -12,6 +12,15 @@ pub struct MeasurementKindCount {
     pub count: u32,
 }
 
+/// Typed error for summary push operations (RFC-v0.7.5-001, closes C-M-04).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum SummaryError {
+    DuplicateKind     = 0x01,
+    DuplicateChannel  = 0x02,
+    CapacityExhausted = 0x03,
+}
+
 /// Exported snapshot of the measurement chain head and per-kind tallies.
 #[derive(Clone, Copy, Debug)]
 pub struct MeasurementSummary {
@@ -48,9 +57,17 @@ impl MeasurementSummary {
         }
     }
 
-    /// Add a per-kind event count. Returns `Err` if the table is full.
-    pub fn add_kind_count(&mut self, kind: u8, count: u32) -> Result<(), ()> {
-        if self.kind_count as usize >= MAX_KIND_COUNTS { return Err(()); }
+    /// Add a per-kind event count.
+    ///
+    /// Returns `Err(DuplicateKind)` if `kind` is already present,
+    /// or `Err(CapacityExhausted)` when full (RFC-v0.7.5-001, closes C-M-04).
+    pub fn add_kind_count(&mut self, kind: u8, count: u32) -> Result<(), SummaryError> {
+        if self.kind_counts[..self.kind_count as usize].iter().any(|e| e.kind == kind) {
+            return Err(SummaryError::DuplicateKind);
+        }
+        if self.kind_count as usize >= MAX_KIND_COUNTS {
+            return Err(SummaryError::CapacityExhausted);
+        }
         self.kind_counts[self.kind_count as usize] = MeasurementKindCount { kind, count };
         self.kind_count += 1;
         Ok(())

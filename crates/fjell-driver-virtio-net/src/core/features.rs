@@ -42,3 +42,83 @@ pub fn negotiate_features(device_offered: VirtioFeatureFlags) -> (VirtioFeatureF
     let negotiated = VirtioFeatureFlags(device_offered.0 & DRIVER_ACCEPTED_FEATURES);
     (negotiated, legacy)
 }
+
+// ── RFC-v0.7.3-001: Feature negotiation with error path ───────────────────────
+
+/// Error when feature negotiation fails.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum FeatureError {
+    /// Device does not offer the minimum required features (MAC + STATUS).
+    MissingRequired = 0x01,
+}
+
+/// Negotiate features, returning `Err(FeatureError::MissingRequired)` when
+/// the device doesn't offer the mandatory MAC and STATUS bits.
+///
+/// RFC-v0.7.3-001: Replace simulated offered set with real negotiation.
+pub fn negotiate_features_checked(
+    device_offered: VirtioFeatureFlags,
+) -> Result<(VirtioFeatureFlags, bool), FeatureError> {
+    const VIRTIO_F_VERSION_1: u64 = 1 << 32;
+    let required = VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS;
+    let intersection = device_offered.0 & DRIVER_ACCEPTED_FEATURES;
+    if intersection & required != required {
+        return Err(FeatureError::MissingRequired);
+    }
+    let legacy = !device_offered.contains(VIRTIO_F_VERSION_1);
+    Ok((VirtioFeatureFlags(intersection), legacy))
+}
+
+#[cfg(test)]
+mod feature_tests {
+    use super::*;
+
+    #[test]
+    fn negotiation_accepts_full_feature_set() {
+        let offered = VirtioFeatureFlags(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
+        let (negotiated, _legacy) = negotiate_features_checked(offered).unwrap();
+        assert!(negotiated.contains(VIRTIO_NET_F_MAC));
+        assert!(negotiated.contains(VIRTIO_NET_F_STATUS));
+    }
+
+    #[test]
+    fn negotiation_rejects_missing_mac() {
+        let offered = VirtioFeatureFlags(VIRTIO_NET_F_STATUS);  // no MAC
+        assert_eq!(negotiate_features_checked(offered), Err(FeatureError::MissingRequired));
+    }
+
+    #[test]
+    fn negotiation_rejects_empty_offered() {
+        let offered = VirtioFeatureFlags(0);
+        assert_eq!(negotiate_features_checked(offered), Err(FeatureError::MissingRequired));
+    }
+
+    #[test]
+    fn negotiation_strips_unsupported_bits() {
+        // Device offers extra bits we don't accept (e.g. MRG_RXBUF)
+        let offered = VirtioFeatureFlags(
+            VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS | VIRTIO_NET_F_MRG_RXBUF
+        );
+        let (negotiated, _) = negotiate_features_checked(offered).unwrap();
+        assert!(!negotiated.contains(VIRTIO_NET_F_MRG_RXBUF));
+        assert!(negotiated.contains(VIRTIO_NET_F_MAC));
+    }
+
+    #[test]
+    fn legacy_mode_detected_without_version_1() {
+        let offered = VirtioFeatureFlags(VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS);
+        let (_, legacy) = negotiate_features_checked(offered).unwrap();
+        assert!(legacy);  // no VIRTIO_F_VERSION_1 → legacy mode
+    }
+
+    #[test]
+    fn modern_mode_detected_with_version_1() {
+        const VIRTIO_F_VERSION_1: u64 = 1 << 32;
+        let offered = VirtioFeatureFlags(
+            VIRTIO_NET_F_MAC | VIRTIO_NET_F_STATUS | VIRTIO_F_VERSION_1
+        );
+        let (_, legacy) = negotiate_features_checked(offered).unwrap();
+        assert!(!legacy);
+    }
+}

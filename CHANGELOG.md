@@ -2615,3 +2615,98 @@ Implements RFC 001, RFC 002, RFC 003 identified during M7 self-review.
 ---
 
 *Releases are tagged once each milestone passes its acceptance criteria.*
+
+## [0.7.1] — 2026-05-20
+
+### Security / Critical
+- **DMA lifetime safety** (RFC-v0.7.4-001, closes C-RB-01 CRITICAL):
+  `sys_dma_revoke` now unmaps the user PTE before freeing the physical frame.
+  `sfence.vma` issued after unmap. Unmap failure → frame quarantined (not
+  returned to allocator). `release_task` on task exit also unmaps first.
+  Frame allocator extended with `page_count` field.
+- **sys_mmio_map overflow fix** (RFC-v0.7.4-002, closes W-H-01/C-H-05):
+  `checked_add` replaces unchecked `+ 0xFFF` before masking. Every
+  `remap_page` call result is checked; partial mapping failure triggers
+  complete rollback with `sfence.vma`.
+- **sys_cap_install unknown-kind fix** (RFC-v0.7.4-003, closes C-RB-04):
+  Unknown `CapKind` discriminant returns `InvalidArg` (was silently coerced
+  to `Endpoint`). Installed caps now use `ALL_NON_META` rights (not `ALL`).
+- **MMIO spawn grant narrowing** (RFC-v0.7.4-003, closes C-RB-03):
+  Broad `MmioRegion::ALL` caps no longer granted to every service at spawn.
+  Now granted only to `devmgr`, `driver-virtio-blk`, `driver-virtio-net`,
+  and `neg-test` (with `MMIO_MAP` right only). All other services must
+  request device authority from cap-broker.
+- **Snapshot digest streaming** (RFC-v0.7.2-002, closes C-RB-02 CRITICAL):
+  `snapshot_digest()` now uses a `DigestWriter` that streams bytes into SHA-256
+  without a fixed-size stack buffer. Cannot panic at `MAX_SNAPSHOT_RECORDS = 64`.
+- **fjell-sxt-crypto development gate** (RFC-v0.7.3-002, closes C-H-01):
+  `compile_error!` fires without `crypto-profile-development` feature.
+  `hkdf_expand` returns `Result<(), HkdfError::OutputTooLong>` instead of
+  panicking. Info no longer silently truncated.
+
+### Identity & Trust
+- **NodeIdentity::build()** safe constructor (RFC-v0.7.2-003, closes C-H-04):
+  Computes and validates `identity_digest` at construction; returns
+  `Err(IdentityError::DigestComputationFailed)` on zero digest.
+- **NodeIdentity::validate_digest()**: reload validation helper.
+- **NodeIdentityPolicy::permits()** returns `Decision` enum, never panics
+  (RFC-v0.7.2-003, closes C-H-02). Returns `Decision::Deny` on malformed
+  `allowed_count > 4` (not a panic).
+- **NodeIdentityPolicy::validate()**: explicit policy validation.
+- **TrustMode::Fleet** without roster → `PolicyError::FleetWithoutRoster` →
+  `Decision::Deny` (RFC-v0.7.2-003, closes C-H-03).
+- **NodeAlias::try_as_str()**: strict UTF-8, returns `Err` on invalid
+  (RFC-v0.7.2-003, closes C-M-05). **as_str_lossy()**: display-only helper.
+
+### Snapshot Format
+- **ConflictDomain::Default removed** (RFC-v0.7.2-002, closes C-M-01):
+  `Default` derive removed. `V1_DEFAULT = ForeignAuthoritative`.
+- **SnapshotRecord::push_record** (RFC-v0.7.2-002, closes C-M-02):
+  Rejects `body_len > SNAPSHOT_RECORD_BODY_MAX` with
+  `Err(SnapshotError::BodyTooLarge)`.
+- **SnapshotError** typed enum: `BodyTooLarge`, `CapacityExhausted`,
+  `UnknownSchema`, `UnknownDomain`.
+- **SnapshotDigest** `#[deprecated]` markers on legacy placeholder constants
+  `REL_HASH`, `RFS_HASH`, `POL_HASH` (RFC-v0.7.5-001).
+
+### Capability Model
+- **CapRights::ALL_NON_META**: new name for what was `ALL` (excludes
+  `CAP_INSTALL`). `ALL` kept as a deprecated alias.
+- **CapRights::ALL_DEFINED**: new constant including meta-rights.
+- **CapKind::from_u8** unknown discriminant → `None` (closes C-RB-04 format-level).
+
+### Summary Format
+- **MeasurementSummary::add_kind_count** rejects duplicate kinds
+  (RFC-v0.7.5-001, closes C-M-04): returns `Err(SummaryError::DuplicateKind)`.
+- **ReleaseSummary::add_channel** rejects duplicate channel_ids:
+  `Err(SummaryError::DuplicateChannel)`.
+- **SummaryError** enum: `DuplicateKind`, `DuplicateChannel`, `CapacityExhausted`.
+
+### Release Engineering
+- **rust-toolchain.toml** added, pins Rust 1.91 (RFC-v0.7.1-001).
+- **Cargo.lock** committed and shipped with the release tarball.
+- **default-members** set to 29 host-testable library crates.
+- **ImageId** extended: `DRIVER_VIRTIO_NET (0x17)`, `NETD (0x18)`,
+  `SECURE_TRANSPORTD (0x19)`, `DIAGNOSTICSD (0x1A)`, `IDENTITYD (0x1B)`,
+  `SUMMARYD (0x1C)`, `SYNCD (0x1D)` (RFC-v0.7.1-003).
+
+### Services
+- **identityd**: upgraded from stub to real build path using
+  `NodeIdentity::build()`. Validates non-zero digest; emits acceptance test
+  markers: `build_with_nonzero_digest`, `trust_mode_open=disabled`.
+- **summaryd**: upgraded to use `SummaryError`; validates duplicate rejection
+  at runtime; emits measurement + release summary markers.
+- **syncd**: exercises streaming digest at full capacity
+  (`digest_full_capacity_no_panic`), validates `body_len` rejection, confirms
+  `V1_DEFAULT = ForeignAuthoritative`, emits all QEMU smoke markers.
+- **secure-transportd**: simulated TLS handshake gated behind
+  `simulated-transport` feature flag; release builds fail-closed.
+
+### Networking (RFC-v0.7.3-001)
+- **virtio-net feature negotiation**: `negotiate_features_checked()` returns
+  `Err(FeatureError::MissingRequired)` when device lacks MAC+STATUS.
+- **RX ring polling**: `Ring::poll_rx()` / `release_rx()` APIs for real
+  descriptor consumption.
+
+### Test Coverage
+- 387 named tests (was 348 at v0.7.0); 0 failures; 0 warnings.

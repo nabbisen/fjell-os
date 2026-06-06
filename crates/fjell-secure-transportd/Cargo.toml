@@ -15,4 +15,10 @@ path = "src/main.rs"
 fjell-syscall    = { path = "../fjell-syscall" }
 fjell-cap        = { path = "../fjell-cap" }
 fjell-net-format = { path = "../fjell-net-format" }
-fjell-sxt-crypto = { path = "../fjell-sxt-crypto" }
+fjell-sxt-crypto = { path = "../fjell-sxt-crypto", features = ["crypto-profile-development"] }
+
+[features]
+default = []
+# WARNING: enables simulated TLS handshake for development use ONLY.
+# Release builds MUST NOT enable this feature (RFC-v0.7.3-001).
+simulated-transport = []

@@ -63,8 +63,21 @@ impl ReleaseSummary {
         }
     }
 
-    pub fn add_channel(&mut self, ch: ChannelSummary) -> Result<(), ()> {
-        if self.channel_count as usize >= MAX_CHANNEL_SUMMARIES { return Err(()); }
+    /// Add a per-channel summary.
+    ///
+    /// Returns `Err(SummaryError::DuplicateChannel)` if the `channel_id` is
+    /// already present, or `Err(SummaryError::CapacityExhausted)` when full
+    /// (RFC-v0.7.5-001, closes C-M-04).
+    pub fn add_channel(&mut self, ch: ChannelSummary) -> Result<(), crate::measurement::SummaryError> {
+        use crate::measurement::SummaryError;
+        if self.channels[..self.channel_count as usize]
+            .iter().any(|e| e.channel_id == ch.channel_id)
+        {
+            return Err(SummaryError::DuplicateChannel);
+        }
+        if self.channel_count as usize >= MAX_CHANNEL_SUMMARIES {
+            return Err(SummaryError::CapacityExhausted);
+        }
         self.channels[self.channel_count as usize] = ch;
         self.channel_count += 1;
         Ok(())

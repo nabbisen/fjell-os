@@ -1,12 +1,24 @@
 //! Crypto primitives for `secure-transportd` (RFC v0.4-003 §7.4).
 //!
-//! - AES-128-GCM (constant-time, table-free reference implementation).
-//! - X25519 key exchange.
-//! - HKDF-SHA256 key derivation.
+//! # Development Profile Notice (RFC-v0.7.3-002)
 //!
-//! All primitives are pure functions with no side-effects; fully host-testable.
-//! Tested against RFC test vectors in `tests.rs`.
+//! This crate requires the `crypto-profile-development` feature to compile.
+//! The AES-128 implementation uses a 256-byte S-box with data-dependent
+//! indexing; on cache-bearing targets this may leak key material via
+//! cache-timing side channels. The `constant-time` claim in earlier docs
+//! was inaccurate and has been removed.
+//!
+//! **Do not use in production.** Migration to a vetted no_std crypto library
+//! is planned for v0.9. See `docs/src/security/crypto-roadmap.md`.
 #![no_std]
+
+#[cfg(not(feature = "crypto-profile-development"))]
+compile_error!(
+    "fjell-sxt-crypto requires the `crypto-profile-development` feature. \
+     This crate is a development/reference profile and is NOT suitable for \
+     production cryptographic use. Enable the feature explicitly to acknowledge \
+     this limitation. See RFC-v0.7.3-002 and docs/src/security/crypto-profile.md."
+);
 
 pub mod aes128;
 pub mod gcm;

@@ -104,3 +104,45 @@ impl ImageId {
     /// RFC 042: service that sends READY then faults (fault-detected test).
     pub const SVC_FAULT:   ImageId = ImageId(22);
 }
+
+// ── v0.4 networking + v0.7 distributed sync (RFC-v0.7.1-003) ─────────────────
+
+impl ImageId {
+    // v0.4 networking services
+    pub const DRIVER_VIRTIO_NET:   ImageId = ImageId(0x17);  // 23
+    pub const NETD:                ImageId = ImageId(0x18);  // 24
+    pub const SECURE_TRANSPORTD:   ImageId = ImageId(0x19);  // 25
+    pub const DIAGNOSTICSD:        ImageId = ImageId(0x1A);  // 26
+
+    // v0.7 distributed sync services
+    pub const IDENTITYD:           ImageId = ImageId(0x1B);  // 27
+    pub const SUMMARYD:            ImageId = ImageId(0x1C);  // 28
+    pub const SYNCD:               ImageId = ImageId(0x1D);  // 29
+}
+
+#[cfg(test)]
+mod image_id_v07_tests {
+    use super::ImageId;
+
+    #[test]
+    fn image_id_v04_values_stable() {
+        assert_eq!(ImageId::DRIVER_VIRTIO_NET.0, 0x17);
+        assert_eq!(ImageId::NETD.0, 0x18);
+        assert_eq!(ImageId::SECURE_TRANSPORTD.0, 0x19);
+        assert_eq!(ImageId::DIAGNOSTICSD.0, 0x1A);
+    }
+
+    #[test]
+    fn image_id_v07_values_stable() {
+        assert_eq!(ImageId::IDENTITYD.0, 0x1B);
+        assert_eq!(ImageId::SUMMARYD.0, 0x1C);
+        assert_eq!(ImageId::SYNCD.0, 0x1D);
+    }
+
+    #[test]
+    fn image_id_no_overlap_with_v03() {
+        // v0.3 max was SVC_FAULT = 22 = 0x16
+        assert_eq!(ImageId::SVC_FAULT.0, 22);
+        assert!(ImageId::DRIVER_VIRTIO_NET.0 > ImageId::SVC_FAULT.0);
+    }
+}

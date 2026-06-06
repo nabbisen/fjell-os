@@ -86,9 +86,40 @@ members = [
 #   cargo build  (no flags — uses default-members)
 #   cargo check  (no flags — uses default-members)
 default-members = [
+    # format crates (host-testable)
+    "crates/fjell-cap",
+    "crates/fjell-ipc",
+    "crates/fjell-audit-format",
+    "crates/fjell-config-format",
+    "crates/fjell-semantic-format",
+    "crates/fjell-service-api",
+    "crates/fjell-recovery-format",
+    "crates/fjell-attestation-format",
+    "crates/fjell-measure-format",
+    "crates/fjell-net-format",
+    "crates/fjell-platform-format",
+    "crates/fjell-semantic-v1",
+    "crates/fjell-snapshot-format",
+    "crates/fjell-identity-format",
+    "crates/fjell-summary-format",
+    "crates/fjell-diag-format",
+    "crates/fjell-upgrade-format",
+    "crates/fjell-store-format",
+    "crates/fjell-block-format",
+    "crates/fjell-rootfs-format",
+    "crates/fjell-verify-format",
+    "crates/fjell-device-format",
+    "crates/fjell-trust-provider",
+    "crates/fjell-keyring",
+    "crates/fjell-sxt-crypto",
+    "crates/fjell-dtb-derive",
+    "crates/fjell-proptest",
+    "crates/fjell-store-model",
+    "crates/fjell-bootctl-model",
+    "tools/fjell-unsafe-audit",
 ]
 [workspace.package]
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"
@@ -105,3 +136,8 @@ panic = "abort"
 [profile.release]
 lto = true
 opt-level = "s"
+[workspace.metadata.fjell.ci_excluded]
+"fjell-kernel"    = { reason = "cross-compile only; no-std bare-metal; use cargo xtask qemu" }
+"fjell-svc-fault" = { reason = "intentional fault-test target; covered by QEMU smoke" }
+"fjell-svc-timeout" = { reason = "intentional timeout-test target; covered by QEMU smoke" }
+"fjell-neg-test"  = { reason = "negative-test smoke binary; covered by QEMU smoke" }

@@ -141,12 +141,19 @@ pub fn sys_cap_install(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let _target_id  = TaskId::new(target_idx, target_gen);  // scope-check deferred (V02-A-005)
 
     // 3. Map cap_kind discriminant to CapKind.
-    let kind = CapKind::from_u8(cap_kind_n).unwrap_or(CapKind::Endpoint);
+    // RFC-v0.7.4-003: unknown kind → InvalidArg (was silently coerced to Endpoint).
+    let kind = match CapKind::from_u8(cap_kind_n) {
+        Some(k) => k,
+        None    => { err(tf, SysError::InvalidArg); return; }
+    };
 
     // 4. Install into target CSpace.
+    // RFC-v0.7.4-003: use ALL_NON_META; CAP_INSTALL itself stays with cap-broker.
+    // cap-broker may further narrow rights via cap_mint after installation.
+    #[allow(deprecated)]  // intentional: CapRights::ALL is the old name we still accept
     let cap = Capability {
         kind, object_id,
-        rights: CapRights::ALL,
+        rights: CapRights::ALL_NON_META,
         badge: 0,
         scope: ObjectScope::Any,
         state: CapState::Active,

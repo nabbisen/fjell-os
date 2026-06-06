@@ -67,8 +67,15 @@ impl CapRights {
     /// RFC 056: authority to call `sys_cap_install` (meta-right; bit 26).
     pub const CAP_INSTALL:   Self = CapRights(1 << 26);
 
-    /// All defined rights.
-    pub const ALL:  Self = CapRights((1 << 26) - 1);
+    /// All rights EXCLUDING meta-rights (CAP_INSTALL, CAP_REVOKE).
+    /// Use for ordinary service grants. Formerly named `ALL`.
+    pub const ALL_NON_META: Self = CapRights((1 << 26) - 1);
+    /// Backward-compatible alias for `ALL_NON_META`.
+    #[deprecated(since = "0.7.1", note = "use ALL_NON_META or ALL_DEFINED explicitly")]
+    pub const ALL:  Self = Self::ALL_NON_META;
+    /// All currently defined rights, including meta-rights CAP_INSTALL (bit 26).
+    /// Use only for cap-broker and trust-provider admin paths.
+    pub const ALL_DEFINED: Self = CapRights((1 << 27) - 1);
     /// No rights.
     pub const NONE: Self = CapRights(0);
 
@@ -227,24 +234,34 @@ impl ObjectScope {
 }
 
 impl CapKind {
-    /// Convert a raw u8 discriminant to a `CapKind`.  Returns `Endpoint` for unknown.
+    /// Convert a raw u8 discriminant to a `CapKind`.
+    ///
+    /// Returns `None` for unknown discriminants (RFC-v0.7.4-003, closes C-RB-04).
+    /// Previously returned `Some(Endpoint)` for unknown values — that was
+    /// incorrect and allowed unknown kinds to be installed as usable Endpoints.
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             0  => Some(Self::Endpoint),
-            1  => Some(Self::Endpoint),
+            1  => Some(Self::Reply),
             2  => Some(Self::TaskControl),
             3  => Some(Self::TaskCreate),
             4  => Some(Self::LeaseAdmin),
             5  => Some(Self::MmioRegion),
             6  => Some(Self::DmaRegion),
-            7  => Some(Self::DmaRegion),
-            8  => Some(Self::AuditDrain),
-            9  => Some(Self::BootEvidence),
-            10 => Some(Self::Reboot),
+            7  => Some(Self::AuditDrain),
+            8  => Some(Self::BootEvidence),
+            9  => Some(Self::Reboot),
             16 => Some(Self::CapInstall),
+            17 => Some(Self::PersistentStore),
+            18 => Some(Self::BootControl),
+            19 => Some(Self::UpgradeTransaction),
+            20 => Some(Self::Verification),
+            21 => Some(Self::RootfsRead),
+            22 => Some(Self::SnapshotCreate),
+            23 => Some(Self::SnapshotRead),
             0x14 => Some(Self::Interrupt),
             0x15 => Some(Self::NetDevice),
-            _  => None,
+            _  => None,  // unknown kind → None (not Endpoint)
         }
     }
 }
@@ -333,5 +350,44 @@ impl From<CapError> for fjell_abi::error::SysError {
     /// call `require_cap()` / `check_lease()` which now return `CapError`.
     fn from(e: CapError) -> Self {
         e.to_sys_error()
+    }
+}
+
+#[cfg(test)]
+mod rfc_v074_003_tests {
+    use super::{CapRights, CapKind};
+
+    // CapRights naming
+    #[test]
+    fn all_non_meta_excludes_cap_install() {
+        assert!(!CapRights::ALL_NON_META.contains(CapRights::CAP_INSTALL));
+    }
+
+    #[test]
+    fn all_defined_includes_cap_install() {
+        assert!(CapRights::ALL_DEFINED.contains(CapRights::CAP_INSTALL));
+    }
+
+    #[test]
+    fn all_non_meta_is_subset_of_all_defined() {
+        assert!(CapRights::ALL_NON_META.is_subset_of(CapRights::ALL_DEFINED));
+    }
+
+    // NEG:CAP_INSTALL:UNKNOWN_KIND_REJECTED (format-level)
+    #[test]
+    fn from_u8_unknown_returns_none_not_endpoint() {
+        // Old behaviour returned Some(Endpoint) for unknown values; now None.
+        assert_eq!(CapKind::from_u8(0xFE), None);
+        assert_eq!(CapKind::from_u8(0xFF), None);
+        assert_eq!(CapKind::from_u8(0x80), None);
+        // Known values still work
+        assert_eq!(CapKind::from_u8(0), Some(CapKind::Endpoint));
+        assert_eq!(CapKind::from_u8(5), Some(CapKind::MmioRegion));
+        assert_eq!(CapKind::from_u8(16), Some(CapKind::CapInstall));
+    }
+
+    #[test]
+    fn cap_install_right_is_bit_26() {
+        assert_eq!(CapRights::CAP_INSTALL.0, 1 << 26);
     }
 }

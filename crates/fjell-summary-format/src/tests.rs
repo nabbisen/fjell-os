@@ -54,7 +54,7 @@ fn add_kind_count_rejects_at_capacity() {
     for i in 0..MAX_KIND_COUNTS {
         s.add_kind_count(i as u8, 1).unwrap();
     }
-    assert_eq!(s.add_kind_count(0xFF, 1), Err(()));
+    assert_eq!(s.add_kind_count(0xFF, 1), Err(crate::measurement::SummaryError::CapacityExhausted));
 }
 
 #[test]
@@ -130,4 +130,37 @@ fn advance_source_roundtrip() {
         assert_eq!(AdvanceSource::from_u8(byte).unwrap() as u8, expected as u8);
     }
     assert!(AdvanceSource::from_u8(0xFF).is_none());
+}
+
+// ── RFC-v0.7.5-001: duplicate rejection ──────────────────────────────────────
+
+#[test]
+fn measurement_summary_rejects_duplicate_kind() {
+    let mut s = MeasurementSummary::new([0u8; 16], 0, 0, fjell_measure_format::Digest32([0u8; 32]), fjell_measure_format::Digest32([0u8; 32]));
+    s.add_kind_count(0x01, 5).unwrap();
+    assert_eq!(
+        s.add_kind_count(0x01, 3),
+        Err(crate::measurement::SummaryError::DuplicateKind)
+    );
+    // Count is unchanged
+    assert_eq!(s.kind_count, 1);
+}
+
+#[test]
+fn release_summary_rejects_duplicate_channel() {
+    let mut s = ReleaseSummary::new([0u8; 16], 0);
+    let ch = ChannelSummary {
+        channel_id: *b"chan0001",
+        current_counter: 10,
+        min_counter: 1,
+        active_anchor_epoch: 1,
+        last_confirm_tick: 100,
+        last_advance_source: AdvanceSource::LocalInstall,
+    };
+    s.add_channel(ch).unwrap();
+    assert_eq!(
+        s.add_channel(ch),
+        Err(crate::measurement::SummaryError::DuplicateChannel)
+    );
+    assert_eq!(s.channel_count, 1);
 }

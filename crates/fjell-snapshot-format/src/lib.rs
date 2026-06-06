@@ -227,10 +227,15 @@ pub const MAX_SNAPSHOT_RECORDS: usize = 64;
 ///
 /// V2 envelopes prepend a `domain u8` to every record.
 /// V1 readers default missing domain to `ForeignAuthoritative`.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+/// Conflict-domain tag on each snapshot record (RFC v0.7-004 §6.1).
+///
+/// IMPORTANT: The `derive(Default)` is deliberately removed.
+/// v1 absent-domain decodes to `V1_DEFAULT = ForeignAuthoritative`, not
+/// `LocallyConfirmed`. Use `ConflictDomain::V1_DEFAULT` explicitly in
+/// decoders. See RFC-v0.7.2-002.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum ConflictDomain {
-    #[default]
     LocallyConfirmed     = 0x01,
     ForeignAuthoritative = 0x02,
     Pending              = 0x03,
@@ -238,6 +243,10 @@ pub enum ConflictDomain {
 }
 
 impl ConflictDomain {
+    /// Default for v1 envelopes that omit the domain byte (RFC v0.7-004 §5.2,
+    /// RFC-v0.7.2-002).
+    pub const V1_DEFAULT: Self = Self::ForeignAuthoritative;
+
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
             0x01 => Some(Self::LocallyConfirmed),
@@ -309,46 +318,164 @@ impl SnapshotEnvelope {
         }
     }
 
-    pub fn push_record(&mut self, r: SnapshotRecord) -> Result<(), ()> {
-        if self.record_count as usize >= MAX_SNAPSHOT_RECORDS { return Err(()); }
+    pub fn push_record(&mut self, r: SnapshotRecord) -> Result<(), SnapshotError> {
+        if r.body_len as usize > SNAPSHOT_RECORD_BODY_MAX {
+            return Err(SnapshotError::BodyTooLarge);
+        }
+        if self.record_count as usize >= MAX_SNAPSHOT_RECORDS {
+            return Err(SnapshotError::CapacityExhausted);
+        }
         self.records[self.record_count as usize] = Some(r);
         self.record_count += 1;
         Ok(())
     }
 }
 
-/// Compute the canonical `snapshot_digest` (RFC v0.7-002 §6.1, amended by
-/// RFC v0.7-004 §6.1 for v2 `domain` field).
-pub fn snapshot_digest(env: &SnapshotEnvelope) -> Digest32 {
-    let mut buf = [0u8; 4096];
-    let mut pos = 0usize;
+/// Incremental digest writer — streams bytes into a SHA-256 hasher without
+/// a fixed-size intermediate buffer (RFC-v0.7.2-002, closes C-RB-02).
+pub struct DigestWriter {
+    state: [u32; 8],
+    buf:   [u8; 64],
+    buf_len: usize,
+    total:   u64,
+}
 
-    macro_rules! w_u8  { ($v:expr) => { buf[pos] = $v; pos += 1; }; }
-    macro_rules! w_u16 { ($v:expr) => { buf[pos..pos+2].copy_from_slice(&($v as u16).to_le_bytes()); pos += 2; }; }
-    macro_rules! w_u32 { ($v:expr) => { buf[pos..pos+4].copy_from_slice(&($v as u32).to_le_bytes()); pos += 4; }; }
-    macro_rules! w_u64 { ($v:expr) => { buf[pos..pos+8].copy_from_slice(&($v as u64).to_le_bytes()); pos += 8; }; }
-    macro_rules! w_b   { ($b:expr) => { let bb: &[u8] = $b; buf[pos..pos+bb.len()].copy_from_slice(bb); pos += bb.len(); }; }
-
-    w_b!(b"FJELL-SNAPSHOT-V1");
-    w_u16!(env.schema_version);
-    w_b!(&env.source_identity_digest.0);
-    w_u64!(env.issued_tick);
-    w_b!(&env.nonce);
-    w_u16!(env.record_count);
-    for i in 0..env.record_count as usize {
-        if let Some(r) = &env.records[i] {
-            if env.schema_version >= SNAPSHOT_ENVELOPE_V2 {
-                w_u8!(r.domain as u8);
-            }
-            w_u16!(r.kind);
-            w_u64!(r.seq);
-            let len = r.body_len.min(64) as usize;
-            w_u32!(len as u32);
-            w_b!(&r.body[..len]);
+impl DigestWriter {
+    pub fn new() -> Self {
+        // SHA-256 initial hash values (FIPS 180-4 §5.3.3)
+        Self {
+            state: [
+                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
+                0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+            ],
+            buf: [0u8; 64],
+            buf_len: 0,
+            total: 0,
         }
     }
 
-    Digest32::of(&buf[..pos])
+    fn compress(&mut self) {
+        const K: [u32; 64] = [
+            0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+            0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+            0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+            0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+            0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+            0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+            0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+            0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+            0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+            0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+            0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+            0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+            0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+            0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+            0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+            0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+        ];
+        let mut w = [0u32; 64];
+        for i in 0..16 {
+            w[i] = u32::from_be_bytes([
+                self.buf[i*4], self.buf[i*4+1], self.buf[i*4+2], self.buf[i*4+3],
+            ]);
+        }
+        for i in 16..64 {
+            let s0 = w[i-15].rotate_right(7) ^ w[i-15].rotate_right(18) ^ (w[i-15] >> 3);
+            let s1 = w[i-2].rotate_right(17) ^ w[i-2].rotate_right(19) ^ (w[i-2] >> 10);
+            w[i] = w[i-16].wrapping_add(s0).wrapping_add(w[i-7]).wrapping_add(s1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = self.state;
+        for i in 0..64 {
+            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let ch = (e & f) ^ (!e & g);
+            let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let t2 = s0.wrapping_add(maj);
+            h = g; g = f; f = e; e = d.wrapping_add(t1);
+            d = c; c = b; b = a; a = t1.wrapping_add(t2);
+        }
+        self.state[0] = self.state[0].wrapping_add(a);
+        self.state[1] = self.state[1].wrapping_add(b);
+        self.state[2] = self.state[2].wrapping_add(c);
+        self.state[3] = self.state[3].wrapping_add(d);
+        self.state[4] = self.state[4].wrapping_add(e);
+        self.state[5] = self.state[5].wrapping_add(f);
+        self.state[6] = self.state[6].wrapping_add(g);
+        self.state[7] = self.state[7].wrapping_add(h);
+    }
+
+    pub fn update(&mut self, data: &[u8]) {
+        for &byte in data {
+            self.buf[self.buf_len] = byte;
+            self.buf_len += 1;
+            self.total += 1;
+            if self.buf_len == 64 {
+                self.compress();
+                self.buf_len = 0;
+            }
+        }
+    }
+
+    pub fn write_u8 (&mut self, v: u8)  { self.update(&[v]); }
+    pub fn write_u16(&mut self, v: u16) { self.update(&v.to_le_bytes()); }
+    pub fn write_u32(&mut self, v: u32) { self.update(&v.to_le_bytes()); }
+    pub fn write_u64(&mut self, v: u64) { self.update(&v.to_le_bytes()); }
+
+    pub fn finalize(mut self) -> Digest32 {
+        // SHA-256 padding
+        let bit_len = self.total * 8;
+        self.update(&[0x80]);
+        while self.buf_len != 56 {
+            self.update(&[0x00]);
+        }
+        self.update(&bit_len.to_be_bytes());
+        let mut out = [0u8; 32];
+        for (i, &word) in self.state.iter().enumerate() {
+            out[i*4..i*4+4].copy_from_slice(&word.to_be_bytes());
+        }
+        Digest32(out)
+    }
+}
+
+/// Maximum body bytes per record. Records with larger body_len are rejected
+/// on push (RFC-v0.7.2-002, closes C-M-02).
+pub const SNAPSHOT_RECORD_BODY_MAX: usize = 64;
+
+/// Typed error for snapshot push/validation (RFC-v0.7.2-002).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[repr(u8)]
+pub enum SnapshotError {
+    BodyTooLarge      = 0x01,
+    CapacityExhausted = 0x02,
+    UnknownSchema     = 0x03,
+    UnknownDomain     = 0x04,
+}
+
+/// Compute the canonical `snapshot_digest` using a streaming writer —
+/// no fixed-size stack buffer; cannot panic at declared capacity
+/// (RFC-v0.7.2-002, closes C-RB-02).
+pub fn snapshot_digest(env: &SnapshotEnvelope) -> Digest32 {
+    let mut w = DigestWriter::new();
+    w.update(b"FJELL-SNAPSHOT-V1");
+    w.write_u16(env.schema_version);
+    w.update(&env.source_identity_digest.0);
+    w.write_u64(env.issued_tick);
+    w.update(&env.nonce);
+    w.write_u16(env.record_count);
+    for i in 0..env.record_count as usize {
+        if let Some(r) = &env.records[i] {
+            if env.schema_version >= SNAPSHOT_ENVELOPE_V2 {
+                w.write_u8(r.domain as u8);
+            }
+            w.write_u16(r.kind);
+            w.write_u64(r.seq);
+            let len = (r.body_len as usize).min(SNAPSHOT_RECORD_BODY_MAX);
+            w.write_u32(len as u32);
+            w.update(&r.body[..len]);
+        }
+    }
+    w.finalize()
 }
 
 // ── v0.7 envelope tests ───────────────────────────────────────────────────────
@@ -404,7 +531,7 @@ mod v07_tests {
         assert_eq!(env.push_record(SnapshotRecord {
             domain: ConflictDomain::Pending, kind: 0, seq: 0,
             body: [0u8; 64], body_len: 0,
-        }), Err(()));
+        }), Err(SnapshotError::CapacityExhausted));
     }
 
     #[test]
@@ -451,5 +578,103 @@ mod v07_tests {
             outcome,
             SnapshotImportOutcome::Refused { reason: SnapshotImportError::SignatureFailed }
         ));
+    }
+}
+
+// ── Legacy SnapshotDigest deprecation (RFC-v0.7.5-001) ───────────────────────
+
+/// Placeholder hash constants — kept for backward compat; do NOT trust.
+#[deprecated(since = "0.7.5", note = "placeholder; use Digest32 + SnapshotEnvelope")]
+pub const REL_HASH: [u8; 8] = *b"REL_HASH";
+#[deprecated(since = "0.7.5", note = "placeholder; use Digest32 + SnapshotEnvelope")]
+pub const RFS_HASH: [u8; 8] = *b"RFS_HASH";
+#[deprecated(since = "0.7.5", note = "placeholder; use Digest32 + SnapshotEnvelope")]
+pub const POL_HASH: [u8; 8] = *b"POL_HASH";
+
+// ── RFC-v0.7.2-002 acceptance tests ──────────────────────────────────────────
+
+#[cfg(test)]
+mod rfc_v072_002_tests {
+    use super::*;
+    use fjell_measure_format::Digest32;
+
+    // SNAPSHOT:DIGEST_FULL_CAPACITY_NO_PANIC
+    #[test]
+    fn digest_full_capacity_no_panic() {
+        let mut env = SnapshotEnvelope::new_v2(Digest32([0xAAu8; 32]), 1, [0x01u8; 16]);
+        for i in 0..MAX_SNAPSHOT_RECORDS {
+            env.push_record(SnapshotRecord {
+                domain:   ConflictDomain::LocallyConfirmed,
+                kind:     i as u16,
+                seq:      i as u64,
+                body:     [0xFFu8; 64],
+                body_len: 64,
+            }).unwrap();
+        }
+        // This must never panic, regardless of envelope size.
+        let d = snapshot_digest(&env);
+        assert_ne!(d.0, [0u8; 32]);
+    }
+
+    // SNAPSHOT:BODY_LEN_OVER_64_REJECTED
+    #[test]
+    fn body_len_over_max_rejected() {
+        let mut env = SnapshotEnvelope::new_v2(Digest32([0u8; 32]), 0, [0u8; 16]);
+        let r = SnapshotRecord {
+            domain: ConflictDomain::Pending,
+            kind: 1, seq: 1,
+            body: [0u8; 64],
+            body_len: (SNAPSHOT_RECORD_BODY_MAX + 1) as u32,
+        };
+        assert_eq!(env.push_record(r), Err(SnapshotError::BodyTooLarge));
+    }
+
+    // SNAPSHOT:V1_MISSING_DOMAIN_FOREIGN_AUTHORITATIVE
+    #[test]
+    fn v1_default_is_foreign_authoritative() {
+        assert_eq!(ConflictDomain::V1_DEFAULT, ConflictDomain::ForeignAuthoritative);
+        // V1_DEFAULT != LocallyConfirmed (the old Default derive value)
+        assert_ne!(ConflictDomain::V1_DEFAULT, ConflictDomain::LocallyConfirmed);
+    }
+
+    #[test]
+    fn snapshot_error_variants_accessible() {
+        let e = SnapshotError::BodyTooLarge;
+        assert_eq!(e as u8, 0x01);
+        let e2 = SnapshotError::CapacityExhausted;
+        assert_eq!(e2 as u8, 0x02);
+    }
+
+    #[test]
+    fn digest_writer_deterministic() {
+        let env = SnapshotEnvelope::new_v2(Digest32([0x42u8; 32]), 999, [0x0Fu8; 16]);
+        let d1 = snapshot_digest(&env);
+        let d2 = snapshot_digest(&env);
+        assert_eq!(d1.0, d2.0);
+    }
+
+    #[test]
+    fn digest_writer_nonzero_on_nonempty_envelope() {
+        let env = SnapshotEnvelope::new_v2(Digest32([0x01u8; 32]), 1, [0x01u8; 16]);
+        let d = snapshot_digest(&env);
+        assert_ne!(d.0, [0u8; 32]);
+    }
+
+    #[test]
+    fn capacity_exhausted_after_max_records() {
+        let mut env = SnapshotEnvelope::new_v2(Digest32([0u8; 32]), 0, [0u8; 16]);
+        for _ in 0..MAX_SNAPSHOT_RECORDS {
+            env.push_record(SnapshotRecord {
+                domain: ConflictDomain::Pending, kind: 0, seq: 0,
+                body: [0u8; 64], body_len: 0,
+            }).unwrap();
+        }
+        assert_eq!(
+            env.push_record(SnapshotRecord {
+                domain: ConflictDomain::Pending, kind: 0, seq: 0,
+                body: [0u8; 64], body_len: 0,
+            }),
+            Err(SnapshotError::CapacityExhausted)
+        );
     }
 }

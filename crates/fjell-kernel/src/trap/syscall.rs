@@ -599,7 +599,13 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
 
     let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
     let offset     = tf.gpr[10 + 1];                               // a1
-    let size_bytes = (tf.gpr[10 + 2] + 0xFFF) & !0xFFF;           // a2, page-align up
+    // RFC-v0.7.4-002: use checked_add to prevent overflow before masking
+    // (closes W-H-01 / C-H-05).
+    let raw_size = tf.gpr[10 + 2];
+    let size_bytes = match raw_size.checked_add(0xFFF) {
+        Some(v) => v & !0xFFF,
+        None    => { tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize; return; }
+    };
 
     if size_bytes == 0 {
         tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
@@ -650,7 +656,8 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     // RFC 051: allocate user VA from the task's device VMA bump allocator
     // instead of using PA directly as VA (which could alias user heap).
     let task_id  = crate::task::TaskId::new(tidx as u16, 0);
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable
+    //   get_kernel_state returns globally unique pointers; single-hart kernel.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
     if root_pfn == 0 {
@@ -665,7 +672,10 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
             None => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
         };
         let va = task.dev_vma_next;
-        let end = va.saturating_add(size_bytes);
+        let end = match va.checked_add(size_bytes) {
+            Some(e) => e,
+            None    => { tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize; return; }
+        };
         if end > crate::platform::qemu_virt::DEVICE_VMA_END {
             tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
             return;
@@ -674,25 +684,52 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
         va
     };
 
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+    // RFC-v0.7.4-002: check every map result; rollback on failure.
+    // SAFETY: category=kernel-global-mutable
+    //   fa_static_ptr is the physical frame allocator accessed single-threaded.
     let fa = unsafe { &mut *crate::fa_static_ptr() };
-    let mut mapped = 0usize;
-    for i in 0..((size_bytes + 4095) / 4096) {
+    let page_count = (size_bytes + 4095) / 4096;
+    let mut pages_mapped: usize = 0;
+    let mut map_ok = true;
+    for i in 0..page_count {
         let pa = phys_addr + i * 4096;
         let va = device_va_base + i * 4096;
         if let Ok(f) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
-            if mapped == 0 { mapped = 1; }
-            // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
-            unsafe {
-                let _ = crate::mm::page_table::remap_page(
+            // SAFETY: category=page-table-mutation
+            //   root_pfn valid; va from task dev_vma bump allocator, never previously mapped.
+            let result = unsafe {
+                crate::mm::page_table::remap_page(
                     root_pfn << 12, VirtAddr(va), f,
                     VmPerms::R | VmPerms::W | VmPerms::U,
                     fa,
-                );
+                )
+            };
+            if result.is_err() {
+                map_ok = false;
+                break;
             }
+            pages_mapped += 1;
+        } else {
+            map_ok = false;
+            break;
         }
     }
-    // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.
+
+    if !map_ok {
+        // Rollback: unmap all pages that were successfully mapped.
+        for i in 0..pages_mapped {
+            let va = device_va_base + i * 4096;
+            // SAFETY: category=page-table-mutation
+            //   We are unmapping pages we just mapped; root_pfn is still valid.
+            let _ = unsafe { crate::mm::page_table::unmap_page(root_pfn << 12, VirtAddr(va)) };
+        }
+        // SAFETY: category=csr-asm  sfence after rollback unmap.
+        unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+        tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
+        return;
+    }
+
+    // SAFETY: category=csr-asm  TLB flush after successful mapping.
     unsafe { crate::arch::riscv64::csr::sfence_vma(); }
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = device_va_base;  // RFC 051: VA in device range, not PA
@@ -793,7 +830,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     unsafe { crate::arch::riscv64::csr::sfence_vma(); }
 
     // RFC 036 + RFC 052: record ownership; rollback if table is full.
-    if !crate::dma_table().alloc(task_id, user_va_start, first_pa) {
+    if !crate::dma_table().alloc(task_id, user_va_start, first_pa, pages as u8) {
         // Table full — unmap, zeroize, free the just-allocated frame.
         // Safety: we own the frame exclusively; no other task has seen it.
         // SAFETY: all user-supplied pointers are checked against the task address space before dereferencing.

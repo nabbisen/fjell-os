@@ -13,3 +13,12 @@ path = "src/lib.rs"
 
 [dependencies]
 fjell-measure-format = { path = "../fjell-measure-format" }
+
+[features]
+default = []
+# WARNING: Enables the development crypto profile (RFC-v0.7.3-002).
+# The AES implementation uses a lookup table and may be vulnerable to
+# cache-timing attacks. The HKDF implementation uses assert!() for bounds
+# (fixed in v0.7.1). Release builds MUST NOT enable this feature.
+# Migration plan: v0.9 replaces this crate with a vetted no_std library.
+crypto-profile-development = []

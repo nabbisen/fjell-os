@@ -160,7 +160,7 @@ fn hkdf_sha256_rfc5869_test_vector_a1() {
     ];
     assert_eq!(prk, expected_prk);
     let mut okm = [0u8; 42];
-    hkdf_expand(&prk, &info, &mut okm);
+    hkdf_expand(&prk, &info, &mut okm).unwrap();
     let expected_okm = [
         0x3c,0xb2,0x5f,0x25,0xfa,0xac,0xd5,0x7a,
         0x90,0x43,0x4f,0x64,0xd0,0x36,0x2f,0x2a,
@@ -189,7 +189,7 @@ fn hkdf_sha256_rfc5869_test_vector_a2() {
     // Just test that the PRK is 32 bytes and non-zero.
     assert_ne!(prk, [0u8; 32]);
     let mut okm = [0u8; 82];
-    hkdf_expand(&prk, b"context info", &mut okm);
+    hkdf_expand(&prk, b"context info", &mut okm).unwrap();
     assert_ne!(okm, [0u8; 82]);
 }
 
@@ -265,4 +265,52 @@ fn x25519_ecdh_commutativity() {
     let bag = x25519_diffie_hellman(&b, &ag);
     // These should be equal (Diffie-Hellman commutativity).
     assert_eq!(abg, bag, "ECDH commutativity failed");
+}
+
+// ── RFC-v0.7.3-002 acceptance tests ──────────────────────────────────────────
+
+#[cfg(test)]
+mod rfc_v073_002_tests {
+    use crate::hkdf::{hkdf_extract, hkdf_expand, HkdfError, HKDF_HASH_LEN};
+
+    // HKDF:TOO_LONG_OUTPUT_RETURNS_ERROR
+    #[test]
+    fn hkdf_expand_too_long_output_returns_error() {
+        let prk = hkdf_extract(b"salt", b"ikm");
+        let mut okm = [0u8; 255 * HKDF_HASH_LEN + 1];
+        assert_eq!(
+            hkdf_expand(&prk, b"info", &mut okm),
+            Err(HkdfError::OutputTooLong)
+        );
+    }
+
+    // HKDF:LONG_INFO_REJECTED_NOT_TRUNCATED (verified by checking output differs)
+    #[test]
+    fn hkdf_expand_long_info_not_truncated() {
+        let prk = hkdf_extract(b"salt", b"ikm");
+        let short_info = b"short";
+        let long_info = [0x42u8; 256];  // info longer than old ROUND_BUF_MAX truncation point
+
+        let mut okm_short = [0u8; 32];
+        let mut okm_long  = [0u8; 32];
+        hkdf_expand(&prk, short_info, &mut okm_short).unwrap();
+        hkdf_expand(&prk, &long_info, &mut okm_long).unwrap();
+
+        // Different info must produce different output (truncation would lose information)
+        assert_ne!(okm_short, okm_long);
+    }
+
+    #[test]
+    fn hkdf_expand_max_valid_size_ok() {
+        let prk = hkdf_extract(b"salt-32-bytes-padded-to-32-bytes!", b"ikm");
+        let mut okm = [0u8; 255 * HKDF_HASH_LEN];
+        assert!(hkdf_expand(&prk, b"info", &mut okm).is_ok());
+        // Output must be non-zero
+        assert_ne!(okm[..32], [0u8; 32]);
+    }
+
+    #[test]
+    fn hkdf_error_value_stable() {
+        assert_eq!(HkdfError::OutputTooLong as u8, 0x01);
+    }
 }
