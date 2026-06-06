@@ -1,0 +1,15 @@
+[package]
+name = "fjell-arch-riscv64"
+description = "RISC-V 64-bit architecture implementation for Fjell OS (RFC v0.5-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_arch_riscv64"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-arch = { path = "../fjell-arch" }

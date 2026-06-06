@@ -16,9 +16,6 @@
 # code-model:    supplied via workspace root .cargo/config.toml [target.*].
 # Both work from any working directory.
 
-[build]
-target = "riscv64gc-unknown-none-elf"
-
 [target.riscv64gc-unknown-none-elf]
 # Runner is used by `cargo run` when invoked from within this directory.
 # From the workspace root use `cargo xtask qemu` instead.

@@ -68,6 +68,12 @@
 - [ADR-v0.4-003 secure-transportd Single-Suite TLS](./adr/ADR-v0.4-003-secure-transportd-single-suite-tls.md)
 - [ADR-v0.4-004 Operator-Initiated Update Fetch](./adr/ADR-v0.4-004-operator-initiated-update-fetch.md)
 - [ADR-v0.4-005 diagnosticsd Redaction and Authority](./adr/ADR-v0.4-005-diagnosticsd-redaction-and-authority.md)
+- [ADR-v0.5-001 Platform/Board Boundary](./adr/ADR-v0.5-001-platform-board-boundary.md)
+- [ADR-v0.5-002 No Runtime DTB Parsing](./adr/ADR-v0.5-002-no-runtime-dtb-parse.md)
+- [ADR-v0.5-003 Arch Trait Monomorphised](./adr/ADR-v0.5-003-arch-trait-monomorphised.md)
+- [ADR-v0.5-004 Semantic Catalog v1 Frozen](./adr/ADR-v0.5-004-semantic-catalog-v1-frozen.md)
+- [ADR-v0.5-005 proxy-text Output-Only](./adr/ADR-v0.5-005-proxy-text-no-input.md)
+
 
 
 ---

@@ -75,6 +75,10 @@ pub enum KeyPurpose {
     SealedDataKey = 0x05,
     /// Sign exported snapshots (v0.7 forward-compat reservation).
     SnapshotSigning = 0x06,
+    /// Verify PlatformProfile + BoardProfile digests (RFC v0.5-001 §7.2).
+    ///
+    /// Adding this purpose is an ADR-v0.5-001 security-boundary change.
+    BoardProfile = 0x07,
 }
 
 impl KeyPurpose {
@@ -83,7 +87,7 @@ impl KeyPurpose {
         self as u8
     }
 
-    /// All purposes that are valid in v0.3.0.  v0.7 adds snapshot signing.
+    /// All purposes that are valid in v0.5.0.
     pub const fn all() -> &'static [KeyPurpose] {
         &[
             Self::ReleaseVerification,
@@ -92,6 +96,7 @@ impl KeyPurpose {
             Self::AttestationSigning,
             Self::SealedDataKey,
             Self::SnapshotSigning,
+            Self::BoardProfile,
         ]
     }
 
@@ -99,7 +104,8 @@ impl KeyPurpose {
     pub const fn is_verification_only(self) -> bool {
         matches!(
             self,
-            Self::ReleaseVerification | Self::RootfsVerification | Self::PolicyVerification
+            Self::ReleaseVerification | Self::RootfsVerification
+                | Self::PolicyVerification | Self::BoardProfile
         )
     }
 }

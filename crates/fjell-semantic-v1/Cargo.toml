@@ -1,0 +1,12 @@
+[package]
+name = "fjell-semantic-v1"
+description = "Frozen v1 semantic intent catalog and codec for Fjell OS (RFC v0.5-004)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_semantic_v1"
+path = "src/lib.rs"

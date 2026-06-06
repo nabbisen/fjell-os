@@ -1,0 +1,16 @@
+[package]
+name = "fjell-dtb-derive"
+description = "Build-time derivation of BoardProfile from a DTB byte slice (RFC v0.5-002)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_dtb_derive"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-platform-format = { path = "../fjell-platform-format" }
+fjell-measure-format  = { path = "../fjell-measure-format" }

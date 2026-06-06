@@ -15,7 +15,7 @@ use fjell_trust_provider::KeyPurpose;
 
 /// Number of key purposes we slot in v0.3.0.  This must equal the number
 /// of `KeyPurpose` variants returned by `KeyPurpose::all()`.
-pub const PURPOSE_SLOT_COUNT: usize = 6;
+pub const PURPOSE_SLOT_COUNT: usize = 7;  // v0.5.0: +BoardProfile
 
 /// Fixed-size keyring container.
 pub struct Keyring {
@@ -139,5 +139,6 @@ const fn purpose_index(purpose: KeyPurpose) -> usize {
         KeyPurpose::AttestationSigning => 3,
         KeyPurpose::SealedDataKey => 4,
         KeyPurpose::SnapshotSigning => 5,
+        KeyPurpose::BoardProfile => 6,
     }
 }

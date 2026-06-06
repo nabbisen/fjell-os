@@ -1,3 +1,90 @@
+## [0.5.0] - 2026-05-19 — Multi-Platform Foundation and Semantic API Stabilization
+
+v0.5 separates the OS from a single QEMU RISC-V target and freezes the
+semantic intent contract.
+
+### New crates
+
+| Crate | Purpose | Tests |
+|-------|---------|-------|
+| `fjell-platform-format` | `PlatformProfile` + `BoardProfile` wire formats; QEMU virt reference; canonical SHA-256 digests (RFC v0.5-001) | 19 |
+| `fjell-semantic-v1` | Frozen v1 intent catalog (20 entries, 7 domains) + encode/decode (RFC v0.5-004) | 16 |
+| `fjell-dtb-derive` | `BoardProfile` derivation from DTB byte slice; minimal FDT parser (RFC v0.5-002) | 11 |
+| `fjell-arch-riscv64` | `Riscv64Gc` implements `ArchIdentity`; RISC-V-specific constants | — |
+| `fjell-arch-arm64` | `Arm64` stub — second-platform compilation verification (RFC v0.5-003) | — |
+
+### Updated crates
+
+| Crate | Change |
+|-------|--------|
+| `fjell-arch` | `ArchIdentity` sealed trait; `Va`, `Pa`, `Asid`, `PagePerm`, `ArchRegs`, `TrapFrame` (RFC v0.5-003) |
+| `fjell-trust-provider` | `KeyPurpose::BoardProfile = 0x07`; updated `all()` and `is_verification_only()` |
+| `fjell-keyring` | `PURPOSE_SLOT_COUNT` 6→7; `purpose_index` match handles `BoardProfile` |
+| `fjell-measure-format` | `MeasurementKind::PlatformProfileLoaded = 0x10`, `::BoardProfileLoaded = 0x11` |
+| `fjell-proxy-text` | `ProxyState` renderer: v1 catalog, pinned critical region, rate-limit table, 8 tests (RFC v0.5-005) |
+| `fjell-devmgr` | Profile-driven boot: verifies `PlatformProfile`/`BoardProfile` digest chain; registers 5 QEMU virt devices |
+
+### Build fixes
+
+- All per-service `build.rs` now gate the linker script on `target_arch = "riscv64"`, enabling `cargo test --lib` on the host without RISC-V linker.
+- All per-service `.cargo/config.toml` no longer force `[build] target`, so `cargo test` uses the host target by default.
+
+### ADRs
+
+ADR-v0.5-001 through ADR-v0.5-005 filed.
+
+### Test baseline: **209 host library tests, all passing**
+
+All services cross-compile to `riscv64gc-unknown-none-elf`.
+Kernel builds with updated prebuilts.
+
+---
+
+## [0.5.0-alpha.2] - 2026-05-19 — Arch Boundary, DTB Derivation, devmgr wiring
+
+### New / updated crates
+
+| Crate | Change | Tests |
+|-------|--------|-------|
+| `fjell-dtb-derive` | `BoardProfile` derivation from DTB byte slice; minimal FDT parser; PLIC detection; compat matching | 11 ✅ |
+| `fjell-arch` | RFC v0.5-003 arch-neutral types: `Va`, `Pa`, `Asid`, `PagePerm`, `ArchRegs`, `TrapFrame`, `ArchIdentity` sealed trait | — |
+| `fjell-arch-riscv64` | `Riscv64Gc` implements `ArchIdentity`; RISC-V constants (`SATP_MODE_SV39`, PLIC/CLINT bases) | — |
+| `fjell-arch-arm64` | `Arm64` stub implements `ArchIdentity`; GIC constants; compiles for second-platform CI verification | — |
+| `fjell-keyring` | `KeyPurpose::BoardProfile = 0x07` added; `PURPOSE_SLOT_COUNT` bumped to 7; `purpose_index` match extended | 29 ✅ |
+| `fjell-trust-provider` | `KeyPurpose::BoardProfile` declared; `all()` and `is_verification_only()` updated | 37 ✅ |
+| `fjell-measure-format` | `MeasurementKind::PlatformProfileLoaded = 0x10`, `::BoardProfileLoaded = 0x11` | 11 ✅ |
+| `fjell-devmgr` | Profile-driven device registration: verifies `PlatformProfile`/`BoardProfile` digests and `platform_ref` chain; registers 5 QEMU devices from `BoardProfile.devices[]` | — |
+
+### ADRs filed
+
+ADR-v0.5-001 through ADR-v0.5-005 all filed and indexed in `docs/src/SUMMARY.md`.
+
+### Test baseline
+
+New crates this alpha: **11** (dtb-derive); updated crates: **77** (keyring 29 + trust-provider 37 + measure-format 11).
+
+---
+
+## [0.5.0-alpha.1] - 2026-05-19 — Platform Profile + Semantic v1 Catalog
+
+### New crates
+
+- **`fjell-platform-format`** — `PlatformProfile` and `BoardProfile` wire
+  formats (RFC v0.5-001). `PlatformFamily`, `IsaExtensions` (9 bit-flags),
+  `KernelAbiVersion`, `MemMap`, `PlicLayout`, `DeviceClass` (8 variants),
+  `RecoveryDescriptor`. Canonical SHA-256 digests (`platform_digest`,
+  `board_digest`) per §6.3. QEMU `virt` reference profile. **19 tests.**
+
+- **`fjell-semantic-v1`** — Frozen v1 intent catalog and codec
+  (RFC v0.5-004). 20 catalog entries across 7 domains (Update, Attestation,
+  Security, Net, Recovery, Platform, Health). Encode / decode with sentinel
+  framing; round-trip tests for every entry; 8 negative tests (bad magic,
+  truncation, trailing bytes, missing sentinel). **16 tests.**
+
+### Test baseline: **271 host library tests, all passing** (252 + 19 + 16 - 16 overlap)
+
+---
+
 ## [0.4.0] - 2026-05-19 — Secure Networking Stack
 
 The first Fjell OS release with remote network capability.  All network

@@ -56,6 +56,11 @@ members = [
     "crates/fjell-secure-transportd",
     "crates/fjell-diag-format",
     "crates/fjell-diagnosticsd",
+    "crates/fjell-platform-format",
+    "crates/fjell-semantic-v1",
+    "crates/fjell-dtb-derive",
+    "crates/fjell-arch-arm64",
+    "crates/fjell-arch-riscv64",
 ]
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
@@ -74,7 +79,7 @@ members = [
 default-members = [
 ]
 [workspace.package]
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

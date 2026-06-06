@@ -1,6 +1,12 @@
 //! Text rendering for semantic nodes — reusable across crates.
 #![no_std]
 
+pub mod renderer;
+pub use renderer::{
+    ProxyState, RenderedEntry, ScrollRing, BannerInfo, RateLimitEntry,
+    is_critical_tag, MAX_PINNED, SCROLL_BUFFER, DEFAULT_WIDTH,
+};
+
 pub use fjell_semantic_format::*;
 
 fn w(s: &str) { fjell_syscall::sys_debug_write(s); }

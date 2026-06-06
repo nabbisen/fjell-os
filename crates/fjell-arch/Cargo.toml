@@ -1,9 +1,12 @@
 [package]
 name = "fjell-arch"
+description = "Architecture-neutral trait boundary for Fjell OS kernel (RFC v0.5-003)."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 publish = false
 
-[dependencies]
+[lib]
+name = "fjell_arch"
+path = "src/lib.rs"

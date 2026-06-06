@@ -1,0 +1,15 @@
+[package]
+name = "fjell-arch-arm64"
+description = "ARM64 architecture stub for Fjell OS — second-platform preparation (RFC v0.5-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_arch_arm64"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-arch = { path = "../fjell-arch" }

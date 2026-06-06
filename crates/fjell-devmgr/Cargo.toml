@@ -16,3 +16,5 @@ fjell-device-format     = { path = "../fjell-device-format" }
 fjell-block-format      = { path = "../fjell-block-format" }
 fjell-store-format      = { path = "../fjell-store-format" }
 fjell-upgrade-format    = { path = "../fjell-upgrade-format" }
+fjell-platform-format   = { path = "../fjell-platform-format" }
+fjell-measure-format    = { path = "../fjell-measure-format" }

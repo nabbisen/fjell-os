@@ -23,6 +23,10 @@ pub enum MeasurementKind {
     ProvenanceSidecarChecked  = 0x0D,
     VerificationFailed        = 0x0E,
     FreshnessRejected         = 0x0F,
+    /// PlatformProfile loaded and digest verified (RFC v0.5-001 §7.3).
+    PlatformProfileLoaded     = 0x10,
+    /// BoardProfile loaded, digest verified, and platform_ref matched (RFC v0.5-001 §7.3).
+    BoardProfileLoaded        = 0x11,
 }
 
 impl MeasurementKind {

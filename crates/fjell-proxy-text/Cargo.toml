@@ -15,6 +15,7 @@ fjell-abi            = { path = "../fjell-abi" }
 fjell-syscall        = { path = "../fjell-syscall" }
 fjell-service-api    = { path = "../fjell-service-api" }
 fjell-semantic-format = { path = "../fjell-semantic-format" }
+fjell-semantic-v1    = { path = "../fjell-semantic-v1" }
 
 [lib]
 name = "fjell_proxy_text"

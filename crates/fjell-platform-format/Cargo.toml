@@ -1,0 +1,15 @@
+[package]
+name = "fjell-platform-format"
+description = "PlatformProfile and BoardProfile wire formats for Fjell OS (RFC v0.5-001)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_platform_format"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-measure-format = { path = "../fjell-measure-format" }
