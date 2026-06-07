@@ -116,15 +116,24 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
               limitations section lists hardware, multi-hart, POSIX, kernel-IPC, \
               ZeroizeOnDrop, trust-anchor provisioning");
 
-    // Experimental, non-blocking (RFC-v0.17-005 Stage A): report Verus proof
-    // target conformance but never fail the rehearsal on it.
+    // Verus proof targets. Experimental targets (Stage A) are reported but
+    // never block. Release-required targets (RFC-v0.18-001) are a hard gate:
+    // `verus-check --release-required` must exit 0 (every release-required
+    // target PROVED, prover actually run).
     let verus = sh(&["cargo", "run", "-q", "-p", "fjell-tools", "--",
                      "verus-check", "--all-pilot"]);
     let pass = verus.matches(":PASS").count();
     let conf = verus.matches(":CONFORMANCE-ONLY").count();
     let vfail = verus.matches(":FAIL").count();
-    println!("  [ ~~ ] Verus  Proof targets (experimental)  {} proved, {} conformance-only, {} fail (non-blocking, Stage A)",
+    println!("  [ ~~ ] Verus  Proof targets (all)           {} proved, {} conformance-only, {} fail (experimental targets non-blocking)",
              pass, conf, vfail);
+
+    let rr_ok = run_cmd_status(&["cargo", "run", "-q", "-p", "fjell-tools", "--",
+                                 "verus-check", "--release-required"]);
+    let rr_mark = if rr_ok { "PASS" } else { "FAIL" };
+    if !rr_ok { all_pass = false; }
+    println!("  [{}] Gate 10 Verus release-required proofs  every release-required target PROVED by Verus",
+             rr_mark);
 
     if all_pass {
         println!("\nRELEASE-REHEARSAL: ALL MECHANICAL GATES PASS");
@@ -142,6 +151,11 @@ fn run_gate(id: &'static str, name: &'static str,
     let (passed, detail) = f();
     eprintln!("{}", if passed { "ok" } else { "FAIL" });
     Gate { id, name, passed, detail }
+}
+
+fn run_cmd_status(parts: &[&str]) -> bool {
+    Command::new(parts[0]).args(&parts[1..]).status()
+        .map(|s| s.success()).unwrap_or(false)
 }
 
 fn sh(parts: &[&str]) -> String {

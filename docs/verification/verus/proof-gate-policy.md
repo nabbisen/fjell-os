@@ -18,7 +18,7 @@ This policy governs how proofs enter CI without slowing ordinary work.
 |---------|--------|
 | v0.17.0 | All pilot targets **Experimental** (conformance-only in CI until the Verus toolchain is pinned). |
 | v0.17.1 | Pilot-required for touched target modules. |
-| v0.18.0 | Selected targets may become Release-required. |
+| v0.18.0 | Tier-3 targets (capability, lease) promoted to **Release-required** (RFC-v0.18-001). boot-control stays pilot-required. |
 
 ## Promotion criteria
 
@@ -46,11 +46,12 @@ Demotion of a release-required target requires architect approval.
 ## Current state
 
 Three pilot targets configured (`verification/verus/verus-targets.toml`):
-capability, lease, boot-control — all Experimental, all release_required=false.
-Conformance tests pass in ordinary `cargo test`. Proofs are **machine-checked**
-(v0.17.1: 19 verified, 0 errors) under the pinned toolchain
-(`verification/verus/TOOLCHAIN.lock`), recorded in CI by the non-blocking
-`ci-verus` job.
+capability and lease are **Release-required** (tier 3, promoted v0.18.0);
+boot-control is Experimental (tier 2, pilot-required). All are machine-checked
+(19 verified, 0 errors) under the pinned toolchain
+(`verification/verus/TOOLCHAIN.lock`) and recorded in CI by the non-blocking
+`ci-verus` job; the release gate (`release-rehearsal` Gate 10) enforces the
+two release-required proofs.
 
 ## Promotion ledger
 
@@ -62,9 +63,11 @@ releases/milestone tags" — is tracked here. Promotion to
 |-----------|---------------|-------------|
 | v0.17.0   | CONFORMANCE-ONLY (toolchain absent) | — (does not count toward promotion) |
 | v0.17.1   | capability / lease / boot-control = PASS (19 verified, 0 errors) | first CI-recorded PASS (`ci-verus`) |
-| _next tag_ | _pending_ | _second PASS clears the two-milestone criterion_ |
+| v0.18.0   | capability / lease / boot-control = PASS | **second PASS — two-milestone criterion met** |
 
-When the second milestone records PASS, and the other promotion criteria still
-hold (conformance test passes, review record current, maintenance cost
-acceptable, assumptions written down), a target may be flipped to
-`release_required = true` via an RFC amendment with architect sign-off.
+**Promotion executed at v0.18.0 (RFC-v0.18-001):** the tier-3 targets
+`capability` and `lease` are now `release_required = true`. `boot-control`
+(tier 2) remains Experimental. For a release-required target the gate is
+strict — `CONFORMANCE-ONLY` (prover absent) blocks `--release-required`, so a
+release cannot be cut for these targets without a passing Verus run
+(`TOOLCHAIN.lock`). Demotion remains available with architect sign-off.

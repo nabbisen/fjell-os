@@ -5,7 +5,44 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.17.2] — Verus machine-check recorded in CI; promotion ledger
+## [0.18.0] — Verus targets promoted to release-required
+
+Second milestone of recorded Verus PASS. Promotes the two **tier-3** pilot
+proofs to release-required, per the RFC-v0.17-005 staging schedule
+(RFC-v0.18-001).
+
+### Promoted
+
+- **`capability`** (rights non-amplification) and **`lease`** (epoch
+  revocation) → `release_required = true`. Selection follows the existing
+  tier field (tier 3 = release-critical); **`boot-control`** (tier 2) stays
+  Experimental / pilot-required.
+- Both promoted proofs meet every proof-gate criterion: PASS across two
+  milestone tags (v0.17.1, v0.18.0), passing conformance + property tests,
+  a proof review record, low maintenance cost, and assumptions written in the
+  proof files. The two milestones landing close together is noted honestly in
+  RFC-v0.18-001; the demotion path remains the safety valve.
+
+### Changed (the release-required teeth)
+
+- `cargo xtask verus-check`: for a release-required target, **anything other
+  than a real Verus PASS now blocks `--release-required` — including
+  `CONFORMANCE-ONLY`**. A release-required proof cannot be certified without
+  actually running the prover (pin: `TOOLCHAIN.lock`).
+- `release-rehearsal`: new **Gate 10** runs `verus-check --release-required`
+  and fails the rehearsal if any release-required target is not PROVED. The
+  informational all-targets line remains.
+- `verus-check` TOML reader now strips inline `#` comments (so commented
+  `release_required` values parse correctly).
+
+### Unchanged (Stage A guarantees still hold)
+
+- Verus is still not a build dependency; `cargo build`/`test` never need it.
+- Push CI (`ci-verus`) stays `continue-on-error` — non-blocking on merges; it
+  records markers. Release-required enforcement is a release-time gate only.
+- boot-control and all future new targets start Experimental.
+
+
 
 Makes the v0.17.1 machine-check reproducible on every push and sets up the
 audit trail the staging policy needs before any `release_required` promotion.

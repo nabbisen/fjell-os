@@ -2,14 +2,16 @@
 #
 # tier:              2 = pilot-required (touched-module gate), 3 = release-critical
 # release_required:  whether a failing proof blocks a release tag
-#                    (false during v0.17.0 Stage A; promoted per the staging policy)
+#                    (tier-3 targets promoted to true at v0.18.0 per RFC-v0.18-001;
+#                    boot-control stays pilot-required. Release-required targets
+#                    must be PROVED by Verus for a release — CONFORMANCE-ONLY blocks.)
 # rust_conformance:  the host-testable bridge that runs in ordinary `cargo test`
 
 [[target]]
 name             = "capability"
 proof            = "verification/verus/capability/rights_lattice.rs"
 tier             = 3
-release_required = false
+release_required = true   # promoted v0.18.0 (RFC-v0.18-001)
 rust_conformance = "crates/fjell-cap/tests/verus_conformance.rs"
 conformance_cmd  = "cargo test -p fjell-cap --test verus_conformance"
 maps_to          = "crates/fjell-cap/src/rights.rs::CapRights::is_subset_of"
@@ -18,7 +20,7 @@ maps_to          = "crates/fjell-cap/src/rights.rs::CapRights::is_subset_of"
 name             = "lease"
 proof            = "verification/verus/lease/lease_epoch.rs"
 tier             = 3
-release_required = false
+release_required = true   # promoted v0.18.0 (RFC-v0.18-001)
 rust_conformance = "crates/fjell-cap/tests/lease_conformance.rs"
 conformance_cmd  = "cargo test -p fjell-cap --test lease_conformance"
 maps_to          = "crates/fjell-kernel/src/lease/mod.rs + fjell_abi::lease"

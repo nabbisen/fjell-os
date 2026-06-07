@@ -449,12 +449,12 @@ jobs:
           path: fuzz/corpus/${{ matrix.target }}/
           if-no-files-found: warn
 
-  # Verus proof machine-check (RFC-v0.17-005, Stage A).
-  # NON-BLOCKING by policy: continue-on-error keeps Verus off the critical
-  # path (it is never a Fjell build dependency). Its job is to RECORD the
-  # VERUS:TARGET:*:PASS markers per milestone, which the staging policy needs
-  # before any release_required promotion. Pin lives in
-  # verification/verus/TOOLCHAIN.lock.
+  # Verus proof machine-check (RFC-v0.17-005 / RFC-v0.18-001).
+  # NON-BLOCKING on push: continue-on-error keeps Verus off the merge path
+  # (never a Fjell build dependency). This job RECORDS the VERUS:TARGET:*
+  # markers per milestone (the promotion-ledger evidence). The BLOCKING gate
+  # for release-required targets (capability, lease) lives in the release-time
+  # `release-rehearsal` (Gate 10), not here. Pin: TOOLCHAIN.lock.
   ci-verus:
     name: verus
     runs-on: ubuntu-24.04

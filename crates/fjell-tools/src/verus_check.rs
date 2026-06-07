@@ -3,8 +3,11 @@
 //! Stable project-local interface for Verus proof targets. Reads
 //! `verification/verus/verus-targets.toml`. If the `verus` binary is on PATH
 //! it runs the proof; otherwise it falls back to the target's Rust
-//! conformance test and reports CONFORMANCE-ONLY (Stage A policy: proofs are
-//! additive, never a blocker, until promoted).
+//! conformance test and reports CONFORMANCE-ONLY (Stage A: proofs are additive,
+//! never a blocker, while Experimental). Once a target is promoted to
+//! `release_required = true` (RFC-v0.18-001), anything other than a real Verus
+//! PASS blocks `--release-required` — including CONFORMANCE-ONLY, since a
+//! release-required proof cannot be certified without running the prover.
 //!
 //! Output markers (one per target):
 //!   VERUS:TARGET:<name>:PASS
@@ -70,14 +73,17 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
             t.name, status, t.tier, t.release_required, verus_present
         );
 
-        // Only a real proof FAIL on a release-required target is blocking.
-        if marker == "FAIL" && t.release_required {
+        // Release-required targets must be PROVED for a release: a real FAIL
+        // *and* CONFORMANCE-ONLY (prover absent) both block. You cannot certify
+        // a release-required proof without actually running Verus. Experimental
+        // targets never block (Stage A philosophy).
+        if t.release_required && marker != "PASS" {
             any_blocking_fail = true;
         }
     }
 
     if any_blocking_fail {
-        println!("VERUS-CHECK: BLOCKING FAILURE (release-required target failed)");
+        println!("VERUS-CHECK: BLOCKING FAILURE (release-required target not proved)");
         ExitCode::FAILURE
     } else {
         ExitCode::SUCCESS
@@ -113,7 +119,16 @@ fn load_targets(path: &str) -> Result<Vec<Target>, String> {
     let mut cur: Option<Target> = None;
 
     let field = |line: &str| -> Option<String> {
-        line.split_once('=').map(|(_, v)| v.trim().trim_matches('"').to_string())
+        line.split_once('=').map(|(_, v)| {
+            // Strip an inline `# ...` comment. Values here are bare scalars or
+            // double-quoted strings with no '#', so cutting at the first '#'
+            // outside quotes is safe.
+            let v = match v.split_once(" #") {
+                Some((head, _)) if !head.contains('"') || head.matches('"').count() % 2 == 0 => head,
+                _ => v,
+            };
+            v.trim().trim_matches('"').to_string()
+        })
     };
 
     for raw in text.lines() {
