@@ -8,7 +8,6 @@
 //! `cargo xtask verify-bundle-sig --bundle <f> --sig <s> --pubkey <hex>`
 
 use std::fs;
-use std::io::{self, Read, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
@@ -220,10 +219,6 @@ fn load_key(path: &str, key_id_override: &Option<String>, args: &[String]) -> Re
         None => key_id_from_pubkey(&pubkey),
     };
     Ok((seed, key_id))
-}
-
-fn load_raw_key(path: &str) -> Result<([u8; 32], [u8; 32]), String> {
-    load_raw_key_with_args(path, &[])
 }
 
 /// Read only the public key, which is stored cleartext in both the

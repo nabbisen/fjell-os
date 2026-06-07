@@ -83,7 +83,11 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
         .map(String::as_str)
         .unwrap_or("tests/repro/baseline-digests.txt");
 
-    let current = collect_digests();
+    let mut current = collect_digests();
+    // The committed baseline only tracks committed artefacts (prebuilt/*.bin).
+    // target/ outputs are volatile — absent in fresh checkouts and removed by
+    // `cargo clean` — and are covered by the full two-build mode instead.
+    current.retain(|k, _| !k.starts_with("target/"));
 
     // If baseline doesn't exist, create it and pass.
     if !Path::new(baseline_path).exists() {
@@ -97,7 +101,11 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
     }
 
     let baseline = match load_digests(baseline_path) {
-        Ok(d) => d,
+        Ok(mut d) => {
+            // Tolerate legacy baselines that recorded target/ entries.
+            d.retain(|k, _| !k.starts_with("target/"));
+            d
+        }
         Err(e) => { eprintln!("fjell-repro-check: {}", e); return ExitCode::FAILURE; }
     };
 

@@ -6,8 +6,7 @@
 //! Production builds refuse these flags.
 
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
-use std::net::TcpStream;
+use std::io::{BufRead, BufReader};
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
 use std::thread;
@@ -16,6 +15,7 @@ use std::time::Duration;
 const KERNEL: &str = "target/riscv64gc-unknown-none-elf/release/fjell-kernel";
 const TRACE_PORT: u16  = 9990;
 const GDB_PORT:   u16  = 1234;
+#[allow(dead_code)] // reserved for the measurement channel (dev modes, RFC-v0.14-005)
 const MEAS_PORT:  u16  = 9991;
 
 pub fn cmd_dev_run(args: &[String]) -> ExitCode {
@@ -51,7 +51,7 @@ fn run_trace_mode(svc: &str) -> ExitCode {
     // In production QEMU mode the kernel would be built with dev-trace feature
     // and open a chardev pipe. For the v0.14 implementation we simulate the
     // trace stream using the existing serial log parse path.
-    let log_path = "tests/fleet-demo/logs/node-a.log";
+    let _log_path = "tests/fleet-demo/logs/node-a.log";
     fs::create_dir_all("tests/fleet-demo/logs").ok();
 
     // Start QEMU in background

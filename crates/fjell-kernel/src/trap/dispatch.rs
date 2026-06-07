@@ -318,8 +318,6 @@ fn task_label(id: crate::task::TaskId) -> &'static str {
         4  => "auditd",
         5  => "svc-manager",
         6  => "sample",
-        7  => "sem-stream",
-        8  => "proxy-text",
         7  => "neg-test",
         8  => "sem-stream",
         9  => "proxy-text",

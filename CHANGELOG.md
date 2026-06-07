@@ -5,7 +5,62 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.18.2] — Owner-verification findings: repro baseline + test-all counters
+## [0.18.3] — v1 hardening: triage of owner-review findings
+
+Full triage and implementation of the v1-readiness review (code defects,
+documentation gaps, workflow gaps). First release validated end-to-end with
+**QEMU 8.2.2 + Verus both present**: all four smoke profiles PASS on a
+freshly rebuilt image, all host tiers PASS, 20 proof obligations
+machine-checked, full two-build reproducibility PASS.
+
+### Fixed
+
+- **Kernel dispatch debug-name table** (`trap/dispatch.rs`): removed the
+  stale duplicate arms for slots 7/8 (the unreachable-patterns warnings);
+  slot 7 now correctly labels `neg-test`. Validated by booting m8 in QEMU.
+- **Repro baseline workflow**: prebuilt service binaries rebuilt from
+  current source and the SHA-256 baseline re-recorded with them (they had
+  diverged after the v0.18.1 `fjell-abi` change — the exact tier-5 failure
+  an owner verification run would hit after any `qemu-test`).
+  `--skip-build` now tracks committed artefacts only: volatile `target/`
+  paths are excluded from the baseline, so fresh checkouts and post-clean
+  trees compare correctly. Full two-build mode re-verified: 29 artefacts
+  identical. Baseline maintenance procedure documented in
+  `tools/fjell-repro-check/README.md`.
+- **fjell-tools warning baseline → 0**: dead `load_raw_key` removed, unused
+  imports fixed, `MEAS_PORT` annotated as reserved.
+
+### Documentation
+
+- **Gate 9 single source**: new `docs/release/v1-limitations.md`
+  consolidating the six manual-check items with their governing records
+  (E-004, N1, N21, N23, console single-hart invariant, RFC-v0.17-001);
+  the rehearsal Gate 9 message now points at it.
+- **Six mdbook stub pages written**: what-is-fjell, why-fjell, quick-start
+  (with boot output verified against a live v0.18.2 QEMU run, and two
+  corrections — the apt package is `qemu-system-misc`, and toolchain
+  prerequisites now include `rust-1.91-src` + `lld`), architecture
+  overview, writing-a-service (canonical fjell-storaged template steps,
+  no-`static mut` and IpcReply-`a1` invariants), and the v1-non-goals
+  pointer page.
+- **v1-readiness matrix refreshed** to v0.18.2: Verus formal-proof and
+  reproducible-build rows added; test counts updated (566 host, 14
+  properties).
+- `console.rs` `TODO(M2+)` relabeled as the documented v1.0 single-hart
+  design decision; `TOOLCHAIN.md` stale "environment blocker" section
+  replaced with the validated Verus install recipe.
+- **Known gap documented**: all nine QEMU negative-test categories are
+  RFC 025 placeholders that PASS without booting QEMU; recorded in
+  v1-limitations so test-all tiers 10–18 are not mistaken for
+  fault-injection coverage.
+
+### Changed
+
+- Smoke-test stub services (`fjell-netd`, `fjell-secure-transportd`,
+  `fjell-driver-virtio-net`) carry an explicit STUB header and scoped
+  `allow`s; the riscv cross-build warning count for them is now zero.
+
+
 
 The owner's independent verification run surfaced two real defects, both
 pre-dating the v0.17/v0.18 work. (The other reported behaviours were correct:

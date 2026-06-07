@@ -44,15 +44,28 @@ runs each target's Rust conformance test instead and reports
 `VERUS:TARGET:<name>:CONFORMANCE-ONLY`. This matches the Stage A policy:
 proofs are additive, never a blocker, until promoted.
 
-## Known environment blocker (v0.17.0)
+## Install recipe (Linux x86_64, validated v0.18.x)
 
-In the current build sandbox, Verus could not be installed: GitHub
-release-asset hosts (`objects.githubusercontent.com`,
-`release-assets.githubusercontent.com`) are not in the network allowlist
-(`host_not_allowed`), and a source build needs the same hosts plus z3.
+```bash
+# 1. rustup + the toolchain the Verus binary requires
+curl -sL https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init -o /tmp/rustup-init
+chmod +x /tmp/rustup-init
+/tmp/rustup-init -y --default-toolchain 1.95.0-x86_64-unknown-linux-gnu --profile minimal --no-modify-path
 
-Until a network-enabled environment runs the proofs, the pilot targets are
-validated by (a) 23 conformance cases and (b) 14 property tests over the
-proved lemmas (`fjell-proptest/tests/verus_lemma_properties.rs`), with a
-manual obligation review in
-`docs/verification/verus/review-records/v0.17-pilot-targets.md`.
+# 2. the pinned Verus release (bundled z3)
+TAG="release%2F0.2026.05.24.ecee80a"
+ASSET="verus-0.2026.05.24.ecee80a-x86-linux.zip"
+curl -sL "https://github.com/verus-lang/verus/releases/download/${TAG}/${ASSET}" -o /tmp/verus.zip
+mkdir -p ~/tools/verus && unzip -q /tmp/verus.zip -d ~/tools/verus
+chmod +x ~/tools/verus/verus-x86-linux/{verus,rust_verify,z3}
+
+# 3. PATH (shell rc)
+export PATH="$HOME/.cargo/bin:$HOME/tools/verus/verus-x86-linux:$PATH"
+
+verus --version   # → 0.2026.05.24.ecee80a / toolchain 1.95.0
+```
+
+History: at v0.17.0 the build sandbox could not reach the GitHub release-asset
+hosts, so the proofs were temporarily validated by conformance + property
+tests only. The hosts are reachable since v0.17.1 and all pilot proofs are
+machine-checked (see TOOLCHAIN.lock and the review record).

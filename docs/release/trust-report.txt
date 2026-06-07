@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-06-04 00:54:14 UTC
-Version   : 0.18.2
+Generated : 2026-06-04 04:56:07 UTC
+Version   : 0.18.3
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -82,12 +82,12 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260604-003121
-  18    QEMU negative: harness                                     SKIP (qemu-system-riscv64 not found on PATH)
+  Latest test-all run: 20260604-043608
+  18    QEMU negative: harness                               0.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 18  |  PASS: 5  |  FAIL: 0  |  SKIP: 13
+  Total: 18  |  PASS: 14  |  FAIL: 4  |  SKIP: 0
   
-  ✓ ALL REQUIRED TIERS PASSED
+  ✗ FAILURES DETECTED — check per-tier logs above
 
   Live host test count:
     Host tests   : 566 passed, 0 failed  [PASS]

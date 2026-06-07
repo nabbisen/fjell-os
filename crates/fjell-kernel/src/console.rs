@@ -22,8 +22,10 @@ use core::fmt::{self, Write};
 /// `Sync` is required to place the value in a `static`.
 struct SyncUnsafeCell(UnsafeCell<Uart>);
 
-// SAFETY: category=kernel-global-mutable M1 invariant — accessed exclusively from hart 0, no concurrency.
-// TODO(M2+): remove once a spinlock wrapper is introduced.
+// SAFETY: category=kernel-global-mutable single-hart invariant — accessed
+// exclusively from hart 0, no concurrency. v1.0 DESIGN DECISION (not a
+// pending action): multi-hart is a v1.0 non-goal (docs/release/v1-non-goals.md),
+// so a spinlock is intentionally deferred to the multi-hart milestone.
 unsafe impl Sync for SyncUnsafeCell {}
 
 /// Global UART instance, wrapped in `UnsafeCell` to allow interior mutability
@@ -49,7 +51,8 @@ pub fn _print(args: fmt::Arguments) {
     // The raw pointer dereference is sound because:
     //   - `UART.0.get()` always returns a valid, aligned pointer.
     //   - No other reference to `*UART.0.get()` exists concurrently.
-    // TODO(M2+): replace with a spinlock-protected write.
+    // v1.0 single-hart design decision: spinlock deferred with multi-hart
+    // support (see v1-non-goals). Sound under the single-hart invariant.
     // SAFETY: category=mmio-access UART MMIO address is set once during init; single-writer access guaranteed by the console lock.
     unsafe {
         (*UART.0.get()).write_fmt(args).unwrap();

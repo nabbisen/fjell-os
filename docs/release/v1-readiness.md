@@ -3,7 +3,7 @@
 *Governed by RFC-v0.10-007. Every cell must be DONE or DEFERRED
 (with rationale) before the v1.0.0 tag. OPEN cells block the release.*
 
-*Last updated: v0.15.0*
+*Last updated: v0.18.2 (post-v1.0.0 verification layer)*
 
 ---
 
@@ -43,8 +43,10 @@
 
 | Item | RFC | Status |
 |------|-----|--------|
-| Host test suite (≥ 487 tests) | — | **DONE** (v0.9.4) |
-| Proptest harness (≥ 10 properties) | RFC v0.6-001 | **DONE** (v0.6.0) |
+| Host test suite (≥ 487 tests; 566 at v0.18.2) | — | **DONE** (v0.9.4) |
+| Proptest harness (≥ 10 properties; 14 at v0.18.2) | RFC v0.6-001 | **DONE** (v0.6.0) |
+| Verus formal proofs — capability + lease (release-required), boot-control (experimental); 20 obligations machine-checked | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1) |
+| Reproducible build gate (SHA-256 baseline, two-build mode) | RFC-v0.16-005 H-04 | **DONE** (v0.18.2) |
 | Fuzz targets (≥ 4) | RFC v0.6-003 | **DONE** (v0.6.0) |
 | Unsafe-audit gate, zero gaps | RFC v0.6-004, RFC 060 | **DONE** (v0.8.24) |
 | QEMU smoke tier (≥ 4 profiles) | — | **DONE** (v0.8.0) |

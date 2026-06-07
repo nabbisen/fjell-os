@@ -112,9 +112,9 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
         println!("  [{}] Gate {:<2} {:<32} {}", mark, g.id, g.name, g.detail);
     }
 
-    println!("\n  [ -- ] Gate 9  Release-notes limitations    MANUAL: confirm v1.0 \
-              limitations section lists hardware, multi-hart, POSIX, kernel-IPC, \
-              ZeroizeOnDrop, trust-anchor provisioning");
+    println!("\n  [ -- ] Gate 9  Release-notes limitations    MANUAL: confirm \
+              docs/release/v1-limitations.md covers hardware, multi-hart, POSIX, \
+              kernel-IPC, ZeroizeOnDrop, trust-anchor provisioning");
 
     // Verus proof targets. Experimental targets (Stage A) are reported but
     // never block. Release-required targets (RFC-v0.18-001) are a hard gate:

@@ -26,10 +26,10 @@
 //! `deploy`       — run the full demo end-to-end (up → verify → down)
 
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::net::TcpStream;
 use std::path::Path;
-use std::process::{Child, Command, ExitCode, Stdio};
+use std::process::{Child, Command, ExitCode};
 use std::thread;
 use std::time::Duration;
 
