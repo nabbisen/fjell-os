@@ -448,3 +448,59 @@ jobs:
           name: fuzz-${{ matrix.target }}
           path: fuzz/corpus/${{ matrix.target }}/
           if-no-files-found: warn
+
+  # Verus proof machine-check (RFC-v0.17-005, Stage A).
+  # NON-BLOCKING by policy: continue-on-error keeps Verus off the critical
+  # path (it is never a Fjell build dependency). Its job is to RECORD the
+  # VERUS:TARGET:*:PASS markers per milestone, which the staging policy needs
+  # before any release_required promotion. Pin lives in
+  # verification/verus/TOOLCHAIN.lock.
+  ci-verus:
+    name: verus
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    continue-on-error: true
+    env:
+      VERUS_TAG: release/0.2026.05.24.ecee80a
+      VERUS_ASSET: verus-0.2026.05.24.ecee80a-x86-linux.zip
+      VERUS_TOOLCHAIN: 1.95.0-x86_64-unknown-linux-gnu
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust 1.91 (Fjell build toolchain)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src unzip rustup
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install rustup toolchain Verus requires
+        run: rustup toolchain install "$VERUS_TOOLCHAIN" --profile minimal
+      - name: Install pinned Verus (bundled z3)
+        run: |
+          TAG_ENC=$(printf '%s' "$VERUS_TAG" | sed 's#/#%2F#g')
+          URL="https://github.com/verus-lang/verus/releases/download/${TAG_ENC}/${VERUS_ASSET}"
+          curl -sL --max-time 300 "$URL" -o /tmp/verus.zip
+          mkdir -p /tmp/verus && unzip -q /tmp/verus.zip -d /tmp/verus
+          VDIR=$(dirname "$(find /tmp/verus -name verus -type f | head -1)")
+          chmod +x "$VDIR"/verus "$VDIR"/rust_verify "$VDIR"/z3 || true
+          echo "$VDIR" >> $GITHUB_PATH
+      - name: Verus version
+        run: verus --version
+      - name: Machine-check pilot proofs + record markers
+        run: |
+          cargo run -q -p fjell-tools -- verus-check --all-pilot \
+            | tee verus-markers.txt
+          echo "### Verus machine-check ($VERUS_TAG)" >> $GITHUB_STEP_SUMMARY
+          grep 'VERUS:TARGET' verus-markers.txt >> $GITHUB_STEP_SUMMARY || true
+          # Surface a real proof FAIL loudly without gating the pipeline.
+          if grep -q ':FAIL' verus-markers.txt; then
+            echo "::warning::a Verus proof target FAILED (non-blocking, Stage A)"
+          fi
+      - name: Upload marker log (milestone record)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verus-markers
+          path: verus-markers.txt
+          if-no-files-found: warn

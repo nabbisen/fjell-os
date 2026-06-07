@@ -5,7 +5,26 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.17.1] — Verus proofs machine-checked
+## [0.17.2] — Verus machine-check recorded in CI; promotion ledger
+
+Makes the v0.17.1 machine-check reproducible on every push and sets up the
+audit trail the staging policy needs before any `release_required` promotion.
+No proof or shipped-code change; still Stage A, all targets non-blocking.
+
+### Added
+
+- **`ci-verus` CI job** (`.github/workflows/ci.yml`) — installs the pinned
+  Verus toolchain (`TOOLCHAIN.lock`: verus `release/0.2026.05.24.ecee80a`,
+  rustup 1.95.0, bundled z3) and runs `cargo xtask verus-check --all-pilot`,
+  recording `VERUS:TARGET:*:PASS` to the step summary and uploading
+  `verus-markers.txt`. `continue-on-error: true` keeps Verus strictly
+  non-blocking — it can never gate a merge or release (Stage A guarantee).
+- **Promotion ledger** in `docs/verification/verus/proof-gate-policy.md` —
+  tracks the two-milestone PASS criterion. v0.17.1 is recorded as the first
+  CI PASS; the next tag's PASS clears the criterion, after which a target may
+  be promoted by RFC amendment with architect sign-off.
+
+
 
 **The three v0.17 pilot proofs are now machine-checked.** The Verus toolchain
 installed and ran (release-asset hosts reachable): **19 proof obligations
