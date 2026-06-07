@@ -31,6 +31,7 @@ mod bench;
 mod fleet_demo;
 mod key_crypto;   // RFC-v0.16-006 encrypted key storage
 mod release_rehearsal; // RFC-v0.16-008 release gate runner
+mod verus_check;       // RFC-v0.17-005 verus proof gate
 mod sign_bundle;
 mod registry;
 mod dev_modes;   // RFC-v0.14-005 --trace/--measure/--gdb    // RFC-v0.14-004 publish/install  // RFC-v0.11-003 bundle signing pipeline   // RFC-v0.10-005 three-node fleet demo        // RFC-v0.10-004 criterion bench runner
@@ -144,6 +145,9 @@ fn main() -> ExitCode {
         Some("trust-report") => {
             trust_report::cmd_trust_report(&args[1..])
         }
+        Some("verus-check") => {
+            verus_check::cmd_verus_check(&args[1..])
+        }
         Some("release-rehearsal") => {
             release_rehearsal::cmd_release_rehearsal(&args[1..])
         }
@@ -177,6 +181,7 @@ Subcommands:
   qemu-run --profile <name>
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
   dev lint <manifest.toml>
+  verus-check [<target>|--all-pilot|--release-required]  (RFC-v0.17-005)
   release-rehearsal              run v1.0 tag gates 1-8 (RFC-v0.16-008)
   test-all [--no-qemu]           run every tier, save logs to tests/runs/
   trust-report [--dry-run]       RFC 061 §6 six-section trust report"

@@ -5,7 +5,52 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.16.0] — 2026-05-28
+## [0.17.0] — Verus adoption foundation (Stage A)
+
+**Selective formal verification.** Lands the foundation for Verus proofs on
+small, stable, security-critical logic, per the Verus adoption handoff pack.
+Fjell remains Rust-first; proofs are additive and never a build dependency.
+
+### Added
+
+- **`verification/verus/`** — proof modules for the three pilot targets,
+  each mapped 1:1 to shipped Rust:
+  - `capability/rights_lattice.rs` → `CapRights::is_subset_of`
+  - `lease/lease_epoch.rs` → kernel lease table + `fjell_abi::lease`
+  - `boot-control/mirror_selection.rs` → `select_bcb_mirror`
+- **Conformance tests (the proof↔Rust bridge, run in ordinary `cargo test`):**
+  19 cases total — `fjell-cap/tests/verus_conformance.rs` (6),
+  `fjell-cap/tests/lease_conformance.rs` (6),
+  `fjell-upgrade-format/tests/mirror_conformance.rs` (7). All pass.
+- **`fjell_abi::lease`** pure helpers (`lease_usable`, `lease_revoke_epoch`)
+  — host-testable mirror of the no_std kernel lease logic.
+- **`cargo xtask verus-check`** [`<target>`|`--all-pilot`|`--release-required`]
+  — runs Verus if installed; otherwise conformance-only mode (Stage A).
+  Emits `VERUS:TARGET:<name>:{PASS|FAIL|CONFORMANCE-ONLY}` + JSON.
+- **`verification/verus/{verus-targets.toml,TOOLCHAIN.md,README.md}`**.
+- **`docs/verification/verus/proof-gate-policy.md`** + imported pack
+  guides, checklists, templates, appendices.
+- **RFCs** `rfcs/proposed/v0.17/`: 002 capability, 003 lease, 004 boot-control,
+  005 CI proof gate, 006 adoption umbrella; 001 reserved for trust-anchor
+  provisioning.
+- Release rehearsal now reports Verus target status as a **non-blocking**
+  experimental line.
+
+### Policy
+
+All pilot targets are **Experimental** (release_required=false) at v0.17.0.
+Verus is not installed in this environment, so proofs are written and mapped
+but not yet machine-checked; conformance tests are the validated bridge today.
+Promotion to pilot-required (v0.17.1) and release-required (v0.18.0) follows
+the staging policy.
+
+### Status
+
+566 host tests + 19 conformance tests + 13 lemma property tests pass. Real Verus machine-checking is blocked by the sandbox network allowlist (GitHub release-asset hosts denied); proofs are mapped, conformance-tested, property-tested, and manually reviewed (review record committed). All 8 v1.0 mechanical gates still PASS. No regressions.
+
+---
+
+
 
 **Validation Closure Sprint.** Executes the architect's v0.16 review:
 converts paper claims into validated ones before any v1.0 tag. No new

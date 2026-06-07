@@ -36,3 +36,33 @@ impl LeaseId {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct LeaseEpoch(pub u32);
+
+// ── Pure lease-decision logic (RFC-v0.17-003) ──────────────────────────────────
+//
+// These are the pure predicates the kernel lease table implements
+// (crates/fjell-kernel/src/lease/mod.rs). They are extracted here, in a
+// host-testable crate, so the Verus model
+// (verification/verus/lease/lease_epoch.rs) and the kernel share one
+// source of truth that ordinary `cargo test` can exercise.
+//
+// LEASE-VERUS-001: a binding is usable iff the lease is active and the
+//                  current epoch equals the epoch recorded at issue.
+// LEASE-VERUS-002: revoke increments the epoch.
+
+/// Is a capability bound at `epoch_at_issue` usable against a lease that is
+/// `active` with `current_epoch`?  Mirrors `LeaseTable::check_active`.
+#[inline]
+pub fn lease_usable(active: bool, current_epoch: u32, epoch_at_issue: u32) -> bool {
+    active && current_epoch == epoch_at_issue
+}
+
+/// The epoch after a revoke.  Mirrors `LeaseTable::revoke`'s
+/// `slot.epoch = slot.epoch.wrapping_add(1)`.
+///
+/// Note: the kernel uses `wrapping_add` on `u32`; the Verus model uses
+/// unbounded `nat` and proves strict monotonicity. Wraparound would require
+/// 2^32 revocations of a single lease; see RFC-v0.17-003 conformance note.
+#[inline]
+pub fn lease_revoke_epoch(current_epoch: u32) -> u32 {
+    current_epoch.wrapping_add(1)
+}

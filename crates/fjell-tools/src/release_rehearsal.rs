@@ -116,6 +116,16 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
               limitations section lists hardware, multi-hart, POSIX, kernel-IPC, \
               ZeroizeOnDrop, trust-anchor provisioning");
 
+    // Experimental, non-blocking (RFC-v0.17-005 Stage A): report Verus proof
+    // target conformance but never fail the rehearsal on it.
+    let verus = sh(&["cargo", "run", "-q", "-p", "fjell-tools", "--",
+                     "verus-check", "--all-pilot"]);
+    let pass = verus.matches(":PASS").count();
+    let conf = verus.matches(":CONFORMANCE-ONLY").count();
+    let vfail = verus.matches(":FAIL").count();
+    println!("  [ ~~ ] Verus  Proof targets (experimental)  {} proved, {} conformance-only, {} fail (non-blocking, Stage A)",
+             pass, conf, vfail);
+
     if all_pass {
         println!("\nRELEASE-REHEARSAL: ALL MECHANICAL GATES PASS");
         println!("v1.0.0 tag remains owner/architect-gated (gate 9 + explicit approval).");
