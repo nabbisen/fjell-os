@@ -7,13 +7,17 @@ and test with the stable toolchain in `rust-toolchain.toml`. Verus is an
 ## Pinned version
 
 ```
-verus:  (pin a release tag here, e.g. release/0.2025.xx.xx)
-z3:     bundled with the Verus release
+verus:     release/0.2026.05.24.ecee80a   (x86-linux release asset)
+toolchain: 1.95.0-x86_64-unknown-linux-gnu (rustup; required by the Verus binary)
+z3:        4.12.5                           (bundled with the Verus release)
 ```
 
-Record the exact tag when the toolchain is first installed in CI, so proof
-results are reproducible. Until then, `cargo xtask verus-check` runs in
-conformance-only mode (see below).
+These are the versions under which the three pilot proofs were first
+machine-checked (19 obligations verified, 0 errors). The exact pin lives in
+`verification/verus/TOOLCHAIN.lock` for reproducibility. Note the Verus
+toolchain (1.95.0, via rustup) is independent of the Fjell build toolchain
+(`rust-toolchain.toml`, channel 1.91, apt) — Verus is never a Fjell build
+dependency.
 
 ## Install (developer / CI)
 

@@ -85,7 +85,11 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
 }
 
 fn run_verus(t: &Target) -> (&'static str, &'static str) {
-    let ok = Command::new("verus").arg(&t.proof).status()
+    // Proof modules are library files (no `main`); Verus needs --crate-type=lib.
+    let ok = Command::new("verus")
+        .arg("--crate-type=lib")
+        .arg(&t.proof)
+        .status()
         .map(|s| s.success()).unwrap_or(false);
     if ok { ("pass", "PASS") } else { ("fail", "FAIL") }
 }

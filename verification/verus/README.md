@@ -23,7 +23,8 @@ boot-control/mirror_selection.rs   BCB-VERUS deterministic selection
 
 ## Status
 
-Conformance tests run in ordinary `cargo test` today (19 cases, all pass).
-The Verus proofs are written and map 1:1 to the shipped predicates; they are
-machine-checked once the toolchain in `TOOLCHAIN.md` is installed. No proof
-is a release blocker at v0.17.0 (Stage A).
+Machine-checked (v0.17.1): **19 obligations verified, 0 errors** under verus
+`release/0.2026.05.24.ecee80a` (see `TOOLCHAIN.lock`). Conformance tests also
+run in ordinary `cargo test` (19 cases) plus 13 property tests — all pass.
+Each proof maps 1:1 to the shipped predicate. No proof is a release blocker
+at v0.17.x (Stage A, `release_required=false`).

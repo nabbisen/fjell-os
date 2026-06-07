@@ -5,7 +5,39 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.17.0] — Verus adoption foundation (Stage A)
+## [0.17.1] — Verus proofs machine-checked
+
+**The three v0.17 pilot proofs are now machine-checked.** The Verus toolchain
+installed and ran (release-asset hosts reachable): **19 proof obligations
+verified, 0 errors** (capability 8, lease 4, boot-control 7). Fjell stays
+Rust-first — Verus is still not a build dependency and all targets remain
+`release_required = false` (Stage A).
+
+### Verified
+
+- `cargo xtask verus-check --all-pilot` → `VERUS:TARGET:*:PASS` for all three,
+  `"verus":true`.
+- `release-rehearsal` Verus line now reads **"3 proved, 0 conformance-only,
+  0 fail"** (was "3 conformance-only"). All 8 mechanical gates still PASS;
+  566 host tests + 19 conformance + 13 property tests still green.
+
+### Fixed (both surfaced by running the real toolchain)
+
+- **`capability` proof:** `zero_is_subset` and `equal_rights_allowed` needed
+  `by(bit_vector)`. They assert universally-quantified bitwise facts
+  (`0 & !parent == 0`, `parent & !parent == 0`) that the SMT solver does not
+  discharge over all `u64` without the bit-vector solver — invisible to the
+  point/property tests, which only evaluate concrete values. Both now verify.
+- **`verus-check` xtask:** `run_verus` invoked `verus <file>` without
+  `--crate-type=lib`, so proof-only library modules (no `main`) failed with
+  `E0601` and were reported as FAIL. Now passes `--crate-type=lib`.
+
+### Pinned
+
+- `verification/verus/TOOLCHAIN.md` + new `TOOLCHAIN.lock`: verus
+  `release/0.2026.05.24.ecee80a`, rustup toolchain `1.95.0`, z3 `4.12.5`.
+
+
 
 **Selective formal verification.** Lands the foundation for Verus proofs on
 small, stable, security-critical logic, per the Verus adoption handoff pack.

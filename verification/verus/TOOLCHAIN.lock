@@ -1,0 +1,26 @@
+# Verus toolchain lock — reproducibility pin (RFC-v0.17-005).
+#
+# These are the exact versions under which the v0.17 pilot proofs were first
+# machine-checked. Update only with a recorded proof-review re-run.
+
+[verus]
+release        = "release/0.2026.05.24.ecee80a"
+asset          = "verus-0.2026.05.24.ecee80a-x86-linux.zip"
+platform       = "linux_x86_64"
+
+[toolchain]
+# Required by the Verus binary itself (via rustup). Independent of the Fjell
+# build toolchain in rust-toolchain.toml (channel 1.91, apt-managed).
+channel        = "1.95.0-x86_64-unknown-linux-gnu"
+installer      = "rustup"
+
+[z3]
+version        = "4.12.5"
+source         = "bundled-with-verus-release"
+
+[result]
+# First machine-check, recorded for regression reference.
+capability     = "8 verified, 0 errors"
+lease          = "4 verified, 0 errors"
+boot_control   = "7 verified, 0 errors"
+total          = "19 verified, 0 errors"

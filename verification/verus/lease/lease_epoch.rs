@@ -11,7 +11,7 @@
 //   crates/fjell-abi/src/lease_logic.rs :: lease_usable / revoke_epoch
 // and the conformance test drives that mirror over the same cases.
 //
-// STATUS: written; machine-checks once the Verus toolchain is installed.
+// STATUS: machine-checked (v0.17.1); see verification/verus/TOOLCHAIN.lock.
 //
 // ASSUMPTIONS:
 //   A1. `epoch` is a monotonic counter; revoke increments it by one.

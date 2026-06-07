@@ -9,7 +9,7 @@
 // equal-generation tie-break as its own variant). This model matches that
 // exactly, which is richer than the original skeleton's three-way enum.
 //
-// STATUS: written; machine-checks once the Verus toolchain is installed.
+// STATUS: machine-checked (v0.17.1); see verification/verus/TOOLCHAIN.lock.
 // The conformance test drives the shipped select_bcb_mirror over the full
 // matrix below.
 //

@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-05-28 23:00:04 UTC
-Version   : 0.17.0
+Generated : 2026-05-31 14:31:29 UTC
+Version   : 0.17.1
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -82,12 +82,7 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260523-231825
-  16    QEMU negative: harness                                     SKIP (skipped via --no-qemu)
-  ───────────────────────────────────────────────────────────────────────────
-  Total: 16  |  PASS: 3  |  FAIL: 0  |  SKIP: 13
-  
-  ✓ ALL REQUIRED TIERS PASSED
+  No test-all runs found. Run `cargo xtask test-all --no-qemu` first.
 
   Live host test count:
     Host tests   : 566 passed, 0 failed  [PASS]

@@ -9,8 +9,8 @@
 // conformance test (crates/fjell-cap/tests/verus_conformance.rs) drives the
 // shipped `CapRights::is_subset_of` over the same cases proved here.
 //
-// STATUS: written; machine-checks once the Verus toolchain in
-// verification/verus/TOOLCHAIN.md is installed. The conformance test is the
+// STATUS: machine-checked (v0.17.1) under the pinned toolchain in
+// verification/verus/TOOLCHAIN.lock. The conformance test is the
 // part validated in ordinary CI today.
 //
 // ASSUMPTIONS (must stay written down — appendix B anti-pattern #7):
@@ -50,12 +50,14 @@ proof fn mint_never_amplifies(parent: Rights, child: Rights)
 proof fn zero_is_subset(parent: Rights)
     ensures subset(0, parent),
 {
+    assert((0u64 & !parent) == 0) by(bit_vector);
 }
 
 // Reflexivity: equal rights are an allowed mint (CAP-RIGHTS-001 boundary).
 proof fn equal_rights_allowed(parent: Rights)
     ensures mint_allowed(parent, parent),
 {
+    assert((parent & !parent) == 0) by(bit_vector);
 }
 
 // CAP-RIGHTS-002: copy does not change rights.
