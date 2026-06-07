@@ -171,11 +171,19 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     }
 
     // ── Write summary ────────────────────────────────────────────────────────
-    let passed = results.iter().filter(|r| r.passed).count();
-    let skipped = results.iter().filter(|r| r.note.as_deref() == Some("skipped via --no-qemu")
-        || r.note.as_deref() == Some("qemu-system-riscv64 not found on PATH")).count();
-    let failed  = results.iter().filter(|r| !r.passed && r.note.as_deref()
-        .map(|n| !n.starts_with("skipped")).unwrap_or(true)).count();
+    // A tier is SKIP iff it carries one of the skip notes; everything not
+    // passed and not skipped is a real FAIL. (Previously the FAIL filter only
+    // excluded notes starting with "skipped", so the "qemu-system-riscv64 not
+    // found on PATH" skips were double-counted as failures and a skip-only
+    // run exited FAILURE.)
+    fn is_skip(r: &TierResult) -> bool {
+        matches!(r.note.as_deref(),
+            Some("skipped via --no-qemu")
+            | Some("qemu-system-riscv64 not found on PATH"))
+    }
+    let passed  = results.iter().filter(|r| r.passed).count();
+    let skipped = results.iter().filter(|r| is_skip(r)).count();
+    let failed  = results.iter().filter(|r| !r.passed && !is_skip(r)).count();
 
     let txt = format_summary(&results, passed, skipped, failed);
     let json = format_summary_json(&results);

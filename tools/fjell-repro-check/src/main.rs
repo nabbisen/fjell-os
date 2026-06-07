@@ -204,7 +204,7 @@ fn save_digests(map: &BTreeMap<String, String>, path: &str) -> std::io::Result<(
     if let Some(parent) = Path::new(path).parent() {
         fs::create_dir_all(parent)?;
     }
-    let mut out = String::new();
+    let mut out = String::from("# algo: sha256 (64 hex chars per entry)\n");
     for (k, v) in map {
         out.push_str(&format!("{} {}\n", v, k));
     }
@@ -215,9 +215,30 @@ fn load_digests(path: &str) -> std::io::Result<BTreeMap<String, String>> {
     let content = fs::read_to_string(path)?;
     let mut map = BTreeMap::new();
     for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue; // header / comment
+        }
         let mut parts = line.splitn(2, ' ');
-        if let (Some(digest), Some(path)) = (parts.next(), parts.next()) {
-            map.insert(path.to_string(), digest.to_string());
+        if let (Some(digest), Some(file)) = (parts.next(), parts.next()) {
+            // Guard against algorithm drift: the tool computes SHA-256
+            // (64 hex chars). A 16-char entry is a legacy FNV-1a baseline
+            // from before RFC-v0.16-005 (H-04) — comparing across
+            // algorithms produces meaningless per-file "mismatches", so
+            // fail loudly with the actual cause instead.
+            if digest.len() != 64 || !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "baseline {} contains a non-SHA-256 digest ({} chars) for {} — \
+                         this is a legacy (pre-RFC-v0.16-005 FNV-1a) baseline. \
+                         Delete the file and re-run with --skip-build to re-record \
+                         it with SHA-256.",
+                        path, digest.len(), file
+                    ),
+                ));
+            }
+            map.insert(file.to_string(), digest.to_string());
         }
     }
     Ok(map)
@@ -272,9 +293,20 @@ mod tests {
         fs::create_dir_all(&dir).ok();
         let path = dir.join("snapshot.txt");
         let mut map = BTreeMap::new();
-        map.insert("a.bin".into(), "deadbeef".into());
+        map.insert("a.bin".into(), sha256_hex(b"a"));
         save_digests(&map, path.to_str().unwrap()).unwrap();
         let loaded = load_digests(path.to_str().unwrap()).unwrap();
         assert_eq!(loaded, map);
+    }
+
+    #[test]
+    fn legacy_fnv_baseline_rejected_loudly() {
+        let dir = std::env::temp_dir().join("fjell-repro-test");
+        fs::create_dir_all(&dir).ok();
+        let path = dir.join("legacy.txt");
+        // 16-hex-char FNV-1a style entry (pre-RFC-v0.16-005 baseline format).
+        fs::write(&path, "ef78d19e980473e6 crates/x.bin\n").unwrap();
+        let err = load_digests(path.to_str().unwrap()).unwrap_err();
+        assert!(err.to_string().contains("legacy"), "must name the real cause");
     }
 }

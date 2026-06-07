@@ -5,7 +5,36 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.18.1] — Architect Stage-A conditions landed; v0.17/v0.18 RFC sets completed
+## [0.18.2] — Owner-verification findings: repro baseline + test-all counters
+
+The owner's independent verification run surfaced two real defects, both
+pre-dating the v0.17/v0.18 work. (The other reported behaviours were correct:
+`verus-check` without Verus on PATH yielding `CONFORMANCE-ONLY` markers plus a
+release-required `BLOCKING FAILURE` is the C7/Gate-10 design working;
+`release-rehearsal` is its own xtask subcommand, not a `verus-check` flag.)
+
+### Fixed
+
+- **Reproducible-build gate (latent since v0.16.5).** RFC-v0.16-005 (H-04)
+  switched `fjell-repro-check` from FNV-1a to SHA-256, but the committed
+  `tests/repro/baseline-digests.txt` still held 16-hex-char FNV digests — so
+  every `--skip-build` comparison since then was algorithm-mismatched and
+  reported meaningless per-file "DIGEST DIFFERS". Fixes:
+  - baseline re-recorded in SHA-256 (28 artefacts; prebuilt bins verified
+    byte-identical to the v0.17.0 release before re-recording);
+  - baseline file now carries an `# algo: sha256` header;
+  - `load_digests` validates entries are 64-char hex and fails loudly naming
+    the legacy-baseline cause (with re-record instructions) instead of
+    emitting cross-algorithm diffs; unit test added.
+- **`test-all` summary counters.** The FAIL filter only excluded notes
+  starting with "skipped", so QEMU tiers skipped with "qemu-system-riscv64
+  not found on PATH" were double-counted as failures (`PASS: 4 | FAIL: 14 |
+  SKIP: 13` for one real failure), and a skip-only run would wrongly exit
+  FAILURE. A single skip predicate now drives both counts.
+
+No shipped-kernel, proof, or gate-policy change in this release.
+
+
 
 Recovers and applies the architect's Stage-A approval conditions (C4–C8),
 which were specified in the review session but lost to a sandbox outage

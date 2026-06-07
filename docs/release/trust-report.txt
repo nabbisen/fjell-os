@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-06-03 23:44:34 UTC
-Version   : 0.18.1
+Generated : 2026-06-04 00:54:14 UTC
+Version   : 0.18.2
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -30,34 +30,34 @@ Mode      : full
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Service binaries in prebuilt/: 28
-    fjell-rootfsd.bin (54 bytes)
-    fjell-init.bin (17928 bytes)
-    fjell-powerd.bin (134 bytes)
-    fjell-snapshotd.bin (54 bytes)
-    fjell-bootctl.bin (481 bytes)
-    fjell-secure-transportd.bin (1455 bytes)
-    fjell-svc-fault.bin (50 bytes)
-    fjell-diagnosticsd.bin (3776 bytes)
-    fjell-devmgr.bin (4600 bytes)
-    fjell-attestd.bin (6465 bytes)
-    fjell-syncd.bin (3559 bytes)
-    fjell-service-manager.bin (1272 bytes)
-    fjell-storaged.bin (1915 bytes)
+    fjell-init.bin (18160 bytes)
     fjell-configd.bin (472 bytes)
-    fjell-neg-test.bin (5680 bytes)
-    fjell-sample-service.bin (626 bytes)
-    fjell-upgraded.bin (3974 bytes)
-    fjell-measuredd.bin (3760 bytes)
-    fjell-driver-virtio-net.bin (1006 bytes)
-    fjell-svc-timeout.bin (32 bytes)
     fjell-cap-broker.bin (1728 bytes)
     fjell-auditd.bin (2720 bytes)
-    fjell-netd.bin (795 bytes)
+    fjell-service-manager.bin (1272 bytes)
+    fjell-sample-service.bin (626 bytes)
+    fjell-neg-test.bin (5680 bytes)
+    fjell-svc-timeout.bin (32 bytes)
+    fjell-svc-fault.bin (50 bytes)
     fjell-semantic-stream.bin (189 bytes)
-    fjell-recoveryd.bin (581 bytes)
-    fjell-verifyd.bin (3592 bytes)
     fjell-proxy-text.bin (138 bytes)
+    fjell-devmgr.bin (4600 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
+    fjell-storaged.bin (1915 bytes)
+    fjell-bootctl.bin (481 bytes)
+    fjell-upgraded.bin (3974 bytes)
+    fjell-powerd.bin (134 bytes)
+    fjell-verifyd.bin (3592 bytes)
+    fjell-rootfsd.bin (54 bytes)
+    fjell-snapshotd.bin (54 bytes)
+    fjell-measuredd.bin (3760 bytes)
+    fjell-attestd.bin (6465 bytes)
+    fjell-recoveryd.bin (581 bytes)
+    fjell-syncd.bin (3559 bytes)
+    fjell-driver-virtio-net.bin (1006 bytes)
+    fjell-netd.bin (795 bytes)
+    fjell-secure-transportd.bin (1455 bytes)
+    fjell-diagnosticsd.bin (3776 bytes)
   Bundle signatures: (available after v0.11 signing pipeline)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -82,7 +82,12 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  No test-all runs found. Run `cargo xtask test-all --no-qemu` first.
+  Latest test-all run: 20260604-003121
+  18    QEMU negative: harness                                     SKIP (qemu-system-riscv64 not found on PATH)
+  ───────────────────────────────────────────────────────────────────────────
+  Total: 18  |  PASS: 5  |  FAIL: 0  |  SKIP: 13
+  
+  ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
     Host tests   : 566 passed, 0 failed  [PASS]
