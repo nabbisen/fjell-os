@@ -30,6 +30,26 @@ A target becomes release-required only when all hold:
 - maintenance cost is acceptable,
 - no hidden unsound assumptions (all assumptions written in the proof file).
 
+**R-V1 (architect rule):** a target whose Verus machine-check FAILS stays
+Experimental — or, if already promoted, blocks the release — even if every
+Rust test passes. Property and conformance tests are evidence, never proof;
+machine-check is the promotion precondition (C5) and a bare `PASS` is never
+reported by the conformance fallback (C7: `CONFORMANCE-ONLY` /
+`CONFORMANCE-FAIL`, JSON `machine_check = not_run`).
+
+### Promotion artifact checklist (per promoted target)
+
+1. Pinned Verus release (`TOOLCHAIN.lock [verus]`)
+2. Pinned solver version (`TOOLCHAIN.lock [z3]`)
+3. Exact check command (`TOOLCHAIN.lock [run] command`)
+4. Machine-check logs / CI marker record (`ci-verus` artifact)
+5. Updated proof review record (review-records/)
+6. Failure policy documented (R-V1 above + demotion criteria below)
+7. Conformance + property tests passing at the promoting tag
+8. Assumptions enumerated in the proof file header
+9. *(lease only)* epoch wrap modeled: retire-before-wrap (architect C6;
+   `RevokeOutcome::MustRetire` at `u32::MAX`, LEASE-VERUS-005)
+
 ## Demotion criteria
 
 A target may be demoted (retaining conformance tests) if the Verus toolchain
@@ -48,7 +68,7 @@ Demotion of a release-required target requires architect approval.
 Three pilot targets configured (`verification/verus/verus-targets.toml`):
 capability and lease are **Release-required** (tier 3, promoted v0.18.0);
 boot-control is Experimental (tier 2, pilot-required). All are machine-checked
-(19 verified, 0 errors) under the pinned toolchain
+(20 verified, 0 errors as of v0.18.1) under the pinned toolchain
 (`verification/verus/TOOLCHAIN.lock`) and recorded in CI by the non-blocking
 `ci-verus` job; the release gate (`release-rehearsal` Gate 10) enforces the
 two release-required proofs.
@@ -64,6 +84,7 @@ releases/milestone tags" — is tracked here. Promotion to
 | v0.17.0   | CONFORMANCE-ONLY (toolchain absent) | — (does not count toward promotion) |
 | v0.17.1   | capability / lease / boot-control = PASS (19 verified, 0 errors) | first CI-recorded PASS (`ci-verus`) |
 | v0.18.0   | capability / lease / boot-control = PASS | **second PASS — two-milestone criterion met** |
+| v0.18.1   | capability / lease / boot-control = MACHINE-CHECKED-PASS (20 obligations; markers renamed per C7) | architect conditions C4–C8 landed |
 
 **Promotion executed at v0.18.0 (RFC-v0.18-001):** the tier-3 targets
 `capability` and `lease` are now `release_required = true`. `boot-control`

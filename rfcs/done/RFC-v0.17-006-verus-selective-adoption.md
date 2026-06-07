@@ -1,6 +1,6 @@
 # RFC-v0.17-006: Selective Verus Adoption (umbrella)
 
-**Status:** Proposed
+**Status:** Implemented (v0.17.0 Stage A; promotion executed v0.18.0)
 **Milestone:** v0.17
 
 ## Summary

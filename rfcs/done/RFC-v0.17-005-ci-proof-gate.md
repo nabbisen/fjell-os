@@ -1,6 +1,6 @@
 # RFC-v0.17-005: Verus CI and Proof Gate Policy
 
-**Status:** Proposed
+**Status:** Implemented (v0.17.0–v0.18.0: gate, CI recording, Gate 10)
 **Milestone:** v0.17
 **Derived from:** Verus adoption handoff pack supplement.
 

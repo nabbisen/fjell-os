@@ -1,0 +1,20 @@
+[
+  {"id":"01-host-lib","label":"Host library tests","passed":true,"duration_ms":3019,"log":"tests/runs/20260603-235148/01-host-lib.log"},
+  {"id":"02-proptest","label":"Property tests (proptest)","passed":true,"duration_ms":7831,"log":"tests/runs/20260603-235148/02-proptest.log"},
+  {"id":"03-unsafe-audit","label":"Unsafe site audit","passed":true,"duration_ms":166,"log":"tests/runs/20260603-235148/03-unsafe-audit.log"},
+  {"id":"03c-mmio-audit","label":"MMIO ordering audit","passed":true,"duration_ms":158,"log":"tests/runs/20260603-235148/03c-mmio-audit.log"},
+  {"id":"03b-repro-check","label":"Reproducible build (skip-build)","passed":false,"duration_ms":321,"log":"tests/runs/20260603-235148/03b-repro-check.log"},
+  {"id":"skip","label":"QEMU smoke: m8","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU smoke: v0.4-net","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU smoke: v0.5-platform","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU smoke: v0.7-sync","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: capability","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: mmio","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: dma","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: user-copy","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: audit","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: policy","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: ipc","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: svc","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"},
+  {"id":"skip","label":"QEMU negative: harness","passed":false,"duration_ms":0,"log":"","note":"qemu-system-riscv64 not found on PATH"}
+]

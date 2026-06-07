@@ -1,6 +1,6 @@
 # RFC-v0.17-003: Verified Lease Epoch Revocation
 
-**Status:** Proposed
+**Status:** Implemented (v0.17.0; machine-checked v0.17.1; C6 retire-before-wrap landed v0.18.1)
 **Milestone:** v0.17
 **Derived from:** Verus adoption handoff pack supplement.
 
@@ -87,3 +87,14 @@ Blocked IPC is handled by the later IPC proof target.
 - Proof module: `verification/verus/.../*.rs` (written; pending toolchain pin).
 - Conformance test: passing in ordinary `cargo test`.
 - Gate level: Experimental (release_required=false).
+
+---
+
+**Amendment (v0.18.1, architect condition C6 — retire-before-wrap).** The
+original conformance note documented the kernel's `wrapping_add` on the u32
+epoch as a divergence from the unbounded-`nat` model. C6 closes it: the kernel
+now routes revocation through `fjell_abi::lease::lease_revoke`, which returns
+`RevokeOutcome::MustRetire` at `u32::MAX` instead of wrapping; the Verus model
+carries the `epoch < u32::MAX` precondition plus the LEASE-VERUS-005
+bounded-domain lemma; and four boundary conformance tests (0, 1, MAX-1, MAX)
+pin the behaviour.

@@ -1,6 +1,6 @@
 # RFC-v0.18-001: Verus Target Promotion to Release-Required
 
-**Status:** Proposed
+**Status:** Implemented (v0.18.0; accepted by owner direction; teeth + conditions closed v0.18.1)
 **Milestone:** v0.18.0
 **Depends on:** RFC-v0.17-002…006 (Verus selective adoption, Stage A)
 

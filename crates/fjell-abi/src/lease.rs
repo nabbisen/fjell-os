@@ -56,13 +56,30 @@ pub fn lease_usable(active: bool, current_epoch: u32, epoch_at_issue: u32) -> bo
     active && current_epoch == epoch_at_issue
 }
 
-/// The epoch after a revoke.  Mirrors `LeaseTable::revoke`'s
-/// `slot.epoch = slot.epoch.wrapping_add(1)`.
+/// Outcome of a bounded lease revoke (architect condition C6, RFC-v0.17-003).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RevokeOutcome {
+    /// Epoch advanced to the contained value (`old + 1`).
+    Advanced(u32),
+    /// Epoch counter exhausted (`u32::MAX`): the lease MUST be retired,
+    /// never wrapped.
+    MustRetire,
+}
+
+/// Bounded revoke: at `u32::MAX` the lease MUST be retired, never wrapped,
+/// preserving strict epoch monotonicity (LEASE-VERUS bounded invariant).
 ///
-/// Note: the kernel uses `wrapping_add` on `u32`; the Verus model uses
-/// unbounded `nat` and proves strict monotonicity. Wraparound would require
-/// 2^32 revocations of a single lease; see RFC-v0.17-003 conformance note.
+/// This is the retire-before-wrap policy: the Verus model
+/// (verification/verus/lease/lease_epoch.rs) proves strict monotonicity over
+/// unbounded `nat` with the precondition `epoch < u32::MAX`; this function is
+/// the u32 mirror of that bounded domain, and `MustRetire` is the kernel's
+/// obligation at the boundary. Mirrors `LeaseTable::revoke`.
+/// (Unreachable in practice: requires 2^32 revocations of one slot.)
 #[inline]
-pub fn lease_revoke_epoch(current_epoch: u32) -> u32 {
-    current_epoch.wrapping_add(1)
+pub fn lease_revoke(current_epoch: u32) -> RevokeOutcome {
+    if current_epoch == u32::MAX {
+        RevokeOutcome::MustRetire
+    } else {
+        RevokeOutcome::Advanced(current_epoch + 1)
+    }
 }

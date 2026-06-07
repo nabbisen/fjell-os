@@ -5,7 +5,60 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.18.0] — Verus targets promoted to release-required
+## [0.18.1] — Architect Stage-A conditions landed; v0.17/v0.18 RFC sets completed
+
+Recovers and applies the architect's Stage-A approval conditions (C4–C8),
+which were specified in the review session but lost to a sandbox outage
+before they could land, and closes the RFC lifecycle for the Verus program.
+
+### Changed (C6 — lease retire-before-wrap; the one shipped-code change)
+
+- **`fjell_abi::lease`**: `lease_revoke_epoch` (wrapping mirror) replaced by
+  the bounded `lease_revoke(u32) -> RevokeOutcome { Advanced(u32), MustRetire }`.
+  At `u32::MAX` the lease MUST be retired, never wrapped.
+- **Kernel** `LeaseTable::revoke` now routes through the shared helper: the
+  epoch never wraps; at `MAX` the slot is retired (state stays `Revoked`,
+  epoch frozen), closing the u32/nat divergence the original conformance note
+  documented. Cross-checked for `riscv64gc-unknown-none-elf`.
+- **Verus lease model**: proofs carry the `epoch < u32::MAX` precondition;
+  new **LEASE-VERUS-005** bounded-domain lemma (revoke maps exactly onto
+  `Advanced(old + 1)`). Lease module now **5 verified** → totals **20
+  obligations, 0 errors** (re-checked under the pinned toolchain).
+- **Conformance**: 4 C6 boundary tests added (epoch 0, 1, MAX-1, MAX ⇒
+  MustRetire) → 23 conformance cases; property tests → 14 (incl. the MAX
+  boundary property).
+
+### Changed (C7 — honest xtask status values)
+
+- `verus-check` markers are now `MACHINE-CHECKED-PASS` / `MACHINE-CHECKED-FAIL`
+  / `CONFORMANCE-ONLY` / `CONFORMANCE-FAIL`; the conformance fallback never
+  reports a bare PASS. JSON gains `machine_check = pass|fail|not_run` and
+  `experimental`. Rehearsal counters, Gate 10 wording, and the `ci-verus`
+  warning grep updated to the new markers.
+
+### Changed (C4, C5, C8 — wording, rule, lock)
+
+- C4: `verus_lemma_properties.rs` reworded — properties exercise the *Rust
+  mirrors of intended proof obligations*; proof status lives only in the
+  review record / `TOOLCHAIN.lock` (also corrects the now-stale "machine-check
+  blocked" header).
+- C5/R-V1: proof-gate-policy gains the R-V1 rule (a Verus FAIL keeps a target
+  Experimental / blocks a promoted release even if all Rust tests pass) and
+  the 9-item promotion artifact checklist (item 9: lease wrap modeled).
+- C8: `TOOLCHAIN.lock` gains `[run]` (command, targets, host_os,
+  last_success_date) alongside the pins; results updated to 20 obligations.
+
+### Added / RFC lifecycle
+
+- **RFC-v0.17-001 Trust Anchor Provisioning** drafted (recovered design-options
+  text: factory station / first-boot TOFU / hardware-anchored, with the
+  tier→mechanism recommendation). Replaces the RESERVED placeholder; stays in
+  `proposed/` awaiting the architect's §4/§6 ratification.
+- RFC-v0.17-002…006 and RFC-v0.18-001 moved `proposed/` → `done/` with
+  Implemented statuses (folder is the source of truth, RFC 000); RFC index
+  updated; C6 amendment note appended to RFC-v0.17-003.
+
+
 
 Second milestone of recorded Verus PASS. Promotes the two **tier-3** pilot
 proofs to release-required, per the RFC-v0.17-005 staging schedule

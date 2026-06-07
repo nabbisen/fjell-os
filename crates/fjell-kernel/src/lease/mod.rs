@@ -111,8 +111,16 @@ impl LeaseTable {
         if slot.state == LeaseState::Empty {
             return Err(SysError::InvalidCap);
         }
-        // O(1) revocation: increment epoch, mark Revoked.
-        slot.epoch = slot.epoch.wrapping_add(1);
+        // O(1) revocation via the shared bounded model (architect C6,
+        // retire-before-wrap): the epoch never wraps. At u32::MAX the slot is
+        // retired permanently — state stays Revoked and the epoch stays at
+        // MAX, so every epoch-bound capability keeps failing. (Unreachable in
+        // practice: requires 2^32 revocations of one slot; slot reuse bumps
+        // the generation, which invalidates old LeaseIds independently.)
+        match fjell_abi::lease::lease_revoke(slot.epoch) {
+            fjell_abi::lease::RevokeOutcome::Advanced(e) => slot.epoch = e,
+            fjell_abi::lease::RevokeOutcome::MustRetire => { /* retired: epoch frozen at MAX */ }
+        }
         slot.state = LeaseState::Revoked;
         let new_epoch = slot.epoch;
         // slot borrow ends here; wake_or_cancel receives the epoch directly so

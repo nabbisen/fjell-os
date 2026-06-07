@@ -1,7 +1,8 @@
-# Verus toolchain lock — reproducibility pin (RFC-v0.17-005).
+# Verus toolchain lock — reproducibility pin (RFC-v0.17-005, architect C8).
 #
-# These are the exact versions under which the v0.17 pilot proofs were first
-# machine-checked. Update only with a recorded proof-review re-run.
+# These are the exact versions and invocation under which the v0.17/v0.18
+# pilot proofs were machine-checked. Update only with a recorded proof-review
+# re-run; refresh last_success_date on each successful full run.
 
 [verus]
 release        = "release/0.2026.05.24.ecee80a"
@@ -18,9 +19,16 @@ installer      = "rustup"
 version        = "4.12.5"
 source         = "bundled-with-verus-release"
 
+[run]
+command           = "cargo xtask verus-check --all-pilot"
+targets           = ["capability", "lease", "boot-control"]
+host_os           = "ubuntu-24.04 (x86_64)"
+last_success_date = "2026-06-04"
+
 [result]
-# First machine-check, recorded for regression reference.
+# Latest full machine-check, recorded for regression reference.
+# lease gained LEASE-VERUS-005 (bounded domain, architect C6) at v0.18.1.
 capability     = "8 verified, 0 errors"
-lease          = "4 verified, 0 errors"
+lease          = "5 verified, 0 errors"
 boot_control   = "7 verified, 0 errors"
-total          = "19 verified, 0 errors"
+total          = "20 verified, 0 errors"

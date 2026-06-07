@@ -494,7 +494,7 @@ jobs:
           echo "### Verus machine-check ($VERUS_TAG)" >> $GITHUB_STEP_SUMMARY
           grep 'VERUS:TARGET' verus-markers.txt >> $GITHUB_STEP_SUMMARY || true
           # Surface a real proof FAIL loudly without gating the pipeline.
-          if grep -q ':FAIL' verus-markers.txt; then
+          if grep -qE 'MACHINE-CHECKED-FAIL|CONFORMANCE-FAIL' verus-markers.txt; then
             echo "::warning::a Verus proof target FAILED (non-blocking, Stage A)"
           fi
       - name: Upload marker log (milestone record)

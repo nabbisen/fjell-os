@@ -1,6 +1,6 @@
 # RFC-v0.17-002: Verified Capability Rights and Non-Amplification
 
-**Status:** Proposed
+**Status:** Implemented (v0.17.0; machine-checked v0.17.1)
 **Milestone:** v0.17
 **Derived from:** Verus adoption handoff pack supplement.
 

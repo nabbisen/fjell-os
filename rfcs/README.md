@@ -217,19 +217,19 @@ rfcs/
 | v0.15-004 | [Operator Recovery Guide and Field Documentation](./proposed/v0.15/RFC-v0.15-004-operator-recovery-guide-and-field-documentation.md) |
 | v0.15-005 | [v1.0 Non-Goals and Constraint Lock](./proposed/v0.15/RFC-v0.15-005-v1-non-goals-and-constraint-lock.md) |
 
-### v0.17 — Selective Verus Adoption (Stage A)
+### v0.17/v0.18 — Selective Verus Adoption + Promotion (implemented)
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| v0.17-002 | [Capability Rights Non-Amplification](./done/RFC-v0.17-002-capability-rights.md) | v0.17.0 (machine-checked v0.17.1) |
+| v0.17-003 | [Lease Epoch Revocation](./done/RFC-v0.17-003-lease-epoch.md) | v0.17.0 (C6 amendment v0.18.1) |
+| v0.17-004 | [Boot-Control Mirror Selection](./done/RFC-v0.17-004-boot-control-mirror.md) | v0.17.0 (machine-checked v0.17.1) |
+| v0.17-005 | [CI Proof Gate and Staging Policy](./done/RFC-v0.17-005-ci-proof-gate.md) | v0.17.0–v0.18.0 |
+| v0.17-006 | [Selective Verus Adoption (umbrella)](./done/RFC-v0.17-006-verus-selective-adoption.md) | v0.17.0 (promotion v0.18.0) |
+| v0.18-001 | [Verus Target Promotion to Release-Required](./done/RFC-v0.18-001-verus-target-promotion.md) | v0.18.0 (closed v0.18.1) |
+
+### v0.17 — open (awaiting architect decision)
 
 | RFC | Title |
 |-----|-------|
-| v0.17-001 | [Trust Anchor Provisioning (RESERVED, not part of the Verus program)](./proposed/v0.17/RFC-v0.17-001-trust-anchor-provisioning-RESERVED.md) |
-| v0.17-002 | [Capability Rights Non-Amplification](./proposed/v0.17/RFC-v0.17-002-capability-rights.md) |
-| v0.17-003 | [Lease Epoch Revocation](./proposed/v0.17/RFC-v0.17-003-lease-epoch.md) |
-| v0.17-004 | [Boot-Control Mirror Selection](./proposed/v0.17/RFC-v0.17-004-boot-control-mirror.md) |
-| v0.17-005 | [CI Proof Gate and Staging Policy](./proposed/v0.17/RFC-v0.17-005-ci-proof-gate.md) |
-| v0.17-006 | [Selective Verus Adoption (umbrella)](./proposed/v0.17/RFC-v0.17-006-verus-selective-adoption.md) |
-
-### v0.18 — Verus Target Promotion
-
-| RFC | Title |
-|-----|-------|
-| v0.18-001 | [Verus Target Promotion to Release-Required](./proposed/v0.18/RFC-v0.18-001-verus-target-promotion.md) |
+| v0.17-001 | [Trust Anchor Provisioning and Manufacturing Flow (design options)](./proposed/v0.17/RFC-v0.17-001-trust-anchor-provisioning.md) |

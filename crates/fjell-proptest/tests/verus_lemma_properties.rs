@@ -1,25 +1,26 @@
-//! Property tests for the Verus pilot lemmas.
+//! Property tests for the Verus pilot proof obligations (architect C4 wording).
 //!
-//! Real Verus machine-checking is blocked in the build sandbox (GitHub
-//! release-asset hosts are not in the network allowlist; see
-//! verification/verus/TOOLCHAIN.md). Until a developer runs Verus with
-//! network access, these property tests give the strongest available
-//! empirical evidence for *exactly the lemmas the proofs assert* — not just
-//! the point cases in the conformance tests. The pack explicitly lists
-//! property/corpus tests as a valid conformance artifact
-//! (guides/03 §3).
+//! These properties exercise the *Rust mirrors* of the intended proof
+//! obligations over random inputs. They are empirical conformance evidence
+//! that the shipped predicates match the modeled behaviour — they are not
+//! proofs, and they never substitute for the Verus machine-check. Proof
+//! status is recorded in docs/verification/verus/review-records/ and the
+//! pinned toolchain in verification/verus/TOOLCHAIN.lock (the pilot
+//! obligations are machine-checked as of v0.17.1). The pack lists
+//! property/corpus tests as a valid conformance artifact (guides/03 §3).
 //!
-//! Each property below names the Verus lemma it mirrors.
+//! Each property below names the candidate lemma / proof obligation whose
+//! Rust mirror it exercises.
 
 use proptest::prelude::*;
 use fjell_cap::rights::CapRights;
-use fjell_abi::lease::{lease_usable, lease_revoke_epoch};
+use fjell_abi::lease::{lease_usable, lease_revoke, RevokeOutcome};
 use fjell_upgrade_format::{BootControlBlock, BcbMirrorSelection, select_bcb_mirror};
 
 // ── Capability rights (RFC-v0.17-002) ─────────────────────────────────────────
 
 proptest! {
-    // Verus lemma: subset_is_transitive
+    // Proof obligation: subset_is_transitive
     #[test]
     fn prop_subset_transitive(a in any::<u64>(), b in any::<u64>(), c in any::<u64>()) {
         let (ra, rb, rc) = (CapRights(a), CapRights(b), CapRights(c));
@@ -28,7 +29,7 @@ proptest! {
         }
     }
 
-    // Verus lemma: mint_never_amplifies — an allowed mint sets no bit outside parent.
+    // Proof obligation: mint_never_amplifies — an allowed mint sets no bit outside parent.
     #[test]
     fn prop_no_amplification(parent in any::<u64>(), child in any::<u64>()) {
         if CapRights(child).is_subset_of(CapRights(parent)) {
@@ -36,13 +37,13 @@ proptest! {
         }
     }
 
-    // Verus lemma: zero_is_subset
+    // Proof obligation: zero_is_subset
     #[test]
     fn prop_zero_is_subset(parent in any::<u64>()) {
         prop_assert!(CapRights(0).is_subset_of(CapRights(parent)));
     }
 
-    // Verus lemma: equal_rights_allowed (reflexivity)
+    // Proof obligation: equal_rights_allowed (reflexivity)
     #[test]
     fn prop_reflexive(r in any::<u64>()) {
         prop_assert!(CapRights(r).is_subset_of(CapRights(r)));
@@ -61,23 +62,41 @@ proptest! {
 // ── Lease epoch revocation (RFC-v0.17-003) ─────────────────────────────────────
 
 proptest! {
-    // Verus lemma: revoke_advances_epoch (strict monotonicity, no wrap region)
+    // Proof obligation: revoke_advances_epoch + revoke_bounded_in_domain
+    // (LEASE-VERUS-005). Bounded domain: every revoke below MAX advances by
+    // exactly one and never wraps; at MAX the outcome is MustRetire (C6).
     #[test]
     fn prop_revoke_monotonic(e in 0u32..u32::MAX) {
-        prop_assert!(lease_revoke_epoch(e) > e, "epoch must strictly advance");
+        match lease_revoke(e) {
+            RevokeOutcome::Advanced(n) => {
+                prop_assert!(n > e, "epoch must strictly advance");
+                prop_assert_eq!(n, e + 1, "advance is exactly +1");
+            }
+            RevokeOutcome::MustRetire =>
+                prop_assert!(false, "MustRetire only at u32::MAX"),
+        }
     }
 
-    // Verus lemma: revoked_binding_not_usable — usable before ⇒ not usable after.
+    // C6 boundary: at the top of the domain the lease must be retired.
+    #[test]
+    fn prop_revoke_at_max_must_retire(_ in any::<bool>()) {
+        prop_assert_eq!(lease_revoke(u32::MAX), RevokeOutcome::MustRetire);
+    }
+
+    // Proof obligation: revoked_binding_not_usable — usable before ⇒ not usable after.
     #[test]
     fn prop_revoked_not_usable(epoch in 0u32..u32::MAX) {
         // Binding issued at `epoch`, lease active at `epoch` → usable.
         prop_assert!(lease_usable(true, epoch, epoch));
         // After revoke: lease inactive, epoch advanced → not usable.
-        let new_epoch = lease_revoke_epoch(epoch);
+        let new_epoch = match lease_revoke(epoch) {
+            RevokeOutcome::Advanced(n) => n,
+            RevokeOutcome::MustRetire => { prop_assert!(false, "inside domain"); return Ok(()); }
+        };
         prop_assert!(!lease_usable(false, new_epoch, epoch));
     }
 
-    // Verus lemma: revoke_blocks_even_new_epoch_binding — inactive rejects any binding.
+    // Proof obligation: revoke_blocks_even_new_epoch_binding — inactive rejects any binding.
     #[test]
     fn prop_inactive_rejects_any(cur in any::<u32>(), issue in any::<u32>()) {
         prop_assert!(!lease_usable(false, cur, issue),
@@ -103,7 +122,7 @@ fn mk(valid: bool, generation: u64) -> BootControlBlock {
 }
 
 proptest! {
-    // Verus lemma: selection_is_total — never panics, always one of four variants.
+    // Proof obligation: selection_is_total — never panics, always one of four variants.
     #[test]
     fn prop_selection_total(va in any::<bool>(), ga in any::<u64>(),
                             vb in any::<bool>(), gb in any::<u64>()) {
@@ -116,7 +135,7 @@ proptest! {
         prop_assert!(ok);
     }
 
-    // Verus lemma: none_only_when_both_invalid
+    // Proof obligation: none_only_when_both_invalid
     #[test]
     fn prop_none_iff_both_invalid(ga in any::<u64>(), gb in any::<u64>(),
                                   va in any::<bool>(), vb in any::<bool>()) {
@@ -125,7 +144,7 @@ proptest! {
         prop_assert_eq!(is_none, !a.is_valid() && !b.is_valid());
     }
 
-    // Verus lemma: higher_generation_a_wins / b_wins (both valid, strict gen order).
+    // Proof obligation: higher_generation_a_wins / b_wins (both valid, strict gen order).
     #[test]
     fn prop_higher_generation_wins(ga in any::<u64>(), gb in any::<u64>()) {
         prop_assume!(ga != gb);
@@ -137,7 +156,7 @@ proptest! {
         }
     }
 
-    // Verus lemma: equal_generation_is_tiebreak (both valid, equal gen → tie variant).
+    // Proof obligation: equal_generation_is_tiebreak (both valid, equal gen → tie variant).
     #[test]
     fn prop_equal_generation_tiebreak(g in any::<u64>()) {
         let a = mk(true, g); let b = mk(true, g);

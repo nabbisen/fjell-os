@@ -13,7 +13,7 @@ z3:        4.12.5                           (bundled with the Verus release)
 ```
 
 These are the versions under which the three pilot proofs were first
-machine-checked (19 obligations verified, 0 errors). The exact pin lives in
+machine-checked (20 obligations verified, 0 errors as of v0.18.1). The exact pin lives in
 `verification/verus/TOOLCHAIN.lock` for reproducibility. Note the Verus
 toolchain (1.95.0, via rustup) is independent of the Fjell build toolchain
 (`rust-toolchain.toml`, channel 1.91, apt) — Verus is never a Fjell build
@@ -52,7 +52,7 @@ release-asset hosts (`objects.githubusercontent.com`,
 (`host_not_allowed`), and a source build needs the same hosts plus z3.
 
 Until a network-enabled environment runs the proofs, the pilot targets are
-validated by (a) 19 conformance cases and (b) 13 property tests over the
+validated by (a) 23 conformance cases and (b) 14 property tests over the
 proved lemmas (`fjell-proptest/tests/verus_lemma_properties.rs`), with a
 manual obligation review in
 `docs/verification/verus/review-records/v0.17-pilot-targets.md`.

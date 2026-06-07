@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-06-02 22:42:16 UTC
-Version   : 0.18.0
+Generated : 2026-06-03 23:44:34 UTC
+Version   : 0.18.1
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -21,7 +21,7 @@ Mode      : full
 §2. LEASE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  LeaseId usage sites   : 79
+  LeaseId usage sites   : 80
   LeaseEpoch usage sites: 27
   Runtime lease state   : (available from running fleet in v0.11)
 

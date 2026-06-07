@@ -1,6 +1,6 @@
 # RFC-v0.17-004: Verified Boot-Control Mirror Selection
 
-**Status:** Proposed
+**Status:** Implemented (v0.17.0; machine-checked v0.17.1)
 **Milestone:** v0.17
 **Derived from:** Verus adoption handoff pack supplement.
 

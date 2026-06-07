@@ -9,10 +9,12 @@
 //! PASS blocks `--release-required` — including CONFORMANCE-ONLY, since a
 //! release-required proof cannot be certified without running the prover.
 //!
-//! Output markers (one per target):
-//!   VERUS:TARGET:<name>:PASS
-//!   VERUS:TARGET:<name>:FAIL
-//!   VERUS:TARGET:<name>:CONFORMANCE-ONLY
+//! Output markers (one per target, architect C7 — conformance never reports
+//! a bare PASS, and the JSON distinguishes machine_check pass/fail/not_run):
+//!   VERUS:TARGET:<name>:MACHINE-CHECKED-PASS
+//!   VERUS:TARGET:<name>:MACHINE-CHECKED-FAIL
+//!   VERUS:TARGET:<name>:CONFORMANCE-ONLY      (verus absent, conformance ok)
+//!   VERUS:TARGET:<name>:CONFORMANCE-FAIL      (verus absent, conformance failed)
 //!
 //! Plus a JSON summary line per target for CI.
 
@@ -58,26 +60,32 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     let mut any_blocking_fail = false;
 
     for t in selected {
-        let (status, marker) = if verus_present {
-            run_verus(t)
+        // Architect C7: status values distinguish a real machine-check from
+        // the conformance fallback; conformance never reports a bare PASS.
+        let (status, marker, machine_check) = if verus_present {
+            if run_verus(t) {
+                ("machine_checked_pass", "MACHINE-CHECKED-PASS", "pass")
+            } else {
+                ("machine_checked_fail", "MACHINE-CHECKED-FAIL", "fail")
+            }
         } else {
-            // Conformance-only fallback.
             let ok = run_cmd(&t.conformance_cmd);
-            (if ok { "conformance-only" } else { "fail" },
-             if ok { "CONFORMANCE-ONLY" } else { "FAIL" })
+            if ok { ("not_run_conformance_pass", "CONFORMANCE-ONLY", "not_run") }
+            else  { ("not_run_conformance_fail", "CONFORMANCE-FAIL", "not_run") }
         };
 
         println!("VERUS:TARGET:{}:{}", t.name, marker);
         println!(
-            "{{\"target\":\"{}\",\"status\":\"{}\",\"tier\":{},\"release_required\":{},\"verus\":{}}}",
-            t.name, status, t.tier, t.release_required, verus_present
+            "{{\"target\":\"{}\",\"machine_check\":\"{}\",\"status\":\"{}\",\"tier\":{},\"experimental\":{},\"release_required\":{}}}",
+            t.name, machine_check, status, t.tier, !t.release_required, t.release_required
         );
 
-        // Release-required targets must be PROVED for a release: a real FAIL
-        // *and* CONFORMANCE-ONLY (prover absent) both block. You cannot certify
-        // a release-required proof without actually running Verus. Experimental
+        // Release-required targets must be PROVED for a release: only a real
+        // machine-checked pass clears the gate. A FAIL *and* the not_run
+        // fallback (prover absent) both block — you cannot certify a
+        // release-required proof without actually running Verus. Experimental
         // targets never block (Stage A philosophy).
-        if t.release_required && marker != "PASS" {
+        if t.release_required && machine_check != "pass" {
             any_blocking_fail = true;
         }
     }
@@ -90,14 +98,13 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     }
 }
 
-fn run_verus(t: &Target) -> (&'static str, &'static str) {
+fn run_verus(t: &Target) -> bool {
     // Proof modules are library files (no `main`); Verus needs --crate-type=lib.
-    let ok = Command::new("verus")
+    Command::new("verus")
         .arg("--crate-type=lib")
         .arg(&t.proof)
         .status()
-        .map(|s| s.success()).unwrap_or(false);
-    if ok { ("pass", "PASS") } else { ("fail", "FAIL") }
+        .map(|s| s.success()).unwrap_or(false)
 }
 
 fn run_cmd(cmd: &str) -> bool {

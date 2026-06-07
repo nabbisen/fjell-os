@@ -8,13 +8,19 @@
 //
 // Because the kernel is no_std/bare-metal and not host-testable, the pure
 // decision predicate is mirrored host-side in:
-//   crates/fjell-abi/src/lease_logic.rs :: lease_usable / revoke_epoch
+//   crates/fjell-abi/src/lease.rs :: lease_usable / lease_revoke
 // and the conformance test drives that mirror over the same cases.
 //
 // STATUS: machine-checked (v0.17.1); see verification/verus/TOOLCHAIN.lock.
 //
 // ASSUMPTIONS:
 //   A1. `epoch` is a monotonic counter; revoke increments it by one.
+//       BOUNDED DOMAIN (architect C6, retire-before-wrap): the kernel epoch
+//       is u32 and NEVER wraps. The proofs below carry the precondition
+//       `epoch < u32::MAX`; at exactly u32::MAX the kernel retires the slot
+//       (fjell_abi::lease::lease_revoke -> RevokeOutcome::MustRetire) instead
+//       of advancing, so within the modeled domain kernel revoke == model
+//       revoke and strict monotonicity holds without wraparound.
 //   A2. A binding records the epoch at issue; it is usable only while the
 //       lease is active AND the current epoch equals the issue epoch.
 //   A3. cap_drop is modeled as always-permitted (LEASE-VERUS-004); it does
@@ -50,7 +56,9 @@ pub open spec fn drop_allowed(_lease: Lease) -> bool { true }
 
 // LEASE-VERUS-003: a binding usable before revoke is not usable after.
 proof fn revoked_binding_not_usable(lease: Lease, binding: Binding)
-    requires usable(lease, binding),
+    requires
+        usable(lease, binding),
+        lease.epoch < u32::MAX as nat,  // bounded domain (C6)
     ensures !usable(revoke(lease), binding),
 {
     // revoke sets active=false, so usable() short-circuits to false.
@@ -59,6 +67,7 @@ proof fn revoked_binding_not_usable(lease: Lease, binding: Binding)
 // A binding minted at the NEW epoch is also not usable, because revoke
 // leaves the lease inactive — re-issue requires a fresh active lease.
 proof fn revoke_blocks_even_new_epoch_binding(lease: Lease)
+    requires lease.epoch < u32::MAX as nat,  // bounded domain (C6)
     ensures !usable(revoke(lease), Binding { epoch_at_issue: lease.epoch + 1 }),
 {
     // revoke().active == false ⇒ usable == false regardless of epoch match.
@@ -71,10 +80,23 @@ proof fn drop_allowed_after_revoke(lease: Lease)
 }
 
 // Monotonicity: the post-revoke epoch strictly exceeds the pre-revoke epoch.
-// This is what makes stale bindings permanently unusable (no wraparound in
-// the model; the kernel uses wrapping_add on u32 — see conformance note).
+// This is what makes stale bindings permanently unusable. The kernel enforces
+// retire-before-wrap (C6): it never wraps, so this model matches the kernel
+// for every reachable epoch.
 proof fn revoke_advances_epoch(lease: Lease)
+    requires lease.epoch < u32::MAX as nat,  // bounded domain (C6)
     ensures revoke(lease).epoch > lease.epoch,
+{
+}
+
+// LEASE-VERUS-005 (C6): within the bounded domain the advanced epoch stays
+// representable in u32 — the model revoke maps exactly onto
+// fjell_abi::lease::lease_revoke's Advanced(old + 1) arm.
+proof fn revoke_bounded_in_domain(lease: Lease)
+    requires lease.epoch < u32::MAX as nat,
+    ensures
+        revoke(lease).epoch == lease.epoch + 1,
+        revoke(lease).epoch <= u32::MAX as nat,
 {
 }
 

@@ -122,17 +122,18 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     // target PROVED, prover actually run).
     let verus = sh(&["cargo", "run", "-q", "-p", "fjell-tools", "--",
                      "verus-check", "--all-pilot"]);
-    let pass = verus.matches(":PASS").count();
-    let conf = verus.matches(":CONFORMANCE-ONLY").count();
-    let vfail = verus.matches(":FAIL").count();
-    println!("  [ ~~ ] Verus  Proof targets (all)           {} proved, {} conformance-only, {} fail (experimental targets non-blocking)",
+    let pass  = verus.matches(":MACHINE-CHECKED-PASS").count();
+    let conf  = verus.matches(":CONFORMANCE-ONLY").count();
+    let vfail = verus.matches(":MACHINE-CHECKED-FAIL").count()
+              + verus.matches(":CONFORMANCE-FAIL").count();
+    println!("  [ ~~ ] Verus  Proof targets (all)           {} machine-checked, {} conformance-only, {} fail (experimental targets non-blocking)",
              pass, conf, vfail);
 
     let rr_ok = run_cmd_status(&["cargo", "run", "-q", "-p", "fjell-tools", "--",
                                  "verus-check", "--release-required"]);
     let rr_mark = if rr_ok { "PASS" } else { "FAIL" };
     if !rr_ok { all_pass = false; }
-    println!("  [{}] Gate 10 Verus release-required proofs  every release-required target PROVED by Verus",
+    println!("  [{}] Gate 10 Verus release-required proofs  every release-required target MACHINE-CHECKED-PASS",
              rr_mark);
 
     if all_pass {
