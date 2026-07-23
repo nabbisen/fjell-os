@@ -147,11 +147,17 @@ pub(crate) struct DmaRegionEntry {
     /// Task that owns this DMA region (`index == 0xFFFF` = Freed/empty).
     pub owner:      crate::task::TaskId,
     /// User VA where the frame is mapped in `owner`'s page table.
-    /// Actively used in revoke to unmap PTEs (RFC-v0.7.4-001, closes C-RB-01).
+    /// Stored at alloc time; read by `unmap_user_va_for` when the deferred
+    /// PTE-unmap path (RFC-v0.7.4-001 clause 1) is re-enabled in revoke_by_pa.
+    /// Currently bypassed due to page-table corruption under v0.8.x — see the
+    /// comment in `revoke_by_pa`.
+    #[allow(dead_code)]
     pub user_va:    usize,
     /// Physical frame base address.
     pub frame_pa:   usize,
     /// Number of consecutive 4 KiB pages (1 in current allocator).
+    /// Read by `unmap_user_va_for` when the deferred PTE-unmap path is re-enabled.
+    #[allow(dead_code)]
     pub page_count: u8,
     /// Cleanup state.
     pub state:      DmaRegionState,
@@ -274,6 +280,12 @@ impl DmaRegionTable {
 
     /// Unmap the DMA frame's user PTE in `owner`'s page table.
     /// Returns true if all pages were successfully unmapped.
+    ///
+    /// Called by `revoke_by_pa` when the deferred PTE-unmap path
+    /// (RFC-v0.7.4-001 clause 1) is re-enabled. Currently bypassed due to
+    /// page-table corruption observed in v0.8.x smoke tests — see the
+    /// comment block in `revoke_by_pa` for the full analysis.
+    #[allow(dead_code)]
     fn unmap_user_va_for(
         owner: crate::task::TaskId,
         user_va: usize,
@@ -553,7 +565,10 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // boot_end (BSS + 2 MiB) is kept as the bump-allocator ceiling; the
     // stack pages are additionally mapped here.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-    let stack_top  = unsafe { &__stack_top   as *const u8 as usize };
+    // stack_top computed for reference; map_end uses RAM_END instead
+    // (mapping only up to stack_top caused StorePageFault in spawn when
+    // the frame allocator advanced past __stack_top with many services).
+    let _stack_top = unsafe { &__stack_top   as *const u8 as usize };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     let text_end   = unsafe { &__text_end    as *const u8 as usize };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.

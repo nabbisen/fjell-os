@@ -5,6 +5,64 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.21.1] — Audit: RFC compliance, dead code, test/doc alignment
+
+Five-dimension audit (RFC compliance · dead code · test coverage · code/test
+alignment · docs/codebase alignment).
+
+### Fixed — RFC compliance (Dimension 1)
+
+- **`PolicyAction::QueryState` missing** (`fjell-fleet-format`): `fjell-fleetd`
+  used `PolicyAction::QueryState` which did not exist in the enum, causing a
+  compile error and silently excluding fleetd from the build. `FleetActionKind`
+  already had `QueryState = 0x07`; `PolicyAction` now has `QueryState = 0x08`.
+  The variant represents "query fleet node state (read-only, policy-gated)".
+
+### Fixed — dead code (Dimension 2)
+
+- **`fjell-syncd` unused imports removed**: `SNAPSHOT_ENVELOPE_V2`,
+  `SnapshotImportError`, `SnapshotImportOutcome` were imported but unused
+  (v0.7.2 import pipeline not yet wired). Replaced with a comment marking
+  them for the storaged import path.
+- **`fjell-diagnosticsd` unused-assignment suppressed**: `t`, `w0`, `w1`
+  initialized to `0` before `lateout` asm binding; the initial value is
+  required by Rust but never read — the asm overwrites via `lateout`. Annotated
+  with `#[allow(unused_assignments)]` and explanation.
+- **`DmaRegionEntry::user_va` and `page_count` annotated**: fields are stored at
+  DMA alloc time and read by `unmap_user_va_for`; the unmap step is currently
+  bypassed in `revoke_by_pa` due to page-table corruption under v0.8.x
+  (full analysis in the existing `revoke_by_pa` comment). Annotated with
+  `#[allow(dead_code)]` and RFC-v0.7.4-001 reference.
+- **`unmap_user_va_for` annotated**: implements RFC-v0.7.4-001 clause 1
+  (PTE unmap before DMA frame free); bypassed in `revoke_by_pa` until the
+  root cause of the v0.8.x corruption is isolated. Annotated with
+  `#[allow(dead_code)]` and the deferred-path explanation.
+- **`_stack_top` renamed**: kernel `stack_top` was computed but then
+  superseded by `RAM_END` as `map_end` (mapping only to `stack_top` caused
+  `StorePageFault` in spawn with many services). Renamed to `_stack_top`.
+
+### Fixed — documentation / codebase alignment (Dimension 5)
+
+- **README version badge**: was `0.15.1`, now `0.21.0`.
+- **`docs/verification/mmio-audit-v0.12.md`**: updated three crate paths to
+  `crates/services/` after the v0.21.0 reorganization.
+- **`docs/src/sdk/writing-a-service.md`**: `crates/fjell-sample-service` →
+  `crates/services/fjell-sample-service`.
+- **`docs/src/internals/local-development.md`**: workspace layout updated to
+  show the new `arch/`, `drivers/`, `formats/`, `services/` subdirectories.
+
+### No action required
+
+- **Audit ring `get()`, `len()`, `dropped()`, `pending()` dead methods**:
+  all carry `#[allow(dead_code)]` with existing justification. `sys_audit_drain`
+  uses `peek_at()` and `drain_n()`. These utility methods are API completeness
+  stubs retained for future diagnostic tooling.
+- **All other `#[allow(dead_code)]` annotations**: reviewed and confirmed
+  legitimate — each has a RFC reference, future-wire justification, or ABI
+  completeness note. No suppression without explanation exists.
+
+---
+
 ## [0.21.0] — Crate subdirectory reorganization + horizontal doc cleanup
 
 ### Changed — crate structure

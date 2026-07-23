@@ -27,6 +27,8 @@ pub enum PolicyAction {
     RemoteDiag         = 0x06,
     /// Initiate remote recovery.
     RemoteRecovery     = 0x07,
+    /// Query fleet node state (read-only; policy-gated to avoid enumeration).
+    QueryState         = 0x08,
 }
 
 impl PolicyAction {
@@ -39,6 +41,7 @@ impl PolicyAction {
             0x05 => Some(Self::AcceptSnapshot),
             0x06 => Some(Self::RemoteDiag),
             0x07 => Some(Self::RemoteRecovery),
+            0x08 => Some(Self::QueryState),
             _    => None,
         }
     }

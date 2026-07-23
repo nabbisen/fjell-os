@@ -36,19 +36,19 @@
 |------|---------|----------------|---------------|
 | 133 | `write_volatile (UART_BASE)` | `device_kick` | Debug byte output; same as uart.rs putc |
 
-### `crates/fjell-svc-fault/src/main.rs`
+### `crates/services/fjell-svc-fault/src/main.rs`
 
 | Line | Pattern | Classification | Justification |
 |------|---------|----------------|---------------|
 | 20 | `read_volatile (0)` | `poll` | Intentional null-pointer fault for negative test; no MMIO device |
 
-### `crates/fjell-neg-test/src/main.rs`
+### `crates/services/fjell-neg-test/src/main.rs`
 
 | Line | Pattern | Classification | Justification |
 |------|---------|----------------|---------------|
 | 203 | `read_volatile (user_va)` | `poll` | Reads revoked DMA PA to verify zero-fill; test-only path |
 
-### `crates/fjell-storaged/src/main.rs`
+### `crates/services/fjell-storaged/src/main.rs`
 
 | Line | Pattern | Classification | Justification |
 |------|---------|----------------|---------------|

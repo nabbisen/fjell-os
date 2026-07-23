@@ -11,16 +11,16 @@ and spawned into its own address space with an explicitly granted CSpace.
 
 ```bash
 cargo new --bin crates/fjell-mysvc
-cp crates/fjell-storaged/link.ld          crates/fjell-mysvc/
-cp crates/fjell-storaged/build.rs         crates/fjell-mysvc/
-cp -r crates/fjell-storaged/.cargo        crates/fjell-mysvc/
+cp crates/services/fjell-storaged/link.ld          crates/fjell-mysvc/
+cp crates/services/fjell-storaged/build.rs         crates/fjell-mysvc/
+cp -r crates/services/fjell-storaged/.cargo        crates/fjell-mysvc/
 ```
 
 Add the crate to the workspace `members` list in the root `Cargo.toml`.
 
 ## 2. The entry point
 
-A service exports `service_main` (see `crates/fjell-sample-service` for the
+A service exports `service_main` (see `crates/services/fjell-sample-service` for the
 smallest complete example):
 
 ```rust

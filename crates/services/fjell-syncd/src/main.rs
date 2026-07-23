@@ -8,9 +8,10 @@ mod rt;
 use fjell_syscall::{sys_exit, sys_debug_writeln};
 use fjell_snapshot_format::{
     SnapshotEnvelope, SnapshotRecord, ConflictDomain, SnapshotError,
-    SnapshotImportOutcome, SnapshotImportError,
-    snapshot_digest, SNAPSHOT_ENVELOPE_V2, MAX_SNAPSHOT_RECORDS,
+    snapshot_digest, MAX_SNAPSHOT_RECORDS,
     SNAPSHOT_RECORD_BODY_MAX,
+    // SnapshotImportOutcome, SnapshotImportError, SNAPSHOT_ENVELOPE_V2
+    // — v0.7.2 import pipeline imports; wired when storaged import path lands
 };
 use fjell_measure_format::Digest32;
 

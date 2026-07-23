@@ -191,8 +191,15 @@ fjell-os/
 ├── Cargo.toml                  workspace root
 ├── .cargo/config.toml          xtask alias + RISC-V linker settings
 ├── crates/
-│   ├── fjell-kernel/
-│   │   ├── .cargo/config.toml  QEMU runner (for cargo run from within kernel/)
+│   ├── arch/                   architecture trait + platform impls (3 crates)
+│   │   ├── fjell-arch/         architecture-neutral trait boundary
+│   │   ├── fjell-arch-riscv64/ RISC-V 64 implementation
+│   │   └── fjell-arch-arm64/   ARM64 stub (future)
+│   ├── drivers/                hardware device drivers (2 crates)
+│   ├── formats/                data schema crates — *-format (22 crates)
+│   ├── services/               RISC-V runtime programs — *d + helpers (29 crates)
+│   ├── fjell-kernel/           the kernel
+│   │   ├── .cargo/config.toml  QEMU runner
 │   │   ├── link.ld
 │   │   └── src/
 │   ├── fjell-abi/              stable ABI types

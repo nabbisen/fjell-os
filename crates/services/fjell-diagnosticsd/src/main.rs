@@ -56,6 +56,9 @@ fn send_tag(ep: CapHandle, tag: usize, w0: usize) {
 }
 
 fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
+    // The initial 0 is required: Rust requires lateout operands to be
+    // initialized; the asm overwrites them before return via `lateout("a1")` etc.
+    #[allow(unused_assignments)]
     let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
     // SAFETY: category=kernel-global-mutable ring buffer read is serialised by the audit drain capability.
     unsafe {
