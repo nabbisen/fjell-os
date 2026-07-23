@@ -86,4 +86,3 @@ cargo xtask trust-report --dry-run
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).  
-Author: nabbisen

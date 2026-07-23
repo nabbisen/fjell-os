@@ -1,5 +1,5 @@
 [package]
-name = "fjell-unsafe-audit"
+name        = "fjell-unsafe-audit"
 description = "Unsafe boundary inventory scanner for Fjell OS (RFC v0.6-004)."
 version.workspace = true
 edition.workspace = true

@@ -29,7 +29,7 @@ jobs:
     name: format
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -45,7 +45,7 @@ jobs:
     name: check
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 + rust-src
         run: |
           sudo apt-get update
@@ -87,7 +87,7 @@ jobs:
     name: cross-check
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 + rust-src + LLVM
         run: |
           sudo apt-get update
@@ -118,7 +118,7 @@ jobs:
     name: test-host
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -156,7 +156,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [ci-check]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -201,7 +201,7 @@ jobs:
     name: docs
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install mdBook
         run: |
           curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
@@ -218,7 +218,7 @@ jobs:
       matrix:
         milestone: [m1, m2, m3, m4, m5, m6, m7, m8]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 + QEMU + LLVM
         run: |
           sudo apt-get update
@@ -248,7 +248,7 @@ jobs:
         # v0.2.23: full matrix including harness (RFC 050) added at v0.2.12.
         category: [capability, ipc, mmio, dma, user-copy, audit, policy, svc, harness]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 + QEMU + LLVM
         run: |
           sudo apt-get update
@@ -275,7 +275,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [ci-check]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -303,7 +303,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [ci-check]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -323,7 +323,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [ci-check]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -340,7 +340,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [ci-check]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 + AArch64 target
         run: |
           sudo apt-get update
@@ -361,7 +361,7 @@ jobs:
     runs-on: ubuntu-24.04
     needs: [ci-check]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91
         run: |
           sudo apt-get update
@@ -393,7 +393,7 @@ jobs:
       matrix:
         category: [v0.4-net, v0.5-platform, v0.7-sync]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 + QEMU + LLVM
         run: |
           sudo apt-get update
@@ -430,7 +430,7 @@ jobs:
           - diagnostic_bundle_parse
           - semantic_record_parse
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust nightly + cargo-fuzz
         run: |
           sudo apt-get update
@@ -465,7 +465,7 @@ jobs:
       VERUS_ASSET: verus-0.2026.05.24.ecee80a-x86-linux.zip
       VERUS_TOOLCHAIN: 1.95.0-x86_64-unknown-linux-gnu
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Rust 1.91 (Fjell build toolchain)
         run: |
           sudo apt-get update

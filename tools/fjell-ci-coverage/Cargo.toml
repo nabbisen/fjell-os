@@ -1,5 +1,5 @@
 [package]
-name = "fjell-ci-coverage"
+name        = "fjell-ci-coverage"
 description = "Validates that every workspace member is covered by CI or explicitly excluded."
 version.workspace = true
 edition.workspace = true

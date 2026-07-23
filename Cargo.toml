@@ -1,97 +1,13 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 
 # All crates that exist in the repository.
 members = [
-    "crates/fjell-kernel",
-    "crates/arch/fjell-arch",
-    "crates/fjell-abi",
-    "crates/fjell-syscall",
-    "crates/fjell-cap",
-    "crates/fjell-ipc",
-    "crates/formats/fjell-audit-format",
-    "crates/formats/fjell-config-format",
-    "crates/formats/fjell-semantic-format",
-    "crates/fjell-service-api",
-    "crates/services/fjell-init",
-    "crates/services/fjell-recoveryd",
-    "crates/services/fjell-syncd",
-    "crates/services/fjell-summaryd",
-    "crates/services/fjell-identityd",
-    "crates/services/fjell-attestd",
-    "crates/services/fjell-measuredd",
-    "crates/formats/fjell-recovery-format",
-    "crates/formats/fjell-attestation-format",
-    "crates/formats/fjell-measure-format",
-    "crates/services/fjell-service-manager",
-    "crates/services/fjell-auditd",
-    "crates/services/fjell-configd",
-    "crates/services/fjell-proxy-text",
-    "crates/services/fjell-neg-test",
-    "crates/services/fjell-svc-timeout",
-    "crates/services/fjell-svc-fault",
-    "crates/services/fjell-sample-service",
-    "crates/services/fjell-devmgr",
-    "crates/drivers/fjell-driver-virtio-blk",
-    "crates/services/fjell-storaged",
-    "crates/services/fjell-bootctl",
-    "crates/services/fjell-upgraded",
-    "crates/services/fjell-powerd",
-    "crates/services/fjell-verifyd",
-    "crates/services/fjell-rootfsd",
-    "crates/services/fjell-snapshotd",
-    "crates/formats/fjell-verify-format",
-    "crates/formats/fjell-rootfs-format",
-    "crates/formats/fjell-snapshot-format",
-    "crates/formats/fjell-device-format",
-    "crates/formats/fjell-block-format",
-    "crates/formats/fjell-store-format",
-    "crates/formats/fjell-upgrade-format",
-    "crates/services/fjell-semantic-stream",
-    "crates/services/fjell-cap-broker",
-    "crates/fjell-tools",
-    "crates/fjell-trust-provider",
-    "crates/fjell-keyring",
-    "crates/formats/fjell-net-format",
-    "crates/drivers/fjell-driver-virtio-net",
-    "crates/services/fjell-netd",
-    "crates/fjell-sxt-crypto",
-    "crates/services/fjell-secure-transportd",
-    "crates/formats/fjell-diag-format",
-    "crates/services/fjell-diagnosticsd",
-    "crates/formats/fjell-platform-format",
-    "crates/fjell-semantic-v1",
-    "crates/fjell-dtb-derive",
-    "crates/formats/fjell-summary-format",
-    "crates/formats/fjell-identity-format",
-    "crates/arch/fjell-arch-arm64",
-    "crates/fjell-proptest",
-    "crates/fjell-bootctl-model",
-    "tools/fjell-unsafe-audit",
-    "tools/fjell-abi-snapshot",
-    "tools/fjell-repro-check",
-    "tools/fjell-mmio-audit",
-    "tools/fjell-summary-check",
-    "tools/fjell-readiness-check",
+    "crates/*,
+    "tools/*,
     "benches",
-    "tools/fjell-ci-coverage",
-    "crates/services/fjell-fleetd",
-    "crates/formats/fjell-policy-format",
-    "crates/formats/fjell-remote-diag-format",
-    "crates/formats/fjell-fleet-format",
-    "crates/fjell-store-model",
-    "crates/arch/fjell-arch-riscv64",
-    "crates/fjell-sdk",
-    "crates/fjell-cap-manifest",
-    "crates/formats/fjell-bundle-format",
-    "crates/fjell-semantic-toolkit",
-    "crates/fjell-dev-harness",
-    "crates/fjell-sig-ed25519",
-    "crates/fjell-replay-cache",
-    "crates/fjell-dtb-validate",
-    "crates/fjell-fleet-sync",
-    "crates/fjell-config-sync",
 ]
+
 # Default build/check/test targets when no --package / --workspace flag is given.
 #
 # fjell-kernel is intentionally excluded here because it is a no_std / no_main
@@ -108,65 +24,70 @@ members = [
 #   cargo check  (no flags — uses default-members)
 default-members = [
     # format crates (host-testable)
+    "crates/fjell-bootctl-model",
     "crates/fjell-cap",
+    "crates/fjell-dtb-derive",
     "crates/fjell-ipc",
-    "crates/formats/fjell-audit-format",
-    "crates/formats/fjell-config-format",
-    "crates/formats/fjell-semantic-format",
+    "crates/fjell-keyring",
+    "crates/fjell-proptest",
+    "crates/fjell-semantic-v1",
     "crates/fjell-service-api",
-    "crates/formats/fjell-recovery-format",
+    "crates/fjell-store-model",
+    "crates/fjell-sxt-crypto",
+    "crates/fjell-trust-provider",
     "crates/formats/fjell-attestation-format",
+    "crates/formats/fjell-audit-format",
+    "crates/formats/fjell-block-format",
+    "crates/formats/fjell-config-format",
+    "crates/formats/fjell-device-format",
+    "crates/formats/fjell-diag-format",
+    "crates/formats/fjell-fleet-format",
+    "crates/formats/fjell-identity-format",
     "crates/formats/fjell-measure-format",
     "crates/formats/fjell-net-format",
     "crates/formats/fjell-platform-format",
-    "crates/fjell-semantic-v1",
-    "crates/formats/fjell-snapshot-format",
-    "crates/formats/fjell-identity-format",
-    "crates/formats/fjell-summary-format",
-    "crates/formats/fjell-diag-format",
-    "crates/formats/fjell-upgrade-format",
-    "crates/formats/fjell-store-format",
-    "crates/formats/fjell-block-format",
-    "crates/formats/fjell-rootfs-format",
-    "crates/formats/fjell-verify-format",
-    "crates/formats/fjell-device-format",
-    "crates/fjell-trust-provider",
-    "crates/fjell-keyring",
-    "crates/fjell-sxt-crypto",
-    "crates/fjell-dtb-derive",
-    "crates/fjell-proptest",
-    "crates/fjell-store-model",
-    "crates/fjell-bootctl-model",
-    "tools/fjell-unsafe-audit",
-    "tools/fjell-ci-coverage",
-    "crates/services/fjell-fleetd",
     "crates/formats/fjell-policy-format",
+    "crates/formats/fjell-recovery-format",
     "crates/formats/fjell-remote-diag-format",
-    "crates/formats/fjell-fleet-format",
+    "crates/formats/fjell-rootfs-format",
+    "crates/formats/fjell-semantic-format",
+    "crates/formats/fjell-snapshot-format",
+    "crates/formats/fjell-store-format",
+    "crates/formats/fjell-summary-format",
+    "crates/formats/fjell-upgrade-format",
+    "crates/formats/fjell-verify-format",
+    "crates/services/fjell-fleetd",
+    "tools/fjell-ci-coverage",
+    "tools/fjell-unsafe-audit",
 ]
+
 [workspace.package]
 version = "0.21.2"
-edition = "2024"
-authors = ["nabbisen"]
-license = "Apache-2.0"
-repository = "https://github.com/nabbisen/fjell-os"
+edition         = "2024"
+authors         = ["nabbisen"]
+license         = "Apache-2.0"
+repository      = "https://github.com/nabbisen/fjell-os"
+
+[workspace.metadata.fjell.ci_excluded]
+"fjell-kernel"          = { reason = "cross-compile only; no-std bare-metal; use cargo xtask qemu" }
+"fjell-svc-fault"       = { reason = "intentional fault-test target; covered by QEMU smoke" }
+"fjell-svc-timeout"     = { reason = "intentional timeout-test target; covered by QEMU smoke" }
+"fjell-neg-test"        = { reason = "negative-test smoke binary; covered by QEMU smoke" }
+
 [workspace.dependencies]
-criterion       = { version = "0.5", features = ["html_reports"] }
-ed25519-dalek   = { version = "2" }
-rand_core       = { version = "0.6", default-features = false, features = ["getrandom"] }
+criterion               = { version = "0.5", features = ["html_reports"] }
+ed25519-dalek           = { version = "2" }
+rand_core               = { version = "0.6", default-features = false, features = ["getrandom"] }
 # Shared dependencies will be added here as development progresses.
 # Format crates use serde for serialization.
 # Profiles must be defined at the workspace root.
 # panic = "abort" is mandatory for no_std kernel crates (unwinding requires std).
 # Host-side crates (fjell-tools, service binaries) also inherit abort, which is
 # acceptable — they are not libraries that need to support unwinding callers.
+
 [profile.dev]
-panic = "abort"
+panic           = "abort"
+
 [profile.release]
-lto = true
-opt-level = "s"
-[workspace.metadata.fjell.ci_excluded]
-"fjell-kernel"    = { reason = "cross-compile only; no-std bare-metal; use cargo xtask qemu" }
-"fjell-svc-fault" = { reason = "intentional fault-test target; covered by QEMU smoke" }
-"fjell-svc-timeout" = { reason = "intentional timeout-test target; covered by QEMU smoke" }
-"fjell-neg-test"  = { reason = "negative-test smoke binary; covered by QEMU smoke" }
+lto             = true
+opt-level       = "s"

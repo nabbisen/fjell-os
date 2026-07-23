@@ -1,11 +1,11 @@
 [package]
 name        = "fjell-summary-check"
+description = "Semantic summary consistency checker for fleet coordinator (RFC-v0.13-005)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Semantic summary consistency checker for fleet coordinator (RFC-v0.13-005)."
-publish     = false
+publish = false
 
 [[bin]]
 name = "fjell-summary-check"

@@ -1,11 +1,11 @@
 [package]
 name        = "fjell-repro-check"
+description = "Verify Fjell release builds are bit-for-bit reproducible (RFC-v0.10-003)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Verify Fjell release builds are bit-for-bit reproducible (RFC-v0.10-003)."
-publish     = false
+publish = false
 
 [[bin]]
 name = "fjell-repro-check"

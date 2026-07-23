@@ -1,11 +1,11 @@
 [package]
 name        = "fjell-abi-snapshot"
+description = "Snapshot and verify the Fjell stable ABI surface (RFC-v0.10-002)."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
-description = "Snapshot and verify the Fjell stable ABI surface (RFC-v0.10-002)."
-publish     = false
+publish = false
 
 [[bin]]
 name = "fjell-abi-snapshot"
