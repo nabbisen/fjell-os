@@ -92,3 +92,17 @@ releases/milestone tags" — is tracked here. Promotion to
 strict — `CONFORMANCE-ONLY` (prover absent) blocks `--release-required`, so a
 release cannot be cut for these targets without a passing Verus run
 (`TOOLCHAIN.lock`). Demotion remains available with architect sign-off.
+
+## Verus scope guardrail
+
+Formal verification targets must remain pure-logic predicates. The following
+are explicitly out of scope for Verus adoption in Fjell OS v1.x:
+
+- Device drivers (MMIO/DMA operations)
+- Scheduler internals
+- MMIO ordering proofs (covered by the MMIO audit gate)
+- DMA memory management
+- General service code
+
+Proposals to add Verus to these areas require a separate RFC with architect
+approval.

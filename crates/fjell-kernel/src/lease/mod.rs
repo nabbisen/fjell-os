@@ -119,7 +119,14 @@ impl LeaseTable {
         // the generation, which invalidates old LeaseIds independently.)
         match fjell_abi::lease::lease_revoke(slot.epoch) {
             fjell_abi::lease::RevokeOutcome::Advanced(e) => slot.epoch = e,
-            fjell_abi::lease::RevokeOutcome::MustRetire => { /* retired: epoch frozen at MAX */ }
+            fjell_abi::lease::RevokeOutcome::MustRetire => {
+                // Epoch reached u32::MAX — retire the slot permanently rather
+                // than wrapping (C6, LEASE-VERUS-005). Practically unreachable
+                // in any deployment lifetime; logged for observability.
+                // Architect follow-up (v0.18 review §6.5 / §8.2.4).
+                crate::kprintln!("lease: slot {} retired before wrap (epoch=MAX)",
+                    id.0);
+            }
         }
         slot.state = LeaseState::Revoked;
         let new_epoch = slot.epoch;

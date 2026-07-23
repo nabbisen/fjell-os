@@ -1,6 +1,6 @@
 # RFC-v0.17-001: Trust Anchor Provisioning and Manufacturing Flow
 
-**Status:** Proposed (design options — requires architect decision)
+**Status:** Accepted (design options — requires architect decision)
 **Milestone:** v0.17
 **Origin:** Deferred from RFC-v0.16-005 (architect review H-02).
 **Supersedes:** RFC-v0.17-001 RESERVED placeholder.
@@ -91,3 +91,22 @@ profile or must be gated behind an explicit `--allow-tofu-provision` flag.
 
 Key escrow, root rotation post-provisioning (tracked separately), and the
 hardware fuse programming protocol (Option C detail, deferred to v2).
+
+
+---
+
+## Architect ratification (v0.18.3 review)
+
+**Decision date:** 2026-06-04
+**Deciding architect review:** v0.18.3 Verus verification layer review (D6 / §4.4)
+
+Ratified per the table in `docs/verification/verus/review-records/v0.18-architect-review-decisions.md`:
+- Development/QEMU: TOFU with explicit `--allow-tofu-provision` flag only.
+- Factory/field (v1.1): factory station provisioning.
+- High-assurance (v2+): hardware-anchored provisioning.
+
+Silent default TOFU is explicitly prohibited for all v1-supported profiles.
+
+Implementation of the `--allow-tofu-provision` flag for the dev profile is
+tracked as a pre-v1.0.0 implementation item (see `docs/release/v1-limitations.md`
+item 6).

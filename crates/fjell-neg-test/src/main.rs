@@ -47,6 +47,7 @@ const SLOT_CAP_BROKER: u32 = 3;   // Endpoint cap to cap-broker (object 5)
 const SLOT_LEASE_ADMIN:u32 = 4;
 #[allow(dead_code)] const SLOT_TASK_CREATE:u32 = 5;   // TaskCreate cap (used by sys_task_spawn)
 #[allow(dead_code)] const SLOT_TASK_CONTROL:u32= 6;   // TaskControl cap (used by sys_task_start/status)
+const SLOT_SAMPLE_EP:  u32 = 7;   // Endpoint cap to sample-service (object 6, RFC 042)
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 const SLOT_SCRATCH_C:  u32 = 12;  // scratch slot for audit overflow loop
@@ -215,9 +216,12 @@ fn test_dma_zeroize() {
 /// (since the rights check lives in the same `require_cap` path).
 fn test_cap_wrong_kind() {
     let result = sys_mmio_map(CapHandle(SLOT_OWN_EP), 0, 0x1000);
-    check_err(result, fjell_abi::error::SysError::InvalidCap, M::CAP_WRONG_KIND);
-    // Both markers from same call: wrong kind → InvalidCap.
-    check_err(result, fjell_abi::error::SysError::InvalidCap, M::MMIO_RIGHTS);
+    // Canonical mapping (fjell-cap rights.rs::to_sys_error): WrongKind → WrongType.
+    // (A divergent local table in trap/syscall.rs maps WrongKind → InvalidCap for
+    // the cap-management syscalls; recorded as a follow-up finding.)
+    check_err(result, fjell_abi::error::SysError::WrongType, M::CAP_WRONG_KIND);
+    // Both markers from same call: kind mismatch refusal.
+    check_err(result, fjell_abi::error::SysError::WrongType, M::MMIO_RIGHTS);
 }
 
 /// MMIO: use a real MmioRegion cap but request an out-of-bounds offset.
@@ -234,7 +238,8 @@ fn test_mmio_bounds() {
 /// `require_cap` kind check fires: Endpoint ≠ DmaRegion/DmaAlloc.
 fn test_dma_rights() {
     let result = sys_dma_alloc(SLOT_OWN_EP, 4096);
-    check_err(result, fjell_abi::error::SysError::InvalidCap, M::DMA_RIGHTS);
+    // Kind mismatch via require_cap → canonical WrongType (see test_cap_wrong_kind).
+    check_err(result, fjell_abi::error::SysError::WrongType, M::DMA_RIGHTS);
 }
 
 /// DMA: allocate a region and explicitly revoke it.
@@ -243,13 +248,49 @@ fn test_dma_rights() {
 fn test_dma_revoke_explicit() {
     match sys_dma_alloc(SLOT_DMA, 4096) {
         Ok((_user_va, device_pa)) => {
-            let revoke_ok = sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_ok();
-            check(revoke_ok, M::DMA_REVOKE_EXPLICIT);
+            match sys_dma_revoke(CapHandle(SLOT_DMA), device_pa) {
+                Ok(())  => sys_debug_writeln(M::DMA_REVOKE_EXPLICIT),
+                Err(e)  => {
+                    sys_debug_writeln("neg-test: dma revoke failed:");
+                    debug_err(e);
+                }
+            }
         }
-        Err(_) => {
-            // DMA cap not installed — skip (emit nothing).
+        Err(e) => {
+            // No silent skips: a missing precondition is a harness finding,
+            // not a pass (architect review v0.18 follow-up).
+            sys_debug_writeln("neg-test: dma alloc failed in revoke_explicit:");
+            debug_err(e);
         }
     }
+}
+
+/// Diagnostic for an unexpected cap-broker reply (no silent skips).
+fn debug_policy(label: &str, r: Result<usize, fjell_abi::error::SysError>) {
+    sys_debug_writeln(label);
+    match r {
+        Ok(v)  => { sys_debug_writeln("neg-test: unexpected reply:"); debug_u(v); }
+        Err(e) => { sys_debug_writeln("neg-test: ipc err:"); debug_err(e); }
+    }
+}
+
+/// Print a usize as decimal (no alloc, no fmt).
+fn debug_u(mut n: usize) {
+    let mut buf = [0u8; 24];
+    let mut i = buf.len();
+    if n == 0 { i -= 1; buf[i] = b'0'; }
+    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
+    sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
+}
+
+/// Print a SysError discriminant as a decimal line (no alloc, no fmt).
+fn debug_err(e: fjell_abi::error::SysError) {
+    let mut buf = [0u8; 24];
+    let mut n = e as usize;
+    let mut i = buf.len();
+    if n == 0 { i -= 1; buf[i] = b'0'; }
+    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
+    sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
 }
 
 /// USER COPY: pass a null pointer to sys_audit_drain_raw.
@@ -259,7 +300,8 @@ fn test_user_copy_null() {
     // SAFETY: category=raw-pointer-deref we intentionally pass 0 (null) to test the kernel's rejection.
     // RFC 050: pass null pointer — kernel UserPtr check rejects with InvalidAddress.
     let result = unsafe { fjell_syscall::sys_audit_drain_ptr(0, 4096, SLOT_AUDIT) };
-    check_err(result, fjell_abi::error::SysError::InvalidAddress, M::USER_COPY_NULL);
+    // Canonical mapping (mm/user_ptr.rs): NullPointer → InvalidArg.
+    check_err(result, fjell_abi::error::SysError::InvalidArg, M::USER_COPY_NULL);
 }
 
 /// USER COPY: pass a kernel-space address to sys_audit_drain_raw.
@@ -269,7 +311,8 @@ fn test_user_copy_kernel_addr() {
     // SAFETY: category=raw-pointer-deref we intentionally pass a kernel address to test rejection.
     // RFC 050: pass a kernel-space address — UserPtr rejects with InvalidAddress.
     let result = unsafe { fjell_syscall::sys_audit_drain_ptr(RAM_BASE, 4096, SLOT_AUDIT) };
-    check_err(result, fjell_abi::error::SysError::InvalidAddress, M::USER_COPY_KERNEL_ADDR);
+    // Canonical mapping (mm/user_ptr.rs): KernelAddress → InvalidArg.
+    check_err(result, fjell_abi::error::SysError::InvalidArg, M::USER_COPY_KERNEL_ADDR);
 }
 
 
@@ -291,10 +334,10 @@ fn test_ipc_blocked_recv() {
         Err(_) => return,  // LeaseAdmin cap not available — skip
     };
 
-    // 2. Send BIND_LEASE_FOR_IPC_TEST(w0=lease_id) to endpoint 0 (sample-service).
-    //    This is an ipc_call — we block until sample-service replies.
+    // 2. Send BIND_LEASE_FOR_IPC_TEST(w0=lease_id) to sample-service's
+    //    dedicated endpoint. This is an ipc_call — we block until it replies.
     match sys_ipc_call_words(
-        SLOT_OWN_EP,                       // endpoint 0 → sample-service
+        SLOT_SAMPLE_EP,                    // endpoint 6 → sample-service
         tags::BIND_LEASE_FOR_IPC_TEST,
         lease_id.0 as usize, 0, 0,
     ) {
@@ -330,25 +373,38 @@ fn test_ipc_blocked_call_and_late_reply() {
     // 1. Create a lease.
     let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
-        Err(_) => return,
+        Err(e) => {
+            sys_debug_writeln("neg-test: blocked_call lease_create failed:");
+            debug_err(e);
+            return;
+        }
     };
 
     // 2. Tell sample-service to bind lease and call us back.
     match sys_ipc_call_words(
-        SLOT_OWN_EP,
+        SLOT_SAMPLE_EP,
         tags::BIND_LEASE_AND_CALL_BACK,
         lease_id.0 as usize, 0, 0,
     ) {
         Ok(0) => {}  // sample-service replied OK and is now calling us back
-        _     => { let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id); return; }
+        other => {
+            sys_debug_writeln("neg-test: blocked_call handshake unexpected:");
+            match other {
+                Ok(v)  => debug_u(v),
+                Err(e) => debug_err(e),
+            }
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+            return;
+        }
     }
 
     // 3. Receive sample-service's callback call.
     //    sample-service is blocked in ipc_call (waiting for our reply).
     //    Its message is already in endpoint 0's sendq when we call recv.
-    match sys_ipc_recv(SLOT_OWN_EP) {
-        Ok(_) => {
-            // Got the CALL_BACK_MSG from sample-service.
+    // Receive the callback on sample-service's dedicated endpoint — the
+    // leased copy it calls on references object 6.
+    match sys_ipc_recv(SLOT_SAMPLE_EP) {
+        Ok(_) => {            // Got the CALL_BACK_MSG from sample-service.
             // 4. Revoke the lease — this wakes sample-service (BLOCKED_CALL marker)
             //    and cancels our reply edge.
             let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
@@ -369,7 +425,9 @@ fn test_ipc_blocked_call_and_late_reply() {
                 }
             }
         }
-        Err(_) => {
+        Err(e) => {
+            sys_debug_writeln("neg-test: ipc late-reply: step3 recv failed:");
+            debug_err(e);
             let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
         }
     }
@@ -391,7 +449,7 @@ fn test_policy_default_deny() {
         Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
             check(true, M::POLICY_DEFAULT_DENY);
         }
-        _ => {}  // unexpected reply — marker not emitted
+        other => debug_policy("neg-test: default_deny unexpected:", other),
     }
 }
 
@@ -408,7 +466,7 @@ fn test_policy_bootstrap_guard() {
         Ok(reply) if reply == usize::MAX => {
             check(true, M::POLICY_BOOTSTRAP_GUARD);
         }
-        _ => {}  // was Bootstrap state or unexpected — marker not emitted
+        other => debug_policy("neg-test: bootstrap_guard unexpected:", other),
     }
 }
 
@@ -429,7 +487,7 @@ fn test_policy_deny_priority() {
         Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
             check(true, M::POLICY_DENY_PRIORITY);
         }
-        _ => {}
+        other => debug_policy("neg-test: deny_priority unexpected:", other),
     }
 }
 
@@ -452,7 +510,7 @@ fn test_policy_identity_spoofing() {
         Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
             check(true, M::POLICY_IDENTITY_SPOOFING_REJECTED);
         }
-        _ => {}
+        other => debug_policy("neg-test: identity_spoofing unexpected:", other),
     }
 }
 
@@ -539,51 +597,56 @@ fn test_svc_fault_detected() {
 
 /// Setup helper: mint a cap with operational rights only (no COPY/MINT/REVOKE/INSPECT).
 /// Returns Ok(()) if the narrow cap was installed into SLOT_NARROW_CAP.
-fn install_narrow_cap() -> bool {
+fn install_narrow_cap() -> Option<fjell_cap::CapHandle> {
     // EP_RW = SEND | RECV — no management bits.
+    //
+    // Returns the handle produced by the mint (which encodes the slot's
+    // current generation). Earlier revisions used the raw slot constant as a
+    // handle for the follow-up operation and cleanup; after the first
+    // mint/drop cycle bumped the slot generation, those raw handles failed
+    // the generation check, silently skipping the REVOKE/INSPECT scenarios
+    // and surfacing GenerationMismatch instead of the permission error under
+    // test (architect review v0.18 follow-up).
     let ep_rw = fjell_cap::CapRights::SEND | fjell_cap::CapRights::RECV;
-    match sys_cap_mint(fjell_cap::CapHandle(SLOT_OWN_EP), SLOT_NARROW_CAP, ep_rw.0) {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    sys_cap_mint(fjell_cap::CapHandle(SLOT_OWN_EP), SLOT_NARROW_CAP, ep_rw.0).ok()
 }
 
 /// RFC 049: COPY right is required for sys_cap_copy.
 fn test_cap_copy_without_right() {
-    if !install_narrow_cap() { return; }
+    let Some(h) = install_narrow_cap() else { return };
     // Attempt to copy the narrow cap — source has no COPY right.
-    let result = sys_cap_copy(fjell_cap::CapHandle(SLOT_NARROW_CAP), 15u32);
+    let result = sys_cap_copy(h, 15u32);
     check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_COPY_WITHOUT_RIGHT);
-    // Clean up SLOT_NARROW_CAP for subsequent tests.
-    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    // Clean up for subsequent tests (generation-correct handle).
+    let _ = _sys_cap_drop(h);
 }
 
 /// RFC 049: MINT right is required for sys_cap_mint.
 fn test_cap_mint_without_right() {
-    if !install_narrow_cap() { return; }
+    let Some(h) = install_narrow_cap() else { return };
     let ep_rw = fjell_cap::CapRights::SEND | fjell_cap::CapRights::RECV;
     // Attempt to mint from the narrow cap — source has no MINT right.
-    let result = sys_cap_mint(fjell_cap::CapHandle(SLOT_NARROW_CAP), 15u32, ep_rw.0);
+    let result = sys_cap_mint(h, 15u32, ep_rw.0);
     check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_MINT_WITHOUT_RIGHT);
-    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    let _ = _sys_cap_drop(h);
 }
 
 /// RFC 049: REVOKE right is required for sys_cap_revoke.
 fn test_cap_revoke_without_right() {
-    if !install_narrow_cap() { return; }
-    // Attempt to revoke the narrow cap — it has no REVOKE right.
-    let result = sys_cap_revoke(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    let Some(h) = install_narrow_cap() else { return };
+    // Attempt to revoke through the narrow cap — it has no REVOKE right.
+    let result = sys_cap_revoke(h);
     check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_REVOKE_WITHOUT_RIGHT);
-    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    let _ = _sys_cap_drop(h);
 }
 
 /// RFC 049: INSPECT right is required for sys_cap_inspect.
 fn test_cap_inspect_without_right() {
-    if !install_narrow_cap() { return; }
+    let Some(h) = install_narrow_cap() else { return };
     // Attempt to inspect the narrow cap — it has no INSPECT right.
-    let result = sys_cap_inspect(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    let result = sys_cap_inspect(h);
     check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_INSPECT_WITHOUT_RIGHT);
-    let _ = _sys_cap_drop(fjell_cap::CapHandle(SLOT_NARROW_CAP));
+    let _ = _sys_cap_drop(h);
 }
 
 // ── Service entry point ───────────────────────────────────────────────────────

@@ -647,6 +647,18 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let measuredd_ep_id = et.alloc().expect("alloc measuredd endpoint"); let _ = measuredd_ep_id; // id=2
     let attestd_ep_id   = et.alloc().expect("alloc attestd endpoint");   let _ = attestd_ep_id;   // id=3
     let recoveryd_ep_id = et.alloc().expect("alloc recoveryd endpoint"); let _ = recoveryd_ep_id; // id=4
+    // RFC 040: cap-broker's dedicated endpoint. The spawn layout (broker
+    // slot 0, neg-test slot 3) and init's CSpace cap already referenced
+    // object 5, but the allocation itself was missing, so every IPC to the
+    // broker's dedicated endpoint failed with InvalidCap and the policy
+    // negative tests silently never ran (architect review v0.18 follow-up).
+    let capbroker_ep_id = et.alloc().expect("alloc cap-broker endpoint"); let _ = capbroker_ep_id; // id=5
+    // RFC 042: sample-service's dedicated endpoint for the IPC blocked-call /
+    // late-reply protocol. On the shared endpoint the handshake was stolen by
+    // whichever service was first in the recv queue (typically auditd), so
+    // the BLOCKED_CALL and LATE_REPLY scenarios never ran deterministically
+    // (architect review v0.18 follow-up).
+    let sample_ep_id = et.alloc().expect("alloc sample-service endpoint"); let _ = sample_ep_id; // id=6
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.

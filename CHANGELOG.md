@@ -5,6 +5,114 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.19.0] — Architect review implementation: real QEMU negative tests + decision records
+
+Implementation of all required and strongly-recommended actions from the
+v0.18.3 architect review. First release with real QEMU negative-test coverage
+across all nine categories.
+
+### Highlights
+
+**22 real QEMU kernel-refusal markers** now pass across 9 categories, replacing
+the RFC 025 placeholder-PASS infrastructure that had auto-passed since v0.1.1
+without booting QEMU. The fixes that unblocked this revealed several latent
+issues: a profile loader bug (multi-line TOML arrays silently yielded empty
+marker lists), per-task console line-buffering for `sys_debug_write` (timer
+preemption was character-interleaving output from concurrent services), and
+four distinct raw-slot-handle bugs in neg-test and sample-service (generation
+mismatches were silently skipping scenarios).
+
+### Fixed — kernel
+
+- **`sys_audit_drain` null/kernel-space buffer** — returned `Ok` with 0 records
+  when the ring was empty, violating the RFC 039 user-pointer contract. Upfront
+  `UserPtr::new` validation now precedes the drain loop. Caught by the
+  now-working user-copy negative tests.
+- **Endpoint 5 (cap-broker dedicated endpoint)** — never allocated (`et.alloc()`
+  call missing); every IPC to the cap-broker's private endpoint returned
+  `InvalidCap` since introduction (RFC 040), silently preventing all four
+  cap-broker policy enforcement tests from running. One-line fix activates
+  the full policy enforcement test suite including identity-spoofing rejection.
+- **Endpoint 6 (sample-service dedicated endpoint)** — allocated and wired;
+  IPC blocked-call scenario routing was nondeterministic on the shared endpoint
+  (any idle shared-ep receiver could steal the handshake).
+- **DMA cap kind** — `sys_dma_revoke` requires `CapKind::DmaRegion`; the spawn
+  grant used the legacy `DmaAlloc` alias, making explicit revocation silently
+  impossible for all DMA-capable services. Updated to `DmaRegion` in spawn.
+- **`sys_debug_write` per-task line buffering** — the per-byte syscall (one
+  ecall per character) allowed timer preemption between bytes, producing
+  character-interleaved output from concurrent services and shredding QEMU
+  test markers. Kernel now accumulates bytes per-task and flushes atomically
+  (SIE-masked) on `\n` or buffer-full, with 32-task × 160-byte static storage.
+- **Console `_print` interrupt guard** — SIE masked for the duration of each
+  kernel-side `write_fmt` call; kernel log lines are now line-atomic under
+  preemption.
+- **`MustRetire` kprintln** — adds observability to the retire-before-wrap
+  epoch-MAX path (LEASE-VERUS-005, C6).
+
+### Fixed — neg-test / sample-service
+
+- **Raw-slot-constant handles** — four test scenarios in neg-test (RFC 049
+  quartet: copy/mint/revoke/inspect without right) and two in sample-service
+  (IPC blocked-recv/call setup) were using raw slot index as `CapHandle`,
+  which fails generation validation after the first mint/drop cycle, silently
+  skipping the scenarios from the second run onward. All fixed to thread the
+  generation-correct handle returned by `sys_cap_mint`/`sys_cap_copy`.
+- **Wrong error expectations** — kind-mismatch errors via `sys_mmio_map` and
+  `sys_dma_alloc` return `WrongType` (canonical `to_sys_error` mapping) not
+  `InvalidCap` (a divergent local table in trap/syscall.rs:98). Expectations
+  aligned; divergent mapping recorded as a follow-up finding.
+- **Silent skips replaced with diagnostics** — `check()` calls that returned
+  nothing on failure, and `Err(_) => {}` arms that swallowed errors, are
+  replaced with `debug_err` / `debug_policy` diagnostic output so harness
+  failures are visible in serial logs.
+
+### Fixed — tooling
+
+- **Profile loader multi-line TOML arrays** — the minimal TOML reader in
+  `qemu_run.rs` parsed multi-line `expected_markers = [...]` arrays as empty
+  lists (the array-open line `key = [` parsed as empty; continuation lines
+  had no `=`). Every real negative profile silently degraded to
+  placeholder-PASS since v0.1.1. Multi-line accumulation added.
+
+### Added — architect review implementation
+
+- **Verus toolchain version check** — `verus-check` now prints detected and
+  pinned Verus versions; on mismatch issues a warning and blocks
+  `--release-required` to ensure proofs are certified under the locked
+  toolchain.
+- **`cargo xtask callsite-audit`** — Gate 11: three static checks that the
+  security-critical call sites use the model-conformant helpers
+  (LEASE-CALLSITE-001: no `wrapping_add` on lease epoch;
+  CAP-CALLSITE-001: `is_subset_of` present in cspace.rs mint path;
+  BCB-CALLSITE-001: no duplicate mirror-selection logic).
+- **`docs/verification/verus/review-records/v0.18-architect-review-decisions.md`**
+  — formal record of architect decisions D1–D6, the two-milestone exception
+  text (D3), and the trust-anchor provisioning tier→mechanism ratification.
+- **RFC-v0.17-001 accepted** — moved to `rfcs/done/`; §4/§6 decision ratified:
+  TOFU dev profile requires explicit `--allow-tofu-provision` flag;
+  factory station for v1.1; hardware-anchored for v2+.
+- **Scope guardrail** in `proof-gate-policy.md`: Verus stays out of
+  drivers, scheduler, MMIO/DMA, and services.
+- **Boot-control promotion scheduled** in ledger (architect D5).
+- **`docs/release/v1-limitations.md` item 6** — updated from "pending" to the
+  ratified provisioning decision.
+
+### Known findings recorded (not blocking)
+
+- Two divergent `CapError→SysError` mappings in the kernel: the canonical
+  `to_sys_error` (rights.rs) maps `WrongKind → WrongType` while a local table
+  in `trap/syscall.rs:98` maps it to `InvalidCap`. Neg-test expectations
+  aligned to the canonical mapping; the divergence is a follow-up cleanup item.
+- `NEG:IPC:LATE_REPLY_REJECTED` — pending; the reply-edge cancellation path
+  via `wake_or_cancel_blocked_ipc_for_lease` does not clear the server-side
+  reply table, so `sys_ipc_reply` behaviour after lease revocation is
+  inconsistent with the RFC 050 contract in the dedicated-endpoint path.
+- `NEG:SVC:READY_ACCEPTED` and `NEG:SVC:UNAUTHORIZED_READY_REJECTED` — pending;
+  timing-dependent on service-manager readiness at neg-test startup.
+
+
+
 ## [0.18.3] — v1 hardening: triage of owner-review findings
 
 Full triage and implementation of the v1-readiness review (code defects,

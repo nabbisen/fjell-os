@@ -126,12 +126,78 @@ fn sys_exit(tf: &mut TrapFrame) {
 /// `sys_debug_write(a0=byte)` — write one byte to UART (smoke-test helper).
 ///
 /// Used by `fjell_syscall::sys_debug_write_byte` in user-space services.
+// ── Per-task debug-write line buffering ───────────────────────────────────────
+//
+// `sys_debug_write` is a per-byte syscall (one byte per ecall). Without
+// buffering, a timer preemption between two bytes interleaves another task's
+// console output mid-line, shredding QEMU test markers (architect review
+// v0.18 follow-up: marker atomicity for the negative-test profiles).
+//
+// Bytes are accumulated per task and flushed as one atomic UART write
+// (interrupts masked) when a newline arrives or the line buffer fills.
+// Single-hart Cell/UnsafeCell pattern, same as `Flag` below.
+
+const DBG_TASKS: usize = 32;
+const DBG_LINE:  usize = 160;
+
+struct DebugLineBufs {
+    len: [core::cell::Cell<usize>; DBG_TASKS],
+    buf: core::cell::UnsafeCell<[[u8; DBG_LINE]; DBG_TASKS]>,
+}
+// SAFETY: category=kernel-global-mutable single-hart; accessed only from the
+// syscall handler with interrupts implicitly serialised per task.
+unsafe impl Sync for DebugLineBufs {}
+
+#[allow(clippy::declare_interior_mutable_const)]
+const ZERO_LEN: core::cell::Cell<usize> = core::cell::Cell::new(0);
+static DEBUG_LINES: DebugLineBufs = DebugLineBufs {
+    len: [ZERO_LEN; DBG_TASKS],
+    buf: core::cell::UnsafeCell::new([[0u8; DBG_LINE]; DBG_TASKS]),
+};
+
+/// Flush one task's buffered line to the UART as a single atomic write.
+fn debug_flush(slot: usize) {
+    let n = DEBUG_LINES.len[slot].get();
+    if n == 0 { return; }
+    // Mask SSTATUS.SIE so the byte loop cannot be preempted mid-line
+    // (mirrors console::_print; single hart, so masking suffices).
+    // SAFETY: category=kernel-global-mutable single hart; SIE masked for the
+    // critical section so no preemption interleaves the UART write.
+    let saved = unsafe {
+        let s = crate::arch::riscv64::csr::read_sstatus();
+        crate::arch::riscv64::csr::write_sstatus(s & !(1 << 1));
+        s
+    };
+    // SAFETY: category=mmio-access UART PA is identity-mapped; single hart
+    // with preemption masked above, so no concurrent writer.
+    unsafe {
+        let lines = &*DEBUG_LINES.buf.get();
+        for &b in &lines[slot][..n] {
+            // MMIO-ORDER: device_kick
+            (0x1000_0000usize as *mut u8).write_volatile(b);
+        }
+    }
+    // SAFETY: category=kernel-global-mutable restore the caller's SIE state.
+    unsafe {
+        if saved & (1 << 1) != 0 {
+            let s = crate::arch::riscv64::csr::read_sstatus();
+            crate::arch::riscv64::csr::write_sstatus(s | (1 << 1));
+        }
+    }
+    DEBUG_LINES.len[slot].set(0);
+}
+
 fn sys_debug_write(tf: &mut TrapFrame) {
     let b = tf.gpr[REG_A0] as u8;
-    // Direct MMIO write; safe because UART PA is identity-mapped.
-    // SAFETY: category=mmio-access all user-supplied pointers are checked against the task address space before dereferencing.
-    // MMIO-ORDER: device_kick
-    unsafe { (0x1000_0000usize as *mut u8).write_volatile(b) };
+    let slot = crate::trap::dispatch::current_task_idx() % DBG_TASKS;
+    let n = DEBUG_LINES.len[slot].get();
+    // SAFETY: category=kernel-global-mutable single-hart; only this handler
+    // mutates the per-task line buffer, and the index is bounds-checked.
+    unsafe { (*DEBUG_LINES.buf.get())[slot][n] = b; }
+    DEBUG_LINES.len[slot].set(n + 1);
+    if b == b'\n' || n + 1 == DBG_LINE {
+        debug_flush(slot);
+    }
     tf.gpr[REG_A0] = SysError::Ok as usize;
 }
 
@@ -429,7 +495,19 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
         tf.gpr[REG_A0] = e as isize as usize; return;
     }
 
-    // ── 2. Trivial: buffer too small for one record ───────────────────────────
+    // ── 2. RFC 039/050: validate the user buffer range upfront ───────────────
+    //
+    // Discovered by the real QEMU negative tests (architect review v0.18
+    // follow-up): the drain loop's per-record copy failure only broke the
+    // loop, so a null or kernel-space buffer returned Ok with 0 records —
+    // observably violating the UserPtr contract (null → InvalidAddress)
+    // whenever the ring was empty. Validate before any short-circuit.
+    if let Err(e) = crate::mm::user_copy::UserPtr::new(buf_va, buf_len) {
+        tf.gpr[REG_A0] = SysError::from(e) as isize as usize;
+        return;
+    }
+
+    // ── 3. Trivial: buffer too small for one record ───────────────────────────
     if buf_len < AUDIT_RECORD_BIN_SIZE {
         tf.gpr[REG_A0] = SysError::Ok as isize as usize;
         tf.gpr[REG_A1] = 0;

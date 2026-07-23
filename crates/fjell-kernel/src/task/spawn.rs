@@ -146,6 +146,9 @@ pub fn spawn(
                 // RFC 040: cap-broker gets its own dedicated endpoint (5)
                 // so policy tests can route to it without ambiguity.
                 fjell_abi::service::ImageId::CAP_BROKER => 5,
+                // RFC 042: dedicated endpoint so the neg-test IPC protocol
+                // cannot be stolen by other shared-endpoint receivers.
+                fjell_abi::service::ImageId::SAMPLE_SERVICE => 6,
                 _                                       => 0,
             };
             let _ = cs.install_raw(0, Capability {
@@ -231,8 +234,12 @@ pub fn spawn(
                     rights: CapRights::AUDIT_DRAIN, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
                 });
             }
-            // Slot 2: DmaAlloc cap — granted to services that perform DMA
-            // (storaged, driver-virtio-blk).  RFC 017.
+            // Slot 2: DmaRegion cap — granted to services that perform DMA
+            // (storaged, driver-virtio-blk, neg-test).  RFC 017 / RFC 052.
+            // Modernised from the legacy DmaAlloc alias (architect review
+            // v0.18 follow-up): sys_dma_alloc accepts both kinds, but
+            // sys_dma_revoke requires DmaRegion, so the legacy grant made
+            // explicit revocation silently impossible for these services.
             let needs_dma = matches!(
                 image_id,
                 fjell_abi::service::ImageId::STORAGED |
@@ -241,8 +248,27 @@ pub fn spawn(
             );
             if needs_dma {
                 let _ = cs.install_raw(2, Capability {
-                    kind: CapKind::DmaAlloc, object_id: 0,
+                    kind: CapKind::DmaRegion, object_id: 0,
                     rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
+                });
+            }
+            // Slot 7: endpoint cap to sample-service (object 6) for NEG_TEST —
+            // both legs of the RFC 042 IPC protocol run on this endpoint.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(7, Capability {
+                    kind: CapKind::Endpoint, object_id: 6,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any,
+                    state: CapState::Active, parent: None, lease: None,
+                });
+            }
+            // Slot 2: shared-endpoint (object 0) cap for SAMPLE_SERVICE so its
+            // SERVICE_READY signal still reaches service-manager after the
+            // move to the dedicated endpoint.
+            if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
+                let _ = cs.install_raw(2, Capability {
+                    kind: CapKind::Endpoint, object_id: 0,
+                    rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any,
+                    state: CapState::Active, parent: None, lease: None,
                 });
             }
             // Slot 1: LeaseAdmin for SAMPLE_SERVICE (RFC 042 IPC blocked-recv test).

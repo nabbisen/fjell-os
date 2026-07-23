@@ -222,13 +222,32 @@ fn load_profile(name: &str) -> Result<Profile, String> {
     let mut markers: Vec<String> = Vec::new();
     let mut extra:   Vec<String> = Vec::new();
 
-    for raw in src.lines() {
+    let mut lines = src.lines().peekable();
+    while let Some(raw) = lines.next() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') { continue; }
         let (k, v) = match line.split_once('=') {
             Some((k, v)) => (k.trim(), v.trim()),
             None => continue,
         };
+        // Multi-line array support: `key = [` opens an array that is closed
+        // by a line whose content is `]`. (The original single-line reader
+        // silently parsed these as empty lists, which degraded every real
+        // negative profile to a placeholder — architect review v0.18
+        // follow-up.)
+        let v_owned: String = if v.starts_with('[') && !v.contains(']') {
+            let mut acc = String::from(v);
+            for cont in lines.by_ref() {
+                let c = cont.trim();
+                acc.push(' ');
+                acc.push_str(c);
+                if c.contains(']') { break; }
+            }
+            acc
+        } else {
+            v.to_string()
+        };
+        let v = v_owned.as_str();
         match k {
             "name"             => name_v   = unquote(v),
             "kernel"           => kernel_v = PathBuf::from(unquote(v)),

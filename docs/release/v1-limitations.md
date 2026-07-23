@@ -11,7 +11,7 @@ require updating the governing record first, then this page.*
 | 3 | **POSIX** — no POSIX compatibility surface (descriptors, fork, signals, ttys) | Non-goal **N1** |
 | 4 | **Kernel-IPC for the SDK reference service** — the SDK reference service does not operate over live kernel-mediated IPC | Non-goal **N21** |
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
-| 6 | **Trust-anchor provisioning** — no ratified provisioning mechanism; design options (TOFU / factory station / hardware-anchored) await the architect decision | **RFC-v0.17-001** §4/§6 (proposed) |
+| 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Implementation of the flag for the dev profile is a pre-v1.0.0 item. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 

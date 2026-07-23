@@ -28,6 +28,44 @@ struct Target {
     conformance_cmd: String,
 }
 
+
+/// Run `verus --version` and return the version string, e.g.
+/// "0.2026.05.24.ecee80a".
+fn detect_verus_version() -> Option<String> {
+    let out = std::process::Command::new("verus")
+        .arg("--version").output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    // Expected output:
+    //   Verus
+    //     Version: 0.2026.05.24.ecee80a
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if let Some(rest) = trimmed.strip_prefix("Version:") {
+            return Some(rest.trim().to_string());
+        }
+        // Also accept bare version tokens that look like a date-based version
+        if trimmed.starts_with("release/") || trimmed.chars().next()
+            .map_or(false, |c| c.is_ascii_digit()) {
+            return Some(trimmed.to_string());
+        }
+    }
+    None
+}
+
+/// Read the `release` field from TOOLCHAIN.lock [verus] section.
+fn read_lock_release(path: &str) -> Option<String> {
+    let src = std::fs::read_to_string(path).ok()?;
+    for line in src.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("release") {
+            if let Some(val) = rest.trim_start_matches(|c: char| c == ' ' || c == '=').strip_prefix('"') {
+                return Some(val.trim_end_matches('"').to_string());
+            }
+        }
+    }
+    None
+}
+
 pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     let targets = match load_targets("verification/verus/verus-targets.toml") {
         Ok(t) => t,
@@ -35,6 +73,37 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     };
 
     let verus_present = which("verus");
+
+    // Architect follow-up (v0.18 review §8.3.3): print detected Verus/z3
+    // versions and compare against the pinned TOOLCHAIN.lock release.
+    if verus_present {
+        let detected = detect_verus_version();
+        let pinned   = read_lock_release("verification/verus/TOOLCHAIN.lock");
+        println!("verus-check: detected version: {}", detected.as_deref().unwrap_or("unknown"));
+        println!("verus-check: pinned  version: {}", pinned.as_deref().unwrap_or("(unreadable)"));
+        let mismatch = match (&detected, &pinned) {
+            (Some(d), Some(p)) => {
+                // TOOLCHAIN.lock stores "release/X.Y.Z"; verus binary reports "X.Y.Z".
+                // Compare both stripped of the "release/" prefix.
+                let d_bare = d.strip_prefix("release/").unwrap_or(d);
+                let p_bare = p.strip_prefix("release/").unwrap_or(p);
+                d_bare != p_bare
+            }
+            _ => false,
+        };
+        if mismatch {
+            println!("verus-check: WARNING: detected Verus version does not match \
+                TOOLCHAIN.lock pin — proofs were certified under the pinned version. \
+                Update TOOLCHAIN.lock if you intend to use this version.");
+            let release_required_run = args.first().map(|a| a == "--release-required").unwrap_or(false);
+            if release_required_run {
+                println!("verus-check: BLOCKING — --release-required requires the pinned \
+                    Verus version (see TOOLCHAIN.lock). Certify proofs under the pinned \
+                    version or update the lock with a recorded proof-review re-run.");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
 
     // Selection
     let selected: Vec<&Target> = match args.first().map(String::as_str) {

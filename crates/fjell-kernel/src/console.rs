@@ -47,15 +47,37 @@ pub unsafe fn init() {
 
 /// Internal print implementation called by the `print!` macro.
 pub fn _print(args: fmt::Arguments) {
-    // SAFETY: category=mmio-access M1 invariant — single hart, no concurrent callers.
-    // The raw pointer dereference is sound because:
+    // Mask supervisor interrupts (SSTATUS.SIE, bit 1) for the duration of one
+    // formatted write so a timer preemption cannot interleave another task's
+    // console output mid-line. Discovered via QEMU negative-test markers being
+    // character-shredded by concurrent service output (architect review
+    // v0.18 follow-up: marker atomicity). Single hart: an interrupt-masked
+    // critical section is sufficient; a spinlock remains unnecessary
+    // (v1.0 single-hart design decision, see v1-non-goals). The previous
+    // SIE state is restored, so calls from trap context (interrupts already
+    // off) are unaffected.
+    // SAFETY: category=kernel-global-mutable single hart; SIE masked for the
+    // critical section so no preemption interleaves the UART write.
+    let saved = unsafe {
+        let s = crate::arch::riscv64::csr::read_sstatus();
+        crate::arch::riscv64::csr::write_sstatus(s & !(1 << 1)); // clear SIE
+        s
+    };
+    // SAFETY: category=mmio-access M1 invariant — single hart, preemption
+    // masked above, so no concurrent callers. The raw pointer dereference is
+    // sound because:
     //   - `UART.0.get()` always returns a valid, aligned pointer.
     //   - No other reference to `*UART.0.get()` exists concurrently.
-    // v1.0 single-hart design decision: spinlock deferred with multi-hart
-    // support (see v1-non-goals). Sound under the single-hart invariant.
     // SAFETY: category=mmio-access UART MMIO address is set once during init; single-writer access guaranteed by the console lock.
     unsafe {
         (*UART.0.get()).write_fmt(args).unwrap();
+    }
+    // SAFETY: category=kernel-global-mutable restore the caller's SIE state.
+    unsafe {
+        if saved & (1 << 1) != 0 {
+            let s = crate::arch::riscv64::csr::read_sstatus();
+            crate::arch::riscv64::csr::write_sstatus(s | (1 << 1));
+        }
     }
 }
 

@@ -24,15 +24,17 @@ use fjell_service_api::{tags, negative_markers as M};
 // Scratch CSpace slots for IPC tests.
 const SLOT_LEASED_EP:  u32 = 5;  // blocked-recv test (BIND_LEASE_FOR_IPC_TEST)
 const SLOT_CALL_EP:    u32 = 6;  // blocked-call test (BIND_LEASE_AND_CALL_BACK)
-// Own endpoint slot (pre-installed, object 0).
+// Own endpoint slot (pre-installed; object 6 — dedicated, RFC 042).
 const SLOT_OWN_EP:    u32 = 0;
+// Shared endpoint (object 0) — used only for the SERVICE_READY signal.
+const SLOT_SHARED_EP: u32 = 2;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // RFC 058: signal service-manager we are ready.
     // RFC 058: signal READY to service-manager (best-effort; no reply expected).
-    let _ = fjell_syscall::sys_ipc_try_send(0, fjell_service_api::tags::SERVICE_READY);
-    let ep: u32 = 0;  // slot 0 = own endpoint (object 0)
+    let _ = fjell_syscall::sys_ipc_try_send(SLOT_SHARED_EP, fjell_service_api::tags::SERVICE_READY);
+    let ep: u32 = 0;  // slot 0 = own endpoint (object 6, dedicated)
 
     loop {
         // Use recv_msg to capture data words (needed for BIND_LEASE_FOR_IPC_TEST).
@@ -62,27 +64,36 @@ pub extern "C" fn service_main() -> ! {
             //   5. Print marker; drop scratch slot; loop continues.
             l if l == (tags::BIND_LEASE_FOR_IPC_TEST & 0xFFFF) => {
                 let lease_id = LeaseId(w0 as u32);
-                let ok = 'setup: {
+                // Thread the generation-correct handle returned by copy through
+                // bind, recv, and the final drop. Earlier revisions dropped via
+                // the raw slot constant, which failed the generation check after
+                // the first cycle and left the slot occupied (architect review
+                // v0.18 follow-up — same defect class as the neg-test quartet).
+                let leased_h = 'setup: {
                     let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_LEASED_EP) {
                         Ok(h)  => h,
-                        Err(_) => break 'setup false,
+                        Err(_) => {
+                            sys_debug_writeln("sample: blocked_recv setup copy failed");
+                            break 'setup None;
+                        }
                     };
                     if sys_cap_bind_lease(h, lease_id).is_err() {
+                        sys_debug_writeln("sample: blocked_recv setup bind failed");
                         let _ = sys_cap_drop(h);
-                        break 'setup false;
+                        break 'setup None;
                     }
-                    true
+                    Some(h)
                 };
-                if !ok {
+                let Some(leased_h) = leased_h else {
                     let _ = sys_ipc_reply(usize::MAX);  // setup failed
                     continue;
-                }
+                };
                 // Reply OK — neg-test will now yield and then revoke the lease.
                 let _ = sys_ipc_reply(0);
 
                 // Block in ipc_recv with the leased cap.
                 // Woken by cancel_blocked_ipc_for_lease when neg-test revokes.
-                match sys_ipc_recv(SLOT_LEASED_EP) {
+                match sys_ipc_recv(leased_h.0) {
                     Err(_) => {
                         // LeaseRevoked (or other error) — the RFC 034 revoke path works.
                         sys_debug_writeln(M::IPC_BLOCKED_RECV);
@@ -93,7 +104,7 @@ pub extern "C" fn service_main() -> ! {
                         let _ = sys_ipc_reply(0);
                     }
                 }
-                let _ = sys_cap_drop(CapHandle(SLOT_LEASED_EP));
+                let _ = sys_cap_drop(leased_h);
             }
 
             // ── RFC 042: IPC blocked-call + late-reply test protocol ─────────
@@ -107,26 +118,30 @@ pub extern "C" fn service_main() -> ! {
             //   5. Drop SLOT_CALL_EP; continue.
             l if l == (tags::BIND_LEASE_AND_CALL_BACK & 0xFFFF) => {
                 let lease_id = LeaseId(w0 as u32);
-                let ok = 'setup2: {
+                let call_h = 'setup2: {
                     let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_CALL_EP) {
                         Ok(h)  => h,
-                        Err(_) => break 'setup2 false,
+                        Err(_) => {
+                            sys_debug_writeln("sample: blocked_call setup copy failed");
+                            break 'setup2 None;
+                        }
                     };
                     if sys_cap_bind_lease(h, lease_id).is_err() {
+                        sys_debug_writeln("sample: blocked_call setup bind failed");
                         let _ = sys_cap_drop(h);
-                        break 'setup2 false;
+                        break 'setup2 None;
                     }
-                    true
+                    Some(h)
                 };
-                if !ok {
+                let Some(call_h) = call_h else {
                     let _ = sys_ipc_reply(usize::MAX);
                     continue;
-                }
+                };
                 // Reply OK — neg-test will now call sys_ipc_recv(0).
                 let _ = sys_ipc_reply(0);
                 // Call neg-test back with the leased cap.
                 // neg-test will receive this, revoke the lease, and try to reply.
-                match fjell_syscall::sys_ipc_call(SLOT_CALL_EP, tags::CALL_BACK_MSG) {
+                match fjell_syscall::sys_ipc_call(call_h.0, tags::CALL_BACK_MSG) {
                     Err(_) => {
                         // Woken with LeaseRevoked — the BLOCKED_CALL path works.
                         sys_debug_writeln(M::IPC_BLOCKED_CALL);
@@ -136,7 +151,7 @@ pub extern "C" fn service_main() -> ! {
                         // Continue normally.
                     }
                 }
-                let _ = sys_cap_drop(CapHandle(SLOT_CALL_EP));
+                let _ = sys_cap_drop(call_h);
             }
 
             // ── Unknown label ────────────────────────────────────────────────
