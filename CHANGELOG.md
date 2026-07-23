@@ -5,6 +5,55 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.20.1] — v1.0 candidate: H-01 IPC ABI doc + H-02 WrongKind fix + release notes
+
+First supported release of Fjell OS for the `riscv64gc-unknown-none-elf` /
+QEMU `virt` profile. See `docs/release/v1.0-release-notes.md` for the
+full claim statement, the explicit limitation list, and the publication
+control requirement.
+
+### Scope
+
+v1.0.0 is a **narrowly scoped QEMU prototype profile**, not a broad
+production operating system claim. Hardware readiness, multi-hart,
+POSIX surface, and full store/upgrade negative coverage are post-v1.0
+targets. The approved claim is:
+
+> Fjell OS v1.0.0 is the first supported QEMU profile of a Rust-first,
+> capability-based microkernel OS with lease-bounded authority, semantic
+> observability, signed-bundle foundations, selective Verus machine-checked
+> invariants, and fail-closed QEMU negative tests for the covered security
+> boundaries.
+
+### Fixed — kernel (v1.0.0 pre-release, H-02)
+
+- **`WrongKind → WrongType` in `require_cap_on_ct`** — the local
+  cap-error table in `trap/syscall.rs` previously mapped
+  `CapError::WrongKind` to `SysError::InvalidCap`, diverging from the
+  canonical `to_sys_error()` path in `rights.rs` which maps it to
+  `SysError::WrongType`. No deliberate ABI reason existed. Aligned to
+  the canonical mapping (architect review v0.20 H-02).
+
+### Added — documentation (v1.0.0 pre-release, H-01)
+
+- **`docs/abi/ipc-register-layout.md`** — normative IPC register layout
+  contract: a0 (status/handle), a1 (packed tag), a2..a5 (words), a6
+  (kernel-attested sender identity), a7 (syscall number). Documents the
+  word-count packing requirement, the badge removal, the E-010 historical
+  note, and the lease-bound IPC revocation semantics. Covered by ABI
+  stability commitment (RFC-v0.10-002) from v1.0.0 onward.
+- **`docs/release/v1.0-release-notes.md`** — claim statement, prohibited
+  claims, Gate 9 limitation table, and publication control requirement.
+
+### Validation
+
+All previous v0.20.0 validation carries forward. The WrongKind fix does not
+affect any currently-passing test (no neg-test scenario exercises
+`require_cap_on_ct` with a wrong-kind cap on the affected syscalls). The
+fix is confirmed by the capability profile still passing 8 markers.
+
+
+
 ## [0.20.0] — v1-readiness: fail-closed negative-test gate + IPC words ABI fix
 
 Implements every release blocker, high-priority, and medium-priority item from

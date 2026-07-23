@@ -95,14 +95,13 @@ pub(crate) fn require_cap_on_ct(
         .map(|_| ())
         .map_err(|e| match e {
             CapError::InvalidHandle | CapError::GenerationMismatch
-                // FOLLOW-UP (v0.19.0 finding, still open): this local table
-                // maps WrongKind → InvalidCap, diverging from the canonical
-                // `CapError::WrongKind => SysError::WrongType` path in
-                // `crates/fjell-cap/src/rights.rs::to_sys_error`. The neg-test
-                // expectations align to the canonical mapping (WrongType); a
-                // cleanup pass that removes this local table and delegates to
-                // `to_sys_error()` would reconcile both paths.
-                | CapError::EmptySlot | CapError::WrongKind => SysError::InvalidCap,
+                | CapError::EmptySlot => SysError::InvalidCap,
+            // H-02 (architect review v0.20.0): aligned to canonical
+            // `to_sys_error()` mapping. Earlier revisions mapped WrongKind
+            // to InvalidCap here, diverging from `rights.rs::to_sys_error`
+            // which maps it to WrongType. No deliberate ABI reason existed
+            // for the divergence.
+            CapError::WrongKind => SysError::WrongType,
             CapError::MissingRight | CapError::ScopeMismatch => SysError::PermissionDenied,
             CapError::LeaseRevoked => SysError::LeaseRevoked,
             _                      => SysError::PermissionDenied,
