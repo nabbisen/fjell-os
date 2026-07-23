@@ -1,0 +1,24 @@
+[package]
+name = "fjell-init"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+[[bin]]
+name = "fjell-init"
+path = "src/main.rs"
+[dependencies]
+fjell-cap = { path = "../../fjell-cap" }
+fjell-abi              = { path = "../../fjell-abi" }
+fjell-syscall          = { path = "../../fjell-syscall" }
+fjell-service-api      = { path = "../../fjell-service-api" }
+fjell-semantic-format  = { path = "../../formats/fjell-semantic-format" }
+fjell-proxy-text       = { path = "../fjell-proxy-text" }
+fjell-store-format     = { path = "../../formats/fjell-store-format" }
+fjell-upgrade-format   = { path = "../../formats/fjell-upgrade-format" }
+fjell-verify-format   = { path = "../../formats/fjell-verify-format" }
+fjell-rootfs-format   = { path = "../../formats/fjell-rootfs-format" }
+fjell-snapshot-format = { path = "../../formats/fjell-snapshot-format" }
+fjell-measure-format  = { path = "../../formats/fjell-measure-format" }
+fjell-recovery-format = { path = "../../formats/fjell-recovery-format" }

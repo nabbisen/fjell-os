@@ -13,4 +13,4 @@ name = "fjell_trust_provider"
 path = "src/lib.rs"
 
 [dependencies]
-fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-measure-format = { path = "../formats/fjell-measure-format" }

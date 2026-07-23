@@ -11,4 +11,4 @@ publish     = false
 
 [dependencies]
 fjell-semantic-v1     = { path = "../fjell-semantic-v1" }
-fjell-semantic-format = { path = "../fjell-semantic-format" }
+fjell-semantic-format = { path = "../formats/fjell-semantic-format" }

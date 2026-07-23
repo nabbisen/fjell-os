@@ -1,0 +1,22 @@
+[package]
+name = "fjell-proxy-text"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-proxy-text"
+path = "src/main.rs"
+
+[dependencies]
+fjell-abi            = { path = "../../fjell-abi" }
+fjell-syscall        = { path = "../../fjell-syscall" }
+fjell-service-api    = { path = "../../fjell-service-api" }
+fjell-semantic-format = { path = "../../formats/fjell-semantic-format" }
+fjell-semantic-v1    = { path = "../../fjell-semantic-v1" }
+
+[lib]
+name = "fjell_proxy_text"
+path = "src/lib.rs"

@@ -1,0 +1,25 @@
+[package]
+build = "build.rs"
+name = "fjell-secure-transportd"
+description = "Authenticated control-plane channel service for Fjell OS (RFC v0.4-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-secure-transportd"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall    = { path = "../../fjell-syscall" }
+fjell-cap        = { path = "../../fjell-cap" }
+fjell-net-format = { path = "../../formats/fjell-net-format" }
+fjell-sxt-crypto = { path = "../../fjell-sxt-crypto", features = ["crypto-profile-development"] }
+
+[features]
+default = []
+# WARNING: enables simulated TLS handshake for development use ONLY.
+# Release builds MUST NOT enable this feature (RFC-v0.7.3-001).
+simulated-transport = []

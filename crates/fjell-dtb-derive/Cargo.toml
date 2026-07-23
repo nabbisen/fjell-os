@@ -12,5 +12,5 @@ name = "fjell_dtb_derive"
 path = "src/lib.rs"
 
 [dependencies]
-fjell-platform-format = { path = "../fjell-platform-format" }
-fjell-measure-format  = { path = "../fjell-measure-format" }
+fjell-platform-format = { path = "../formats/fjell-platform-format" }
+fjell-measure-format  = { path = "../formats/fjell-measure-format" }

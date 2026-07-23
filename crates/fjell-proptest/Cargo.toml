@@ -14,5 +14,5 @@ path = "src/lib.rs"
 [dependencies]
 fjell-cap  = { path = "../fjell-cap" }
 fjell-abi  = { path = "../fjell-abi" }
-fjell-upgrade-format = { path = "../fjell-upgrade-format" }
+fjell-upgrade-format = { path = "../formats/fjell-upgrade-format" }
 proptest   = "1.6"

@@ -5,6 +5,51 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.21.0] — Crate subdirectory reorganization + horizontal doc cleanup
+
+### Changed — crate structure
+
+Introduced four subdirectories under `crates/` to group the 80 crates by
+role. Crate names and the public API are unchanged; only path references in
+`Cargo.toml` files were updated.
+
+- `crates/arch/` — architecture trait and platform implementations
+  (fjell-arch, fjell-arch-riscv64, fjell-arch-arm64)
+- `crates/drivers/` — hardware device drivers
+  (fjell-driver-virtio-blk, fjell-driver-virtio-net)
+- `crates/formats/` — all 22 data-schema crates (`*-format`)
+- `crates/services/` — all 29 runtime RISC-V program crates (`*d` daemons
+  plus fjell-init, fjell-bootctl, fjell-cap-broker, fjell-devmgr,
+  fjell-neg-test, fjell-sample-service, fjell-proxy-text,
+  fjell-semantic-stream, fjell-service-manager, fjell-svc-fault,
+  fjell-svc-timeout)
+
+The 24 remaining library and infrastructure crates stay flat under
+`crates/` (fjell-kernel, fjell-abi, fjell-cap, fjell-ipc, fjell-syscall,
+fjell-semantic-*, fjell-dtb-*, fjell-tools, fjell-sdk, etc.).
+
+### Cleaned — horizontal file audit
+
+Systematic scan of all directories for stale, misplaced, or redundant files,
+following the same discipline applied to the root directory in v0.20.2.
+
+- **ADR duplicates resolved**: old superseded ADRs 0001–0010 (v0.1.0–v0.1.3
+  naming scheme) moved to `docs/src/adr/superseded/`. The migration is
+  recorded in `docs/src/adr/ADR-RENAME.md` (RFC 045).
+- **`docs/src/development/` removed**: v0.1.x draft directory superseded by
+  `docs/src/internals/`. Unique content (`negative-tests.md`) moved to
+  `docs/src/internals/negative-tests.md` and added to SUMMARY.md.
+- **`docs/src/getting-started/` removed**: not referenced by SUMMARY.md;
+  unique FAQ content merged into `docs/src/faq.md`.
+- **`docs/src/perf/baseline.md`** synced with the full content from
+  `docs/perf/baseline.md` (was a 7-line stub).
+- **Empty template directories removed**: two brace-expansion artifact dirs
+  in `docs/src/` (`{identity,release,...}` and `{intro,tutorials,...}`).
+- **`rfcs/archive/`** (empty) removed.
+- **`tests/runs/`** added to `.gitignore` (ephemeral test-run logs).
+
+---
+
 ## [0.20.2] — QEMU disk-image + dead-code cleanup
 
 ### Fixed

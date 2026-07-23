@@ -12,7 +12,7 @@ name = "fjell_sxt_crypto"
 path = "src/lib.rs"
 
 [dependencies]
-fjell-measure-format = { path = "../fjell-measure-format" }
+fjell-measure-format = { path = "../formats/fjell-measure-format" }
 
 [features]
 default = []

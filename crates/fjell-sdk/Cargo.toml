@@ -15,9 +15,9 @@ fjell-cap             = { path = "../fjell-cap" }
 fjell-ipc             = { path = "../fjell-ipc" }
 fjell-syscall         = { path = "../fjell-syscall" }
 fjell-service-api     = { path = "../fjell-service-api" }
-fjell-semantic-format = { path = "../fjell-semantic-format" }
+fjell-semantic-format = { path = "../formats/fjell-semantic-format" }
 fjell-semantic-v1     = { path = "../fjell-semantic-v1" }
-fjell-audit-format    = { path = "../fjell-audit-format" }
+fjell-audit-format    = { path = "../formats/fjell-audit-format" }
 
 [features]
 default = []
