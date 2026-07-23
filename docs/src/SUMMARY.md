@@ -22,10 +22,11 @@
 - [Capability Manifests](./sdk/cap-manifest.md)
 - [Bundle Publishing](./sdk/bundle-publishing.md)
 - [Service Cookbook](./sdk/cookbook.md)
-- [Intent Catalog v1](./api/semantic-catalog.md)
+- [Intent Catalog v1](./api/semantic-catalog.md)  *(auto-generated from fjell-semantic-v1)*
 - [Syscall Reference](./api/syscalls.md)
 - [ABI Stability Policy](./abi/policy.md)
 - [Stability Tiers](./abi/stability.md)
+- [IPC Register Layout](./abi/ipc-register-layout.md)
 
 ---
 
@@ -51,3 +52,15 @@
 
 - [Trust Report](./dev/trust-report.md)
 - [Developer Modes](./dev/modes.md)
+
+---
+
+# Development History
+
+*Engineering session records for project maintainers.*
+
+- [Session Handoff v0.9–v0.15](./releases/handoff-v0.9-v0.15.md)
+- [Session Handoff v0.17–v0.18](./releases/handoff-v0.17-v0.18.md)
+- [Session Handoff v0.19–v0.20](./releases/handoff-v0.19-v0.20.md)
+- [SDK Trial Lessons v0.14](./releases/lessons-from-v0.14.md)
+- [v0.7 Release Notes](./releases/v0.7-release-notes.md)

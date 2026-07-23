@@ -1,0 +1,28 @@
+# Workspace-level Cargo configuration for cross-compilation.
+#
+# Linker: uses ld.lld (LLVM linker, available on all major distros).
+#
+# Install option A — apt (Debian/Ubuntu):
+#   sudo apt install lld
+#
+# Install option B — rustup component (any platform):
+#   rustup component add llvm-tools-preview
+#   # Then change linker = "ld.lld" to linker = "rust-lld" below.
+#
+# Install option C — GNU cross-binutils (Debian/Ubuntu):
+#   sudo apt install gcc-riscv64-unknown-elf
+#   # Then change linker = "ld.lld" to linker = "riscv64-unknown-elf-ld"
+#   # and linker-flavor = "ld.lld" to linker-flavor = "ld" below.
+
+[target.riscv64gc-unknown-none-elf]
+linker = "ld.lld"
+rustflags = ["-C", "linker-flavor=ld.lld"]
+
+# cargo xtask alias — `cargo xtask <subcmd>` → `cargo run -p fjell-tools -- <subcmd>`
+#
+# Usage:
+#   cargo xtask qemu-test m8
+#   cargo xtask qemu-test v0.7-sync
+#   cargo xtask qemu-negative dma
+[alias]
+xtask = "run --package fjell-tools --"

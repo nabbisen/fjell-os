@@ -115,11 +115,15 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     }
 
     // (Re)create disk image — required by virtio-blk smoke path.
+    // Pure-Rust fallback: a raw QEMU disk image is just a zero-filled
+    // sparse file. This avoids requiring qemu-img (a separate package on
+    // Arch Linux: `qemu-img`; on Debian/Ubuntu: `qemu-utils`).
     if p.disk.exists() { let _ = fs::remove_file(&p.disk); }
-    let _ = Command::new("qemu-img")
-        .args(["create", "-f", "raw"])
-        .arg(&p.disk).arg("16M")
-        .status();
+    if let Err(e) = fs::File::create(&p.disk)
+            .and_then(|f| f.set_len(16 * 1024 * 1024)) {
+        eprintln!("[xtask] WARNING: could not create disk image {}: {e}",
+                  p.disk.display());
+    }
 
     let kernel_str = p.kernel.to_string_lossy().to_string();
     let disk_str   = p.disk.to_string_lossy().to_string();

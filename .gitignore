@@ -27,7 +27,5 @@ target
 
 *.log
 
-.cargo
-.config
-.local
-.npm
+# Verus proof compilation output (rlib written to CWD by the verus binary)
+**/lib*.rlib

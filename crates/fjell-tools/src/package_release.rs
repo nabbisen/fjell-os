@@ -59,6 +59,7 @@ pub fn cmd_package_release() -> ExitCode {
         .arg("--exclude=*/target")
         .arg("--exclude=*/.git")
         .arg("--exclude=*/*.img")
+        .arg("--exclude=*/fjell-os-v*.tar.gz")   // exclude prior release archives
         .arg("--exclude=*/tests/runs")
         .arg("--exclude=*/tests/qemu/artifacts")
         .arg("--exclude=*/provision")

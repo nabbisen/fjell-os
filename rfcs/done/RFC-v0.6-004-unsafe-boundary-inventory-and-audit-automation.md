@@ -30,7 +30,7 @@ attach a justifying ADR or RFC reference to each, and add a CI gate that
 rejects new `unsafe` without a matching tag in the commit body.
 
 Output: a machine-checked **Unsafe Inventory** document and an
-`UNSAFE_CHARTER.md` that defines the policy for adding new `unsafe`.
+`docs/src/verification/unsafe-charter.md` that defines the policy for adding new `unsafe`.
 
 ---
 
@@ -56,7 +56,7 @@ in code comments at best. Centralising the inventory:
   DmaAccess, AtomicPtr, FFI, RawCast, TraitImplSafetyDoc).
 - CI gate: `cargo run -p fjell-unsafe-audit` produces the same inventory
   bit-for-bit as the checked-in file; any drift fails CI.
-- An UNSAFE_CHARTER.md defining when `unsafe` is acceptable, what comments
+- An docs/src/verification/unsafe-charter.md defining when `unsafe` is acceptable, what comments
   it must carry, and how to retire blocks.
 ```
 
@@ -118,7 +118,7 @@ TraitImplSafetyDoc — implementing an unsafe trait (Send/Sync) where the
 Any `unsafe` block must have a `// SAFETY:` comment whose first word is
 one of the tags. The audit tool reads the tag from the comment.
 
-### 5.3 UNSAFE_CHARTER.md
+### 5.3 docs/src/verification/unsafe-charter.md
 
 ```text
 1. Every `unsafe` block requires a `// SAFETY: <Tag>` line.
@@ -259,7 +259,7 @@ Host tool; no runtime cost.
 ```text
 - tools/fjell-unsafe-audit ships.
 - docs/src/verification/unsafe-inventory.md checked in.
-- UNSAFE_CHARTER.md checked in at repo root.
+- docs/src/verification/unsafe-charter.md checked in at repo root.
 - CI job `unsafe-audit` enforced on every PR.
 - Every existing unsafe block has a SAFETY comment.
 - ADR-v0.6-004 filed.
@@ -272,7 +272,7 @@ Host tool; no runtime cost.
 ```text
 docs/src/verification/v0.6-004-unsafe-audit.md
 docs/src/verification/unsafe-inventory.md      — auto-generated
-UNSAFE_CHARTER.md                              — repo root
+docs/src/verification/unsafe-charter.md                              — repo root
 docs/src/adr/v0.6-004-unsafe-charter.md
 ```
 

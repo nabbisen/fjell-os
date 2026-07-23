@@ -279,7 +279,7 @@ deliverable.
 - docs/src/reference/mmio-syscalls.md updated for new error cases.
 - docs/src/reference/user-copy.md created (or refreshed) with the
   honest validation semantics.
-- UNSAFE_CHARTER.md gains an "MMIO mapping" category with the
+- docs/src/verification/unsafe-charter.md gains an "MMIO mapping" category with the
   rollback invariant.
 - ADR-v0.7.4-002 documents the option (a) decision and references
   a future option (b) (true VMA map) as a v0.8+ consideration.

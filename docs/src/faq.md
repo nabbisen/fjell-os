@@ -14,6 +14,6 @@ v0.9: RISC-V RV64GC (QEMU `virt`). v0.12 adds the first real RISC-V board. ARM64
 
 ## Where is the kernel source?
 
-`crates/fjell-kernel/` — all code in Rust with `#![forbid(unsafe_code)]` except audited boundaries under `UNSAFE_CHARTER.md`.
+`crates/fjell-kernel/` — all code in Rust with `#![forbid(unsafe_code)]` except audited boundaries under `docs/src/verification/unsafe-charter.md`.
 
 *TODO: expand as questions arise.*

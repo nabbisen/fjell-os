@@ -5,6 +5,28 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.20.2] — QEMU disk-image + dead-code cleanup
+
+### Fixed
+
+- **QEMU disk image creation no longer requires `qemu-img`** — `qemu_run`
+  previously called `qemu-img create` and silently discarded the result when
+  the tool was not found, causing every QEMU profile to fail with
+  "Could not open 'fjell-disk.img': No such file or directory".
+  A 16 MiB raw QEMU image is now created directly from Rust (`File::create` +
+  `set_len`), which works identically on all platforms without any external
+  tool. On Arch Linux `qemu-img` is a separate package not installed by
+  default with `qemu-system-riscv`; on Debian/Ubuntu it is in `qemu-utils`.
+  Neither is required from v0.20.2 onward.
+
+### Removed
+
+- **`debug_u` dead-code warning in `fjell-sample-service`** — helper function
+  added during the v0.20.0 IPC investigation was never removed after the
+  diagnostic prints were cleaned up.
+
+---
+
 ## [0.20.1] — v1.0 candidate: H-01 IPC ABI doc + H-02 WrongKind fix + release notes
 
 First supported release of Fjell OS for the `riscv64gc-unknown-none-elf` /

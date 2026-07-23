@@ -343,7 +343,7 @@ simply leaked until reboot — acceptable for a 64-entry DMA table).
 - docs/src/internals/dma-lifecycle.md — full state machine and
   invariants.
 - docs/src/reference/dma-syscalls.md updated for new signatures.
-- UNSAFE_CHARTER.md — DMA category invariants documented.
+- docs/src/verification/unsafe-charter.md — DMA category invariants documented.
 - ADR-v0.7.4-001 — CRITICAL fix and rationale.
 ```
 

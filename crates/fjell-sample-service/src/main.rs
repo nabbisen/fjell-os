@@ -29,15 +29,6 @@ const SLOT_OWN_EP:    u32 = 0;
 // Shared endpoint (object 0) — used only for the SERVICE_READY signal.
 const SLOT_SHARED_EP: u32 = 2;
 
-/// Print a usize as decimal (no alloc, no fmt).
-fn debug_u(mut n: usize) {
-    let mut buf = [0u8; 24];
-    let mut i = buf.len();
-    if n == 0 { i -= 1; buf[i] = b'0'; }
-    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
-    sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
-}
-
 /// Print a SysError discriminant as a decimal line (no alloc, no fmt).
 fn debug_err(e: fjell_abi::error::SysError) {
     let mut buf = [0u8; 24];
