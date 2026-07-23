@@ -29,3 +29,6 @@ target
 
 # Verus proof compilation output (rlib written to CWD by the verus binary)
 **/lib*.rlib
+
+# Custom
+/.git-exclude/
