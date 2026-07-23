@@ -175,6 +175,26 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             all_ok = false;
         }
     }
+
+    // Fail-closed (architect review v0.19 RB-01): the run FAILS if the serial
+    // log contains any harness-failure or panic marker, even when every
+    // expected marker matched. A wrong-error or unexpected-success result must
+    // never produce a green profile.
+    const FORBIDDEN: &[&str] = &[
+        "NEG:HARNESS:WRONG_ERROR",
+        "NEG:HARNESS:UNEXPECTED_OK",
+        "TEST:FAIL",
+        "kernel panic",
+        "panicked at",
+    ];
+    for bad in FORBIDDEN {
+        let found = combined.windows(bad.len()).any(|w| w == bad.as_bytes());
+        if found {
+            eprintln!("[xtask] FORBIDDEN marker `{bad}` present in {}",
+                      log_path.display());
+            all_ok = false;
+        }
+    }
     let summary = if all_ok { "PASS\n" } else { "FAIL\n" };
     let _ = fs::write(art.join("result-summary.txt"), summary);
 

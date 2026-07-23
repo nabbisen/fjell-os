@@ -85,7 +85,12 @@ fn reply(tag: usize) {
 // ── Trust-provider / keyring init ────────────────────────────────────────────
 
 const VERIFYD_PROVIDER_ID: TrustProviderId = TrustProviderId::new(0x03);
-const DEV_ANCHOR_KEY: [u8; 32] = [0u8; 32];
+// RFC-v0.17-001 (Accepted): the dev anchor is embedded at build time from
+// `provision/dev-trust-anchor.key` (written only by
+// `cargo xtask provision-dev --allow-tofu-provision`). An unprovisioned
+// build embeds the legacy all-zero dev key and logs a loud warning at
+// startup — silent default TOFU is prohibited.
+include!(concat!(env!("OUT_DIR"), "/dev_anchor.rs"));
 
 fn dev_descriptor() -> TrustProviderDescriptor {
     TrustProviderDescriptor::new(
@@ -155,6 +160,10 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("verifyd: keyring wired (dev, ReleaseVerification + AttestationSigning)");
 
     send_ready();
+    if !DEV_ANCHOR_PROVISIONED {
+        // RFC-v0.17-001: the unprovisioned state must be loud, never silent.
+        sys_debug_writeln("verifyd: WARNING unprovisioned dev trust anchor (legacy all-zero dev key); run `cargo xtask provision-dev --allow-tofu-provision` (dev/QEMU profile only)");
+    }
     sys_debug_writeln("verifyd ready");
 
     loop {

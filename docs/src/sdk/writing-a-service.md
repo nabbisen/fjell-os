@@ -45,6 +45,11 @@ Two hard rules learned from real page-fault debugging:
   (loop-local variables); BSS writes fault in the current memory layout.
 - **IPC reply ABI:** the tag goes in `a1`, not `a0` (standing invariant
   across all IPC work).
+- **IPC words ABI (v0.20.0 fix):** `sys_ipc_call_words` packs the word count
+  into tag bits 16–23; `deliver()` writes w0..w3 to a2..a5 with identity in
+  a6. Services using `sys_ipc_recv_msg` read w0 from a2. The sender badge is
+  not delivered. An earlier defect silently dropped all payload words; label-
+  only protocols were unaffected but any word-carrying protocol failed.
 
 ## 3. Register the service with the kernel
 

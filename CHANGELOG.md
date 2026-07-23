@@ -5,6 +5,115 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.20.0] — v1-readiness: fail-closed negative-test gate + IPC words ABI fix
+
+Implements every release blocker, high-priority, and medium-priority item from
+the v0.19.0 architect review. The fail-closed harness requirement (RB-01)
+immediately proved its worth: it exposed that both IPC negative markers had
+been false passes since their introduction, concealing a kernel ABI bug that
+silently dropped every IPC payload word.
+
+### Fixed — kernel
+
+- **IPC words ABI broken end-to-end** (latent since the words API was
+  introduced; exposed by RB-01). Two stacked defects: (a) the
+  `sys_ipc_call_words` userspace wrapper sent the raw label without packing
+  the word count into tag bits 16–23, so the kernel's `build_msg` copied
+  `tag.words = 0` payload words; (b) `deliver()` wrote the sender badge to a2
+  and shifted the words to a3..a6 — userspace `sys_ipc_recv_msg` reads w0
+  from a2 (always the badge = 0) and word 3 collided with the RFC 055
+  identity write. Every payload word was lost in transit; label-only
+  protocols (policy, svc READY) worked, which masked the breakage. Both
+  sides now match the published recv ABI: a1 = packed tag, a2..a5 = words,
+  a6 = identity. The undelivered badge had no userspace consumer and is no
+  longer written.
+- **Lease revoke now cancels server-side reply edges** (RFC 050; the
+  finding recorded in v0.19.0). `wake_or_cancel_blocked_ipc_for_lease`
+  previously walked endpoint sendq/recvq waiters only — a caller blocked
+  awaiting a reply was never woken, and the server's later `sys_ipc_reply`
+  met a live-but-stale edge instead of the contract-specified `BadState`.
+  The function now binds the CapTable, calls `cancel_replies_for_lease`,
+  and wakes each cancelled caller with `LeaseRevoked` under the same
+  terminal-state guard as the queue wakes.
+
+### The false-pass chain these fixes dismantled
+
+With words dropped, sample-service bound `LeaseId(0)` — a lease revoked by
+an earlier scenario — so its "blocked" recv/call failed instantly with
+`LeaseRevoked`; the old any-error marker arms printed PASS anyway, and the
+late-reply tail left neg-test blocked in a recv that could never complete,
+shadowing the policy/audit/svc scenarios in some boots. After the fixes the
+full protocol runs genuinely: sample blocks on the real leased cap, revoke
+wakes it through the reply-edge cancellation, and `sys_ipc_reply` returns
+`BadState`. **`NEG:IPC:LATE_REPLY_REJECTED:PASS` is real for the first time;
+the ipc profile is restored to 3/3 markers.**
+
+### Release blockers (architect v0.19.0 §6)
+
+- **RB-01a** — `check_err` emits the PASS marker ONLY on the exact expected
+  error; wrong-error and unexpected-success emit harness markers without the
+  PASS marker. The same fix applied to the two inline match sites (neg-test
+  late-reply, sample-service BLOCKED_CALL — the latter now requires
+  `LeaseRevoked` specifically).
+- **RB-01b** — `qemu_run::run_profile` fails any run whose serial log
+  contains `NEG:HARNESS:WRONG_ERROR`, `NEG:HARNESS:UNEXPECTED_OK`,
+  `TEST:FAIL`, `kernel panic`, or `panicked at`, even when every expected
+  marker matched.
+- **RB-02** — Gate 11 (`callsite-audit`) is genuinely wired into
+  `release-rehearsal` and blocking. (The v0.19.0 edit had silently no-opped;
+  the gate line now appears in rehearsal output.)
+- **RB-03** — `docs/release/v1-limitations.md` placeholder statement replaced
+  with the current per-category status, including the explicit non-gating of
+  store/upgrade.
+- **RB-04** — `cargo xtask provision-dev` implemented. Refuses without the
+  explicit `--allow-tofu-provision` flag (RFC-v0.17-001 ruling); with the
+  flag writes `provision/dev-trust-anchor.key` + `provision/PROVENANCE.toml`
+  (mechanism = "tofu-dev"). fjell-verifyd embeds the key at build time;
+  unprovisioned builds keep the legacy all-zero dev key and log a loud
+  startup warning — the silent default is eliminated.
+
+### High-priority (architect v0.19.0 §3)
+
+- **H-01** — CI negative-profile artifact paths fixed to
+  `tests/qemu/artifacts/${{ matrix.category }}/` (Option B).
+- **H-02** — `qemu-utils` added explicitly to all three CI QEMU jobs.
+- **H-03** — store/upgrade decision recorded (Option B): the profiles are
+  marker specifications with no emitting scenarios yet; they stay out of the
+  v1 gate, documented in v1-limitations, and a manual run fails honestly.
+- **H-04** — `verus-check --release-required` fails closed when the detected
+  or pinned Verus version cannot be established, not only on explicit
+  mismatch.
+- **H-05** — `rfcs/README.md` updated: RFC-v0.17-001 listed as Accepted with
+  the done/ link and ruling summary.
+
+### Medium-priority (architect v0.19.0 §4)
+
+- **M-01** — boot-control gate status normalized in `proof-gate-policy.md`
+  (tier 2 / pilot-required / release_required = false / promotion scheduled).
+- **M-02** — callsite-audit documented as a *static heuristic guard* in the
+  policy and the Gate 11 label, with the recommended strengthening recorded.
+- **M-03** — every remaining silent setup-failure return in neg-test now
+  emits `NEG:HARNESS:SETUP_FAILED` plus a scenario-identifying line
+  (rights_denied, lease_revoked ×4, dma_zeroize ×2, ipc_blocked_recv,
+  svc_timeout ×2, svc_fault ×2).
+
+### Changed
+
+- neg-test scenario order: the two cross-service IPC protocol scenarios run
+  last, so a coordination stall can never shadow the policy/audit/svc
+  categories (defense in depth; with the kernel fixes the boot completes).
+
+### Validation
+
+All 9 negative categories PASS under fail-closed checking (capability 8,
+mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1, ipc 3, svc 2 —
+27 real markers), all 4 QEMU smokes PASS, 566 host tests PASS, repro check
+PASS, `verus-check --all-pilot` 3× MACHINE-CHECKED-PASS with version match,
+and `release-rehearsal` reports ALL MECHANICAL GATES PASS including the new
+blocking Gate 11.
+
+
+
 ## [0.19.0] — Architect review implementation: real QEMU negative tests + decision records
 
 Implementation of all required and strongly-recommended actions from the

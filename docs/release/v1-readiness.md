@@ -3,7 +3,7 @@
 *Governed by RFC-v0.10-007. Every cell must be DONE or DEFERRED
 (with rationale) before the v1.0.0 tag. OPEN cells block the release.*
 
-*Last updated: v0.18.2 (post-v1.0.0 verification layer)*
+*Last updated: v0.20.0 (fail-closed negative tests + IPC ABI fix)*
 
 ---
 
@@ -43,14 +43,14 @@
 
 | Item | RFC | Status |
 |------|-----|--------|
-| Host test suite (≥ 487 tests; 566 at v0.18.2) | — | **DONE** (v0.9.4) |
-| Proptest harness (≥ 10 properties; 14 at v0.18.2) | RFC v0.6-001 | **DONE** (v0.6.0) |
-| Verus formal proofs — capability + lease (release-required), boot-control (experimental); 20 obligations machine-checked | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1) |
+| Host test suite (≥ 487 tests; 566 confirmed at v0.20.0) | — | **DONE** (v0.9.4) |
+| Proptest harness (≥ 10 properties; 14 confirmed at v0.20.0) | RFC v0.6-001 | **DONE** (v0.6.0) |
+| Verus formal proofs — capability + lease (`release_required=true`), boot-control (pilot, `release_required=false`); 20 obligations machine-checked; callsite-audit Gate 11 blocking | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1 proofs; v0.20.0 gate) |
 | Reproducible build gate (SHA-256 baseline, two-build mode) | RFC-v0.16-005 H-04 | **DONE** (v0.18.2) |
 | Fuzz targets (≥ 4) | RFC v0.6-003 | **DONE** (v0.6.0) |
 | Unsafe-audit gate, zero gaps | RFC v0.6-004, RFC 060 | **DONE** (v0.8.24) |
 | QEMU smoke tier (≥ 4 profiles) | — | **DONE** (v0.8.0) |
-| QEMU negative tier (≥ 9 categories) | RFC-v0.7.1-002 | **DONE** (v0.7.4) |
+| QEMU negative tier (≥ 9 categories, fail-closed, 27 real markers) | RFC-v0.7.1-002 | **DONE** (v0.20.0 — real from v0.19.0; fail-closed gate v0.20.0) |
 | Reproducible-build gate | RFC-v0.10-003 | **DONE** (v0.9.4) |
 | ABI snapshot gate | RFC-v0.10-002 | **DONE** (v0.9.4) |
 | Benchmark baseline + regression gate | RFC-v0.10-004 | **DONE** (v1.0.0) |

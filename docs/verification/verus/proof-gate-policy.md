@@ -67,7 +67,10 @@ Demotion of a release-required target requires architect approval.
 
 Three pilot targets configured (`verification/verus/verus-targets.toml`):
 capability and lease are **Release-required** (tier 3, promoted v0.18.0);
-boot-control is Experimental (tier 2, pilot-required). All are machine-checked
+boot-control gate status (normalized per architect review v0.19 M-01):
+  boot-control: tier = 2 / current gate level = pilot-required / release_required = false /
+  promotion scheduled after the next development cycle (architect D5).
+All targets are machine-checked
 (20 verified, 0 errors as of v0.18.1) under the pinned toolchain
 (`verification/verus/TOOLCHAIN.lock`) and recorded in CI by the non-blocking
 `ci-verus` job; the release gate (`release-rehearsal` Gate 10) enforces the
@@ -92,6 +95,16 @@ releases/milestone tags" — is tracked here. Promotion to
 strict — `CONFORMANCE-ONLY` (prover absent) blocks `--release-required`, so a
 release cannot be cut for these targets without a passing Verus run
 (`TOOLCHAIN.lock`). Demotion remains available with architect sign-off.
+
+## Callsite audit (Gate 11) — scope statement
+
+`cargo xtask callsite-audit` is a **static heuristic guard**, not a complete
+call-site verification. It pattern-scans for the pre-C6 lease epoch wrap,
+the presence of `is_subset_of` in the mint path, and duplicate BCB selection
+logic. It complements the Verus proofs and the conformance tests; it does
+not replace either. Future strengthening (per architect review v0.19 M-02):
+narrow to function bodies, fail on raw rights-bitmask comparisons in the
+mint path, and scan all cap-installation call sites.
 
 ## Verus scope guardrail
 

@@ -312,14 +312,20 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 }
 
 /// Deliver a PendingMessage into the current task's TrapFrame (for recv/call).
+///
+/// Register layout (must match `fjell_syscall::sys_ipc_recv_msg`, ABI fix
+/// v0.20): a1 = packed tag, a2..a5 = words[0..4], a6 = sender identity.
+/// Earlier revisions wrote the sender badge to a2 and shifted the words to
+/// a3..a6 — userspace read w0 from a2 (always the badge = 0) and word 3
+/// collided with the identity write, so every payload word was lost in
+/// transit. The badge is no longer delivered; no userspace consumer existed.
 fn deliver(tf: &mut TrapFrame, msg: &PendingMessage) {
     ok(tf);
     let packed = (msg.tag.label as usize)
         | ((msg.tag.words as usize) << 16)
         | ((msg.tag.caps  as usize) << 24);
     tf.gpr[REG_A1] = packed;
-    tf.gpr[12]     = msg.sender_badge as usize;
-    for i in 0..(msg.tag.words as usize).min(4) { tf.gpr[13 + i] = msg.words[i] as usize; }
+    for i in 0..(msg.tag.words as usize).min(4) { tf.gpr[12 + i] = msg.words[i] as usize; }
     // RFC 055: a6 = (sender_tid | sender_image_id << 16) — kernel-attested identity.
     tf.gpr[16] = (msg.sender_tid as usize) | ((msg.sender_image_id as usize) << 16);
 }

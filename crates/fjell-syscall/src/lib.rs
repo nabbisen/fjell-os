@@ -446,7 +446,10 @@ pub fn sys_ipc_call_words(
             "ecall",
             in("a7")          SyscallNumber::IpcCall as usize,
             inlateout("a0")   ep as usize => r0,
-            inlateout("a1")   tag => r1,
+            // Pack the word count into bits 16-23 of the tag (kernel
+            // build_msg only copies `tag.words` words from a2..; sending the
+            // raw label silently dropped every payload word — ABI fix v0.20).
+            inlateout("a1")   tag | (3usize << 16) => r1,
             in("a2")          w0,
             in("a3")          w1,
             in("a4")          w2,

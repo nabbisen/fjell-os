@@ -22,7 +22,7 @@ Every negative test follows the same pattern:
 5. emit:   print NEG:<CATEGORY>:<CASE>:PASS to serial
 ```
 
-CI checks for the marker using `cargo xtask qemu-log-check`.
+CI checks for the marker using `cargo xtask qemu-negative <category>` (part of `test-all` tier 10–18).
 
 A test that does **not** print the marker (timeout, panic, or
 missing the line) causes CI to fail.
@@ -52,12 +52,26 @@ NEG : <CATEGORY> : <CASE> : PASS | FAIL | DEFERRED
 - `:DEFERRED` means the enforcement is not yet implemented;
   this counts as placeholder-PASS per RFC 025.
 
+As of v0.20.0 the fail-closed harness (`qemu_run.rs`) treats the
+following as **forbidden markers** — the run fails even if every
+expected marker matched:
+
+```
+NEG:HARNESS:WRONG_ERROR
+NEG:HARNESS:UNEXPECTED_OK
+TEST:FAIL
+kernel panic
+panicked at
+```
+
+Setup failures emit `NEG:HARNESS:SETUP_FAILED` (informational;
+the missing expected marker already fails the run).
+
 ---
 
 ## Category: CAP (Capability)
 
-**Enforcement status:** Partially enforced at v0.1.2.  
-Full enforcement via `require_cap()` lands in v0.2 (RFC 031).
+**Enforcement status:** Fully enforced via `require_cap()` (RFC 031, v0.2). All markers in this category are real QEMU tests as of v0.19.0.
 
 | Marker | Description | v0.1.x testable |
 |---|---|---|
@@ -77,8 +91,7 @@ Full enforcement via `require_cap()` lands in v0.2 (RFC 031).
 
 ## Category: IPC
 
-**Enforcement status:** Partially enforced at v0.1.2.  
-Full enforcement via `require_cap()` lands in v0.2 (RFC 031).
+**Enforcement status:** Fully enforced via `require_cap()` (RFC 031, v0.2). All markers in this category are real QEMU tests as of v0.19.0.
 Blocked-IPC wake/cancel lands in v0.2 (RFC 034).
 
 | Marker | Description | v0.1.x testable |

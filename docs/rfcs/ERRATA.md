@@ -84,6 +84,26 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Resolution:** **CLOSED** by RFC-v0.16-005 — review recorded together
   with the threat-model review.
 
+
+## E-010 — RFC 034 / RFC 042: IPC payload word delivery
+
+- **Claim:** `sys_ipc_call_words` transfers w0..w2 to the receiver's trap
+  frame, accessible via `sys_ipc_recv_msg` as `(label, w0, w1, w2, ...)`.
+- **Shipped (v0.1–v0.19):** two independent defects silently dropped every
+  payload word: (a) the `sys_ipc_call_words` wrapper sent the raw label
+  without packing the word count into tag bits 16–23, so the kernel's
+  `build_msg` read `tag.words = 0` and copied nothing; (b) `deliver()` wrote
+  the sender badge to `a2` and the words to `a3..a6`, while userspace
+  `sys_ipc_recv_msg` read `w0` from `a2` (the badge, always 0). Every
+  word-carrying protocol failed silently; label-only protocols were unaffected
+  and masked the breakage. The neg-test IPC profiles false-passed by
+  accidentally binding `LeaseId(0)` (a previously-revoked lease) and failing
+  instantly rather than exercising the real protocol.
+- **Resolution:** **CLOSED** in v0.20.0. `sys_ipc_call_words` packs
+  `tag | (word_count << 16)`; `deliver()` writes w0..w3 to a2..a5, identity
+  to a6, badge removed (no user-space consumer existed). Covered by the
+  three new real IPC negative markers now passing for the first time.
+
 ---
 
 ## Summary
@@ -99,7 +119,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-007 threat review | v0.16-005 | CLOSED |
 | E-008 recovery follow-test | v0.16-003 | CLOSED |
 | E-009 non-goals review | v0.16-005 | CLOSED |
+| E-010 IPC words delivery | v0.20.0 fix | CLOSED |
 
-At v0.16.0 close: 0 OPEN, 8 CLOSED, 1 ACCEPTED. The one ACCEPTED item
+At v0.20.0 update: 0 OPEN, 9 CLOSED, 1 ACCEPTED. The one ACCEPTED item
 (hardware boot) is reflected in the v1.0 scope statement and release
 notes; it is a disclosed limitation, not silent drift.

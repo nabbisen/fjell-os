@@ -83,16 +83,15 @@ fn check_err<T>(
     expected: fjell_abi::error::SysError,
     marker:   &str,
 ) {
+    // Fail-closed (architect review v0.19 RB-01): the PASS marker is emitted
+    // ONLY when the syscall failed with exactly the expected error. A wrong
+    // error or an unexpected success emits a harness-failure marker instead;
+    // the profile then fails both because the expected marker is absent AND
+    // because qemu_run treats the harness markers as forbidden.
     match result {
         Err(e) if e == expected => sys_debug_writeln(marker),
-        Err(_) => {
-            sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
-            sys_debug_writeln(marker);
-        }
-        Ok(_) => {
-            sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
-            sys_debug_writeln(marker);
-        }
+        Err(_) => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+        Ok(_)  => sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK"),
     }
 }
 
@@ -132,7 +131,7 @@ fn test_cap_rights_denied() {
             let result = sys_ipc_recv(SLOT_SCRATCH_B);
             check_err(result, fjell_abi::error::SysError::PermissionDenied, M::CAP_RIGHTS_DENIED);
         }
-        Err(_) => {}  // mint failed — skip
+        Err(_) => setup_failed("rights_denied: scratch mint"),
     }
 }
 
@@ -143,17 +142,21 @@ fn test_cap_lease_revoked() {
     // 1. Copy slot 0 to SLOT_SCRATCH_A.
     let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
         Ok(h) => h,
-        Err(_) => return,
+        Err(_) => { setup_failed("lease_revoked: copy"); return; }
     };
     // 2. Create a lease.
     let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
-        Err(_) => return,
+        Err(_) => { setup_failed("lease_revoked: lease_create"); return; }
     };
     // 3. Bind the lease to the copied cap.
-    if sys_cap_bind_lease(copied, lease_id).is_err() { return; }
+    if sys_cap_bind_lease(copied, lease_id).is_err() {
+        setup_failed("lease_revoked: bind"); return;
+    }
     // 4. Revoke the lease — epoch increments, cap binding now stale.
-    if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() { return; }
+    if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() {
+        setup_failed("lease_revoked: revoke"); return;
+    }
     // 5. Try to recv on the now-lease-revoked cap → LeaseRevoked.
     let result = sys_ipc_recv(SLOT_SCRATCH_A);
     check_err(result, fjell_abi::error::SysError::LeaseRevoked, M::CAP_LEASE_REVOKED);
@@ -197,7 +200,9 @@ fn test_dma_zeroize() {
             // SAFETY: category=page-table-mutation intentional negative-test: writes to an unmapped address to trigger a fault.
             unsafe { core::ptr::write_bytes(user_va as *mut u8, 0xAA, 4096); }
             // Explicit revoke — kernel zeroes the physical frame.
-            if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() { return; }
+            if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() {
+                setup_failed("dma_zeroize: revoke"); return;
+            }
             // Read back: PA was zeroed by revoke (frame not yet reallocated).
             // SAFETY: category=raw-pointer-deref VA still maps to the freed PA; no preemption between
             // revoke and this read in the cooperative scheduler.
@@ -205,7 +210,7 @@ fn test_dma_zeroize() {
             let byte = unsafe { core::ptr::read_volatile(user_va as *const u8) };
             check(byte == 0, M::DMA_ZEROIZE_ON_EXIT);
         }
-        Err(_) => {}
+        Err(_) => setup_failed("dma_zeroize: alloc"),
     }
 }
 
@@ -283,6 +288,14 @@ fn debug_u(mut n: usize) {
     sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
 }
 
+/// M-03 (architect review v0.19): setup failures are never silent. The
+/// expected marker stays absent (failing the profile), and this diagnostic
+/// identifies which scenario could not establish its preconditions.
+fn setup_failed(scenario: &str) {
+    sys_debug_writeln("NEG:HARNESS:SETUP_FAILED");
+    sys_debug_writeln(scenario);
+}
+
 /// Print a SysError discriminant as a decimal line (no alloc, no fmt).
 fn debug_err(e: fjell_abi::error::SysError) {
     let mut buf = [0u8; 24];
@@ -331,7 +344,7 @@ fn test_ipc_blocked_recv() {
     // 1. Create a fresh lease (need LeaseAdmin cap in slot 4).
     let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
-        Err(_) => return,  // LeaseAdmin cap not available — skip
+        Err(_) => { setup_failed("ipc_blocked_recv: lease_create"); return; }
     };
 
     // 2. Send BIND_LEASE_FOR_IPC_TEST(w0=lease_id) to sample-service's
@@ -410,18 +423,19 @@ fn test_ipc_blocked_call_and_late_reply() {
             let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
 
             // 5. Try to reply — the edge is gone (cancelled by revoke above).
+            // Fail-closed (RB-01): the marker is emitted ONLY on the two
+            // contract-specified errors; anything else is a harness failure.
             match fjell_syscall::sys_ipc_reply(0) {
                 // RFC 050: accept BadState (edge cancelled by revoke) or
                 // LeaseRevoked (defense-in-depth check in sys_ipc_reply).
                 Err(e) if e == fjell_abi::error::SysError::BadState || e == fjell_abi::error::SysError::LeaseRevoked
                     => check(true, M::IPC_LATE_REPLY),
-                Err(_) => {
+                Err(e) => {
                     sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
-                    sys_debug_writeln(M::IPC_LATE_REPLY);
+                    debug_err(e);
                 }
                 Ok(()) => {
                     sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
-                    sys_debug_writeln(M::IPC_LATE_REPLY);
                 }
             }
         }
@@ -522,19 +536,42 @@ fn test_policy_identity_spoofing() {
 fn test_audit_evidence_gap() {
     // 1. Drain current backlog so we start from a known state.
     let mut buf = [0u8; 32 * 32];   // space for 32 records
-    let _ = sys_audit_drain(SLOT_AUDIT, &mut buf);
+    if let Err(e) = sys_audit_drain(SLOT_AUDIT, &mut buf) {
+        sys_debug_writeln("neg-test: evidence_gap: initial drain failed:");
+        debug_err(e);
+    }
 
     // 2. Generate 300 cap_copy + cap_drop cycles = 600 audit events.
+    let mut copy_fails = 0u32;
+    let mut drop_fails = 0u32;
     for _ in 0..300u32 {
-        if let Ok(h) = sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_C) {
-            let _ = _sys_cap_drop(h);
+        match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_C) {
+            Ok(h) => { if _sys_cap_drop(h).is_err() { drop_fails += 1; } }
+            Err(_) => copy_fails += 1,
         }
+    }
+    if copy_fails > 0 {
+        sys_debug_writeln("neg-test: evidence_gap copy fails:");
+        debug_u(copy_fails as usize);
+    }
+    if drop_fails > 0 {
+        sys_debug_writeln("neg-test: evidence_gap drop fails:");
+        debug_u(drop_fails as usize);
     }
 
     // 3. Drain again — dropped count should be positive.
-    let (_, dropped) = sys_audit_drain(SLOT_AUDIT, &mut buf)
-        .unwrap_or((0, 0));
-    check(dropped > 0, M::AUDIT_EVIDENCE_GAP);
+    match sys_audit_drain(SLOT_AUDIT, &mut buf) {
+        Ok((_got, dropped)) => {
+            if dropped == 0 {
+                sys_debug_writeln("neg-test: evidence_gap: dropped == 0");
+            }
+            check(dropped > 0, M::AUDIT_EVIDENCE_GAP);
+        }
+        Err(e) => {
+            sys_debug_writeln("neg-test: evidence_gap: final drain failed:");
+            debug_err(e);
+        }
+    }
 }
 
 
@@ -549,9 +586,11 @@ fn test_svc_start_timeout() {
     // Spawn the timeout-test service.
     let handle = match sys_task_spawn(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
         Ok(h) => h,
-        Err(_) => return,
+        Err(_) => { setup_failed("svc_timeout: spawn"); return; }
     };
-    if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() { return; }
+    if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() {
+        setup_failed("svc_timeout: start"); return;
+    }
 
     // Wait READY_WAIT_YIELDS cooperative cycles.
     for _ in 0..READY_WAIT_YIELDS { sys_yield(); }
@@ -576,9 +615,11 @@ fn test_svc_start_timeout() {
 fn test_svc_fault_detected() {
     let handle = match sys_task_spawn(SLOT_TASK_CREATE, ImageId::SVC_FAULT) {
         Ok(h) => h,
-        Err(_) => return,
+        Err(_) => { setup_failed("svc_fault: spawn"); return; }
     };
-    if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() { return; }
+    if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() {
+        setup_failed("svc_fault: start"); return;
+    }
 
     // Yield a few times to let svc-fault run, yield, then fault.
     for _ in 0..10u32 { sys_yield(); }
@@ -691,10 +732,6 @@ pub extern "C" fn service_main() -> ! {
     test_user_copy_null();
     test_user_copy_kernel_addr();
 
-    // ── IPC blocked-recv revocation (RFC 034) ────────────────────────────────
-    test_ipc_blocked_recv();
-    test_ipc_blocked_call_and_late_reply();
-
     // ── Cap-broker policy (RFC 040) ───────────────────────────────────────────
     // Additional yields so the system is fully settled before IPC.
     sys_yield(); sys_yield(); sys_yield();
@@ -709,6 +746,14 @@ pub extern "C" fn service_main() -> ! {
     // ── Service lifecycle (RFC 038) ───────────────────────────────────────────
     test_svc_start_timeout();
     test_svc_fault_detected();
+
+    // ── IPC blocked-recv revocation (RFC 034) ────────────────────────────────
+    // Deliberately LAST (architect review v0.19 follow-up): these scenarios
+    // coordinate with sample-service across endpoint 6 and are the only ones
+    // with cross-service blocking steps. Running them last guarantees a
+    // coordination stall can never shadow the policy/audit/svc scenarios.
+    test_ipc_blocked_recv();
+    test_ipc_blocked_call_and_late_reply();
 
     sys_debug_writeln("neg-test: all scenarios complete");
     sys_exit(0)

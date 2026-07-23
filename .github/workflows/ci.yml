@@ -223,7 +223,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
-              qemu-system-misc llvm
+              qemu-system-misc qemu-utils llvm
           mkdir -p $HOME/.local/bin
           ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
@@ -253,7 +253,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
-              qemu-system-misc llvm
+              qemu-system-misc qemu-utils llvm
           mkdir -p $HOME/.local/bin
           ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
@@ -265,7 +265,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: qemu-negative-${{ matrix.category }}
-          path: tests/qemu/artifacts/negative-${{ matrix.category }}/
+          path: tests/qemu/artifacts/${{ matrix.category }}/
           if-no-files-found: warn
 
   # ── v0.7.x hardening gates (RFC-v0.7.1-002) ──────────────────────────────
@@ -398,7 +398,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
-              qemu-system-misc llvm
+              qemu-system-misc qemu-utils llvm
           mkdir -p $HOME/.local/bin
           ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo

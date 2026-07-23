@@ -6,12 +6,14 @@ timeout_secs     = 90
 expected_markers = [
   "NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS",
   "NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS",
+  "NEG:IPC:LATE_REPLY_REJECTED:PASS",
 ]
-# NEG:IPC:LATE_REPLY_REJECTED:PASS — pending investigation.
-# The scenario requires neg-test to reply after lease revoke (RFC 034/050:
-# the reply edge should return BadState/LeaseRevoked). The BLOCKED_CALL marker
-# fires correctly (sample's ipc_call is woken by revoke) but sys_ipc_reply
-# blocks indefinitely in the test run, indicating the reply edge is not
-# being cancelled correctly from the server side on lease revocation in
-# the dedicated-endpoint path. Tracked as a kernel correctness finding.
+# All three markers confirmed real in v0.20.0 after three stacked fixes:
+# (1) IPC words ABI — sys_ipc_call_words never packed the word count and
+#     deliver() shifted words by one register, so every payload word was
+#     lost; sample-service bound LeaseId(0) (a long-revoked lease) and the
+#     earlier "passes" were instant-failure false positives.
+# (2) lease revoke now cancels server-side reply edges and wakes blocked
+#     callers (RFC 050), removing the timing-dependent neg-test hang.
+# (3) markers are emitted only on the contract-specified error (fail-closed).
 extra_args       = []

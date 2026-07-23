@@ -81,6 +81,18 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
         let pinned   = read_lock_release("verification/verus/TOOLCHAIN.lock");
         println!("verus-check: detected version: {}", detected.as_deref().unwrap_or("unknown"));
         println!("verus-check: pinned  version: {}", pinned.as_deref().unwrap_or("(unreadable)"));
+        let release_required_run = args.first().map(|a| a == "--release-required").unwrap_or(false);
+        // H-04 (architect review v0.19): release-required mode is fail-closed
+        // on version identity — an unparseable detected version or an
+        // unreadable lock both block, not just an explicit mismatch.
+        if release_required_run && (detected.is_none() || pinned.is_none()) {
+            println!("verus-check: BLOCKING — could not establish Verus version \
+                identity (detected: {}, pinned: {}). --release-required requires \
+                a verifiable toolchain match against TOOLCHAIN.lock.",
+                detected.as_deref().unwrap_or("unknown"),
+                pinned.as_deref().unwrap_or("unreadable"));
+            return ExitCode::FAILURE;
+        }
         let mismatch = match (&detected, &pinned) {
             (Some(d), Some(p)) => {
                 // TOOLCHAIN.lock stores "release/X.Y.Z"; verus binary reports "X.Y.Z".
@@ -95,7 +107,6 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
             println!("verus-check: WARNING: detected Verus version does not match \
                 TOOLCHAIN.lock pin — proofs were certified under the pinned version. \
                 Update TOOLCHAIN.lock if you intend to use this version.");
-            let release_required_run = args.first().map(|a| a == "--release-required").unwrap_or(false);
             if release_required_run {
                 println!("verus-check: BLOCKING — --release-required requires the pinned \
                     Verus version (see TOOLCHAIN.lock). Certify proofs under the pinned \

@@ -30,7 +30,7 @@ cargo xtask qemu-test m8
 
 The build compiles all service binaries for `riscv64gc-unknown-none-elf`,
 embeds them into the kernel, and boots QEMU `virt`. Early boot output looks
-like this (verified at v0.18.2):
+like this (example from v0.20.0 era):
 
 ```text
 Fjell OS kernel started.

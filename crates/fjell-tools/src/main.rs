@@ -32,6 +32,7 @@ mod fleet_demo;
 mod key_crypto;   // RFC-v0.16-006 encrypted key storage
 mod release_rehearsal; // RFC-v0.16-008 release gate runner
 mod callsite_audit;
+mod provision;
 mod verus_check;       // RFC-v0.17-005 verus proof gate
 mod sign_bundle;
 mod registry;
@@ -147,6 +148,7 @@ fn main() -> ExitCode {
             trust_report::cmd_trust_report(&args[1..])
         }
         Some("callsite-audit") => callsite_audit::cmd_callsite_audit(),
+        Some("provision-dev") => provision::cmd_provision_dev(&args[1..]),
         Some("verus-check") => {
             verus_check::cmd_verus_check(&args[1..])
         }

@@ -11,14 +11,21 @@ require updating the governing record first, then this page.*
 | 3 | **POSIX** — no POSIX compatibility surface (descriptors, fork, signals, ttys) | Non-goal **N1** |
 | 4 | **Kernel-IPC for the SDK reference service** — the SDK reference service does not operate over live kernel-mediated IPC | Non-goal **N21** |
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
-| 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Implementation of the flag for the dev profile is a pre-v1.0.0 item. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
+| 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
-- All nine **QEMU negative-test categories are placeholders** (RFC 025
-  §chicken-and-egg): `qemu-negative <cat>` reports PASS without booting
-  QEMU. test-all tiers 10–18 therefore do not yet provide fault-injection
-  coverage; implementing real negative profiles is post-v1.0 roadmap work.
+- **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
+  negative categories now run real QEMU profiles with fail-closed marker
+  checking (a wrong error, an unexpected success, or a panic in the serial
+  log fails the run). Seven categories have all markers confirmed
+  (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1);
+  one is partially confirmed (svc 2/4 — READY pair pending a startup-timing
+  fix); the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC
+  words ABI and the reply-edge cancellation path. The `store` and
+  `upgrade` negative profiles exist as marker specifications but have **no
+  emitting scenarios yet** and are explicitly **not v1 release-gated**;
+  running them manually fails honestly rather than placeholder-passing.
 
 - Several services in the QEMU image are **smoke-test stubs** that signal
   ready and exit by design (`fjell-netd`, `fjell-secure-transportd`,

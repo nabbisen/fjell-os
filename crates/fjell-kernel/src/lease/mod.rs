@@ -190,13 +190,42 @@ impl LeaseTable {
 fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
     // SAFETY: category=kernel-global-mutable
     //   Single-hart kernel; all global pointers are exclusively owned in this call.
-    let (tasks, sched, _, et) = unsafe { crate::get_kernel_state() };
+    let (tasks, sched, ct, et) = unsafe { crate::get_kernel_state() };
 
     // new_epoch was passed in by revoke() immediately after the wrapping_add.
     // old_epoch is the epoch that in-flight IPC waiters stored at issue time.
     // No second get_lease_table() call — that would alias the &mut self held by
     // the revoke() caller (RFC-v0.7.4-003 implementation note).
     let old_epoch: u32 = new_epoch.wrapping_sub(1);
+
+    // RFC 050 / architect review v0.19 (recorded finding, fixed v0.20):
+    // a lease revocation must also cancel server-side reply edges whose
+    // lease binding matches the revoked epoch, and wake the blocked callers.
+    // Previously only endpoint sendq/recvq waiters were cancelled, so a
+    // caller blocked awaiting a reply was never woken (caller hang) and the
+    // server's later sys_ipc_reply met a live-but-stale edge instead of the
+    // contract-specified BadState.
+    {
+        let (cancelled_callers, n_cancelled) =
+            ct.cancel_replies_for_lease(id, old_epoch);
+        for &tid in cancelled_callers.iter().take(n_cancelled) {
+            let task_id = fjell_abi::task::TaskId::new(tid, 0);
+            // Same terminal-state guard as the endpoint-queue wakes below:
+            // never re-enqueue Exited/Faulted tasks.
+            let task_is_wakeable = matches!(
+                tasks.get(task_id).map(|t| &t.state),
+                Some(crate::task::tcb::TaskState::Blocked(_))
+            );
+            if task_is_wakeable {
+                if let Some(task) = tasks.get_mut(task_id) {
+                    task.trap_frame.gpr[crate::task::tcb::REG_A0] =
+                        fjell_abi::error::SysError::LeaseRevoked as isize as usize;
+                    task.state = crate::task::tcb::TaskState::Runnable;
+                    sched.enqueue_runnable(task_id, 128);
+                }
+            }
+        }
+    }
 
     // Walk every endpoint by ID and cancel matching waiters.
     // We iterate IDs first to avoid a mutable borrow conflict between 'et'

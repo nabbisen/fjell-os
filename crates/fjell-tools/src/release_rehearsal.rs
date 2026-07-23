@@ -136,6 +136,15 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     println!("  [{}] Gate 10 Verus release-required proofs  every release-required target MACHINE-CHECKED-PASS",
              rr_mark);
 
+    // Gate 11 (architect review v0.19 RB-02): static callsite conformance.
+    // Blocking: the three proved predicates must be the enforced ones.
+    let g11_ok = run_cmd_status(&["cargo", "run", "-q", "-p", "fjell-tools", "--",
+                                  "callsite-audit"]);
+    let g11_mark = if g11_ok { "PASS" } else { "FAIL" };
+    if !g11_ok { all_pass = false; }
+    println!("  [{}] Gate 11 Callsite conformance           LEASE/CAP/BCB-CALLSITE checks (static heuristic guard)",
+             g11_mark);
+
     if all_pass {
         println!("\nRELEASE-REHEARSAL: ALL MECHANICAL GATES PASS");
         println!("v1.0.0 tag remains owner/architect-gated (gate 9 + explicit approval).");

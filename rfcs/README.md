@@ -228,8 +228,8 @@ rfcs/
 | v0.17-006 | [Selective Verus Adoption (umbrella)](./done/RFC-v0.17-006-verus-selective-adoption.md) | v0.17.0 (promotion v0.18.0) |
 | v0.18-001 | [Verus Target Promotion to Release-Required](./done/RFC-v0.18-001-verus-target-promotion.md) | v0.18.0 (closed v0.18.1) |
 
-### v0.17 — open (awaiting architect decision)
+### v0.17 — closed (architect ruling recorded 2026-06-04)
 
 | RFC | Title |
 |-----|-------|
-| v0.17-001 | [Trust Anchor Provisioning and Manufacturing Flow (design options)](./proposed/v0.17/RFC-v0.17-001-trust-anchor-provisioning.md) |
+| v0.17-001 | [Trust Anchor Provisioning and Manufacturing Flow](./done/RFC-v0.17-001-trust-anchor-provisioning.md) — **Accepted**; TOFU dev profile flag-gated (`--allow-tofu-provision`), factory station v1.1, hardware-anchored v2+ |

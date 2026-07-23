@@ -29,6 +29,25 @@ const SLOT_OWN_EP:    u32 = 0;
 // Shared endpoint (object 0) — used only for the SERVICE_READY signal.
 const SLOT_SHARED_EP: u32 = 2;
 
+/// Print a usize as decimal (no alloc, no fmt).
+fn debug_u(mut n: usize) {
+    let mut buf = [0u8; 24];
+    let mut i = buf.len();
+    if n == 0 { i -= 1; buf[i] = b'0'; }
+    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
+    sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
+}
+
+/// Print a SysError discriminant as a decimal line (no alloc, no fmt).
+fn debug_err(e: fjell_abi::error::SysError) {
+    let mut buf = [0u8; 24];
+    let mut n = e as usize;
+    let mut i = buf.len();
+    if n == 0 { i -= 1; buf[i] = b'0'; }
+    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
+    sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // RFC 058: signal service-manager we are ready.
@@ -141,10 +160,18 @@ pub extern "C" fn service_main() -> ! {
                 let _ = sys_ipc_reply(0);
                 // Call neg-test back with the leased cap.
                 // neg-test will receive this, revoke the lease, and try to reply.
+                // Fail-closed (RB-01 pattern): the marker is emitted ONLY for
+                // the contract-specified LeaseRevoked wake. Any other error
+                // means the call failed for an unrelated reason (no callback
+                // ever reached neg-test) and must be visible, not a false PASS.
                 match fjell_syscall::sys_ipc_call(call_h.0, tags::CALL_BACK_MSG) {
-                    Err(_) => {
+                    Err(fjell_abi::error::SysError::LeaseRevoked) => {
                         // Woken with LeaseRevoked — the BLOCKED_CALL path works.
                         sys_debug_writeln(M::IPC_BLOCKED_CALL);
+                    }
+                    Err(e) => {
+                        sys_debug_writeln("sample: blocked_call callback errored:");
+                        debug_err(e);
                     }
                     Ok(_) => {
                         // Got a reply (unexpected in the test scenario).

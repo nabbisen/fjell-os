@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-06-04 09:35:09 UTC
-Version   : 0.19.0
+Generated : 2026-06-04 14:03:35 UTC
+Version   : 0.20.0
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -44,8 +44,8 @@ Mode      : full
     fjell-service-manager.bin (1272 bytes)
     fjell-storaged.bin (1915 bytes)
     fjell-configd.bin (472 bytes)
-    fjell-neg-test.bin (8064 bytes)
-    fjell-sample-service.bin (998 bytes)
+    fjell-neg-test.bin (8672 bytes)
+    fjell-sample-service.bin (2464 bytes)
     fjell-upgraded.bin (3974 bytes)
     fjell-measuredd.bin (3760 bytes)
     fjell-driver-virtio-net.bin (1006 bytes)
@@ -55,7 +55,7 @@ Mode      : full
     fjell-netd.bin (795 bytes)
     fjell-semantic-stream.bin (189 bytes)
     fjell-recoveryd.bin (581 bytes)
-    fjell-verifyd.bin (3592 bytes)
+    fjell-verifyd.bin (3792 bytes)
     fjell-proxy-text.bin (138 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
   Bundle signatures: (available after v0.11 signing pipeline)
@@ -82,7 +82,7 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260604-092825
+  Latest test-all run: 20260604-135222
   18    QEMU negative: harness                                     SKIP (skipped via --no-qemu)
   ───────────────────────────────────────────────────────────────────────────
   Total: 18  |  PASS: 5  |  FAIL: 0  |  SKIP: 13
