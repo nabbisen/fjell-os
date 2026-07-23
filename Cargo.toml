@@ -145,7 +145,7 @@ default-members = [
     "crates/formats/fjell-fleet-format",
 ]
 [workspace.package]
-version = "0.21.1"
+version = "0.21.2"
 edition = "2024"
 authors = ["nabbisen"]
 license = "Apache-2.0"

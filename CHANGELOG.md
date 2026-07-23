@@ -5,6 +5,24 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.21.2] — v1.0 handoff bundle + stale-reference cleanup
+
+### Added
+
+- **Compact handoff bundle** at `docs/src/releases/handoff/`: role-based,
+  evidence-focused handoff documents (project summary, external design,
+  implementation notes, testing and gates, ops/security, decision log) plus
+  a bundle README and an evidence-generation note. Wired into SUMMARY.md
+  under Development History.
+
+### Fixed
+
+- **README stale version in prose**: the Overview said "Current version:
+  v0.15.1"; now v0.21.1. (The badge was already corrected in v0.21.1; this
+  was a second occurrence in body text.)
+
+---
+
 ## [0.21.1] — Audit: RFC compliance, dead code, test/doc alignment
 
 Five-dimension audit (RFC compliance · dead code · test coverage · code/test

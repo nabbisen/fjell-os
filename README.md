@@ -14,7 +14,7 @@ Fjell OS is a capability-based microkernel for high-assurance edge and fleet nod
 Written in Rust 2024 edition — `forbid(unsafe_code)` except at 268 audited,
 classified boundaries.
 
-Current version: **v0.15.1** — v1.0 freeze candidate (patch).
+Current version: **v0.21.1** — v1.0 freeze candidate.
 
 ---
 
