@@ -118,15 +118,40 @@ boundaries are uniformly enforced. See the v0.2 RFC set (RFCs
 
 **`TEST:V02:PASS` earned at v0.2.14 close.**
 
-### Beyond v0.2
+### Beyond v0.2 — executed
 
-| Version | Theme |
-|---------|-------|
-| v0.3.0 | Hardware Trust Abstraction |
-| v0.4.0 | Minimal Secure Networking |
-| v0.5.0 | Multi-Platform Foundation + Semantic API Stabilization |
-| v0.6.0 | Verification / Property Testing |
-| v0.7.0 | Distributed Snapshot Sync Foundation |
-| v0.8.0 | Fleet / Edge Operations Plane |
-| v0.9.0 | Developer Service Platform |
-| v1.0.0 | First Supported Profile |
+All post-v0.2 release lines are complete through **v0.21.2** (the current
+release). Each line delivered a coherent theme:
+
+| Line | Theme | Status |
+|---|---|---|
+| v0.3.0 | Hardware Trust Abstraction | ✅ |
+| v0.4.0 | Minimal Secure Networking | ✅ |
+| v0.5.0 | Multi-Platform Foundation + Semantic API Stabilization | ✅ |
+| v0.6.0 | Verification / Property Testing (original M10) | ✅ |
+| v0.7.0 | Distributed Snapshot Sync Foundation | ✅ |
+| v0.8.0 | Fleet / Edge Operations Plane | ✅ |
+| v0.9.0 | Developer Service Platform (original M11) | ✅ |
+| v0.10.0 | Release Maturity (reproducible build, ABI, gates) | ✅ |
+| v0.11.0 | Trust Spine Hardening | ✅ |
+| v0.12.0 | Deployment Profile Hardening | ✅ |
+| v0.13.0 | Fleet Reliability and Recovery Depth | ✅ |
+| v0.14.0 | Developer Ecosystem Trial | ✅ |
+| v0.15.0 | v1.0 Freeze Candidate | ✅ |
+| v0.16.0 | Ed25519 Interoperability Closure | ✅ |
+| v0.17.0 | Trust Anchor Provisioning and Manufacturing Flow | ✅ |
+| v0.18.0 | Verus Promotion to Release-Required | ✅ |
+| v0.19.x | Negative-test conversion (found six latent kernel bugs) | ✅ |
+| v0.20.x | v1-readiness: fail-closed gate, IPC ABI fix (E-010) | ✅ |
+| v0.21.x | Crate reorganization, audits, handoff + design docs | ✅ current |
+
+**v1.0.0 — First Supported Profile** is architect-conditionally-approved; the
+one remaining blocker is Gate 9 (manual limitations sign-off by the owner).
+v1.0.0 must not be tagged, published, or announced without explicit owner
+confirmation.
+
+---
+
+For the full roadmap — the original M0–M11 MVP plan, the complete execution
+record, and the forward roadmap (v1.0, v1.1, v2+) — see
+[`docs/src/roadmap/roadmap.md`](docs/src/roadmap/roadmap.md).
