@@ -1,6 +1,6 @@
 # RFC-v0.21.3-001: Build Restoration and As-Built Reconciliation
 
-**Status:** Proposed
+**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-07-30**
 **Milestone:** v0.21.3 (patch)
 **Depends on:** —
 **Corrects:** regressions introduced by commit `5091e54` ("`Cargo.toml` format; CI actions checkout version")
@@ -24,7 +24,7 @@ the same kind as a wrong claim.**
 
 ## Motivation
 
-Four verified problems, in severity order. Each was reproduced against
+Five verified problems, in severity order. Each was reproduced against
 `9153cc3`; commands and outputs are recorded in the companion handoff.
 
 ### M1 — The workspace manifest does not parse (blocker)
@@ -107,7 +107,46 @@ Once M1 is repaired, `cargo fmt --all --check` fails across **252 files**
 `cargo fmt --all` requires a parseable workspace, so no formatting pass has
 been possible.
 
-### M4 — Index, link, and version drift
+### M4 — The reproducibility tier cannot fail
+
+`tools/fjell-repro-check` has two modes. Default mode builds twice and compares
+the two builds — this needs no stored baseline and is what
+`ops-security.md` describes. `--skip-build` mode hashes the committed
+`crates/fjell-kernel/prebuilt/*.bin` against
+`tests/repro/baseline-digests.txt`; it is `test-all` tier 5 and runs in CI
+because it is fast.
+
+`tests/repro/baseline-digests.txt` is **absent** from the tree
+(`tests/repro/` is empty and untracked). And `main.rs:92-97` reads:
+
+```rust
+// If baseline doesn't exist, create it and pass.
+if !Path::new(baseline_path).exists() {
+    match save_digests(&current, baseline_path) {
+        Ok(_) => { …; return ExitCode::SUCCESS; }
+```
+
+So the tier records a baseline from whatever it just measured and returns
+success. **It cannot fail.** It has been reporting green while detecting
+nothing.
+
+This is not a conflict between two conventions. `v1-limitations.md` and the
+v0.17–v0.18 handoff §5.2 correctly describe the baseline as a committed
+artifact; the `implementation-notes.md` §6 claim that it is "re-recorded per
+run by design" describes a fail-open bug rather than a design.
+
+**Decision (architect, within delegated authority over verification
+strategy):** commit the baseline, and make `--skip-build` fail closed when the
+baseline is absent — recording a new baseline must require an explicit flag.
+The precedent is this project's own: v0.20 made the negative-test harness
+fail-closed on exactly this reasoning. A gate whose failure mode is
+"silently start passing" is not a gate.
+
+This is a gate-behaviour change and is therefore called out explicitly rather
+than folded in silently. It is contained to one host-side tool; it touches no
+kernel, ABI, or security-boundary code.
+
+### M5 — Index, link, and version drift
 
 | Item | Declared | Actual |
 |---|---|---|
@@ -177,7 +216,7 @@ Three independently reviewable slices. Slice 1 unblocks everything else.
 |---|---|---|
 | **S1 Build restoration** | Restore the explicit 88-entry member list; verify `cargo metadata`; remove the 56 empty `crates/` directories | yes |
 | **S2 Formatting** | `cargo fmt --all`, single mechanical commit, no hand edits | yes |
-| **S3 As-built reconciliation** | Syscall docs + ABI reference (M2); indexes, links, counts, stamps (M4); re-run and record gate evidence | yes |
+| **S3 As-built reconciliation** | Syscall docs + ABI reference (M2); indexes, links, counts, stamps (M5); re-run and record gate evidence | yes |
 
 S2 is isolated deliberately: a 252-file formatting diff must not be mixed with
 substantive changes, or neither can be reviewed.
@@ -240,10 +279,9 @@ Evidence is required, not asserted. Each item must be produced by a real run:
       and `CHANGELOG.md`.
 - [ ] The `README.md` unsafe-site count is either re-derived from the audit
       tool or removed.
-- [ ] `tests/repro/` baseline situation is resolved: either the baseline is
-      committed, or the documents that cite it are corrected to match the
-      per-run behaviour. **Which of these is correct is an open question for
-      the owner** (see §Open questions).
+- [ ] `tests/repro/baseline-digests.txt` is committed; `repro-check
+      --skip-build` fails closed when the baseline is absent (see §M4); the
+      `implementation-notes.md` "re-recorded per run" wording is corrected.
 - [ ] `CHANGELOG.md` has a v0.21.3 entry describing the above.
 - [ ] The handoff bundle's evidence is regenerated or explicitly re-stamped
       against v0.21.3.
@@ -270,11 +308,11 @@ carries a Verus-adjacent review burden.
 
 ## Open questions
 
-1. **Repro baseline.** `implementation-notes.md` §6 states the baseline is
-   "re-recorded per run by design", whereas the v0.17–v0.18 handoff §5.2
-   documented it as a committed artifact. If it is re-recorded per run, the
-   repro gate compares a build against itself and detects nothing. Owner
-   decision required on the intended semantics.
+1. ~~**Repro baseline.**~~ **Resolved** — investigation showed the two
+   documents describe different `repro-check` modes rather than conflicting
+   conventions, and that the real defect is a fail-open branch in
+   `--skip-build`. Settled by the architect under delegated verification-strategy
+   authority; see §M4. No owner decision required.
 2. **RFC coverage of v0.19–v0.21.** No RFCs exist for the v0.19, v0.20, or
    v0.21 release lines, though the roadmap records them as complete themes.
    This is inconsistent with the project's stated rule that every significant

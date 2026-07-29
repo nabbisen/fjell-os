@@ -2,7 +2,7 @@
 
 **Governing RFC:** [RFC-v0.21.3-001](../../proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md)
 **Milestone:** v0.21.3 (patch)
-**Status:** inherited from the governing RFC (Proposed)
+**Status:** inherited from the governing RFC (Proposed — accepted for implementation, 2026-07-30)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
@@ -122,10 +122,12 @@ editing formatter output. Escalate.
 
 ### 3.2 Re-derive the repro artifacts
 
-Re-derive `crates/fjell-kernel/prebuilt/*.bin` and the repro baseline.
-Formatting is semantically inert, so **identical binaries are expected**. If any
-binary differs, stop and report it — do not re-record the baseline over an
-unexplained difference.
+Re-derive `crates/fjell-kernel/prebuilt/*.bin`. Formatting is semantically
+inert, so **identical binaries are expected**. If any binary differs, stop and
+report it.
+
+Do not record the repro baseline yet — that happens in §4.3, after this slice,
+and only via the explicit recording flag.
 
 ---
 
@@ -169,7 +171,7 @@ document — check with the architect if the target is ambiguous):
 Do **not** "fix" this by editing the doc-comment alone — the limitation must be
 recorded where a reader looking for limitations will find it.
 
-### 4.2 Index, link, and stamp drift (RFC §M4)
+### 4.2 Index, link, and stamp drift (RFC §M5)
 
 | Item | Required end state |
 |---|---|
@@ -184,15 +186,48 @@ recorded where a reader looking for limitations will find it.
 | `Cargo.toml` | `version = "0.21.3"`. |
 | `ROADMAP.md`, `docs/src/roadmap/roadmap.md` | Both assert "the one remaining blocker is Gate 9". Correct the **factual** part only: the mechanical gates could not run at v0.21.2, so Gate 9 was not the only blocker. **Do not write a forward roadmap** — the v0.22+ direction is an owner decision and is not yours or the architect's to set. Note `ROADMAP.md` has uncommitted owner edits in the working tree; preserve them. |
 
-### 4.3 Repro baseline — blocked pending owner decision
+### 4.3 Repro baseline — make the tier able to fail
 
-`tests/repro/` is empty and untracked, while `docs/release/v1-limitations.md`
-and the handoff's `ops-security.md` cite `tests/repro/baseline-digests.txt`.
-The two handoffs disagree on whether the baseline is a committed artifact or
-re-recorded per run.
+Not blocked. Decided in RFC §M4; implement as follows.
 
-**Do not resolve this yourself.** Complete everything else in Slice 3, and
-report this as blocked with the owner decision outstanding.
+`tools/fjell-repro-check` has two modes. Default mode builds twice and compares
+— no stored baseline needed. `--skip-build` mode (this is `test-all` tier 5,
+and it runs in CI) hashes the committed `crates/fjell-kernel/prebuilt/*.bin`
+against `tests/repro/baseline-digests.txt`.
+
+That baseline file is **absent from the tree**, and
+`tools/fjell-repro-check/src/main.rs:92-97` currently reads:
+
+```rust
+// If baseline doesn't exist, create it and pass.
+if !Path::new(baseline_path).exists() {
+    match save_digests(&current, baseline_path) {
+        Ok(_) => { …; return ExitCode::SUCCESS; }
+```
+
+So the tier writes a baseline from whatever it just measured and returns
+success. It cannot fail. Required changes:
+
+1. **Make the absent-baseline path fail closed.** Missing baseline →
+   non-zero exit with a message naming the recording command. Recording must
+   require an explicit opt-in flag (e.g. `--record-baseline`); it must never
+   be a side effect of a check run.
+2. **Commit `tests/repro/baseline-digests.txt`**, recorded from the
+   `prebuilt/*.bin` set as it stands after Slice 2. Record it *after*
+   formatting, not before.
+3. **Correct `implementation-notes.md` §6** — the phrase "the repro baseline
+   is re-recorded per run by design" describes the bug, not a design. Replace
+   it with the two-mode explanation above.
+4. Check `crates/fjell-tools/src/test_all.rs` and the CI workflow for any
+   caller that would now fail, and make sure tier 5 invokes the check mode,
+   not the record mode.
+
+Keep this change **inside `tools/fjell-repro-check`** and its callers. It
+touches no kernel, ABI, or security-boundary code.
+
+Expected consequence: this tier may go red. **That is the point** — it has
+been green while detecting nothing. If it goes red for a reason other than a
+missing baseline, that is a real finding: report it, do not re-record over it.
 
 ---
 
@@ -201,7 +236,8 @@ report this as blocked with the owner decision outstanding.
 - Do not disable, skip, or weaken any gate to obtain a pass.
 - Do not report `CONFORMANCE-ONLY` from Gate 10 as a pass — for a
   release-required target it is a failure. If Verus is unavailable, say so.
-- Do not re-record the repro baseline over an unexplained binary difference.
+- Do not re-record the repro baseline over an unexplained binary difference,
+  and do not make baseline recording a side effect of a check run.
 - Do not widen scope into the 9 syscalls, the ABI enum, or kernel logic.
 - Do not mix the formatting commit with substantive changes.
 - Do not mark unexecuted commands as passed.
@@ -236,10 +272,10 @@ On completion, submit:
 4. Important implementation decisions
 5. Any differences from this handoff or the RFC — with reasons
 6. Executed commands and their real output (§6)
-7. Unresolved issues and blocked items (expected: §4.3)
+7. Unresolved issues and blocked items
 8. Known limitations
 9. Requested review focus
 
 Flag for focused review: the Slice 2 gate re-runs (§3.1), the prebuilt-binary
-comparison (§3.2), and the completeness of the syscall documentation edits
-(§4.1).
+comparison (§3.2), the completeness of the syscall documentation edits (§4.1),
+and the repro-check fail-closed change (§4.3).
