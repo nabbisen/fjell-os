@@ -12,10 +12,10 @@
 //! Each property below names the candidate lemma / proof obligation whose
 //! Rust mirror it exercises.
 
-use proptest::prelude::*;
+use fjell_abi::lease::{RevokeOutcome, lease_revoke, lease_usable};
 use fjell_cap::rights::CapRights;
-use fjell_abi::lease::{lease_usable, lease_revoke, RevokeOutcome};
-use fjell_upgrade_format::{BootControlBlock, BcbMirrorSelection, select_bcb_mirror};
+use fjell_upgrade_format::{BcbMirrorSelection, BootControlBlock, select_bcb_mirror};
+use proptest::prelude::*;
 
 // ── Capability rights (RFC-v0.17-002) ─────────────────────────────────────────
 
@@ -117,7 +117,9 @@ fn mk(valid: bool, generation: u64) -> BootControlBlock {
     let mut b = BootControlBlock::new(generation);
     b.generation = generation;
     b.seal();
-    if !valid { b.magic = *b"BADMAGIC"; }
+    if !valid {
+        b.magic = *b"BADMAGIC";
+    }
     b
 }
 

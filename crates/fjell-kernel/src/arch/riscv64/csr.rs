@@ -230,5 +230,7 @@ pub unsafe fn write_pmpcfg0(v: usize) {
 // SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn sfence_vma() {
     // SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
-    unsafe { core::arch::asm!("sfence.vma", options(nostack)); }
+    unsafe {
+        core::arch::asm!("sfence.vma", options(nostack));
+    }
 }

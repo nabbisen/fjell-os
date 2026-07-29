@@ -17,11 +17,11 @@
 
 use fjell_measure_format::Digest32;
 
+use crate::KEYRING_DOMAIN;
 use crate::algorithm::SignatureAlgorithm;
 use crate::anchor::TrustAnchor;
 use crate::error::SigError;
 use crate::provider::SignatureProvider;
-use crate::KEYRING_DOMAIN;
 
 const DEV_DOMAIN: &[u8] = b"DEV-V1";
 

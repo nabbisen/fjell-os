@@ -26,8 +26,10 @@ fn rights_subset_matches_model_exhaustive_low_bits() {
         for parent in 0u64..256 {
             let shipped = CapRights(child).is_subset_of(CapRights(parent));
             let model = model_subset(child, parent);
-            assert_eq!(shipped, model,
-                "drift at child={child:#x} parent={parent:#x}: shipped={shipped} model={model}");
+            assert_eq!(
+                shipped, model,
+                "drift at child={child:#x} parent={parent:#x}: shipped={shipped} model={model}"
+            );
         }
     }
 }
@@ -51,7 +53,10 @@ fn adding_one_extra_right_rejected() {
     // CAP-RIGHTS-003: amplification must be refused.
     let parent = CapRights(0b0101);
     let child = CapRights(0b0111); // sets bit 1 not in parent
-    assert!(!child.is_subset_of(parent), "amplifying mint must be rejected");
+    assert!(
+        !child.is_subset_of(parent),
+        "amplifying mint must be rejected"
+    );
 }
 
 #[test]

@@ -32,7 +32,7 @@
 use super::cspace::CSpace;
 use super::handle::CapHandle;
 use super::rights::{CapError, CapKind, CapRights, ObjectScope};
-use super::slot::{Capability, CapSlotState, LeaseChecker};
+use super::slot::{CapSlotState, Capability, LeaseChecker};
 
 /// Unified capability enforcement (RFC 031 §2.5).
 ///
@@ -54,12 +54,12 @@ use super::slot::{Capability, CapSlotState, LeaseChecker};
 /// | `ScopeMismatch`          | cap.scope does not satisfy required_scope        |
 /// | `LeaseRevoked`           | lease epoch mismatch or lease state Revoked      |
 pub fn require_cap<'cs>(
-    cspace:         &'cs CSpace,
-    handle:         CapHandle,
-    expected_kind:  CapKind,
+    cspace: &'cs CSpace,
+    handle: CapHandle,
+    expected_kind: CapKind,
     required_rights: CapRights,
     required_scope: Option<&ObjectScope>,
-    checker:        &dyn LeaseChecker,
+    checker: &dyn LeaseChecker,
 ) -> Result<&'cs Capability, CapError> {
     // Step 1: CSpace lookup
     if handle.is_null() {
@@ -115,10 +115,7 @@ pub fn require_cap<'cs>(
 /// | `InvalidHandle`      | handle is null or index out of range          |
 /// | `GenerationMismatch` | handle.generation != slot.generation          |
 /// | `Dropped`            | slot is already Empty or Dropped              |
-pub fn cap_drop(
-    cspace: &mut CSpace,
-    handle: CapHandle,
-) -> Result<(), CapError> {
+pub fn cap_drop(cspace: &mut CSpace, handle: CapHandle) -> Result<(), CapError> {
     // Step 1: null check
     if handle.is_null() {
         return Err(CapError::InvalidHandle);
@@ -140,8 +137,8 @@ pub fn cap_drop(
     // RFC 032 §2.4: the slot immediately becomes reusable after the drop.
     // A hypothetical "quarantine before reuse" policy would use the Dropped
     // state as an intermediate; for v0.2 we go straight to Empty.
-    slot.cap        = None;
-    slot.state      = CapSlotState::Empty;
+    slot.cap = None;
+    slot.state = CapSlotState::Empty;
     slot.generation = slot.generation.wrapping_add(1);
 
     Ok(())
@@ -169,8 +166,7 @@ mod tests {
     #[test]
     fn require_cap_valid_cap() {
         let (cs, h) = setup_endpoint(CapRights::SEND | CapRights::RECV);
-        let cap = require_cap(&cs, h, CapKind::Endpoint,
-                              CapRights::SEND, None, &NoLease).unwrap();
+        let cap = require_cap(&cs, h, CapKind::Endpoint, CapRights::SEND, None, &NoLease).unwrap();
         assert_eq!(cap.kind, CapKind::Endpoint);
         assert_eq!(cap.object_id, 42);
     }
@@ -180,8 +176,15 @@ mod tests {
     #[test]
     fn require_cap_null_handle_rejected() {
         let (cs, _) = setup_endpoint(CapRights::SEND);
-        let err = require_cap(&cs, CapHandle::NULL, CapKind::Endpoint,
-                              CapRights::SEND, None, &NoLease).unwrap_err();
+        let err = require_cap(
+            &cs,
+            CapHandle::NULL,
+            CapKind::Endpoint,
+            CapRights::SEND,
+            None,
+            &NoLease,
+        )
+        .unwrap_err();
         assert_eq!(err, CapError::InvalidHandle);
     }
 
@@ -190,9 +193,9 @@ mod tests {
     #[test]
     fn require_cap_stale_generation_rejected() {
         let (mut cs, h) = setup_endpoint(CapRights::SEND);
-        cs.delete(h).unwrap();   // bumps generation
-        let err = require_cap(&cs, h, CapKind::Endpoint,
-                              CapRights::SEND, None, &NoLease).unwrap_err();
+        cs.delete(h).unwrap(); // bumps generation
+        let err =
+            require_cap(&cs, h, CapKind::Endpoint, CapRights::SEND, None, &NoLease).unwrap_err();
         assert_eq!(err, CapError::GenerationMismatch);
     }
 
@@ -203,8 +206,8 @@ mod tests {
         let cs = CSpace::new();
         // Construct a handle pointing at slot 0 generation 0 (slot IS empty).
         let h = CapHandle::new(0, 0);
-        let err = require_cap(&cs, h, CapKind::Endpoint,
-                              CapRights::SEND, None, &NoLease).unwrap_err();
+        let err =
+            require_cap(&cs, h, CapKind::Endpoint, CapRights::SEND, None, &NoLease).unwrap_err();
         assert_eq!(err, CapError::EmptySlot);
     }
 
@@ -213,8 +216,15 @@ mod tests {
     #[test]
     fn require_cap_wrong_kind_rejected() {
         let (cs, h) = setup_endpoint(CapRights::SEND);
-        let err = require_cap(&cs, h, CapKind::TaskControl,   // wrong
-                              CapRights::TASK_START, None, &NoLease).unwrap_err();
+        let err = require_cap(
+            &cs,
+            h,
+            CapKind::TaskControl, // wrong
+            CapRights::TASK_START,
+            None,
+            &NoLease,
+        )
+        .unwrap_err();
         assert_eq!(err, CapError::WrongKind);
     }
 
@@ -222,9 +232,9 @@ mod tests {
 
     #[test]
     fn require_cap_missing_right_rejected() {
-        let (cs, h) = setup_endpoint(CapRights::SEND);   // no RECV
-        let err = require_cap(&cs, h, CapKind::Endpoint,
-                              CapRights::RECV, None, &NoLease).unwrap_err();
+        let (cs, h) = setup_endpoint(CapRights::SEND); // no RECV
+        let err =
+            require_cap(&cs, h, CapKind::Endpoint, CapRights::RECV, None, &NoLease).unwrap_err();
         assert_eq!(err, CapError::MissingRight);
     }
 
@@ -235,15 +245,25 @@ mod tests {
         let mut cs = CSpace::new();
         let task_a = TaskId::new(1, 0);
         let task_b = TaskId::new(2, 0);
-        let h = cs.install_root_scoped(
-            CapKind::TaskControl, 0, CapRights::TASK_START,
-            ObjectScope::Task(task_a),
-        ).unwrap();
+        let h = cs
+            .install_root_scoped(
+                CapKind::TaskControl,
+                0,
+                CapRights::TASK_START,
+                ObjectScope::Task(task_a),
+            )
+            .unwrap();
         // Require scope for task_b — mismatch.
         let req_scope = ObjectScope::Task(task_b);
-        let err = require_cap(&cs, h, CapKind::TaskControl,
-                              CapRights::TASK_START,
-                              Some(&req_scope), &NoLease).unwrap_err();
+        let err = require_cap(
+            &cs,
+            h,
+            CapKind::TaskControl,
+            CapRights::TASK_START,
+            Some(&req_scope),
+            &NoLease,
+        )
+        .unwrap_err();
         assert_eq!(err, CapError::ScopeMismatch);
     }
 
@@ -252,15 +272,25 @@ mod tests {
         let mut cs = CSpace::new();
         let task_a = TaskId::new(1, 0);
         // Install with Any scope (bootstrap-style).
-        let h = cs.install_root_scoped(
-            CapKind::TaskControl, 0, CapRights::TASK_START,
-            ObjectScope::Any,
-        ).unwrap();
+        let h = cs
+            .install_root_scoped(
+                CapKind::TaskControl,
+                0,
+                CapRights::TASK_START,
+                ObjectScope::Any,
+            )
+            .unwrap();
         // Require scope for task_a — should succeed because cap has Any scope.
         let req_scope = ObjectScope::Task(task_a);
-        require_cap(&cs, h, CapKind::TaskControl,
-                    CapRights::TASK_START,
-                    Some(&req_scope), &NoLease).unwrap();
+        require_cap(
+            &cs,
+            h,
+            CapKind::TaskControl,
+            CapRights::TASK_START,
+            Some(&req_scope),
+            &NoLease,
+        )
+        .unwrap();
     }
 
     // ── Step 7: lease revoked ─────────────────────────────────────────────────
@@ -273,24 +303,30 @@ mod tests {
         let mut cs = CSpace::new();
         // install_raw lets us provide a lease-bound capability directly.
         let cap = Capability {
-            kind:      CapKind::Endpoint,
-            state:     CapState::Active,
+            kind: CapKind::Endpoint,
+            state: CapState::Active,
             object_id: 77,
-            rights:    CapRights::SEND,
-            badge:     0,
-            scope:     ObjectScope::Any,
-            parent:    None,
-            lease:     Some(LeaseBinding {
-                lease_id:       LeaseId::new(0, 1),
+            rights: CapRights::SEND,
+            badge: 0,
+            scope: ObjectScope::Any,
+            parent: None,
+            lease: Some(LeaseBinding {
+                lease_id: LeaseId::new(0, 1),
                 epoch_at_issue: LeaseEpoch(1),
             }),
         };
         cs.install_raw(0, cap).unwrap();
         let h = CapHandle::new(0, 0);
 
-        let err = require_cap(&cs, h, CapKind::Endpoint,
-                              CapRights::SEND, None,
-                              &AlwaysRevoked).unwrap_err();
+        let err = require_cap(
+            &cs,
+            h,
+            CapKind::Endpoint,
+            CapRights::SEND,
+            None,
+            &AlwaysRevoked,
+        )
+        .unwrap_err();
         assert_eq!(err, CapError::LeaseRevoked);
     }
 
@@ -301,8 +337,8 @@ mod tests {
         let (mut cs, h) = setup_endpoint(CapRights::SEND);
         cap_drop(&mut cs, h).unwrap();
         // Old handle must now be stale.
-        let err = require_cap(&cs, h, CapKind::Endpoint,
-                              CapRights::SEND, None, &NoLease).unwrap_err();
+        let err =
+            require_cap(&cs, h, CapKind::Endpoint, CapRights::SEND, None, &NoLease).unwrap_err();
         assert_eq!(err, CapError::GenerationMismatch);
     }
 
@@ -311,13 +347,13 @@ mod tests {
         // Even though the lease checker always says Revoked, drop must succeed.
         // (cap_drop must not check the lease — RFC 032 §2.5.)
         let (mut cs, h) = setup_endpoint(CapRights::SEND);
-        cap_drop(&mut cs, h).unwrap();   // succeeds despite AlwaysRevoked
+        cap_drop(&mut cs, h).unwrap(); // succeeds despite AlwaysRevoked
     }
 
     #[test]
     fn cap_drop_empty_slot_returns_dropped_error() {
         let (mut cs, h) = setup_endpoint(CapRights::SEND);
-        cap_drop(&mut cs, h).unwrap();   // first drop: ok
+        cap_drop(&mut cs, h).unwrap(); // first drop: ok
         // Slot is now empty; re-drop must fail.
         // The generation incremented, so handle is stale now.
         let err = cap_drop(&mut cs, h).unwrap_err();
@@ -338,15 +374,18 @@ mod tests {
         let (mut cs, h1) = setup_endpoint(CapRights::SEND);
         cap_drop(&mut cs, h1).unwrap();
         // Install a new cap into any slot — this should succeed, not exhaust CSpace.
-        cs.install_root(CapKind::Endpoint, 99, CapRights::RECV).unwrap();
+        cs.install_root(CapKind::Endpoint, 99, CapRights::RECV)
+            .unwrap();
     }
 
     // ── cap_mint invariants (RFC 031 §2.9) ───────────────────────────────────
 
     #[test]
     fn cap_mint_rights_amplification_rejected() {
-        let (mut cs, h) = setup_endpoint(CapRights::SEND);   // no RECV
-        let err = cs.mint(h, 5, CapRights::SEND | CapRights::RECV, 0).unwrap_err();
+        let (mut cs, h) = setup_endpoint(CapRights::SEND); // no RECV
+        let err = cs
+            .mint(h, 5, CapRights::SEND | CapRights::RECV, 0)
+            .unwrap_err();
         assert_eq!(err, fjell_abi::error::SysError::RightsExceed);
     }
 

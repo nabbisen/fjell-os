@@ -14,11 +14,10 @@
 #![no_main]
 mod rt;
 
-use fjell_syscall::{sys_exit, sys_debug_writeln};
 use fjell_platform_format::{
-    PlatformProfile, BoardProfile, DeviceClass,
-    platform_digest, board_digest,
+    BoardProfile, DeviceClass, PlatformProfile, board_digest, platform_digest,
 };
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 // ── Boot-time profile verification ───────────────────────────────────────────
 

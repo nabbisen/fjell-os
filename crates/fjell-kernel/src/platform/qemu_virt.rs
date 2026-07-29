@@ -15,7 +15,7 @@ pub const RAM_BASE: usize = 0x8000_0000;
 /// other device regions.  Each task's page table is independent, so all tasks
 /// can use the same VA range without collision.
 pub const DEVICE_VMA_BASE: usize = 0x7000_0000;
-pub const DEVICE_VMA_END:  usize = RAM_BASE;  // = 0x8000_0000
+pub const DEVICE_VMA_END: usize = RAM_BASE; // = 0x8000_0000
 /// Default RAM size in the QEMU `virt` machine (128 MiB).
 pub const RAM_SIZE: usize = 128 * 1024 * 1024;
 /// Exclusive end of RAM.
@@ -70,11 +70,11 @@ pub enum MmioRegionState {
 #[derive(Clone, Copy, Debug)]
 pub struct MmioRegionObject {
     /// Index in the static `MmioRegionTable`.
-    pub id:    u32,
+    pub id: u32,
     /// Physical base address of this MMIO region.
-    pub base:  usize,
+    pub base: usize,
     /// Total size in bytes.
-    pub size:  usize,
+    pub size: usize,
     /// Lifecycle state.
     pub state: MmioRegionState,
     /// Human-readable ASCII description (null-padded to 16 bytes).
@@ -98,9 +98,13 @@ impl MmioRegionObject {
 pub fn mmio_region_table() -> [MmioRegionObject; MMIO_REGION_COUNT] {
     let make = |id: u32, base: usize, size: usize, desc: &[u8]| {
         let mut d = [0u8; 16];
-        for (i, &b) in desc.iter().enumerate().take(15) { d[i] = b; }
+        for (i, &b) in desc.iter().enumerate().take(15) {
+            d[i] = b;
+        }
         MmioRegionObject {
-            id, base, size,
+            id,
+            base,
+            size,
             state: MmioRegionState::Active,
             description: d,
         }

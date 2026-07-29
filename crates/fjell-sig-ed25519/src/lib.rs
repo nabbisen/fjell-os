@@ -26,10 +26,7 @@
 
 extern crate alloc;
 
-use fjell_keyring::{
-    SigError, SignatureProvider, TrustAnchor,
-    algorithm::SignatureAlgorithm,
-};
+use fjell_keyring::{SigError, SignatureProvider, TrustAnchor, algorithm::SignatureAlgorithm};
 
 // ── Public key verifier (always available) ────────────────────────────────────
 
@@ -41,19 +38,21 @@ use fjell_keyring::{
 pub struct Ed25519Provider;
 
 impl Ed25519Provider {
-    pub const fn new() -> Self { Self }
+    pub const fn new() -> Self {
+        Self
+    }
 
     /// Verify an Ed25519 signature directly without a `TrustAnchor`.
     /// Convenience for host-side tooling (xtask) that holds raw pubkey bytes.
-    pub fn verify_raw(pubkey: &[u8; 32], message: &[u8], signature: &[u8; 64])
-        -> Result<(), ()>
-    {
+    pub fn verify_raw(pubkey: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {
         verify_ed25519(pubkey, message, signature)
     }
 }
 
 impl Default for Ed25519Provider {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SignatureProvider for Ed25519Provider {
@@ -107,11 +106,7 @@ impl SignatureProvider for Ed25519Provider {
 ///
 /// This is a pure-Rust implementation sufficient for no_std environments.
 /// It validates the RFC 8032 test vectors exactly.
-fn verify_ed25519(
-    pubkey: &[u8; 32],
-    message: &[u8],
-    signature: &[u8; 64],
-) -> Result<(), ()> {
+fn verify_ed25519(pubkey: &[u8; 32], message: &[u8], signature: &[u8; 64]) -> Result<(), ()> {
     // For the verifier we delegate to ed25519-dalek (which is no_std compatible).
     // In environments where even dalek is unavailable, a fallback pure-Rust
     // curve25519 implementation would be substituted; that is research-track.
@@ -157,7 +152,7 @@ fn verify_soft(pubkey: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> Result<(), ()> 
 
     // Compute k = SHA-512(R || A || msg) mod L
     let mut h_input = Vec::with_capacity(64 + 32 + msg.len());
-    h_input.extend_from_slice(&sig[..32]);  // R compressed
+    h_input.extend_from_slice(&sig[..32]); // R compressed
     h_input.extend_from_slice(pubkey);
     h_input.extend_from_slice(msg);
     let k = scalar_from_hash_sha512(&h_input);
@@ -178,19 +173,42 @@ fn verify_soft(pubkey: &[u8; 32], msg: &[u8], sig: &[u8; 64]) -> Result<(), ()> 
 // completeness in deeply constrained environments and ships as
 // a research/TODO stub that is clearly labelled.
 #[cfg(not(feature = "sign"))]
-fn scalar_from_bytes_no_reduce(_b: &[u8; 32]) -> Result<[u64; 4], ()> { Err(()) }
+fn scalar_from_bytes_no_reduce(_b: &[u8; 32]) -> Result<[u64; 4], ()> {
+    Err(())
+}
 #[cfg(not(feature = "sign"))]
-fn decompress_point(_b: [u8; 32]) -> Result<([u64; 5], [u64; 5], [u64; 5], [u64; 5]), ()> { Err(()) }
+fn decompress_point(_b: [u8; 32]) -> Result<([u64; 5], [u64; 5], [u64; 5], [u64; 5]), ()> {
+    Err(())
+}
 #[cfg(not(feature = "sign"))]
-fn scalar_from_hash_sha512(_data: &[u8]) -> [u64; 4] { [0; 4] }
+fn scalar_from_hash_sha512(_data: &[u8]) -> [u64; 4] {
+    [0; 4]
+}
 #[cfg(not(feature = "sign"))]
-fn scalar_mult_base(_s: [u64; 4]) -> ([u64; 5], [u64; 5], [u64; 5], [u64; 5]) { ([0;5],[0;5],[0;5],[0;5]) }
+fn scalar_mult_base(_s: [u64; 4]) -> ([u64; 5], [u64; 5], [u64; 5], [u64; 5]) {
+    ([0; 5], [0; 5], [0; 5], [0; 5])
+}
 #[cfg(not(feature = "sign"))]
-fn scalar_mult(_s: [u64; 4], _p: ([u64;5],[u64;5],[u64;5],[u64;5])) -> ([u64;5],[u64;5],[u64;5],[u64;5]) { ([0;5],[0;5],[0;5],[0;5]) }
+fn scalar_mult(
+    _s: [u64; 4],
+    _p: ([u64; 5], [u64; 5], [u64; 5], [u64; 5]),
+) -> ([u64; 5], [u64; 5], [u64; 5], [u64; 5]) {
+    ([0; 5], [0; 5], [0; 5], [0; 5])
+}
 #[cfg(not(feature = "sign"))]
-fn point_add(_a: ([u64;5],[u64;5],[u64;5],[u64;5]), _b: ([u64;5],[u64;5],[u64;5],[u64;5])) -> ([u64;5],[u64;5],[u64;5],[u64;5]) { ([0;5],[0;5],[0;5],[0;5]) }
+fn point_add(
+    _a: ([u64; 5], [u64; 5], [u64; 5], [u64; 5]),
+    _b: ([u64; 5], [u64; 5], [u64; 5], [u64; 5]),
+) -> ([u64; 5], [u64; 5], [u64; 5], [u64; 5]) {
+    ([0; 5], [0; 5], [0; 5], [0; 5])
+}
 #[cfg(not(feature = "sign"))]
-fn point_eq(_a: ([u64;5],[u64;5],[u64;5],[u64;5]), _b: ([u64;5],[u64;5],[u64;5],[u64;5])) -> bool { false }
+fn point_eq(
+    _a: ([u64; 5], [u64; 5], [u64; 5], [u64; 5]),
+    _b: ([u64; 5], [u64; 5], [u64; 5], [u64; 5]),
+) -> bool {
+    false
+}
 
 // ── Host signing (feature = "sign") ──────────────────────────────────────────
 
@@ -271,10 +289,7 @@ impl Ed25519SigningKey {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use fjell_keyring::{
-        AuthorityClass, KeyEpoch, KeyPurpose,
-        algorithm::SignatureAlgorithm,
-    };
+    use fjell_keyring::{AuthorityClass, KeyEpoch, KeyPurpose, algorithm::SignatureAlgorithm};
 
     // ── RFC 8032 §7.1 test vector 1 ──────────────────────────────────────────
     // SOURCE: https://www.rfc-editor.org/rfc/rfc8032#section-7.1
@@ -283,27 +298,22 @@ mod tests {
     // all derive TV1_PUBLIC from TV1_SECRET and produce TV1_SIG over the
     // empty message. See RFC-v0.16-001 for the reconciliation record.
     const TV1_SECRET: [u8; 32] = [
-        0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60,
-        0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c, 0xc4,
-        0x44, 0x49, 0xc5, 0x69, 0x7b, 0x32, 0x69, 0x19,
-        0x70, 0x3b, 0xac, 0x03, 0x1c, 0xae, 0x7f, 0x60,
+        0x9d, 0x61, 0xb1, 0x9d, 0xef, 0xfd, 0x5a, 0x60, 0xba, 0x84, 0x4a, 0xf4, 0x92, 0xec, 0x2c,
+        0xc4, 0x44, 0x49, 0xc5, 0x69, 0x7b, 0x32, 0x69, 0x19, 0x70, 0x3b, 0xac, 0x03, 0x1c, 0xae,
+        0x7f, 0x60,
     ];
     const TV1_PUBLIC: [u8; 32] = [
-        0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7,
-        0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07, 0x3a,
-        0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25,
-        0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07, 0x51, 0x1a,
+        0xd7, 0x5a, 0x98, 0x01, 0x82, 0xb1, 0x0a, 0xb7, 0xd5, 0x4b, 0xfe, 0xd3, 0xc9, 0x64, 0x07,
+        0x3a, 0x0e, 0xe1, 0x72, 0xf3, 0xda, 0xa6, 0x23, 0x25, 0xaf, 0x02, 0x1a, 0x68, 0xf7, 0x07,
+        0x51, 0x1a,
     ];
     const TV1_MESSAGE: &[u8] = &[];
     const TV1_SIG: [u8; 64] = [
-        0xe5, 0x56, 0x43, 0x00, 0xc3, 0x60, 0xac, 0x72,
-        0x90, 0x86, 0xe2, 0xcc, 0x80, 0x6e, 0x82, 0x8a,
-        0x84, 0x87, 0x7f, 0x1e, 0xb8, 0xe5, 0xd9, 0x74,
-        0xd8, 0x73, 0xe0, 0x65, 0x22, 0x49, 0x01, 0x55,
-        0x5f, 0xb8, 0x82, 0x15, 0x90, 0xa3, 0x3b, 0xac,
-        0xc6, 0x1e, 0x39, 0x70, 0x1c, 0xf9, 0xb4, 0x6b,
-        0xd2, 0x5b, 0xf5, 0xf0, 0x59, 0x5b, 0xbe, 0x24,
-        0x65, 0x51, 0x41, 0x43, 0x8e, 0x7a, 0x10, 0x0b,
+        0xe5, 0x56, 0x43, 0x00, 0xc3, 0x60, 0xac, 0x72, 0x90, 0x86, 0xe2, 0xcc, 0x80, 0x6e, 0x82,
+        0x8a, 0x84, 0x87, 0x7f, 0x1e, 0xb8, 0xe5, 0xd9, 0x74, 0xd8, 0x73, 0xe0, 0x65, 0x22, 0x49,
+        0x01, 0x55, 0x5f, 0xb8, 0x82, 0x15, 0x90, 0xa3, 0x3b, 0xac, 0xc6, 0x1e, 0x39, 0x70, 0x1c,
+        0xf9, 0xb4, 0x6b, 0xd2, 0x5b, 0xf5, 0xf0, 0x59, 0x5b, 0xbe, 0x24, 0x65, 0x51, 0x41, 0x43,
+        0x8e, 0x7a, 0x10, 0x0b,
     ];
 
     fn make_anchor(pubkey: &[u8; 32]) -> TrustAnchor {
@@ -313,14 +323,16 @@ mod tests {
             AuthorityClass::Standard,
             KeyEpoch(1),
             pubkey,
-        ).expect("anchor construction")
+        )
+        .expect("anchor construction")
     }
 
     #[test]
     fn tv1_verify_empty_message() {
         let provider = Ed25519Provider::new();
         let anchor = make_anchor(&TV1_PUBLIC);
-        provider.verify(&anchor, TV1_MESSAGE, &TV1_SIG)
+        provider
+            .verify(&anchor, TV1_MESSAGE, &TV1_SIG)
             .expect("RFC 8032 §7.1 test vector 1 must verify");
     }
 
@@ -360,7 +372,8 @@ mod tests {
             AuthorityClass::Standard,
             KeyEpoch(1),
             &TV1_PUBLIC,
-        ).unwrap();
+        )
+        .unwrap();
         // Manually create with different algorithm — test internal check
         let _ = provider.verify(&anchor, TV1_MESSAGE, &TV1_SIG);
         // Primary check is that algorithm mismatch returns Err (tested implicitly
@@ -385,8 +398,11 @@ mod tests {
         // produce the canonical public key. Cross-verified against
         // OpenSSL and libsodium (RFC-v0.16-001).
         let key = Ed25519SigningKey::from_seed(&TV1_SECRET);
-        assert_eq!(key.public_key_bytes(), TV1_PUBLIC,
-            "public key derived from TV1 seed must match canonical RFC 8032 TV1");
+        assert_eq!(
+            key.public_key_bytes(),
+            TV1_PUBLIC,
+            "public key derived from TV1 seed must match canonical RFC 8032 TV1"
+        );
     }
 
     #[cfg(feature = "sign")]
@@ -397,19 +413,23 @@ mod tests {
         // sign-path conformance proof for the trust spine (RFC-v0.16-001).
         let key = Ed25519SigningKey::from_seed(&TV1_SECRET);
         let sig = key.sign_message(TV1_MESSAGE);
-        assert_eq!(sig, TV1_SIG,
-            "signing empty message with TV1 seed must reproduce RFC 8032 TV1 signature");
+        assert_eq!(
+            sig, TV1_SIG,
+            "signing empty message with TV1 seed must reproduce RFC 8032 TV1 signature"
+        );
     }
 
     #[cfg(feature = "sign")]
     #[test]
     fn provider_verifies_locally_signed_message() {
         let key = Ed25519SigningKey::generate();
-        let anchor = key.to_trust_anchor(
-            KeyPurpose::ReleaseVerification,
-            AuthorityClass::Standard,
-            KeyEpoch(1),
-        ).unwrap();
+        let anchor = key
+            .to_trust_anchor(
+                KeyPurpose::ReleaseVerification,
+                AuthorityClass::Standard,
+                KeyEpoch(1),
+            )
+            .unwrap();
         let provider = Ed25519Provider::new();
         let msg = b"provider verify test";
         let sig = key.sign_message(msg);
@@ -431,11 +451,13 @@ mod tests {
     #[test]
     fn tampered_message_fails_verification() {
         let key = Ed25519SigningKey::generate();
-        let anchor = key.to_trust_anchor(
-            KeyPurpose::ReleaseVerification,
-            AuthorityClass::Standard,
-            KeyEpoch(1),
-        ).unwrap();
+        let anchor = key
+            .to_trust_anchor(
+                KeyPurpose::ReleaseVerification,
+                AuthorityClass::Standard,
+                KeyEpoch(1),
+            )
+            .unwrap();
         let provider = Ed25519Provider::new();
         let sig = key.sign_message(b"original");
         assert!(provider.verify(&anchor, b"tampered", &sig).is_err());

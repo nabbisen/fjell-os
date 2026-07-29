@@ -1,12 +1,11 @@
 //! Interactive QEMU launcher and kernel build helpers for `cargo xtask`.
 
-use std::process::{Command, ExitCode};
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
+use std::process::{Command, ExitCode};
 
-pub const TARGET:  &str = "riscv64gc-unknown-none-elf";
-pub const KERNEL_ELF: &str =
-    "target/riscv64gc-unknown-none-elf/release/fjell-kernel";
+pub const TARGET: &str = "riscv64gc-unknown-none-elf";
+pub const KERNEL_ELF: &str = "target/riscv64gc-unknown-none-elf/release/fjell-kernel";
 
 pub const SERVICES: &[&str] = &[
     "fjell-init",
@@ -53,8 +52,14 @@ pub fn build_services() -> bool {
 
     // Build all service ELFs.
     let status = cargo_cmd()
-        .args(["build", "--target", TARGET, "--release",
-               "-Z", "build-std=core,compiler_builtins"])
+        .args([
+            "build",
+            "--target",
+            TARGET,
+            "--release",
+            "-Z",
+            "build-std=core,compiler_builtins",
+        ])
         .args(SERVICES.iter().flat_map(|s| ["--package", s]))
         .env("RUSTC_BOOTSTRAP", "1")
         .status()
@@ -71,7 +76,7 @@ pub fn build_services() -> bool {
     std::fs::create_dir_all(&prebuilt).ok();
 
     for svc in SERVICES {
-        let elf  = bin_dir.join(svc);
+        let elf = bin_dir.join(svc);
         let flat = prebuilt.join(format!("{svc}.bin"));
         println!("[xtask]   objcopy {svc} → prebuilt/{svc}.bin");
         if !run_objcopy(&elf, &flat) {
@@ -89,11 +94,16 @@ pub fn build_kernel() -> String {
 
     // Skip auto-service rebuild in build.rs since xtask handles it.
     let status = cargo_cmd()
-        .args(["build",
-               "--package", "fjell-kernel",
-               "--target", TARGET,
-               "--release",
-               "-Z", "build-std=core,compiler_builtins"])
+        .args([
+            "build",
+            "--package",
+            "fjell-kernel",
+            "--target",
+            TARGET,
+            "--release",
+            "-Z",
+            "build-std=core,compiler_builtins",
+        ])
         .env("RUSTC_BOOTSTRAP", "1")
         .env("FJELL_SKIP_SERVICE_BUILD", "1")
         .status()
@@ -128,14 +138,25 @@ pub fn cmd_qemu() -> ExitCode {
             .status();
     }
     let status = Command::new("qemu-system-riscv64")
-        .args(["-machine", "virt", "-bios", "none",
-               "-nographic", "-kernel", &kernel,
-               "-drive", &format!("file={disk},format=raw,if=none,id=hd0"),
-               "-device", "virtio-blk-device,drive=hd0"])
+        .args([
+            "-machine",
+            "virt",
+            "-bios",
+            "none",
+            "-nographic",
+            "-kernel",
+            &kernel,
+            "-drive",
+            &format!("file={disk},format=raw,if=none,id=hd0"),
+            "-device",
+            "virtio-blk-device,drive=hd0",
+        ])
         .status()
         .expect("failed to launch qemu-system-riscv64 — is it installed?");
 
-    if status.success() { ExitCode::SUCCESS } else {
+    if status.success() {
+        ExitCode::SUCCESS
+    } else {
         eprintln!("[xtask] QEMU exited with: {status}");
         ExitCode::FAILURE
     }
@@ -158,7 +179,9 @@ fn run_objcopy(elf: &PathBuf, flat: &PathBuf) -> bool {
             "llvm-objcopy".to_string(),
             "riscv64-unknown-elf-objcopy".to_string(),
         ];
-        for v in [18u32, 17, 16, 15] { c.push(format!("llvm-objcopy-{v}")); }
+        for v in [18u32, 17, 16, 15] {
+            c.push(format!("llvm-objcopy-{v}"));
+        }
         c
     };
 
@@ -211,22 +234,31 @@ fn bss_end_page_aligned(elf: &PathBuf) -> Option<String> {
     const PAGE: u64 = 0x1000;
 
     // --- 1. Get __bss_start and __bss_end from nm --------------------------
-    let nm_candidates = ["riscv64-linux-gnu-nm", "riscv64-unknown-elf-nm",
-                         "llvm-nm", "nm"];
+    let nm_candidates = [
+        "riscv64-linux-gnu-nm",
+        "riscv64-unknown-elf-nm",
+        "llvm-nm",
+        "nm",
+    ];
     let nm_out = nm_candidates.iter().find_map(|t| {
-        Command::new(t).arg(elf).output().ok().filter(|o| o.status.success())
+        Command::new(t)
+            .arg(elf)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
     })?;
     let nm_str = String::from_utf8_lossy(&nm_out.stdout);
 
     let get_sym = |name: &str| -> Option<u64> {
-        nm_str.lines()
+        nm_str
+            .lines()
             .find(|l| l.split_whitespace().last() == Some(name))
             .and_then(|l| l.split_whitespace().next())
             .and_then(|h| u64::from_str_radix(h, 16).ok())
     };
 
     let bss_start = get_sym("__bss_start")?;
-    let bss_end   = get_sym("__bss_end")?;
+    let bss_end = get_sym("__bss_end")?;
 
     // If BSS is empty and both symbols are the same, treat as no BSS.
     // Code accessing the address at bss_start still needs the page mapped
@@ -234,11 +266,18 @@ fn bss_end_page_aligned(elf: &PathBuf) -> Option<String> {
     // So we proceed even for empty BSS if it starts at a new page.
 
     // --- 2. Get highest ALLOC PROGBITS section end -------------------------
-    let re_candidates = ["riscv64-linux-gnu-readelf", "riscv64-unknown-elf-readelf",
-                         "llvm-readelf"];
+    let re_candidates = [
+        "riscv64-linux-gnu-readelf",
+        "riscv64-unknown-elf-readelf",
+        "llvm-readelf",
+    ];
     let re_out = re_candidates.iter().find_map(|t| {
-        Command::new(t).args(["-S", "--wide"]).arg(elf)
-            .output().ok().filter(|o| o.status.success())
+        Command::new(t)
+            .args(["-S", "--wide"])
+            .arg(elf)
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
     })?;
     let re_str = String::from_utf8_lossy(&re_out.stdout);
 
@@ -248,21 +287,26 @@ fn bss_end_page_aligned(elf: &PathBuf) -> Option<String> {
     // After splitting by whitespace:
     //  "[" "Nr]" Name Type Address Offset Size ES Flg...
     //   0    1    2    3    4       5      6    7  8
-    let progbits_end: u64 = re_str.lines()
-        .filter(|l| l.contains("PROGBITS") && l.contains(" A"))  // ALLOC flag
+    let progbits_end: u64 = re_str
+        .lines()
+        .filter(|l| l.contains("PROGBITS") && l.contains(" A")) // ALLOC flag
         .filter_map(|l| {
             let p: Vec<&str> = l.split_whitespace().collect();
             // Address at index 4, Size at index 6
             let addr = u64::from_str_radix(p.get(4)?, 16).ok()?;
             let size = u64::from_str_radix(p.get(6)?, 16).ok()?;
             // Skip sections at address 0 (debug/comment sections)
-            if addr == 0 { return None; }
+            if addr == 0 {
+                return None;
+            }
             Some(addr + size)
         })
         .max()
         .unwrap_or(0);
 
-    if progbits_end == 0 { return None; }
+    if progbits_end == 0 {
+        return None;
+    }
 
     // --- 3. Decide whether to pad ------------------------------------------
     // Round progbits_end up to the page boundary (= exclusive end of the
@@ -286,16 +330,26 @@ fn bss_end_page_aligned(elf: &PathBuf) -> Option<String> {
 
     if bss_cover_end <= binary_page_end {
         // BSS is entirely within the pages the binary already provides.
-        eprintln!("[bss-pad] {}: bss=[0x{:x}..0x{:x}] cover=0x{:x} <= binary_page_end=0x{:x} → no pad",
+        eprintln!(
+            "[bss-pad] {}: bss=[0x{:x}..0x{:x}] cover=0x{:x} <= binary_page_end=0x{:x} → no pad",
             elf.file_name().unwrap_or_default().to_string_lossy(),
-            bss_start, bss_end, bss_cover_end, binary_page_end);
+            bss_start,
+            bss_end,
+            bss_cover_end,
+            binary_page_end
+        );
         return None;
     }
 
-    eprintln!("[bss-pad] {}: bss=[0x{:x}..0x{:x}] binary_end=0x{:x} → pad to 0x{:x} ({} pages)",
+    eprintln!(
+        "[bss-pad] {}: bss=[0x{:x}..0x{:x}] binary_end=0x{:x} → pad to 0x{:x} ({} pages)",
         elf.file_name().unwrap_or_default().to_string_lossy(),
-        bss_start, bss_end, binary_page_end, bss_cover_end,
-        (bss_cover_end - 0x40000 + PAGE - 1) / PAGE);
+        bss_start,
+        bss_end,
+        binary_page_end,
+        bss_cover_end,
+        (bss_cover_end - 0x40000 + PAGE - 1) / PAGE
+    );
 
     Some(format!("0x{bss_cover_end:x}"))
 }

@@ -13,18 +13,25 @@
 // so the kernel can emit the milestone marker. The full implementation is
 // post-v1.0 roadmap work; the allows below keep the intentional dead paths
 // from polluting the workspace warning baseline.
-#![allow(dead_code, unused_variables, unreachable_code, unused_imports, unused_assignments, unused_mut)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unreachable_code,
+    unused_imports,
+    unused_assignments,
+    unused_mut
+)]
 #![no_std]
 #![no_main]
-mod rt;
 mod channel;
+mod rt;
 
-use fjell_syscall::{sys_debug_writeln, sys_exit};
 use fjell_cap::CapHandle;
 use fjell_net_format::{ChannelKind, MAX_SXT_CHANNELS};
-use fjell_sxt_crypto::tls_state::{TlsHandshakeState, TlsState, SxtError as TlsSxtError};
+use fjell_sxt_crypto::tls_state::{SxtError as TlsSxtError, TlsHandshakeState, TlsState};
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
-use channel::{ChannelTable, SxtTag, SxtError, ChannelState};
+use channel::{ChannelState, ChannelTable, SxtError, SxtTag};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -40,11 +47,11 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //   slot 3 — Endpoint for diagnosticsd requests
 //   slot 4 — Endpoint for attestd requests
 //
-const CAP_SESSION:  CapHandle = CapHandle(0);
-const CAP_SMGR_EP:  CapHandle = CapHandle(1);
-const CAP_UPGRAD_EP:CapHandle = CapHandle(2);
-const CAP_DIAG_EP:  CapHandle = CapHandle(3);
-const CAP_ATTEST_EP:CapHandle = CapHandle(4);
+const CAP_SESSION: CapHandle = CapHandle(0);
+const CAP_SMGR_EP: CapHandle = CapHandle(1);
+const CAP_UPGRAD_EP: CapHandle = CapHandle(2);
+const CAP_DIAG_EP: CapHandle = CapHandle(3);
+const CAP_ATTEST_EP: CapHandle = CapHandle(4);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
@@ -86,9 +93,11 @@ fn perform_tls_handshake(_channel_id: u32, _server_name: &[u8; 64]) -> Result<u3
     // DEVELOPMENT PATH ONLY — do not enable in release builds.
     let mut hs = TlsHandshakeState::new();
     hs.start().map_err(|_| SxtError::HandshakeFailed)?;
-    hs.on_server_hello().map_err(|_| SxtError::HandshakeFailed)?;
+    hs.on_server_hello()
+        .map_err(|_| SxtError::HandshakeFailed)?;
     hs.on_certificate().map_err(|_| SxtError::HandshakeFailed)?;
-    hs.on_cert_verify_pass(0).map_err(|_| SxtError::CertVerifyFailed)?;
+    hs.on_cert_verify_pass(0)
+        .map_err(|_| SxtError::CertVerifyFailed)?;
     hs.on_finished().map_err(|_| SxtError::HandshakeFailed)?;
     hs.enter_app_data().map_err(|_| SxtError::HandshakeFailed)?;
     Ok(hs.anchor_epoch)
@@ -137,7 +146,7 @@ pub extern "C" fn service_main() -> ! {
                     0x01 => ChannelKind::UpdateMetadata,
                     0x02 => ChannelKind::Diagnostics,
                     0x03 => ChannelKind::Attestation,
-                    _    => ChannelKind::UpdateMetadata,
+                    _ => ChannelKind::UpdateMetadata,
                 };
                 let mut server_name = [0u8; 64];
                 // Default SNI for update channel.
@@ -145,25 +154,27 @@ pub extern "C" fn service_main() -> ! {
                 server_name[..sni.len()].copy_from_slice(sni);
 
                 match channels.open(kind, server_name) {
-                    Ok(channel_id) => {
-                        match perform_tls_handshake(channel_id, &server_name) {
-                            Ok(epoch) => {
-                                if let Some(ch) = channels.find_mut(channel_id) {
-                                    ch.state        = ChannelState::Established;
-                                    ch.anchor_epoch = epoch;
-                                }
-                                send_tag(CAP_UPGRAD_EP, SxtTag::Opened as u16, channel_id as usize);
-                                sys_debug_writeln("secure-transportd: channel opened");
+                    Ok(channel_id) => match perform_tls_handshake(channel_id, &server_name) {
+                        Ok(epoch) => {
+                            if let Some(ch) = channels.find_mut(channel_id) {
+                                ch.state = ChannelState::Established;
+                                ch.anchor_epoch = epoch;
                             }
-                            Err(_) => {
-                                channels.close(channel_id);
-                                send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
-                                sys_debug_writeln("secure-transportd: handshake failed");
-                            }
+                            send_tag(CAP_UPGRAD_EP, SxtTag::Opened as u16, channel_id as usize);
+                            sys_debug_writeln("secure-transportd: channel opened");
                         }
-                    }
+                        Err(_) => {
+                            channels.close(channel_id);
+                            send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
+                            sys_debug_writeln("secure-transportd: handshake failed");
+                        }
+                    },
                     Err(_) => {
-                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, SxtError::Internal as usize);
+                        send_tag(
+                            CAP_UPGRAD_EP,
+                            SxtTag::Faulted as u16,
+                            SxtError::Internal as usize,
+                        );
                         sys_debug_writeln("secure-transportd: channel table full");
                     }
                 }
@@ -173,12 +184,24 @@ pub extern "C" fn service_main() -> ! {
                 if let Some(ch) = channels.find_mut(channel_id) {
                     if ch.state == ChannelState::Established {
                         // Stub: in alpha.2 this sends an HTTP/1.1 GET over the TLS record.
-                        send_tag(CAP_UPGRAD_EP, SxtTag::UpdateMetadataReply as u16, channel_id as usize);
+                        send_tag(
+                            CAP_UPGRAD_EP,
+                            SxtTag::UpdateMetadataReply as u16,
+                            channel_id as usize,
+                        );
                     } else {
-                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, SxtError::ChannelFaulted as usize);
+                        send_tag(
+                            CAP_UPGRAD_EP,
+                            SxtTag::Faulted as u16,
+                            SxtError::ChannelFaulted as usize,
+                        );
                     }
                 } else {
-                    send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, SxtError::ChannelClosed as usize);
+                    send_tag(
+                        CAP_UPGRAD_EP,
+                        SxtTag::Faulted as u16,
+                        SxtError::ChannelClosed as usize,
+                    );
                 }
             }
             Some(SxtTag::Close) => {

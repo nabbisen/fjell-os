@@ -17,9 +17,13 @@ pub const ALLOWED_COMPAT_QEMU_VIRT: &[CompatString] = &[
 /// contains any of the strings in `allowed`.
 pub fn matches_compat(value: &[u8], allowed: &[CompatString]) -> bool {
     for part in value.split(|&b| b == 0) {
-        if part.is_empty() { continue; }
+        if part.is_empty() {
+            continue;
+        }
         for &a in allowed {
-            if part == a { return true; }
+            if part == a {
+                return true;
+            }
         }
     }
     false

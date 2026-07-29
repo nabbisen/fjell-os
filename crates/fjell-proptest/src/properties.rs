@@ -4,7 +4,7 @@
 //! and returns `Ok(())` on pass or `Err(msg)` on violation.
 
 use crate::model::*;
-use crate::ops::{execute, Op, OpResult};
+use crate::ops::{Op, OpResult, execute};
 
 pub type PropResult = Result<(), String>;
 
@@ -15,7 +15,7 @@ pub type PropResult = Result<(), String>;
 pub fn p1_no_generation_alias(state: &ModelState, id: CapId) -> PropResult {
     let cap = match state.caps.get(&id) {
         Some(c) => c,
-        None    => return Ok(()),
+        None => return Ok(()),
     };
     let stored_gen = state.generation_of(id);
     if stored_gen == 0 {
@@ -37,11 +37,19 @@ pub fn p2_revoke_invalidates(state: &mut ModelState, id: CapId) -> PropResult {
     // Mark the cap revoked.
     let _ = execute(state, &Op::CapRevoke { id });
     // Attempt IpcSend — must fail with LeaseRevoked or NotFound.
-    let r = execute(state, &Op::IpcSend {
-        from: TaskId(0), cap_id: id, tag: 0, payload: 0
-    });
+    let r = execute(
+        state,
+        &Op::IpcSend {
+            from: TaskId(0),
+            cap_id: id,
+            tag: 0,
+            payload: 0,
+        },
+    );
     if r == OpResult::Ok {
-        return Err(format!("P2: IpcSend through revoked cap {id:?} returned Ok"));
+        return Err(format!(
+            "P2: IpcSend through revoked cap {id:?} returned Ok"
+        ));
     }
     Ok(())
 }
@@ -50,18 +58,24 @@ pub fn p2_revoke_invalidates(state: &mut ModelState, id: CapId) -> PropResult {
 
 /// Delegated rights must be a strict subset of the source cap's rights.
 pub fn p3_delegate_subrights(
-    state:   &mut ModelState,
-    src:     CapId,
-    new_id:  CapId,
+    state: &mut ModelState,
+    src: CapId,
+    new_id: CapId,
     attempt: CapRights,
 ) -> PropResult {
     let src_rights = match state.active_cap(src) {
         Some(c) => c.rights,
-        None    => return Ok(()), // can't test without active src
+        None => return Ok(()), // can't test without active src
     };
-    let result = execute(state, &Op::CapDelegate {
-        src, new_id, dst_task: TaskId(1), sub_rights: attempt,
-    });
+    let result = execute(
+        state,
+        &Op::CapDelegate {
+            src,
+            new_id,
+            dst_task: TaskId(1),
+            sub_rights: attempt,
+        },
+    );
     if attempt.is_subset_of(src_rights) {
         if result != OpResult::Ok && result != OpResult::CapacityExhausted {
             return Err(format!(
@@ -81,7 +95,9 @@ pub fn p3_delegate_subrights(
 // ── P4: lease expiry revokes all caps under it ────────────────────────────────
 
 pub fn p4_lease_expiry_revokes_caps(state: &mut ModelState, lease_id: LeaseId) -> PropResult {
-    let before: Vec<CapId> = state.caps.iter()
+    let before: Vec<CapId> = state
+        .caps
+        .iter()
         .filter(|(_, c)| c.lease == lease_id && c.state == CapState::Active)
         .map(|(id, _)| *id)
         .collect();
@@ -102,7 +118,9 @@ pub fn p4_lease_expiry_revokes_caps(state: &mut ModelState, lease_id: LeaseId) -
 // ── P5: task fault revokes owned leases ──────────────────────────────────────
 
 pub fn p5_task_fault_revokes_leases(state: &mut ModelState, task: TaskId) -> PropResult {
-    let owned: Vec<LeaseId> = state.leases.iter()
+    let owned: Vec<LeaseId> = state
+        .leases
+        .iter()
         .filter(|(_, l)| l.origin_task == task && l.state == LeaseState::Active)
         .map(|(id, _)| *id)
         .collect();
@@ -125,13 +143,21 @@ pub fn p5_task_fault_revokes_leases(state: &mut ModelState, task: TaskId) -> Pro
 pub fn p6_send_requires_right(state: &mut ModelState, cap_id: CapId) -> PropResult {
     let rights = match state.active_cap(cap_id) {
         Some(c) => c.rights,
-        None    => return Ok(()),
+        None => return Ok(()),
     };
-    let result = execute(state, &Op::IpcSend {
-        from: TaskId(0), cap_id, tag: 0, payload: 0
-    });
+    let result = execute(
+        state,
+        &Op::IpcSend {
+            from: TaskId(0),
+            cap_id,
+            tag: 0,
+            payload: 0,
+        },
+    );
     if !rights.contains(CapRights::SEND) && result == OpResult::Ok {
-        return Err(format!("P6: IpcSend succeeded without SEND right (rights={rights:?})"));
+        return Err(format!(
+            "P6: IpcSend succeeded without SEND right (rights={rights:?})"
+        ));
     }
     Ok(())
 }
@@ -142,26 +168,43 @@ pub fn p7_recv_no_panic(state: &mut ModelState, task: TaskId, endpoint: CapId) -
     let result = execute(state, &Op::IpcRecv { task, endpoint });
     // This property simply verifies the call completes with a valid result.
     match result {
-        OpResult::Ok | OpResult::NoMessage | OpResult::LeaseRevoked
-            | OpResult::NotFound | OpResult::TaskFaulted => Ok(()),
+        OpResult::Ok
+        | OpResult::NoMessage
+        | OpResult::LeaseRevoked
+        | OpResult::NotFound
+        | OpResult::TaskFaulted => Ok(()),
         other => Err(format!("P7: unexpected IpcRecv result: {other:?}")),
     }
 }
 
 // ── P8: revoked cap in-flight message dropped ─────────────────────────────────
 
-pub fn p8_inflight_dropped_after_revoke(
-    state: &mut ModelState, cap_id: CapId
-) -> PropResult {
+pub fn p8_inflight_dropped_after_revoke(state: &mut ModelState, cap_id: CapId) -> PropResult {
     // Send a message through the cap.
-    execute(state, &Op::IpcSend { from: TaskId(0), cap_id, tag: 1, payload: 42 });
+    execute(
+        state,
+        &Op::IpcSend {
+            from: TaskId(0),
+            cap_id,
+            tag: 1,
+            payload: 42,
+        },
+    );
     // Revoke the cap.
     execute(state, &Op::CapRevoke { id: cap_id });
     // Recv — must NOT deliver the stale payload (returns LeaseRevoked or NoMessage).
-    let result = execute(state, &Op::IpcRecv { task: TaskId(0), endpoint: cap_id });
+    let result = execute(
+        state,
+        &Op::IpcRecv {
+            task: TaskId(0),
+            endpoint: cap_id,
+        },
+    );
     if result == OpResult::Ok {
         // After revoke the receive should fail.
-        return Err(format!("P8: IpcRecv delivered message after cap {cap_id:?} was revoked"));
+        return Err(format!(
+            "P8: IpcRecv delivered message after cap {cap_id:?} was revoked"
+        ));
     }
     Ok(())
 }
@@ -173,7 +216,8 @@ pub fn p9_generation_monotonic(state: &ModelState, id: CapId) -> PropResult {
     if let Some(cap) = state.caps.get(&id) {
         if cap.generation > stored {
             return Err(format!(
-                "P9: cap {id:?} generation {} > stored_max {stored}", cap.generation
+                "P9: cap {id:?} generation {} > stored_max {stored}",
+                cap.generation
             ));
         }
     }

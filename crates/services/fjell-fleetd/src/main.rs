@@ -13,15 +13,14 @@
 #![no_main]
 mod rt;
 
-use fjell_syscall::{sys_exit, sys_debug_writeln};
 use fjell_fleet_format::{
-    NodeRoster, FleetPolicy, FleetRolloutPlan, FleetAction, FleetActionKind,
-    RolloutStage, RolloutStrategy, PolicyStatement, PolicyAction, PolicyCondition,
-    roster_digest, policy_digest,
+    FleetAction, FleetActionKind, FleetPolicy, FleetRolloutPlan, NodeRoster, PolicyAction,
+    PolicyCondition, PolicyStatement, RolloutStage, RolloutStrategy, policy_digest, roster_digest,
 };
-use fjell_remote_diag_format::{RemoteDiagRequest, DiagRequestKind};
-use fjell_policy_format::{PolicyBundle, PolicySubject};
 use fjell_measure_format::Digest32;
+use fjell_policy_format::{PolicyBundle, PolicySubject};
+use fjell_remote_diag_format::{DiagRequestKind, RemoteDiagRequest};
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
@@ -41,12 +40,18 @@ pub extern "C" fn service_main() -> ! {
 
     // FleetPolicy self-check.
     let mut policy = FleetPolicy::new(fleet_id, roster.roster_digest);
-    policy.add_statement(PolicyStatement::allow(
-        PolicyAction::QueryState, PolicyCondition::Always,
-    )).unwrap_or_else(|_| {});
-    policy.add_statement(PolicyStatement::deny(
-        PolicyAction::RemoteRecovery, PolicyCondition::Always,
-    )).unwrap_or_else(|_| {});
+    policy
+        .add_statement(PolicyStatement::allow(
+            PolicyAction::QueryState,
+            PolicyCondition::Always,
+        ))
+        .unwrap_or_else(|_| {});
+    policy
+        .add_statement(PolicyStatement::deny(
+            PolicyAction::RemoteRecovery,
+            PolicyCondition::Always,
+        ))
+        .unwrap_or_else(|_| {});
     policy.policy_digest = policy_digest(&policy);
     if !policy.permits(PolicyAction::QueryState) {
         sys_debug_writeln("fleetd: ERROR policy.permits failed");
@@ -73,7 +78,10 @@ pub extern "C" fn service_main() -> ! {
 
     // FleetAction no-remote-shell invariant check.
     let action = FleetAction::new(
-        fleet_id, [0u8; 16], FleetActionKind::QueryState, [0x01u8; 16],
+        fleet_id,
+        [0u8; 16],
+        FleetActionKind::QueryState,
+        [0x01u8; 16],
     );
     if !action.is_fleet_wide() {
         sys_debug_writeln("fleetd: ERROR fleet_wide detection wrong");
@@ -83,16 +91,21 @@ pub extern "C" fn service_main() -> ! {
 
     // RemoteDiagRequest self-check.
     let _req = RemoteDiagRequest::new(
-        fleet_id, [0x01u8; 16],
-        DiagRequestKind::FullSnapshot, [0xAAu8; 16],
+        fleet_id,
+        [0x01u8; 16],
+        DiagRequestKind::FullSnapshot,
+        [0xAAu8; 16],
     );
     sys_debug_writeln("fleetd: remote diag format verified");
 
     // PolicyBundle self-check.
     let mut bundle = PolicyBundle::new(fleet_id);
-    bundle.add(fjell_policy_format::PolicyStatement::allow(
-        PolicySubject::ServiceSpawn, 0xFF,
-    )).unwrap_or_else(|_| {});
+    bundle
+        .add(fjell_policy_format::PolicyStatement::allow(
+            PolicySubject::ServiceSpawn,
+            0xFF,
+        ))
+        .unwrap_or_else(|_| {});
     if !bundle.permits(PolicySubject::ServiceSpawn, 0x1B) {
         sys_debug_writeln("fleetd: ERROR policy bundle failed");
         sys_exit(1);

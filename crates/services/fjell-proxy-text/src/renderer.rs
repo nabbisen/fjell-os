@@ -6,22 +6,22 @@
 
 use fjell_semantic_v1::{
     catalog::lookup_tag,
-    codec::{decode, FieldValue},
+    codec::{FieldValue, decode},
     schema::FieldKind,
 };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-pub const MAX_PINNED:       usize = 8;
-pub const SCROLL_BUFFER:    usize = 32;
-pub const RATE_TABLE_SIZE:  usize = 64;
-pub const BODY_LEN:         usize = 96;
-pub const DEFAULT_WIDTH:    usize = 80;
+pub const MAX_PINNED: usize = 8;
+pub const SCROLL_BUFFER: usize = 32;
+pub const RATE_TABLE_SIZE: usize = 64;
+pub const BODY_LEN: usize = 96;
+pub const DEFAULT_WIDTH: usize = 80;
 
 /// Rate-limit budget per (tag, service) per second.
-pub const RATE_BUDGET:  u8 = 8;
+pub const RATE_BUDGET: u8 = 8;
 /// Rate-limit burst allowance.
-pub const RATE_BURST:   u8 = 16;
+pub const RATE_BURST: u8 = 16;
 
 // ── Critical tag set (RFC v0.5-005 §5.2) ─────────────────────────────────────
 
@@ -49,20 +49,24 @@ pub type ServiceId = u16;
 /// A fully-rendered log entry.
 #[derive(Clone, Copy, Debug)]
 pub struct RenderedEntry {
-    pub tag:      u16,
-    pub at_tick:  u64,
-    pub source:   ServiceId,
-    pub body:     [u8; BODY_LEN],  // ASCII, NUL-padded
+    pub tag: u16,
+    pub at_tick: u64,
+    pub source: ServiceId,
+    pub body: [u8; BODY_LEN], // ASCII, NUL-padded
     pub body_len: u8,
     pub critical: bool,
-    pub unknown:  bool,
+    pub unknown: bool,
 }
 
 impl RenderedEntry {
     pub const EMPTY: Self = Self {
-        tag: 0, at_tick: 0, source: 0,
-        body: [0u8; BODY_LEN], body_len: 0,
-        critical: false, unknown: false,
+        tag: 0,
+        at_tick: 0,
+        source: 0,
+        body: [0u8; BODY_LEN],
+        body_len: 0,
+        critical: false,
+        unknown: false,
     };
     pub fn body_str(&self) -> &str {
         let n = self.body_len as usize;
@@ -73,9 +77,9 @@ impl RenderedEntry {
 /// Rate-limit entry per `(intent_tag, source_service)` key.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RateLimitEntry {
-    pub key:        (u16, ServiceId),
-    pub tokens:     u8,
-    pub last_tick:  u64,
+    pub key: (u16, ServiceId),
+    pub tokens: u8,
+    pub last_tick: u64,
     pub suppressed: u16,
 }
 
@@ -83,30 +87,36 @@ pub struct RateLimitEntry {
 #[derive(Clone, Copy, Debug)]
 pub struct ScrollRing {
     entries: [RenderedEntry; SCROLL_BUFFER],
-    head:    u8,
-    count:   u8,
+    head: u8,
+    count: u8,
 }
 
 impl ScrollRing {
     pub const fn new() -> Self {
         Self {
             entries: [RenderedEntry::EMPTY; SCROLL_BUFFER],
-            head:    0,
-            count:   0,
+            head: 0,
+            count: 0,
         }
     }
     pub fn push(&mut self, e: RenderedEntry) {
         let idx = self.head as usize % SCROLL_BUFFER;
         self.entries[idx] = e;
         self.head = self.head.wrapping_add(1);
-        if self.count < SCROLL_BUFFER as u8 { self.count += 1; }
+        if self.count < SCROLL_BUFFER as u8 {
+            self.count += 1;
+        }
     }
-    pub fn len(&self) -> usize { self.count as usize }
-    pub fn is_empty(&self) -> bool { self.count == 0 }
+    pub fn len(&self) -> usize {
+        self.count as usize
+    }
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
     /// Iterate entries newest-first.
     pub fn iter_newest_first(&self) -> impl Iterator<Item = &RenderedEntry> {
         let count = self.count as usize;
-        let head  = self.head as usize;
+        let head = self.head as usize;
         (0..count).map(move |i| {
             let idx = (head + SCROLL_BUFFER - 1 - i) % SCROLL_BUFFER;
             &self.entries[idx]
@@ -117,18 +127,18 @@ impl ScrollRing {
 /// Banner state (refreshed on SECURITY.REGISTRY_ENFORCING, PLATFORM.PROFILES_READY).
 #[derive(Clone, Copy, Debug)]
 pub struct BannerInfo {
-    pub phase:           [u8; 16],
-    pub phase_len:       u8,
-    pub boot_id_lo:      u64,
-    pub chain_digest_hi: [u8; 8],   // first 8 bytes of measurement chain head
+    pub phase: [u8; 16],
+    pub phase_len: u8,
+    pub boot_id_lo: u64,
+    pub chain_digest_hi: [u8; 8], // first 8 bytes of measurement chain head
 }
 
 impl BannerInfo {
     pub const fn default() -> Self {
         Self {
-            phase:           *b"bootstrap\0\0\0\0\0\0\0",
-            phase_len:       9,
-            boot_id_lo:      0,
+            phase: *b"bootstrap\0\0\0\0\0\0\0",
+            phase_len: 9,
+            boot_id_lo: 0,
             chain_digest_hi: [0u8; 8],
         }
     }
@@ -136,22 +146,26 @@ impl BannerInfo {
 
 /// Full renderer state (RFC v0.5-005 §6.1).
 pub struct ProxyState {
-    pub banner:     BannerInfo,
-    pub pinned:     [Option<RenderedEntry>; MAX_PINNED],
-    pub scroll:     ScrollRing,
+    pub banner: BannerInfo,
+    pub pinned: [Option<RenderedEntry>; MAX_PINNED],
+    pub scroll: ScrollRing,
     pub rate_table: [RateLimitEntry; RATE_TABLE_SIZE],
-    pub width:      usize,
+    pub width: usize,
 }
 
 impl ProxyState {
     pub const fn new() -> Self {
         Self {
-            banner:     BannerInfo::default(),
-            pinned:     [None; MAX_PINNED],
-            scroll:     ScrollRing::new(),
-            rate_table: [RateLimitEntry { key: (0, 0), tokens: RATE_BURST,
-                          last_tick: 0, suppressed: 0 }; RATE_TABLE_SIZE],
-            width:      DEFAULT_WIDTH,
+            banner: BannerInfo::default(),
+            pinned: [None; MAX_PINNED],
+            scroll: ScrollRing::new(),
+            rate_table: [RateLimitEntry {
+                key: (0, 0),
+                tokens: RATE_BURST,
+                last_tick: 0,
+                suppressed: 0,
+            }; RATE_TABLE_SIZE],
+            width: DEFAULT_WIDTH,
         }
     }
 
@@ -161,24 +175,33 @@ impl ProxyState {
         let key = (tag, source);
         // Find existing slot or evict oldest.
         let mut oldest_tick = u64::MAX;
-        let mut oldest_idx  = 0usize;
+        let mut oldest_idx = 0usize;
         for (i, slot) in self.rate_table.iter().enumerate() {
-            if slot.key == key { return &mut self.rate_table[i]; }
+            if slot.key == key {
+                return &mut self.rate_table[i];
+            }
             if slot.last_tick < oldest_tick {
                 oldest_tick = slot.last_tick;
-                oldest_idx  = i;
+                oldest_idx = i;
             }
         }
-        self.rate_table[oldest_idx] = RateLimitEntry { key, tokens: RATE_BURST, last_tick: 0, suppressed: 0 };
+        self.rate_table[oldest_idx] = RateLimitEntry {
+            key,
+            tokens: RATE_BURST,
+            last_tick: 0,
+            suppressed: 0,
+        };
         &mut self.rate_table[oldest_idx]
     }
 
     fn rate_allow(&mut self, tag: u16, source: ServiceId, tick: u64) -> bool {
-        if is_critical_tag(tag) { return true; }
+        if is_critical_tag(tag) {
+            return true;
+        }
         let slot = self.rate_slot(tag, source);
         // Refill tokens based on elapsed ticks (1 token per 125ms = 8/s).
         let elapsed = tick.saturating_sub(slot.last_tick);
-        let refill  = (elapsed / 125).min(RATE_BUDGET as u64) as u8;
+        let refill = (elapsed / 125).min(RATE_BUDGET as u64) as u8;
         slot.tokens = slot.tokens.saturating_add(refill).min(RATE_BURST);
         slot.last_tick = tick;
         if slot.tokens > 0 {
@@ -196,11 +219,15 @@ impl ProxyState {
         // Replace existing pin for same tag, else LRU evict.
         for slot in &mut self.pinned {
             if slot.map_or(false, |s| s.tag == e.tag) {
-                *slot = Some(e); return;
+                *slot = Some(e);
+                return;
             }
         }
         for slot in &mut self.pinned {
-            if slot.is_none() { *slot = Some(e); return; }
+            if slot.is_none() {
+                *slot = Some(e);
+                return;
+            }
         }
         // Evict oldest (first slot, LRU-ish).
         self.pinned[0] = Some(e);
@@ -213,18 +240,16 @@ impl ProxyState {
     /// `source` is the emitting service's ImageId.
     /// `tick` is the current kernel tick.
     /// Returns `Some(entry)` if an entry should be emitted to the display.
-    pub fn ingest(&mut self, bytes: &[u8], source: ServiceId, tick: u64)
-        -> Option<RenderedEntry>
-    {
+    pub fn ingest(&mut self, bytes: &[u8], source: ServiceId, tick: u64) -> Option<RenderedEntry> {
         // Decode.
         let decoded = match decode(bytes) {
-            Ok(d)  => d,
+            Ok(d) => d,
             Err(_) => {
                 // Malformed envelope — render as unknown.
                 let mut e = RenderedEntry::EMPTY;
-                e.unknown  = true;
-                e.at_tick  = tick;
-                e.source   = source;
+                e.unknown = true;
+                e.at_tick = tick;
+                e.source = source;
                 let s = b"<<malformed>>";
                 let n = s.len().min(BODY_LEN);
                 e.body[..n].copy_from_slice(&s[..n]);
@@ -237,37 +262,45 @@ impl ProxyState {
         let entry = match lookup_tag(decoded.tag) {
             Some(catalog_entry) => {
                 let mut e = RenderedEntry::EMPTY;
-                e.tag      = decoded.tag;
-                e.at_tick  = decoded.created_tick;
-                e.source   = source;
+                e.tag = decoded.tag;
+                e.at_tick = decoded.created_tick;
+                e.source = source;
                 e.critical = is_critical_tag(decoded.tag);
                 // Format body: "TAG_NAME field1=v1 field2=v2 ..."
                 let mut buf = [0u8; BODY_LEN];
                 let mut pos = 0usize;
                 let name = catalog_entry.name.as_bytes();
                 let n = name.len().min(BODY_LEN - 1);
-                buf[pos..pos+n].copy_from_slice(&name[..n]); pos += n;
+                buf[pos..pos + n].copy_from_slice(&name[..n]);
+                pos += n;
                 for (i, fd) in catalog_entry.schema.fields.iter().enumerate() {
-                    if pos >= BODY_LEN - 2 { break; }
-                    buf[pos] = b' '; pos += 1;
+                    if pos >= BODY_LEN - 2 {
+                        break;
+                    }
+                    buf[pos] = b' ';
+                    pos += 1;
                     let fname = fd.name.as_bytes();
                     let fn_len = fname.len().min(BODY_LEN - pos - 1);
-                    buf[pos..pos+fn_len].copy_from_slice(&fname[..fn_len]); pos += fn_len;
-                    if pos >= BODY_LEN - 1 { break; }
-                    buf[pos] = b'='; pos += 1;
+                    buf[pos..pos + fn_len].copy_from_slice(&fname[..fn_len]);
+                    pos += fn_len;
+                    if pos >= BODY_LEN - 1 {
+                        break;
+                    }
+                    buf[pos] = b'=';
+                    pos += 1;
                     pos = format_field_value(&decoded.fields[i], fd.kind, &mut buf, pos);
                 }
-                e.body     = buf;
+                e.body = buf;
                 e.body_len = pos as u8;
                 e
             }
             None => {
                 // Unknown tag.
                 let mut e = RenderedEntry::EMPTY;
-                e.tag      = decoded.tag;
-                e.at_tick  = decoded.created_tick;
-                e.source   = source;
-                e.unknown  = true;
+                e.tag = decoded.tag;
+                e.at_tick = decoded.created_tick;
+                e.source = source;
+                e.unknown = true;
                 let prefix = b"<<unknown(0x";
                 let n = prefix.len().min(BODY_LEN);
                 e.body[..n].copy_from_slice(&prefix[..n]);
@@ -300,26 +333,52 @@ impl ProxyState {
 
 fn format_field_value(fv: &FieldValue, _kind: FieldKind, buf: &mut [u8], mut pos: usize) -> usize {
     match *fv {
-        FieldValue::Absent      => { if pos < buf.len() { buf[pos] = b'-'; pos += 1; } }
-        FieldValue::U8(v)       => { pos = write_u64(v as u64, buf, pos); }
-        FieldValue::U16(v)      => { pos = write_hex16(v, buf, pos); }
-        FieldValue::U32(v)      => { pos = write_hex32(v, buf, pos); }
-        FieldValue::U64(v)      => { pos = write_u64(v, buf, pos); }
-        FieldValue::Bytes16(b)  => { pos = write_hex_trunc(&b, 4, buf, pos); }
-        FieldValue::Bytes32(b)  => { pos = write_hex_trunc(&b, 8, buf, pos); }
+        FieldValue::Absent => {
+            if pos < buf.len() {
+                buf[pos] = b'-';
+                pos += 1;
+            }
+        }
+        FieldValue::U8(v) => {
+            pos = write_u64(v as u64, buf, pos);
+        }
+        FieldValue::U16(v) => {
+            pos = write_hex16(v, buf, pos);
+        }
+        FieldValue::U32(v) => {
+            pos = write_hex32(v, buf, pos);
+        }
+        FieldValue::U64(v) => {
+            pos = write_u64(v, buf, pos);
+        }
+        FieldValue::Bytes16(b) => {
+            pos = write_hex_trunc(&b, 4, buf, pos);
+        }
+        FieldValue::Bytes32(b) => {
+            pos = write_hex_trunc(&b, 8, buf, pos);
+        }
     }
     pos
 }
 
 fn write_u64(mut n: u64, buf: &mut [u8], pos: usize) -> usize {
-    if pos >= buf.len() { return pos; }
-    if n == 0 { buf[pos] = b'0'; return pos + 1; }
+    if pos >= buf.len() {
+        return pos;
+    }
+    if n == 0 {
+        buf[pos] = b'0';
+        return pos + 1;
+    }
     let mut tmp = [0u8; 20];
     let mut i = 20;
-    while n > 0 { i -= 1; tmp[i] = b'0' + (n % 10) as u8; n /= 10; }
+    while n > 0 {
+        i -= 1;
+        tmp[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
     let s = &tmp[i..];
     let n = s.len().min(buf.len() - pos);
-    buf[pos..pos+n].copy_from_slice(&s[..n]);
+    buf[pos..pos + n].copy_from_slice(&s[..n]);
     pos + n
 }
 
@@ -335,17 +394,22 @@ fn write_hex_trunc(bytes: &[u8], max_bytes: usize, buf: &mut [u8], pos: usize) -
     let n = bytes.len().min(max_bytes);
     let p = write_hex_slice(&bytes[..n], buf, pos);
     if bytes.len() > max_bytes && p + 2 < buf.len() {
-        buf[p] = b'.'; buf[p+1] = b'.';
+        buf[p] = b'.';
+        buf[p + 1] = b'.';
         p + 2
-    } else { p }
+    } else {
+        p
+    }
 }
 
 fn write_hex_slice(bytes: &[u8], buf: &mut [u8], mut pos: usize) -> usize {
     const HEX: &[u8] = b"0123456789abcdef";
     for &b in bytes {
-        if pos + 2 > buf.len() { break; }
-        buf[pos]   = HEX[(b >> 4) as usize];
-        buf[pos+1] = HEX[(b & 0xF) as usize];
+        if pos + 2 > buf.len() {
+            break;
+        }
+        buf[pos] = HEX[(b >> 4) as usize];
+        buf[pos + 1] = HEX[(b & 0xF) as usize];
         pos += 2;
     }
     pos
@@ -354,9 +418,13 @@ fn write_hex_slice(bytes: &[u8], buf: &mut [u8], mut pos: usize) -> usize {
 #[cfg(test)]
 mod proxy_tests {
     use super::*;
-    use fjell_semantic_v1::codec::{encode, FieldValue, MAX_ENVELOPE_BYTES};
+    use fjell_semantic_v1::codec::{FieldValue, MAX_ENVELOPE_BYTES, encode};
 
-    fn encode_intent(tag: u16, tick: u64, fields: &[FieldValue]) -> ([u8; MAX_ENVELOPE_BYTES], usize) {
+    fn encode_intent(
+        tag: u16,
+        tick: u64,
+        fields: &[FieldValue],
+    ) -> ([u8; MAX_ENVELOPE_BYTES], usize) {
         let mut buf = [0u8; MAX_ENVELOPE_BYTES];
         let n = encode(tag, tick, fields, &mut buf).unwrap();
         (buf, n)
@@ -407,7 +475,9 @@ mod proxy_tests {
         // Send many more than burst.
         let mut accepted = 0;
         for _ in 0..100 {
-            if ps.ingest(&buf[..n], 1, 0).is_some() { accepted += 1; }
+            if ps.ingest(&buf[..n], 1, 0).is_some() {
+                accepted += 1;
+            }
         }
         assert_eq!(accepted, 100, "critical must never be suppressed");
     }
@@ -422,10 +492,14 @@ mod proxy_tests {
         let fv = [FieldValue::U32(7), FieldValue::U32(0), FieldValue::U32(63)];
         let (mut buf, n) = encode_intent(0x0100, 0, &fv);
         // Corrupt tag to unknown.
-        buf[7] = 0x99; buf[8] = 0x99;
+        buf[7] = 0x99;
+        buf[8] = 0x99;
         let entry = ps.ingest(&buf[..n], 1, 0);
         assert!(entry.is_some());
-        assert!(entry.unwrap().unknown, "corrupted tag must render as unknown");
+        assert!(
+            entry.unwrap().unknown,
+            "corrupted tag must render as unknown"
+        );
     }
 
     #[test]
@@ -458,7 +532,9 @@ mod proxy_tests {
         let (buf, n) = encode_intent(0x0100, 500, &fv);
         let entry = ps.ingest(&buf[..n], 5, 500).unwrap();
         let body = entry.body_str();
-        assert!(body.contains("UPDATE.STAGING_STARTED"),
-            "body should contain tag name, got: {body}");
+        assert!(
+            body.contains("UPDATE.STAGING_STARTED"),
+            "body should contain tag name, got: {body}"
+        );
     }
 }

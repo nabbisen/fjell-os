@@ -1,17 +1,15 @@
 //! Host unit tests for `fjell-diag-format` (RFC v0.4-005 §11).
 
-use crate::builder::{BundleBuilder, BuilderError};
-use crate::{DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS};
+use crate::builder::{BuilderError, BundleBuilder};
 use crate::events::{
-    is_audit_event_allowed,
-    AUDIT_KERNEL_BOOT_BANNER, AUDIT_UPGRADE_ROLLBACK_REJECTED,
-    AUDIT_SXT_HANDSHAKE_FAILED, AUDIT_RECOVERY_ENTERED, AUDIT_NET_DRIVER_FAULTED,
+    AUDIT_KERNEL_BOOT_BANNER, AUDIT_NET_DRIVER_FAULTED, AUDIT_RECOVERY_ENTERED,
+    AUDIT_SXT_HANDSHAKE_FAILED, AUDIT_UPGRADE_ROLLBACK_REJECTED, is_audit_event_allowed,
 };
 use crate::intents::{
-    is_intent_allowed,
-    INTENT_UPDATE_STAGING_CONFIRMED, INTENT_RECOVERY_ENTERED,
-    INTENT_NET_LINK_DOWN, INTENT_UPDATE_STAGING_FAILED,
+    INTENT_NET_LINK_DOWN, INTENT_RECOVERY_ENTERED, INTENT_UPDATE_STAGING_CONFIRMED,
+    INTENT_UPDATE_STAGING_FAILED, is_intent_allowed,
 };
+use crate::{DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS};
 use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
@@ -102,7 +100,8 @@ fn builder_rejects_disallowed_intent() {
 fn builder_audit_buffer_full_returns_error() {
     let mut b = default_builder();
     for i in 0..MAX_AUDIT_EVENTS as u32 {
-        b.add_audit_event(i, AUDIT_KERNEL_BOOT_BANNER, 0, i as u64).unwrap();
+        b.add_audit_event(i, AUDIT_KERNEL_BOOT_BANNER, 0, i as u64)
+            .unwrap();
     }
     assert_eq!(b.audit_count(), MAX_AUDIT_EVENTS as u8);
     let r = b.add_audit_event(MAX_AUDIT_EVENTS as u32, AUDIT_KERNEL_BOOT_BANNER, 0, 0);
@@ -132,16 +131,22 @@ fn builder_finalise_sets_schema_version() {
 #[test]
 fn builder_finalise_digest_is_nonzero() {
     let mut b = default_builder();
-    b.add_audit_event(1, AUDIT_KERNEL_BOOT_BANNER, 0, 100).unwrap();
+    b.add_audit_event(1, AUDIT_KERNEL_BOOT_BANNER, 0, 100)
+        .unwrap();
     let bundle = b.finalise();
-    assert_ne!(bundle.bundle_digest.0, [0u8; 32], "digest should be non-zero");
+    assert_ne!(
+        bundle.bundle_digest.0, [0u8; 32],
+        "digest should be non-zero"
+    );
 }
 
 #[test]
 fn builder_finalise_digest_is_deterministic() {
     let add_events = |b: &mut BundleBuilder| {
-        b.add_audit_event(1, AUDIT_KERNEL_BOOT_BANNER, 0, 100).unwrap();
-        b.add_intent(1, INTENT_UPDATE_STAGING_CONFIRMED, 0, 200).unwrap();
+        b.add_audit_event(1, AUDIT_KERNEL_BOOT_BANNER, 0, 100)
+            .unwrap();
+        b.add_intent(1, INTENT_UPDATE_STAGING_CONFIRMED, 0, 200)
+            .unwrap();
     };
     let mut b1 = default_builder();
     add_events(&mut b1);
@@ -151,30 +156,39 @@ fn builder_finalise_digest_is_deterministic() {
     add_events(&mut b2);
     let d2 = b2.finalise().bundle_digest;
 
-    assert_eq!(d1.0, d2.0, "identical bundles must produce identical digests");
+    assert_eq!(
+        d1.0, d2.0,
+        "identical bundles must produce identical digests"
+    );
 }
 
 #[test]
 fn builder_finalise_different_events_produce_different_digests() {
     let mut b1 = default_builder();
-    b1.add_audit_event(1, AUDIT_KERNEL_BOOT_BANNER, 0, 100).unwrap();
+    b1.add_audit_event(1, AUDIT_KERNEL_BOOT_BANNER, 0, 100)
+        .unwrap();
     let d1 = b1.finalise().bundle_digest;
 
     let mut b2 = default_builder();
-    b2.add_audit_event(1, AUDIT_RECOVERY_ENTERED, 0, 100).unwrap();
+    b2.add_audit_event(1, AUDIT_RECOVERY_ENTERED, 0, 100)
+        .unwrap();
     let d2 = b2.finalise().bundle_digest;
 
-    assert_ne!(d1.0, d2.0, "different events must produce different digests");
+    assert_ne!(
+        d1.0, d2.0,
+        "different events must produce different digests"
+    );
 }
 
 #[test]
 fn builder_preserves_event_fields_in_bundle() {
     let mut b = default_builder();
-    b.add_audit_event(42, AUDIT_UPGRADE_ROLLBACK_REJECTED, 0x0007, 9999).unwrap();
+    b.add_audit_event(42, AUDIT_UPGRADE_ROLLBACK_REJECTED, 0x0007, 9999)
+        .unwrap();
     let bundle = b.finalise();
     let ev = &bundle.audit_events[0];
-    assert_eq!(ev.seq,      42);
+    assert_eq!(ev.seq, 42);
     assert_eq!(ev.kind_tag, AUDIT_UPGRADE_ROLLBACK_REJECTED);
-    assert_eq!(ev.code,     0x0007);
-    assert_eq!(ev.at_tick,  9999);
+    assert_eq!(ev.code, 0x0007);
+    assert_eq!(ev.at_tick, 9999);
 }

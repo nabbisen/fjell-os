@@ -10,7 +10,7 @@ use fjell_measure_format::Digest32;
 use crate::anchor::TrustAnchor;
 use crate::error::SigError;
 use crate::keyring::{Keyring, PURPOSE_SLOT_COUNT};
-use crate::{ANCHORS_PER_PURPOSE, ANCHOR_KEY_BYTES_MAX, KEYRING_DOMAIN, SCHEMA_VERSION};
+use crate::{ANCHOR_KEY_BYTES_MAX, ANCHORS_PER_PURPOSE, KEYRING_DOMAIN, SCHEMA_VERSION};
 use fjell_trust_provider::KeyPurpose;
 
 /// Magic bytes at the start of every snapshot.
@@ -23,8 +23,8 @@ pub const MAX_SNAPSHOT_ANCHORS: usize = PURPOSE_SLOT_COUNT * ANCHORS_PER_PURPOSE
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct KeyringSnapshot {
     pub schema_version: u16,
-    pub anchor_count:   u8,
-    pub anchors:        [Option<TrustAnchor>; MAX_SNAPSHOT_ANCHORS],
+    pub anchor_count: u8,
+    pub anchors: [Option<TrustAnchor>; MAX_SNAPSHOT_ANCHORS],
     pub snapshot_digest: Digest32,
 }
 
@@ -32,8 +32,7 @@ impl KeyringSnapshot {
     /// Build a snapshot from a live `Keyring`.  The digest is computed at
     /// build time using the canonical formula in `compute_digest`.
     pub fn from_keyring(keyring: &Keyring) -> Self {
-        let mut anchors: [Option<TrustAnchor>; MAX_SNAPSHOT_ANCHORS] =
-            [None; MAX_SNAPSHOT_ANCHORS];
+        let mut anchors: [Option<TrustAnchor>; MAX_SNAPSHOT_ANCHORS] = [None; MAX_SNAPSHOT_ANCHORS];
         let mut count: u8 = 0;
         for purpose in KeyPurpose::all().iter().copied() {
             for a in keyring.anchors_for(purpose) {
@@ -109,8 +108,7 @@ fn compute_digest(snap: &KeyringSnapshot) -> Digest32 {
 
     // Pass 2: build the parts list, taking borrows of the scratch arrays
     // and of the in-place key bytes inside `snap.anchors`.
-    let mut parts: [&[u8]; 3 + MAX_SNAPSHOT_ANCHORS * 5] =
-        [&[]; 3 + MAX_SNAPSHOT_ANCHORS * 5];
+    let mut parts: [&[u8]; 3 + MAX_SNAPSHOT_ANCHORS * 5] = [&[]; 3 + MAX_SNAPSHOT_ANCHORS * 5];
     parts[0] = KEYRING_DOMAIN;
     parts[1] = b"SNAP-V1";
     parts[2] = &header;

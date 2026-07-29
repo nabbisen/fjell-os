@@ -15,17 +15,17 @@
 extern crate alloc;
 
 use crate::descriptor::TrustProviderDescriptor;
-use crate::registry::PolicyAuth;
 use crate::development::DevelopmentTrustProvider;
 use crate::error::TrustError;
 use crate::ids::{KeyPurpose, ProviderHandle, TrustProviderId};
-use crate::material::{AttestationDigest, KeyMaterial, SealedKey, Signature, SIGNATURE_LEN};
+use crate::material::{AttestationDigest, KeyMaterial, SIGNATURE_LEN, SealedKey, Signature};
 use crate::null::NullTrustProvider;
 use crate::profile::{
     TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
 use crate::provider::HardwareTrustProvider;
-use crate::registry::{ProviderRegistry, RegistryError, RegistryPhase, MAX_PROVIDERS};
+use crate::registry::PolicyAuth;
+use crate::registry::{MAX_PROVIDERS, ProviderRegistry, RegistryError, RegistryPhase};
 
 use fjell_measure_format::{Digest32, MeasurementHead, MeasurementKind};
 
@@ -220,7 +220,9 @@ fn registry_enforcing_rejects_new_non_null_provider() {
 fn registry_replace_rotates_generation() {
     let mut reg = ProviderRegistry::new();
     let h1 = reg.register(dev_descriptor()).expect("register");
-    let h2 = reg.replace(h1, dev_descriptor(), PolicyAuth::valid(1)).expect("replace");
+    let h2 = reg
+        .replace(h1, dev_descriptor(), PolicyAuth::valid(1))
+        .expect("replace");
     assert_eq!(h1.id, h2.id);
     assert_ne!(h1.generation, h2.generation);
     assert!(h2.generation > h1.generation);
@@ -231,10 +233,14 @@ fn registry_replace_in_enforcing_rejects_null() {
     let mut reg = ProviderRegistry::new();
     let h1 = reg.register(dev_descriptor()).expect("register");
     reg.enter_enforcing();
-    let err = reg.replace(h1, null_descriptor(), PolicyAuth::valid(1)).unwrap_err();
+    let err = reg
+        .replace(h1, null_descriptor(), PolicyAuth::valid(1))
+        .unwrap_err();
     assert_eq!(err, RegistryError::NullProviderForbidden);
     // Non-null replace still works in Enforcing phase:
-    let h2 = reg.replace(h1, dev_descriptor(), PolicyAuth::valid(1)).expect("non-null replace");
+    let h2 = reg
+        .replace(h1, dev_descriptor(), PolicyAuth::valid(1))
+        .expect("non-null replace");
     assert_eq!(h1.id, h2.id);
     assert!(h2.generation > h1.generation);
 }
@@ -254,7 +260,9 @@ fn registry_remove_rotates_generation() {
 fn registry_stale_handle_after_replace_rejected() {
     let mut reg = ProviderRegistry::new();
     let h1 = reg.register(dev_descriptor()).expect("register");
-    let _h2 = reg.replace(h1, dev_descriptor(), PolicyAuth::valid(1)).expect("replace");
+    let _h2 = reg
+        .replace(h1, dev_descriptor(), PolicyAuth::valid(1))
+        .expect("replace");
     // Old handle must now fail with StaleHandle.
     let err = reg.lookup(h1).unwrap_err();
     assert_eq!(err, RegistryError::StaleHandle);
@@ -372,9 +380,7 @@ fn development_provider_sign_wrong_purpose_rejected() {
 fn development_provider_corrupted_blob_fails_mac() {
     let p = DevelopmentTrustProvider::with_default_key(TrustProviderId::new(1), 1);
     let key = KeyMaterial::from_bytes(b"the-original");
-    let mut sealed = p
-        .seal_key(KeyPurpose::SealedDataKey, key)
-        .expect("seal");
+    let mut sealed = p.seal_key(KeyPurpose::SealedDataKey, key).expect("seal");
     // Flip a bit inside the MAC region (first 32 bytes).
     sealed.blob[3] ^= 0x01;
     let err = p
@@ -387,9 +393,7 @@ fn development_provider_corrupted_blob_fails_mac() {
 fn development_provider_corrupted_payload_fails_mac() {
     let p = DevelopmentTrustProvider::with_default_key(TrustProviderId::new(1), 1);
     let key = KeyMaterial::from_bytes(b"the-original");
-    let mut sealed = p
-        .seal_key(KeyPurpose::SealedDataKey, key)
-        .expect("seal");
+    let mut sealed = p.seal_key(KeyPurpose::SealedDataKey, key).expect("seal");
     // Flip a bit inside the payload region (byte index 32+).
     sealed.blob[40] ^= 0x80;
     let err = p
@@ -564,8 +568,13 @@ fn registry_enforcing_replace_requires_policy_auth() {
     reg.enter_enforcing();
 
     // Replace with EMPTY auth must be rejected in Enforcing.
-    let err = reg.replace(h, dev_descriptor(), PolicyAuth::EMPTY).unwrap_err();
-    assert_eq!(err, crate::registry::RegistryError::PolicyAuthorizationRequired);
+    let err = reg
+        .replace(h, dev_descriptor(), PolicyAuth::EMPTY)
+        .unwrap_err();
+    assert_eq!(
+        err,
+        crate::registry::RegistryError::PolicyAuthorizationRequired
+    );
 }
 
 #[test]
@@ -575,7 +584,9 @@ fn registry_enforcing_replace_with_valid_auth_succeeds() {
     reg.enter_enforcing();
 
     // Replace with valid auth token succeeds.
-    let h2 = reg.replace(h, dev_descriptor(), PolicyAuth::valid(0xDEAD_BEEF)).unwrap();
+    let h2 = reg
+        .replace(h, dev_descriptor(), PolicyAuth::valid(0xDEAD_BEEF))
+        .unwrap();
     assert_ne!(h2, h, "generation should increment");
 }
 
@@ -586,7 +597,10 @@ fn registry_enforcing_remove_requires_policy_auth() {
     reg.enter_enforcing();
 
     let err = reg.remove(h, PolicyAuth::EMPTY).unwrap_err();
-    assert_eq!(err, crate::registry::RegistryError::PolicyAuthorizationRequired);
+    assert_eq!(
+        err,
+        crate::registry::RegistryError::PolicyAuthorizationRequired
+    );
 }
 
 #[test]

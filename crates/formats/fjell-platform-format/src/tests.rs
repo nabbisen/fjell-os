@@ -1,16 +1,14 @@
 //! Host unit tests for `fjell-platform-format` (RFC v0.5-001 §11).
 
-use crate::platform::{
-    PlatformProfile, PlatformFamily, IsaExtensions, KernelAbiVersion,
-    PLATFORM_PROFILE_VERSION,
-    ISA_EXT_I, ISA_EXT_M, ISA_EXT_A, ISA_EXT_F,
-};
 use crate::board::{
-    BoardProfile, DeviceClass, RecoveryKind, BOARD_PROFILE_VERSION,
-    MAX_BOARD_DEVICES,
+    BOARD_PROFILE_VERSION, BoardProfile, DeviceClass, MAX_BOARD_DEVICES, RecoveryKind,
 };
-use crate::isa::{reserved_bits_clear};
-use crate::digest::{platform_digest, board_digest};
+use crate::digest::{board_digest, platform_digest};
+use crate::isa::reserved_bits_clear;
+use crate::platform::{
+    ISA_EXT_A, ISA_EXT_F, ISA_EXT_I, ISA_EXT_M, IsaExtensions, KernelAbiVersion,
+    PLATFORM_PROFILE_VERSION, PlatformFamily, PlatformProfile,
+};
 use fjell_measure_format::Digest32;
 
 // ── PlatformProfile ───────────────────────────────────────────────────────────
@@ -29,8 +27,10 @@ fn qemu_virt_default_family_is_riscv64gc() {
 #[test]
 fn qemu_virt_default_isa_is_mandatory_compliant() {
     let p = PlatformProfile::qemu_virt_default();
-    assert!(p.isa_extensions.is_riscv64gc_compliant(),
-        "default ISA must include I, M, A extensions");
+    assert!(
+        p.isa_extensions.is_riscv64gc_compliant(),
+        "default ISA must include I, M, A extensions"
+    );
 }
 
 #[test]
@@ -93,10 +93,10 @@ fn board_recovery_kind_is_boot_arg() {
 fn device_class_roundtrip() {
     for &(byte, expected) in &[
         (0x01u8, DeviceClass::Uart8250),
-        (0x02,   DeviceClass::VirtioNetMmio),
-        (0x03,   DeviceClass::VirtioBlkMmio),
-        (0x05,   DeviceClass::Plic),
-        (0xFF,   DeviceClass::Generic),
+        (0x02, DeviceClass::VirtioNetMmio),
+        (0x03, DeviceClass::VirtioBlkMmio),
+        (0x05, DeviceClass::Plic),
+        (0xFF, DeviceClass::Generic),
     ] {
         assert_eq!(DeviceClass::from_u8(byte).unwrap() as u8, expected as u8);
     }
@@ -135,11 +135,13 @@ fn board_digest_is_nonzero() {
 #[test]
 fn board_digest_binds_platform_ref() {
     let pd1 = platform_digest(&PlatformProfile::qemu_virt_default());
-    let pd2 = Digest32([0x42u8; 32]);  // different platform
+    let pd2 = Digest32([0x42u8; 32]); // different platform
     let bd1 = board_digest(&BoardProfile::qemu_virt_default(pd1));
     let bd2 = board_digest(&BoardProfile::qemu_virt_default(pd2));
-    assert_ne!(bd1.0, bd2.0,
-        "board digest must differ when platform_ref differs");
+    assert_ne!(
+        bd1.0, bd2.0,
+        "board digest must differ when platform_ref differs"
+    );
 }
 
 #[test]

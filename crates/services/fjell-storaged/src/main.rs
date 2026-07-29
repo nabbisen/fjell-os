@@ -5,47 +5,47 @@
 #![allow(dead_code)]
 mod rt;
 
-use fjell_syscall::{sys_debug_writeln, sys_exit, sys_mmio_map, sys_dma_alloc,
-                    sys_yield};
-use core::sync::atomic::{fence, Ordering};
+use core::sync::atomic::{Ordering, fence};
+use fjell_syscall::{sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map, sys_yield};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    sys_debug_writeln("storaged: panic"); sys_exit(1);
+    sys_debug_writeln("storaged: panic");
+    sys_exit(1);
 }
 
 // ── virtio-mmio register offsets (v1 legacy) ─────────────────────────────────
 // v1 legacy virtio-mmio register offsets (from virtio-mmio.h spec)
-const R_DRV_FEATURES:  usize = 0x020;  // DriverFeatures (write) — 32-bit
-const R_GUEST_PAGE:    usize = 0x028;  // GuestPageSize (write) — page size (v1 only)
-const R_QUEUE_SEL:     usize = 0x030;  // QueueSel
-const R_QUEUE_NUM:     usize = 0x038;  // QueueNum
-const R_QUEUE_ALIGN:   usize = 0x03C;  // QueueAlign (v1 only)
-const R_QUEUE_PFN:     usize = 0x040;  // QueuePFN (write, v1 only) — page frame number
-const R_QUEUE_NOTIFY:  usize = 0x050;  // QueueNotify
-const R_STATUS:        usize = 0x070;  // Status
+const R_DRV_FEATURES: usize = 0x020; // DriverFeatures (write) — 32-bit
+const R_GUEST_PAGE: usize = 0x028; // GuestPageSize (write) — page size (v1 only)
+const R_QUEUE_SEL: usize = 0x030; // QueueSel
+const R_QUEUE_NUM: usize = 0x038; // QueueNum
+const R_QUEUE_ALIGN: usize = 0x03C; // QueueAlign (v1 only)
+const R_QUEUE_PFN: usize = 0x040; // QueuePFN (write, v1 only) — page frame number
+const R_QUEUE_NOTIFY: usize = 0x050; // QueueNotify
+const R_STATUS: usize = 0x070; // Status
 // v2-only constants (unused in v1 mode)
-const R_DEV_FEAT_SEL:  usize = 0x014;
-const R_DRV_FEAT_SEL:  usize = 0x024;
-const R_QUEUE_READY:   usize = 0x044;
+const R_DEV_FEAT_SEL: usize = 0x014;
+const R_DRV_FEAT_SEL: usize = 0x024;
+const R_QUEUE_READY: usize = 0x044;
 const R_QUEUE_DESC_LO: usize = 0x080;
 const R_QUEUE_DESC_HI: usize = 0x084;
-const R_QUEUE_DRV_LO:  usize = 0x090;
-const R_QUEUE_DRV_HI:  usize = 0x094;
-const R_QUEUE_DEV_LO:  usize = 0x0A0;
-const R_QUEUE_DEV_HI:  usize = 0x0A4;
+const R_QUEUE_DRV_LO: usize = 0x090;
+const R_QUEUE_DRV_HI: usize = 0x094;
+const R_QUEUE_DEV_LO: usize = 0x0A0;
+const R_QUEUE_DEV_HI: usize = 0x0A4;
 
 // ── virtio device status bits ─────────────────────────────────────────────────
-const S_ACK:       u32 = 1;
-const S_DRIVER:    u32 = 2;
+const S_ACK: u32 = 1;
+const S_DRIVER: u32 = 2;
 const S_DRIVER_OK: u32 = 4;
-const S_FAILED:    u32 = 128;
+const S_FAILED: u32 = 128;
 
 // ── virtio-blk constants ──────────────────────────────────────────────────────
-const BLK_T_IN:  u32 = 0;
+const BLK_T_IN: u32 = 0;
 const BLK_T_OUT: u32 = 1;
-const BLK_S_OK:  u8  = 0;
-const DESC_NEXT:  u16 = 1;
+const BLK_S_OK: u8 = 0;
+const DESC_NEXT: u16 = 1;
 const DESC_WRITE: u16 = 2;
 
 // ── Queue layout in the DMA page ─────────────────────────────────────────────
@@ -53,38 +53,38 @@ const DESC_WRITE: u16 = 2;
 //   Descriptors:  4 × 16 = 64 bytes  at pa + 0
 //   Avail ring:   6 + 4×2 = 14 bytes at pa + 64  (ALIGN(64,64))
 //   Used ring:    6 + 4×8 = 38 bytes at pa + 128 (ALIGN(64+14,64))
-const QUEUE_SIZE: u32  = 4;
-const OFF_DESC:   usize = 0;
-const OFF_AVAIL:  usize = 64;
-const OFF_USED:   usize = 128;
-const OFF_HEADER: usize = 256;   // virtio_blk_req (16 bytes)
-const OFF_DATA:   usize = 272;   // sector data (512 bytes)
-const OFF_STATUS: usize = 784;   // status byte (1 byte)
+const QUEUE_SIZE: u32 = 4;
+const OFF_DESC: usize = 0;
+const OFF_AVAIL: usize = 64;
+const OFF_USED: usize = 128;
+const OFF_HEADER: usize = 256; // virtio_blk_req (16 bytes)
+const OFF_DATA: usize = 272; // sector data (512 bytes)
+const OFF_STATUS: usize = 784; // status byte (1 byte)
 
 // ── IPC message tags (from fjell-service-api) ─────────────────────────────────
 // Protocol constants from fjell-service-api::storaged (RFC 019)
-const READY:        usize = 0x200;
-const WRITE_BEGIN:  usize = 0x201;
-const WRITE_CHUNK:  usize = 0x202;
+const READY: usize = 0x200;
+const WRITE_BEGIN: usize = 0x201;
+const WRITE_CHUNK: usize = 0x202;
 const WRITE_COMMIT: usize = 0x203;
-const WRITE_ACK:    usize = 0x204;
-const WRITE_OK:     usize = 0x205;
-const WRITE_ERR:    usize = 0x206;
-const READ_BEGIN:   usize = 0x207;
-const READ_CHUNK:   usize = 0x208;
-const READ_COMMIT:  usize = 0x209;
-const READ_ACK:     usize = 0x20A;
-const READ_DATA:    usize = 0x20B;
-const READ_OK:      usize = 0x20C;
-const READ_ERR:     usize = 0x20D;
+const WRITE_ACK: usize = 0x204;
+const WRITE_OK: usize = 0x205;
+const WRITE_ERR: usize = 0x206;
+const READ_BEGIN: usize = 0x207;
+const READ_CHUNK: usize = 0x208;
+const READ_COMMIT: usize = 0x209;
+const READ_ACK: usize = 0x20A;
+const READ_DATA: usize = 0x20B;
+const READ_OK: usize = 0x20C;
+const READ_ERR: usize = 0x20D;
 
 // ── Cap slots in storaged's CSpace ───────────────────────────────────────────
 // Slot 0: IPC endpoint (object ID 1, private to init+storaged)
 // Slot 2: DmaAlloc cap
 // Slot 34: MmioRegion cap for virtio-mmio region (base 0x1000_1000)
-const EP_SLOT:    u32 = 0;
-const DMA_SLOT:   u32 = 2;
-const MMIO_SLOT:  u16 = 34;
+const EP_SLOT: u32 = 0;
+const DMA_SLOT: u32 = 2;
+const MMIO_SLOT: u16 = 34;
 const REGION_BASE: usize = 0x1000_1000;
 
 use fjell_cap::CapHandle;
@@ -153,20 +153,27 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
     unsafe {
         // Build virtio_blk_req header.
         // MMIO-ORDER: descriptor_publish
-        core::ptr::write_volatile((va+OFF_HEADER  ) as *mut u32, if write { BLK_T_OUT } else { BLK_T_IN });
+        core::ptr::write_volatile(
+            (va + OFF_HEADER) as *mut u32,
+            if write { BLK_T_OUT } else { BLK_T_IN },
+        );
         // MMIO-ORDER: descriptor_publish
-        core::ptr::write_volatile((va+OFF_HEADER+4) as *mut u32, 0);
+        core::ptr::write_volatile((va + OFF_HEADER + 4) as *mut u32, 0);
         // MMIO-ORDER: descriptor_publish
-        core::ptr::write_volatile((va+OFF_HEADER+8) as *mut u64, lba);
+        core::ptr::write_volatile((va + OFF_HEADER + 8) as *mut u64, lba);
         // MMIO-ORDER: descriptor_publish
-        core::ptr::write_volatile((va+OFF_STATUS  ) as *mut u8,  0xFF);
+        core::ptr::write_volatile((va + OFF_STATUS) as *mut u8, 0xFF);
         fence(Ordering::SeqCst);
 
         // Descriptor chain: header (r) → data (r/w) → status (w).
-        let data_flags = if write { DESC_NEXT } else { DESC_NEXT | DESC_WRITE };
-        write_desc(va, 0, (pa+OFF_HEADER) as u64, 16,  DESC_NEXT,  1);
-        write_desc(va, 1, (pa+OFF_DATA)   as u64, 512, data_flags, 2);
-        write_desc(va, 2, (pa+OFF_STATUS) as u64, 1,   DESC_WRITE, 0);
+        let data_flags = if write {
+            DESC_NEXT
+        } else {
+            DESC_NEXT | DESC_WRITE
+        };
+        write_desc(va, 0, (pa + OFF_HEADER) as u64, 16, DESC_NEXT, 1);
+        write_desc(va, 1, (pa + OFF_DATA) as u64, 512, data_flags, 2);
+        write_desc(va, 2, (pa + OFF_STATUS) as u64, 1, DESC_WRITE, 0);
         fence(Ordering::SeqCst);
 
         let prev = used_idx(va);
@@ -182,9 +189,13 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
         let mut t = 0u32;
         loop {
             fence(Ordering::SeqCst);
-            if used_idx(va) != prev { break; }
+            if used_idx(va) != prev {
+                break;
+            }
             t += 1;
-            if t >= 500_000 { return false; }
+            if t >= 500_000 {
+                return false;
+            }
             // Ring doorbell again every 1000 iterations to retrigger if missed
             if t % 1000 == 0 {
                 wr32(mmio, R_QUEUE_NOTIFY, 0);
@@ -194,7 +205,7 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
         }
 
         // MMIO-ORDER: status_read
-        let st = core::ptr::read_volatile((va+OFF_STATUS) as *const u8);
+        let st = core::ptr::read_volatile((va + OFF_STATUS) as *const u8);
         st == BLK_S_OK
     }
 }
@@ -216,7 +227,11 @@ fn send_ready() {
 /// Block until a call arrives on our endpoint.
 /// Returns (tag, w0, w1, w2, w3).
 fn recv_call() -> (usize, usize, usize, usize, usize) {
-    let tag: usize; let w0: usize; let w1: usize; let w2: usize; let w3: usize;
+    let tag: usize;
+    let w0: usize;
+    let w1: usize;
+    let w2: usize;
+    let w3: usize;
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         core::arch::asm!(
@@ -255,7 +270,7 @@ pub extern "C" fn service_main() -> ! {
     // 1. Find virtio-blk MMIO.
     //    QEMU virt assigns drives to virtio-mmio buses in reverse order.
     //    Scan buses from 7 to 0 (highest offset first) for DeviceID=2 (blk).
-    const MAGIC_VALUE:   u32 = 0x7472_6976;
+    const MAGIC_VALUE: u32 = 0x7472_6976;
     const DEVICE_ID_BLK: u32 = 2;
     const BUS_OFFSETS: [usize; 8] = [
         0x7000, 0x6000, 0x5000, 0x4000, 0x3000, 0x2000, 0x1000, 0x0000,
@@ -267,8 +282,8 @@ pub extern "C" fn service_main() -> ! {
         for bus in 0..8usize {
             let off = bus * 0x1000;
             let va = match sys_mmio_map(CapHandle::new(MMIO_SLOT, 0), off, 0x1000) {
-                Ok(v) if v != 0 => v, _ => {
-
+                Ok(v) if v != 0 => v,
+                _ => {
                     continue;
                 }
             };
@@ -282,17 +297,25 @@ pub extern "C" fn service_main() -> ! {
                 break;
             }
         }
-        if found == 0 { sys_debug_writeln("storaged: no blk"); sys_exit(1); }
+        if found == 0 {
+            sys_debug_writeln("storaged: no blk");
+            sys_exit(1);
+        }
         found
     };
 
     // 2. Allocate and zero DMA page.
     let (va, pa) = match sys_dma_alloc(DMA_SLOT, 4096) {
         Ok(p) => p,
-        Err(_) => { sys_debug_writeln("storaged: dma fail"); sys_exit(1); }
+        Err(_) => {
+            sys_debug_writeln("storaged: dma fail");
+            sys_exit(1);
+        }
     };
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
-    unsafe { core::ptr::write_bytes(va as *mut u8, 0, 4096); }
+    unsafe {
+        core::ptr::write_bytes(va as *mut u8, 0, 4096);
+    }
 
     // 3. virtio-blk v1 legacy init.
     //    DMA layout with QueueAlign=64, QueueSize=4:
@@ -301,7 +324,8 @@ pub extern "C" fn service_main() -> ! {
     //      pa+272 = data buf  (512 B), pa+784 = status byte (1 B)
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
-        wr32(mmio, R_STATUS, 0); fence(Ordering::SeqCst);
+        wr32(mmio, R_STATUS, 0);
+        fence(Ordering::SeqCst);
         wr32(mmio, R_STATUS, S_ACK);
         wr32(mmio, R_STATUS, S_ACK | S_DRIVER);
         wr32(mmio, R_DRV_FEATURES, 0);
@@ -311,14 +335,15 @@ pub extern "C" fn service_main() -> ! {
         wr32(mmio, R_STATUS, S_ACK | S_DRIVER | S_DRIVER_OK);
         fence(Ordering::SeqCst);
         // Now set up queue (after DRIVER_OK, no ioeventfd retrigger for queues)
-        wr32(mmio, R_GUEST_PAGE,   4096);
-        wr32(mmio, R_QUEUE_SEL,    0);
-        wr32(mmio, R_QUEUE_NUM,    QUEUE_SIZE);
-        wr32(mmio, R_QUEUE_ALIGN,  64);
-        wr32(mmio, R_QUEUE_PFN,    (pa >> 12) as u32);
+        wr32(mmio, R_GUEST_PAGE, 4096);
+        wr32(mmio, R_QUEUE_SEL, 0);
+        wr32(mmio, R_QUEUE_NUM, QUEUE_SIZE);
+        wr32(mmio, R_QUEUE_ALIGN, 64);
+        wr32(mmio, R_QUEUE_PFN, (pa >> 12) as u32);
         fence(Ordering::SeqCst);
         if rd32(mmio, R_STATUS) & S_FAILED != 0 {
-            sys_debug_writeln("storaged: device failed"); sys_exit(1);
+            sys_debug_writeln("storaged: device failed");
+            sys_exit(1);
         }
     }
 
@@ -339,7 +364,9 @@ pub extern "C" fn service_main() -> ! {
                 lba = (w1 as u64) | ((w2 as u64) << 32);
                 chunk_off = 0;
                 // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
-                unsafe { core::ptr::write_bytes(buf.as_mut_ptr(), 0, 512); }
+                unsafe {
+                    core::ptr::write_bytes(buf.as_mut_ptr(), 0, 512);
+                }
                 fjell_syscall::sys_debug_write_byte(0xB0 + (lba as u8 & 0x3F)); // begin probe
                 reply(WRITE_ACK);
             }
@@ -362,8 +389,7 @@ pub extern "C" fn service_main() -> ! {
                 // Copy buffered chunk data into DMA area before I/O
                 // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                 unsafe {
-                    core::ptr::copy_nonoverlapping(
-                        buf.as_ptr(), (va + OFF_DATA) as *mut u8, 512);
+                    core::ptr::copy_nonoverlapping(buf.as_ptr(), (va + OFF_DATA) as *mut u8, 512);
                 }
                 fjell_syscall::sys_debug_write_byte(0xC0 + (lba as u8 & 0x3F)); // lba probe
                 let ok = do_io(mmio, va, pa, lba, true);
@@ -380,7 +406,10 @@ pub extern "C" fn service_main() -> ! {
                     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                     unsafe {
                         core::ptr::copy_nonoverlapping(
-                            (va + OFF_DATA) as *const u8, buf.as_mut_ptr(), 512);
+                            (va + OFF_DATA) as *const u8,
+                            buf.as_mut_ptr(),
+                            512,
+                        );
                     }
                     reply(READ_OK);
                 } else {
@@ -391,7 +420,9 @@ pub extern "C" fn service_main() -> ! {
                 chunk_off += 32;
                 reply(READ_CHUNK); // placeholder; READ not used in M7
             }
-            _ => { reply(0); }
+            _ => {
+                reply(0);
+            }
         }
     }
 }

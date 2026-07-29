@@ -20,14 +20,14 @@ use core::cell::Cell;
 
 use fjell_measure_format::{Digest32, MeasurementHead};
 
+use crate::TRUST_DOMAIN;
 use crate::descriptor::TrustProviderDescriptor;
 use crate::error::TrustError;
 use crate::ids::{KeyPurpose, TrustProviderId};
-use crate::material::{AttestationDigest, KeyMaterial, SealedKey, Signature, SIGNATURE_LEN};
+use crate::material::{AttestationDigest, KeyMaterial, SIGNATURE_LEN, SealedKey, Signature};
 use crate::profile::{
     TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
-use crate::TRUST_DOMAIN;
 
 /// Development-grade trust provider.
 ///
@@ -81,7 +81,9 @@ impl DevelopmentTrustProvider {
     /// counter would overflow.  The counter is monotonic.
     pub fn advance_rollback_counter(&self) -> Result<u64, TrustError> {
         let cur = self.rollback_counter.get();
-        let next = cur.checked_add(1).ok_or(TrustError::RollbackCounterExhausted)?;
+        let next = cur
+            .checked_add(1)
+            .ok_or(TrustError::RollbackCounterExhausted)?;
         self.rollback_counter.set(next);
         Ok(next)
     }

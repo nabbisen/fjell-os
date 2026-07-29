@@ -15,15 +15,15 @@ pub const MAX_BUNDLE_STATEMENTS: usize = 128;
 #[repr(u8)]
 pub enum PolicySubject {
     /// Capability installation (which kinds are permitted).
-    CapInstall      = 0x01,
+    CapInstall = 0x01,
     /// Capability delegation (which rights may be narrowed).
-    CapDelegate     = 0x02,
+    CapDelegate = 0x02,
     /// Fleet action execution.
-    FleetAction     = 0x03,
+    FleetAction = 0x03,
     /// Service spawn permission.
-    ServiceSpawn    = 0x04,
+    ServiceSpawn = 0x04,
     /// Trust-provider registration.
-    TrustProvider   = 0x05,
+    TrustProvider = 0x05,
 }
 
 impl PolicySubject {
@@ -34,7 +34,7 @@ impl PolicySubject {
             0x03 => Some(Self::FleetAction),
             0x04 => Some(Self::ServiceSpawn),
             0x05 => Some(Self::TrustProvider),
-            _    => None,
+            _ => None,
         }
     }
 }
@@ -44,54 +44,64 @@ impl PolicySubject {
 #[repr(u8)]
 pub enum PolicyEffect {
     Allow = 0x01,
-    Deny  = 0x02,
+    Deny = 0x02,
 }
 
 /// One policy rule in the bundle.
 #[derive(Clone, Copy, Debug)]
 pub struct PolicyStatement {
-    pub subject:        PolicySubject,
+    pub subject: PolicySubject,
     /// Object discriminant (e.g., CapKind u8, FleetActionKind u8).
-    pub object_tag:     u8,
-    pub effect:         PolicyEffect,
+    pub object_tag: u8,
+    pub effect: PolicyEffect,
     /// Semantic audit intent tag emitted when this rule fires.
-    pub audit_tag:      u16,
+    pub audit_tag: u16,
 }
 
 impl PolicyStatement {
     pub const fn allow(subject: PolicySubject, object_tag: u8) -> Self {
-        Self { subject, object_tag, effect: PolicyEffect::Allow, audit_tag: 0 }
+        Self {
+            subject,
+            object_tag,
+            effect: PolicyEffect::Allow,
+            audit_tag: 0,
+        }
     }
     pub const fn deny(subject: PolicySubject, object_tag: u8) -> Self {
-        Self { subject, object_tag, effect: PolicyEffect::Deny, audit_tag: 0 }
+        Self {
+            subject,
+            object_tag,
+            effect: PolicyEffect::Deny,
+            audit_tag: 0,
+        }
     }
 }
 
 /// A signed collection of policy statements.
 #[derive(Clone, Debug)]
 pub struct PolicyBundle {
-    pub schema_version:   u16,
+    pub schema_version: u16,
     /// Domain this bundle applies to (e.g. fleet_id or service_id).
-    pub domain_id:        [u8; 16],
-    pub generation:       u32,
+    pub domain_id: [u8; 16],
+    pub generation: u32,
     /// Canonical digest of this bundle (signed by the policy anchor).
-    pub bundle_digest:    Digest32,
+    pub bundle_digest: Digest32,
     /// Ed25519 signature by the policy anchor.
-    pub signature:        [u8; 64],
-    pub statement_count:  u16,
-    pub statements:       [Option<PolicyStatement>; MAX_BUNDLE_STATEMENTS],
+    pub signature: [u8; 64],
+    pub statement_count: u16,
+    pub statements: [Option<PolicyStatement>; MAX_BUNDLE_STATEMENTS],
 }
 
 impl PolicyBundle {
     pub fn new(domain_id: [u8; 16]) -> Self {
         Self {
-            schema_version:  POLICY_BUNDLE_SCHEMA_VERSION,
+            schema_version: POLICY_BUNDLE_SCHEMA_VERSION,
             domain_id,
-            generation:      1,
-            bundle_digest:   Digest32([0u8; 32]),
-            signature:       [0u8; 64],
+            generation: 1,
+            bundle_digest: Digest32([0u8; 32]),
+            signature: [0u8; 64],
             statement_count: 0,
-            statements:      [const { None }; MAX_BUNDLE_STATEMENTS],
+            statements: [const { None }; MAX_BUNDLE_STATEMENTS],
         }
     }
 
@@ -124,8 +134,8 @@ impl PolicyBundle {
 #[repr(u8)]
 pub enum BundleError {
     CapacityExhausted = 0x01,
-    DigestMismatch    = 0x02,
-    SignatureInvalid  = 0x03,
+    DigestMismatch = 0x02,
+    SignatureInvalid = 0x03,
 }
 
 #[cfg(test)]
@@ -141,7 +151,8 @@ mod tests {
     #[test]
     fn bundle_allow_statement_permits() {
         let mut b = PolicyBundle::new([0u8; 16]);
-        b.add(PolicyStatement::allow(PolicySubject::CapInstall, 0x05)).unwrap();
+        b.add(PolicyStatement::allow(PolicySubject::CapInstall, 0x05))
+            .unwrap();
         assert!(b.permits(PolicySubject::CapInstall, 0x05));
         assert!(!b.permits(PolicySubject::CapInstall, 0x06));
     }
@@ -150,7 +161,8 @@ mod tests {
     fn bundle_wildcard_object_tag() {
         let mut b = PolicyBundle::new([0u8; 16]);
         // object_tag = 0xFF means wildcard
-        b.add(PolicyStatement::allow(PolicySubject::ServiceSpawn, 0xFF)).unwrap();
+        b.add(PolicyStatement::allow(PolicySubject::ServiceSpawn, 0xFF))
+            .unwrap();
         assert!(b.permits(PolicySubject::ServiceSpawn, 0x01));
         assert!(b.permits(PolicySubject::ServiceSpawn, 0xFF));
     }
@@ -158,7 +170,8 @@ mod tests {
     #[test]
     fn bundle_deny_overrides() {
         let mut b = PolicyBundle::new([0u8; 16]);
-        b.add(PolicyStatement::deny(PolicySubject::FleetAction, 0x02)).unwrap();
+        b.add(PolicyStatement::deny(PolicySubject::FleetAction, 0x02))
+            .unwrap();
         assert!(!b.permits(PolicySubject::FleetAction, 0x02));
     }
 
@@ -166,8 +179,8 @@ mod tests {
     fn policy_subject_roundtrip() {
         for (v, expected) in [
             (0x01u8, PolicySubject::CapInstall),
-            (0x03,   PolicySubject::FleetAction),
-            (0x05,   PolicySubject::TrustProvider),
+            (0x03, PolicySubject::FleetAction),
+            (0x05, PolicySubject::TrustProvider),
         ] {
             assert_eq!(PolicySubject::from_u8(v).unwrap(), expected);
         }

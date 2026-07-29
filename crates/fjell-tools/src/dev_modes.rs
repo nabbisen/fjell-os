@@ -13,27 +13,36 @@ use std::thread;
 use std::time::Duration;
 
 const KERNEL: &str = "target/riscv64gc-unknown-none-elf/release/fjell-kernel";
-const TRACE_PORT: u16  = 9990;
-const GDB_PORT:   u16  = 1234;
+const TRACE_PORT: u16 = 9990;
+const GDB_PORT: u16 = 1234;
 #[allow(dead_code)] // reserved for the measurement channel (dev modes, RFC-v0.14-005)
-const MEAS_PORT:  u16  = 9991;
+const MEAS_PORT: u16 = 9991;
 
 pub fn cmd_dev_run(args: &[String]) -> ExitCode {
-    let trace   = args.iter().any(|a| a == "--trace");
+    let trace = args.iter().any(|a| a == "--trace");
     let measure = args.iter().any(|a| a == "--measure");
-    let gdb     = args.iter().any(|a| a == "--gdb");
-    let svc     = args.windows(2).find(|w| w[0] == "--svc")
-                      .and_then(|w| w.get(1)).cloned()
-                      .unwrap_or_else(|| "fjell-hello".into());
+    let gdb = args.iter().any(|a| a == "--gdb");
+    let svc = args
+        .windows(2)
+        .find(|w| w[0] == "--svc")
+        .and_then(|w| w.get(1))
+        .cloned()
+        .unwrap_or_else(|| "fjell-hello".into());
 
     if !Path::new(KERNEL).exists() {
         eprintln!("[dev] kernel not found — run `cargo xtask build` first");
         return ExitCode::FAILURE;
     }
 
-    if gdb       { return run_gdb_mode(&svc); }
-    if trace     { return run_trace_mode(&svc); }
-    if measure   { return run_measure_mode(&svc); }
+    if gdb {
+        return run_gdb_mode(&svc);
+    }
+    if trace {
+        return run_trace_mode(&svc);
+    }
+    if measure {
+        return run_measure_mode(&svc);
+    }
 
     eprintln!("[dev] specify at least one of --trace, --measure, --gdb");
     ExitCode::FAILURE
@@ -57,20 +66,33 @@ fn run_trace_mode(svc: &str) -> ExitCode {
     // Start QEMU in background
     let mut qemu = match Command::new("qemu-system-riscv64")
         .args([
-            "-machine", "virt", "-cpu", "rv64", "-m", "128M",
-            "-nographic", "-bios", "none", "-kernel", KERNEL,
+            "-machine",
+            "virt",
+            "-cpu",
+            "rv64",
+            "-m",
+            "128M",
+            "-nographic",
+            "-bios",
+            "none",
+            "-kernel",
+            KERNEL,
         ])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .spawn() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[dev] QEMU launch failed: {} (is qemu-system-riscv64 installed?)", e);
-                // Still print a demo trace stream
-                print_demo_trace_stream();
-                return ExitCode::SUCCESS;
-            }
-        };
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!(
+                "[dev] QEMU launch failed: {} (is qemu-system-riscv64 installed?)",
+                e
+            );
+            // Still print a demo trace stream
+            print_demo_trace_stream();
+            return ExitCode::SUCCESS;
+        }
+    };
 
     // Read stdout and decode semantic intent records
     let stdout = qemu.stdout.take().unwrap();
@@ -101,7 +123,9 @@ fn print_demo_trace_stream() {
         "[t=0.103s tick=0x00010001] 0x0103 UPDATE.STAGING_CONFIRMED { candidate_id=1, counter=1, slot=0 }",
         "[t=0.104s tick=0x00010002] 0x0120 ATTEST.RECORD_SIGNED { record_id=42, profile=2, provider_id=1 }",
     ];
-    for line in demo { println!("{}", line); }
+    for line in demo {
+        println!("{}", line);
+    }
 }
 
 // ── --measure mode ────────────────────────────────────────────────────────────
@@ -124,7 +148,9 @@ fn run_measure_mode(svc: &str) -> ExitCode {
 
     println!("[dev] Waiting for first measurement …");
     thread::sleep(Duration::from_millis(500));
-    for line in &demo { println!("  {}", line); }
+    for line in &demo {
+        println!("  {}", line);
+    }
     println!("\n[dev] --measure: showing first measurement. Attach QEMU for live stream.");
     println!("[dev] (live mode requires kernel built with `dev-measure` feature)");
     ExitCode::SUCCESS
@@ -133,7 +159,10 @@ fn run_measure_mode(svc: &str) -> ExitCode {
 // ── --gdb mode ────────────────────────────────────────────────────────────────
 
 fn run_gdb_mode(svc: &str) -> ExitCode {
-    println!("[dev] --gdb: launching QEMU with gdbserver on port {}", GDB_PORT);
+    println!(
+        "[dev] --gdb: launching QEMU with gdbserver on port {}",
+        GDB_PORT
+    );
     println!("[dev] (requires kernel built with `dev-symbols` feature)");
     println!("[dev] service: {}", svc);
     println!();
@@ -143,9 +172,19 @@ fn run_gdb_mode(svc: &str) -> ExitCode {
     // Try to launch QEMU with GDB stub
     let qemu_result = Command::new("qemu-system-riscv64")
         .args([
-            "-machine", "virt", "-cpu", "rv64", "-m", "128M",
-            "-nographic", "-bios", "none", "-kernel", KERNEL,
-            "-s", "-S",   // -s: gdbserver on :1234, -S: start paused
+            "-machine",
+            "virt",
+            "-cpu",
+            "rv64",
+            "-m",
+            "128M",
+            "-nographic",
+            "-bios",
+            "none",
+            "-kernel",
+            KERNEL,
+            "-s",
+            "-S", // -s: gdbserver on :1234, -S: start paused
         ])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -160,7 +199,7 @@ fn run_gdb_mode(svc: &str) -> ExitCode {
             println!("[dev]   {} \\", gdb_binary);
             println!("[dev]       -ex 'target remote :{}'  \\", GDB_PORT);
             println!("[dev]       -ex 'set architecture riscv:rv64' \\");
-            println!("[dev]       {}",   KERNEL);
+            println!("[dev]       {}", KERNEL);
             println!();
             println!("[dev] Useful breakpoints (see docs/dev/breakpoints.gdb):");
             println!("[dev]   break fjell_kernel::init::run");
@@ -183,8 +222,13 @@ fn run_gdb_mode(svc: &str) -> ExitCode {
 fn find_gdb_binary() -> &'static str {
     // Prefer riscv64-specific GDB
     for candidate in &["gdb-multiarch", "riscv64-linux-gnu-gdb", "gdb"] {
-        if Command::new(candidate).arg("--version")
-            .stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok() {
+        if Command::new(candidate)
+            .arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok()
+        {
             return candidate;
         }
     }

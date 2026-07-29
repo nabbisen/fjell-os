@@ -6,7 +6,7 @@
 //! instead of panicking on oversized output. Info is written in full to HMAC
 //! without truncation.
 
-use crate::sha256::{hmac_sha256, Sha256Digest};
+use crate::sha256::{Sha256Digest, hmac_sha256};
 
 pub const HKDF_HASH_LEN: usize = 32;
 
@@ -23,7 +23,11 @@ pub enum HkdfError {
 /// If `salt` is empty, uses a zero-filled 32-byte salt per RFC 5869 §2.2.
 pub fn hkdf_extract(salt: &[u8], ikm: &[u8]) -> Sha256Digest {
     let zero_salt = [0u8; HKDF_HASH_LEN];
-    let actual_salt = if salt.is_empty() { &zero_salt[..] } else { salt };
+    let actual_salt = if salt.is_empty() {
+        &zero_salt[..]
+    } else {
+        salt
+    };
     hmac_sha256(actual_salt, ikm)
 }
 
@@ -78,8 +82,8 @@ struct HkdfRoundBuf {
     len: usize,
     // If info didn't fit, these carry the overflow portion.
     overflow_info: *const u8,
-    overflow_len:  usize,
-    counter_byte:  u8,
+    overflow_len: usize,
+    counter_byte: u8,
     uses_overflow: bool,
 }
 
@@ -124,7 +128,9 @@ impl HkdfRoundBuf {
             None
         }
     }
-    pub fn prefix(&self) -> &[u8] { &self.data[..self.len] }
+    pub fn prefix(&self) -> &[u8] {
+        &self.data[..self.len]
+    }
     pub fn overflow_info_slice(&self) -> &[u8] {
         if self.uses_overflow {
             // SAFETY: category=raw-pointer-deref
@@ -136,8 +142,12 @@ impl HkdfRoundBuf {
             &[]
         }
     }
-    pub fn counter(&self) -> u8 { self.counter_byte }
-    pub fn uses_overflow(&self) -> bool { self.uses_overflow }
+    pub fn counter(&self) -> u8 {
+        self.counter_byte
+    }
+    pub fn uses_overflow(&self) -> bool {
+        self.uses_overflow
+    }
 }
 
 // Update hkdf_expand to use overflow-aware HMAC

@@ -1,6 +1,6 @@
 //! Task Control Block types.
 
-use super::id::TaskId;  // = fjell_abi::task::TaskId (re-export)
+use super::id::TaskId; // = fjell_abi::task::TaskId (re-export)
 use crate::mm::vspace::AddressSpaceId;
 
 // ── Register indices ──────────────────────────────────────────────────────────
@@ -11,9 +11,12 @@ pub const REG_A0: usize = 10;
 pub const REG_A1: usize = 11;
 pub const REG_A2: usize = 12;
 pub const REG_A3: usize = 13;
-#[allow(dead_code)] pub const REG_A4: usize = 14;
-#[allow(dead_code)] pub const REG_A5: usize = 15;
-#[allow(dead_code)] pub const REG_A6: usize = 16;
+#[allow(dead_code)]
+pub const REG_A4: usize = 14;
+#[allow(dead_code)]
+pub const REG_A5: usize = 15;
+#[allow(dead_code)]
+pub const REG_A6: usize = 16;
 /// `a7` register index (syscall number).
 pub const REG_A7: usize = 17;
 
@@ -26,21 +29,21 @@ pub const REG_A7: usize = 17;
 #[repr(C)]
 pub struct TrapFrame {
     /// General-purpose registers x0–x31.
-    pub gpr:     [usize; 32],
+    pub gpr: [usize; 32],
     pub sstatus: usize,
-    pub sepc:    usize,
-    pub scause:  usize,
-    pub stval:   usize,
+    pub sepc: usize,
+    pub scause: usize,
+    pub stval: usize,
 }
 
 impl TrapFrame {
     pub const fn zero() -> Self {
         TrapFrame {
-            gpr:     [0; 32],
+            gpr: [0; 32],
             sstatus: 0,
-            sepc:    0,
-            scause:  0,
-            stval:   0,
+            sepc: 0,
+            scause: 0,
+            stval: 0,
         }
     }
 }
@@ -55,12 +58,16 @@ impl TrapFrame {
 pub struct KernelContext {
     pub ra: usize,
     pub sp: usize,
-    pub s:  [usize; 12], // s0..s11
+    pub s: [usize; 12], // s0..s11
 }
 
 impl KernelContext {
     pub const fn zero() -> Self {
-        KernelContext { ra: 0, sp: 0, s: [0; 12] }
+        KernelContext {
+            ra: 0,
+            sp: 0,
+            s: [0; 12],
+        }
     }
 }
 
@@ -79,7 +86,7 @@ pub enum FaultCause {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FaultInfo {
     pub cause: FaultCause,
-    pub sepc:  usize,
+    pub sepc: usize,
     pub stval: usize,
 }
 
@@ -121,8 +128,8 @@ pub const QUANTUM_VIOLATION_THRESHOLD: u32 = 3;
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct TaskAccounting {
-    pub run_count:           u64,
-    pub total_ticks:         u64,
+    pub run_count: u64,
+    pub total_ticks: u64,
     pub last_scheduled_tick: u64,
     /// Consecutive timer preemptions without a voluntary `sys_yield` (RFC 037).
     ///
@@ -136,21 +143,21 @@ pub struct TaskAccounting {
 
 /// Task Control Block.
 pub struct Task {
-    pub id:              TaskId,
-    pub priority:        u8,
-    pub state:           TaskState,
-    pub address_space:   AddressSpaceId,
+    pub id: TaskId,
+    pub priority: u8,
+    pub state: TaskState,
+    pub address_space: AddressSpaceId,
     /// Sv39 satp PFN for this task's root page table.
-    pub satp_root_pfn:   usize,
-    pub kernel_context:  KernelContext,
-    pub trap_frame:      TrapFrame,
+    pub satp_root_pfn: usize,
+    pub kernel_context: KernelContext,
+    pub trap_frame: TrapFrame,
     pub kernel_stack_top: usize,
-    pub user_stack_top:  usize,
-    pub accounting:      TaskAccounting,
+    pub user_stack_top: usize,
+    pub accounting: TaskAccounting,
     /// RFC 051: device VMA bump allocator.
-    pub dev_vma_next:    usize,
+    pub dev_vma_next: usize,
     /// RFC 055: kernel-attested image id (set by spawn.rs; used in IPC identity).
-    pub image_id:        fjell_abi::service::ImageId,
+    pub image_id: fjell_abi::service::ImageId,
 }
 
 impl Task {
@@ -174,7 +181,7 @@ impl Task {
             user_stack_top,
             accounting: TaskAccounting::default(),
             dev_vma_next: DEVICE_VMA_BASE,
-            image_id: fjell_abi::service::ImageId(0xFFFF),  // set by spawn
+            image_id: fjell_abi::service::ImageId(0xFFFF), // set by spawn
         }
     }
 }
@@ -186,7 +193,7 @@ pub const MAX_TASKS: usize = 32;
 
 struct TaskSlot {
     generation: u16,
-    task:       Option<Task>,
+    task: Option<Task>,
 }
 
 /// Fixed-capacity task table.
@@ -199,7 +206,10 @@ pub struct TaskTable {
 impl TaskTable {
     pub fn new() -> Self {
         // Build the array without requiring Copy/Clone on Task.
-        let slots = core::array::from_fn(|_| TaskSlot { generation: 0, task: None });
+        let slots = core::array::from_fn(|_| TaskSlot {
+            generation: 0,
+            task: None,
+        });
         TaskTable { slots }
     }
 
@@ -218,21 +228,27 @@ impl TaskTable {
     /// Get an immutable reference to a task by `TaskId`.
     pub fn get(&self, id: TaskId) -> Option<&Task> {
         let slot = self.slots.get(id.index as usize)?;
-        if slot.generation != id.generation { return None; }
+        if slot.generation != id.generation {
+            return None;
+        }
         slot.task.as_ref()
     }
 
     /// Get a mutable reference to a task by `TaskId`.
     pub fn get_mut(&mut self, id: TaskId) -> Option<&mut Task> {
         let slot = self.slots.get_mut(id.index as usize)?;
-        if slot.generation != id.generation { return None; }
+        if slot.generation != id.generation {
+            return None;
+        }
         slot.task.as_mut()
     }
 
     /// Remove a task, bumping the slot generation to invalidate stale handles.
     pub fn remove(&mut self, id: TaskId) -> Option<Task> {
         let slot = self.slots.get_mut(id.index as usize)?;
-        if slot.generation != id.generation { return None; }
+        if slot.generation != id.generation {
+            return None;
+        }
         let task = slot.task.take()?;
         slot.generation = slot.generation.wrapping_add(1);
         Some(task)
@@ -252,7 +268,9 @@ pub enum TaskError {
 impl TaskTable {
     /// Return the index of the next free slot (for pre-allocation checks).
     pub fn next_free_index(&self) -> Option<u16> {
-        self.slots.iter().enumerate()
+        self.slots
+            .iter()
+            .enumerate()
             .find(|(_, s)| s.task.is_none())
             .map(|(i, _)| i as u16)
     }

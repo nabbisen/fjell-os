@@ -44,7 +44,7 @@ pub enum ValidationCheck {
 /// A DTB validation failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DtbValidationError {
-    pub check:  ValidationCheck,
+    pub check: ValidationCheck,
     /// First relevant MMIO address (0 if not applicable).
     pub detail: u64,
 }
@@ -69,16 +69,16 @@ const DTB_MIN_VERSION: u32 = 17;
 /// Minimal DTB header (first 40 bytes per spec §5.2).
 #[repr(C)]
 struct DtbHeader {
-    magic:            u32,
-    totalsize:        u32,
-    off_dt_struct:    u32,
-    off_dt_strings:   u32,
-    off_mem_rsvmap:   u32,
-    version:          u32,
-    last_comp_version:u32,
-    boot_cpuid_phys:  u32,
-    size_dt_strings:  u32,
-    size_dt_struct:   u32,
+    magic: u32,
+    totalsize: u32,
+    off_dt_struct: u32,
+    off_dt_strings: u32,
+    off_mem_rsvmap: u32,
+    version: u32,
+    last_comp_version: u32,
+    boot_cpuid_phys: u32,
+    size_dt_strings: u32,
+    size_dt_struct: u32,
 }
 
 fn read_be32(bytes: &[u8], offset: usize) -> Option<u32> {
@@ -102,11 +102,11 @@ fn read_be64(bytes: &[u8], offset: usize) -> Option<u64> {
 // It does NOT try to be a general FDT library. Unknown nodes are skipped.
 
 struct ScanResult {
-    has_memory:            bool,
-    memory_base:           u64,
-    memory_size:           u64,
-    found_devices:         [bool; 32],   // index into board.devices[]
-    has_interrupt_ctrl:    bool,
+    has_memory: bool,
+    memory_base: u64,
+    memory_size: u64,
+    found_devices: [bool; 32], // index into board.devices[]
+    has_interrupt_ctrl: bool,
 }
 
 /// Validate `dtb_bytes` against the provided `BoardProfile`.
@@ -118,12 +118,19 @@ pub fn validate_dtb(
     profile: &BoardProfile,
 ) -> Result<DtbDigest, DtbValidationError> {
     // R1: magic and version
-    let magic   = read_be32(dtb_bytes, 0).ok_or_else(|| DtbValidationError::check(ValidationCheck::R1BadMagic))?;
-    if magic != DTB_MAGIC { return Err(DtbValidationError::check(ValidationCheck::R1BadMagic)); }
-    let version = read_be32(dtb_bytes, 20).ok_or_else(|| DtbValidationError::check(ValidationCheck::R1BadVersion))?;
-    if version < DTB_MIN_VERSION { return Err(DtbValidationError::check(ValidationCheck::R1BadVersion)); }
+    let magic = read_be32(dtb_bytes, 0)
+        .ok_or_else(|| DtbValidationError::check(ValidationCheck::R1BadMagic))?;
+    if magic != DTB_MAGIC {
+        return Err(DtbValidationError::check(ValidationCheck::R1BadMagic));
+    }
+    let version = read_be32(dtb_bytes, 20)
+        .ok_or_else(|| DtbValidationError::check(ValidationCheck::R1BadVersion))?;
+    if version < DTB_MIN_VERSION {
+        return Err(DtbValidationError::check(ValidationCheck::R1BadVersion));
+    }
     let totalsize = read_be32(dtb_bytes, 4)
-        .ok_or_else(|| DtbValidationError::check(ValidationCheck::R2ParseError))? as usize;
+        .ok_or_else(|| DtbValidationError::check(ValidationCheck::R2ParseError))?
+        as usize;
     if dtb_bytes.len() < totalsize {
         return Err(DtbValidationError::check(ValidationCheck::R2ParseError));
     }
@@ -134,7 +141,9 @@ pub fn validate_dtb(
 
     // R3: memory
     if !result.has_memory {
-        return Err(DtbValidationError::check(ValidationCheck::R3MemoryNodeMissing));
+        return Err(DtbValidationError::check(
+            ValidationCheck::R3MemoryNodeMissing,
+        ));
     }
 
     // R4: required devices
@@ -164,7 +173,9 @@ pub fn validate_dtb(
 
     // R6: interrupt controller
     if !result.has_interrupt_ctrl {
-        return Err(DtbValidationError::check(ValidationCheck::R6NoInterruptController));
+        return Err(DtbValidationError::check(
+            ValidationCheck::R6NoInterruptController,
+        ));
     }
 
     Ok(Digest32::of(dtb_bytes))
@@ -173,15 +184,17 @@ pub fn validate_dtb(
 /// Scan the DTB structure block looking for memory, device, and PLIC nodes.
 /// Returns `None` on any structural parse failure.
 fn scan_structure(dtb_bytes: &[u8], profile: &BoardProfile) -> Option<ScanResult> {
-    let off_struct  = read_be32(dtb_bytes, 8)?  as usize;
+    let off_struct = read_be32(dtb_bytes, 8)? as usize;
     let size_struct = read_be32(dtb_bytes, 36)? as usize;
     let off_strings = read_be32(dtb_bytes, 12)? as usize;
 
     let struct_end = off_struct.checked_add(size_struct)?;
-    if struct_end > dtb_bytes.len() { return None; }
+    if struct_end > dtb_bytes.len() {
+        return None;
+    }
 
     let structure = &dtb_bytes[off_struct..struct_end];
-    let strings   = dtb_bytes.get(off_strings..)?;
+    let strings = dtb_bytes.get(off_strings..)?;
 
     let mut result = ScanResult {
         has_memory: false,
@@ -206,7 +219,9 @@ fn scan_structure(dtb_bytes: &[u8], profile: &BoardProfile) -> Option<ScanResult
                 // FDT_BEGIN_NODE: name follows, null-terminated, 4-byte aligned
                 depth += 1;
                 let name_start = pos;
-                while pos < structure.len() && structure[pos] != 0 { pos += 1; }
+                while pos < structure.len() && structure[pos] != 0 {
+                    pos += 1;
+                }
                 let name = structure.get(name_start..pos).unwrap_or(&[]);
                 pos += 1;
                 pos = (pos + 3) & !3; // align to 4
@@ -225,7 +240,7 @@ fn scan_structure(dtb_bytes: &[u8], profile: &BoardProfile) -> Option<ScanResult
             }
             3 => {
                 // FDT_PROP: len(u32) nameoff(u32) value[len] padded to 4 bytes
-                let len     = read_be32(structure, pos)? as usize;
+                let len = read_be32(structure, pos)? as usize;
                 let nameoff = read_be32(structure, pos + 4)? as usize;
                 pos += 8;
                 let value = structure.get(pos..pos + len).unwrap_or(&[]);
@@ -241,7 +256,8 @@ fn scan_structure(dtb_bytes: &[u8], profile: &BoardProfile) -> Option<ScanResult
                     current_compatible = Some(value);
                     // Immediately check for interrupt controller
                     if value_contains(value, b"riscv,plic0")
-                        || value_contains(value, b"sifive,plic-1.0.0") {
+                        || value_contains(value, b"sifive,plic-1.0.0")
+                    {
                         result.has_interrupt_ctrl = true;
                     }
                 }
@@ -252,7 +268,7 @@ fn scan_structure(dtb_bytes: &[u8], profile: &BoardProfile) -> Option<ScanResult
                     result.has_memory = true;
                 }
             }
-            4 => {}  // FDT_NOP
+            4 => {}     // FDT_NOP
             9 => break, // FDT_END
             _ => return None,
         }
@@ -265,16 +281,19 @@ fn value_contains(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 fn update_found(result: &mut ScanResult, compatible: &[u8], profile: &BoardProfile) {
-    for (i, dev) in profile.devices[..profile.device_count as usize].iter().enumerate() {
+    for (i, dev) in profile.devices[..profile.device_count as usize]
+        .iter()
+        .enumerate()
+    {
         let class_compat: &[u8] = match dev.class {
-            DeviceClass::Uart8250       => b"ns16550a",
-            DeviceClass::VirtioNetMmio  => b"virtio,mmio",
-            DeviceClass::VirtioBlkMmio  => b"virtio,mmio",
-            DeviceClass::Plic           => b"riscv,plic0",
-            DeviceClass::Clint          => b"riscv,clint0",
-            DeviceClass::VirtioConsole  => b"virtio,mmio",
-            DeviceClass::SystemCounter  => b"google,goldfish-rtc",
-            DeviceClass::Generic        => continue,
+            DeviceClass::Uart8250 => b"ns16550a",
+            DeviceClass::VirtioNetMmio => b"virtio,mmio",
+            DeviceClass::VirtioBlkMmio => b"virtio,mmio",
+            DeviceClass::Plic => b"riscv,plic0",
+            DeviceClass::Clint => b"riscv,clint0",
+            DeviceClass::VirtioConsole => b"virtio,mmio",
+            DeviceClass::SystemCounter => b"google,goldfish-rtc",
+            DeviceClass::Generic => continue,
         };
         if value_contains(compatible, class_compat) {
             result.found_devices[i] = true;
@@ -291,23 +310,31 @@ pub mod test_dtb {
 
     pub struct DtbBuilder {
         structure: Vec<u8>,
-        strings:   Vec<u8>,
+        strings: Vec<u8>,
     }
 
     impl DtbBuilder {
         pub fn new() -> Self {
-            Self { structure: Vec::new(), strings: Vec::new() }
+            Self {
+                structure: Vec::new(),
+                strings: Vec::new(),
+            }
         }
 
         pub fn begin_node(&mut self, name: &[u8]) -> &mut Self {
             self.write_u32(1);
             self.structure.extend_from_slice(name);
             self.structure.push(0);
-            while self.structure.len() % 4 != 0 { self.structure.push(0); }
+            while self.structure.len() % 4 != 0 {
+                self.structure.push(0);
+            }
             self
         }
 
-        pub fn end_node(&mut self) -> &mut Self { self.write_u32(2); self }
+        pub fn end_node(&mut self) -> &mut Self {
+            self.write_u32(2);
+            self
+        }
 
         pub fn prop(&mut self, name: &[u8], value: &[u8]) -> &mut Self {
             let name_off = self.intern_string(name);
@@ -315,7 +342,9 @@ pub mod test_dtb {
             self.write_u32(value.len() as u32);
             self.write_u32(name_off as u32);
             self.structure.extend_from_slice(value);
-            while self.structure.len() % 4 != 0 { self.structure.push(0); }
+            while self.structure.len() % 4 != 0 {
+                self.structure.push(0);
+            }
             self
         }
 
@@ -367,8 +396,8 @@ pub mod test_dtb {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::test_dtb::DtbBuilder;
+    use super::*;
     use fjell_measure_format::Digest32;
     use fjell_platform_format::BoardProfile;
 
@@ -379,31 +408,31 @@ mod tests {
     fn valid_qemu_dtb() -> Vec<u8> {
         let mut b = DtbBuilder::new();
         b.begin_node(b"")
-         .begin_node(b"memory@80000000")
-           .prop(b"device_type", b"memory\0")
-           .prop_u64_pair(b"reg", 0x8000_0000, 0x0800_0000)
-         .end_node()
-         .begin_node(b"uart@10000000")
-           .prop(b"compatible", b"ns16550a\0")
-           .prop_u64_pair(b"reg", 0x1000_0000, 0x100)
-         .end_node()
-         .begin_node(b"blk@10001000")
-           .prop(b"compatible", b"virtio,mmio\0")
-           .prop_u64_pair(b"reg", 0x1000_1000, 0x1000)
-         .end_node()
-         .begin_node(b"net@10002000")
-           .prop(b"compatible", b"virtio,mmio\0")
-           .prop_u64_pair(b"reg", 0x1000_2000, 0x1000)
-         .end_node()
-         .begin_node(b"plic@c000000")
-           .prop(b"compatible", b"riscv,plic0\0")
-           .prop_u64_pair(b"reg", 0x0c00_0000, 0x4000000)
-         .end_node()
-         .begin_node(b"clint@2000000")
-           .prop(b"compatible", b"riscv,clint0\0")
-           .prop_u64_pair(b"reg", 0x0200_0000, 0x10000)
-         .end_node()
-         .end_node();
+            .begin_node(b"memory@80000000")
+            .prop(b"device_type", b"memory\0")
+            .prop_u64_pair(b"reg", 0x8000_0000, 0x0800_0000)
+            .end_node()
+            .begin_node(b"uart@10000000")
+            .prop(b"compatible", b"ns16550a\0")
+            .prop_u64_pair(b"reg", 0x1000_0000, 0x100)
+            .end_node()
+            .begin_node(b"blk@10001000")
+            .prop(b"compatible", b"virtio,mmio\0")
+            .prop_u64_pair(b"reg", 0x1000_1000, 0x1000)
+            .end_node()
+            .begin_node(b"net@10002000")
+            .prop(b"compatible", b"virtio,mmio\0")
+            .prop_u64_pair(b"reg", 0x1000_2000, 0x1000)
+            .end_node()
+            .begin_node(b"plic@c000000")
+            .prop(b"compatible", b"riscv,plic0\0")
+            .prop_u64_pair(b"reg", 0x0c00_0000, 0x4000000)
+            .end_node()
+            .begin_node(b"clint@2000000")
+            .prop(b"compatible", b"riscv,clint0\0")
+            .prop_u64_pair(b"reg", 0x0200_0000, 0x10000)
+            .end_node()
+            .end_node();
         b.build()
     }
 
@@ -437,34 +466,42 @@ mod tests {
         // Build DTB without UART
         let mut b = DtbBuilder::new();
         b.begin_node(b"")
-         .begin_node(b"memory@80000000")
-           .prop(b"device_type", b"memory\0")
-           .prop_u64_pair(b"reg", 0x8000_0000, 0x0800_0000)
-         .end_node()
-         .begin_node(b"plic@c000000")
-           .prop(b"compatible", b"riscv,plic0\0")
-         .end_node()
-         .end_node();
+            .begin_node(b"memory@80000000")
+            .prop(b"device_type", b"memory\0")
+            .prop_u64_pair(b"reg", 0x8000_0000, 0x0800_0000)
+            .end_node()
+            .begin_node(b"plic@c000000")
+            .prop(b"compatible", b"riscv,plic0\0")
+            .end_node()
+            .end_node();
         let dtb = b.build();
         let result = validate_dtb(&dtb, &qemu_profile());
-        assert!(matches!(result, Err(DtbValidationError {
-            check: ValidationCheck::R4RequiredDeviceMissing, ..
-        })));
+        assert!(matches!(
+            result,
+            Err(DtbValidationError {
+                check: ValidationCheck::R4RequiredDeviceMissing,
+                ..
+            })
+        ));
     }
 
     #[test]
     fn missing_memory_node_rejected() {
         let mut b = DtbBuilder::new();
         b.begin_node(b"")
-         .begin_node(b"plic@c000000")
-           .prop(b"compatible", b"riscv,plic0\0")
-         .end_node()
-         .end_node();
+            .begin_node(b"plic@c000000")
+            .prop(b"compatible", b"riscv,plic0\0")
+            .end_node()
+            .end_node();
         let dtb = b.build();
         let result = validate_dtb(&dtb, &qemu_profile());
-        assert!(matches!(result, Err(DtbValidationError {
-            check: ValidationCheck::R3MemoryNodeMissing, ..
-        })));
+        assert!(matches!(
+            result,
+            Err(DtbValidationError {
+                check: ValidationCheck::R3MemoryNodeMissing,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -478,15 +515,15 @@ mod tests {
     fn no_interrupt_controller_rejected() {
         let mut b = DtbBuilder::new();
         b.begin_node(b"")
-         .begin_node(b"memory@80000000")
-           .prop(b"device_type", b"memory\0")
-           .prop_u64_pair(b"reg", 0x8000_0000, 0x0800_0000)
-         .end_node()
-         .begin_node(b"uart@10000000")
-           .prop(b"compatible", b"ns16550a\0")
-         .end_node()
-         // no PLIC
-         .end_node();
+            .begin_node(b"memory@80000000")
+            .prop(b"device_type", b"memory\0")
+            .prop_u64_pair(b"reg", 0x8000_0000, 0x0800_0000)
+            .end_node()
+            .begin_node(b"uart@10000000")
+            .prop(b"compatible", b"ns16550a\0")
+            .end_node()
+            // no PLIC
+            .end_node();
         let dtb = b.build();
         let profile = qemu_profile();
         let result = validate_dtb(&dtb, &profile);

@@ -1,6 +1,6 @@
 //! CapManifest parse and lint benchmarks (RFC-v0.10-004).
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use fjell_cap_manifest::{parse_manifest, lint_manifest};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use fjell_cap_manifest::{lint_manifest, parse_manifest};
 
 const SAMPLE: &str = "\
 service     = \"fjell-bench-service\"

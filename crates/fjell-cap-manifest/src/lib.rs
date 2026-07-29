@@ -73,8 +73,12 @@ impl CapManifest {
     /// "empty service field"; useful for tests).
     pub fn empty() -> Self {
         Self {
-            service: String::new(), sdk_api_rev: 0,
-            caps: vec![], rights: vec![], ipc_tags: vec![], intents: vec![],
+            service: String::new(),
+            sdk_api_rev: 0,
+            caps: vec![],
+            rights: vec![],
+            ipc_tags: vec![],
+            intents: vec![],
         }
     }
 }
@@ -105,22 +109,18 @@ pub enum ManifestError {
 impl fmt::Display for ManifestError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ManifestError::Syntax { line, msg } =>
-                write!(f, "line {}: {}", line, msg),
-            ManifestError::MissingField(name) =>
-                write!(f, "missing required field `{}`", name),
-            ManifestError::BadValue { field, msg } =>
-                write!(f, "field `{}`: {}", field, msg),
-            ManifestError::UnknownCapKind(s) =>
-                write!(f, "unknown CapKind `{}`", s),
-            ManifestError::UnknownRight(s) =>
-                write!(f, "unknown CapRights bit `{}`", s),
-            ManifestError::UnknownIntent(t) =>
-                write!(f, "intent tag 0x{:04X} not in catalog v1", t),
-            ManifestError::SdkApiRevTooHigh { manifest, host } =>
-                write!(f, "manifest sdk_api_rev {} exceeds host {}", manifest, host),
-            ManifestError::Inconsistent(s) =>
-                write!(f, "inconsistent manifest: {}", s),
+            ManifestError::Syntax { line, msg } => write!(f, "line {}: {}", line, msg),
+            ManifestError::MissingField(name) => write!(f, "missing required field `{}`", name),
+            ManifestError::BadValue { field, msg } => write!(f, "field `{}`: {}", field, msg),
+            ManifestError::UnknownCapKind(s) => write!(f, "unknown CapKind `{}`", s),
+            ManifestError::UnknownRight(s) => write!(f, "unknown CapRights bit `{}`", s),
+            ManifestError::UnknownIntent(t) => {
+                write!(f, "intent tag 0x{:04X} not in catalog v1", t)
+            }
+            ManifestError::SdkApiRevTooHigh { manifest, host } => {
+                write!(f, "manifest sdk_api_rev {} exceeds host {}", manifest, host)
+            }
+            ManifestError::Inconsistent(s) => write!(f, "inconsistent manifest: {}", s),
         }
     }
 }
@@ -142,10 +142,13 @@ pub fn parse_manifest(input: &str) -> Result<CapManifest, ManifestError> {
     for (line_no_zero, raw) in input.lines().enumerate() {
         let line_no = line_no_zero + 1;
         let line = raw.trim();
-        if line.is_empty() || line.starts_with('#') { continue; }
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
 
         let eq = line.find('=').ok_or(ManifestError::Syntax {
-            line: line_no, msg: "expected `key = value`".into(),
+            line: line_no,
+            msg: "expected `key = value`".into(),
         })?;
         let key = line[..eq].trim();
         let value = line[eq + 1..].trim();
@@ -159,19 +162,25 @@ pub fn parse_manifest(input: &str) -> Result<CapManifest, ManifestError> {
                 m.sdk_api_rev = parse_u32(value, line_no, "sdk_api_rev")?;
                 have_rev = true;
             }
-            "caps"     => m.caps     = parse_string_array(value, line_no, "caps")?,
-            "rights"   => m.rights   = parse_string_array(value, line_no, "rights")?,
+            "caps" => m.caps = parse_string_array(value, line_no, "caps")?,
+            "rights" => m.rights = parse_string_array(value, line_no, "rights")?,
             "ipc_tags" => m.ipc_tags = parse_string_array(value, line_no, "ipc_tags")?,
-            "intents"  => m.intents  = parse_u16_array(value, line_no, "intents")?,
-            other => return Err(ManifestError::BadValue {
-                field: "(unknown)",
-                msg: format!("line {}: unknown key `{}`", line_no, other),
-            }),
+            "intents" => m.intents = parse_u16_array(value, line_no, "intents")?,
+            other => {
+                return Err(ManifestError::BadValue {
+                    field: "(unknown)",
+                    msg: format!("line {}: unknown key `{}`", line_no, other),
+                });
+            }
         }
     }
 
-    if !have_service { return Err(ManifestError::MissingField("service")); }
-    if !have_rev     { return Err(ManifestError::MissingField("sdk_api_rev")); }
+    if !have_service {
+        return Err(ManifestError::MissingField("service"));
+    }
+    if !have_rev {
+        return Err(ManifestError::MissingField("sdk_api_rev"));
+    }
     Ok(m)
 }
 
@@ -179,60 +188,75 @@ fn parse_string(s: &str, line: usize, field: &'static str) -> Result<String, Man
     let s = s.trim();
     if !(s.starts_with('"') && s.ends_with('"') && s.len() >= 2) {
         return Err(ManifestError::BadValue {
-            field, msg: format!("line {}: expected quoted string", line),
+            field,
+            msg: format!("line {}: expected quoted string", line),
         });
     }
     Ok(s[1..s.len() - 1].to_string())
 }
 
 fn parse_u32(s: &str, line: usize, field: &'static str) -> Result<u32, ManifestError> {
-    s.trim().parse::<u32>().map_err(|_| ManifestError::BadValue {
-        field, msg: format!("line {}: expected integer", line),
-    })
+    s.trim()
+        .parse::<u32>()
+        .map_err(|_| ManifestError::BadValue {
+            field,
+            msg: format!("line {}: expected integer", line),
+        })
 }
 
-fn parse_string_array(s: &str, line: usize, field: &'static str)
-    -> Result<Vec<String>, ManifestError>
-{
+fn parse_string_array(
+    s: &str,
+    line: usize,
+    field: &'static str,
+) -> Result<Vec<String>, ManifestError> {
     let s = s.trim();
     if !(s.starts_with('[') && s.ends_with(']')) {
         return Err(ManifestError::BadValue {
-            field, msg: format!("line {}: expected array literal", line),
+            field,
+            msg: format!("line {}: expected array literal", line),
         });
     }
     let inner = &s[1..s.len() - 1];
-    if inner.trim().is_empty() { return Ok(vec![]); }
+    if inner.trim().is_empty() {
+        return Ok(vec![]);
+    }
     let mut out = Vec::new();
     for elem in inner.split(',') {
         let elem = elem.trim();
-        if elem.is_empty() { continue; }
+        if elem.is_empty() {
+            continue;
+        }
         out.push(parse_string(elem, line, field)?);
     }
     Ok(out)
 }
 
-fn parse_u16_array(s: &str, line: usize, field: &'static str)
-    -> Result<Vec<u16>, ManifestError>
-{
+fn parse_u16_array(s: &str, line: usize, field: &'static str) -> Result<Vec<u16>, ManifestError> {
     let s = s.trim();
     if !(s.starts_with('[') && s.ends_with(']')) {
         return Err(ManifestError::BadValue {
-            field, msg: format!("line {}: expected array literal", line),
+            field,
+            msg: format!("line {}: expected array literal", line),
         });
     }
     let inner = &s[1..s.len() - 1];
-    if inner.trim().is_empty() { return Ok(vec![]); }
+    if inner.trim().is_empty() {
+        return Ok(vec![]);
+    }
     let mut out = Vec::new();
     for elem in inner.split(',') {
         let elem = elem.trim();
-        if elem.is_empty() { continue; }
+        if elem.is_empty() {
+            continue;
+        }
         let n = if let Some(hex) = elem.strip_prefix("0x").or_else(|| elem.strip_prefix("0X")) {
             u16::from_str_radix(hex, 16)
         } else {
             elem.parse::<u16>()
         };
         out.push(n.map_err(|_| ManifestError::BadValue {
-            field, msg: format!("line {}: bad integer `{}`", line, elem),
+            field,
+            msg: format!("line {}: bad integer `{}`", line, elem),
         })?);
     }
     Ok(out)
@@ -256,12 +280,14 @@ fn parse_u16_array(s: &str, line: usize, field: &'static str)
 pub fn lint_manifest(m: &CapManifest, host_sdk_api_rev: u32) -> Result<(), ManifestError> {
     if m.service.is_empty() {
         return Err(ManifestError::BadValue {
-            field: "service", msg: "must be non-empty".into(),
+            field: "service",
+            msg: "must be non-empty".into(),
         });
     }
     if m.sdk_api_rev > host_sdk_api_rev {
         return Err(ManifestError::SdkApiRevTooHigh {
-            manifest: m.sdk_api_rev, host: host_sdk_api_rev,
+            manifest: m.sdk_api_rev,
+            host: host_sdk_api_rev,
         });
     }
 
@@ -269,20 +295,27 @@ pub fn lint_manifest(m: &CapManifest, host_sdk_api_rev: u32) -> Result<(), Manif
     let mut caps_set: BTreeSet<&str> = BTreeSet::new();
     for c in &m.caps {
         if !caps_set.insert(c.as_str()) {
-            return Err(ManifestError::Inconsistent(format!("duplicate cap `{}`", c)));
+            return Err(ManifestError::Inconsistent(format!(
+                "duplicate cap `{}`",
+                c
+            )));
         }
     }
     let mut rights_set: BTreeSet<&str> = BTreeSet::new();
     for r in &m.rights {
         if !rights_set.insert(r.as_str()) {
-            return Err(ManifestError::Inconsistent(format!("duplicate right `{}`", r)));
+            return Err(ManifestError::Inconsistent(format!(
+                "duplicate right `{}`",
+                r
+            )));
         }
     }
     let mut intents_set: BTreeSet<u16> = BTreeSet::new();
     for t in &m.intents {
         if !intents_set.insert(*t) {
             return Err(ManifestError::Inconsistent(format!(
-                "duplicate intent 0x{:04X}", t
+                "duplicate intent 0x{:04X}",
+                t
             )));
         }
     }
@@ -312,27 +345,68 @@ pub fn lint_manifest(m: &CapManifest, host_sdk_api_rev: u32) -> Result<(), Manif
 
 /// Return `true` if `name` is the textual name of a known `CapKind`.
 fn known_cap_kind(name: &str) -> bool {
-    matches!(name,
-        "Endpoint" | "Reply" | "TaskControl" | "TaskCreate" | "TaskInspect" |
-        "LeaseAdmin" | "MmioRegion" | "DmaRegion" | "AuditDrain" |
-        "BootEvidence" | "Reboot" | "PersistentStore" | "BootControl" |
-        "UpgradeTransaction" | "Verification" | "RootfsRead" |
-        "SnapshotCreate" | "SnapshotRead" | "CapInstall" |
-        "Interrupt" | "NetDevice"
+    matches!(
+        name,
+        "Endpoint"
+            | "Reply"
+            | "TaskControl"
+            | "TaskCreate"
+            | "TaskInspect"
+            | "LeaseAdmin"
+            | "MmioRegion"
+            | "DmaRegion"
+            | "AuditDrain"
+            | "BootEvidence"
+            | "Reboot"
+            | "PersistentStore"
+            | "BootControl"
+            | "UpgradeTransaction"
+            | "Verification"
+            | "RootfsRead"
+            | "SnapshotCreate"
+            | "SnapshotRead"
+            | "CapInstall"
+            | "Interrupt"
+            | "NetDevice"
     )
 }
 
 /// Return `true` if `name` is a known `CapRights` bit constant.
 fn known_right(name: &str) -> bool {
-    matches!(name,
-        "READ" | "WRITE" | "EXECUTE" | "SEND" | "RECV" | "CALL" | "REPLY" |
-        "COPY" | "MINT" | "REVOKE" | "INSPECT" | "DROP" |
-        "TASK_CREATE" | "TASK_START" | "TASK_STATUS" | "TASK_KILL" |
-        "LEASE_CREATE" | "LEASE_REVOKE" | "LEASE_INSPECT" |
-        "MMIO_MAP" | "DMA_ALLOC" | "DMA_USE" | "DMA_REVOKE" |
-        "AUDIT_DRAIN" | "BOOT_READ" | "REBOOT" |
-        "CAP_INSTALL" | "IRQ_BIND" | "IRQ_UNBIND" | "IRQ_ACK" |
-        "NET_SEND" | "NET_RECV"
+    matches!(
+        name,
+        "READ"
+            | "WRITE"
+            | "EXECUTE"
+            | "SEND"
+            | "RECV"
+            | "CALL"
+            | "REPLY"
+            | "COPY"
+            | "MINT"
+            | "REVOKE"
+            | "INSPECT"
+            | "DROP"
+            | "TASK_CREATE"
+            | "TASK_START"
+            | "TASK_STATUS"
+            | "TASK_KILL"
+            | "LEASE_CREATE"
+            | "LEASE_REVOKE"
+            | "LEASE_INSPECT"
+            | "MMIO_MAP"
+            | "DMA_ALLOC"
+            | "DMA_USE"
+            | "DMA_REVOKE"
+            | "AUDIT_DRAIN"
+            | "BOOT_READ"
+            | "REBOOT"
+            | "CAP_INSTALL"
+            | "IRQ_BIND"
+            | "IRQ_UNBIND"
+            | "IRQ_ACK"
+            | "NET_SEND"
+            | "NET_RECV"
     )
 }
 
@@ -361,19 +435,35 @@ pub fn manifest_digest(m: &CapManifest) -> [u8; 16] {
 }
 
 fn canonicalize(m: &CapManifest) -> String {
-    let mut caps = m.caps.clone();    caps.sort();
-    let mut rights = m.rights.clone(); rights.sort();
-    let mut tags = m.ipc_tags.clone(); tags.sort();
-    let mut intents = m.intents.clone(); intents.sort();
+    let mut caps = m.caps.clone();
+    caps.sort();
+    let mut rights = m.rights.clone();
+    rights.sort();
+    let mut tags = m.ipc_tags.clone();
+    tags.sort();
+    let mut intents = m.intents.clone();
+    intents.sort();
     let mut s = String::new();
-    s.push_str("svc:"); s.push_str(&m.service); s.push('\n');
-    s.push_str("rev:"); s.push_str(&m.sdk_api_rev.to_string()); s.push('\n');
-    s.push_str("caps:"); s.push_str(&caps.join(",")); s.push('\n');
-    s.push_str("rights:"); s.push_str(&rights.join(",")); s.push('\n');
-    s.push_str("ipc:"); s.push_str(&tags.join(",")); s.push('\n');
+    s.push_str("svc:");
+    s.push_str(&m.service);
+    s.push('\n');
+    s.push_str("rev:");
+    s.push_str(&m.sdk_api_rev.to_string());
+    s.push('\n');
+    s.push_str("caps:");
+    s.push_str(&caps.join(","));
+    s.push('\n');
+    s.push_str("rights:");
+    s.push_str(&rights.join(","));
+    s.push('\n');
+    s.push_str("ipc:");
+    s.push_str(&tags.join(","));
+    s.push('\n');
     s.push_str("int:");
     for (i, t) in intents.iter().enumerate() {
-        if i > 0 { s.push(','); }
+        if i > 0 {
+            s.push(',');
+        }
         s.push_str(&format!("{:04X}", t));
     }
     s
@@ -384,7 +474,7 @@ mod tests {
     use super::*;
 
     fn ok_input() -> &'static str {
-"service     = \"fjell-example\"
+        "service     = \"fjell-example\"
 sdk_api_rev = 1
 caps        = [\"Endpoint\", \"AuditDrain\"]
 rights      = [\"SEND\", \"RECV\", \"AUDIT_DRAIN\"]
@@ -437,7 +527,13 @@ intents     = [0x0101, 0x0102]
         let mut m = parse_manifest(ok_input()).unwrap();
         m.sdk_api_rev = 9999;
         let e = lint_manifest(&m, 1).unwrap_err();
-        assert!(matches!(e, ManifestError::SdkApiRevTooHigh { manifest: 9999, host: 1 }));
+        assert!(matches!(
+            e,
+            ManifestError::SdkApiRevTooHigh {
+                manifest: 9999,
+                host: 1
+            }
+        ));
     }
 
     #[test]
@@ -480,8 +576,11 @@ sdk_api_rev = 0
         let mut b = a.clone();
         b.caps.reverse();
         b.intents.reverse();
-        assert_eq!(manifest_digest(&a), manifest_digest(&b),
-            "digest must be order-independent within fields");
+        assert_eq!(
+            manifest_digest(&a),
+            manifest_digest(&b),
+            "digest must be order-independent within fields"
+        );
 
         a.service = "different".to_string();
         assert_ne!(manifest_digest(&a), manifest_digest(&b));

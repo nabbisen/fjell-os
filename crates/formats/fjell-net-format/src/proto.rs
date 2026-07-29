@@ -5,7 +5,7 @@
 /// Number of descriptors in one RX or TX ring.
 pub const NET_RING_DESCRIPTORS: usize = 16;
 /// Size of one ring in bytes (one DMA page).
-pub const NET_RING_SIZE_BYTES:  usize = 4096;
+pub const NET_RING_SIZE_BYTES: usize = 4096;
 /// Maximum payload in a single ring descriptor.
 pub const NET_DESCRIPTOR_PAYLOAD: usize = 240;
 
@@ -16,23 +16,23 @@ pub const NET_DESCRIPTOR_PAYLOAD: usize = 240;
 #[repr(u16)]
 pub enum NetIpcTag {
     /// Driver → netd: a packet has been received into the RX ring.
-    PacketRx       = 0x0010,
+    PacketRx = 0x0010,
     /// netd → driver: place a packet into the TX ring.
-    PacketTx       = 0x0011,
+    PacketTx = 0x0011,
     /// Driver → netd: a TX ring slot has been freed.
-    TxDone         = 0x0012,
+    TxDone = 0x0012,
     /// Driver → netd: the link has come up.
-    LinkUp         = 0x0013,
+    LinkUp = 0x0013,
     /// Driver → netd: the link has gone down.
-    LinkDown       = 0x0014,
+    LinkDown = 0x0014,
     /// Driver → netd: the `NetDevice` capability has been revoked.
-    DeviceRevoked  = 0x0015,
+    DeviceRevoked = 0x0015,
     /// netd → driver: query current link + queue state.
-    QueryState     = 0x0016,
+    QueryState = 0x0016,
     /// Driver → netd: reply to a `QueryState` message.
-    QueryReply     = 0x0017,
+    QueryReply = 0x0017,
     /// Driver → service-manager: driver initialisation complete.
-    DriverReady    = 0x0018,
+    DriverReady = 0x0018,
 }
 
 impl NetIpcTag {
@@ -47,7 +47,7 @@ impl NetIpcTag {
             0x0016 => Some(Self::QueryState),
             0x0017 => Some(Self::QueryReply),
             0x0018 => Some(Self::DriverReady),
-            _      => None,
+            _ => None,
         }
     }
 }
@@ -62,7 +62,7 @@ impl NetIpcTag {
 #[repr(C)]
 pub struct NetDescriptorHeader {
     /// Valid payload length in bytes (LE).
-    pub len:   u16,
+    pub len: u16,
     /// Protocol flags; driver-private in v0.4 (MBZ for external consumers).
     pub flags: u16,
 }
@@ -74,9 +74,9 @@ pub struct NetDriverPacket {
     /// Index into the DMA ring (0 to `NET_RING_DESCRIPTORS - 1`).
     pub ring_idx: u16,
     /// Byte length of the packet data in the descriptor.
-    pub pkt_len:  u16,
+    pub pkt_len: u16,
     /// Protocol flags (driver-private; MBZ for external consumers).
-    pub flags:    u32,
+    pub flags: u32,
 }
 
 impl NetDriverPacket {

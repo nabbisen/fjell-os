@@ -7,18 +7,18 @@
 #![no_std]
 
 // ── Capacity constants ────────────────────────────────────────────────────────
-pub const MAX_TEXT_BYTES:         usize = 128;
-pub const MAX_ACTIONS:            usize = 8;
-pub const MAX_CONTEXT_KEYS:       usize = 4;
-pub const MAX_CONSEQUENCES:       usize = 4;
-pub const MAX_FACTS:              usize = 16;
-pub const MAX_RELATED_NODES:      usize = 4;
+pub const MAX_TEXT_BYTES: usize = 128;
+pub const MAX_ACTIONS: usize = 8;
+pub const MAX_CONTEXT_KEYS: usize = 4;
+pub const MAX_CONSEQUENCES: usize = 4;
+pub const MAX_FACTS: usize = 16;
+pub const MAX_RELATED_NODES: usize = 4;
 pub const MAX_AFFECTED_RESOURCES: usize = 4;
-pub const MAX_ACTION_INPUTS:      usize = 4;
-pub const MAX_PULL_ITEMS:         usize = 8;
-pub const SEMANTIC_RING_SIZE:     usize = 128;
-pub const EXPORT_CHUNK_SIZE:      usize = 256;
-pub const SCHEMA_VERSION:         u16   = 1;
+pub const MAX_ACTION_INPUTS: usize = 4;
+pub const MAX_PULL_ITEMS: usize = 8;
+pub const SEMANTIC_RING_SIZE: usize = 128;
+pub const EXPORT_CHUNK_SIZE: usize = 256;
+pub const SCHEMA_VERSION: u16 = 1;
 
 // ── FixedVec ──────────────────────────────────────────────────────────────────
 
@@ -26,25 +26,36 @@ pub const SCHEMA_VERSION:         u16   = 1;
 #[derive(Clone, Copy, Debug)]
 pub struct FixedVec<T: Copy, const N: usize> {
     items: [Option<T>; N],
-    len:   usize,
+    len: usize,
 }
 
 impl<T: Copy, const N: usize> FixedVec<T, N> {
     pub const fn new() -> Self {
-        Self { items: [None; N], len: 0 }
+        Self {
+            items: [None; N],
+            len: 0,
+        }
     }
     pub fn push(&mut self, v: T) -> bool {
-        if self.len >= N { return false; }
+        if self.len >= N {
+            return false;
+        }
         self.items[self.len] = Some(v);
         self.len += 1;
         true
     }
     pub fn get(&self, i: usize) -> Option<&T> {
-        if i >= self.len { return None; }
+        if i >= self.len {
+            return None;
+        }
         self.items[i].as_ref()
     }
-    pub fn len(&self) -> usize { self.len }
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.items[..self.len].iter().filter_map(|x| x.as_ref())
     }
@@ -56,7 +67,7 @@ impl<T: Copy, const N: usize> FixedVec<T, N> {
 /// UTF-8 fallback that is used in M5.
 #[derive(Clone, Copy, Debug)]
 pub struct TextToken {
-    pub id:       TextId,
+    pub id: TextId,
     pub fallback: BoundedText,
 }
 
@@ -65,7 +76,7 @@ pub struct TextId(pub u32);
 
 #[derive(Clone, Copy, Debug)]
 pub struct BoundedText {
-    pub len:   u16,
+    pub len: u16,
     pub bytes: [u8; MAX_TEXT_BYTES],
 }
 
@@ -74,40 +85,75 @@ impl BoundedText {
         let mut bytes = [0u8; MAX_TEXT_BYTES];
         let len = s.len().min(MAX_TEXT_BYTES);
         bytes[..len].copy_from_slice(&s.as_bytes()[..len]);
-        BoundedText { len: len as u16, bytes }
+        BoundedText {
+            len: len as u16,
+            bytes,
+        }
     }
     pub fn as_str(&self) -> &str {
         let n = self.len.min(MAX_TEXT_BYTES as u16) as usize;
         core::str::from_utf8(&self.bytes[..n]).unwrap_or("?")
     }
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
 impl TextToken {
     pub fn new(s: &str) -> Self {
-        TextToken { id: TextId(0), fallback: BoundedText::from_str(s) }
+        TextToken {
+            id: TextId(0),
+            fallback: BoundedText::from_str(s),
+        }
     }
-    pub fn as_str(&self) -> &str { self.fallback.as_str() }
+    pub fn as_str(&self) -> &str {
+        self.fallback.as_str()
+    }
 }
 
 // ── Shared enums ──────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Severity { Low, Normal, Important, Critical }
+pub enum Severity {
+    Low,
+    Normal,
+    Important,
+    Critical,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Status { Unknown, Ok, Degraded, Warning, Failed }
+pub enum Status {
+    Unknown,
+    Ok,
+    Degraded,
+    Warning,
+    Failed,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EventResult { Ok, Denied, Failed, TimedOut, NotApplicable }
+pub enum EventResult {
+    Ok,
+    Denied,
+    Failed,
+    TimedOut,
+    NotApplicable,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Importance { Low, Normal, High, Critical }
+pub enum Importance {
+    Low,
+    Normal,
+    High,
+    Critical,
+}
 
 // ── NodeId / CorrelationId ────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NodeId { pub producer_index: u16, pub local_sequence: u32 }
+pub struct NodeId {
+    pub producer_index: u16,
+    pub local_sequence: u32,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CorrelationId(pub u64);
@@ -119,95 +165,133 @@ pub struct ActionId(pub u16);
 pub struct ResourceName(pub BoundedText);
 
 impl ResourceName {
-    pub fn new(s: &str) -> Self { ResourceName(BoundedText::from_str(s)) }
-    pub fn as_str(&self) -> &str { self.0.as_str() }
+    pub fn new(s: &str) -> Self {
+        ResourceName(BoundedText::from_str(s))
+    }
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
 }
 
 // ── IntentNode ────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug)]
 pub struct IntentNode {
-    pub kind:             IntentKind,
-    pub title:            TextToken,
-    pub description:      TextToken,
-    pub severity:         Severity,
-    pub actions:          FixedVec<ActionSpec, MAX_ACTIONS>,
-    pub consequences:     FixedVec<Consequence, MAX_CONSEQUENCES>,
-    pub expires_at_tick:  Option<u64>,
+    pub kind: IntentKind,
+    pub title: TextToken,
+    pub description: TextToken,
+    pub severity: Severity,
+    pub actions: FixedVec<ActionSpec, MAX_ACTIONS>,
+    pub consequences: FixedVec<Consequence, MAX_CONSEQUENCES>,
+    pub expires_at_tick: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum IntentKind {
-    Information, Confirmation, Warning, ErrorRecovery,
-    ActionRequest, InspectionRequest, ExportRequest,
+    Information,
+    Confirmation,
+    Warning,
+    ErrorRecovery,
+    ActionRequest,
+    InspectionRequest,
+    ExportRequest,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct ActionSpec {
-    pub action_id:            ActionId,
-    pub label:                TextToken,
-    pub kind:                 ActionKind,
-    pub required_capability:  Option<CapabilityRequirement>,
-    pub reversibility:        Reversibility,
-    pub confirmation:         ConfirmationPolicy,
+    pub action_id: ActionId,
+    pub label: TextToken,
+    pub kind: ActionKind,
+    pub required_capability: Option<CapabilityRequirement>,
+    pub reversibility: Reversibility,
+    pub confirmation: ConfirmationPolicy,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ActionKind {
-    Confirm, Cancel, Retry, Inspect, Export,
-    StartService, StopService, RestartService,
-    ApplyConfig, RollbackConfig, RevokeLease,
+    Confirm,
+    Cancel,
+    Retry,
+    Inspect,
+    Export,
+    StartService,
+    StopService,
+    RestartService,
+    ApplyConfig,
+    RollbackConfig,
+    RevokeLease,
     // M8
-    SelectRollback, InspectSnapshots, ExportDiagnostics, GenerateAttestation,
+    SelectRollback,
+    InspectSnapshots,
+    ExportDiagnostics,
+    GenerateAttestation,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct CapabilityRequirement {
     pub resource_class: BoundedText,
-    pub resource_name:  ResourceName,
-    pub rights:         u32,
+    pub resource_name: ResourceName,
+    pub rights: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Reversibility { Reversible, PartiallyReversible, Irreversible, Unknown }
+pub enum Reversibility {
+    Reversible,
+    PartiallyReversible,
+    Irreversible,
+    Unknown,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConfirmationPolicy { None, Required, RequiredForCritical }
+pub enum ConfirmationPolicy {
+    None,
+    Required,
+    RequiredForCritical,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Consequence {
-    pub level:   Severity,
-    pub text:    TextToken,
+    pub level: Severity,
+    pub text: TextToken,
 }
 
 // ── StateNode ─────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug)]
 pub struct StateNode {
-    pub kind:    StateKind,
-    pub title:   TextToken,
+    pub kind: StateKind,
+    pub title: TextToken,
     pub summary: TextToken,
-    pub status:  Status,
-    pub facts:   FixedVec<StateFact, MAX_FACTS>,
+    pub status: Status,
+    pub facts: FixedVec<StateFact, MAX_FACTS>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StateKind {
-    SystemOverview, ServiceGraph, ServiceStatus, ConfigStatus,
-    AuditSummary, CapabilitySummary, LeaseSummary, PowerSummary,
+    SystemOverview,
+    ServiceGraph,
+    ServiceStatus,
+    ConfigStatus,
+    AuditSummary,
+    CapabilitySummary,
+    LeaseSummary,
+    PowerSummary,
     // v0.2.0 RFC 041 — persistent evidence hardening
     /// Evidence matrix showing per-event audit coverage.
     EvidenceMatrix,
     /// Audit-trail health: last seq, dropped count, persistence lag.
     SecurityAuditState,
     // M8
-    MeasurementStatus, AttestationStatus, BundleFreshnessStatus, RecoveryStatus,
+    MeasurementStatus,
+    AttestationStatus,
+    BundleFreshnessStatus,
+    RecoveryStatus,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct StateFact {
-    pub key:        TextToken,
-    pub value:      FactValue,
+    pub key: TextToken,
+    pub value: FactValue,
     pub importance: Importance,
 }
 
@@ -224,22 +308,30 @@ pub enum FactValue {
 
 #[derive(Clone, Copy, Debug)]
 pub struct EventNode {
-    pub kind:              EventKind,
-    pub title:             TextToken,
-    pub description:       TextToken,
-    pub severity:          Severity,
-    pub result:            EventResult,
-    pub subject:           Option<ResourceName>,
+    pub kind: EventKind,
+    pub title: TextToken,
+    pub description: TextToken,
+    pub severity: Severity,
+    pub result: EventResult,
+    pub subject: Option<ResourceName>,
     pub related_audit_seq: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EventKind {
-    ServiceStarted, ServiceReady, ServiceFailed,
-    ConfigValidated, ConfigRejected,
-    CapabilityGranted, CapabilityDenied, LeaseRevoked,
-    AuditExported, ActionAccepted, ActionDenied,
-    ActionCompleted, ActionFailed,
+    ServiceStarted,
+    ServiceReady,
+    ServiceFailed,
+    ConfigValidated,
+    ConfigRejected,
+    CapabilityGranted,
+    CapabilityDenied,
+    LeaseRevoked,
+    AuditExported,
+    ActionAccepted,
+    ActionDenied,
+    ActionCompleted,
+    ActionFailed,
     // v0.2.0 RFC 041 — persistent evidence hardening
     /// DMA region quarantine timeout expired (zeroize forced).
     DmaQuarantineTimeout,
@@ -249,25 +341,32 @@ pub enum EventKind {
     /// (e.g., capability denied in Enforcing state, unauthorized MMIO request).
     SecurityBoundaryViolation,
     // M8
-    MeasurementAppended, AttestationGenerated,
-    BundleFreshnessValid, BundleFreshnessRejected,
-    RecoveryTargetEntered, RollbackSelected,
+    MeasurementAppended,
+    AttestationGenerated,
+    BundleFreshnessValid,
+    BundleFreshnessRejected,
+    RecoveryTargetEntered,
+    RollbackSelected,
 }
 
 // ── SemanticEnvelope ──────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug)]
 pub struct SemanticEnvelope {
-    pub schema_version:  u16,
-    pub stream:          StreamKind,
-    pub node_id:         NodeId,
-    pub sequence:        u64,
-    pub correlation_id:  Option<CorrelationId>,
-    pub payload:         SemanticPayload,
+    pub schema_version: u16,
+    pub stream: StreamKind,
+    pub node_id: NodeId,
+    pub sequence: u64,
+    pub correlation_id: Option<CorrelationId>,
+    pub payload: SemanticPayload,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StreamKind { Intent, State, Event }
+pub enum StreamKind {
+    Intent,
+    State,
+    Event,
+}
 
 #[derive(Clone, Copy, Debug)]
 pub enum SemanticPayload {
@@ -281,7 +380,9 @@ impl SemanticEnvelope {
         SemanticEnvelope {
             schema_version: SCHEMA_VERSION,
             stream: StreamKind::State,
-            node_id, sequence: seq, correlation_id: None,
+            node_id,
+            sequence: seq,
+            correlation_id: None,
             payload: SemanticPayload::State(n),
         }
     }
@@ -289,7 +390,9 @@ impl SemanticEnvelope {
         SemanticEnvelope {
             schema_version: SCHEMA_VERSION,
             stream: StreamKind::Event,
-            node_id, sequence: seq, correlation_id: None,
+            node_id,
+            sequence: seq,
+            correlation_id: None,
             payload: SemanticPayload::Event(n),
         }
     }
@@ -297,7 +400,9 @@ impl SemanticEnvelope {
         SemanticEnvelope {
             schema_version: SCHEMA_VERSION,
             stream: StreamKind::Intent,
-            node_id, sequence: seq, correlation_id: None,
+            node_id,
+            sequence: seq,
+            correlation_id: None,
             payload: SemanticPayload::Intent(n),
         }
     }
@@ -308,15 +413,15 @@ impl SemanticEnvelope {
 #[derive(Clone, Copy, Debug)]
 pub struct ActionRequest {
     pub correlation_id: CorrelationId,
-    pub source_node:    NodeId,
-    pub action_id:      ActionId,
+    pub source_node: NodeId,
+    pub action_id: ActionId,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct ActionResult {
     pub correlation_id: CorrelationId,
-    pub result:         EventResult,
-    pub message:        TextToken,
+    pub result: EventResult,
+    pub message: TextToken,
 }
 
 // ── Schema validation ─────────────────────────────────────────────────────────
@@ -325,8 +430,9 @@ pub struct ActionResult {
 pub fn validate_intent(n: &IntentNode) -> Result<(), &'static str> {
     use IntentKind::*;
     match n.kind {
-        Confirmation | ActionRequest if n.actions.is_empty() =>
-            Err("INTENT-001: Confirmation/ActionRequest must have actions"),
+        Confirmation | ActionRequest if n.actions.is_empty() => {
+            Err("INTENT-001: Confirmation/ActionRequest must have actions")
+        }
         _ => Ok(()),
     }
 }
@@ -344,23 +450,25 @@ pub fn validate_state(n: &StateNode) -> Result<(), &'static str> {
 #[derive(Clone, Copy, Debug)]
 pub struct StreamFilter {
     pub include_intent: bool,
-    pub include_state:  bool,
-    pub include_event:  bool,
-    pub min_severity:   Severity,
+    pub include_state: bool,
+    pub include_event: bool,
+    pub min_severity: Severity,
 }
 
 impl StreamFilter {
     pub fn all() -> Self {
         StreamFilter {
-            include_intent: true, include_state: true, include_event: true,
+            include_intent: true,
+            include_state: true,
+            include_event: true,
             min_severity: Severity::Low,
         }
     }
     pub fn matches(&self, env: &SemanticEnvelope) -> bool {
         match env.stream {
             StreamKind::Intent => self.include_intent,
-            StreamKind::State  => self.include_state,
-            StreamKind::Event  => self.include_event,
+            StreamKind::State => self.include_state,
+            StreamKind::Event => self.include_event,
         }
     }
 }
@@ -368,7 +476,11 @@ impl StreamFilter {
 // ── ExportFormat ──────────────────────────────────────────────────────────────
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ExportFormat { PlainText, JsonLines, TomlSummary }
+pub enum ExportFormat {
+    PlainText,
+    JsonLines,
+    TomlSummary,
+}
 
 // ── RFC 041: evidence matrix ─────────────────────────────────────────────────
 
@@ -381,15 +493,15 @@ pub const MAX_EVIDENCE_ROWS: usize = 16;
 #[derive(Clone, Copy, Debug)]
 pub struct EvidenceRow {
     /// Human-readable event label (e.g., "cap.denied", "lease.revoked").
-    pub event_label:   BoundedText,
+    pub event_label: BoundedText,
     /// Numeric audit kind discriminant (`AuditKind as u16`).
-    pub audit_kind:    u16,
+    pub audit_kind: u16,
     /// Total occurrences recorded since boot.
-    pub count:         u64,
+    pub count: u64,
     /// Whether at least one occurrence was confirmed persisted to storage.
-    pub persisted:     bool,
+    pub persisted: bool,
     /// Times this event was dropped before it could be drained.
-    pub dropped:       u32,
+    pub dropped: u32,
 }
 
 impl EvidenceRow {
@@ -404,7 +516,9 @@ impl EvidenceRow {
     }
 
     /// Return `true` if there are gaps in evidence for this event type.
-    pub fn has_gaps(&self) -> bool { self.dropped > 0 }
+    pub fn has_gaps(&self) -> bool {
+        self.dropped > 0
+    }
 }
 
 // ── RFC 041: security audit state node ────────────────────────────────────────
@@ -412,9 +526,9 @@ impl EvidenceRow {
 /// Build a `StateNode` reporting the current audit-trail health
 /// (RFC 041 §"SecurityAuditState").
 pub fn security_audit_state_node(
-    audit_last_seq:      u64,
+    audit_last_seq: u64,
     audit_dropped_count: u64,
-    pending_drain:       u64,
+    pending_drain: u64,
 ) -> StateNode {
     let status = if audit_dropped_count > 0 {
         Status::Warning
@@ -432,7 +546,11 @@ pub fn security_audit_state_node(
     facts.push(StateFact {
         key: TextToken::new("dropped_count"),
         value: FactValue::U64(audit_dropped_count),
-        importance: if audit_dropped_count > 0 { Importance::High } else { Importance::Normal },
+        importance: if audit_dropped_count > 0 {
+            Importance::High
+        } else {
+            Importance::Normal
+        },
     });
     facts.push(StateFact {
         key: TextToken::new("pending_drain"),
@@ -441,8 +559,8 @@ pub fn security_audit_state_node(
     });
 
     StateNode {
-        kind:    StateKind::SecurityAuditState,
-        title:   TextToken::new("Audit Trail Health"),
+        kind: StateKind::SecurityAuditState,
+        title: TextToken::new("Audit Trail Health"),
         summary: TextToken::new(if audit_dropped_count > 0 {
             "Evidence gaps detected"
         } else {

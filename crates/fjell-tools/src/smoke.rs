@@ -24,12 +24,12 @@ pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
 
         // v0.4-v0.7 smoke categories (RFC-v0.7.1-003, W-M-04)
         // These verify the service markers emitted by v0.4+ services.
-        Some("v0.4-net")        => ("v0.4-net",     "TEST:V0.4-NET:PASS"),
-        Some("v0.5-platform")   => ("v0.5-platform", "TEST:V0.5-PLATFORM:PASS"),
-        Some("v0.6-verification")=>("v0.6-verify",   "TEST:V0.6-VERIFY:PASS"),
-        Some("v0.7-sync")       => ("v0.7-sync",     "TEST:V0.7-SYNC:PASS"),
+        Some("v0.4-net") => ("v0.4-net", "TEST:V0.4-NET:PASS"),
+        Some("v0.5-platform") => ("v0.5-platform", "TEST:V0.5-PLATFORM:PASS"),
+        Some("v0.6-verification") => ("v0.6-verify", "TEST:V0.6-VERIFY:PASS"),
+        Some("v0.7-sync") => ("v0.7-sync", "TEST:V0.7-SYNC:PASS"),
 
-        _          => ("m8", "TEST:M8:PASS"), // default = current milestone
+        _ => ("m8", "TEST:M8:PASS"), // default = current milestone
     };
 
     // Smoke always rebuilds before running so the test reflects the

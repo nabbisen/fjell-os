@@ -2,14 +2,14 @@
 
 #[allow(unused_imports)] // v0.7: DRIVER_ACCEPTED_FEATURES used in feature negotiation tests
 use crate::features::{
-    negotiate_features, VirtioFeatureFlags,
-    VIRTIO_NET_F_MAC, VIRTIO_NET_F_STATUS, VIRTIO_NET_F_MRG_RXBUF,
-    VIRTIO_F_EVENT_IDX, DRIVER_ACCEPTED_FEATURES,
+    DRIVER_ACCEPTED_FEATURES, VIRTIO_F_EVENT_IDX, VIRTIO_NET_F_MAC, VIRTIO_NET_F_MRG_RXBUF,
+    VIRTIO_NET_F_STATUS, VirtioFeatureFlags, negotiate_features,
 };
-use crate::ring::{Ring, RingError, RingIndex, RingIndexCounter, RING_SIZE};
+use crate::ring::{RING_SIZE, Ring, RingError, RingIndex, RingIndexCounter};
 use crate::state::{DriverState, DriverStateBlock, DriverStateError};
-#[allow(unused_imports)] // v0.7: ring count and payload size used in descriptor allocation tests
-use fjell_net_format::{NET_RING_DESCRIPTORS, NET_DESCRIPTOR_PAYLOAD};
+#[allow(unused_imports)]
+// v0.7: ring count and payload size used in descriptor allocation tests
+use fjell_net_format::{NET_DESCRIPTOR_PAYLOAD, NET_RING_DESCRIPTORS};
 
 // ── Feature negotiation ───────────────────────────────────────────────────────
 
@@ -23,9 +23,8 @@ fn feature_negotiation_picks_mac_and_status() {
 
 #[test]
 fn feature_negotiation_drops_unsupported_bits() {
-    let offered = VirtioFeatureFlags(
-        VIRTIO_NET_F_MAC | VIRTIO_NET_F_MRG_RXBUF | VIRTIO_F_EVENT_IDX,
-    );
+    let offered =
+        VirtioFeatureFlags(VIRTIO_NET_F_MAC | VIRTIO_NET_F_MRG_RXBUF | VIRTIO_F_EVENT_IDX);
     let (neg, _) = negotiate_features(offered);
     assert!(neg.contains(VIRTIO_NET_F_MAC));
     assert!(!neg.contains(VIRTIO_NET_F_MRG_RXBUF));
@@ -195,13 +194,10 @@ fn driver_max_restarts_enforced() {
 // ── MMIO register helpers ─────────────────────────────────────────────────────
 
 use crate::mmio::{
-    read_le32, write_le32, read_mac, read_link_up,
-    verify_device_identity, init_status_sequence,
-    VIRTIO_MMIO_MAGIC, VIRTIO_MMIO_MAGIC_VALUE,
-    VIRTIO_MMIO_DEVICE_ID, VIRTIO_NET_DEVICE_ID,
-    VIRTIO_NET_CONFIG_MAC, VIRTIO_NET_CONFIG_STATUS,
-    VIRTIO_NET_STATUS_LINK_UP, VIRTIO_MMIO_REGION_SIZE,
-    VIRTIO_MMIO_STATUS, VIRTIO_STATUS_DRIVER_OK,
+    VIRTIO_MMIO_DEVICE_ID, VIRTIO_MMIO_MAGIC, VIRTIO_MMIO_MAGIC_VALUE, VIRTIO_MMIO_REGION_SIZE,
+    VIRTIO_MMIO_STATUS, VIRTIO_NET_CONFIG_MAC, VIRTIO_NET_CONFIG_STATUS, VIRTIO_NET_DEVICE_ID,
+    VIRTIO_NET_STATUS_LINK_UP, VIRTIO_STATUS_DRIVER_OK, init_status_sequence, read_le32,
+    read_link_up, read_mac, verify_device_identity, write_le32,
 };
 
 fn make_mmio_buf() -> [u8; VIRTIO_MMIO_REGION_SIZE] {
@@ -230,7 +226,7 @@ fn mmio_read_out_of_bounds_returns_none() {
 #[test]
 fn mmio_verify_device_identity_accepts_good() {
     let mut buf = make_mmio_buf();
-    write_le32(&mut buf, VIRTIO_MMIO_MAGIC,     VIRTIO_MMIO_MAGIC_VALUE);
+    write_le32(&mut buf, VIRTIO_MMIO_MAGIC, VIRTIO_MMIO_MAGIC_VALUE);
     write_le32(&mut buf, VIRTIO_MMIO_DEVICE_ID, VIRTIO_NET_DEVICE_ID);
     assert!(verify_device_identity(&buf));
 }
@@ -238,7 +234,7 @@ fn mmio_verify_device_identity_accepts_good() {
 #[test]
 fn mmio_verify_device_identity_rejects_bad_magic() {
     let mut buf = make_mmio_buf();
-    write_le32(&mut buf, VIRTIO_MMIO_MAGIC,     0xDEAD_DEAD);
+    write_le32(&mut buf, VIRTIO_MMIO_MAGIC, 0xDEAD_DEAD);
     write_le32(&mut buf, VIRTIO_MMIO_DEVICE_ID, VIRTIO_NET_DEVICE_ID);
     assert!(!verify_device_identity(&buf));
 }
@@ -255,7 +251,7 @@ fn mmio_read_mac_succeeds() {
 fn mmio_read_link_up_true() {
     let mut buf = make_mmio_buf();
     let s = VIRTIO_NET_CONFIG_STATUS;
-    buf[s]     = (VIRTIO_NET_STATUS_LINK_UP & 0xFF) as u8;
+    buf[s] = (VIRTIO_NET_STATUS_LINK_UP & 0xFF) as u8;
     buf[s + 1] = (VIRTIO_NET_STATUS_LINK_UP >> 8) as u8;
     assert!(read_link_up(&buf));
 }

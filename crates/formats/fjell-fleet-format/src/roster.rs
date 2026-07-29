@@ -4,11 +4,11 @@
 //! It is signed by the fleet policy anchor and verified by every node before
 //! accepting snapshot imports from peers.
 
-use fjell_measure_format::Digest32;
 use fjell_identity_format::NodeId;
+use fjell_measure_format::Digest32;
 
 pub const FLEET_SCHEMA_VERSION: u16 = 1;
-pub const MAX_ROSTER_ENTRIES:  usize = 64;
+pub const MAX_ROSTER_ENTRIES: usize = 64;
 /// StoreRecordKind for a persisted `NodeRoster`.
 pub const STORE_RECORD_KIND_ROSTER: u16 = 0x0040;
 
@@ -20,7 +20,9 @@ pub const STORE_RECORD_KIND_ROSTER: u16 = 0x0040;
 pub struct RosterRef(pub Digest32);
 
 impl RosterRef {
-    pub fn from_digest(d: Digest32) -> Self { Self(d) }
+    pub fn from_digest(d: Digest32) -> Self {
+        Self(d)
+    }
 }
 
 /// Trust profile tag (matches `NodeIdentity::trust_profile_tag`).
@@ -31,25 +33,25 @@ pub struct TrustProfileTag(pub u8);
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RosterEntry {
     /// The node's canonical identity digest.
-    pub identity_digest:   Digest32,
+    pub identity_digest: Digest32,
     /// The node's `NodeId`.
-    pub node_id:           NodeId,
+    pub node_id: NodeId,
     /// Trust profile tag for this member.
     pub trust_profile_tag: TrustProfileTag,
     /// Whether this entry is still active (not revoked).
-    pub active:            bool,
+    pub active: bool,
     /// Generation at which this entry was added (for conflict resolution).
-    pub generation:        u32,
+    pub generation: u32,
 }
 
 impl RosterEntry {
     pub const fn empty() -> Self {
         Self {
-            identity_digest:   Digest32([0u8; 32]),
-            node_id:           NodeId([0u8; 16]),
+            identity_digest: Digest32([0u8; 32]),
+            node_id: NodeId([0u8; 16]),
             trust_profile_tag: TrustProfileTag(0),
-            active:            false,
-            generation:        0,
+            active: false,
+            generation: 0,
         }
     }
 }
@@ -62,14 +64,14 @@ impl RosterEntry {
 #[derive(Clone, Debug)]
 pub struct NodeRoster {
     pub schema_version: u16,
-    pub fleet_id:       [u8; 16],
-    pub generation:     u32,
+    pub fleet_id: [u8; 16],
+    pub generation: u32,
     /// Ed25519 public key of the fleet policy anchor (signs the roster).
-    pub anchor_pubkey:  [u8; 32],
+    pub anchor_pubkey: [u8; 32],
     /// Canonical digest of this roster (computed by `roster_digest`).
-    pub roster_digest:  Digest32,
-    pub entry_count:    u16,
-    pub entries:        [RosterEntry; MAX_ROSTER_ENTRIES],
+    pub roster_digest: Digest32,
+    pub entry_count: u16,
+    pub entries: [RosterEntry; MAX_ROSTER_ENTRIES],
 }
 
 impl NodeRoster {
@@ -140,8 +142,8 @@ impl NodeRoster {
 #[repr(u8)]
 pub enum RosterError {
     CapacityExhausted = 0x01,
-    DuplicateMember   = 0x02,
-    MemberNotFound    = 0x03,
-    DigestMismatch    = 0x04,
-    InvalidSchema     = 0x05,
+    DuplicateMember = 0x02,
+    MemberNotFound = 0x03,
+    DigestMismatch = 0x04,
+    InvalidSchema = 0x05,
 }

@@ -3,8 +3,8 @@
 //! For every catalog entry: encode → decode → field values roundtrip.
 //! Additional negative tests for truncation, bad magic, trailing bytes.
 
-use crate::catalog::{CATALOG_V1, lookup_tag, catalog_len};
-use crate::codec::{encode, decode, FieldValue, SemanticError, MAX_ENVELOPE_BYTES};
+use crate::catalog::{CATALOG_V1, catalog_len, lookup_tag};
+use crate::codec::{FieldValue, MAX_ENVELOPE_BYTES, SemanticError, decode, encode};
 use crate::schema::FieldKind;
 use crate::version::{CATALOG_V1_VERSION, CatalogVersion};
 
@@ -21,8 +21,11 @@ fn catalog_tags_are_unique() {
     for i in 0..CATALOG_V1.len() {
         for j in 0..CATALOG_V1.len() {
             if i != j {
-                assert_ne!(CATALOG_V1[i].tag, CATALOG_V1[j].tag,
-                    "duplicate tag {:#06x}", CATALOG_V1[i].tag);
+                assert_ne!(
+                    CATALOG_V1[i].tag, CATALOG_V1[j].tag,
+                    "duplicate tag {:#06x}",
+                    CATALOG_V1[i].tag
+                );
             }
         }
     }
@@ -31,16 +34,21 @@ fn catalog_tags_are_unique() {
 #[test]
 fn catalog_tags_sorted_ascending() {
     for i in 1..CATALOG_V1.len() {
-        assert!(CATALOG_V1[i].tag > CATALOG_V1[i-1].tag,
-            "catalog not sorted at index {i}");
+        assert!(
+            CATALOG_V1[i].tag > CATALOG_V1[i - 1].tag,
+            "catalog not sorted at index {i}"
+        );
     }
 }
 
 #[test]
 fn catalog_reserved_ranges_not_used() {
     for e in CATALOG_V1 {
-        assert!(e.tag < 0x0200 || e.tag >= 0x0400,
-            "tag {:#06x} falls in reserved FLEET/SDK range", e.tag);
+        assert!(
+            e.tag < 0x0200 || e.tag >= 0x0400,
+            "tag {:#06x} falls in reserved FLEET/SDK range",
+            e.tag
+        );
     }
 }
 
@@ -52,7 +60,7 @@ fn catalog_version_is_v1_0() {
 #[test]
 fn lookup_unknown_tag_returns_none() {
     assert!(lookup_tag(0x0000).is_none());
-    assert!(lookup_tag(0x0200).is_none());  // FLEET reserved
+    assert!(lookup_tag(0x0200).is_none()); // FLEET reserved
     assert!(lookup_tag(0xFFFF).is_none());
 }
 
@@ -71,12 +79,20 @@ fn make_test_fields(entry: &crate::catalog::IntentEntry) -> [FieldValue; 6] {
     let mut fv = [FieldValue::Absent; 6];
     for (i, fd) in entry.schema.fields.iter().enumerate() {
         fv[i] = match fd.kind {
-            FieldKind::U8      => FieldValue::U8((i as u8).wrapping_add(1)),
-            FieldKind::U16     => FieldValue::U16(i as u16 + 0x0100),
-            FieldKind::U32     => FieldValue::U32(i as u32 + 0xDEAD_0000),
-            FieldKind::U64     => FieldValue::U64(i as u64 + 0xCAFE_BABE_0000_0000),
-            FieldKind::Bytes16 => { let mut b = [0u8;16]; b[0] = i as u8; FieldValue::Bytes16(b) }
-            FieldKind::Bytes32 => { let mut b = [0u8;32]; b[0] = i as u8; FieldValue::Bytes32(b) }
+            FieldKind::U8 => FieldValue::U8((i as u8).wrapping_add(1)),
+            FieldKind::U16 => FieldValue::U16(i as u16 + 0x0100),
+            FieldKind::U32 => FieldValue::U32(i as u32 + 0xDEAD_0000),
+            FieldKind::U64 => FieldValue::U64(i as u64 + 0xCAFE_BABE_0000_0000),
+            FieldKind::Bytes16 => {
+                let mut b = [0u8; 16];
+                b[0] = i as u8;
+                FieldValue::Bytes16(b)
+            }
+            FieldKind::Bytes32 => {
+                let mut b = [0u8; 32];
+                b[0] = i as u8;
+                FieldValue::Bytes32(b)
+            }
         };
     }
     fv
@@ -94,10 +110,17 @@ fn all_catalog_entries_round_trip() {
         assert_eq!(decoded.tag, entry.tag);
         assert_eq!(decoded.created_tick, 12345);
         for (i, _fd) in entry.schema.fields.iter().enumerate() {
-            assert_ne!(decoded.fields[i], FieldValue::Absent,
-                "field {i} of {} is absent after roundtrip", entry.name);
-            assert_eq!(decoded.fields[i], fv[i],
-                "field {i} mismatch for {}", entry.name);
+            assert_ne!(
+                decoded.fields[i],
+                FieldValue::Absent,
+                "field {i} of {} is absent after roundtrip",
+                entry.name
+            );
+            assert_eq!(
+                decoded.fields[i], fv[i],
+                "field {i} mismatch for {}",
+                entry.name
+            );
         }
     }
 }
@@ -123,7 +146,7 @@ fn decode_truncated_body_returns_error() {
     let fv = make_test_fields(entry);
     let n = encode(entry.tag, 0, &fv[..entry.schema.fields.len()], &mut buf).unwrap();
     // Truncate by 3 bytes.
-    assert_eq!(decode(&buf[..n-3]), Err(SemanticError::TruncatedBody));
+    assert_eq!(decode(&buf[..n - 3]), Err(SemanticError::TruncatedBody));
 }
 
 #[test]
@@ -133,7 +156,7 @@ fn decode_missing_sentinel_returns_error() {
     let fv = make_test_fields(entry);
     let n = encode(entry.tag, 0, &fv[..entry.schema.fields.len()], &mut buf).unwrap();
     // Corrupt the sentinel byte.
-    buf[n-1] = 0xAA;
+    buf[n - 1] = 0xAA;
     assert_eq!(decode(&buf[..n]), Err(SemanticError::MissingSentinel));
 }
 
@@ -145,13 +168,16 @@ fn decode_trailing_bytes_returns_error() {
     let n = encode(entry.tag, 0, &fv[..entry.schema.fields.len()], &mut buf).unwrap();
     // Pass extra bytes after valid envelope.
     buf[n] = 0x00; // one trailing byte
-    assert_eq!(decode(&buf[..n+1]), Err(SemanticError::TrailingBytes));
+    assert_eq!(decode(&buf[..n + 1]), Err(SemanticError::TrailingBytes));
 }
 
 #[test]
 fn encode_unknown_tag_returns_error() {
     let mut buf = [0u8; MAX_ENVELOPE_BYTES];
-    assert_eq!(encode(0x9999, 0, &[], &mut buf), Err(SemanticError::UnknownTag));
+    assert_eq!(
+        encode(0x9999, 0, &[], &mut buf),
+        Err(SemanticError::UnknownTag)
+    );
 }
 
 #[test]

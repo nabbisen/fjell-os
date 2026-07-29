@@ -33,11 +33,11 @@
 //! runs that write to storaged produce isolated output; the frozen image
 //! is never modified. This mirrors the xtask smoke runner's disk image.
 
+use std::collections::VecDeque;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use std::collections::VecDeque;
 
 // ── QEMU configuration ────────────────────────────────────────────────────────
 
@@ -53,11 +53,11 @@ pub const DEFAULT_MEMORY_MB: u32 = 128;
 /// Mirrors the `QemuRunner` in `fjell-tools`; this variant is intended
 /// for integration tests (library API) rather than one-shot xtask runs.
 pub struct QemuBuilder {
-    kernel_path:   String,
-    disk_path:     Option<String>,
-    memory_mb:     u32,
-    timeout:       Duration,
-    extra_args:    Vec<String>,
+    kernel_path: String,
+    disk_path: Option<String>,
+    memory_mb: u32,
+    timeout: Duration,
+    extra_args: Vec<String>,
 }
 
 impl Default for QemuBuilder {
@@ -71,36 +71,41 @@ impl QemuBuilder {
     pub fn new() -> Self {
         Self {
             kernel_path: String::new(),
-            disk_path:   None,
-            memory_mb:   DEFAULT_MEMORY_MB,
-            timeout:     Duration::from_secs(DEFAULT_TIMEOUT_SECS),
-            extra_args:  Vec::new(),
+            disk_path: None,
+            memory_mb: DEFAULT_MEMORY_MB,
+            timeout: Duration::from_secs(DEFAULT_TIMEOUT_SECS),
+            extra_args: Vec::new(),
         }
     }
 
     /// Set the kernel binary path (required).
     pub fn kernel(mut self, path: &str) -> Self {
-        self.kernel_path = path.into(); self
+        self.kernel_path = path.into();
+        self
     }
 
     /// Attach a virtio-blk disk image.
     pub fn disk(mut self, path: &str) -> Self {
-        self.disk_path = Some(path.into()); self
+        self.disk_path = Some(path.into());
+        self
     }
 
     /// Override memory (default 128 MB).
     pub fn memory_mb(mut self, mb: u32) -> Self {
-        self.memory_mb = mb; self
+        self.memory_mb = mb;
+        self
     }
 
     /// Override the per-run timeout (default 60 s).
     pub fn timeout(mut self, d: Duration) -> Self {
-        self.timeout = d; self
+        self.timeout = d;
+        self
     }
 
     /// Append extra QEMU arguments verbatim.
     pub fn extra_arg(mut self, arg: &str) -> Self {
-        self.extra_args.push(arg.into()); self
+        self.extra_args.push(arg.into());
+        self
     }
 
     /// Launch QEMU and return a live [`QemuHandle`].
@@ -121,7 +126,8 @@ impl QemuBuilder {
             cmd.args([
                 "-drive",
                 &format!("file={},if=none,id=hd0,format=raw", disk),
-                "-device", "virtio-blk-device,drive=hd0",
+                "-device",
+                "virtio-blk-device,drive=hd0",
             ]);
         }
 
@@ -132,10 +138,13 @@ impl QemuBuilder {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::null());
 
-        let mut child = cmd.spawn()
+        let mut child = cmd
+            .spawn()
             .map_err(|e| HarnessError::QemuSpawnFailed(e.to_string()))?;
 
-        let stdout = child.stdout.take()
+        let stdout = child
+            .stdout
+            .take()
             .ok_or_else(|| HarnessError::QemuSpawnFailed("no stdout".into()))?;
 
         let lines: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
@@ -147,7 +156,9 @@ impl QemuBuilder {
                 let mut q = lines_clone.lock().unwrap();
                 q.push_back(line);
                 // Keep at most 4096 lines in the buffer.
-                if q.len() > 4096 { q.pop_front(); }
+                if q.len() > 4096 {
+                    q.pop_front();
+                }
             }
         });
 
@@ -163,8 +174,8 @@ impl QemuBuilder {
 
 /// A live QEMU session. Drop to kill the process.
 pub struct QemuHandle {
-    child:    Child,
-    lines:    Arc<Mutex<VecDeque<String>>>,
+    child: Child,
+    lines: Arc<Mutex<VecDeque<String>>>,
     deadline: Instant,
 }
 
@@ -180,7 +191,9 @@ impl QemuHandle {
             {
                 let q = self.lines.lock().unwrap();
                 for line in q.iter() {
-                    if line.contains(marker) { return Ok(()); }
+                    if line.contains(marker) {
+                        return Ok(());
+                    }
                 }
             }
             // Check if QEMU already exited.
@@ -188,13 +201,17 @@ impl QemuHandle {
                 // Drain remaining buffer.
                 let q = self.lines.lock().unwrap();
                 for line in q.iter() {
-                    if line.contains(marker) { return Ok(()); }
+                    if line.contains(marker) {
+                        return Ok(());
+                    }
                 }
                 return Err(HarnessError::MarkerNotFound(marker.into()));
             }
             std::thread::sleep(per_poll_sleep);
         }
-        Err(HarnessError::Timeout { marker: marker.into() })
+        Err(HarnessError::Timeout {
+            marker: marker.into(),
+        })
     }
 
     /// Collect all serial lines received so far and return them.
@@ -209,7 +226,9 @@ impl QemuHandle {
 }
 
 impl Drop for QemuHandle {
-    fn drop(&mut self) { self.kill(); }
+    fn drop(&mut self) {
+        self.kill();
+    }
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────────
@@ -230,14 +249,14 @@ pub enum HarnessError {
 impl std::fmt::Display for HarnessError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HarnessError::MissingKernelPath =>
-                write!(f, "kernel path not set"),
-            HarnessError::QemuSpawnFailed(e) =>
-                write!(f, "QEMU spawn failed: {}", e),
-            HarnessError::Timeout { marker } =>
-                write!(f, "timeout waiting for marker `{}`", marker),
-            HarnessError::MarkerNotFound(m) =>
-                write!(f, "marker `{}` not found before QEMU exit", m),
+            HarnessError::MissingKernelPath => write!(f, "kernel path not set"),
+            HarnessError::QemuSpawnFailed(e) => write!(f, "QEMU spawn failed: {}", e),
+            HarnessError::Timeout { marker } => {
+                write!(f, "timeout waiting for marker `{}`", marker)
+            }
+            HarnessError::MarkerNotFound(m) => {
+                write!(f, "marker `{}` not found before QEMU exit", m)
+            }
         }
     }
 }
@@ -254,15 +273,15 @@ pub struct DevRunConfig {
     /// Workspace root (for cargo build paths).
     pub workspace_root: String,
     /// Service crate name to test.
-    pub service_name:   String,
+    pub service_name: String,
     /// Kernel binary path (produced by the xtask build).
-    pub kernel_path:    String,
+    pub kernel_path: String,
     /// Disk image path (frozen baseline).
-    pub disk_path:      String,
+    pub disk_path: String,
     /// Markers the run must emit to be considered a pass.
-    pub pass_markers:   Vec<String>,
+    pub pass_markers: Vec<String>,
     /// Per-run timeout.
-    pub timeout:        Duration,
+    pub timeout: Duration,
 }
 
 impl DevRunConfig {
@@ -296,11 +315,9 @@ pub fn check_log_for_marker(log_content: &str, marker: &str) -> bool {
 }
 
 /// Count how many distinct markers from `expected` appear in `log_content`.
-pub fn count_matched_markers<'a>(
-    log_content: &str,
-    expected: &[&'a str],
-) -> Vec<&'a str> {
-    expected.iter()
+pub fn count_matched_markers<'a>(log_content: &str, expected: &[&'a str]) -> Vec<&'a str> {
+    expected
+        .iter()
         .copied()
         .filter(|m| log_content.contains(m))
         .collect()
@@ -339,7 +356,11 @@ mod tests {
     #[test]
     fn count_matched_markers_partial() {
         let log = "TEST:V0.4-NET:PASS\nTEST:M8:PASS\n";
-        let expected = ["TEST:V0.4-NET:PASS", "TEST:V0.5-PLATFORM:PASS", "TEST:M8:PASS"];
+        let expected = [
+            "TEST:V0.4-NET:PASS",
+            "TEST:V0.5-PLATFORM:PASS",
+            "TEST:M8:PASS",
+        ];
         let matched = count_matched_markers(log, &expected);
         assert_eq!(matched.len(), 2);
         assert!(matched.contains(&"TEST:V0.4-NET:PASS"));
@@ -363,7 +384,9 @@ mod tests {
 
     #[test]
     fn harness_error_display() {
-        let e = HarnessError::Timeout { marker: "FOO".into() };
+        let e = HarnessError::Timeout {
+            marker: "FOO".into(),
+        };
         assert!(e.to_string().contains("FOO"));
         let e2 = HarnessError::MissingKernelPath;
         assert!(!e2.to_string().is_empty());

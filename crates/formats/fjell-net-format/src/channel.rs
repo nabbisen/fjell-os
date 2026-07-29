@@ -11,9 +11,9 @@ use crate::session::ChannelKind;
 /// `secure-transportd`.
 pub const SXT_CHANNEL_KIND_TAGS: &[(ChannelKind, &str)] = &[
     (ChannelKind::UpdateMetadata, "SXT_RPC_UPDATE_METADATA"),
-    (ChannelKind::Diagnostics,   "SXT_RPC_DIAG"),
-    (ChannelKind::Attestation,   "SXT_RPC_ATTEST"),
-    (ChannelKind::FleetEnroll,   "SXT_RPC_FLEET_ENROLL"),
+    (ChannelKind::Diagnostics, "SXT_RPC_DIAG"),
+    (ChannelKind::Attestation, "SXT_RPC_ATTEST"),
+    (ChannelKind::FleetEnroll, "SXT_RPC_FLEET_ENROLL"),
 ];
 
 /// Opaque identifier for a `TransportChannel`.
@@ -29,15 +29,15 @@ impl ChannelId {
 #[repr(u8)]
 pub enum ChannelState {
     /// TLS handshake in progress.
-    Handshaking  = 0x01,
+    Handshaking = 0x01,
     /// Channel is established and ready for RPC.
-    Open         = 0x02,
+    Open = 0x02,
     /// Application-level close initiated; draining.
-    Closing      = 0x03,
+    Closing = 0x03,
     /// Channel has been closed normally.
-    Closed       = 0x04,
+    Closed = 0x04,
     /// Channel closed due to a TLS or transport error.
-    Faulted      = 0x05,
+    Faulted = 0x05,
 }
 
 /// One active TLS 1.3 channel to a pinned server endpoint.
@@ -45,28 +45,28 @@ pub enum ChannelState {
 /// `secure-transportd` maintains up to `MAX_SXT_CHANNELS` of these.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TransportChannel {
-    pub channel_id:    ChannelId,
-    pub kind:          ChannelKind,
-    pub state:         ChannelState,
+    pub channel_id: ChannelId,
+    pub kind: ChannelKind,
+    pub state: ChannelState,
     /// Pinned server SNI name (ASCII, zero-padded 64 B).
-    pub server_name:   [u8; 64],
+    pub server_name: [u8; 64],
     /// SHA-256 fingerprint of the pinned server TLS leaf certificate.
-    pub cert_pin:      [u8; 32],
+    pub cert_pin: [u8; 32],
     /// Total bytes sent on this channel.
-    pub bytes_sent:    u64,
+    pub bytes_sent: u64,
     /// Total bytes received on this channel.
-    pub bytes_recv:    u64,
+    pub bytes_recv: u64,
 }
 
 impl TransportChannel {
     pub const EMPTY: Self = Self {
-        channel_id:  ChannelId::UNSET,
-        kind:        ChannelKind::UpdateMetadata,
-        state:       ChannelState::Closed,
+        channel_id: ChannelId::UNSET,
+        kind: ChannelKind::UpdateMetadata,
+        state: ChannelState::Closed,
         server_name: [0u8; 64],
-        cert_pin:    [0u8; 32],
-        bytes_sent:  0,
-        bytes_recv:  0,
+        cert_pin: [0u8; 32],
+        bytes_sent: 0,
+        bytes_recv: 0,
     };
 }
 

@@ -4,19 +4,17 @@
 //! They propagate across nodes via the snapshot-sync channel.
 #![no_std]
 
+pub mod digest;
 pub mod measurement;
 pub mod release;
-pub mod digest;
 
+pub use digest::{measurement_summary_digest, release_summary_digest};
 pub use measurement::{
-    MeasurementSummary, MeasurementKindCount,
-    MSUMMARY_SCHEMA_VERSION, MAX_KIND_COUNTS,
+    MAX_KIND_COUNTS, MSUMMARY_SCHEMA_VERSION, MeasurementKindCount, MeasurementSummary,
 };
 pub use release::{
-    ReleaseSummary, ChannelSummary, AdvanceSource,
-    RSUMMARY_SCHEMA_VERSION, MAX_CHANNEL_SUMMARIES,
+    AdvanceSource, ChannelSummary, MAX_CHANNEL_SUMMARIES, RSUMMARY_SCHEMA_VERSION, ReleaseSummary,
 };
-pub use digest::{measurement_summary_digest, release_summary_digest};
 
 #[cfg(test)]
 mod tests;

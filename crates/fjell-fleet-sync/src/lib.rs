@@ -17,8 +17,8 @@
 #![forbid(unsafe_code)]
 
 extern crate alloc;
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 
 // ── Fleet partition state machine ─────────────────────────────────────────────
 
@@ -27,9 +27,9 @@ use alloc::string::String;
 #[repr(u8)]
 pub enum FleetState {
     /// Heartbeats arriving on schedule. Wire 0x01.
-    Healthy     = 0x01,
+    Healthy = 0x01,
     /// One or more heartbeats missed but partition_threshold not reached. 0x02.
-    Suspect     = 0x02,
+    Suspect = 0x02,
     /// partition_threshold exceeded; operating without coordinator. 0x03.
     Partitioned = 0x03,
     /// Link restored; coordinator is merging state. 0x04.
@@ -49,8 +49,8 @@ impl FleetState {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Healthy     => "Healthy",
-            Self::Suspect     => "Suspect",
+            Self::Healthy => "Healthy",
+            Self::Suspect => "Suspect",
             Self::Partitioned => "Partitioned",
             Self::Reconciling => "Reconciling",
         }
@@ -60,7 +60,8 @@ impl FleetState {
 /// Guard: is this a valid state transition?
 pub fn is_valid_fleet_transition(from: FleetState, to: FleetState) -> bool {
     use FleetState::*;
-    matches!((from, to),
+    matches!(
+        (from, to),
         (Healthy,     Suspect)     |
         (Suspect,     Healthy)     |   // heartbeat restored
         (Suspect,     Partitioned) |
@@ -76,14 +77,18 @@ pub fn is_valid_fleet_transition(from: FleetState, to: FleetState) -> bool {
 #[repr(u8)]
 pub enum ReconcileDecision {
     /// Record accepted into the authoritative state.  0x01.
-    Accepted  = 0x01,
+    Accepted = 0x01,
     /// Record refused as authority-conflicting; preserved as evidence. 0x02.
-    Rejected  = 0x02,
+    Rejected = 0x02,
 }
 
 impl ReconcileDecision {
     pub fn from_u8(v: u8) -> Option<Self> {
-        match v { 0x01 => Some(Self::Accepted), 0x02 => Some(Self::Rejected), _ => None }
+        match v {
+            0x01 => Some(Self::Accepted),
+            0x02 => Some(Self::Rejected),
+            _ => None,
+        }
     }
 }
 
@@ -92,9 +97,9 @@ impl ReconcileDecision {
 pub struct ReconcileEntry {
     /// SHA-256 of the canonical record bytes (first 32 bytes used as ID).
     pub record_digest: [u8; 32],
-    pub decision:      ReconcileDecision,
+    pub decision: ReconcileDecision,
     /// Reason code for `Rejected` entries.
-    pub reason_code:   u8,
+    pub reason_code: u8,
 }
 
 /// The coordinator's signed reconciliation manifest (RFC-v0.13-002 §4).
@@ -102,20 +107,20 @@ pub struct ReconcileEntry {
 /// Produced after merging a partitioned member's state.  Members apply
 /// the manifest after verifying the coordinator's signature.
 pub struct ReconcileManifest {
-    pub schema:          u16,
+    pub schema: u16,
     /// Monotonic per-coordinator reconciliation counter.
-    pub seq:             u64,
+    pub seq: u64,
     /// Node ID of the coordinator.
-    pub coordinator_id:  [u8; 16],
+    pub coordinator_id: [u8; 16],
     /// Node ID that was partitioned.
-    pub member_id:       [u8; 16],
+    pub member_id: [u8; 16],
     /// Partition start tick (coordinator monotonic ns).
     pub partition_start: u64,
     /// Reconcile complete tick.
-    pub reconcile_at:    u64,
-    pub entries:         Vec<ReconcileEntry>,
+    pub reconcile_at: u64,
+    pub entries: Vec<ReconcileEntry>,
     /// Ed25519 signature over the canonical prefix.
-    pub signature:       [u8; 64],
+    pub signature: [u8; 64],
 }
 
 impl ReconcileManifest {
@@ -132,18 +137,28 @@ impl ReconcileManifest {
     ) -> Self {
         Self {
             schema: Self::SCHEMA,
-            seq, coordinator_id, member_id,
-            partition_start, reconcile_at, entries,
+            seq,
+            coordinator_id,
+            member_id,
+            partition_start,
+            reconcile_at,
+            entries,
             signature: [0u8; 64],
         }
     }
 
     pub fn accepted_count(&self) -> usize {
-        self.entries.iter().filter(|e| e.decision == ReconcileDecision::Accepted).count()
+        self.entries
+            .iter()
+            .filter(|e| e.decision == ReconcileDecision::Accepted)
+            .count()
     }
 
     pub fn rejected_count(&self) -> usize {
-        self.entries.iter().filter(|e| e.decision == ReconcileDecision::Rejected).count()
+        self.entries
+            .iter()
+            .filter(|e| e.decision == ReconcileDecision::Rejected)
+            .count()
     }
 }
 
@@ -153,17 +168,17 @@ impl ReconcileManifest {
 ///
 /// Requires the `TrustAnchorRoot` signature.
 pub struct CoordinatorPromotion {
-    pub schema:              u16,
+    pub schema: u16,
     /// Node being promoted.
-    pub new_coordinator_id:  [u8; 16],
+    pub new_coordinator_id: [u8; 16],
     /// Previous coordinator (may be zeroed if it is permanently unavailable).
-    pub previous_coord_id:   [u8; 16],
-    pub promoted_at_ns:      u64,
+    pub previous_coord_id: [u8; 16],
+    pub promoted_at_ns: u64,
     /// Fleet size at time of promotion.
-    pub surviving_members:   u16,
+    pub surviving_members: u16,
     /// Signed by the `TrustAnchorRoot` key (RFC-v0.13-003 §5).
-    pub signature:           [u8; 64],
-    pub signer_key_id:       [u8; 16],
+    pub signature: [u8; 64],
+    pub signer_key_id: [u8; 16],
 }
 
 impl CoordinatorPromotion {
@@ -176,21 +191,21 @@ impl CoordinatorPromotion {
 /// Per-node result in a re-attestation run.
 #[derive(Clone)]
 pub struct NodeReattestResult {
-    pub node_id:    [u8; 16],
+    pub node_id: [u8; 16],
     /// `true` if the node responded within the window.
-    pub responded:  bool,
+    pub responded: bool,
     /// `true` if the response contained a valid signed attestation.
-    pub verified:   bool,
+    pub verified: bool,
 }
 
 /// Trigger reason for a bulk re-attestation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ReattestReason {
-    Scheduled  = 1,
-    Rotation   = 2,
-    Incident   = 3,
-    Refresh    = 4,
+    Scheduled = 1,
+    Rotation = 2,
+    Incident = 3,
+    Refresh = 4,
 }
 
 impl ReattestReason {
@@ -206,33 +221,35 @@ impl ReattestReason {
     pub fn label(self) -> &'static str {
         match self {
             Self::Scheduled => "scheduled",
-            Self::Rotation  => "rotation",
-            Self::Incident  => "incident",
-            Self::Refresh   => "refresh",
+            Self::Rotation => "rotation",
+            Self::Incident => "incident",
+            Self::Refresh => "refresh",
         }
     }
 }
 
 /// Summary of a completed bulk re-attestation run.
 pub struct ReattestManifest {
-    pub schema:          u16,
+    pub schema: u16,
     pub initiated_at_ns: u64,
     pub completed_at_ns: u64,
-    pub reason:          ReattestReason,
-    pub fleet_size:      u32,
-    pub attempted:       u32,
-    pub succeeded:       u32,
-    pub timed_out:       u32,
-    pub refused:         u32,
-    pub per_node:        Vec<NodeReattestResult>,
-    pub signature:       [u8; 64],
+    pub reason: ReattestReason,
+    pub fleet_size: u32,
+    pub attempted: u32,
+    pub succeeded: u32,
+    pub timed_out: u32,
+    pub refused: u32,
+    pub per_node: Vec<NodeReattestResult>,
+    pub signature: [u8; 64],
 }
 
 impl ReattestManifest {
     pub const SCHEMA: u16 = 1;
 
     pub fn pass_rate_pct(&self) -> u32 {
-        if self.attempted == 0 { return 0; }
+        if self.attempted == 0 {
+            return 0;
+        }
         self.succeeded * 100 / self.attempted
     }
 }
@@ -254,37 +271,40 @@ pub enum ConsistencyError {
 /// `prev_seq` is the `sync_seq` from the last accepted summary for the node
 /// (0 if first summary). Returns all detected violations.
 pub fn check_summary_consistency(
-    new_seq:          u64,
-    new_key_epoch:    u32,
-    new_boot_count:   u32,
+    new_seq: u64,
+    new_key_epoch: u32,
+    new_boot_count: u32,
     bundle_lifecycle: u8,
-    prev_seq:         u64,
-    prev_key_epoch:   u32,
-    prev_boot_count:  u32,
-    prev_lifecycle:   u8,
-    bundle_digest:    [u8; 32],
-    known_bundles:    &[[u8; 32]],
+    prev_seq: u64,
+    prev_key_epoch: u32,
+    prev_boot_count: u32,
+    prev_lifecycle: u8,
+    bundle_digest: [u8; 32],
+    known_bundles: &[[u8; 32]],
 ) -> Vec<ConsistencyError> {
     let mut errors = Vec::new();
 
     // Temporal: seq must advance
     if prev_seq > 0 && new_seq <= prev_seq {
         errors.push(ConsistencyError::SyncSeqRegression {
-            expected_min: prev_seq + 1, got: new_seq,
+            expected_min: prev_seq + 1,
+            got: new_seq,
         });
     }
 
     // Temporal: key epoch must not decrease
     if new_key_epoch < prev_key_epoch {
         errors.push(ConsistencyError::KeyEpochRegression {
-            previous: prev_key_epoch, got: new_key_epoch,
+            previous: prev_key_epoch,
+            got: new_key_epoch,
         });
     }
 
     // Temporal: boot count must not decrease (unless it IS a boot record)
     if new_boot_count < prev_boot_count {
         errors.push(ConsistencyError::BootCountRegression {
-            previous: prev_boot_count, got: new_boot_count,
+            previous: prev_boot_count,
+            got: new_boot_count,
         });
     }
 
@@ -293,7 +313,9 @@ pub fn check_summary_consistency(
     if !bundle_known {
         let mut prefix = [0u8; 8];
         prefix.copy_from_slice(&bundle_digest[..8]);
-        errors.push(ConsistencyError::UnknownBundleDigest { digest_prefix: prefix });
+        errors.push(ConsistencyError::UnknownBundleDigest {
+            digest_prefix: prefix,
+        });
     }
 
     // Static: lifecycle transition must be valid per RFC-v0.9-004 FSM
@@ -304,7 +326,8 @@ pub fn check_summary_consistency(
             (1,2) | (2,3) | (3,4) | (4,5) | (4,6));
     if !valid {
         errors.push(ConsistencyError::InvalidLifecycleTransition {
-            from: prev_lifecycle, to: bundle_lifecycle,
+            from: prev_lifecycle,
+            to: bundle_lifecycle,
         });
     }
 
@@ -319,24 +342,52 @@ mod tests {
 
     #[test]
     fn valid_transitions() {
-        assert!(is_valid_fleet_transition(FleetState::Healthy,     FleetState::Suspect));
-        assert!(is_valid_fleet_transition(FleetState::Suspect,     FleetState::Healthy));
-        assert!(is_valid_fleet_transition(FleetState::Suspect,     FleetState::Partitioned));
-        assert!(is_valid_fleet_transition(FleetState::Partitioned, FleetState::Reconciling));
-        assert!(is_valid_fleet_transition(FleetState::Reconciling, FleetState::Healthy));
+        assert!(is_valid_fleet_transition(
+            FleetState::Healthy,
+            FleetState::Suspect
+        ));
+        assert!(is_valid_fleet_transition(
+            FleetState::Suspect,
+            FleetState::Healthy
+        ));
+        assert!(is_valid_fleet_transition(
+            FleetState::Suspect,
+            FleetState::Partitioned
+        ));
+        assert!(is_valid_fleet_transition(
+            FleetState::Partitioned,
+            FleetState::Reconciling
+        ));
+        assert!(is_valid_fleet_transition(
+            FleetState::Reconciling,
+            FleetState::Healthy
+        ));
     }
 
     #[test]
     fn invalid_transitions() {
-        assert!(!is_valid_fleet_transition(FleetState::Healthy,     FleetState::Reconciling));
-        assert!(!is_valid_fleet_transition(FleetState::Partitioned, FleetState::Healthy));
-        assert!(!is_valid_fleet_transition(FleetState::Healthy,     FleetState::Partitioned));
+        assert!(!is_valid_fleet_transition(
+            FleetState::Healthy,
+            FleetState::Reconciling
+        ));
+        assert!(!is_valid_fleet_transition(
+            FleetState::Partitioned,
+            FleetState::Healthy
+        ));
+        assert!(!is_valid_fleet_transition(
+            FleetState::Healthy,
+            FleetState::Partitioned
+        ));
     }
 
     #[test]
     fn state_round_trip() {
-        for s in [FleetState::Healthy, FleetState::Suspect,
-                  FleetState::Partitioned, FleetState::Reconciling] {
+        for s in [
+            FleetState::Healthy,
+            FleetState::Suspect,
+            FleetState::Partitioned,
+            FleetState::Reconciling,
+        ] {
             assert_eq!(FleetState::from_u8(s as u8), Some(s));
         }
         assert!(FleetState::from_u8(0x00).is_none());
@@ -347,11 +398,23 @@ mod tests {
     #[test]
     fn reconcile_counts() {
         let entries = vec![
-            ReconcileEntry { record_digest: [0u8; 32], decision: ReconcileDecision::Accepted, reason_code: 0 },
-            ReconcileEntry { record_digest: [1u8; 32], decision: ReconcileDecision::Rejected, reason_code: 1 },
-            ReconcileEntry { record_digest: [2u8; 32], decision: ReconcileDecision::Accepted, reason_code: 0 },
+            ReconcileEntry {
+                record_digest: [0u8; 32],
+                decision: ReconcileDecision::Accepted,
+                reason_code: 0,
+            },
+            ReconcileEntry {
+                record_digest: [1u8; 32],
+                decision: ReconcileDecision::Rejected,
+                reason_code: 1,
+            },
+            ReconcileEntry {
+                record_digest: [2u8; 32],
+                decision: ReconcileDecision::Accepted,
+                reason_code: 0,
+            },
         ];
-        let m = ReconcileManifest::new(1, [0u8;16], [1u8;16], 0, 100, entries);
+        let m = ReconcileManifest::new(1, [0u8; 16], [1u8; 16], 0, 100, entries);
         assert_eq!(m.accepted_count(), 2);
         assert_eq!(m.rejected_count(), 1);
     }
@@ -362,11 +425,16 @@ mod tests {
     fn pass_rate() {
         let m = ReattestManifest {
             schema: ReattestManifest::SCHEMA,
-            initiated_at_ns: 0, completed_at_ns: 100,
+            initiated_at_ns: 0,
+            completed_at_ns: 100,
             reason: ReattestReason::Scheduled,
-            fleet_size: 10, attempted: 10, succeeded: 8,
-            timed_out: 1, refused: 1,
-            per_node: Vec::new(), signature: [0u8; 64],
+            fleet_size: 10,
+            attempted: 10,
+            succeeded: 8,
+            timed_out: 1,
+            refused: 1,
+            per_node: Vec::new(),
+            signature: [0u8; 64],
         };
         assert_eq!(m.pass_rate_pct(), 80);
     }
@@ -376,7 +444,7 @@ mod tests {
     const KNOWN: [[u8; 32]; 1] = [[0xABu8; 32]];
 
     fn good_check(seq: u64) -> Vec<ConsistencyError> {
-        check_summary_consistency(seq, 1, 1, 4, seq-1, 1, 1, 3, [0xABu8; 32], &KNOWN)
+        check_summary_consistency(seq, 1, 1, 4, seq - 1, 1, 1, 3, [0xABu8; 32], &KNOWN)
     }
 
     #[test]
@@ -387,31 +455,43 @@ mod tests {
     #[test]
     fn seq_regression_detected() {
         let errs = check_summary_consistency(1, 1, 1, 4, 5, 1, 1, 3, [0xABu8; 32], &KNOWN);
-        assert!(errs.iter().any(|e| matches!(e, ConsistencyError::SyncSeqRegression { .. })));
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, ConsistencyError::SyncSeqRegression { .. }))
+        );
     }
 
     #[test]
     fn unknown_bundle_detected() {
         let errs = check_summary_consistency(2, 1, 1, 4, 1, 1, 1, 3, [0xCCu8; 32], &KNOWN);
-        assert!(errs.iter().any(|e| matches!(e, ConsistencyError::UnknownBundleDigest { .. })));
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, ConsistencyError::UnknownBundleDigest { .. }))
+        );
     }
 
     #[test]
     fn invalid_lifecycle_transition_detected() {
         // 5 (Confirmed) → 3 (Committed) is invalid
         let errs = check_summary_consistency(2, 1, 1, 3, 1, 1, 1, 5, [0xABu8; 32], &KNOWN);
-        assert!(errs.iter().any(|e| matches!(e, ConsistencyError::InvalidLifecycleTransition { .. })));
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, ConsistencyError::InvalidLifecycleTransition { .. }))
+        );
     }
 
     #[test]
     fn key_epoch_regression_detected() {
         let errs = check_summary_consistency(2, 1, 1, 4, 1, 3, 1, 3, [0xABu8; 32], &KNOWN);
-        assert!(errs.iter().any(|e| matches!(e, ConsistencyError::KeyEpochRegression { .. })));
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, ConsistencyError::KeyEpochRegression { .. }))
+        );
     }
 
     #[test]
     fn reattest_reason_labels() {
         assert_eq!(ReattestReason::Scheduled.label(), "scheduled");
-        assert_eq!(ReattestReason::Incident.label(),  "incident");
+        assert_eq!(ReattestReason::Incident.label(), "incident");
     }
 }

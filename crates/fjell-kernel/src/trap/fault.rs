@@ -5,7 +5,7 @@
 //!   TRAP-004  Kernel page fault → panic (legitimate).
 
 use crate::{
-    audit::ring::{AuditKindInternal, AUDIT},
+    audit::ring::{AUDIT, AuditKindInternal},
     task::tcb::{FaultCause, FaultInfo, TrapFrame},
 };
 
@@ -26,15 +26,14 @@ pub fn handle_user_fault(tf: &TrapFrame, cause: FaultCause) {
         );
     }
 
-    let info = FaultInfo { cause, sepc: tf.sepc, stval: tf.stval };
+    let info = FaultInfo {
+        cause,
+        sepc: tf.sepc,
+        stval: tf.stval,
+    };
 
     // Record in audit ring.
-    AUDIT.lock_free_append(
-        AuditKindInternal::TaskFault,
-        tf.sepc,
-        tf.stval,
-        0,
-    );
+    AUDIT.lock_free_append(AuditKindInternal::TaskFault, tf.sepc, tf.stval, 0);
 
     // Signal the run-loop to mark the current task Faulted.
     FAULT_INFO.store(Some(info));
@@ -46,9 +45,17 @@ pub(crate) struct FaultCell(core::cell::Cell<Option<FaultInfo>>);
 // SAFETY: category=kernel-global-mutable single-hart M2.
 unsafe impl Sync for FaultCell {}
 impl FaultCell {
-    const fn new() -> Self { FaultCell(core::cell::Cell::new(None)) }
-    fn store(&self, v: Option<FaultInfo>) { self.0.set(v); }
-    fn take(&self) -> Option<FaultInfo> { let v = self.0.get(); self.0.set(None); v }
+    const fn new() -> Self {
+        FaultCell(core::cell::Cell::new(None))
+    }
+    fn store(&self, v: Option<FaultInfo>) {
+        self.0.set(v);
+    }
+    fn take(&self) -> Option<FaultInfo> {
+        let v = self.0.get();
+        self.0.set(None);
+        v
+    }
 }
 
 pub(crate) static FAULT_INFO: FaultCell = FaultCell::new();

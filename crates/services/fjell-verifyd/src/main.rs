@@ -3,18 +3,18 @@
 //! v0.3.0-alpha.1: registers a `DevelopmentTrustProvider`, initialises a dev
 //! `Keyring` with a `DevDigest32` anchor, and verifies signatures via
 //! `DevSignatureProvider` (RFC v0.3-002 §5.3).
-#![allow(unused_assignments)]  // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
+#![allow(unused_assignments)] // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;
 
 use fjell_syscall::{sys_debug_writeln, sys_exit};
 
+use fjell_keyring::KeyPurpose;
 use fjell_keyring::algorithm::SignatureAlgorithm;
 use fjell_keyring::anchor::{AuthorityClass, TrustAnchor};
 use fjell_keyring::dev_provider::DevSignatureProvider;
 use fjell_keyring::epoch::KeyEpoch;
-use fjell_keyring::KeyPurpose;
 use fjell_keyring::keyring::Keyring;
 use fjell_keyring::provider::SignatureProvider;
 
@@ -22,7 +22,7 @@ use fjell_trust_provider::descriptor::TrustProviderDescriptor;
 use fjell_trust_provider::development::DevelopmentTrustProvider;
 use fjell_trust_provider::ids::TrustProviderId;
 use fjell_trust_provider::profile::{
-    TrustProviderCapabilities, TrustProviderKind, TrustProfile, TrustProviderState,
+    TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
 use fjell_trust_provider::registry::ProviderRegistry;
 
@@ -35,11 +35,11 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // ── IPC tags ─────────────────────────────────────────────────────────────────
 
 mod proto {
-    pub const READY:       usize = 0x0001;
-    pub const VERIFY:      usize = 0x0010;
-    pub const VERIFY_OK:   usize = 0x0011;
+    pub const READY: usize = 0x0001;
+    pub const VERIFY: usize = 0x0010;
+    pub const VERIFY_OK: usize = 0x0011;
     pub const VERIFY_FAIL: usize = 0x0012;
-    pub const ERR:         usize = 0xFFFF;
+    pub const ERR: usize = 0xFFFF;
 }
 
 // ── IPC helpers ─────────────────────────────────────────────────────────────
@@ -136,16 +136,18 @@ fn init_keyring() -> Keyring {
 /// 32-byte digests lands in v0.3.0.
 fn verify_dev(keyring: &Keyring, digest_lo: u64, sig_lo: u64) -> bool {
     let mut digest_b = [0u8; 32];
-    let mut sig_b    = [0u8; 32];
+    let mut sig_b = [0u8; 32];
     digest_b[0..8].copy_from_slice(&digest_lo.to_le_bytes());
-    sig_b   [0..8].copy_from_slice(&sig_lo   .to_le_bytes());
+    sig_b[0..8].copy_from_slice(&sig_lo.to_le_bytes());
 
     let anchor = match keyring.anchors_for(KeyPurpose::ReleaseVerification).next() {
         Some(a) => a,
-        None    => return false,
+        None => return false,
     };
 
-    DevSignatureProvider.verify(&anchor, &digest_b, &sig_b).is_ok()
+    DevSignatureProvider
+        .verify(&anchor, &digest_b, &sig_b)
+        .is_ok()
 }
 
 // ── Entry point ──────────────────────────────────────────────────────────────
@@ -162,7 +164,9 @@ pub extern "C" fn service_main() -> ! {
     send_ready();
     if !DEV_ANCHOR_PROVISIONED {
         // RFC-v0.17-001: the unprovisioned state must be loud, never silent.
-        sys_debug_writeln("verifyd: WARNING unprovisioned dev trust anchor (legacy all-zero dev key); run `cargo xtask provision-dev --allow-tofu-provision` (dev/QEMU profile only)");
+        sys_debug_writeln(
+            "verifyd: WARNING unprovisioned dev trust anchor (legacy all-zero dev key); run `cargo xtask provision-dev --allow-tofu-provision` (dev/QEMU profile only)",
+        );
     }
     sys_debug_writeln("verifyd ready");
 

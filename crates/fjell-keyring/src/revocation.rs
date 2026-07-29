@@ -19,7 +19,7 @@ use crate::epoch::KeyEpoch;
 #[repr(u8)]
 pub enum AnchorState {
     /// Key is current. Grants may be issued. Wire value 0x01.
-    Active  = 0x01,
+    Active = 0x01,
     /// Key has been superseded by a newer epoch. Bundles signed with it
     /// are accepted within the `grace_window_secs` period. Wire 0x02.
     Retired = 0x02,
@@ -34,7 +34,7 @@ impl AnchorState {
             0x01 => Some(Self::Active),
             0x02 => Some(Self::Retired),
             0x03 => Some(Self::Revoked),
-            _    => None,
+            _ => None,
         }
     }
 }
@@ -44,9 +44,9 @@ impl AnchorState {
 #[repr(u16)]
 pub enum RevocationReason {
     Compromised = 1,
-    Rotated     = 2,
-    Lost        = 3,
-    Ceremony    = 4,
+    Rotated = 2,
+    Lost = 3,
+    Ceremony = 4,
 }
 
 impl RevocationReason {
@@ -62,9 +62,9 @@ impl RevocationReason {
     pub fn label(self) -> &'static str {
         match self {
             Self::Compromised => "compromised",
-            Self::Rotated     => "rotated",
-            Self::Lost        => "lost",
-            Self::Ceremony    => "ceremony",
+            Self::Rotated => "rotated",
+            Self::Lost => "lost",
+            Self::Ceremony => "ceremony",
         }
     }
 }
@@ -84,16 +84,16 @@ impl RevocationReason {
 /// ```
 #[derive(Clone)]
 pub struct RevocationRecord {
-    pub key_id:      [u8; 16],
-    pub epoch:       KeyEpoch,
-    pub reason:      RevocationReason,
+    pub key_id: [u8; 16],
+    pub epoch: KeyEpoch,
+    pub reason: RevocationReason,
     /// Wall-clock nanoseconds at revocation time (advisory; not
     /// relied upon for security decisions).
     pub revoked_at_ns: u64,
     /// Key-id of the authority that signed this record.
-    pub signer_key:  [u8; 16],
+    pub signer_key: [u8; 16],
     /// Ed25519 signature over the canonical header fields.
-    pub signature:   [u8; 64],
+    pub signature: [u8; 64],
 }
 
 impl RevocationRecord {
@@ -120,16 +120,22 @@ impl RevocationRecord {
 
     /// Parse from bytes. Returns `None` on any structural error.
     pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
-        if bytes.len() < Self::WIRE_LEN { return None; }
-        if &bytes[0..4] != Self::MAGIC  { return None; }
+        if bytes.len() < Self::WIRE_LEN {
+            return None;
+        }
+        if &bytes[0..4] != Self::MAGIC {
+            return None;
+        }
         let schema = u16::from_le_bytes(bytes[4..6].try_into().ok()?);
-        if schema != Self::SCHEMA { return None; }
-        let key_id:     [u8; 16] = bytes[6..22].try_into().ok()?;
-        let epoch_raw    = u32::from_le_bytes(bytes[22..26].try_into().ok()?);
-        let reason_raw   = u16::from_le_bytes(bytes[26..28].try_into().ok()?);
-        let revoked_at   = u64::from_le_bytes(bytes[28..36].try_into().ok()?);
+        if schema != Self::SCHEMA {
+            return None;
+        }
+        let key_id: [u8; 16] = bytes[6..22].try_into().ok()?;
+        let epoch_raw = u32::from_le_bytes(bytes[22..26].try_into().ok()?);
+        let reason_raw = u16::from_le_bytes(bytes[26..28].try_into().ok()?);
+        let revoked_at = u64::from_le_bytes(bytes[28..36].try_into().ok()?);
         let signer_key: [u8; 16] = bytes[36..52].try_into().ok()?;
-        let signature:  [u8; 64] = bytes[52..116].try_into().ok()?;
+        let signature: [u8; 64] = bytes[52..116].try_into().ok()?;
         Some(Self {
             key_id,
             epoch: KeyEpoch(epoch_raw),
@@ -161,28 +167,34 @@ pub struct RevocationTable {
 }
 
 impl Default for RevocationTable {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone)]
 struct RevocationEntry {
     key_id: [u8; 16],
-    epoch:  KeyEpoch,
-    state:  AnchorState,
+    epoch: KeyEpoch,
+    state: AnchorState,
     /// Most recent revocation record, if state == Revoked.
     record: Option<RevocationRecord>,
 }
 
 impl RevocationTable {
     pub const fn new() -> Self {
-        Self { entries: [const { None }; MAX_ANCHORS], len: 0 }
+        Self {
+            entries: [const { None }; MAX_ANCHORS],
+            len: 0,
+        }
     }
 
     /// Register an anchor in Active state when it is first installed.
     pub fn activate(&mut self, key_id: [u8; 16], epoch: KeyEpoch) {
         if self.find(key_id, epoch).is_none() && self.len < MAX_ANCHORS {
             self.entries[self.len] = Some(RevocationEntry {
-                key_id, epoch,
+                key_id,
+                epoch,
                 state: AnchorState::Active,
                 record: None,
             });
@@ -230,14 +242,16 @@ impl RevocationTable {
     }
 
     fn find(&self, key_id: [u8; 16], epoch: KeyEpoch) -> Option<&RevocationEntry> {
-        self.entries[..self.len].iter()
+        self.entries[..self.len]
+            .iter()
             .filter_map(|e| e.as_ref())
             .find(|e| e.key_id == key_id && e.epoch == epoch)
     }
 
     fn find_mut(&mut self, key_id: [u8; 16], epoch: KeyEpoch) -> Option<&mut RevocationEntry> {
         let len = self.len;
-        self.entries[..len].iter_mut()
+        self.entries[..len]
+            .iter_mut()
             .filter_map(|e| e.as_mut())
             .find(|e| e.key_id == key_id && e.epoch == epoch)
     }
@@ -253,7 +267,8 @@ mod tests {
 
     fn dummy_record(key_id: [u8; 16], epoch: KeyEpoch) -> RevocationRecord {
         RevocationRecord {
-            key_id, epoch,
+            key_id,
+            epoch,
             reason: RevocationReason::Rotated,
             revoked_at_ns: 0,
             signer_key: [0xBB; 16],
@@ -331,7 +346,11 @@ mod tests {
 
     #[test]
     fn anchor_state_wire_round_trip() {
-        for s in [AnchorState::Active, AnchorState::Retired, AnchorState::Revoked] {
+        for s in [
+            AnchorState::Active,
+            AnchorState::Retired,
+            AnchorState::Revoked,
+        ] {
             assert_eq!(AnchorState::from_u8(s as u8), Some(s));
         }
         assert!(AnchorState::from_u8(0x00).is_none());

@@ -3,19 +3,18 @@
 //! v0.3.0: produces `AttestationRecordV2` when the trust-provider registry
 //! is in Enforcing phase (RFC v0.3-004).  Falls back to the v1 dev path
 //! when still in Bootstrap (development / early boot).
-#![allow(unused_assignments, unused_imports, dead_code)]  // M7 stub: IPC polling + planned fields
+#![allow(unused_assignments, unused_imports, dead_code)] // M7 stub: IPC polling + planned fields
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_attestation_format::{
-    AttestationRecord, AttestationRecordId, AttestationProfile, SignedAttestationRecord,
-    BootClaims, VerificationClaims, MeasurementClaims, SnapshotClaims,
-    HealthClaims, FreshnessClaims,
-};
 use fjell_attestation_format::v2::{
-    AttestationRecordV2, FreshnessClaimsV2, KeyringClaims, NonceClass,
-    ProviderClaims, RollbackClaims, SignedAttestationRecordV2, SignedByDescriptor,
+    AttestationRecordV2, FreshnessClaimsV2, KeyringClaims, NonceClass, ProviderClaims,
+    RollbackClaims, SignedAttestationRecordV2, SignedByDescriptor,
+};
+use fjell_attestation_format::{
+    AttestationProfile, AttestationRecord, AttestationRecordId, BootClaims, FreshnessClaims,
+    HealthClaims, MeasurementClaims, SignedAttestationRecord, SnapshotClaims, VerificationClaims,
 };
 use fjell_measure_format::Digest32;
 use fjell_service_api::attestd as proto;
@@ -27,16 +26,16 @@ use fjell_trust_provider::ids::TrustProviderId;
 #[allow(unused_imports)] // v0.7: hardware attestation material
 use fjell_trust_provider::material::AttestationDigest;
 use fjell_trust_provider::profile::{
-    TrustProviderCapabilities, TrustProviderKind, TrustProfile, TrustProviderState,
+    TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
 #[allow(unused_imports)] // v0.7: hardware trust provider integration
 use fjell_trust_provider::provider::HardwareTrustProvider;
 use fjell_trust_provider::registry::{ProviderRegistry, RegistryPhase};
 
+use fjell_keyring::KeyPurpose;
 use fjell_keyring::algorithm::SignatureAlgorithm;
 use fjell_keyring::anchor::{AuthorityClass, TrustAnchor};
 use fjell_keyring::epoch::KeyEpoch;
-use fjell_keyring::KeyPurpose;
 use fjell_keyring::keyring::Keyring;
 
 #[allow(unused_imports)] // v0.7: AdvanceSource used in full rollback tracking
@@ -125,24 +124,30 @@ fn init_keyring() -> Keyring {
 /// Build the common v1-era record id from `seq`.
 fn make_record_id(seq: u32) -> AttestationRecordId {
     let mut id = [b'0'; 8];
-    id[0] = b'A'; id[1] = b'T';
-    let mut n = seq; let mut i = 7usize;
+    id[0] = b'A';
+    id[1] = b'T';
+    let mut n = seq;
+    let mut i = 7usize;
     while n > 0 && i >= 2 {
         id[i] = b'0' + (n % 10) as u8;
         n /= 10;
-        if i > 2 { i -= 1; } else { break; }
+        if i > 2 {
+            i -= 1;
+        } else {
+            break;
+        }
     }
     AttestationRecordId(id)
 }
 
 /// Sign a v2 record when the registry is in Enforcing phase.
 fn sign_v2(
-    provider:   &DevelopmentTrustProvider,
-    keyring:    &Keyring,
-    rollback:   &RollbackRecord,
-    seq:        u32,
+    provider: &DevelopmentTrustProvider,
+    keyring: &Keyring,
+    rollback: &RollbackRecord,
+    seq: u32,
     #[allow(dead_code)] // v0.7: forwarded to measurement chain header
-    _meas_seq:  u64,
+    _meas_seq: u64,
     generation: u32,
 ) -> (Digest32, bool) {
     let record = AttestationRecordV2::dev(
@@ -162,10 +167,10 @@ fn sign_v2(
         .unwrap_or(1);
 
     let signed_by = SignedByDescriptor {
-        provider_id:          ATTESTD_PROVIDER_ID,
-        provider_generation:  1,
+        provider_id: ATTESTD_PROVIDER_ID,
+        provider_generation: 1,
         keyring_anchor_epoch: epoch,
-        algorithm:            SignatureAlgorithm::DevDigest32 as u8,
+        algorithm: SignatureAlgorithm::DevDigest32 as u8,
     };
 
     match SignedAttestationRecordV2::sign(record, provider, signed_by) {
@@ -178,29 +183,43 @@ fn sign_v2(
 fn sign_v1(seq: u32, meas_seq: u64) -> (Digest32, bool) {
     let record = AttestationRecord {
         schema_version: AttestationRecord::SCHEMA_VERSION,
-        record_id:      make_record_id(seq),
-        created_tick:   0,
-        profile:        AttestationProfile::FjellLocalV1Binary,
-        nonce:          None,
+        record_id: make_record_id(seq),
+        created_tick: 0,
+        profile: AttestationProfile::FjellLocalV1Binary,
+        nonce: None,
         boot: BootClaims {
-            selected_slot: 0, boot_id: 1,
+            selected_slot: 0,
+            boot_id: 1,
             kernel_digest: Digest32([0x11; 32]),
         },
         verification: VerificationClaims {
-            release_digest:   Digest32([0x22; 32]),
-            rootfs_digest:    Digest32([0x33; 32]),
-            policy_digest:    Digest32([0x44; 32]),
-            release_verified: true, rootfs_verified: true, policy_verified: true,
+            release_digest: Digest32([0x22; 32]),
+            rootfs_digest: Digest32([0x33; 32]),
+            policy_digest: Digest32([0x44; 32]),
+            release_verified: true,
+            rootfs_verified: true,
+            policy_verified: true,
         },
         measurement: MeasurementClaims {
-            head_seq:          meas_seq,
-            chain_digest:      Digest32([0x55; 32]),
+            head_seq: meas_seq,
+            chain_digest: Digest32([0x55; 32]),
             included_from_seq: 1,
-            included_to_seq:   meas_seq,
+            included_to_seq: meas_seq,
         },
-        snapshot:  SnapshotClaims  { snapshot_id: *b"SN000001", snapshot_digest: Digest32([0x66; 32]), reason: 0 },
-        health:    HealthClaims    { target: *b"attestd\0", status: 0 },
-        freshness: FreshnessClaims { generation: 1, key_epoch: 1, status: 0 },
+        snapshot: SnapshotClaims {
+            snapshot_id: *b"SN000001",
+            snapshot_digest: Digest32([0x66; 32]),
+            reason: 0,
+        },
+        health: HealthClaims {
+            target: *b"attestd\0",
+            status: 0,
+        },
+        freshness: FreshnessClaims {
+            generation: 1,
+            key_epoch: 1,
+            status: 0,
+        },
         provenance: None,
     };
     let signed = SignedAttestationRecord::sign(record);
@@ -224,10 +243,10 @@ pub extern "C" fn service_main() -> ! {
     send_ready();
     sys_debug_writeln("attestd ready");
 
-    let mut record_seq: u32  = 0;
-    let mut generation: u32  = 0;
-    let mut last_ok:    bool = false;
-    let mut last_digest      = Digest32::ZERO;
+    let mut record_seq: u32 = 0;
+    let mut generation: u32 = 0;
+    let mut last_ok: bool = false;
+    let mut last_digest = Digest32::ZERO;
 
     loop {
         let (tag_packed, w0, _w1) = recv_call();
@@ -240,19 +259,27 @@ pub extern "C" fn service_main() -> ! {
 
                 // v0.3.0: produce v2 when Enforcing, v1 otherwise.
                 let (digest, ok) = if registry.phase() == RegistryPhase::Enforcing {
-                    sign_v2(&provider, &keyring, &rollback, record_seq, meas_seq, generation)
+                    sign_v2(
+                        &provider, &keyring, &rollback, record_seq, meas_seq, generation,
+                    )
                 } else {
                     sign_v1(record_seq, meas_seq)
                 };
                 last_digest = digest;
-                last_ok     = ok;
+                last_ok = ok;
                 reply(proto::GENERATED);
                 sys_debug_writeln("attestd: record generated (v2)");
             }
             proto::VERIFY_LATEST => {
-                reply(if last_ok { proto::VERIFY_OK } else { proto::VERIFY_FAIL });
+                reply(if last_ok {
+                    proto::VERIFY_OK
+                } else {
+                    proto::VERIFY_FAIL
+                });
             }
-            proto::EXPORT => { reply(proto::EXPORT_DONE); }
+            proto::EXPORT => {
+                reply(proto::EXPORT_DONE);
+            }
             _ => reply(proto::ERR),
         }
         let _ = last_digest;
@@ -265,13 +292,13 @@ pub extern "C" fn service_main() -> ! {
 const CAP_SXT_EP: fjell_cap::CapHandle = fjell_cap::CapHandle(5);
 
 // SXT tag constants — must match secure-transportd.
-const SXT_OPEN_CHANNEL:      u16 = 0x0100;
-const SXT_OPENED:            u16 = 0x0101;
-const SXT_ATTEST_PUSH:       u16 = 0x0106;
-const SXT_ATTEST_CHALLENGE:  u16 = 0x0107;
-const SXT_CLOSE:             u16 = 0x0109;
-    #[allow(dead_code)] // v0.7: SXT channel fault state tracking
-const SXT_FAULTED:           u16 = 0x010b;
+const SXT_OPEN_CHANNEL: u16 = 0x0100;
+const SXT_OPENED: u16 = 0x0101;
+const SXT_ATTEST_PUSH: u16 = 0x0106;
+const SXT_ATTEST_CHALLENGE: u16 = 0x0107;
+const SXT_CLOSE: u16 = 0x0109;
+#[allow(dead_code)] // v0.7: SXT channel fault state tracking
+const SXT_FAULTED: u16 = 0x010b;
 
 /// Cached server nonce from the last successful attestation push.
 /// Stored in-process (alpha.1); migrates to storaged IPC in alpha.2.
@@ -312,7 +339,9 @@ pub fn push_attestation(record_seq: u32) -> bool {
     // Open an Attestation channel (kind byte = 0x03).
     sxt_send(SXT_OPEN_CHANNEL, 0x0300_0000);
     let (reply, w0) = sxt_recv();
-    if reply != SXT_OPENED { return false; }
+    if reply != SXT_OPENED {
+        return false;
+    }
     let channel_id = w0 as u32;
 
     // Push the signed attestation record (w0 = record sequence number).

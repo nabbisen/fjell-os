@@ -23,32 +23,40 @@ pub enum SlotId {
 }
 
 impl SlotId {
-    pub fn as_u8(self) -> u8 { self as u8 }
-    pub fn from_u8(v: u8) -> Option<Self> {
-        match v { 0 => Some(Self::A), 1 => Some(Self::B), _ => None }
+    pub fn as_u8(self) -> u8 {
+        self as u8
     }
-    pub fn label(self) -> u8 { if self == Self::A { b'A' } else { b'B' } }
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(Self::A),
+            1 => Some(Self::B),
+            _ => None,
+        }
+    }
+    pub fn label(self) -> u8 {
+        if self == Self::A { b'A' } else { b'B' }
+    }
 }
 
 /// Current state of a boot slot.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum SlotState {
-    Empty       = 0x00,
-    Staged      = 0x01,
-    Verified    = 0x02,
-    Confirmed   = 0x03,
-    Failed      = 0x04,
-    Rollback    = 0x05,
+    Empty = 0x00,
+    Staged = 0x01,
+    Verified = 0x02,
+    Confirmed = 0x03,
+    Failed = 0x04,
+    Rollback = 0x05,
 }
 
 /// Health status for a slot.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum HealthStatus {
-    NotRun  = 0x00,
-    Passed  = 0x01,
-    Failed  = 0x02,
+    NotRun = 0x00,
+    Passed = 0x01,
+    Failed = 0x02,
     Timeout = 0x03,
 }
 
@@ -58,22 +66,22 @@ pub enum HealthStatus {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum RecoveryReason {
-    FreshnessFailure     = 0x01,
-    VerificationFailure  = 0x02,
-    HealthFailure        = 0x03,
-    BootFailure          = 0x04,
-    OperatorRequest      = 0x05,
-    Unknown              = 0xFF,
+    FreshnessFailure = 0x01,
+    VerificationFailure = 0x02,
+    HealthFailure = 0x03,
+    BootFailure = 0x04,
+    OperatorRequest = 0x05,
+    Unknown = 0xFF,
 }
 
 /// Why a rollback was selected.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum RollbackReason {
-    HealthCheckFailed    = 0x01,
-    FreshnessRejected    = 0x02,
-    VerificationFailed   = 0x03,
-    OperatorRequested    = 0x04,
+    HealthCheckFailed = 0x01,
+    FreshnessRejected = 0x02,
+    VerificationFailed = 0x03,
+    OperatorRequested = 0x04,
     MaxBootAttemptsExceeded = 0x05,
 }
 
@@ -82,8 +90,8 @@ pub enum RollbackReason {
 #[repr(u8)]
 pub enum ExportFormat {
     PlainText = 0x01,
-    Json      = 0x02,
-    Toml      = 0x03,
+    Json = 0x02,
+    Toml = 0x03,
 }
 
 // ── Snapshot summary ──────────────────────────────────────────────────────────
@@ -91,11 +99,11 @@ pub enum ExportFormat {
 /// Compact summary of one snapshot (for listing).
 #[derive(Clone, Copy, Debug)]
 pub struct SnapshotSummary {
-    pub snapshot_id:     [u8; 8],
-    pub created_tick:    u64,
-    pub slot:            SlotId,
-    pub reason:          u8,
-    pub digest:          Digest32,
+    pub snapshot_id: [u8; 8],
+    pub created_tick: u64,
+    pub slot: SlotId,
+    pub reason: u8,
+    pub digest: Digest32,
 }
 
 // ── Slot inspection result ────────────────────────────────────────────────────
@@ -103,25 +111,25 @@ pub struct SnapshotSummary {
 /// Full inspection result for one slot.
 #[derive(Clone, Copy, Debug)]
 pub struct SlotInspection {
-    pub slot:             SlotId,
-    pub state:            SlotState,
-    pub release_digest:   Digest32,
-    pub rootfs_digest:    Digest32,
-    pub policy_digest:    Digest32,
-    pub verified:         bool,
-    pub confirmed:        bool,
-    pub tries_remaining:  u8,
-    pub last_health:      HealthStatus,
+    pub slot: SlotId,
+    pub state: SlotState,
+    pub release_digest: Digest32,
+    pub rootfs_digest: Digest32,
+    pub policy_digest: Digest32,
+    pub verified: bool,
+    pub confirmed: bool,
+    pub tries_remaining: u8,
+    pub last_health: HealthStatus,
 }
 
 /// Summary of the most recent failure.
 #[derive(Clone, Copy, Debug)]
 pub struct FailureSummary {
-    pub slot:             SlotId,
-    pub reason:           RecoveryReason,
-    pub failed_at_tick:   u64,
-    pub snapshot_id:      Option<[u8; 8]>,
-    pub last_health:      HealthStatus,
+    pub slot: SlotId,
+    pub reason: RecoveryReason,
+    pub failed_at_tick: u64,
+    pub snapshot_id: Option<[u8; 8]>,
+    pub last_health: HealthStatus,
 }
 
 // ── Export chunk ──────────────────────────────────────────────────────────────
@@ -190,14 +198,14 @@ pub enum RecoveryResponse {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum RecoveryError {
-    NotConfirmed         = 0x01, // SelectRollback without confirmed_by_operator
-    NoSnapshotAvailable  = 0x02,
-    SlotNotFound         = 0x03,
-    PermissionDenied     = 0x04,
-    StorageUnavailable   = 0x05,
-    BootctlUnavailable   = 0x06,
-    AlreadyInRecovery    = 0x07,
-    Internal             = 0xFF,
+    NotConfirmed = 0x01, // SelectRollback without confirmed_by_operator
+    NoSnapshotAvailable = 0x02,
+    SlotNotFound = 0x03,
+    PermissionDenied = 0x04,
+    StorageUnavailable = 0x05,
+    BootctlUnavailable = 0x06,
+    AlreadyInRecovery = 0x07,
+    Internal = 0xFF,
 }
 
 // ── Freshness types (for fjell-upgrade-format extension) ──────────────────────
@@ -206,42 +214,44 @@ pub enum RecoveryError {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum FreshnessStatus {
-    Valid                = 0x00,
-    NotYetValid          = 0x01,
-    Expired              = 0x02,
-    GenerationRollback   = 0x03,
-    KeyEpochRollback     = 0x04,
-    ClockUnavailable     = 0x05,
-    UnsupportedMetadata  = 0x06,
+    Valid = 0x00,
+    NotYetValid = 0x01,
+    Expired = 0x02,
+    GenerationRollback = 0x03,
+    KeyEpochRollback = 0x04,
+    ClockUnavailable = 0x05,
+    UnsupportedMetadata = 0x06,
 }
 
 impl FreshnessStatus {
-    pub fn is_admissible(self) -> bool { self == Self::Valid }
+    pub fn is_admissible(self) -> bool {
+        self == Self::Valid
+    }
 }
 
 /// Result of a freshness check.
 #[derive(Clone, Copy, Debug)]
 pub struct FreshnessCheck {
-    pub release_id:          [u8; 16],
-    pub current_tick:        u64,
-    pub generation:          u64,
+    pub release_id: [u8; 16],
+    pub current_tick: u64,
+    pub generation: u64,
     pub previous_generation: u64,
-    pub key_epoch:           u64,
-    pub minimum_key_epoch:   u64,
-    pub status:              FreshnessStatus,
+    pub key_epoch: u64,
+    pub minimum_key_epoch: u64,
+    pub status: FreshnessStatus,
 }
 
 /// Bundle metadata v2 (for freshness checks).
 #[derive(Clone, Copy, Debug)]
 pub struct BundleMetadataV2 {
-    pub schema_version:  u16,
-    pub release_id:      [u8; 16],
-    pub generation:      u64,
-    pub key_epoch:       u64,
-    pub issued_at_tick:  u64,
+    pub schema_version: u16,
+    pub release_id: [u8; 16],
+    pub generation: u64,
+    pub key_epoch: u64,
+    pub issued_at_tick: u64,
     pub not_before_tick: u64,
-    pub not_after_tick:  u64,
-    pub parts_digest:    Digest32,
+    pub not_after_tick: u64,
+    pub parts_digest: Digest32,
 }
 
 impl BundleMetadataV2 {
@@ -252,8 +262,7 @@ impl BundleMetadataV2 {
         last_accepted_generation: u64,
         minimum_key_epoch: u64,
     ) -> FreshnessCheck {
-        let status = self.compute_status(
-            current_tick, last_accepted_generation, minimum_key_epoch);
+        let status = self.compute_status(current_tick, last_accepted_generation, minimum_key_epoch);
         FreshnessCheck {
             release_id: self.release_id,
             current_tick,
@@ -265,17 +274,22 @@ impl BundleMetadataV2 {
         }
     }
 
-    fn compute_status(
-        &self,
-        tick: u64,
-        last_gen: u64,
-        min_epoch: u64,
-    ) -> FreshnessStatus {
-        if self.schema_version != 2 { return FreshnessStatus::UnsupportedMetadata; }
-        if tick < self.not_before_tick { return FreshnessStatus::NotYetValid; }
-        if tick > self.not_after_tick  { return FreshnessStatus::Expired; }
-        if self.generation < last_gen  { return FreshnessStatus::GenerationRollback; }
-        if self.key_epoch < min_epoch  { return FreshnessStatus::KeyEpochRollback; }
+    fn compute_status(&self, tick: u64, last_gen: u64, min_epoch: u64) -> FreshnessStatus {
+        if self.schema_version != 2 {
+            return FreshnessStatus::UnsupportedMetadata;
+        }
+        if tick < self.not_before_tick {
+            return FreshnessStatus::NotYetValid;
+        }
+        if tick > self.not_after_tick {
+            return FreshnessStatus::Expired;
+        }
+        if self.generation < last_gen {
+            return FreshnessStatus::GenerationRollback;
+        }
+        if self.key_epoch < min_epoch {
+            return FreshnessStatus::KeyEpochRollback;
+        }
         FreshnessStatus::Valid
     }
 }
@@ -288,14 +302,14 @@ mod tests {
 
     fn base_meta() -> BundleMetadataV2 {
         BundleMetadataV2 {
-            schema_version:  2,
-            release_id:      *b"release-2026-05\0",
-            generation:      5,
-            key_epoch:       3,
-            issued_at_tick:  1000,
+            schema_version: 2,
+            release_id: *b"release-2026-05\0",
+            generation: 5,
+            key_epoch: 3,
+            issued_at_tick: 1000,
             not_before_tick: 1000,
-            not_after_tick:  9000,
-            parts_digest:    Digest32([0xAA; 32]),
+            not_after_tick: 9000,
+            parts_digest: Digest32([0xAA; 32]),
         }
     }
 
@@ -350,9 +364,15 @@ mod tests {
             reason: RollbackReason::OperatorRequested,
             confirmed_by_operator: false,
         };
-        if let RecoveryRequest::SelectRollback { confirmed_by_operator, .. } = req {
-            assert!(!confirmed_by_operator,
-                "unconfirmed rollback flag must be preserved");
+        if let RecoveryRequest::SelectRollback {
+            confirmed_by_operator,
+            ..
+        } = req
+        {
+            assert!(
+                !confirmed_by_operator,
+                "unconfirmed rollback flag must be preserved"
+            );
         }
     }
 

@@ -52,33 +52,26 @@ unsafe extern "C" fn supervisor_trap_entry() {
         // ── Save phase ───────────────────────────────────────────────────
         // Step 1: t6 ↔ sscratch swap.  After: t6=scratch_addr, sscratch=user_t6.
         "csrrw  t6, sscratch, t6",
-
         // Step 2: save true user_t5 (x30) into scratch[4] BEFORE csrr clobbers x30.
         // csrr reads sscratch into t5 (=x30), destroying the user's t5 value.
-        "sd     x30, 32(t6)",        // scratch[4] = user_t5  ✓ (x30 still live here)
-
+        "sd     x30, 32(t6)", // scratch[4] = user_t5  ✓ (x30 still live here)
         // Step 3: save user_t6 (read from sscratch where step 1 left it).
-        "csrr   t5, sscratch",       // t5 = user_t6  (now safe: user_t5 already saved)
-        "sd     t5, 24(t6)",         // scratch[3] = user_t6
-
+        "csrr   t5, sscratch", // t5 = user_t6  (now safe: user_t5 already saved)
+        "sd     t5, 24(t6)",   // scratch[3] = user_t6
         // Step 4: save user_sp into scratch[2] before we overwrite sp.
-        "sd     sp, 16(t6)",         // scratch[2] = user_sp
-
+        "sd     sp, 16(t6)", // scratch[2] = user_sp
         // Step 5: load kernel sp.
         "ld     sp, 0(t6)",
-
         // Step 6: restore sscratch = scratch_addr for the next trap entry.
         "csrw   sscratch, t6",
-
         // Step 7: load TrapFrame ptr from scratch[1].
-        "ld     t6, 8(t6)",          // t6 = &TrapFrame
-
+        "ld     t6, 8(t6)", // t6 = &TrapFrame
         // Save x1..x29 (x30 and x31 handled separately below).
         "sd     x1,   1*8(t6)",
         // gpr[2] = user_sp — retrieved from scratch[2] via sscratch.
-        "csrr   t5, sscratch",       // t5 = scratch_addr
-        "ld     t5, 16(t5)",         // t5 = scratch[2] = user_sp
-        "sd     t5,  2*8(t6)",       // gpr[2] = user_sp  ✓
+        "csrr   t5, sscratch", // t5 = scratch_addr
+        "ld     t5, 16(t5)",   // t5 = scratch[2] = user_sp
+        "sd     t5,  2*8(t6)", // gpr[2] = user_sp  ✓
         "sd     x3,   3*8(t6)",
         "sd     x4,   4*8(t6)",
         "sd     x5,   5*8(t6)",
@@ -107,28 +100,32 @@ unsafe extern "C" fn supervisor_trap_entry() {
         "sd     x28, 28*8(t6)",
         "sd     x29, 29*8(t6)",
         // gpr[30] = true user_t5 — retrieved from scratch[4].
-        "csrr   t5, sscratch",       // t5 = scratch_addr
-        "ld     t5, 32(t5)",         // t5 = scratch[4] = user_t5
-        "sd     t5, 30*8(t6)",       // gpr[30] = user_t5  ✓
+        "csrr   t5, sscratch", // t5 = scratch_addr
+        "ld     t5, 32(t5)",   // t5 = scratch[4] = user_t5
+        "sd     t5, 30*8(t6)", // gpr[30] = user_t5  ✓
         // gpr[31] = true user_t6 — retrieved from scratch[3].
-        "csrr   t5, sscratch",       // t5 = scratch_addr
-        "ld     t5, 24(t5)",         // t5 = scratch[3] = user_t6
-        "sd     t5, 31*8(t6)",       // gpr[31] = user_t6  ✓
+        "csrr   t5, sscratch", // t5 = scratch_addr
+        "ld     t5, 24(t5)",   // t5 = scratch[3] = user_t6
+        "sd     t5, 31*8(t6)", // gpr[31] = user_t6  ✓
         // Save sstatus, sepc, scause, stval.
-        "csrr   t5, sstatus",  "sd t5, 32*8(t6)",
-        "csrr   t5, sepc",     "sd t5, 33*8(t6)",
-        "csrr   t5, scause",   "sd t5, 34*8(t6)",
-        "csrr   t5, stval",    "sd t5, 35*8(t6)",
-
+        "csrr   t5, sstatus",
+        "sd t5, 32*8(t6)",
+        "csrr   t5, sepc",
+        "sd t5, 33*8(t6)",
+        "csrr   t5, scause",
+        "sd t5, 34*8(t6)",
+        "csrr   t5, stval",
+        "sd t5, 35*8(t6)",
         // ── Dispatch ─────────────────────────────────────────────────────
         "mv     a0, t6",
         "call   trap_dispatch",
         // a0 = next TrapFrame ptr.
 
         // ── Restore phase ─────────────────────────────────────────────────
-        "ld     t5, 32*8(a0)",  "csrw sstatus, t5",
-        "ld     t5, 33*8(a0)",  "csrw sepc,    t5",
-
+        "ld     t5, 32*8(a0)",
+        "csrw sstatus, t5",
+        "ld     t5, 33*8(a0)",
+        "csrw sepc,    t5",
         "ld     x1,   1*8(a0)",
         "ld     x2,   2*8(a0)",
         "ld     x3,   3*8(a0)",
@@ -159,11 +156,13 @@ unsafe extern "C" fn supervisor_trap_entry() {
         "ld     x29, 29*8(a0)",
         "ld     x30, 30*8(a0)",
         "ld     x31, 31*8(a0)",
-        "ld     x10, 10*8(a0)",  // a0 (x10) last
+        "ld     x10, 10*8(a0)", // a0 (x10) last
         "sret",
     );
 }
 
 /// Host stub.
 #[cfg(not(target_arch = "riscv64"))]
-unsafe extern "C" fn supervisor_trap_entry() { unimplemented!() }
+unsafe extern "C" fn supervisor_trap_entry() {
+    unimplemented!()
+}

@@ -7,15 +7,15 @@
 //!
 //! See RFC-v0.3-002 §6 for the data model.
 
+use crate::ANCHORS_PER_PURPOSE;
 use crate::anchor::TrustAnchor;
 use crate::epoch::KeyEpoch;
 use crate::error::SigError;
-use crate::ANCHORS_PER_PURPOSE;
 use fjell_trust_provider::KeyPurpose;
 
 /// Number of key purposes we slot in v0.3.0.  This must equal the number
 /// of `KeyPurpose` variants returned by `KeyPurpose::all()`.
-pub const PURPOSE_SLOT_COUNT: usize = 7;  // v0.5.0: +BoardProfile
+pub const PURPOSE_SLOT_COUNT: usize = 7; // v0.5.0: +BoardProfile
 
 /// Fixed-size keyring container.
 pub struct Keyring {
@@ -88,11 +88,7 @@ impl Keyring {
     /// anchors are installed.
     pub fn active_epoch(&self, purpose: KeyPurpose) -> Option<KeyEpoch> {
         let slot = purpose_index(purpose);
-        self.anchors[slot]
-            .iter()
-            .flatten()
-            .map(|a| a.epoch)
-            .max()
+        self.anchors[slot].iter().flatten().map(|a| a.epoch).max()
     }
 
     /// Look up the anchor with the highest epoch for `purpose`.

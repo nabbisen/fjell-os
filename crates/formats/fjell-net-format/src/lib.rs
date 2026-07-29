@@ -8,26 +8,23 @@
 //! (transport channel kinds).
 #![no_std]
 
-pub mod device;
-pub mod session;
 pub mod channel;
+pub mod device;
 pub mod proto;
+pub mod session;
 
-pub use device::{
-    NetDeviceDescriptor, NetDeviceId, NetDeviceState,
-    InterruptDescriptor, NetMac, NET_MAX_MTU, NET_MIN_MTU,
-};
-pub use session::{
-    ChannelKind, NetSession, SessionId, SessionState,
-    MAX_SESSIONS, MAX_CHANNELS, SessionError,
-};
 pub use channel::{
-    TransportChannel, ChannelId, ChannelState,
-    SXT_CHANNEL_KIND_TAGS, MAX_SXT_CHANNELS,
+    ChannelId, ChannelState, MAX_SXT_CHANNELS, SXT_CHANNEL_KIND_TAGS, TransportChannel,
+};
+pub use device::{
+    InterruptDescriptor, NET_MAX_MTU, NET_MIN_MTU, NetDeviceDescriptor, NetDeviceId,
+    NetDeviceState, NetMac,
 };
 pub use proto::{
-    NetIpcTag, NetDriverPacket, NET_RING_DESCRIPTORS, NET_RING_SIZE_BYTES,
-    NET_DESCRIPTOR_PAYLOAD,
+    NET_DESCRIPTOR_PAYLOAD, NET_RING_DESCRIPTORS, NET_RING_SIZE_BYTES, NetDriverPacket, NetIpcTag,
+};
+pub use session::{
+    ChannelKind, MAX_CHANNELS, MAX_SESSIONS, NetSession, SessionError, SessionId, SessionState,
 };
 
 #[cfg(test)]

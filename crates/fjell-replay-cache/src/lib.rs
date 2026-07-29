@@ -68,25 +68,25 @@ pub const NONCE_TABLE_CAP: usize = 256;
 /// One outstanding nonce challenge.
 #[derive(Clone, Copy)]
 struct NonceEntry {
-    nonce:      Nonce,
-    issued_at:  Tick,
-    window_ns:  u64,
-    consumed:   bool,
+    nonce: Nonce,
+    issued_at: Tick,
+    window_ns: u64,
+    consumed: bool,
 }
 
 /// Tracks outstanding nonce challenges (RFC-v0.11-005 §3).
 pub struct NonceTable {
     entries: [Option<NonceEntry>; NONCE_TABLE_CAP],
-    len:     usize,
-    cursor:  usize,   // eviction cursor (FIFO ring)
+    len: usize,
+    cursor: usize, // eviction cursor (FIFO ring)
 }
 
 impl NonceTable {
     pub const fn new() -> Self {
         Self {
             entries: [const { None }; NONCE_TABLE_CAP],
-            len:     0,
-            cursor:  0,
+            len: 0,
+            cursor: 0,
         }
     }
 
@@ -97,12 +97,19 @@ impl NonceTable {
         if self.len >= NONCE_TABLE_CAP {
             self.evict_one(now);
         }
-        if self.len >= NONCE_TABLE_CAP { return false; }
+        if self.len >= NONCE_TABLE_CAP {
+            return false;
+        }
 
         // Find an empty slot
         for slot in self.entries.iter_mut() {
             if slot.is_none() {
-                *slot = Some(NonceEntry { nonce, issued_at: now, window_ns, consumed: false });
+                *slot = Some(NonceEntry {
+                    nonce,
+                    issued_at: now,
+                    window_ns,
+                    consumed: false,
+                });
                 self.len += 1;
                 return true;
             }
@@ -114,8 +121,12 @@ impl NonceTable {
     pub fn consume(&mut self, nonce: &Nonce, now: Tick) -> NonceResult {
         for slot in self.entries.iter_mut() {
             if let Some(entry) = slot.as_mut() {
-                if &entry.nonce != nonce { continue; }
-                if entry.consumed { return NonceResult::UnknownOrConsumed; }
+                if &entry.nonce != nonce {
+                    continue;
+                }
+                if entry.consumed {
+                    return NonceResult::UnknownOrConsumed;
+                }
                 if now.saturating_sub(entry.issued_at) > entry.window_ns {
                     entry.consumed = true;
                     return NonceResult::Expired;
@@ -166,7 +177,9 @@ impl NonceTable {
 }
 
 impl Default for NonceTable {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Replay cache ──────────────────────────────────────────────────────────────
@@ -183,14 +196,14 @@ const EVICT_BATCH: usize = DEFAULT_CACHE_CAP / 8;
 /// One cache entry.
 #[derive(Clone, Copy)]
 struct CacheEntry {
-    id:      RecordId,
+    id: RecordId,
     seen_at: Tick,
 }
 
 /// Bounded sliding-window replay cache (RFC-v0.11-005 §4).
 pub struct ReplayCache {
-    entries:   [Option<CacheEntry>; DEFAULT_CACHE_CAP],
-    len:       usize,
+    entries: [Option<CacheEntry>; DEFAULT_CACHE_CAP],
+    len: usize,
     window_ns: u64,
 }
 
@@ -215,7 +228,9 @@ impl ReplayCache {
         // Scan for duplicates
         for slot in self.entries.iter() {
             if let Some(e) = slot.as_ref() {
-                if e.id != id { continue; }
+                if e.id != id {
+                    continue;
+                }
                 let age = now.saturating_sub(e.seen_at);
                 if age <= self.window_ns {
                     return CacheResult::Replay;
@@ -239,8 +254,12 @@ impl ReplayCache {
     }
 
     /// Return the number of entries currently in the cache.
-    pub fn len(&self) -> usize { self.len }
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn len(&self) -> usize {
+        self.len
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 
     fn evict_oldest(&mut self, now: Tick) {
         // First pass: evict entries outside the window
@@ -252,16 +271,22 @@ impl ReplayCache {
                     *slot = None;
                     self.len = self.len.saturating_sub(1);
                     evicted += 1;
-                    if evicted >= EVICT_BATCH { return; }
+                    if evicted >= EVICT_BATCH {
+                        return;
+                    }
                 }
             }
         }
-        if evicted > 0 { return; }
+        if evicted > 0 {
+            return;
+        }
         // Second pass: evict the EVICT_BATCH oldest by seen_at
         let mut oldest: [Option<(Tick, usize)>; EVICT_BATCH] = [None; EVICT_BATCH];
         for (i, slot) in self.entries.iter().enumerate() {
             if let Some(e) = slot.as_ref() {
-                let worst = oldest.iter_mut().max_by_key(|o: &&mut Option<(Tick, usize)>| o.map_or(Tick::MAX, |v| v.0));
+                let worst = oldest
+                    .iter_mut()
+                    .max_by_key(|o: &&mut Option<(Tick, usize)>| o.map_or(Tick::MAX, |v| v.0));
                 if let Some(w) = worst {
                     let should_replace = w.map_or(true, |v| e.seen_at < v.0);
                     if should_replace {
@@ -316,7 +341,7 @@ mod tests {
     fn nonce_expired_rejected() {
         let mut t = NonceTable::new();
         let nonce = [4u8; 16];
-        t.issue(nonce, 0, 1_000);   // window = 1000 ns
+        t.issue(nonce, 0, 1_000); // window = 1000 ns
         // Arrive at t=5000 — well past window
         assert_eq!(t.consume(&nonce, 5_000), NonceResult::Expired);
     }
@@ -352,7 +377,7 @@ mod tests {
 
     #[test]
     fn same_id_outside_window_accepted() {
-        let mut c = ReplayCache::new(1_000);  // 1000 ns window
+        let mut c = ReplayCache::new(1_000); // 1000 ns window
         let id = [0xCCu8; 16];
         c.check_and_insert(id, 0);
         // Revisit at t = 5000 — outside window

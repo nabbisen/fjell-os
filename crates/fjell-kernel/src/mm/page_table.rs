@@ -14,9 +14,7 @@ use super::{
     frame_alloc::{FrameAllocator, FrameOwner},
     vspace::VmPerms,
 };
-use crate::arch::riscv64::pte::{
-    sv39_decode_va, Pte, PTE_R, PTE_U, PTE_W, PTE_X,
-};
+use crate::arch::riscv64::pte::{PTE_R, PTE_U, PTE_W, PTE_X, Pte, sv39_decode_va};
 
 /// Map a single 4 KiB page.
 ///
@@ -87,7 +85,7 @@ pub unsafe fn remap_page(
         let l0_pa = ensure_next_level(pte1, fa)?;
         let l0 = l0_pa as *mut Pte;
         let pte0 = &mut *l0.add(vpn0);
-        *pte0 = Pte::leaf(frame.pfn, flags);  // overwrite unconditionally
+        *pte0 = Pte::leaf(frame.pfn, flags); // overwrite unconditionally
     }
     Ok(())
 }
@@ -100,25 +98,28 @@ pub unsafe fn remap_page(
 /// # Safety
 /// Same requirements as `map_page`.
 // SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
-pub unsafe fn unmap_page(
-    root_pa: usize,
-    va: VirtAddr,
-) -> Result<PhysFrame, MmError> {
+pub unsafe fn unmap_page(root_pa: usize, va: VirtAddr) -> Result<PhysFrame, MmError> {
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
 
     // SAFETY: category=page-table-mutation caller guarantees root_pa is valid.
     unsafe {
         let l2 = root_pa as *mut Pte;
         let pte2 = &*l2.add(vpn2);
-        if !pte2.is_valid() { return Err(MmError::NotMapped); }
+        if !pte2.is_valid() {
+            return Err(MmError::NotMapped);
+        }
 
         let l1 = pte2.phys_addr() as *mut Pte;
         let pte1 = &*l1.add(vpn1);
-        if !pte1.is_valid() { return Err(MmError::NotMapped); }
+        if !pte1.is_valid() {
+            return Err(MmError::NotMapped);
+        }
 
         let l0 = pte1.phys_addr() as *mut Pte;
         let pte0 = &mut *l0.add(vpn0);
-        if !pte0.is_valid() { return Err(MmError::NotMapped); }
+        if !pte0.is_valid() {
+            return Err(MmError::NotMapped);
+        }
 
         let frame = PhysFrame { pfn: pte0.ppn() };
         *pte0 = Pte::invalid();
@@ -131,25 +132,28 @@ pub unsafe fn unmap_page(
 /// # Safety
 /// Same requirements as `map_page`.
 // SAFETY: category=phys-id-map-assumption physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
-pub unsafe fn translate(
-    root_pa: usize,
-    va: VirtAddr,
-) -> Result<(PhysFrame, VmPerms), MmError> {
+pub unsafe fn translate(root_pa: usize, va: VirtAddr) -> Result<(PhysFrame, VmPerms), MmError> {
     let (vpn2, vpn1, vpn0, _) = sv39_decode_va(va.0);
 
     // SAFETY: category=page-table-mutation caller guarantees root_pa is valid.
     unsafe {
         let l2 = root_pa as *const Pte;
         let pte2 = &*l2.add(vpn2);
-        if !pte2.is_valid() { return Err(MmError::NotMapped); }
+        if !pte2.is_valid() {
+            return Err(MmError::NotMapped);
+        }
 
         let l1 = pte2.phys_addr() as *const Pte;
         let pte1 = &*l1.add(vpn1);
-        if !pte1.is_valid() { return Err(MmError::NotMapped); }
+        if !pte1.is_valid() {
+            return Err(MmError::NotMapped);
+        }
 
         let l0 = pte1.phys_addr() as *const Pte;
         let pte0 = &*l0.add(vpn0);
-        if !pte0.is_valid() || !pte0.is_leaf() { return Err(MmError::NotMapped); }
+        if !pte0.is_valid() || !pte0.is_leaf() {
+            return Err(MmError::NotMapped);
+        }
 
         let frame = PhysFrame { pfn: pte0.ppn() };
         let perms = pte_flags_to_perms(pte0.0);
@@ -166,10 +170,7 @@ pub unsafe fn translate(
 /// # Safety
 /// Both physical addresses must point to valid, zeroed root page tables.
 // SAFETY: category=phys-id-map-assumption physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
-pub unsafe fn clone_kernel_half(
-    target_root_pa: usize,
-    kernel_root_pa: usize,
-) {
+pub unsafe fn clone_kernel_half(target_root_pa: usize, kernel_root_pa: usize) {
     // This kernel uses an identity map with the kernel image sitting at
     // physical 0x80000000 = VA 0x80000000 (VPN[2] = 2, Sv39).
     // The "upper canonical half" approach (VPN[2] >= 256) is NOT used here;
@@ -199,10 +200,7 @@ pub unsafe fn clone_kernel_half(
 /// # Safety
 /// `pte` must be a valid pointer to an entry in a live page table.
 // SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
-unsafe fn ensure_next_level(
-    pte: &mut Pte,
-    fa: &mut FrameAllocator<'_>,
-) -> Result<usize, MmError> {
+unsafe fn ensure_next_level(pte: &mut Pte, fa: &mut FrameAllocator<'_>) -> Result<usize, MmError> {
     if pte.is_valid() {
         Ok(pte.phys_addr())
     } else {
@@ -220,18 +218,34 @@ unsafe fn ensure_next_level(
 
 fn perms_to_pte_flags(p: VmPerms) -> u64 {
     let mut f = 0u64;
-    if p.contains(VmPerms::R) { f |= PTE_R; }
-    if p.contains(VmPerms::W) { f |= PTE_W; }
-    if p.contains(VmPerms::X) { f |= PTE_X; }
-    if p.contains(VmPerms::U) { f |= PTE_U; }
+    if p.contains(VmPerms::R) {
+        f |= PTE_R;
+    }
+    if p.contains(VmPerms::W) {
+        f |= PTE_W;
+    }
+    if p.contains(VmPerms::X) {
+        f |= PTE_X;
+    }
+    if p.contains(VmPerms::U) {
+        f |= PTE_U;
+    }
     f
 }
 
 fn pte_flags_to_perms(raw: u64) -> VmPerms {
     let mut p = VmPerms::empty();
-    if raw & PTE_R != 0 { p |= VmPerms::R; }
-    if raw & PTE_W != 0 { p |= VmPerms::W; }
-    if raw & PTE_X != 0 { p |= VmPerms::X; }
-    if raw & PTE_U != 0 { p |= VmPerms::U; }
+    if raw & PTE_R != 0 {
+        p |= VmPerms::R;
+    }
+    if raw & PTE_W != 0 {
+        p |= VmPerms::W;
+    }
+    if raw & PTE_X != 0 {
+        p |= VmPerms::X;
+    }
+    if raw & PTE_U != 0 {
+        p |= VmPerms::U;
+    }
     p
 }

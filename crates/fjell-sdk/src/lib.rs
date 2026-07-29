@@ -65,9 +65,9 @@ pub mod prelude {
 /// kinds. Mirrors `fjell-abi`'s public surface.
 pub mod abi {
     pub use fjell_abi::error::SysError;
-    pub use fjell_abi::syscall::SyscallNumber;
+    pub use fjell_abi::lease::{LeaseEpoch, LeaseId};
     pub use fjell_abi::service::{ImageId, ServiceId, TaskLifecycle};
-    pub use fjell_abi::lease::{LeaseId, LeaseEpoch};
+    pub use fjell_abi::syscall::SyscallNumber;
 }
 
 /// **Stable.** Capability types: handle, kind, rights, state.
@@ -87,17 +87,15 @@ pub mod ipc {
 /// **Stable.** User-side syscall wrappers (`sys_*` functions).
 pub mod syscall {
     pub use fjell_syscall::{
-        sys_cap_copy, sys_cap_drop, sys_cap_mint,
-        sys_ipc_call, sys_ipc_recv, sys_ipc_recv_msg,
-        sys_ipc_reply, sys_ipc_try_recv, sys_ipc_try_send,
-        sys_yield,
+        sys_cap_copy, sys_cap_drop, sys_cap_mint, sys_ipc_call, sys_ipc_recv, sys_ipc_recv_msg,
+        sys_ipc_reply, sys_ipc_try_recv, sys_ipc_try_send, sys_yield,
     };
 }
 
 /// **Stable.** Service-IPC protocol tag namespaces.
 pub mod service_api {
-    pub use fjell_service_api::v0_7;
     pub use fjell_service_api::tags;
+    pub use fjell_service_api::v0_7;
 }
 
 // ── Semantic ─────────────────────────────────────────────────────────────────
@@ -106,17 +104,14 @@ pub mod service_api {
 pub mod semantic {
     /// The frozen v1 catalog (RFC v0.5-004).
     pub mod v1 {
-        pub use fjell_semantic_v1::{
-            catalog_len, lookup_tag, CATALOG_V1, CATALOG_V1_VERSION,
-            CatalogVersion, IntentEntry,
-        };
         pub use fjell_semantic_v1::catalog::{CatalogOwner, CatalogRangeOwner};
+        pub use fjell_semantic_v1::{
+            CATALOG_V1, CATALOG_V1_VERSION, CatalogVersion, IntentEntry, catalog_len, lookup_tag,
+        };
     }
     /// **Provisional.** Untyped semantic format primitives. Prefer the
     /// typed [`crate::sdk_emit`] API.
-    pub use fjell_semantic_format::{
-        EventKind, IntentNode, StateKind, StateNode,
-    };
+    pub use fjell_semantic_format::{EventKind, IntentNode, StateKind, StateNode};
 }
 
 // ── Audit ────────────────────────────────────────────────────────────────────

@@ -7,20 +7,26 @@
 mod rt;
 
 use fjell_semantic_format::*;
-use fjell_syscall::{sys_exit, sys_debug_writeln};
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 // ── Semantic ring (memory-backed) ─────────────────────────────────────────────
 
 struct SemanticRing {
-    items:    [Option<SemanticEnvelope>; 32],
-    head:     usize,
+    items: [Option<SemanticEnvelope>; 32],
+    head: usize,
     sequence: u64,
-    #[allow(dead_code)] dropped: u64,
+    #[allow(dead_code)]
+    dropped: u64,
 }
 
 impl SemanticRing {
     const fn new() -> Self {
-        SemanticRing { items: [None; 32], head: 0, sequence: 0, dropped: 0 }
+        SemanticRing {
+            items: [None; 32],
+            head: 0,
+            sequence: 0,
+            dropped: 0,
+        }
     }
     fn publish(&mut self, env: SemanticEnvelope) -> u64 {
         self.sequence += 1;
@@ -39,16 +45,22 @@ struct SyncRing(UnsafeCell<SemanticRing>);
 unsafe impl Sync for SyncRing {}
 
 static INTENT_RING: SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
-static STATE_RING:  SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
-static EVENT_RING:  SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
+static STATE_RING: SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
+static EVENT_RING: SyncRing = SyncRing(UnsafeCell::new(SemanticRing::new()));
 
 pub fn publish(env: SemanticEnvelope) {
     // SAFETY: category=raw-pointer-deref extern IPC interface; layout matches the ABI defined in fjell-service-api.
     unsafe {
         match env.stream {
-            StreamKind::Intent => { (*INTENT_RING.0.get()).publish(env); }
-            StreamKind::State  => { (*STATE_RING.0.get()).publish(env);  }
-            StreamKind::Event  => { (*EVENT_RING.0.get()).publish(env);  }
+            StreamKind::Intent => {
+                (*INTENT_RING.0.get()).publish(env);
+            }
+            StreamKind::State => {
+                (*STATE_RING.0.get()).publish(env);
+            }
+            StreamKind::Event => {
+                (*EVENT_RING.0.get()).publish(env);
+            }
         }
     }
 }
@@ -56,10 +68,12 @@ pub fn publish(env: SemanticEnvelope) {
 pub fn validate_and_publish(env: SemanticEnvelope) -> bool {
     let ok = match &env.payload {
         SemanticPayload::Intent(n) => validate_intent(n).is_ok(),
-        SemanticPayload::State(n)  => validate_state(n).is_ok(),
-        SemanticPayload::Event(_)  => true,
+        SemanticPayload::State(n) => validate_state(n).is_ok(),
+        SemanticPayload::Event(_) => true,
     };
-    if ok { publish(env); }
+    if ok {
+        publish(env);
+    }
     ok
 }
 

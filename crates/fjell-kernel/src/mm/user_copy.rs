@@ -23,8 +23,8 @@
 //! - On RISC-V the caller must ensure `sfence.vma` is not needed around this
 //!   call (i.e. the TLB must reflect the current page table).
 
-use super::{address::VirtAddr, page_table, vspace::VmPerms};
 pub use super::user_ptr::{UserCopyError, UserPtr};
+use super::{address::VirtAddr, page_table, vspace::VmPerms};
 
 /// Copy `src` bytes into the user address space described by `root_pfn`
 /// (RFC 039 §2.1 — `copy_to_user`).
@@ -41,22 +41,24 @@ pub use super::user_ptr::{UserCopyError, UserPtr};
 // SAFETY: category=page-table-mutation pointer and length are validated against the task VMA map before this call.
 pub unsafe fn copy_to_user_bytes(
     root_pfn: usize,
-    dst_va:   usize,
-    src:      &[u8],
+    dst_va: usize,
+    src: &[u8],
 ) -> Result<usize, UserCopyError> {
     // Step 1: arithmetic validation.
     let dst = UserPtr::new(dst_va, src.len())?;
-    if dst.is_empty() { return Ok(0); }
+    if dst.is_empty() {
+        return Ok(0);
+    }
 
-    let root_pa  = root_pfn << 12;
+    let root_pa = root_pfn << 12;
     let mut done = 0usize;
 
     // Step 2: page-by-page walk.
     while done < src.len() {
-        let va      = dst.addr() + done;
+        let va = dst.addr() + done;
         let page_va = va & !0xFFF;
-        let offset  = va &  0xFFF;
-        let remain  = (0x1000 - offset).min(src.len() - done);
+        let offset = va & 0xFFF;
+        let remain = (0x1000 - offset).min(src.len() - done);
 
         // SAFETY: category=page-table-mutation pointer and length are validated against the task VMA map before this call.
         let (frame, perms) = unsafe {
@@ -71,11 +73,7 @@ pub unsafe fn copy_to_user_bytes(
         let pa = frame.pa() + offset;
         // SAFETY: category=raw-pointer-deref pointer and length are validated against the task VMA map before this call.
         unsafe {
-            core::ptr::copy_nonoverlapping(
-                src[done..].as_ptr(),
-                pa as *mut u8,
-                remain,
-            );
+            core::ptr::copy_nonoverlapping(src[done..].as_ptr(), pa as *mut u8, remain);
         }
         done += remain;
     }
@@ -91,26 +89,28 @@ pub unsafe fn copy_to_user_bytes(
 ///
 /// # Safety
 /// See module-level safety note.
-#[allow(dead_code)]  // RFC 039: defined for completeness; wired when syscalls need in-copy
+#[allow(dead_code)] // RFC 039: defined for completeness; wired when syscalls need in-copy
 // SAFETY: category=page-table-mutation pointer and length are validated against the task VMA map before this call.
 pub unsafe fn copy_from_user_bytes(
     root_pfn: usize,
-    src_va:   usize,
-    dst:      &mut [u8],
+    src_va: usize,
+    dst: &mut [u8],
 ) -> Result<usize, UserCopyError> {
     // Step 1: arithmetic validation.
     let src = UserPtr::new(src_va, dst.len())?;
-    if src.is_empty() { return Ok(0); }
+    if src.is_empty() {
+        return Ok(0);
+    }
 
-    let root_pa  = root_pfn << 12;
+    let root_pa = root_pfn << 12;
     let mut done = 0usize;
 
     // Step 2: page-by-page walk.
     while done < dst.len() {
-        let va      = src.addr() + done;
+        let va = src.addr() + done;
         let page_va = va & !0xFFF;
-        let offset  = va &  0xFFF;
-        let remain  = (0x1000 - offset).min(dst.len() - done);
+        let offset = va & 0xFFF;
+        let remain = (0x1000 - offset).min(dst.len() - done);
 
         // SAFETY: category=page-table-mutation pointer and length are validated against the task VMA map before this call.
         let (frame, perms) = unsafe {
@@ -125,11 +125,7 @@ pub unsafe fn copy_from_user_bytes(
         let pa = frame.pa() + offset;
         // SAFETY: category=raw-pointer-deref pointer and length are validated against the task VMA map before this call.
         unsafe {
-            core::ptr::copy_nonoverlapping(
-                pa as *const u8,
-                dst[done..].as_mut_ptr(),
-                remain,
-            );
+            core::ptr::copy_nonoverlapping(pa as *const u8, dst[done..].as_mut_ptr(), remain);
         }
         done += remain;
     }

@@ -29,7 +29,7 @@ impl Digest32 {
     pub fn to_hex<'a>(&self, buf: &'a mut [u8; 64]) -> &'a str {
         const HEX: &[u8] = b"0123456789abcdef";
         for (i, &b) in self.0.iter().enumerate() {
-            buf[i * 2]     = HEX[(b >> 4) as usize];
+            buf[i * 2] = HEX[(b >> 4) as usize];
             buf[i * 2 + 1] = HEX[(b & 0xF) as usize];
         }
         core::str::from_utf8(buf).unwrap_or("??")
@@ -37,7 +37,9 @@ impl Digest32 {
 }
 
 impl Default for Digest32 {
-    fn default() -> Self { Self([0u8; 32]) }
+    fn default() -> Self {
+        Self([0u8; 32])
+    }
 }
 
 impl core::fmt::Debug for Digest32 {
@@ -57,9 +59,9 @@ fn sha256(data: &[u8]) -> Digest32 {
 
 struct Sha256 {
     state: [u32; 8],
-    buf:   [u8; 64],
+    buf: [u8; 64],
     buf_len: usize,
-    total:   u64,
+    total: u64,
 }
 
 #[rustfmt::skip]
@@ -78,8 +80,8 @@ impl Sha256 {
     fn new() -> Self {
         Self {
             state: [
-                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-                0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+                0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+                0x5be0cd19,
             ],
             buf: [0u8; 64],
             buf_len: 0,
@@ -123,7 +125,9 @@ impl Sha256 {
         let bit_len = self.total * 8;
         let pad_start = self.buf_len;
         self.buf[pad_start] = 0x80;
-        for b in self.buf[pad_start + 1..].iter_mut() { *b = 0; }
+        for b in self.buf[pad_start + 1..].iter_mut() {
+            *b = 0;
+        }
         if pad_start >= 56 {
             let block = self.buf;
             self.compress(&block);
@@ -137,7 +141,7 @@ impl Sha256 {
         // Output
         let mut out = [0u8; 32];
         for (i, &w) in self.state.iter().enumerate() {
-            out[i*4..i*4+4].copy_from_slice(&w.to_be_bytes());
+            out[i * 4..i * 4 + 4].copy_from_slice(&w.to_be_bytes());
         }
         Digest32(out)
     }
@@ -145,32 +149,50 @@ impl Sha256 {
     fn compress(&mut self, block: &[u8; 64]) {
         let mut w = [0u32; 64];
         for i in 0..16 {
-            w[i] = u32::from_be_bytes([block[i*4], block[i*4+1], block[i*4+2], block[i*4+3]]);
+            w[i] = u32::from_be_bytes([
+                block[i * 4],
+                block[i * 4 + 1],
+                block[i * 4 + 2],
+                block[i * 4 + 3],
+            ]);
         }
         for i in 16..64 {
-            let s0 = w[i-15].rotate_right(7) ^ w[i-15].rotate_right(18) ^ (w[i-15] >> 3);
-            let s1 = w[i-2].rotate_right(17) ^ w[i-2].rotate_right(19) ^ (w[i-2] >> 10);
-            w[i] = w[i-16].wrapping_add(s0).wrapping_add(w[i-7]).wrapping_add(s1);
+            let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
+            let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
+            w[i] = w[i - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[i - 7])
+                .wrapping_add(s1);
         }
-        let [mut a,mut b,mut c,mut d,mut e,mut f,mut g,mut h] = self.state;
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = self.state;
         for i in 0..64 {
             let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
             let ch = (e & f) ^ ((!e) & g);
-            let t1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(K[i]).wrapping_add(w[i]);
+            let t1 = h
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(K[i])
+                .wrapping_add(w[i]);
             let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
             let maj = (a & b) ^ (a & c) ^ (b & c);
             let t2 = s0.wrapping_add(maj);
-            h=g; g=f; f=e; e=d.wrapping_add(t1);
-            d=c; c=b; b=a; a=t1.wrapping_add(t2);
+            h = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(t1);
+            d = c;
+            c = b;
+            b = a;
+            a = t1.wrapping_add(t2);
         }
-        self.state[0]=self.state[0].wrapping_add(a);
-        self.state[1]=self.state[1].wrapping_add(b);
-        self.state[2]=self.state[2].wrapping_add(c);
-        self.state[3]=self.state[3].wrapping_add(d);
-        self.state[4]=self.state[4].wrapping_add(e);
-        self.state[5]=self.state[5].wrapping_add(f);
-        self.state[6]=self.state[6].wrapping_add(g);
-        self.state[7]=self.state[7].wrapping_add(h);
+        self.state[0] = self.state[0].wrapping_add(a);
+        self.state[1] = self.state[1].wrapping_add(b);
+        self.state[2] = self.state[2].wrapping_add(c);
+        self.state[3] = self.state[3].wrapping_add(d);
+        self.state[4] = self.state[4].wrapping_add(e);
+        self.state[5] = self.state[5].wrapping_add(f);
+        self.state[6] = self.state[6].wrapping_add(g);
+        self.state[7] = self.state[7].wrapping_add(h);
     }
 }
 

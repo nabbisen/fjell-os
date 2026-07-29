@@ -5,7 +5,7 @@
 //!   TRAP-001  sepc is advanced by 4 after every ecall.
 //!   TRAP-002  Unknown syscall → SysError::UnknownSyscall, no panic.
 
-use crate::task::tcb::{TrapFrame, REG_A0, REG_A1, REG_A2, REG_A3, REG_A7};
+use crate::task::tcb::{REG_A0, REG_A1, REG_A2, REG_A3, REG_A7, TrapFrame};
 use fjell_abi::{error::SysError, syscall::SyscallNumber};
 
 /// Dispatch a syscall.
@@ -79,35 +79,41 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 /// `required_scope = None` skips the scope check (used for creation ops
 /// where no target object exists yet).
 pub(crate) fn require_cap_on_ct(
-    ct:              &crate::cap::table::CapTable,
-    tidx:            usize,
-    handle:          fjell_cap::handle::CapHandle,
-    expected_kind:   fjell_cap::CapKind,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+    handle: fjell_cap::handle::CapHandle,
+    expected_kind: fjell_cap::CapKind,
     required_rights: fjell_cap::CapRights,
-    required_scope:  Option<&fjell_cap::rights::ObjectScope>,
+    required_scope: Option<&fjell_cap::rights::ObjectScope>,
 ) -> Result<(), SysError> {
     use fjell_cap::rights::CapError;
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let lt = unsafe { crate::get_lease_table() };
     let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
-    fjell_cap::enforcement::require_cap(cs, handle, expected_kind, required_rights,
-                                        required_scope, lt)
-        .map(|_| ())
-        .map_err(|e| match e {
-            CapError::InvalidHandle | CapError::GenerationMismatch
-                | CapError::EmptySlot => SysError::InvalidCap,
-            // H-02 (architect review v0.20.0): aligned to canonical
-            // `to_sys_error()` mapping. Earlier revisions mapped WrongKind
-            // to InvalidCap here, diverging from `rights.rs::to_sys_error`
-            // which maps it to WrongType. No deliberate ABI reason existed
-            // for the divergence.
-            CapError::WrongKind => SysError::WrongType,
-            CapError::MissingRight | CapError::ScopeMismatch => SysError::PermissionDenied,
-            CapError::LeaseRevoked => SysError::LeaseRevoked,
-            _                      => SysError::PermissionDenied,
-        })
+    fjell_cap::enforcement::require_cap(
+        cs,
+        handle,
+        expected_kind,
+        required_rights,
+        required_scope,
+        lt,
+    )
+    .map(|_| ())
+    .map_err(|e| match e {
+        CapError::InvalidHandle | CapError::GenerationMismatch | CapError::EmptySlot => {
+            SysError::InvalidCap
+        }
+        // H-02 (architect review v0.20.0): aligned to canonical
+        // `to_sys_error()` mapping. Earlier revisions mapped WrongKind
+        // to InvalidCap here, diverging from `rights.rs::to_sys_error`
+        // which maps it to WrongType. No deliberate ABI reason existed
+        // for the divergence.
+        CapError::WrongKind => SysError::WrongType,
+        CapError::MissingRight | CapError::ScopeMismatch => SysError::PermissionDenied,
+        CapError::LeaseRevoked => SysError::LeaseRevoked,
+        _ => SysError::PermissionDenied,
+    })
 }
-
 
 /// `sys_yield` — voluntarily relinquish the CPU.
 ///
@@ -144,7 +150,7 @@ fn sys_exit(tf: &mut TrapFrame) {
 // Single-hart Cell/UnsafeCell pattern, same as `Flag` below.
 
 const DBG_TASKS: usize = 32;
-const DBG_LINE:  usize = 160;
+const DBG_LINE: usize = 160;
 
 struct DebugLineBufs {
     len: [core::cell::Cell<usize>; DBG_TASKS],
@@ -164,7 +170,9 @@ static DEBUG_LINES: DebugLineBufs = DebugLineBufs {
 /// Flush one task's buffered line to the UART as a single atomic write.
 fn debug_flush(slot: usize) {
     let n = DEBUG_LINES.len[slot].get();
-    if n == 0 { return; }
+    if n == 0 {
+        return;
+    }
     // Mask SSTATUS.SIE so the byte loop cannot be preempted mid-line
     // (mirrors console::_print; single hart, so masking suffices).
     // SAFETY: category=kernel-global-mutable single hart; SIE masked for the
@@ -199,7 +207,9 @@ fn sys_debug_write(tf: &mut TrapFrame) {
     let n = DEBUG_LINES.len[slot].get();
     // SAFETY: category=kernel-global-mutable single-hart; only this handler
     // mutates the per-task line buffer, and the index is bounds-checked.
-    unsafe { (*DEBUG_LINES.buf.get())[slot][n] = b; }
+    unsafe {
+        (*DEBUG_LINES.buf.get())[slot][n] = b;
+    }
     DEBUG_LINES.len[slot].set(n + 1);
     if b == b'\n' || n + 1 == DBG_LINE {
         debug_flush(slot);
@@ -214,32 +224,56 @@ pub(crate) struct Flag(core::cell::Cell<bool>);
 // SAFETY: category=kernel-global-mutable single-hart, no concurrent access in M2.
 unsafe impl Sync for Flag {}
 impl Flag {
-    pub(crate) const fn new() -> Self { Flag(core::cell::Cell::new(false)) }
-    pub(crate) fn store(&self, v: bool) { self.0.set(v); }
-    pub(crate) fn load(&self) -> bool { self.0.get() }
-    pub(crate) fn take(&self) -> bool { let v = self.0.get(); self.0.set(false); v }
+    pub(crate) const fn new() -> Self {
+        Flag(core::cell::Cell::new(false))
+    }
+    pub(crate) fn store(&self, v: bool) {
+        self.0.set(v);
+    }
+    pub(crate) fn load(&self) -> bool {
+        self.0.get()
+    }
+    pub(crate) fn take(&self) -> bool {
+        let v = self.0.get();
+        self.0.set(false);
+        v
+    }
 }
 
 pub(crate) struct I32Cell(core::cell::Cell<i32>);
 // SAFETY: category=kernel-global-mutable single-hart.
 unsafe impl Sync for I32Cell {}
 impl I32Cell {
-    const fn new() -> Self { I32Cell(core::cell::Cell::new(0)) }
-    fn store(&self, v: i32) { self.0.set(v); }
-    fn load(&self) -> i32 { self.0.get() }
+    const fn new() -> Self {
+        I32Cell(core::cell::Cell::new(0))
+    }
+    fn store(&self, v: i32) {
+        self.0.set(v);
+    }
+    fn load(&self) -> i32 {
+        self.0.get()
+    }
 }
 
 pub(crate) static YIELD_REQUESTED: Flag = Flag::new();
-pub(crate) static EXIT_REQUESTED:  Flag = Flag::new();
-pub(crate) static EXIT_CODE:        I32Cell = I32Cell::new();
+pub(crate) static EXIT_REQUESTED: Flag = Flag::new();
+pub(crate) static EXIT_CODE: I32Cell = I32Cell::new();
 
 /// Called by the timer handler to request a preemptive yield.
-pub fn request_yield() { YIELD_REQUESTED.store(true); }
+pub fn request_yield() {
+    YIELD_REQUESTED.store(true);
+}
 /// Called by trap_dispatch to check if the current task yielded.
-pub fn take_yield() -> bool { YIELD_REQUESTED.take() }
+pub fn take_yield() -> bool {
+    YIELD_REQUESTED.take()
+}
 /// Called by the kernel run-loop to check if the current task exited.
 pub fn take_exit() -> Option<i32> {
-    if EXIT_REQUESTED.take() { Some(EXIT_CODE.load()) } else { None }
+    if EXIT_REQUESTED.take() {
+        Some(EXIT_CODE.load())
+    } else {
+        None
+    }
 }
 
 // ── M3 syscall dispatcher ─────────────────────────────────────────────────────
@@ -255,21 +289,21 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
     // Determine the calling task's index from sscratch → TrapFrame ptr.
     // For M3 we derive task index from the scheduler's current().
     let cur_id = sched.current().unwrap_or(crate::task::TaskId::new(0, 0));
-    let tidx   = cur_id.index as usize;
+    let tidx = cur_id.index as usize;
 
     match SyscallNumber::from_usize(nr) {
-        Some(SyscallNumber::CapCopy)    => sys_cap_copy(tf, tidx, ct),
-        Some(SyscallNumber::CapMint)    => sys_cap_mint(tf, tidx, ct),
-        Some(SyscallNumber::CapDelete)  => sys_cap_delete(tf, tidx, ct),
-        Some(SyscallNumber::CapRevoke)  => sys_cap_revoke(tf, tidx, ct),
+        Some(SyscallNumber::CapCopy) => sys_cap_copy(tf, tidx, ct),
+        Some(SyscallNumber::CapMint) => sys_cap_mint(tf, tidx, ct),
+        Some(SyscallNumber::CapDelete) => sys_cap_delete(tf, tidx, ct),
+        Some(SyscallNumber::CapRevoke) => sys_cap_revoke(tf, tidx, ct),
         Some(SyscallNumber::CapInspect) => sys_cap_inspect(tf, tidx, ct),
-        Some(SyscallNumber::CapDrop)    => sys_cap_drop(tf, tidx, ct),
+        Some(SyscallNumber::CapDrop) => sys_cap_drop(tf, tidx, ct),
         Some(SyscallNumber::CapBindLease) => sys_cap_bind_lease(tf, tidx, ct),
-        Some(SyscallNumber::IpcSend)    => sys_ipc_send(tf, tidx, ct, et, table, sched, cur_id),
-        Some(SyscallNumber::IpcRecv)    => sys_ipc_recv(tf, tidx, ct, et, table, sched, cur_id),
-        Some(SyscallNumber::IpcCall)    => sys_ipc_call(tf, tidx, ct, et, table, sched, cur_id),
-        Some(SyscallNumber::IpcReply)   => sys_ipc_reply(tf, tidx, ct, table, sched),
-        _                               => { /* already handled in caller */ }
+        Some(SyscallNumber::IpcSend) => sys_ipc_send(tf, tidx, ct, et, table, sched, cur_id),
+        Some(SyscallNumber::IpcRecv) => sys_ipc_recv(tf, tidx, ct, et, table, sched, cur_id),
+        Some(SyscallNumber::IpcCall) => sys_ipc_call(tf, tidx, ct, et, table, sched, cur_id),
+        Some(SyscallNumber::IpcReply) => sys_ipc_reply(tf, tidx, ct, table, sched),
+        _ => { /* already handled in caller */ }
     }
 }
 
@@ -280,21 +314,27 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
 /// `sys_task_spawn(a0=cap_handle, a1=image_id)` — RFC 048: handle-based ABI.
 pub fn sys_task_spawn(
     tf: &mut TrapFrame,
-    table:       &mut crate::task::tcb::TaskTable,
-    sched:       &mut crate::task::scheduler::Scheduler,
+    table: &mut crate::task::tcb::TaskTable,
+    sched: &mut crate::task::scheduler::Scheduler,
     kernel_root: crate::mm::frame_alloc::PhysFrame,
-    fa:          *mut crate::mm::frame_alloc::FrameAllocator<'static>,
-    ct:          &crate::cap::table::CapTable,
-    tidx:        usize,
+    fa: *mut crate::mm::frame_alloc::FrameAllocator<'static>,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
 ) {
-    use fjell_abi::service::ImageId;
     use crate::task::spawn::spawn;
+    use fjell_abi::service::ImageId;
     // RFC 048: require TaskCreate capability via handle in a0.
     let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      fjell_cap::CapKind::TaskCreate,
-                                      fjell_cap::CapRights::TASK_CREATE, None) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::TaskCreate,
+        fjell_cap::CapRights::TASK_CREATE,
+        None,
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
     let image_id = ImageId(tf.gpr[REG_A1] as u16);
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
@@ -304,8 +344,8 @@ pub fn sys_task_spawn(
             // RFC 010: encode (index, generation) into a single u32 handle.
             // handle = index | (generation << 16)
             let handle = (tid.index as u32) | ((tid.generation as u32) << 16);
-            tf.gpr[REG_A0] = 0;                          // SysError::Ok
-            tf.gpr[REG_A1] = handle as usize;            // task handle
+            tf.gpr[REG_A0] = 0; // SysError::Ok
+            tf.gpr[REG_A1] = handle as usize; // task handle
         }
         Err(e) => {
             tf.gpr[REG_A0] = e as isize as usize;
@@ -315,30 +355,36 @@ pub fn sys_task_spawn(
 
 /// `sys_task_start(a0=cap_handle, a1=task_handle, a2=entry_pc, a3=stack_top)` — RFC 048.
 pub fn sys_task_start(
-    tf:    &mut TrapFrame,
+    tf: &mut TrapFrame,
     table: &mut crate::task::tcb::TaskTable,
     sched: &mut crate::task::scheduler::Scheduler,
-    ct:    &crate::cap::table::CapTable,
-    tidx:  usize,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
 ) {
+    use crate::task::TaskId;
+    use crate::task::tcb::TaskState;
     use fjell_abi::error::SysError;
-    use crate::task::TaskId; use crate::task::tcb::TaskState;
     use fjell_cap::rights::ObjectScope;
     // RFC 048: decode target task handle from a1; scope-check the TaskControl cap.
-    let cap_h  = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
-    let raw    = tf.gpr[REG_A1] as u32;
-    let index      = (raw & 0xFFFF) as u16;
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let raw = tf.gpr[REG_A1] as u32;
+    let index = (raw & 0xFFFF) as u16;
     let generation = (raw >> 16) as u16;
     let target_tid = TaskId::new(index, generation);
-    let req_scope  = ObjectScope::Task(target_tid);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      fjell_cap::CapKind::TaskControl,
-                                      fjell_cap::CapRights::TASK_START,
-                                      Some(&req_scope)) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    let req_scope = ObjectScope::Task(target_tid);
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::TaskControl,
+        fjell_cap::CapRights::TASK_START,
+        Some(&req_scope),
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
-    let entry  = tf.gpr[REG_A2]; // a2
-    let stack  = tf.gpr[REG_A3]; // a3
+    let entry = tf.gpr[REG_A2]; // a2
+    let stack = tf.gpr[REG_A3]; // a3
 
     // RFC 022: validate entry_pc and stack_top are in user address range.
     // Kernel RAM starts at RAM_BASE = 0x8000_0000; user code must be below it.
@@ -352,116 +398,179 @@ pub fn sys_task_start(
         return;
     }
 
-    let tid    = TaskId::new(index, generation);
+    let tid = TaskId::new(index, generation);
     match table.get_mut(tid) {
         Some(task) => {
             if task.state != TaskState::Created {
                 tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
                 return;
             }
-            if entry != 0 { task.trap_frame.sepc   = entry; }
-            if stack != 0 { task.trap_frame.gpr[2] = stack; }
+            if entry != 0 {
+                task.trap_frame.sepc = entry;
+            }
+            if stack != 0 {
+                task.trap_frame.gpr[2] = stack;
+            }
             task.state = TaskState::Runnable;
             sched.enqueue_runnable(tid, 2 /* PRIORITY_USER */);
             tf.gpr[REG_A0] = 0;
         }
-        None => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; }
+        None => {
+            tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        }
     }
 }
 
 /// `sys_task_status(a0=cap_handle, a1=task_handle) -> a0=lifecycle_byte` — RFC 048.
-pub fn sys_task_status(tf: &mut TrapFrame, table: &crate::task::tcb::TaskTable,
-                       ct: &crate::cap::table::CapTable, tidx: usize) {
+pub fn sys_task_status(
+    tf: &mut TrapFrame,
+    table: &crate::task::tcb::TaskTable,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+) {
+    use crate::task::TaskId;
+    use crate::task::tcb::TaskState;
     use fjell_abi::error::SysError;
     use fjell_abi::service::TaskLifecycle;
-    use crate::task::TaskId; use crate::task::tcb::TaskState;
     use fjell_cap::rights::ObjectScope;
     // RFC 048: handle-based TaskControl check with Task-scope validation.
     let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
-    let raw   = tf.gpr[REG_A1] as u32;
-    let tid   = TaskId::new((raw & 0xFFFF) as u16, (raw >> 16) as u16);
+    let raw = tf.gpr[REG_A1] as u32;
+    let tid = TaskId::new((raw & 0xFFFF) as u16, (raw >> 16) as u16);
     let req_scope = ObjectScope::Task(tid);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      fjell_cap::CapKind::TaskControl,
-                                      fjell_cap::CapRights::TASK_STATUS,
-                                      Some(&req_scope)) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::TaskControl,
+        fjell_cap::CapRights::TASK_STATUS,
+        Some(&req_scope),
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
     match table.get(tid) {
         Some(task) => {
             let lc = match task.state {
-                TaskState::Empty    => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
-                TaskState::Created    => TaskLifecycle::Created,
-                TaskState::Runnable   => TaskLifecycle::Runnable,
-                TaskState::Running    => TaskLifecycle::Running,
+                TaskState::Empty => {
+                    tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+                    return;
+                }
+                TaskState::Created => TaskLifecycle::Created,
+                TaskState::Runnable => TaskLifecycle::Runnable,
+                TaskState::Running => TaskLifecycle::Running,
                 TaskState::Blocked(_) => TaskLifecycle::Blocked,
-                TaskState::Exited(_)  => TaskLifecycle::Exited,
+                TaskState::Exited(_) => TaskLifecycle::Exited,
                 TaskState::Faulted(_) => TaskLifecycle::Faulted,
             };
             tf.gpr[REG_A0] = lc as usize;
         }
-        None => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; }
+        None => {
+            tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+        }
     }
 }
 
 /// `sys_lease_create(a0=cap_handle, a1=flags) -> a0=ok, a1=LeaseId` — RFC 048.
-pub fn sys_lease_create(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
-                        ct: &crate::cap::table::CapTable, tidx: usize) {
+pub fn sys_lease_create(
+    tf: &mut TrapFrame,
+    lt: &mut crate::lease::LeaseTable,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+) {
     // RFC 048: handle-based LeaseAdmin check; no scope (creation, no target yet).
     let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      fjell_cap::CapKind::LeaseAdmin,
-                                      fjell_cap::CapRights::LEASE_CREATE, None) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::LeaseAdmin,
+        fjell_cap::CapRights::LEASE_CREATE,
+        None,
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
     use fjell_abi::task::TaskId;
     let flags = tf.gpr[REG_A1] as u32;
     let owner = TaskId::new(tidx as u16, 0);
     match lt.create(owner, flags) {
-        Ok(id) => { tf.gpr[REG_A0] = 0; tf.gpr[REG_A1] = id.0 as usize; }
-        Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
+        Ok(id) => {
+            tf.gpr[REG_A0] = 0;
+            tf.gpr[REG_A1] = id.0 as usize;
+        }
+        Err(e) => {
+            tf.gpr[REG_A0] = e as isize as usize;
+        }
     }
 }
 
 /// `sys_lease_revoke(a0=cap_handle, a1=lease_id) -> a0=ok, a1=new_epoch` — RFC 048.
-pub fn sys_lease_revoke(tf: &mut TrapFrame, lt: &mut crate::lease::LeaseTable,
-                        ct: &crate::cap::table::CapTable, tidx: usize) {
+pub fn sys_lease_revoke(
+    tf: &mut TrapFrame,
+    lt: &mut crate::lease::LeaseTable,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+) {
     // RFC 048: handle-based LeaseAdmin check with Lease-scope validation.
-    use fjell_cap::rights::ObjectScope;
     use fjell_abi::lease::LeaseId;
+    use fjell_cap::rights::ObjectScope;
     let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
-    let id    = LeaseId(tf.gpr[REG_A1] as u32);
+    let id = LeaseId(tf.gpr[REG_A1] as u32);
     let req_scope = ObjectScope::Lease(id);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      fjell_cap::CapKind::LeaseAdmin,
-                                      fjell_cap::CapRights::LEASE_REVOKE,
-                                      Some(&req_scope)) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::LeaseAdmin,
+        fjell_cap::CapRights::LEASE_REVOKE,
+        Some(&req_scope),
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
     match lt.revoke(id) {
-        Ok(ep) => { tf.gpr[REG_A0] = 0; tf.gpr[REG_A1] = ep.0 as usize; }
-        Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
+        Ok(ep) => {
+            tf.gpr[REG_A0] = 0;
+            tf.gpr[REG_A1] = ep.0 as usize;
+        }
+        Err(e) => {
+            tf.gpr[REG_A0] = e as isize as usize;
+        }
     }
 }
 
 /// `sys_lease_inspect(a0=cap_handle, a1=lease_id) -> a0=epoch` — RFC 048.
-pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable,
-                         ct: &crate::cap::table::CapTable, tidx: usize) {
+pub fn sys_lease_inspect(
+    tf: &mut TrapFrame,
+    lt: &crate::lease::LeaseTable,
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+) {
     // RFC 048: handle-based LeaseAdmin check with Lease-scope validation.
-    use fjell_cap::rights::ObjectScope;
     use fjell_abi::lease::LeaseId;
+    use fjell_cap::rights::ObjectScope;
     let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
-    let id    = LeaseId(tf.gpr[REG_A1] as u32);
+    let id = LeaseId(tf.gpr[REG_A1] as u32);
     let req_scope = ObjectScope::Lease(id);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      fjell_cap::CapKind::LeaseAdmin,
-                                      fjell_cap::CapRights::LEASE_INSPECT,
-                                      Some(&req_scope)) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::LeaseAdmin,
+        fjell_cap::CapRights::LEASE_INSPECT,
+        Some(&req_scope),
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
     match lt.current_epoch(id) {
-        Ok(ep) => { tf.gpr[REG_A0] = ep.0 as usize; }
-        Err(e) => { tf.gpr[REG_A0] = e as isize as usize; }
+        Ok(ep) => {
+            tf.gpr[REG_A0] = ep.0 as usize;
+        }
+        Err(e) => {
+            tf.gpr[REG_A0] = e as isize as usize;
+        }
     }
 }
 
@@ -477,13 +586,13 @@ pub fn sys_lease_inspect(tf: &mut TrapFrame, lt: &crate::lease::LeaseTable,
 ///   `a1` = n_records_copied
 ///   `a2` = n_dropped_since_last_drain (per RFC 053; resets on each drain)
 pub fn sys_audit_drain(tf: &mut TrapFrame) {
-    use fjell_audit_format::{AuditRecordBin, AUDIT_RECORD_BIN_SIZE};
-    use fjell_cap::{CapKind, CapRights};
     use crate::audit::ring::AUDIT;
     use crate::mm::user_copy::copy_to_user_bytes;
+    use fjell_audit_format::{AUDIT_RECORD_BIN_SIZE, AuditRecordBin};
+    use fjell_cap::{CapKind, CapRights};
 
     let cap_raw = tf.gpr[REG_A0] as u32;
-    let buf_va  = tf.gpr[REG_A1];
+    let buf_va = tf.gpr[REG_A1];
     let buf_len = tf.gpr[REG_A2];
 
     // ── 1. RFC 054: handle-based AuditDrain require_cap with lease check ─────
@@ -491,14 +600,23 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     let (table, sched, ct, _) = unsafe { crate::get_kernel_state() };
     let cur_id = match sched.current() {
         Some(id) => id,
-        None => { tf.gpr[REG_A0] = SysError::BadState as isize as usize; return; }
+        None => {
+            tf.gpr[REG_A0] = SysError::BadState as isize as usize;
+            return;
+        }
     };
-    let tidx   = cur_id.index as usize;
-    let cap_h  = fjell_cap::handle::CapHandle(cap_raw);
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      CapKind::AuditDrain,
-                                      CapRights::AUDIT_DRAIN, None) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    let tidx = cur_id.index as usize;
+    let cap_h = fjell_cap::handle::CapHandle(cap_raw);
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        CapKind::AuditDrain,
+        CapRights::AUDIT_DRAIN,
+        None,
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
 
     // ── 2. RFC 039/050: validate the user buffer range upfront ───────────────
@@ -524,7 +642,10 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     // ── 3. Get caller page-table root for copy_to_user ───────────────────────
     let root_pfn = match table.get(cur_id) {
         Some(task) => task.satp_root_pfn,
-        None => { tf.gpr[REG_A0] = SysError::BadState as isize as usize; return; }
+        None => {
+            tf.gpr[REG_A0] = SysError::BadState as isize as usize;
+            return;
+        }
     };
 
     // ── 4. RFC 053: peek-copy-advance ─────────────────────────────────────────
@@ -540,16 +661,16 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
         // Peek without consuming.
         let rec = match AUDIT.peek_at(i) {
             Some(r) => r,
-            None    => break 'drain,  // ring exhausted
+            None => break 'drain, // ring exhausted
         };
         // Serialize to binary format.
         let bin = AuditRecordBin {
-            seq:    rec.seq,
-            tick:   rec.tick,
-            kind:   rec.kind as u16,
-            task:   0xFFFF,
-            arg0:   rec.arg0 as u32,
-            arg1:   rec.arg1 as u32,
+            seq: rec.seq,
+            tick: rec.tick,
+            kind: rec.kind as u16,
+            task: 0xFFFF,
+            arg0: rec.arg0 as u32,
+            arg1: rec.arg1 as u32,
             result: rec.result as i32,
         };
         // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
@@ -563,7 +684,7 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
         // Copy to user; stop at first failure (remaining records stay in ring).
         // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
         match unsafe { copy_to_user_bytes(root_pfn, dst, bytes) } {
-            Ok(_)  => n_copied += 1,
+            Ok(_) => n_copied += 1,
             Err(_) => break 'drain,
         }
     }
@@ -575,7 +696,6 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     tf.gpr[REG_A1] = n_copied;
     tf.gpr[REG_A2] = n_dropped as usize;
 }
-
 
 // ── M4 dispatch wrappers ──────────────────────────────────────────────────────
 
@@ -607,7 +727,7 @@ fn dispatch_task_status(tf: &mut TrapFrame) {
 
 fn dispatch_lease_create(tf: &mut TrapFrame) {
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
-    let lt   = unsafe { crate::get_lease_table() };
+    let lt = unsafe { crate::get_lease_table() };
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
@@ -617,7 +737,7 @@ fn dispatch_lease_create(tf: &mut TrapFrame) {
 fn dispatch_lease_revoke(tf: &mut TrapFrame) {
     use crate::cap::syscall::cancel_blocked_ipc_for_lease;
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
-    let lt   = unsafe { crate::get_lease_table() };
+    let lt = unsafe { crate::get_lease_table() };
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
@@ -657,20 +777,19 @@ fn dispatch_lease_inspect(tf: &mut TrapFrame) {
 /// (`sys_platform_region_resolve`) alongside `DeviceInventory` capability
 /// support in v0.8.x.
 pub fn sys_platform_info_get(tf: &mut TrapFrame) {
-    use crate::platform::qemu_virt::{mmio_region_table, MMIO_REGION_VIRTIO};
+    use crate::platform::qemu_virt::{MMIO_REGION_VIRTIO, mmio_region_table};
 
     // Scan the MMIO region table for the virtio device region and return its PA.
     let table = mmio_region_table();
     let virtio_pa = if (MMIO_REGION_VIRTIO as usize) < table.len() {
         table[MMIO_REGION_VIRTIO as usize].base
     } else {
-        0x1000_1000  // QEMU virt fallback
+        0x1000_1000 // QEMU virt fallback
     };
 
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = virtio_pa;
 }
-
 
 /// `sys_mmio_map(a0=mmio_cap_handle, a1=offset, a2=size) -> a0=status, a1=user_va`
 ///
@@ -691,13 +810,16 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     use fjell_cap::{CapKind, CapRights};
 
     let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
-    let offset     = tf.gpr[10 + 1];                               // a1
+    let offset = tf.gpr[10 + 1]; // a1
     // RFC-v0.7.4-002: use checked_add to prevent overflow before masking
     // (closes W-H-01 / C-H-05).
     let raw_size = tf.gpr[10 + 2];
     let size_bytes = match raw_size.checked_add(0xFFF) {
         Some(v) => v & !0xFFF,
-        None    => { tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize; return; }
+        None => {
+            tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
+            return;
+        }
     };
 
     if size_bytes == 0 {
@@ -713,24 +835,36 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
 
     let cs = match cap_table.cspace(tidx) {
         Some(c) => c,
-        None    => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
     };
 
     // RFC 035 §2 + RFC 031: unified require_cap — kind=MmioRegion, right=MMIO_MAP.
     let region_idx = match fjell_cap::enforcement::require_cap(
-        cs, cap_handle,
-        CapKind::MmioRegion, CapRights::MMIO_MAP,
-        None, lt,
+        cs,
+        cap_handle,
+        CapKind::MmioRegion,
+        CapRights::MMIO_MAP,
+        None,
+        lt,
     ) {
-        Ok(cap)  => cap.object_id as usize,
-        Err(e)   => { tf.gpr[REG_A0] = e.to_sys_error() as isize as usize; return; }
+        Ok(cap) => cap.object_id as usize,
+        Err(e) => {
+            tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+            return;
+        }
     };
 
     // Bounds-check offset + size and verify the region is Active.
     let mmio_table = mmio_region_table();
     let region = match mmio_table.get(region_idx) {
         Some(r) => r,
-        None    => { tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize; return; }
+        None => {
+            tf.gpr[REG_A0] = SysError::InvalidCap as isize as usize;
+            return;
+        }
     };
     if !region.is_accessible(offset, size_bytes) {
         tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
@@ -748,7 +882,7 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     // Map pages R|W|U — explicitly no X bit (RFC 009 / RFC 035).
     // RFC 051: allocate user VA from the task's device VMA bump allocator
     // instead of using PA directly as VA (which could alias user heap).
-    let task_id  = crate::task::TaskId::new(tidx as u16, 0);
+    let task_id = crate::task::TaskId::new(tidx as u16, 0);
     // SAFETY: category=kernel-global-mutable
     //   get_kernel_state returns globally unique pointers; single-hart kernel.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
@@ -762,18 +896,24 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     let device_va_base = {
         let task = match table.get_mut(task_id) {
             Some(t) => t,
-            None => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
+            None => {
+                tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+                return;
+            }
         };
         let va = task.dev_vma_next;
         let end = match va.checked_add(size_bytes) {
             Some(e) => e,
-            None    => { tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize; return; }
+            None => {
+                tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
+                return;
+            }
         };
         if end > crate::platform::qemu_virt::DEVICE_VMA_END {
             tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
             return;
         }
-        task.dev_vma_next = (end + 4095) & !4095;  // page-align next
+        task.dev_vma_next = (end + 4095) & !4095; // page-align next
         va
     };
 
@@ -792,7 +932,9 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
             //   root_pfn valid; va from task dev_vma bump allocator, never previously mapped.
             let result = unsafe {
                 crate::mm::page_table::remap_page(
-                    root_pfn << 12, VirtAddr(va), f,
+                    root_pfn << 12,
+                    VirtAddr(va),
+                    f,
                     VmPerms::R | VmPerms::W | VmPerms::U,
                     fa,
                 )
@@ -817,15 +959,19 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
             let _ = unsafe { crate::mm::page_table::unmap_page(root_pfn << 12, VirtAddr(va)) };
         }
         // SAFETY: category=csr-asm  sfence after rollback unmap.
-        unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+        unsafe {
+            crate::arch::riscv64::csr::sfence_vma();
+        }
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
         return;
     }
 
     // SAFETY: category=csr-asm  TLB flush after successful mapping.
-    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+    unsafe {
+        crate::arch::riscv64::csr::sfence_vma();
+    }
     tf.gpr[REG_A0] = 0;
-    tf.gpr[REG_A1] = device_va_base;  // RFC 051: VA in device range, not PA
+    tf.gpr[REG_A1] = device_va_base; // RFC 051: VA in device range, not PA
 }
 
 /// `sys_dma_alloc(a0=dma_cap_handle, a1=size_bytes) -> a0=status, a1=user_va, a2=device_pa`
@@ -835,11 +981,11 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
 ///
 /// Maximum 1 page (4 KiB) per DMA region — invariant DMA-003.
 pub fn sys_dma_alloc(tf: &mut TrapFrame) {
-    use crate::mm::{address::VirtAddr, vspace::VmPerms, frame_alloc::FrameOwner};
+    use crate::mm::{address::VirtAddr, frame_alloc::FrameOwner, vspace::VmPerms};
     use crate::task::tcb::REG_A2;
     use fjell_cap::{CapKind, CapRights};
 
-    let cap_raw    = tf.gpr[REG_A0] as u32;
+    let cap_raw = tf.gpr[REG_A0] as u32;
     let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF;
     let cap_handle = fjell_cap::CapHandle(cap_raw);
 
@@ -852,7 +998,10 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
         let lt = unsafe { crate::get_lease_table() };
         let cs = match ct.cspace(tidx) {
             Some(c) => c,
-            None => { tf.gpr[REG_A0] = SysError::InternalError as isize as usize; return; }
+            None => {
+                tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+                return;
+            }
         };
         // Accept both the new DmaRegion kind and the legacy DmaAlloc alias.
         let kind_ok = {
@@ -864,7 +1013,12 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
         if !kind_ok {
             // Run require_cap for the proper error path.
             if let Err(e) = fjell_cap::enforcement::require_cap(
-                cs, cap_handle, CapKind::DmaRegion, CapRights::DMA_ALLOC, None, lt,
+                cs,
+                cap_handle,
+                CapKind::DmaRegion,
+                CapRights::DMA_ALLOC,
+                None,
+                lt,
             ) {
                 tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
                 return;
@@ -894,7 +1048,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 
     // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
-    let task_id  = crate::task::TaskId::new(tidx as u16, 0);
+    let task_id = crate::task::TaskId::new(tidx as u16, 0);
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
     if root_pfn == 0 {
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
@@ -903,24 +1057,31 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let fa = unsafe { &mut *crate::fa_static_ptr() };
 
-    let user_va_start = crate::DMA_VA_NEXT.fetch_add(
-        pages * 4096, core::sync::atomic::Ordering::Relaxed,
-    );
+    let user_va_start =
+        crate::DMA_VA_NEXT.fetch_add(pages * 4096, core::sync::atomic::Ordering::Relaxed);
 
     let frame = match fa.alloc_frame(FrameOwner::UserStack { task: task_id }) {
         Ok(f) => f,
-        Err(_) => { tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; return; }
+        Err(_) => {
+            tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
+            return;
+        }
     };
     let first_pa = frame.pa();
     // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
     unsafe {
         let _ = crate::mm::page_table::map_page(
-            root_pfn << 12, VirtAddr(user_va_start), frame,
-            VmPerms::R | VmPerms::W | VmPerms::U, fa,
+            root_pfn << 12,
+            VirtAddr(user_va_start),
+            frame,
+            VmPerms::R | VmPerms::W | VmPerms::U,
+            fa,
         );
     }
     // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
-    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+    unsafe {
+        crate::arch::riscv64::csr::sfence_vma();
+    }
 
     // RFC 036 + RFC 052: record ownership; rollback if table is full.
     if !crate::dma_table().alloc(task_id, user_va_start, first_pa, pages as u8) {
@@ -941,7 +1102,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = user_va_start;
-    tf.gpr[12]     = first_pa;
+    tf.gpr[12] = first_pa;
 }
 
 /// `sys_dma_revoke(a0=cap_handle, a1=device_pa) -> a0=status` — RFC 052.
@@ -951,18 +1112,24 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 /// User VA unmap deferred to v0.3 (frame is zeroized and freed; VA stays mapped).
 pub fn sys_dma_revoke(tf: &mut TrapFrame) {
     use fjell_cap::{CapKind, CapRights};
-    let cap_raw   = tf.gpr[REG_A0] as u32;
+    let cap_raw = tf.gpr[REG_A0] as u32;
     let device_pa = tf.gpr[REG_A1];
-    let tidx      = crate::trap::dispatch::current_task_idx();
-    let cap_h     = fjell_cap::handle::CapHandle(cap_raw);
+    let tidx = crate::trap::dispatch::current_task_idx();
+    let cap_h = fjell_cap::handle::CapHandle(cap_raw);
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
 
     // RFC 052: require DmaRegion + DMA_REVOKE right, lease check.
-    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h,
-                                      CapKind::DmaRegion,
-                                      CapRights::DMA_REVOKE, None) {
-        tf.gpr[REG_A0] = e as isize as usize; return;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        CapKind::DmaRegion,
+        CapRights::DMA_REVOKE,
+        None,
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
     }
 
     let task_id = crate::task::TaskId::new(tidx as u16, 0);

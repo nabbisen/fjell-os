@@ -104,8 +104,10 @@ impl KeyPurpose {
     pub const fn is_verification_only(self) -> bool {
         matches!(
             self,
-            Self::ReleaseVerification | Self::RootfsVerification
-                | Self::PolicyVerification | Self::BoardProfile
+            Self::ReleaseVerification
+                | Self::RootfsVerification
+                | Self::PolicyVerification
+                | Self::BoardProfile
         )
     }
 }

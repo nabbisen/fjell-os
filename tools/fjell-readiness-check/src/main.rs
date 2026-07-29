@@ -15,7 +15,8 @@ const MATRIX_PATH: &str = "docs/release/v1-readiness.md";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let path = args.windows(2)
+    let path = args
+        .windows(2)
         .find(|w| w[0] == "--matrix")
         .and_then(|w| w.get(1))
         .map(String::as_str)
@@ -41,7 +42,10 @@ fn main() -> ExitCode {
         println!("  Result   : PASS — zero OPEN cells");
         ExitCode::SUCCESS
     } else {
-        eprintln!("  Result   : FAIL — {} OPEN cell(s) block v1.0", result.open);
+        eprintln!(
+            "  Result   : FAIL — {} OPEN cell(s) block v1.0",
+            result.open
+        );
         for line in &result.open_lines {
             eprintln!("    {}", line);
         }
@@ -50,22 +54,27 @@ fn main() -> ExitCode {
 }
 
 struct MatrixResult {
-    done:        usize,
+    done: usize,
     in_progress: usize,
-    deferred:    usize,
-    open:        usize,
-    open_lines:  Vec<String>,
+    deferred: usize,
+    open: usize,
+    open_lines: Vec<String>,
 }
 
 fn check_matrix(content: &str) -> MatrixResult {
     let mut result = MatrixResult {
-        done: 0, in_progress: 0, deferred: 0, open: 0,
+        done: 0,
+        in_progress: 0,
+        deferred: 0,
+        open: 0,
         open_lines: Vec::new(),
     };
 
     for (lineno, line) in content.lines().enumerate() {
         // Only examine table rows (lines starting with `|`)
-        if !line.trim_start().starts_with('|') { continue; }
+        if !line.trim_start().starts_with('|') {
+            continue;
+        }
 
         if line.contains("**DONE**") || line.contains("DONE (") {
             result.done += 1;
@@ -77,7 +86,9 @@ fn check_matrix(content: &str) -> MatrixResult {
             // Only count rows with bold **OPEN** as blocking cells.
             // Bare "OPEN" in summary count tables (e.g. "| OPEN | 0 |") is not a cell.
             result.open += 1;
-            result.open_lines.push(format!("line {}: {}", lineno + 1, line.trim()));
+            result
+                .open_lines
+                .push(format!("line {}: {}", lineno + 1, line.trim()));
         }
     }
     result
@@ -97,10 +108,10 @@ mod tests {
     #[test]
     fn counts_all_status_types() {
         let r = check_matrix(SAMPLE);
-        assert_eq!(r.done,        1);
+        assert_eq!(r.done, 1);
         assert_eq!(r.in_progress, 1);
-        assert_eq!(r.deferred,    1);
-        assert_eq!(r.open,        1);
+        assert_eq!(r.deferred, 1);
+        assert_eq!(r.open, 1);
     }
 
     #[test]
@@ -118,7 +129,7 @@ mod tests {
     fn non_table_lines_ignored() {
         let content = "# Header\n Some OPEN text outside table\n| item | rfc | **DONE** (v1) |\n";
         let r = check_matrix(content);
-        assert_eq!(r.open, 0);   // OPEN not in a table row
+        assert_eq!(r.open, 0); // OPEN not in a table row
         assert_eq!(r.done, 1);
     }
 
@@ -138,9 +149,11 @@ mod tests {
             Err(_) => return,
         };
         let r = check_matrix(&content);
-        assert_eq!(r.open, 0,
+        assert_eq!(
+            r.open, 0,
             "v1-readiness.md must have zero OPEN cells; found {} — fix before v1.0",
-            r.open);
+            r.open
+        );
         // We expect some DONE items at minimum
         assert!(r.done > 0, "readiness matrix should have DONE items");
     }

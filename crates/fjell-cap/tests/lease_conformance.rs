@@ -7,7 +7,7 @@
 //!
 //! Marker on success: CONFORMANCE:LEASE-EPOCH:PASS
 
-use fjell_abi::lease::{lease_usable, lease_revoke, RevokeOutcome};
+use fjell_abi::lease::{RevokeOutcome, lease_revoke, lease_usable};
 
 #[test]
 fn active_matching_epoch_accepted() {
@@ -22,7 +22,10 @@ fn active_nonmatching_epoch_rejected() {
 
 #[test]
 fn inactive_lease_rejected() {
-    assert!(!lease_usable(false, 7, 7), "revoked/inactive lease must reject");
+    assert!(
+        !lease_usable(false, 7, 7),
+        "revoked/inactive lease must reject"
+    );
 }
 
 #[test]
@@ -30,7 +33,10 @@ fn old_binding_rejected_after_revoke() {
     // LEASE-VERUS-003: a binding usable before revoke is not usable after.
     let epoch_at_issue = 5u32;
     let current = 5u32;
-    assert!(lease_usable(true, current, epoch_at_issue), "usable before revoke");
+    assert!(
+        lease_usable(true, current, epoch_at_issue),
+        "usable before revoke"
+    );
 
     // revoke: epoch advances, lease becomes inactive.
     let new_epoch = match lease_revoke(current) {
@@ -38,8 +44,10 @@ fn old_binding_rejected_after_revoke() {
         RevokeOutcome::MustRetire => panic!("epoch 5 is inside the bounded domain"),
     };
     assert_eq!(new_epoch, 6, "LEASE-VERUS-002: revoke increments epoch");
-    assert!(!lease_usable(false, new_epoch, epoch_at_issue),
-        "stale binding must be unusable after revoke");
+    assert!(
+        !lease_usable(false, new_epoch, epoch_at_issue),
+        "stale binding must be unusable after revoke"
+    );
 }
 
 #[test]
@@ -72,7 +80,10 @@ fn revoke_boundary_epoch_one() {
 #[test]
 fn revoke_boundary_epoch_max_minus_one() {
     // The last advance in the domain lands exactly on MAX.
-    assert_eq!(lease_revoke(u32::MAX - 1), RevokeOutcome::Advanced(u32::MAX));
+    assert_eq!(
+        lease_revoke(u32::MAX - 1),
+        RevokeOutcome::Advanced(u32::MAX)
+    );
 }
 
 #[test]
@@ -91,7 +102,9 @@ fn binding_at_new_epoch_still_inactive() {
         RevokeOutcome::Advanced(e) => e,
         RevokeOutcome::MustRetire => panic!("epoch 9 is inside the bounded domain"),
     };
-    assert!(!lease_usable(false, new_epoch, new_epoch),
-        "inactive lease rejects even an epoch-matching binding");
+    assert!(
+        !lease_usable(false, new_epoch, new_epoch),
+        "inactive lease rejects even an epoch-matching binding"
+    );
     println!("CONFORMANCE:LEASE-EPOCH:PASS");
 }

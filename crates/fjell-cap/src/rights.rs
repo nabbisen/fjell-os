@@ -7,8 +7,8 @@
 //! Service crates that hardcode raw `u32` constants must be migrated to the
 //! named constants in this module.
 
-use fjell_abi::task::TaskId;
 use fjell_abi::lease::LeaseId;
+use fjell_abi::task::TaskId;
 
 // ── CapRights ─────────────────────────────────────────────────────────────────
 
@@ -26,53 +26,53 @@ pub struct CapRights(pub u64);
 #[allow(clippy::unusual_byte_groupings)]
 impl CapRights {
     // Memory / mapping rights
-    pub const READ:          Self = CapRights(1 << 0);
-    pub const WRITE:         Self = CapRights(1 << 1);
-    pub const EXECUTE:       Self = CapRights(1 << 2);
+    pub const READ: Self = CapRights(1 << 0);
+    pub const WRITE: Self = CapRights(1 << 1);
+    pub const EXECUTE: Self = CapRights(1 << 2);
 
     // IPC rights
-    pub const SEND:          Self = CapRights(1 << 3);
-    pub const RECV:          Self = CapRights(1 << 4);
-    pub const CALL:          Self = CapRights(1 << 5);
-    pub const REPLY:         Self = CapRights(1 << 6);
+    pub const SEND: Self = CapRights(1 << 3);
+    pub const RECV: Self = CapRights(1 << 4);
+    pub const CALL: Self = CapRights(1 << 5);
+    pub const REPLY: Self = CapRights(1 << 6);
 
     // Capability management rights
-    pub const COPY:          Self = CapRights(1 << 7);
-    pub const MINT:          Self = CapRights(1 << 8);
-    pub const REVOKE:        Self = CapRights(1 << 9);
-    pub const INSPECT:       Self = CapRights(1 << 10);
-    pub const DROP:          Self = CapRights(1 << 11);
+    pub const COPY: Self = CapRights(1 << 7);
+    pub const MINT: Self = CapRights(1 << 8);
+    pub const REVOKE: Self = CapRights(1 << 9);
+    pub const INSPECT: Self = CapRights(1 << 10);
+    pub const DROP: Self = CapRights(1 << 11);
 
     // Task management rights
-    pub const TASK_CREATE:   Self = CapRights(1 << 12);
-    pub const TASK_START:    Self = CapRights(1 << 13);
-    pub const TASK_STATUS:   Self = CapRights(1 << 14);
-    pub const TASK_KILL:     Self = CapRights(1 << 15);
+    pub const TASK_CREATE: Self = CapRights(1 << 12);
+    pub const TASK_START: Self = CapRights(1 << 13);
+    pub const TASK_STATUS: Self = CapRights(1 << 14);
+    pub const TASK_KILL: Self = CapRights(1 << 15);
 
     // Lease management rights
-    pub const LEASE_CREATE:  Self = CapRights(1 << 16);
-    pub const LEASE_REVOKE:  Self = CapRights(1 << 17);
+    pub const LEASE_CREATE: Self = CapRights(1 << 16);
+    pub const LEASE_REVOKE: Self = CapRights(1 << 17);
     pub const LEASE_INSPECT: Self = CapRights(1 << 18);
 
     // Device rights
-    pub const MMIO_MAP:      Self = CapRights(1 << 19);
-    pub const DMA_ALLOC:     Self = CapRights(1 << 20);
-    pub const DMA_USE:       Self = CapRights(1 << 21);
-    pub const DMA_REVOKE:    Self = CapRights(1 << 22);
+    pub const MMIO_MAP: Self = CapRights(1 << 19);
+    pub const DMA_ALLOC: Self = CapRights(1 << 20);
+    pub const DMA_USE: Self = CapRights(1 << 21);
+    pub const DMA_REVOKE: Self = CapRights(1 << 22);
 
     // System rights
-    pub const AUDIT_DRAIN:   Self = CapRights(1 << 23);
-    pub const BOOT_READ:     Self = CapRights(1 << 24);
-    pub const REBOOT:        Self = CapRights(1 << 25);
+    pub const AUDIT_DRAIN: Self = CapRights(1 << 23);
+    pub const BOOT_READ: Self = CapRights(1 << 24);
+    pub const REBOOT: Self = CapRights(1 << 25);
     /// RFC 056: authority to call `sys_cap_install` (meta-right; bit 26).
-    pub const CAP_INSTALL:   Self = CapRights(1 << 26);
+    pub const CAP_INSTALL: Self = CapRights(1 << 26);
 
     /// All rights EXCLUDING meta-rights (CAP_INSTALL, CAP_REVOKE).
     /// Use for ordinary service grants. Formerly named `ALL`.
     pub const ALL_NON_META: Self = CapRights((1 << 26) - 1);
     /// Backward-compatible alias for `ALL_NON_META`.
     #[deprecated(since = "0.7.1", note = "use ALL_NON_META or ALL_DEFINED explicitly")]
-    pub const ALL:  Self = Self::ALL_NON_META;
+    pub const ALL: Self = Self::ALL_NON_META;
     /// All currently defined rights, including meta-rights CAP_INSTALL (bit 26).
     /// Use only for cap-broker and trust-provider admin paths.
     pub const ALL_DEFINED: Self = CapRights((1 << 27) - 1);
@@ -96,16 +96,22 @@ impl CapRights {
 
 impl core::ops::BitOr for CapRights {
     type Output = Self;
-    fn bitor(self, rhs: Self) -> Self { CapRights(self.0 | rhs.0) }
+    fn bitor(self, rhs: Self) -> Self {
+        CapRights(self.0 | rhs.0)
+    }
 }
 
 impl core::ops::BitAnd for CapRights {
     type Output = Self;
-    fn bitand(self, rhs: Self) -> Self { CapRights(self.0 & rhs.0) }
+    fn bitand(self, rhs: Self) -> Self {
+        CapRights(self.0 & rhs.0)
+    }
 }
 
 impl core::ops::BitOrAssign for CapRights {
-    fn bitor_assign(&mut self, rhs: Self) { self.0 |= rhs.0; }
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
 }
 
 // ── CapKind ───────────────────────────────────────────────────────────────────
@@ -241,16 +247,16 @@ impl CapKind {
     /// incorrect and allowed unknown kinds to be installed as usable Endpoints.
     pub fn from_u8(v: u8) -> Option<Self> {
         match v {
-            0  => Some(Self::Endpoint),
-            1  => Some(Self::Reply),
-            2  => Some(Self::TaskControl),
-            3  => Some(Self::TaskCreate),
-            4  => Some(Self::LeaseAdmin),
-            5  => Some(Self::MmioRegion),
-            6  => Some(Self::DmaRegion),
-            7  => Some(Self::AuditDrain),
-            8  => Some(Self::BootEvidence),
-            9  => Some(Self::Reboot),
+            0 => Some(Self::Endpoint),
+            1 => Some(Self::Reply),
+            2 => Some(Self::TaskControl),
+            3 => Some(Self::TaskCreate),
+            4 => Some(Self::LeaseAdmin),
+            5 => Some(Self::MmioRegion),
+            6 => Some(Self::DmaRegion),
+            7 => Some(Self::AuditDrain),
+            8 => Some(Self::BootEvidence),
+            9 => Some(Self::Reboot),
             16 => Some(Self::CapInstall),
             17 => Some(Self::PersistentStore),
             18 => Some(Self::BootControl),
@@ -260,9 +266,9 @@ impl CapKind {
             22 => Some(Self::SnapshotCreate),
             23 => Some(Self::SnapshotRead),
             // 0x14 = 20, 0x15 = 21 - handled above; net/interrupt get distinct values
-            0x18 => Some(Self::Interrupt),   // 24
-            0x19 => Some(Self::NetDevice),   // 25
-            _  => None,  // unknown kind → None (not Endpoint)
+            0x18 => Some(Self::Interrupt), // 24
+            0x19 => Some(Self::NetDevice), // 25
+            _ => None,                     // unknown kind → None (not Endpoint)
         }
     }
 }
@@ -326,18 +332,18 @@ impl CapError {
     pub fn to_sys_error(self) -> fjell_abi::error::SysError {
         use fjell_abi::error::SysError;
         match self {
-            CapError::InvalidHandle         => SysError::InvalidCap,
-            CapError::GenerationMismatch    => SysError::GenerationMismatch,
-            CapError::EmptySlot             => SysError::SlotEmpty,
-            CapError::Dropped               => SysError::InvalidCap,
-            CapError::Revoked               => SysError::InvalidCap,
-            CapError::WrongKind             => SysError::WrongType,
-            CapError::MissingRight          => SysError::PermissionDenied,
-            CapError::ScopeMismatch         => SysError::PermissionDenied,
-            CapError::LeaseRevoked          => SysError::LeaseRevoked,
-            CapError::LeaseExpired          => SysError::LeaseExpired,
+            CapError::InvalidHandle => SysError::InvalidCap,
+            CapError::GenerationMismatch => SysError::GenerationMismatch,
+            CapError::EmptySlot => SysError::SlotEmpty,
+            CapError::Dropped => SysError::InvalidCap,
+            CapError::Revoked => SysError::InvalidCap,
+            CapError::WrongKind => SysError::WrongType,
+            CapError::MissingRight => SysError::PermissionDenied,
+            CapError::ScopeMismatch => SysError::PermissionDenied,
+            CapError::LeaseRevoked => SysError::LeaseRevoked,
+            CapError::LeaseExpired => SysError::LeaseExpired,
             CapError::LeaseGenerationMismatch => SysError::InvalidCap,
-            CapError::Internal              => SysError::InternalError,
+            CapError::Internal => SysError::InternalError,
         }
     }
 }
@@ -356,7 +362,7 @@ impl From<CapError> for fjell_abi::error::SysError {
 
 #[cfg(test)]
 mod rfc_v074_003_tests {
-    use super::{CapRights, CapKind};
+    use super::{CapKind, CapRights};
 
     // CapRights naming
     #[test]

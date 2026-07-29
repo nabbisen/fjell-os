@@ -17,28 +17,25 @@
 //! - `action`  — `FleetAction` (typed capability-controlled remote operations).
 #![no_std]
 
-pub mod roster;
-pub mod policy;
-pub mod rollout;
 pub mod action;
 pub mod digest;
+pub mod policy;
+pub mod rollout;
+pub mod roster;
 
-pub use roster::{
-    NodeRoster, RosterEntry, RosterRef,
-    FLEET_SCHEMA_VERSION, MAX_ROSTER_ENTRIES, STORE_RECORD_KIND_ROSTER,
-};
+pub use action::{FleetAction, FleetActionError, FleetActionKind, FleetActionResult};
+pub use digest::{policy_digest, roster_digest};
 pub use policy::{
-    FleetPolicy, PolicyStatement, PolicyAction, PolicyCondition,
-    FLEET_POLICY_SCHEMA_VERSION, MAX_POLICY_STATEMENTS,
+    FLEET_POLICY_SCHEMA_VERSION, FleetPolicy, MAX_POLICY_STATEMENTS, PolicyAction, PolicyCondition,
+    PolicyStatement,
 };
 pub use rollout::{
-    FleetRolloutPlan, RolloutStage, RolloutStrategy,
-    ROLLOUT_SCHEMA_VERSION, MAX_ROLLOUT_STAGES,
+    FleetRolloutPlan, MAX_ROLLOUT_STAGES, ROLLOUT_SCHEMA_VERSION, RolloutStage, RolloutStrategy,
 };
-pub use action::{
-    FleetAction, FleetActionKind, FleetActionResult, FleetActionError,
+pub use roster::{
+    FLEET_SCHEMA_VERSION, MAX_ROSTER_ENTRIES, NodeRoster, RosterEntry, RosterRef,
+    STORE_RECORD_KIND_ROSTER,
 };
-pub use digest::{roster_digest, policy_digest};
 
 #[cfg(test)]
 mod tests;

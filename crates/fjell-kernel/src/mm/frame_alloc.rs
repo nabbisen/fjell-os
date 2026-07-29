@@ -6,10 +6,8 @@
 //! Items unused in M2 (free_frame, owner_of, set_free) are kept for M3+.
 #![allow(dead_code)]
 
-use super::{
-    error::MmError,
-};
 pub use super::address::PhysFrame;
+use super::error::MmError;
 use fjell_abi::task::TaskId;
 
 /// Physical frame size in bytes.
@@ -29,8 +27,8 @@ pub enum FrameOwner {
     KernelMeta,
     Dtb,
     Mmio,
-    UserText  { task: TaskId },
-    UserData  { task: TaskId },
+    UserText { task: TaskId },
+    UserData { task: TaskId },
     UserStack { task: TaskId },
 }
 
@@ -58,7 +56,13 @@ impl<'a> FrameAllocator<'a> {
         owner: Option<&'a mut [FrameOwner]>,
     ) -> Self {
         debug_assert!(bitmap.len() as u64 >= (frame_count + 63) / 64);
-        FrameAllocator { base_pfn, frame_count, bitmap, next_hint: 0, owner }
+        FrameAllocator {
+            base_pfn,
+            frame_count,
+            bitmap,
+            next_hint: 0,
+            owner,
+        }
     }
 
     // ── bitmap helpers ────────────────────────────────────────────────────────
@@ -82,7 +86,8 @@ impl<'a> FrameAllocator<'a> {
     }
 
     fn pfn_to_offset(&self, pfn: u64) -> Option<u64> {
-        pfn.checked_sub(self.base_pfn).filter(|&o| o < self.frame_count)
+        pfn.checked_sub(self.base_pfn)
+            .filter(|&o| o < self.frame_count)
     }
 
     // ── public API ────────────────────────────────────────────────────────────
@@ -99,7 +104,7 @@ impl<'a> FrameAllocator<'a> {
         owner: FrameOwner,
     ) -> Result<(), MmError> {
         let first_pfn = ((start_pa) >> 12) as u64;
-        let last_pfn  = ((end_pa + 0xFFF) >> 12) as u64;
+        let last_pfn = ((end_pa + 0xFFF) >> 12) as u64;
 
         for pfn in first_pfn..last_pfn {
             if let Some(off) = self.pfn_to_offset(pfn) {
@@ -129,7 +134,9 @@ impl<'a> FrameAllocator<'a> {
                     owners[off as usize] = owner;
                 }
                 self.next_hint = (off + 1) % count;
-                return Ok(PhysFrame { pfn: self.base_pfn + off });
+                return Ok(PhysFrame {
+                    pfn: self.base_pfn + off,
+                });
             }
         }
         Err(MmError::OutOfMemory)
@@ -206,7 +213,8 @@ mod tests {
         let bitmap: &'static mut [u64] = Box::leak(vec![0u64; 1].into_boxed_slice());
         let mut fa = FrameAllocator::new(0, 64, bitmap, None);
         // Reserve frames 0–3 (PFN 0..4, PA 0x0000..0x4000).
-        fa.reserve_range(0x0000, 0x4000, FrameOwner::KernelText).unwrap();
+        fa.reserve_range(0x0000, 0x4000, FrameOwner::KernelText)
+            .unwrap();
         assert_eq!(fa.free_count(), 60);
         // The first allocation should skip past the reserved frames.
         let f = fa.alloc_frame(FrameOwner::KernelData).unwrap();

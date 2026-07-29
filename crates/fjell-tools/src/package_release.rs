@@ -23,11 +23,17 @@ pub fn cmd_package_release() -> ExitCode {
     // Read version from workspace Cargo.toml.
     let cargo_toml = match std::fs::read_to_string("Cargo.toml") {
         Ok(s) => s,
-        Err(e) => { eprintln!("package-release: cannot read Cargo.toml: {e}"); return ExitCode::FAILURE; }
+        Err(e) => {
+            eprintln!("package-release: cannot read Cargo.toml: {e}");
+            return ExitCode::FAILURE;
+        }
     };
     let version = match parse_version(&cargo_toml) {
         Some(v) => v,
-        None => { eprintln!("package-release: cannot parse version from Cargo.toml"); return ExitCode::FAILURE; }
+        None => {
+            eprintln!("package-release: cannot parse version from Cargo.toml");
+            return ExitCode::FAILURE;
+        }
     };
 
     let archive_name = format!("fjell-os-v{version}.tar.gz");
@@ -41,10 +47,14 @@ pub fn cmd_package_release() -> ExitCode {
     // When run via `cargo xtask` the cwd is the repo root.
     let repo_root = match std::env::current_dir() {
         Ok(p) => p,
-        Err(e) => { eprintln!("package-release: cannot read cwd: {e}"); return ExitCode::FAILURE; }
+        Err(e) => {
+            eprintln!("package-release: cannot read cwd: {e}");
+            return ExitCode::FAILURE;
+        }
     };
     let src_dir = repo_root.parent().unwrap_or(&repo_root);
-    let src_name = repo_root.file_name()
+    let src_name = repo_root
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("fjell-os");
 
@@ -59,7 +69,7 @@ pub fn cmd_package_release() -> ExitCode {
         .arg("--exclude=*/target")
         .arg("--exclude=*/.git")
         .arg("--exclude=*/*.img")
-        .arg("--exclude=*/fjell-os-v*.tar.gz")   // exclude prior release archives
+        .arg("--exclude=*/fjell-os-v*.tar.gz") // exclude prior release archives
         .arg("--exclude=*/tests/runs")
         .arg("--exclude=*/tests/qemu/artifacts")
         .arg("--exclude=*/provision")
@@ -99,8 +109,10 @@ fn parse_version(toml: &str) -> Option<String> {
     for line in toml.lines() {
         let t = line.trim();
         if let Some(rest) = t.strip_prefix("version") {
-            if let Some(val) = rest.trim_start_matches(|c: char| c == ' ' || c == '=')
-                                    .strip_prefix('"') {
+            if let Some(val) = rest
+                .trim_start_matches(|c: char| c == ' ' || c == '=')
+                .strip_prefix('"')
+            {
                 return Some(val.trim_end_matches('"').to_string());
             }
         }

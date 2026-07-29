@@ -7,11 +7,11 @@
 
 #![allow(dead_code)]
 
+use crate::task::tcb::MAX_TASKS;
+use fjell_abi::error::SysError;
 use fjell_cap::cspace::CSpace;
 use fjell_ipc::endpoint::Endpoint;
 use fjell_ipc::reply::ReplyEdge;
-use fjell_abi::error::SysError;
-use crate::task::tcb::MAX_TASKS;
 
 // ── Endpoint table ────────────────────────────────────────────────────────────
 
@@ -20,15 +20,15 @@ pub const MAX_ENDPOINTS: usize = 32;
 
 /// Global endpoint pool.
 pub struct EndpointTable {
-    eps:  [Endpoint; MAX_ENDPOINTS],
-    used: [bool;     MAX_ENDPOINTS],
+    eps: [Endpoint; MAX_ENDPOINTS],
+    used: [bool; MAX_ENDPOINTS],
 }
 
 impl EndpointTable {
     pub const fn new() -> Self {
         const EP: Endpoint = Endpoint::new();
         EndpointTable {
-            eps:  [EP;    MAX_ENDPOINTS],
+            eps: [EP; MAX_ENDPOINTS],
             used: [false; MAX_ENDPOINTS],
         }
     }
@@ -43,8 +43,11 @@ impl EndpointTable {
     /// Get a mutable reference to an endpoint.
     pub fn get_mut(&mut self, id: u32) -> Option<&mut Endpoint> {
         let idx = id as usize;
-        if idx < MAX_ENDPOINTS && self.used[idx] { Some(&mut self.eps[idx]) }
-        else { None }
+        if idx < MAX_ENDPOINTS && self.used[idx] {
+            Some(&mut self.eps[idx])
+        } else {
+            None
+        }
     }
 
     /// Free an endpoint (called when the last capability to it is deleted).
@@ -66,8 +69,8 @@ pub struct ReplySlot {
 
 /// Per-task capability space storage.
 pub struct CapTable {
-    cspaces:  [CSpace;    MAX_TASKS],
-    replies:  [ReplySlot; MAX_TASKS],
+    cspaces: [CSpace; MAX_TASKS],
+    replies: [ReplySlot; MAX_TASKS],
 }
 
 impl CapTable {
@@ -89,11 +92,7 @@ impl CapTable {
     /// Install a reply edge for task `server_idx` pointing back to `caller_idx`.
     ///
     /// Optionally carries the lease binding observed at call time (RFC 034).
-    pub fn set_reply(
-        &mut self,
-        server_idx: usize,
-        caller_idx: u16,
-    ) {
+    pub fn set_reply(&mut self, server_idx: usize, caller_idx: u16) {
         if let Some(r) = self.replies.get_mut(server_idx) {
             r.edge = Some(ReplyEdge::new(caller_idx));
         }
@@ -117,7 +116,7 @@ impl CapTable {
     /// The caller must wake each returned TID with `SysError::LeaseRevoked`.
     pub fn cancel_replies_for_lease(
         &mut self,
-        lease_id:  fjell_abi::lease::LeaseId,
+        lease_id: fjell_abi::lease::LeaseId,
         old_epoch: u32,
     ) -> ([u16; MAX_TASKS], usize) {
         let mut cancelled = [0u16; MAX_TASKS];
@@ -143,7 +142,8 @@ impl CapTable {
     ///
     /// Returns `Err(SysError::BadState)` if no reply edge exists.
     pub fn take_reply(&mut self, server_idx: usize) -> Result<ReplyEdge, SysError> {
-        self.replies.get_mut(server_idx)
+        self.replies
+            .get_mut(server_idx)
             .and_then(|r| r.edge.take())
             .ok_or(SysError::BadState)
     }

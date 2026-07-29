@@ -42,7 +42,8 @@ const MMIO_ORDER_VALUES: &[&str] = &[
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let check_mode = args.iter().any(|a| a == "--check");
-    let workspace  = args.windows(2)
+    let workspace = args
+        .windows(2)
         .find(|w| w[0] == "--workspace")
         .and_then(|w| w.get(1))
         .map(String::as_str)
@@ -53,9 +54,16 @@ fn main() -> ExitCode {
         eprintln!("mmio-audit: scan error: {}", e);
     });
 
-    let total    = records.len();
-    let missing  = records.iter().filter(|r| r.annotation.is_none()).count();
-    let invalid  = records.iter().filter(|r| r.annotation.as_deref().map_or(false, |a| !MMIO_ORDER_VALUES.contains(&a))).count();
+    let total = records.len();
+    let missing = records.iter().filter(|r| r.annotation.is_none()).count();
+    let invalid = records
+        .iter()
+        .filter(|r| {
+            r.annotation
+                .as_deref()
+                .map_or(false, |a| !MMIO_ORDER_VALUES.contains(&a))
+        })
+        .count();
 
     println!("  total MMIO sites   : {}", total);
     println!("  annotated          : {}", total - missing);
@@ -64,10 +72,18 @@ fn main() -> ExitCode {
 
     if missing > 0 || invalid > 0 {
         println!("\nSITES NEEDING MMIO-ORDER ANNOTATION:");
-        for r in records.iter().filter(|r| r.annotation.is_none() || r.annotation.as_deref().map_or(false, |a| !MMIO_ORDER_VALUES.contains(&a))) {
-            println!("  {}:{} [{}]",
-                r.path.display(), r.line,
-                r.annotation.as_deref().unwrap_or("MISSING"));
+        for r in records.iter().filter(|r| {
+            r.annotation.is_none()
+                || r.annotation
+                    .as_deref()
+                    .map_or(false, |a| !MMIO_ORDER_VALUES.contains(&a))
+        }) {
+            println!(
+                "  {}:{} [{}]",
+                r.path.display(),
+                r.line,
+                r.annotation.as_deref().unwrap_or("MISSING")
+            );
         }
     }
 
@@ -81,16 +97,17 @@ fn main() -> ExitCode {
 // ── Record type ───────────────────────────────────────────────────────────────
 
 struct MmioRecord {
-    path:       PathBuf,
-    line:       usize,
+    path: PathBuf,
+    line: usize,
     annotation: Option<String>, // value after `MMIO-ORDER:` tag
 }
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
 
 fn scan_dir(dir: &Path, records: &mut Vec<MmioRecord>) -> io::Result<()> {
-    if dir.ends_with("target") || dir.ends_with(".git")
-        || dir.ends_with("fjell-mmio-audit") { return Ok(()); }  // self-exclude
+    if dir.ends_with("target") || dir.ends_with(".git") || dir.ends_with("fjell-mmio-audit") {
+        return Ok(());
+    } // self-exclude
     for entry in fs::read_dir(dir)?.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -111,7 +128,9 @@ fn scan_file(path: &Path, records: &mut Vec<MmioRecord>) -> io::Result<()> {
         let stripped = strip_string_literals_and_comments(raw);
 
         let has_mmio = MMIO_PATTERNS.iter().any(|p| stripped.contains(p));
-        if !has_mmio { continue; }
+        if !has_mmio {
+            continue;
+        }
 
         // Look for MMIO-ORDER: annotation in the preceding 8 lines
         let annotation = find_mmio_order(&lines, idx);
@@ -148,12 +167,20 @@ fn strip_string_literals_and_comments(line: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         let c = bytes[i] as char;
-        if c == '/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' { break; }
+        if c == '/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
+            break;
+        }
         if c == '"' {
             let mut j = i + 1;
             while j < bytes.len() {
-                if bytes[j] == b'\\' && j + 1 < bytes.len() { j += 2; continue; }
-                if bytes[j] == b'"' { j += 1; break; }
+                if bytes[j] == b'\\' && j + 1 < bytes.len() {
+                    j += 2;
+                    continue;
+                }
+                if bytes[j] == b'"' {
+                    j += 1;
+                    break;
+                }
                 j += 1;
             }
             i = j;
@@ -200,10 +227,7 @@ mod tests {
 
     #[test]
     fn missing_annotation_returns_none() {
-        let lines = vec![
-            "// some comment",
-            "let v = ptr::read_volatile(reg);",
-        ];
+        let lines = vec!["// some comment", "let v = ptr::read_volatile(reg);"];
         let ann = find_mmio_order(&lines, 1);
         assert!(ann.is_none());
     }
@@ -212,7 +236,7 @@ mod tests {
     fn annotation_stops_at_non_comment() {
         let lines = vec![
             "// MMIO-ORDER: device_kick",
-            "let x = 0;",           // non-comment → stops search
+            "let x = 0;", // non-comment → stops search
             "ptr::write_volatile(r, v);",
         ];
         let ann = find_mmio_order(&lines, 2);

@@ -13,5 +13,7 @@ use fjell_syscall::sys_yield;
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // Spin forever — intentionally never sends READY.
-    loop { sys_yield(); }
+    loop {
+        sys_yield();
+    }
 }

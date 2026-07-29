@@ -4,7 +4,7 @@
 //! property-based testing with `proptest`.  No kernel calls; operations
 //! manipulate a `ModelState` directly.
 
+pub mod generators;
 pub mod model;
 pub mod ops;
 pub mod properties;
-pub mod generators;

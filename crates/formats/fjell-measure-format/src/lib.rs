@@ -27,8 +27,8 @@ pub mod export;
 
 pub use digest::Digest32;
 pub use event::{
-    MeasurementEvent, MeasurementHead, MeasurementKind, MeasurementSource,
-    MeasurementSubject, MeasurementError,
+    MeasurementError, MeasurementEvent, MeasurementHead, MeasurementKind, MeasurementSource,
+    MeasurementSubject,
 };
 pub use export::ExportFormat;
 

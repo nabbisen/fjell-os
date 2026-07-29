@@ -21,15 +21,15 @@ impl SessionId {
 #[repr(u8)]
 pub enum SessionState {
     /// Session has been allocated but not yet verified.
-    Pending    = 0x01,
+    Pending = 0x01,
     /// Session is active; channels may be opened.
-    Active     = 0x02,
+    Active = 0x02,
     /// All channels have been closed; session is draining.
-    Draining   = 0x03,
+    Draining = 0x03,
     /// Session has been closed and the slot is free.
-    Closed     = 0x04,
+    Closed = 0x04,
     /// Session was closed due to a transport or identity error.
-    Faulted    = 0x05,
+    Faulted = 0x05,
 }
 
 /// Kind of transport channel opened within a session.
@@ -40,13 +40,13 @@ pub enum SessionState {
 #[repr(u8)]
 pub enum ChannelKind {
     /// Update-metadata fetch (RFC v0.4-004).
-    UpdateMetadata  = 0x01,
+    UpdateMetadata = 0x01,
     /// Diagnostic bundle push (RFC v0.4-005).
-    Diagnostics     = 0x02,
+    Diagnostics = 0x02,
     /// Attestation record push / challenge (RFC v0.4-005).
-    Attestation     = 0x03,
+    Attestation = 0x03,
     /// Fleet enrollment (RFC v0.8-001 forward-compat reservation).
-    FleetEnroll     = 0x04,
+    FleetEnroll = 0x04,
 }
 
 impl ChannelKind {
@@ -56,31 +56,33 @@ impl ChannelKind {
             0x02 => Some(Self::Diagnostics),
             0x03 => Some(Self::Attestation),
             0x04 => Some(Self::FleetEnroll),
-            _    => None,
+            _ => None,
         }
     }
 
-    pub fn tag(self) -> u8 { self as u8 }
+    pub fn tag(self) -> u8 {
+        self as u8
+    }
 }
 
 /// An active network session — one per upper-layer consumer.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct NetSession {
-    pub session_id:     SessionId,
-    pub state:          SessionState,
+    pub session_id: SessionId,
+    pub state: SessionState,
     /// Peer server name (SNI-equivalent; ASCII, zero-padded).
-    pub server_name:    [u8; 64],
-    pub channel_count:  u8,
-    pub channels:       [Option<ChannelId>; MAX_CHANNELS],
+    pub server_name: [u8; 64],
+    pub channel_count: u8,
+    pub channels: [Option<ChannelId>; MAX_CHANNELS],
 }
 
 impl NetSession {
     pub const EMPTY: Self = Self {
-        session_id:    SessionId::UNSET,
-        state:         SessionState::Closed,
-        server_name:   [0u8; 64],
+        session_id: SessionId::UNSET,
+        state: SessionState::Closed,
+        server_name: [0u8; 64],
         channel_count: 0,
-        channels:      [None; MAX_CHANNELS],
+        channels: [None; MAX_CHANNELS],
     };
 }
 
@@ -93,15 +95,15 @@ pub struct ChannelId(pub u8);
 #[repr(u8)]
 pub enum SessionError {
     /// No free session slots (`MAX_SESSIONS` reached).
-    SessionCapacityExhausted  = 0x01,
+    SessionCapacityExhausted = 0x01,
     /// No free channel slots within the session (`MAX_CHANNELS` reached).
-    ChannelCapacityExhausted  = 0x02,
+    ChannelCapacityExhausted = 0x02,
     /// The referenced session ID is not active.
-    SessionNotFound           = 0x03,
+    SessionNotFound = 0x03,
     /// The referenced channel ID is not open.
-    ChannelNotFound           = 0x04,
+    ChannelNotFound = 0x04,
     /// Operation rejected — session is not in the required state.
-    InvalidState              = 0x05,
+    InvalidState = 0x05,
     /// Unknown `ChannelKind` discriminant.
-    UnknownChannelKind        = 0x06,
+    UnknownChannelKind = 0x06,
 }

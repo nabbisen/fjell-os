@@ -13,15 +13,14 @@
 #![no_std]
 #![no_main]
 mod rt;
-use fjell_syscall::{sys_exit, sys_debug_writeln};
+use fjell_cap::CapHandle;
 use fjell_identity_format::{
-    NodeIdentity, NodeIdentityBuilder, NodeId, NodeAlias, AttestationPubkey,
-    NodeIdentityPolicy, identity_digest, Decision,
-    STORE_RECORD_KIND_IDENTITY,
+    AttestationPubkey, Decision, NodeAlias, NodeId, NodeIdentity, NodeIdentityBuilder,
+    NodeIdentityPolicy, STORE_RECORD_KIND_IDENTITY, identity_digest,
 };
 use fjell_measure_format::Digest32;
-use fjell_service_api::storaged::{store_read, store_append, StoreResult};
-use fjell_cap::CapHandle;
+use fjell_service_api::storaged::{StoreResult, store_append, store_read};
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 // CSpace slot for the storaged endpoint (installed by cap-broker in v0.7.2.1).
 const CAP_STORAGED_EP: CapHandle = CapHandle(10);
@@ -72,7 +71,11 @@ pub extern "C" fn service_main() -> ! {
     persist_buf[0..2].copy_from_slice(&identity.schema_version.to_le_bytes());
     persist_buf[2..18].copy_from_slice(&identity.node_id.0);
     // (Full serialization: identity field-by-field in v0.7.2.1.)
-    match store_append(CAP_STORAGED_EP, STORE_RECORD_KIND_IDENTITY, &persist_buf[..32]) {
+    match store_append(
+        CAP_STORAGED_EP,
+        STORE_RECORD_KIND_IDENTITY,
+        &persist_buf[..32],
+    ) {
         StoreResult::Ok => {
             sys_debug_writeln("identityd: persisted node_id");
         }
@@ -114,14 +117,14 @@ pub extern "C" fn service_main() -> ! {
 
 fn build_fresh_identity() -> NodeIdentity {
     let builder = NodeIdentityBuilder {
-        node_id:            NodeId([0x01u8; 16]),
-        alias:              NodeAlias(*b"qemu-virt-0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"),
-        created_tick:       0,
-        trust_provider_id:  1,
-        trust_profile_tag:  0x01,
+        node_id: NodeId([0x01u8; 16]),
+        alias: NodeAlias(*b"qemu-virt-0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0"),
+        created_tick: 0,
+        trust_provider_id: 1,
+        trust_profile_tag: 0x01,
         attestation_pubkey: AttestationPubkey([0u8; 32]),
-        platform_digest:    Digest32([0u8; 32]),
-        board_digest:       Digest32([0u8; 32]),
+        platform_digest: Digest32([0u8; 32]),
+        board_digest: Digest32([0u8; 32]),
     };
     match NodeIdentity::build(builder) {
         Ok(id) => id,

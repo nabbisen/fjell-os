@@ -4,5 +4,5 @@
 //! CSpace storage) so that syscall handlers can look up objects by
 //! `object_id`.
 
-pub mod table;
 pub mod syscall;
+pub mod table;

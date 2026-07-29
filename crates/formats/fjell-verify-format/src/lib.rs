@@ -24,15 +24,17 @@ pub struct TrustAnchor(pub [u8; 8]);
 
 impl TrustAnchor {
     pub const DEV: TrustAnchor = TrustAnchor(*b"FJELL_M7");
-    pub fn is_valid(&self) -> bool { *self == Self::DEV }
+    pub fn is_valid(&self) -> bool {
+        *self == Self::DEV
+    }
 }
 
 /// A signed object reference (manifest, policy bundle, etc.).
 #[derive(Clone, Copy)]
 pub struct SignedObject {
-    pub kind:      ObjectKind,
-    pub id:        [u8; 16],
-    pub digest:    [u8; 32],
+    pub kind: ObjectKind,
+    pub id: [u8; 16],
+    pub digest: [u8; 32],
     pub signature: DevSignature,
 }
 
@@ -54,21 +56,26 @@ pub enum ObjectKind {
 
 /// Result of a verification operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VerificationResult { Verified, Rejected, NotFound }
+pub enum VerificationResult {
+    Verified,
+    Rejected,
+    NotFound,
+}
 
 /// Boot evidence collected by the bootloader / kernel at startup.
 #[derive(Clone, Copy)]
 pub struct BootEvidence {
-    pub slot:           u8,   // 0=A, 1=B
-    pub boot_count:     u32,
-    pub kernel_digest:  [u8; 32],
-    pub anchor:         TrustAnchor,
+    pub slot: u8, // 0=A, 1=B
+    pub boot_count: u32,
+    pub kernel_digest: [u8; 32],
+    pub anchor: TrustAnchor,
 }
 
 impl BootEvidence {
     pub const fn for_slot(slot: u8) -> Self {
         BootEvidence {
-            slot, boot_count: 1,
+            slot,
+            boot_count: 1,
             kernel_digest: [0u8; 32],
             anchor: TrustAnchor::DEV,
         }
@@ -78,27 +85,33 @@ impl BootEvidence {
 /// Release manifest (development-grade).
 #[derive(Clone, Copy)]
 pub struct ReleaseManifest {
-    pub release_id:  [u8; 16],
-    pub version:     u32,
-    pub obj:         SignedObject,
+    pub release_id: [u8; 16],
+    pub version: u32,
+    pub obj: SignedObject,
 }
 
 impl ReleaseManifest {
     pub fn valid_dev(release_id: [u8; 16]) -> Self {
         ReleaseManifest {
-            release_id, version: 1,
+            release_id,
+            version: 1,
             obj: SignedObject {
-                kind: ObjectKind::ReleaseManifest, id: release_id,
-                digest: [0xAB; 32], signature: DevSignature::VALID,
+                kind: ObjectKind::ReleaseManifest,
+                id: release_id,
+                digest: [0xAB; 32],
+                signature: DevSignature::VALID,
             },
         }
     }
     pub fn invalid_dev(release_id: [u8; 16]) -> Self {
         ReleaseManifest {
-            release_id, version: 1,
+            release_id,
+            version: 1,
             obj: SignedObject {
-                kind: ObjectKind::ReleaseManifest, id: release_id,
-                digest: [0xAB; 32], signature: DevSignature([0xFF; 32]),
+                kind: ObjectKind::ReleaseManifest,
+                id: release_id,
+                digest: [0xAB; 32],
+                signature: DevSignature([0xFF; 32]),
             },
         }
     }
@@ -108,7 +121,7 @@ impl ReleaseManifest {
 #[derive(Clone, Copy)]
 pub struct RootfsManifest {
     pub rootfs_id: [u8; 16],
-    pub obj:       SignedObject,
+    pub obj: SignedObject,
 }
 
 impl RootfsManifest {
@@ -116,8 +129,10 @@ impl RootfsManifest {
         RootfsManifest {
             rootfs_id,
             obj: SignedObject {
-                kind: ObjectKind::RootfsManifest, id: rootfs_id,
-                digest: [0xCD; 32], signature: DevSignature::VALID,
+                kind: ObjectKind::RootfsManifest,
+                id: rootfs_id,
+                digest: [0xCD; 32],
+                signature: DevSignature::VALID,
             },
         }
     }
@@ -127,17 +142,20 @@ impl RootfsManifest {
 #[derive(Clone, Copy)]
 pub struct PolicyBundle {
     pub policy_id: [u8; 16],
-    pub version:   u32,
-    pub obj:       SignedObject,
+    pub version: u32,
+    pub obj: SignedObject,
 }
 
 impl PolicyBundle {
     pub fn valid_dev(policy_id: [u8; 16]) -> Self {
         PolicyBundle {
-            policy_id, version: 1,
+            policy_id,
+            version: 1,
             obj: SignedObject {
-                kind: ObjectKind::PolicyBundle, id: policy_id,
-                digest: [0xEF; 32], signature: DevSignature::VALID,
+                kind: ObjectKind::PolicyBundle,
+                id: policy_id,
+                digest: [0xEF; 32],
+                signature: DevSignature::VALID,
             },
         }
     }

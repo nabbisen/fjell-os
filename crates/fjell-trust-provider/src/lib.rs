@@ -66,12 +66,10 @@ pub use development::DevelopmentTrustProvider;
 pub use error::TrustError;
 pub use ids::{KeyPurpose, ProviderHandle, TrustProviderId};
 pub use material::{
-    AttestationDigest, KeyMaterial, MeasurementHead, SealedKey, Signature, SIGNATURE_LEN,
+    AttestationDigest, KeyMaterial, MeasurementHead, SIGNATURE_LEN, SealedKey, Signature,
 };
 pub use null::NullTrustProvider;
-pub use profile::{
-    TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
-};
+pub use profile::{TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState};
 pub use provider::HardwareTrustProvider;
 // PolicyAuth exported below
 pub use registry::PolicyAuth;

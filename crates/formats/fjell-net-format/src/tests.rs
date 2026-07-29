@@ -1,18 +1,17 @@
 //! Host unit tests for `fjell-net-format` (RFC v0.4-001 §11.1, RFC v0.4-002 §11.1).
 
+use crate::channel::{ChannelState, MAX_SXT_CHANNELS, TransportChannel};
 use crate::device::{
-    InterruptDescriptor, NetDeviceDescriptor, NetDeviceId, NetDeviceState,
-    NetMac, NET_MAX_MTU, NET_MIN_MTU,
+    InterruptDescriptor, NET_MAX_MTU, NET_MIN_MTU, NetDeviceDescriptor, NetDeviceId,
+    NetDeviceState, NetMac,
+};
+use crate::proto::{
+    NET_DESCRIPTOR_PAYLOAD, NET_RING_DESCRIPTORS, NET_RING_SIZE_BYTES, NetDriverPacket, NetIpcTag,
 };
 #[allow(unused_imports)] // v0.7: ChannelId used in session lifecycle tests
 use crate::session::{
-    ChannelId, ChannelKind, MAX_CHANNELS, MAX_SESSIONS,
-    NetSession, SessionError, SessionId, SessionState,
-};
-use crate::channel::{ChannelState, MAX_SXT_CHANNELS, TransportChannel};
-use crate::proto::{
-    NetDriverPacket, NetIpcTag, NET_RING_DESCRIPTORS, NET_RING_SIZE_BYTES,
-    NET_DESCRIPTOR_PAYLOAD,
+    ChannelId, ChannelKind, MAX_CHANNELS, MAX_SESSIONS, NetSession, SessionError, SessionId,
+    SessionState,
 };
 
 // ── Device constants ─────────────────────────────────────────────────────────
@@ -38,9 +37,9 @@ fn net_mac_zero_is_all_zeros() {
 #[test]
 fn net_device_state_repr_stable() {
     assert_eq!(NetDeviceState::Initialising as u8, 0x01);
-    assert_eq!(NetDeviceState::Ready        as u8, 0x02);
-    assert_eq!(NetDeviceState::Faulted      as u8, 0x03);
-    assert_eq!(NetDeviceState::Revoked      as u8, 0x04);
+    assert_eq!(NetDeviceState::Ready as u8, 0x02);
+    assert_eq!(NetDeviceState::Faulted as u8, 0x03);
+    assert_eq!(NetDeviceState::Revoked as u8, 0x04);
 }
 
 #[test]
@@ -71,9 +70,9 @@ fn session_capacity_constants() {
 fn channel_kind_round_trip() {
     for (tag, kind) in [
         (0x01u8, ChannelKind::UpdateMetadata),
-        (0x02,   ChannelKind::Diagnostics),
-        (0x03,   ChannelKind::Attestation),
-        (0x04,   ChannelKind::FleetEnroll),
+        (0x02, ChannelKind::Diagnostics),
+        (0x03, ChannelKind::Attestation),
+        (0x04, ChannelKind::FleetEnroll),
     ] {
         assert_eq!(ChannelKind::from_u8(tag), Some(kind));
         assert_eq!(kind.tag(), tag);
@@ -83,11 +82,11 @@ fn channel_kind_round_trip() {
 
 #[test]
 fn session_state_repr_stable() {
-    assert_eq!(SessionState::Pending  as u8, 0x01);
-    assert_eq!(SessionState::Active   as u8, 0x02);
+    assert_eq!(SessionState::Pending as u8, 0x01);
+    assert_eq!(SessionState::Active as u8, 0x02);
     assert_eq!(SessionState::Draining as u8, 0x03);
-    assert_eq!(SessionState::Closed   as u8, 0x04);
-    assert_eq!(SessionState::Faulted  as u8, 0x05);
+    assert_eq!(SessionState::Closed as u8, 0x04);
+    assert_eq!(SessionState::Faulted as u8, 0x05);
 }
 
 #[test]
@@ -102,7 +101,7 @@ fn session_empty_is_closed() {
 fn session_error_codes_stable() {
     assert_eq!(SessionError::SessionCapacityExhausted as u8, 0x01);
     assert_eq!(SessionError::ChannelCapacityExhausted as u8, 0x02);
-    assert_eq!(SessionError::UnknownChannelKind       as u8, 0x06);
+    assert_eq!(SessionError::UnknownChannelKind as u8, 0x06);
 }
 
 // ── Transport channel ────────────────────────────────────────────────────────
@@ -115,9 +114,9 @@ fn max_sxt_channels_is_four() {
 #[test]
 fn channel_state_repr_stable() {
     assert_eq!(ChannelState::Handshaking as u8, 0x01);
-    assert_eq!(ChannelState::Open        as u8, 0x02);
-    assert_eq!(ChannelState::Closed      as u8, 0x04);
-    assert_eq!(ChannelState::Faulted     as u8, 0x05);
+    assert_eq!(ChannelState::Open as u8, 0x02);
+    assert_eq!(ChannelState::Closed as u8, 0x04);
+    assert_eq!(ChannelState::Faulted as u8, 0x05);
 }
 
 #[test]
@@ -142,12 +141,12 @@ fn ring_constants_consistent() {
 fn net_ipc_tag_round_trip() {
     for (raw, tag) in [
         (0x0010u16, NetIpcTag::PacketRx),
-        (0x0011,    NetIpcTag::PacketTx),
-        (0x0012,    NetIpcTag::TxDone),
-        (0x0013,    NetIpcTag::LinkUp),
-        (0x0014,    NetIpcTag::LinkDown),
-        (0x0015,    NetIpcTag::DeviceRevoked),
-        (0x0018,    NetIpcTag::DriverReady),
+        (0x0011, NetIpcTag::PacketTx),
+        (0x0012, NetIpcTag::TxDone),
+        (0x0013, NetIpcTag::LinkUp),
+        (0x0014, NetIpcTag::LinkDown),
+        (0x0015, NetIpcTag::DeviceRevoked),
+        (0x0018, NetIpcTag::DriverReady),
     ] {
         assert_eq!(NetIpcTag::from_u16(raw), Some(tag));
         assert_eq!(tag as u16, raw);
@@ -157,13 +156,21 @@ fn net_ipc_tag_round_trip() {
 
 #[test]
 fn net_driver_packet_valid_within_ring() {
-    let p = NetDriverPacket { ring_idx: 0, pkt_len: 64, flags: 0 };
+    let p = NetDriverPacket {
+        ring_idx: 0,
+        pkt_len: 64,
+        flags: 0,
+    };
     assert!(p.is_valid());
 }
 
 #[test]
 fn net_driver_packet_invalid_ring_idx() {
-    let p = NetDriverPacket { ring_idx: NET_RING_DESCRIPTORS as u16, pkt_len: 1, flags: 0 };
+    let p = NetDriverPacket {
+        ring_idx: NET_RING_DESCRIPTORS as u16,
+        pkt_len: 1,
+        flags: 0,
+    };
     assert!(!p.is_valid());
 }
 

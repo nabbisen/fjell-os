@@ -16,9 +16,9 @@
 //! - LEASE-005  cap_drop remains possible for revoked capabilities.
 //! - LEASE-006  Lease epoch mismatch always rejects capability use.
 
+use fjell_abi::error::SysError;
 use fjell_abi::lease::{LeaseEpoch, LeaseId};
 use fjell_abi::task::TaskId;
-use fjell_abi::error::SysError;
 
 pub const MAX_LEASES: usize = 32;
 
@@ -41,24 +41,27 @@ pub enum LeaseState {
 ///
 /// Matches RFC 033 §2.1 `LeaseObject`.
 struct LeaseObject {
-    pub state:      LeaseState,
+    pub state: LeaseState,
     /// Slot generation — incremented when the slot is freed.
     pub generation: u16,
     /// Monotonically-increasing epoch counter; incremented on revoke.
     ///
     /// Starts at `1` (epoch `0` is reserved for "invalid/never issued").
-    pub epoch:      u32,
+    pub epoch: u32,
     /// The task that owns this lease (for lifecycle revoke).
-    pub owner:      TaskId,
+    pub owner: TaskId,
 }
 
 impl LeaseObject {
     const fn empty() -> Self {
         LeaseObject {
-            state:      LeaseState::Empty,
+            state: LeaseState::Empty,
             generation: 0,
-            epoch:      0,
-            owner:      TaskId { index: 0, generation: 0 },
+            epoch: 0,
+            owner: TaskId {
+                index: 0,
+                generation: 0,
+            },
         }
     }
 }
@@ -70,7 +73,9 @@ pub struct LeaseTable {
 
 impl LeaseTable {
     pub const fn new() -> Self {
-        LeaseTable { slots: [const { LeaseObject::empty() }; MAX_LEASES] }
+        LeaseTable {
+            slots: [const { LeaseObject::empty() }; MAX_LEASES],
+        }
     }
 
     // ── Public API ────────────────────────────────────────────────────────
@@ -82,7 +87,7 @@ impl LeaseTable {
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if slot.state == LeaseState::Empty {
                 slot.state = LeaseState::Active;
-                slot.epoch = 1;   // RFC 033: start at 1, not 0
+                slot.epoch = 1; // RFC 033: start at 1, not 0
                 slot.owner = owner;
                 return Ok(LeaseId::new(i as u16, slot.generation));
             }
@@ -124,8 +129,7 @@ impl LeaseTable {
                 // than wrapping (C6, LEASE-VERUS-005). Practically unreachable
                 // in any deployment lifetime; logged for observability.
                 // Architect follow-up (v0.18 review §6.5 / §8.2.4).
-                crate::kprintln!("lease: slot {} retired before wrap (epoch=MAX)",
-                    id.0);
+                crate::kprintln!("lease: slot {} retired before wrap (epoch=MAX)", id.0);
             }
         }
         slot.state = LeaseState::Revoked;
@@ -156,11 +160,9 @@ impl LeaseTable {
     /// lease is revoked independently so blocked IPC is woken per lease.
     pub fn revoke_owned_by(&mut self, task: TaskId) {
         for i in 0..MAX_LEASES {
-            if self.slots[i].state == LeaseState::Active
-                && self.slots[i].owner == task
-            {
+            if self.slots[i].state == LeaseState::Active && self.slots[i].owner == task {
                 let id = LeaseId::new(i as u16, self.slots[i].generation);
-                let _ = self.revoke(id);   // ignore error from already-revoked
+                let _ = self.revoke(id); // ignore error from already-revoked
             }
         }
     }
@@ -168,7 +170,9 @@ impl LeaseTable {
     // ── Internal helpers ──────────────────────────────────────────────────
 
     fn get(&self, id: LeaseId) -> Result<&LeaseObject, SysError> {
-        let slot = self.slots.get(id.index() as usize)
+        let slot = self
+            .slots
+            .get(id.index() as usize)
             .ok_or(SysError::InvalidCap)?;
         if slot.generation != id.generation() || slot.state == LeaseState::Empty {
             return Err(SysError::InvalidCap);
@@ -206,8 +210,7 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
     // server's later sys_ipc_reply met a live-but-stale edge instead of the
     // contract-specified BadState.
     {
-        let (cancelled_callers, n_cancelled) =
-            ct.cancel_replies_for_lease(id, old_epoch);
+        let (cancelled_callers, n_cancelled) = ct.cancel_replies_for_lease(id, old_epoch);
         for &tid in cancelled_callers.iter().take(n_cancelled) {
             let task_id = fjell_abi::task::TaskId::new(tid, 0);
             // Same terminal-state guard as the endpoint-queue wakes below:
@@ -234,7 +237,10 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
         let mut arr = [0u32; crate::cap::table::MAX_ENDPOINTS];
         let mut count = 0usize;
         for id_val in et.iter_allocated_ids() {
-            if count < arr.len() { arr[count] = id_val; count += 1; }
+            if count < arr.len() {
+                arr[count] = id_val;
+                count += 1;
+            }
         }
         arr
     };
@@ -242,7 +248,7 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
     for &ep_id in ep_ids.iter() {
         let ep = match et.get_mut(ep_id) {
             Some(e) => e,
-            None    => continue,
+            None => continue,
         };
         let cancelled = ep.cancel_by_lease(id, old_epoch);
 
@@ -299,7 +305,9 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
     // (The audit call is best-effort; failure here must not abort the revoke.)
     crate::audit::ring::AUDIT.lock_free_append(
         crate::audit::ring::AuditKindInternal::LeaseRevoked,
-        id.0 as usize, new_epoch as usize, 0,
+        id.0 as usize,
+        new_epoch as usize,
+        0,
     );
 }
 
@@ -312,7 +320,7 @@ impl fjell_cap::slot::LeaseChecker for LeaseTable {
     /// This feeds into `require_cap()` step 7 (lease check).
     fn check_active(
         &self,
-        id:           fjell_abi::lease::LeaseId,
+        id: fjell_abi::lease::LeaseId,
         epoch_issued: fjell_abi::lease::LeaseEpoch,
     ) -> Result<(), fjell_cap::CapError> {
         self.check_active(id, epoch_issued)
@@ -327,7 +335,9 @@ mod tests {
     use super::*;
     use fjell_abi::task::TaskId;
 
-    fn owner() -> TaskId { TaskId::new(1, 0) }
+    fn owner() -> TaskId {
+        TaskId::new(1, 0)
+    }
 
     #[test]
     fn lease_create_starts_at_epoch_one() {

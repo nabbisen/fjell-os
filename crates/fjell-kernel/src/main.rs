@@ -26,30 +26,30 @@ use core::{cell::UnsafeCell, mem::MaybeUninit, panic::PanicInfo};
 
 #[cfg(target_arch = "riscv64")]
 use arch::riscv64::{csr, satp};
-use audit::ring::{AuditKindInternal, AUDIT};
+use audit::ring::{AUDIT, AuditKindInternal};
 use mm::{
     address::{PhysFrame, VirtAddr},
     boot_alloc::BootAllocator,
-    frame_alloc::{FrameAllocator, FrameOwner, FRAME_SIZE},
+    frame_alloc::{FRAME_SIZE, FrameAllocator, FrameOwner},
     region::VmRegionKind,
     vspace::{AddressSpace, AddressSpaceId, VmPerms},
 };
-use platform::qemu_virt::{MMIO_REGIONS, RAM_BASE, RAM_END, mmio_region_table, MMIO_REGION_COUNT};
+use platform::qemu_virt::{MMIO_REGION_COUNT, MMIO_REGIONS, RAM_BASE, RAM_END, mmio_region_table};
 use task::{
-    scheduler::{Scheduler, PRIORITY_IDLE, PRIORITY_USER},
-    tcb::{Task, TaskState, TaskTable},
     // user_image constants are still defined for reference; not used in M4 main.
     TaskId,
+    scheduler::{PRIORITY_IDLE, PRIORITY_USER, Scheduler},
+    tcb::{Task, TaskState, TaskTable},
 };
 use trap::entry::init_trap;
 
 // ── Linker symbols ────────────────────────────────────────────────────────────
 
 unsafe extern "C" {
-    static __bss_end:    u8;
-    static __stack_top:  u8;
+    static __bss_end: u8;
+    static __stack_top: u8;
     /// RFC 009 (W^X): end of .text section.  Pages below this address get R|X.
-    static __text_end:   u8;
+    static __text_end: u8;
     /// RFC 009 (W^X): end of .rodata section.  Pages in [text_end, rodata_end) get R only.
     static __rodata_end: u8;
 }
@@ -66,20 +66,19 @@ pub(crate) struct KS<T>(UnsafeCell<T>);
 // SAFETY: category=kernel-global-mutable single-hart M2; no concurrent access.
 unsafe impl<T> Sync for KS<T> {}
 
-static FRAME_BITMAP: KS<[u64; 512]>            = KS(UnsafeCell::new([0u64; 512]));
-static TASK_TABLE:   KS<MaybeUninit<TaskTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static FRAME_BITMAP: KS<[u64; 512]> = KS(UnsafeCell::new([0u64; 512]));
+static TASK_TABLE: KS<MaybeUninit<TaskTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
 /// Static frame allocator storage — must NOT be a kmain local.
 ///
 /// If `FrameAllocator` were on the kmain stack, the trap handler (which resets
 /// sp to `__stack_top` on every entry) would overwrite it after `first_entry`.
 /// Keeping it in BSS means it lives at a fixed address for the kernel lifetime.
-static FRAME_ALLOC: KS<MaybeUninit<mm::frame_alloc::FrameAllocator<'static>>>
-    = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static FRAME_ALLOC: KS<MaybeUninit<mm::frame_alloc::FrameAllocator<'static>>> =
+    KS(UnsafeCell::new(MaybeUninit::uninit()));
 
 /// Raw pointer to the kernel frame allocator stored after kmain initialises it.
 /// Accessed by `sys_task_spawn` during trap handling.
-static FA_RAW_PTR: core::sync::atomic::AtomicUsize =
-    core::sync::atomic::AtomicUsize::new(0);
+static FA_RAW_PTR: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
 
 /// Return a `'static`-lifetime pointer to the frame allocator.
 ///
@@ -90,13 +89,14 @@ static FA_RAW_PTR: core::sync::atomic::AtomicUsize =
 pub unsafe fn fa_static_ptr() -> *mut mm::frame_alloc::FrameAllocator<'static> {
     FA_RAW_PTR.load(core::sync::atomic::Ordering::Relaxed) as *mut _
 }
-static SCHEDULER:    KS<MaybeUninit<Scheduler>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
-static CAP_TABLE:    KS<MaybeUninit<cap::table::CapTable>>      = KS(UnsafeCell::new(MaybeUninit::uninit()));
-static EP_TABLE:     KS<MaybeUninit<cap::table::EndpointTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
-static LEASE_TABLE:  KS<MaybeUninit<lease::LeaseTable>>         = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static SCHEDULER: KS<MaybeUninit<Scheduler>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
+static CAP_TABLE: KS<MaybeUninit<cap::table::CapTable>> =
+    KS(UnsafeCell::new(MaybeUninit::uninit()));
+static EP_TABLE: KS<MaybeUninit<cap::table::EndpointTable>> =
+    KS(UnsafeCell::new(MaybeUninit::uninit()));
+static LEASE_TABLE: KS<MaybeUninit<lease::LeaseTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
 /// Kernel root page table frame — needed by sys_task_spawn to clone kernel half.
-static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
-    core::sync::atomic::AtomicUsize::new(0);
+static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
 /// Per-hart trap scratch record. Layout: [0] = kernel sp, [1] = TrapFrame ptr.
 /// Must be static — sscratch holds a pointer to it across sret/trap boundaries.
 /// RFC 007: DMA virtual address base for per-task allocations.
@@ -106,7 +106,6 @@ static KERNEL_ROOT_PFN: core::sync::atomic::AtomicUsize =
 /// 0x0000_0000+).  This avoids the AlreadyMapped conflict that arose when
 /// DMA frames were placed at their kernel identity-map VA.
 pub(crate) const DMA_USER_VA_BASE: usize = 0x6000_0000;
-
 
 // ── RFC 036 (v0.2.0): DmaRegion state machine ────────────────────────────────
 
@@ -132,7 +131,7 @@ pub(crate) enum DmaRegionState {
     /// the timer-callback path needed for real quarantine is planned for
     /// the first device driver that requires it.  At v0.2 scale (virtio-blk
     /// cooperative model), synchronous zeroize on revoke is sufficient.
-    #[allow(dead_code)]  // RFC 036 deferred path — constructed when timer-callback lands
+    #[allow(dead_code)] // RFC 036 deferred path — constructed when timer-callback lands
     Quarantined,
     /// Physical page zeroed; safe to return to allocator.
     Zeroized,
@@ -145,35 +144,37 @@ pub(crate) enum DmaRegionState {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct DmaRegionEntry {
     /// Task that owns this DMA region (`index == 0xFFFF` = Freed/empty).
-    pub owner:      crate::task::TaskId,
+    pub owner: crate::task::TaskId,
     /// User VA where the frame is mapped in `owner`'s page table.
     /// Stored at alloc time; read by `unmap_user_va_for` when the deferred
     /// PTE-unmap path (RFC-v0.7.4-001 clause 1) is re-enabled in revoke_by_pa.
     /// Currently bypassed due to page-table corruption under v0.8.x — see the
     /// comment in `revoke_by_pa`.
     #[allow(dead_code)]
-    pub user_va:    usize,
+    pub user_va: usize,
     /// Physical frame base address.
-    pub frame_pa:   usize,
+    pub frame_pa: usize,
     /// Number of consecutive 4 KiB pages (1 in current allocator).
     /// Read by `unmap_user_va_for` when the deferred PTE-unmap path is re-enabled.
     #[allow(dead_code)]
     pub page_count: u8,
     /// Cleanup state.
-    pub state:      DmaRegionState,
+    pub state: DmaRegionState,
 }
 
 impl DmaRegionEntry {
     const fn free() -> Self {
         DmaRegionEntry {
-            owner:      crate::task::TaskId::new(0xFFFF, 0),
-            user_va:    0,
-            frame_pa:   0,
+            owner: crate::task::TaskId::new(0xFFFF, 0),
+            user_va: 0,
+            frame_pa: 0,
             page_count: 0,
-            state:      DmaRegionState::Freed,
+            state: DmaRegionState::Freed,
         }
     }
-    pub fn is_free(self) -> bool { self.owner.index == 0xFFFF }
+    pub fn is_free(self) -> bool {
+        self.owner.index == 0xFFFF
+    }
 }
 
 pub(crate) struct DmaRegionTable {
@@ -182,21 +183,26 @@ pub(crate) struct DmaRegionTable {
 
 impl DmaRegionTable {
     const fn new() -> Self {
-        DmaRegionTable { entries: [const { DmaRegionEntry::free() }; MAX_DMA_REGIONS] }
+        DmaRegionTable {
+            entries: [const { DmaRegionEntry::free() }; MAX_DMA_REGIONS],
+        }
     }
 
     /// Allocate a new Active region.  Returns false if the table is full.
     pub fn alloc(
         &mut self,
-        owner:      crate::task::TaskId,
-        user_va:    usize,
-        frame_pa:   usize,
+        owner: crate::task::TaskId,
+        user_va: usize,
+        frame_pa: usize,
         page_count: u8,
     ) -> bool {
         for e in self.entries.iter_mut() {
             if e.is_free() {
                 *e = DmaRegionEntry {
-                    owner, user_va, frame_pa, page_count,
+                    owner,
+                    user_va,
+                    frame_pa,
+                    page_count,
                     state: DmaRegionState::Active,
                 };
                 return true;
@@ -211,19 +217,25 @@ impl DmaRegionTable {
     /// Used by the new cap-based `sys_dma_revoke(cap_handle)` where the cap's
     /// `object_id` carries the region index.
     pub fn revoke_by_id(&mut self, owner: crate::task::TaskId, region_id: usize) -> bool {
-        if region_id >= MAX_DMA_REGIONS { return false; }
-        let e  = &mut self.entries[region_id];
+        if region_id >= MAX_DMA_REGIONS {
+            return false;
+        }
+        let e = &mut self.entries[region_id];
         // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
         let fa = unsafe { crate::fa_static_ptr() };
         if e.owner == owner && e.state == DmaRegionState::Active {
             e.state = DmaRegionState::Revoked;
             if e.frame_pa != 0 {
                 // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-                unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
+                unsafe {
+                    core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096);
+                }
                 e.state = DmaRegionState::Zeroized;
                 if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
                     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-                    unsafe { let _ = (*fa).free_frame(frame); }
+                    unsafe {
+                        let _ = (*fa).free_frame(frame);
+                    }
                 }
             }
             *e = DmaRegionEntry::free();
@@ -258,17 +270,23 @@ impl DmaRegionTable {
                     // Step 1: Zeroize.
                     // SAFETY: category=phys-id-map-assumption
                     //   frame_pa is a valid, exclusively-owned frame; PA == kernel VA in identity map.
-                    unsafe { core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096); }
+                    unsafe {
+                        core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096);
+                    }
                     // Step 2: TLB flush (sfence after zeroize is a no-op for correctness
                     // but good practice; the PTE stays valid and points to zeroed memory).
                     // SAFETY: category=csr-asm
-                    unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+                    unsafe {
+                        crate::arch::riscv64::csr::sfence_vma();
+                    }
                     e.state = DmaRegionState::Zeroized;
                     // Step 3: Return frame to allocator.
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
                         // SAFETY: category=phys-id-map-assumption
                         //   frame is exclusively owned by this entry; zeroized above.
-                        unsafe { let _ = (*fa).free_frame(frame); }
+                        unsafe {
+                            let _ = (*fa).free_frame(frame);
+                        }
                     }
                 }
                 *e = DmaRegionEntry::free();
@@ -286,28 +304,24 @@ impl DmaRegionTable {
     /// page-table corruption observed in v0.8.x smoke tests — see the
     /// comment block in `revoke_by_pa` for the full analysis.
     #[allow(dead_code)]
-    fn unmap_user_va_for(
-        owner: crate::task::TaskId,
-        user_va: usize,
-        page_count: u8,
-    ) -> bool {
+    fn unmap_user_va_for(owner: crate::task::TaskId, user_va: usize, page_count: u8) -> bool {
         // SAFETY: category=page-table-mutation
         //   We hold the DMA table lock (single-threaded kernel); the task's root PFN
         //   is obtained from the live task table. Unmap is a single PTE clear.
         let (table, _, _, _) = unsafe { crate::get_kernel_state() };
         let root_pfn = match table.get(owner) {
             Some(t) => t.satp_root_pfn,
-            None    => return false,
+            None => return false,
         };
-        if root_pfn == 0 || user_va == 0 { return false; }
+        if root_pfn == 0 || user_va == 0 {
+            return false;
+        }
         let n = (page_count as usize).max(1);
         for i in 0..n {
             let va = crate::mm::address::VirtAddr(user_va + i * 4096);
             // SAFETY: category=page-table-mutation
             //   root_pfn is valid; VA is the DMA user mapping we installed at alloc time.
-            let result = unsafe {
-                crate::mm::page_table::unmap_page(root_pfn << 12, va)
-            };
+            let result = unsafe { crate::mm::page_table::unmap_page(root_pfn << 12, va) };
             if result.is_err() {
                 return false;
             }
@@ -353,16 +367,22 @@ impl DmaRegionTable {
                 // SAFETY: category=csr-asm  sfence after task exit is a no-op for
                 //   correctness (TLB already flushed by ASID invalidation) but
                 //   provides a fence for the zeroize store below.
-                unsafe { crate::arch::riscv64::csr::sfence_vma(); }
+                unsafe {
+                    crate::arch::riscv64::csr::sfence_vma();
+                }
                 if pa != 0 {
                     // Zeroize before free — invariant DMA-001.
                     // SAFETY: category=phys-id-map-assumption
                     //   pa is valid, exclusively owned; PA == kernel VA.
-                    unsafe { core::ptr::write_bytes(pa as *mut u8, 0, 4096); }
+                    unsafe {
+                        core::ptr::write_bytes(pa as *mut u8, 0, 4096);
+                    }
                     if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
                         // SAFETY: category=phys-id-map-assumption
                         //   frame zeroized above; safe to return.
-                        unsafe { let _ = (*fa).free_frame(frame); }
+                        unsafe {
+                            let _ = (*fa).free_frame(frame);
+                        }
                     }
                 }
                 *e = DmaRegionEntry::free();
@@ -386,18 +406,21 @@ pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
 pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
     core::sync::atomic::AtomicUsize::new(DMA_USER_VA_BASE);
 
-
 /// Kernel trap scratch: [0]=kernel_sp, [1]=TrapFrame_ptr, [2]=temp_user_sp_save,
 /// [3]=temp_user_t6_save  (RFC 001: slot added to fix t6 register save correctness)
 pub(crate) static TRAP_SCRATCH: KS<[usize; 5]> = KS(UnsafeCell::new([0usize; 5]));
 
 macro_rules! ks_init {
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-    ($ks:expr, $val:expr) => { unsafe { (*$ks.0.get()).write($val) } };
+    ($ks:expr, $val:expr) => {
+        unsafe { (*$ks.0.get()).write($val) }
+    };
 }
 macro_rules! ks_get {
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-    ($ks:expr) => { unsafe { (*$ks.0.get()).assume_init_mut() } };
+    ($ks:expr) => {
+        unsafe { (*$ks.0.get()).assume_init_mut() }
+    };
 }
 
 /// Called by `trap/dispatch.rs` to access all mutable kernel state.
@@ -471,7 +494,9 @@ pub unsafe extern "C" fn m_mode_setup(hart_id: usize, dtb_pa: usize) -> ! {
 
 #[cfg(not(target_arch = "riscv64"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn m_mode_setup(_: usize, _: usize) -> ! { loop {} }
+pub extern "C" fn m_mode_setup(_: usize, _: usize) -> ! {
+    loop {}
+}
 
 // ── S-mode entry ──────────────────────────────────────────────────────────────
 
@@ -487,12 +512,16 @@ pub unsafe extern "C" fn s_mode_entry(hart_id: usize, dtb_pa: usize) -> ! {
 
 #[cfg(not(target_arch = "riscv64"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn s_mode_entry(_: usize, _: usize) -> ! { loop {} }
+pub extern "C" fn s_mode_entry(_: usize, _: usize) -> ! {
+    loop {}
+}
 
 /// Host-build stub: binary needs a no-arg kmain for `#[no_main]`.
 #[cfg(not(target_arch = "riscv64"))]
 #[unsafe(no_mangle)]
-pub extern "C" fn kmain() -> ! { loop {} }
+pub extern "C" fn kmain() -> ! {
+    loop {}
+}
 
 // ── Kernel main ───────────────────────────────────────────────────────────────
 
@@ -502,11 +531,14 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     kprintln!("platform: qemu-virt");
 
     let platform = platform::detect(dtb_pa);
-    kprintln!("memory: detected ({} MiB)", platform.ram_size / (1024 * 1024));
+    kprintln!(
+        "memory: detected ({} MiB)",
+        platform.ram_size / (1024 * 1024)
+    );
 
     // BootAllocator (watermark used to calculate kernel_end_pa only).
     let boot_start = kernel_end_pa();
-    let boot_end   = boot_start + 2 * 1024 * 1024;
+    let boot_end = boot_start + 2 * 1024 * 1024;
     let _boot = BootAllocator::new(boot_start, boot_end);
     kprintln!("mm: boot allocator ready");
 
@@ -516,11 +548,15 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let bitmap = unsafe { &mut *FRAME_BITMAP.0.get() };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     unsafe {
-        FRAME_ALLOC.0.get().write(MaybeUninit::new(FrameAllocator::new(
-            (RAM_BASE >> 12) as u64,
-            ((RAM_END - RAM_BASE) / FRAME_SIZE) as u64,
-            bitmap, None,
-        )));
+        FRAME_ALLOC
+            .0
+            .get()
+            .write(MaybeUninit::new(FrameAllocator::new(
+                (RAM_BASE >> 12) as u64,
+                ((RAM_END - RAM_BASE) / FRAME_SIZE) as u64,
+                bitmap,
+                None,
+            )));
     }
     macro_rules! fa { () => {
         // SAFETY: category=kernel-global-mutable single-hart; FRAME_ALLOC initialised above; no aliasing.
@@ -533,10 +569,12 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         core::sync::atomic::Ordering::Relaxed,
     );
 
-    fa!().reserve_range(RAM_BASE, kernel_end_pa(), FrameOwner::KernelText)
-         .expect("rsv kern");
-    fa!().reserve_range(boot_start, boot_end, FrameOwner::ReservedBoot)
-         .expect("rsv boot");
+    fa!()
+        .reserve_range(RAM_BASE, kernel_end_pa(), FrameOwner::KernelText)
+        .expect("rsv kern");
+    fa!()
+        .reserve_range(boot_start, boot_end, FrameOwner::ReservedBoot)
+        .expect("rsv boot");
     if dtb_pa != 0 {
         // DTB may be placed anywhere in RAM by firmware/QEMU.  If the region
         // overlaps an already-reserved range (e.g. it sits inside the kernel
@@ -544,13 +582,19 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         let _ = fa!().reserve_range(dtb_pa, dtb_pa + 4096, FrameOwner::Dtb);
     }
     for &(start, end, _) in MMIO_REGIONS {
-        if start < RAM_BASE { let _ = fa!().reserve_range(start, end, FrameOwner::Mmio); }
+        if start < RAM_BASE {
+            let _ = fa!().reserve_range(start, end, FrameOwner::Mmio);
+        }
     }
-    kprintln!("mm: frame allocator ready  ({} free frames)", fa!().free_count());
+    kprintln!(
+        "mm: frame allocator ready  ({} free frames)",
+        fa!().free_count()
+    );
 
     // Kernel page table.
-    let kernel_root = fa!().alloc_frame(FrameOwner::KernelPageTable)
-                           .expect("kernel root PT");
+    let kernel_root = fa!()
+        .alloc_frame(FrameOwner::KernelPageTable)
+        .expect("kernel root PT");
     // SAFETY: category=phys-id-map-assumption freshly allocated 4-KiB frame.
     unsafe { core::ptr::write_bytes(kernel_root.pa() as *mut u8, 0, 4096) };
 
@@ -568,11 +612,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // stack_top computed for reference; map_end uses RAM_END instead
     // (mapping only up to stack_top caused StorePageFault in spawn when
     // the frame allocator advanced past __stack_top with many services).
-    let _stack_top = unsafe { &__stack_top   as *const u8 as usize };
+    let _stack_top = unsafe { &__stack_top as *const u8 as usize };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-    let text_end   = unsafe { &__text_end    as *const u8 as usize };
+    let text_end = unsafe { &__text_end as *const u8 as usize };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-    let rodata_end = unsafe { &__rodata_end  as *const u8 as usize };
+    let rodata_end = unsafe { &__rodata_end as *const u8 as usize };
     // Extend the kernel identity map to cover all of physical RAM.
     // The kernel must write-initialise every physical frame it allocates
     // (zeroing text pages for spawned tasks). With many services the frame
@@ -591,11 +635,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     while va < map_end {
         let f = PhysFrame::from_pa(va).unwrap();
         let perms = if va < text_end {
-            VmPerms::R | VmPerms::X    // .text: execute only, not writable
+            VmPerms::R | VmPerms::X // .text: execute only, not writable
         } else if va < rodata_end {
-            VmPerms::R                  // .rodata: read-only, not executable
+            VmPerms::R // .rodata: read-only, not executable
         } else {
-            VmPerms::R | VmPerms::W    // .data / .bss / stack: read-write, not executable
+            VmPerms::R | VmPerms::W // .data / .bss / stack: read-write, not executable
         };
         // SAFETY: category=csr-asm kernel_root valid; sfence inside enable_sv39.
         unsafe {
@@ -608,9 +652,14 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let uart_f = PhysFrame::from_pa(0x1000_0000).unwrap();
     // SAFETY: category=page-table-mutation same.
     unsafe {
-        mm::page_table::map_page(kernel_root.pa(), VirtAddr(0x1000_0000), uart_f,
-            VmPerms::R | VmPerms::W, fa!())
-            .expect("uart map");
+        mm::page_table::map_page(
+            kernel_root.pa(),
+            VirtAddr(0x1000_0000),
+            uart_f,
+            VmPerms::R | VmPerms::W,
+            fa!(),
+        )
+        .expect("uart map");
     }
 
     // Map all 8 virtio-mmio slots (0x10001000..0x10009000) in the kernel
@@ -620,8 +669,13 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         if let Ok(f) = PhysFrame::from_pa(va_pa) {
             // SAFETY: category=page-table-mutation address and size validated against the physical memory map before this call.
             unsafe {
-                let _ = mm::page_table::map_page(kernel_root.pa(), VirtAddr(va_pa),
-                    f, VmPerms::R | VmPerms::W, fa!());
+                let _ = mm::page_table::map_page(
+                    kernel_root.pa(),
+                    VirtAddr(va_pa),
+                    f,
+                    VmPerms::R | VmPerms::W,
+                    fa!(),
+                );
             }
         }
     }
@@ -630,7 +684,10 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // SAFETY: category=csr-asm all required kernel mappings present; sfence inside.
     unsafe { satp::enable_sv39(kernel_root.pfn as usize) };
     // Store kernel root PFN for use by sys_task_spawn.
-    KERNEL_ROOT_PFN.store(kernel_root.pfn as usize, core::sync::atomic::Ordering::Relaxed);
+    KERNEL_ROOT_PFN.store(
+        kernel_root.pfn as usize,
+        core::sync::atomic::Ordering::Relaxed,
+    );
     kprintln!("vm: sv39 enabled");
     AUDIT.lock_free_append(AuditKindInternal::Boot, 0, 0, 0);
 
@@ -641,45 +698,55 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
 
     // Initialise task table and scheduler.
     ks_init!(TASK_TABLE, TaskTable::new());
-    ks_init!(SCHEDULER,  Scheduler::new());
-    ks_init!(CAP_TABLE,  cap::table::CapTable::new());
-    ks_init!(EP_TABLE,   cap::table::EndpointTable::new());
+    ks_init!(SCHEDULER, Scheduler::new());
+    ks_init!(CAP_TABLE, cap::table::CapTable::new());
+    ks_init!(EP_TABLE, cap::table::EndpointTable::new());
     ks_init!(LEASE_TABLE, lease::LeaseTable::new());
     kprintln!("M3: capability table initialized");
     kprintln!("M3: endpoint table initialized");
-    let table     = ks_get!(TASK_TABLE);
-    let sched     = ks_get!(SCHEDULER);
-    let cap_table = ks_get!(CAP_TABLE);   // RFC 004: used for bootstrap cap install
-    let et        = ks_get!(EP_TABLE);
+    let table = ks_get!(TASK_TABLE);
+    let sched = ks_get!(SCHEDULER);
+    let cap_table = ks_get!(CAP_TABLE); // RFC 004: used for bootstrap cap install
+    let et = ks_get!(EP_TABLE);
 
     // Allocate the shared IPC endpoint for the M3 smoke test.
     let ep_obj_id = et.alloc().expect("alloc endpoint");
     kprintln!("M3: endpoint created (id={})", ep_obj_id);
     // Endpoint 1: storaged private endpoint (storaged listens; init calls).
     let storaged_ep_id = et.alloc().expect("alloc storaged endpoint");
-    let _ = storaged_ep_id;  // id=1
+    let _ = storaged_ep_id; // id=1
     // Endpoints 2-4: M8 service private endpoints.
-    let measuredd_ep_id = et.alloc().expect("alloc measuredd endpoint"); let _ = measuredd_ep_id; // id=2
-    let attestd_ep_id   = et.alloc().expect("alloc attestd endpoint");   let _ = attestd_ep_id;   // id=3
-    let recoveryd_ep_id = et.alloc().expect("alloc recoveryd endpoint"); let _ = recoveryd_ep_id; // id=4
+    let measuredd_ep_id = et.alloc().expect("alloc measuredd endpoint");
+    let _ = measuredd_ep_id; // id=2
+    let attestd_ep_id = et.alloc().expect("alloc attestd endpoint");
+    let _ = attestd_ep_id; // id=3
+    let recoveryd_ep_id = et.alloc().expect("alloc recoveryd endpoint");
+    let _ = recoveryd_ep_id; // id=4
     // RFC 040: cap-broker's dedicated endpoint. The spawn layout (broker
     // slot 0, neg-test slot 3) and init's CSpace cap already referenced
     // object 5, but the allocation itself was missing, so every IPC to the
     // broker's dedicated endpoint failed with InvalidCap and the policy
     // negative tests silently never ran (architect review v0.18 follow-up).
-    let capbroker_ep_id = et.alloc().expect("alloc cap-broker endpoint"); let _ = capbroker_ep_id; // id=5
+    let capbroker_ep_id = et.alloc().expect("alloc cap-broker endpoint");
+    let _ = capbroker_ep_id; // id=5
     // RFC 042: sample-service's dedicated endpoint for the IPC blocked-call /
     // late-reply protocol. On the shared endpoint the handshake was stolen by
     // whichever service was first in the recv queue (typically auditd), so
     // the BLOCKED_CALL and LATE_REPLY scenarios never ran deterministically
     // (architect review v0.18 follow-up).
-    let sample_ep_id = et.alloc().expect("alloc sample-service endpoint"); let _ = sample_ep_id; // id=6
+    let sample_ep_id = et.alloc().expect("alloc sample-service endpoint");
+    let _ = sample_ep_id; // id=6
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
-    let mut idle = Task::new(TaskId::new(0, 0), PRIORITY_IDLE,
-                             AddressSpaceId(0), idle_ksp, 0);
+    let mut idle = Task::new(
+        TaskId::new(0, 0),
+        PRIORITY_IDLE,
+        AddressSpaceId(0),
+        idle_ksp,
+        0,
+    );
     idle.state = TaskState::Runnable;
     let idle_id = table.insert(idle).expect("idle insert");
     sched.set_idle(idle_id);
@@ -691,47 +758,70 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // sample-service) are spawned by init via sys_task_spawn / sys_task_start.
     {
         use fjell_abi::service::ImageId;
-        use task::image::{SERVICE_BASE_VA, SERVICE_STACK_TOP};
         use task::image::image_bytes;
+        use task::image::{SERVICE_BASE_VA, SERVICE_STACK_TOP};
 
         let init_bytes = image_bytes(ImageId::INIT).expect("init image missing");
-        let tid    = TaskId::new(1, 0);
+        let tid = TaskId::new(1, 0);
         let asp_id = AddressSpaceId(1);
 
-        let root_f = fa!().alloc_frame(FrameOwner::KernelPageTable).expect("init root");
+        let root_f = fa!()
+            .alloc_frame(FrameOwner::KernelPageTable)
+            .expect("init root");
         let mut aspace = AddressSpace::new(asp_id, root_f);
         aspace.clone_kernel_half(kernel_root);
 
         let uart_f = PhysFrame::from_pa(0x1000_0000).unwrap();
-        aspace.map_page(VirtAddr(0x1000_0000), uart_f,
-            VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa!())
+        aspace
+            .map_page(
+                VirtAddr(0x1000_0000),
+                uart_f,
+                VmPerms::R | VmPerms::W,
+                VmRegionKind::Mmio,
+                fa!(),
+            )
             .expect("init uart map");
 
         // Map all 8 virtio-mmio slots (R|W, no U) for kernel-mode scanning.
         for i in 0..8usize {
             let mmio_pa = 0x1000_1000 + i * 0x1000;
             if let Ok(f) = PhysFrame::from_pa(mmio_pa) {
-                let _ = aspace.map_page(VirtAddr(mmio_pa), f,
-                    VmPerms::R | VmPerms::W, VmRegionKind::Mmio, fa!());
+                let _ = aspace.map_page(
+                    VirtAddr(mmio_pa),
+                    f,
+                    VmPerms::R | VmPerms::W,
+                    VmRegionKind::Mmio,
+                    fa!(),
+                );
             }
         }
 
         // Map text pages (flat binary may span multiple pages)
         let pages = (init_bytes.len() + 4095) / 4096;
         for pg in 0..pages {
-            let f = fa!().alloc_frame(FrameOwner::UserText { task: tid }).expect("init text");
+            let f = fa!()
+                .alloc_frame(FrameOwner::UserText { task: tid })
+                .expect("init text");
             let start = pg * 4096;
-            let end   = (start + 4096).min(init_bytes.len());
+            let end = (start + 4096).min(init_bytes.len());
             // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
             unsafe {
                 let dst = core::slice::from_raw_parts_mut(f.pa() as *mut u8, 4096);
                 dst.fill(0);
                 dst[..(end - start)].copy_from_slice(&init_bytes[start..end]);
             }
-            aspace.map_page(VirtAddr(SERVICE_BASE_VA + pg * 4096), f,
-                VmPerms::R | VmPerms::X | VmPerms::U, VmRegionKind::UserText, fa!())
+            aspace
+                .map_page(
+                    VirtAddr(SERVICE_BASE_VA + pg * 4096),
+                    f,
+                    VmPerms::R | VmPerms::X | VmPerms::U,
+                    VmRegionKind::UserText,
+                    fa!(),
+                )
                 .expect("init text map");
-            if pg == 0 { kprintln!("[diag] spawn slot=1 page0 PA=0x{:x}", f.pa()); }
+            if pg == 0 {
+                kprintln!("[diag] spawn slot=1 page0 PA=0x{:x}", f.pa());
+            }
         }
 
         // RFC 007: DMA is now allocated per-task via sys_dma_alloc at VA 0x6000_0000+.
@@ -741,21 +831,36 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         const INIT_STACK_PAGES: usize = 16;
         let stack_base = SERVICE_STACK_TOP - INIT_STACK_PAGES * 4096;
         for pg in 0..INIT_STACK_PAGES {
-            let sf = fa!().alloc_frame(FrameOwner::UserStack { task: tid }).expect("init stack");
-            aspace.map_page(VirtAddr(stack_base + pg * 4096), sf,
-                VmPerms::R | VmPerms::W | VmPerms::U, VmRegionKind::UserStack, fa!())
+            let sf = fa!()
+                .alloc_frame(FrameOwner::UserStack { task: tid })
+                .expect("init stack");
+            aspace
+                .map_page(
+                    VirtAddr(stack_base + pg * 4096),
+                    sf,
+                    VmPerms::R | VmPerms::W | VmPerms::U,
+                    VmRegionKind::UserStack,
+                    fa!(),
+                )
                 .expect("init stack map");
         }
 
-        let kstack_f = fa!().alloc_frame(FrameOwner::KernelStack).expect("init kstack");
+        let kstack_f = fa!()
+            .alloc_frame(FrameOwner::KernelStack)
+            .expect("init kstack");
 
-        let mut t = Task::new(tid, PRIORITY_USER, asp_id,
-                              kstack_f.pa() + 4096, SERVICE_STACK_TOP);
-        t.satp_root_pfn     = root_f.pfn as usize;
-        t.trap_frame.sepc   = SERVICE_BASE_VA;
-        t.trap_frame.gpr[2] = SERVICE_STACK_TOP;   // sp
-        t.trap_frame.gpr[11] = 0;                   // a1 = BootInfo ptr (0 = use defaults)
-        t.trap_frame.sstatus = 1 << 5;              // SPIE, SPP=0
+        let mut t = Task::new(
+            tid,
+            PRIORITY_USER,
+            asp_id,
+            kstack_f.pa() + 4096,
+            SERVICE_STACK_TOP,
+        );
+        t.satp_root_pfn = root_f.pfn as usize;
+        t.trap_frame.sepc = SERVICE_BASE_VA;
+        t.trap_frame.gpr[2] = SERVICE_STACK_TOP; // sp
+        t.trap_frame.gpr[11] = 0; // a1 = BootInfo ptr (0 = use defaults)
+        t.trap_frame.sstatus = 1 << 5; // SPIE, SPP=0
         t.state = TaskState::Runnable;
 
         let ins_id = table.insert(t).expect("init insert");
@@ -766,72 +871,172 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         // services and manage leases.  Service-manager receives TaskCreate
         // and TaskControl via cap_derive after init spawns it.
         {
-            use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
             use fjell_cap::slot::Capability;
-            let cs = cap_table.cspace_mut(1 /* init task index */)
+            use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
+            let cs = cap_table
+                .cspace_mut(1 /* init task index */)
                 .expect("init CSpace");
             // Slot 27: CapInstall — init can delegate caps during bootstrap;
             // revoked after BOOTSTRAP_COMPLETE is sent to cap-broker (v0.3 cleanup).
-            let _ = cs.install_raw(27, Capability {
-                kind: CapKind::CapInstall, object_id: 0,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                27,
+                Capability {
+                    kind: CapKind::CapInstall,
+                    object_id: 0,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slot 28: TaskCreate — init can spawn service tasks.
-            let _ = cs.install_raw(28, Capability {
-                kind: CapKind::TaskCreate, object_id: 0,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                28,
+                Capability {
+                    kind: CapKind::TaskCreate,
+                    object_id: 0,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slot 29: TaskControl — init can start spawned tasks.
-            let _ = cs.install_raw(29, Capability {
-                kind: CapKind::TaskControl, object_id: 0,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                29,
+                Capability {
+                    kind: CapKind::TaskControl,
+                    object_id: 0,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slot 30: LeaseAdmin — init can create/revoke leases.
-            let _ = cs.install_raw(30, Capability {
-                kind: CapKind::LeaseAdmin, object_id: 0,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                30,
+                Capability {
+                    kind: CapKind::LeaseAdmin,
+                    object_id: 0,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
 
             // Slot 0: shared IPC endpoint (for service broadcasts).
-            let _ = cs.install_raw(0, Capability {
-                kind: CapKind::Endpoint, object_id: 0,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                0,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: 0,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slot 1: cap-broker private endpoint (endpoint id=5, RFC 040).
             // Init uses this to send BOOTSTRAP_COMPLETE.
-            let _ = cs.install_raw(1, Capability {
-                kind: CapKind::Endpoint, object_id: 5,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                1,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: 5,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slot 2: storaged private endpoint (endpoint id=1).
-            let _ = cs.install_raw(2, Capability {
-                kind: CapKind::Endpoint, object_id: 1,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                2,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: 1,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slots 3-5: M8 service private endpoints.
-            let _ = cs.install_raw(3, Capability {  // measuredd (ep id=2)
-                kind: CapKind::Endpoint, object_id: 2,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
-            let _ = cs.install_raw(4, Capability {  // attestd (ep id=3)
-                kind: CapKind::Endpoint, object_id: 3,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
-            let _ = cs.install_raw(5, Capability {  // recoveryd (ep id=4)
-                kind: CapKind::Endpoint, object_id: 4,
-                rights: CapRights::ALL_NON_META, badge: 0, scope: ObjectScope::Any, state: CapState::Active, parent: None, lease: None,
-            });
+            let _ = cs.install_raw(
+                3,
+                Capability {
+                    // measuredd (ep id=2)
+                    kind: CapKind::Endpoint,
+                    object_id: 2,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            let _ = cs.install_raw(
+                4,
+                Capability {
+                    // attestd (ep id=3)
+                    kind: CapKind::Endpoint,
+                    object_id: 3,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            let _ = cs.install_raw(
+                5,
+                Capability {
+                    // recoveryd (ep id=4)
+                    kind: CapKind::Endpoint,
+                    object_id: 4,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).
             let mmio_table = mmio_region_table();
             for (i, _region) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
                 let slot = 31 + i;
-                let _ = cs.install_raw(slot, Capability {
-                    kind: CapKind::MmioRegion,
-                    object_id: i as u32,
-                    rights: CapRights::ALL_NON_META,
-                    badge: 0, scope: ObjectScope::Any, state: CapState::Active,
-                    parent: None, lease: None,
-                });
+                let _ = cs.install_raw(
+                    slot,
+                    Capability {
+                        kind: CapKind::MmioRegion,
+                        object_id: i as u32,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
             }
         }
         kprintln!("M4: init task ready");
@@ -847,7 +1052,9 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         t.state = TaskState::Running;
         t.accounting.run_count += 1;
         t.satp_root_pfn
-    } else { 0 };
+    } else {
+        0
+    };
 
     let first_tf = &table.get(first_id).unwrap().trap_frame;
 

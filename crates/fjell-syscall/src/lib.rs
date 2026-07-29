@@ -41,7 +41,11 @@ fn ecall2(nr: usize, a0: usize, a1: usize, a2: usize, a3: usize) -> (usize, usiz
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = (nr, a0, a1, a2, a3); r0 = 0; r1 = 0; }
+    {
+        let _ = (nr, a0, a1, a2, a3);
+        r0 = 0;
+        r1 = 0;
+    }
     (r0, r1)
 }
 /// Execute a syscall returning three registers (a0, a1, a2).
@@ -63,10 +67,14 @@ fn ecall3(nr: usize, a0: usize, a1: usize, a2: usize) -> (usize, usize, usize) {
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = (nr, a0, a1, a2); r0 = 0; r1 = 0; r2 = 0; }
+    {
+        let _ = (nr, a0, a1, a2);
+        r0 = 0;
+        r1 = 0;
+        r2 = 0;
+    }
     (r0, r1, r2)
 }
-
 
 #[inline]
 fn ecall1(nr: usize, a0: usize) -> usize {
@@ -89,15 +97,13 @@ fn ecall0(nr: usize) -> usize {
 /// The 6th element packs `(sender_tid as u16) | (sender_image_id << 16)`.
 /// This allows receivers (e.g. cap-broker) to authenticate the sender without
 /// trusting message payload words.
-pub fn sys_ipc_recv_msg(ep: u32)
-    -> Result<(usize, usize, usize, usize, usize, usize), SysError>
-{
+pub fn sys_ipc_recv_msg(ep: u32) -> Result<(usize, usize, usize, usize, usize, usize), SysError> {
     let status: usize;
-    let label:  usize;
-    let w0:     usize;
-    let w1:     usize;
-    let w2:     usize;
-    let w3:     usize;
+    let label: usize;
+    let w0: usize;
+    let w1: usize;
+    let w2: usize;
+    let w3: usize;
     let sender: usize;
     #[cfg(target_arch = "riscv64")]
     // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
@@ -116,20 +122,37 @@ pub fn sys_ipc_recv_msg(ep: u32)
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = ep; status = 0; label = 0; w0 = 0; w1 = 0; w2 = 0; w3 = 0; sender = 0; }
+    {
+        let _ = ep;
+        status = 0;
+        label = 0;
+        w0 = 0;
+        w1 = 0;
+        w2 = 0;
+        w3 = 0;
+        sender = 0;
+    }
     to_result(status)?;
     Ok((label & 0xFFFF, w0, w1, w2, w3, sender))
 }
 
 /// Decode the sender identity word from `sys_ipc_recv_msg`'s 6th return value.
 #[inline]
-pub fn ipc_sender_image_id(identity: usize) -> u16 { (identity >> 16) as u16 }
+pub fn ipc_sender_image_id(identity: usize) -> u16 {
+    (identity >> 16) as u16
+}
 #[inline]
-pub fn ipc_sender_tid(identity: usize) -> u16 { (identity & 0xFFFF) as u16 }
+pub fn ipc_sender_tid(identity: usize) -> u16 {
+    (identity & 0xFFFF) as u16
+}
 
 fn to_result(raw: usize) -> Result<usize, SysError> {
     let code = raw as isize;
-    if code >= 0 { Ok(raw) } else { Err(SysError::from_isize(code)) }
+    if code >= 0 {
+        Ok(raw)
+    } else {
+        Err(SysError::from_isize(code))
+    }
 }
 
 // ── M2 syscalls ───────────────────────────────────────────────────────────────
@@ -144,7 +167,9 @@ pub fn sys_yield() {
 #[inline]
 pub fn sys_exit(code: i32) -> ! {
     ecall1(SyscallNumber::Exit as usize, code as usize);
-    loop { sys_yield(); }
+    loop {
+        sys_yield();
+    }
 }
 
 // ── M3 IPC syscalls ───────────────────────────────────────────────────────────
@@ -152,16 +177,20 @@ pub fn sys_exit(code: i32) -> ! {
 /// Blocking call to `ep_handle`; returns `(status, reply_tag)`.
 #[inline]
 pub fn sys_ipc_call(ep_handle: u32, tag: usize) -> Result<usize, SysError> {
-    let (r0, _r1) = ecall2(SyscallNumber::IpcCall as usize,
-                            ep_handle as usize, tag, 0, 0);
+    let (r0, _r1) = ecall2(
+        SyscallNumber::IpcCall as usize,
+        ep_handle as usize,
+        tag,
+        0,
+        0,
+    );
     to_result(r0)
 }
 
 /// Block waiting to receive on `ep_handle`; returns `(status, sender_tag)`.
 #[inline]
 pub fn sys_ipc_recv(ep_handle: u32) -> Result<usize, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::IpcRecv as usize,
-                           ep_handle as usize, 0, 0, 0);
+    let (r0, r1) = ecall2(SyscallNumber::IpcRecv as usize, ep_handle as usize, 0, 0, 0);
     to_result(r0).map(|_| r1)
 }
 
@@ -182,8 +211,13 @@ pub fn sys_ipc_reply(reply_tag: usize) -> Result<(), SysError> {
 /// Returns the packed task handle `(index | generation<<16)` on success.
 #[inline]
 pub fn sys_task_spawn(cap_handle: u32, image_id: ImageId) -> Result<usize, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::TaskSpawn as usize,
-                          cap_handle as usize, image_id.0 as usize, 0, 0);
+    let (r0, r1) = ecall2(
+        SyscallNumber::TaskSpawn as usize,
+        cap_handle as usize,
+        image_id.0 as usize,
+        0,
+        0,
+    );
     to_result(r0).map(|_| r1)
 }
 
@@ -191,20 +225,39 @@ pub fn sys_task_spawn(cap_handle: u32, image_id: ImageId) -> Result<usize, SysEr
 /// `entry_pc` and `stack_top` may be 0 to use the image's default entry.
 #[inline]
 /// RFC 048: first arg is `TaskControl` cap handle.
-pub fn sys_task_start(cap_handle: u32, task_handle: usize, entry_pc: usize, stack_top: usize)
-    -> Result<(), SysError>
-{
-    to_result(ecall2(SyscallNumber::TaskStart as usize,
-                     cap_handle as usize, task_handle, entry_pc, stack_top).0)
-        .map(|_| ())
+pub fn sys_task_start(
+    cap_handle: u32,
+    task_handle: usize,
+    entry_pc: usize,
+    stack_top: usize,
+) -> Result<(), SysError> {
+    to_result(
+        ecall2(
+            SyscallNumber::TaskStart as usize,
+            cap_handle as usize,
+            task_handle,
+            entry_pc,
+            stack_top,
+        )
+        .0,
+    )
+    .map(|_| ())
 }
 
 /// RFC 048: first arg is `TaskControl` cap handle; second is the task handle.
 #[inline]
 pub fn sys_task_status(cap_handle: u32, task_handle: usize) -> Result<u8, SysError> {
-    to_result(ecall2(SyscallNumber::TaskStatus as usize,
-                     cap_handle as usize, task_handle, 0, 0).0)
-        .map(|v| v as u8)
+    to_result(
+        ecall2(
+            SyscallNumber::TaskStatus as usize,
+            cap_handle as usize,
+            task_handle,
+            0,
+            0,
+        )
+        .0,
+    )
+    .map(|v| v as u8)
 }
 
 // ── M4 lease syscalls ─────────────────────────────────────────────────────────
@@ -212,32 +265,55 @@ pub fn sys_task_status(cap_handle: u32, task_handle: usize) -> Result<u8, SysErr
 /// RFC 048: first arg is `LeaseAdmin` cap handle; second is flags.
 #[inline]
 pub fn sys_lease_create(cap_handle: u32, flags: u32) -> Result<LeaseId, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::LeaseCreate as usize,
-                          cap_handle as usize, flags as usize, 0, 0);
+    let (r0, r1) = ecall2(
+        SyscallNumber::LeaseCreate as usize,
+        cap_handle as usize,
+        flags as usize,
+        0,
+        0,
+    );
     to_result(r0).map(|_| LeaseId(r1 as u32))
 }
-
 
 /// One-way IPC send (no reply expected).  If no receiver is waiting the
 /// message is queued.  Returns `WouldBlock` if the endpoint sendq is full.
 pub fn sys_ipc_try_send(ep_slot: u32, label: usize) -> Result<(), SysError> {
-    to_result(ecall2(SyscallNumber::IpcSend as usize, ep_slot as usize, label, 0, 0).0)
-        .map(|_| ())
+    to_result(
+        ecall2(
+            SyscallNumber::IpcSend as usize,
+            ep_slot as usize,
+            label,
+            0,
+            0,
+        )
+        .0,
+    )
+    .map(|_| ())
 }
 
 /// RFC 048: first arg is `LeaseAdmin` cap handle; second is the lease id.
 #[inline]
 pub fn sys_lease_revoke(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::LeaseRevoke as usize,
-                          cap_handle as usize, lease_id.0 as usize, 0, 0);
+    let (r0, r1) = ecall2(
+        SyscallNumber::LeaseRevoke as usize,
+        cap_handle as usize,
+        lease_id.0 as usize,
+        0,
+        0,
+    );
     to_result(r0).map(|_| LeaseEpoch(r1 as u32))
 }
 
 /// RFC 048: first arg is `LeaseAdmin` cap handle; second is the lease id.
 #[inline]
 pub fn sys_lease_inspect(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::LeaseInspect as usize,
-                          cap_handle as usize, lease_id.0 as usize, 0, 0);
+    let (r0, r1) = ecall2(
+        SyscallNumber::LeaseInspect as usize,
+        cap_handle as usize,
+        lease_id.0 as usize,
+        0,
+        0,
+    );
     to_result(r0).map(|_| LeaseEpoch(r1 as u32))
 }
 
@@ -255,10 +331,7 @@ pub fn sys_lease_inspect(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoc
 ///    written into `buf` (each exactly 32 bytes).
 /// - `n_dropped` — cumulative records dropped by the kernel due to ring-full.
 /// RFC 054: `cap` is first argument; RFC 053: returns per-drain drop count.
-pub fn sys_audit_drain(
-    cap: u32,
-    buf: &mut [u8],
-) -> Result<(usize, usize), SysError> {
+pub fn sys_audit_drain(cap: u32, buf: &mut [u8]) -> Result<(usize, usize), SysError> {
     let (r0, r1, r2) = ecall3(
         SyscallNumber::AuditDrain as usize,
         cap as usize,
@@ -281,7 +354,9 @@ pub unsafe fn sys_audit_drain_ptr(
     // RFC 054: cap is a0, buf_va is a1, buf_len is a2.
     let (r0, r1, r2) = ecall3(
         SyscallNumber::AuditDrain as usize,
-        cap as usize, buf_va, buf_len,
+        cap as usize,
+        buf_va,
+        buf_len,
     );
     to_result(r0)?;
     Ok((r1, r2))
@@ -291,7 +366,14 @@ pub unsafe fn sys_audit_drain_ptr(
 /// On success, this call never returns.
 /// RFC 057: request platform reboot. Never returns on success.
 pub fn sys_reboot(reboot_cap: CapHandle, mode: u32) -> Result<(), SysError> {
-    let r0 = ecall2(SyscallNumber::PlatformReboot as usize, reboot_cap.0 as usize, mode as usize, 0, 0).0;
+    let r0 = ecall2(
+        SyscallNumber::PlatformReboot as usize,
+        reboot_cap.0 as usize,
+        mode as usize,
+        0,
+        0,
+    )
+    .0;
     to_result(r0).map(|_| ())
 }
 
@@ -306,7 +388,9 @@ pub fn sys_debug_write_byte(b: u8) {
 /// Write a string slice to the kernel UART (smoke-test helper).
 #[inline]
 pub fn sys_debug_write(s: &str) {
-    for b in s.bytes() { sys_debug_write_byte(b); }
+    for b in s.bytes() {
+        sys_debug_write_byte(b);
+    }
 }
 
 /// Write a string followed by '\n'.
@@ -316,17 +400,17 @@ pub fn sys_debug_writeln(s: &str) {
     sys_debug_write_byte(b'\n');
 }
 
-
-
 // ── M6 syscall wrappers ───────────────────────────────────────────────────────
 
 /// `sys_platform_info_get() -> virtio_base_pa`
 pub fn sys_platform_info_get() -> Result<usize, SysError> {
     let (a0, a1) = ecall2(SyscallNumber::PlatformInfoGet as usize, 0, 0, 0, 0);
-    if a0 != 0 { Err(SysError::from_isize(a0 as isize)) } else { Ok(a1) }
+    if a0 != 0 {
+        Err(SysError::from_isize(a0 as isize))
+    } else {
+        Ok(a1)
+    }
 }
-
-
 
 /// `sys_dma_alloc(dma_cap, size_bytes) -> (user_va, phys_addr)`
 ///
@@ -335,7 +419,9 @@ pub fn sys_platform_info_get() -> Result<usize, SysError> {
 pub fn sys_dma_alloc(dma_cap: u32, size_bytes: usize) -> Result<(usize, usize), SysError> {
     #[allow(unused_variables)]
     let nr = SyscallNumber::DmaAlloc as usize;
-    let r0: usize; let r1: usize; let r2: usize;
+    let r0: usize;
+    let r1: usize;
+    let r2: usize;
     #[cfg(target_arch = "riscv64")]
     // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
     unsafe {
@@ -349,7 +435,12 @@ pub fn sys_dma_alloc(dma_cap: u32, size_bytes: usize) -> Result<(usize, usize), 
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = (dma_cap, size_bytes); r0 = 0; r1 = 0; r2 = 0; }
+    {
+        let _ = (dma_cap, size_bytes);
+        r0 = 0;
+        r1 = 0;
+        r2 = 0;
+    }
     to_result(r0)?;
     Ok((r1, r2))
 }
@@ -368,8 +459,13 @@ pub fn sys_ipc_try_recv(ep: CapHandle) -> Result<usize, SysError> {
 /// RFC 016: Caller must hold a `CapKind::MmioRegion` capability.
 /// `offset + size` is bounds-checked against the region by the kernel.
 pub fn sys_mmio_map(mmio_cap: CapHandle, offset: usize, size: usize) -> Result<usize, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::MmioMap as usize,
-                          mmio_cap.0 as usize, offset, size, 0);
+    let (r0, r1) = ecall2(
+        SyscallNumber::MmioMap as usize,
+        mmio_cap.0 as usize,
+        offset,
+        size,
+        0,
+    );
     to_result(r0).map(|_| r1)
 }
 /// `sys_cap_drop(cap_handle) -> Ok(()) | Err`
@@ -396,8 +492,13 @@ pub fn sys_cap_drop(cap: CapHandle) -> Result<(), SysError> {
 /// `cap_handle` must be a `DmaRegion` cap with `DMA_REVOKE` right.
 /// `device_pa` identifies the specific region (object_id-based tracking deferred to v0.3).
 pub fn sys_dma_revoke(cap_handle: CapHandle, device_pa: usize) -> Result<(), SysError> {
-    let (r0, _) = ecall2(SyscallNumber::DmaRevoke as usize,
-                         cap_handle.0 as usize, device_pa, 0, 0);
+    let (r0, _) = ecall2(
+        SyscallNumber::DmaRevoke as usize,
+        cap_handle.0 as usize,
+        device_pa,
+        0,
+        0,
+    );
     to_result(r0).map(|_| ())
 }
 
@@ -415,12 +516,7 @@ pub fn sys_dma_revoke(cap_handle: CapHandle, device_pa: usize) -> Result<(), Sys
 /// results from a non-Ok status.
 // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
 pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
-    let (r0, _, _) = ecall3(
-        SyscallNumber::AuditDrain as usize,
-        ptr,
-        4096,
-        cap as usize,
-    );
+    let (r0, _, _) = ecall3(SyscallNumber::AuditDrain as usize, ptr, 4096, cap as usize);
     r0
 }
 
@@ -435,7 +531,11 @@ pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
 /// Passes w0→a2, w1→a3, w2→a4 in the ECALL so the kernel copies them into
 /// the `PendingMessage.words` array for the server to read.
 pub fn sys_ipc_call_words(
-    ep: u32, tag: usize, w0: usize, w1: usize, w2: usize,
+    ep: u32,
+    tag: usize,
+    w0: usize,
+    w1: usize,
+    w2: usize,
 ) -> Result<usize, SysError> {
     let r0: usize;
     let r1: usize; // reply label
@@ -457,7 +557,11 @@ pub fn sys_ipc_call_words(
         );
     }
     #[cfg(not(target_arch = "riscv64"))]
-    { let _ = (ep, tag, w0, w1, w2); r0 = 0; r1 = 0; }
+    {
+        let _ = (ep, tag, w0, w1, w2);
+        r0 = 0;
+        r1 = 0;
+    }
     to_result(r0)?;
     Ok(r1)
 }
@@ -470,7 +574,10 @@ pub fn sys_ipc_call_words(
 pub fn sys_cap_copy(src: CapHandle, dst_slot: u32) -> Result<CapHandle, SysError> {
     let (r0, r1) = ecall2(
         SyscallNumber::CapCopy as usize,
-        src.0 as usize, dst_slot as usize, 0, 0,
+        src.0 as usize,
+        dst_slot as usize,
+        0,
+        0,
     );
     to_result(r0)?;
     Ok(CapHandle(r1 as u32))
@@ -484,7 +591,10 @@ pub fn sys_cap_copy(src: CapHandle, dst_slot: u32) -> Result<CapHandle, SysError
 pub fn sys_cap_mint(src: CapHandle, dst_slot: u32, rights: u64) -> Result<CapHandle, SysError> {
     let (r0, r1) = ecall2(
         SyscallNumber::CapMint as usize,
-        src.0 as usize, dst_slot as usize, rights as usize, 0,
+        src.0 as usize,
+        dst_slot as usize,
+        rights as usize,
+        0,
     );
     to_result(r0)?;
     Ok(CapHandle(r1 as u32))
@@ -495,8 +605,7 @@ pub fn sys_cap_mint(src: CapHandle, dst_slot: u32, rights: u64) -> Result<CapHan
 /// Revokes the capability subtree rooted at `cap`.  Fails with
 /// `PermissionDenied` if the source cap lacks `CapRights::REVOKE`.
 pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
-    to_result(ecall2(SyscallNumber::CapRevoke as usize, cap.0 as usize, 0, 0, 0).0)
-        .map(|_| ())
+    to_result(ecall2(SyscallNumber::CapRevoke as usize, cap.0 as usize, 0, 0, 0).0).map(|_| ())
 }
 
 /// RFC 056: install a capability into another task's CSpace.
@@ -508,9 +617,9 @@ pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
 /// Pass `rights = 0` to use `ALL_NON_META` (default behaviour for cap-broker).
 pub fn sys_cap_install(
     install_cap: CapHandle,
-    target_tid:  usize,
-    cap_kind:    u8,
-    object_id:   u32,
+    target_tid: usize,
+    cap_kind: u8,
+    object_id: u32,
 ) -> Result<CapHandle, SysError> {
     let (r0, r1) = ecall2(
         SyscallNumber::CapInstall as usize,
@@ -529,9 +638,9 @@ pub fn sys_cap_install(
 /// `ALL_NON_META`.  Passing `rights_bits = 0` falls back to `ALL_NON_META`.
 pub fn sys_cap_install_with_rights(
     install_cap: CapHandle,
-    target_tid:  usize,
-    cap_kind:    u8,
-    object_id:   u32,
+    target_tid: usize,
+    cap_kind: u8,
+    object_id: u32,
     rights_bits: u64,
 ) -> Result<CapHandle, SysError> {
     // v0.7.x: the kernel's sys_cap_install ignores the extra parameter
@@ -573,7 +682,6 @@ pub fn sys_cap_inspect(cap: CapHandle) -> Result<(usize, u64, u64), SysError> {
     Ok((kind, rights as u64, badge as u64))
 }
 
-
 ///
 /// Binds a lease to an existing capability in the caller's CSpace.
 /// After binding, `require_cap` step 7 verifies the lease is still active
@@ -581,12 +689,15 @@ pub fn sys_cap_inspect(cap: CapHandle) -> Result<(usize, u64, u64), SysError> {
 ///
 /// Requires: caller must hold a `LeaseAdmin` capability with `LEASE_CREATE`.
 pub fn sys_cap_bind_lease(
-    cap:      CapHandle,
+    cap: CapHandle,
     lease_id: fjell_abi::lease::LeaseId,
 ) -> Result<(), SysError> {
     let r = ecall2(
         SyscallNumber::CapBindLease as usize,
-        cap.0 as usize, lease_id.0 as usize, 0, 0,
+        cap.0 as usize,
+        lease_id.0 as usize,
+        0,
+        0,
     );
     to_result(r.0).map(|_| ())
 }
@@ -656,10 +767,7 @@ mod syscall_ext_tests {
 
     #[test]
     fn platform_region_resolve_stub_returns_unknown_syscall() {
-        let result = sys_platform_region_resolve(
-            RegionId(0),
-            CapHandle(0),
-        );
+        let result = sys_platform_region_resolve(RegionId(0), CapHandle(0));
         // v0.7.x: always UnknownSyscall (not yet implemented)
         assert_eq!(result, Err(fjell_abi::error::SysError::UnknownSyscall));
     }

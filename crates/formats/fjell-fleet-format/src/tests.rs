@@ -1,16 +1,22 @@
 //! Tests for fjell-fleet-format (RFC v0.8-001..004).
 
-use crate::roster::*;
-use crate::policy::*;
-use crate::rollout::*;
 use crate::action::*;
 use crate::digest::*;
-use fjell_measure_format::Digest32;
+use crate::policy::*;
+use crate::rollout::*;
+use crate::roster::*;
 use fjell_identity_format::NodeId;
+use fjell_measure_format::Digest32;
 
-fn sample_fleet_id() -> [u8; 16] { [0xF1u8; 16] }
-fn sample_node_id()  -> NodeId   { NodeId([0x01u8; 16]) }
-fn sample_digest()   -> Digest32 { Digest32([0xAAu8; 32]) }
+fn sample_fleet_id() -> [u8; 16] {
+    [0xF1u8; 16]
+}
+fn sample_node_id() -> NodeId {
+    NodeId([0x01u8; 16])
+}
+fn sample_digest() -> Digest32 {
+    Digest32([0xAAu8; 32])
+}
 
 // ── NodeRoster ────────────────────────────────────────────────────────────────
 
@@ -28,7 +34,8 @@ fn roster_add_member_increments_count() {
         trust_profile_tag: TrustProfileTag(1),
         active: true,
         generation: 1,
-    }).unwrap();
+    })
+    .unwrap();
     assert_eq!(r.entry_count, 1);
     assert_eq!(r.active_count(), 1);
 }
@@ -57,7 +64,8 @@ fn roster_is_member_works() {
         trust_profile_tag: TrustProfileTag(0),
         active: true,
         generation: 1,
-    }).unwrap();
+    })
+    .unwrap();
     assert!(r.is_member(&digest));
     assert!(!r.is_member(&Digest32([0xBBu8; 32])));
 }
@@ -72,7 +80,8 @@ fn roster_revoke_member() {
         trust_profile_tag: TrustProfileTag(0),
         active: true,
         generation: 1,
-    }).unwrap();
+    })
+    .unwrap();
     assert!(r.revoke_member(&digest));
     assert_eq!(r.active_count(), 0);
 }
@@ -103,8 +112,10 @@ fn policy_default_deny() {
 fn policy_allow_statement_permits() {
     let mut p = FleetPolicy::new(sample_fleet_id(), sample_digest());
     p.add_statement(PolicyStatement::allow(
-        PolicyAction::AcceptSnapshot, PolicyCondition::Always,
-    )).unwrap();
+        PolicyAction::AcceptSnapshot,
+        PolicyCondition::Always,
+    ))
+    .unwrap();
     assert!(p.permits(PolicyAction::AcceptSnapshot));
     assert!(!p.permits(PolicyAction::InitiateRollout)); // unrelated action
 }
@@ -113,8 +124,10 @@ fn policy_allow_statement_permits() {
 fn policy_deny_statement_blocks() {
     let mut p = FleetPolicy::new(sample_fleet_id(), sample_digest());
     p.add_statement(PolicyStatement::deny(
-        PolicyAction::RemoteRecovery, PolicyCondition::Always,
-    )).unwrap();
+        PolicyAction::RemoteRecovery,
+        PolicyCondition::Always,
+    ))
+    .unwrap();
     assert!(!p.permits(PolicyAction::RemoteRecovery));
 }
 
@@ -130,15 +143,18 @@ fn policy_digest_nonzero() {
 #[test]
 fn rollout_add_stage_increments_count() {
     let mut plan = FleetRolloutPlan::new(sample_fleet_id(), 1, sample_digest());
-    plan.add_stage(RolloutStage::new(b"canary", RolloutStrategy::AllConfirmed)).unwrap();
+    plan.add_stage(RolloutStage::new(b"canary", RolloutStrategy::AllConfirmed))
+        .unwrap();
     assert_eq!(plan.stage_count, 1);
 }
 
 #[test]
 fn rollout_advance_after_confirm() {
     let mut plan = FleetRolloutPlan::new(sample_fleet_id(), 1, sample_digest());
-    plan.add_stage(RolloutStage::new(b"canary", RolloutStrategy::AllConfirmed)).unwrap();
-    plan.add_stage(RolloutStage::new(b"full",   RolloutStrategy::AllConfirmed)).unwrap();
+    plan.add_stage(RolloutStage::new(b"canary", RolloutStrategy::AllConfirmed))
+        .unwrap();
+    plan.add_stage(RolloutStage::new(b"full", RolloutStrategy::AllConfirmed))
+        .unwrap();
     plan.confirm_active_stage().unwrap();
     assert!(plan.try_advance());
     assert_eq!(plan.active_stage, 1);
@@ -146,8 +162,14 @@ fn rollout_advance_after_confirm() {
 
 #[test]
 fn rollout_strategy_variants_accessible() {
-    assert_eq!(RolloutStrategy::from_u8(0x01), Some(RolloutStrategy::AllConfirmed));
-    assert_eq!(RolloutStrategy::from_u8(0x02), Some(RolloutStrategy::Quorum));
+    assert_eq!(
+        RolloutStrategy::from_u8(0x01),
+        Some(RolloutStrategy::AllConfirmed)
+    );
+    assert_eq!(
+        RolloutStrategy::from_u8(0x02),
+        Some(RolloutStrategy::Quorum)
+    );
     assert_eq!(RolloutStrategy::from_u8(0xFF), None);
 }
 
@@ -164,14 +186,18 @@ fn fleet_action_kind_mutating_classification() {
 #[test]
 fn fleet_action_fleet_wide_detection() {
     let broad = FleetAction::new(
-        sample_fleet_id(), [0u8; 16],  // all-zero target = fleet-wide
-        FleetActionKind::QueryState, [0x01u8; 16],
+        sample_fleet_id(),
+        [0u8; 16], // all-zero target = fleet-wide
+        FleetActionKind::QueryState,
+        [0x01u8; 16],
     );
     assert!(broad.is_fleet_wide());
 
     let narrow = FleetAction::new(
-        sample_fleet_id(), [0x01u8; 16], // specific target
-        FleetActionKind::QueryState, [0x02u8; 16],
+        sample_fleet_id(),
+        [0x01u8; 16], // specific target
+        FleetActionKind::QueryState,
+        [0x02u8; 16],
     );
     assert!(!narrow.is_fleet_wide());
 }

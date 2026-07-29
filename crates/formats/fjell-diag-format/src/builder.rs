@@ -5,8 +5,8 @@ use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
 use crate::bundle::{
-    DiagnosticBundle, DiagAuditEvent, DiagIntent,
-    DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS,
+    DIAG_BUNDLE_VERSION, DiagAuditEvent, DiagIntent, DiagnosticBundle, MAX_AUDIT_EVENTS,
+    MAX_SEMANTIC_INTENTS,
 };
 use crate::events::is_audit_event_allowed;
 use crate::intents::is_intent_allowed;
@@ -16,11 +16,11 @@ use crate::intents::is_intent_allowed;
 #[repr(u8)]
 pub enum BuilderError {
     /// The event kind_tag is not on the allow-list (silently dropped).
-    NotAllowed  = 0x01,
+    NotAllowed = 0x01,
     /// The audit events buffer is full (MAX_AUDIT_EVENTS reached).
-    AuditFull   = 0x02,
+    AuditFull = 0x02,
     /// The semantic intents buffer is full (MAX_SEMANTIC_INTENTS reached).
-    IntentFull  = 0x03,
+    IntentFull = 0x03,
 }
 
 /// Incrementally builds a `DiagnosticBundle`.
@@ -34,20 +34,20 @@ pub struct BundleBuilder {
 impl BundleBuilder {
     /// Construct a new builder seeded with metadata.
     pub fn new(
-        bundle_id:            [u8; 8],
-        created_tick:         u64,
-        provider_id:          TrustProviderId,
+        bundle_id: [u8; 8],
+        created_tick: u64,
+        provider_id: TrustProviderId,
         keyring_anchor_epoch: u32,
-        measurement_head:     Digest32,
-        last_attestation:     Digest32,
+        measurement_head: Digest32,
+        last_attestation: Digest32,
     ) -> Self {
         let mut b = DiagnosticBundle::zeroed();
-        b.bundle_id            = bundle_id;
-        b.created_tick         = created_tick;
-        b.provider_id          = provider_id;
+        b.bundle_id = bundle_id;
+        b.created_tick = created_tick;
+        b.provider_id = provider_id;
         b.keyring_anchor_epoch = keyring_anchor_epoch;
-        b.measurement_head     = measurement_head;
-        b.last_attestation     = last_attestation;
+        b.measurement_head = measurement_head;
+        b.last_attestation = last_attestation;
         Self { bundle: b }
     }
 
@@ -59,10 +59,10 @@ impl BundleBuilder {
     /// this variant in production.
     pub fn add_audit_event(
         &mut self,
-        seq:      u32,
+        seq: u32,
         kind_tag: u16,
-        code:     u16,
-        at_tick:  u64,
+        code: u16,
+        at_tick: u64,
     ) -> Result<(), BuilderError> {
         if !is_audit_event_allowed(kind_tag) {
             return Err(BuilderError::NotAllowed);
@@ -71,7 +71,12 @@ impl BundleBuilder {
         if idx >= MAX_AUDIT_EVENTS {
             return Err(BuilderError::AuditFull);
         }
-        self.bundle.audit_events[idx] = DiagAuditEvent { seq, kind_tag, code, at_tick };
+        self.bundle.audit_events[idx] = DiagAuditEvent {
+            seq,
+            kind_tag,
+            code,
+            at_tick,
+        };
         self.bundle.audit_event_count += 1;
         Ok(())
     }
@@ -79,10 +84,10 @@ impl BundleBuilder {
     /// Add a raw semantic intent, enforcing the allow-list.
     pub fn add_intent(
         &mut self,
-        seq:        u32,
+        seq: u32,
         intent_tag: u16,
-        code:       u16,
-        at_tick:    u64,
+        code: u16,
+        at_tick: u64,
     ) -> Result<(), BuilderError> {
         if !is_intent_allowed(intent_tag) {
             return Err(BuilderError::NotAllowed);
@@ -91,7 +96,12 @@ impl BundleBuilder {
         if idx >= MAX_SEMANTIC_INTENTS {
             return Err(BuilderError::IntentFull);
         }
-        self.bundle.semantic_intents[idx] = DiagIntent { seq, intent_tag, code, at_tick };
+        self.bundle.semantic_intents[idx] = DiagIntent {
+            seq,
+            intent_tag,
+            code,
+            at_tick,
+        };
         self.bundle.semantic_intent_count += 1;
         Ok(())
     }
@@ -126,10 +136,30 @@ impl BundleBuilder {
                 pos += b.len();
             };
         }
-        macro_rules! write_u8  { ($v:expr) => { buf[pos] = $v; pos += 1; }; }
-        macro_rules! write_u16 { ($v:expr) => { buf[pos..pos+2].copy_from_slice(&($v as u16).to_le_bytes()); pos += 2; }; }
-        macro_rules! write_u32 { ($v:expr) => { buf[pos..pos+4].copy_from_slice(&($v as u32).to_le_bytes()); pos += 4; }; }
-        macro_rules! write_u64 { ($v:expr) => { buf[pos..pos+8].copy_from_slice(&($v as u64).to_le_bytes()); pos += 8; }; }
+        macro_rules! write_u8 {
+            ($v:expr) => {
+                buf[pos] = $v;
+                pos += 1;
+            };
+        }
+        macro_rules! write_u16 {
+            ($v:expr) => {
+                buf[pos..pos + 2].copy_from_slice(&($v as u16).to_le_bytes());
+                pos += 2;
+            };
+        }
+        macro_rules! write_u32 {
+            ($v:expr) => {
+                buf[pos..pos + 4].copy_from_slice(&($v as u32).to_le_bytes());
+                pos += 4;
+            };
+        }
+        macro_rules! write_u64 {
+            ($v:expr) => {
+                buf[pos..pos + 8].copy_from_slice(&($v as u64).to_le_bytes());
+                pos += 8;
+            };
+        }
 
         write_bytes!(b"FJELL-DIAG-V1");
         write_u16!(DIAG_BUNDLE_VERSION);
@@ -160,7 +190,11 @@ impl BundleBuilder {
     }
 
     /// Number of audit events accumulated so far.
-    pub fn audit_count(&self) -> u8 { self.bundle.audit_event_count }
+    pub fn audit_count(&self) -> u8 {
+        self.bundle.audit_event_count
+    }
     /// Number of semantic intents accumulated so far.
-    pub fn intent_count(&self) -> u8 { self.bundle.semantic_intent_count }
+    pub fn intent_count(&self) -> u8 {
+        self.bundle.semantic_intent_count
+    }
 }

@@ -17,14 +17,14 @@
 #![no_std]
 
 pub mod catalog;
-pub mod schema;
 pub mod codec;
+pub mod schema;
 pub mod version;
 
-pub use catalog::{CATALOG_V1, IntentEntry, lookup_tag, catalog_len};
-pub use schema::{IntentSchema, FieldKind, FieldDef};
-pub use codec::{encode, decode, DecodedIntent, FieldValue, SemanticError};
-pub use version::{CatalogVersion, CATALOG_V1_VERSION};
+pub use catalog::{CATALOG_V1, IntentEntry, catalog_len, lookup_tag};
+pub use codec::{DecodedIntent, FieldValue, SemanticError, decode, encode};
+pub use schema::{FieldDef, FieldKind, IntentSchema};
+pub use version::{CATALOG_V1_VERSION, CatalogVersion};
 
 #[cfg(test)]
 mod tests;

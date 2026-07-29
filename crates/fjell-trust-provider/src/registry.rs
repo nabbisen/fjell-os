@@ -60,8 +60,12 @@ impl PolicyAuth {
     /// An empty (invalid) token — rejected in Enforcing mode.
     pub const EMPTY: Self = Self { token: 0 };
     /// A non-empty token — accepted in v0.7.x as "policy authorised".
-    pub fn valid(token: u32) -> Self { Self { token } }
-    pub fn is_present(self) -> bool { self.token != 0 }
+    pub fn valid(token: u32) -> Self {
+        Self { token }
+    }
+    pub fn is_present(self) -> bool {
+        self.token != 0
+    }
 }
 
 /// Owning storage for one provider slot.
@@ -212,7 +216,11 @@ impl ProviderRegistry {
     ///
     /// In `Enforcing` phase: requires a non-empty `PolicyAuth` token
     /// (RFC-v0.7.4-003 / W-H-06).
-    pub fn remove(&mut self, handle: ProviderHandle, auth: PolicyAuth) -> Result<(), RegistryError> {
+    pub fn remove(
+        &mut self,
+        handle: ProviderHandle,
+        auth: PolicyAuth,
+    ) -> Result<(), RegistryError> {
         if self.phase == RegistryPhase::Enforcing && !auth.is_present() {
             return Err(RegistryError::PolicyAuthorizationRequired);
         }

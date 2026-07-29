@@ -15,17 +15,17 @@ mod rt;
 
 use fjell_abi::lease::LeaseId;
 use fjell_cap::CapHandle;
+use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    sys_exit, sys_ipc_reply, sys_ipc_recv, sys_ipc_recv_msg,
-    sys_cap_copy, sys_cap_bind_lease, sys_cap_drop, sys_debug_writeln,
+    sys_cap_bind_lease, sys_cap_copy, sys_cap_drop, sys_debug_writeln, sys_exit, sys_ipc_recv,
+    sys_ipc_recv_msg, sys_ipc_reply,
 };
-use fjell_service_api::{tags, negative_markers as M};
 
 // Scratch CSpace slots for IPC tests.
-const SLOT_LEASED_EP:  u32 = 5;  // blocked-recv test (BIND_LEASE_FOR_IPC_TEST)
-const SLOT_CALL_EP:    u32 = 6;  // blocked-call test (BIND_LEASE_AND_CALL_BACK)
+const SLOT_LEASED_EP: u32 = 5; // blocked-recv test (BIND_LEASE_FOR_IPC_TEST)
+const SLOT_CALL_EP: u32 = 6; // blocked-call test (BIND_LEASE_AND_CALL_BACK)
 // Own endpoint slot (pre-installed; object 6 — dedicated, RFC 042).
-const SLOT_OWN_EP:    u32 = 0;
+const SLOT_OWN_EP: u32 = 0;
 // Shared endpoint (object 0) — used only for the SERVICE_READY signal.
 const SLOT_SHARED_EP: u32 = 2;
 
@@ -34,8 +34,15 @@ fn debug_err(e: fjell_abi::error::SysError) {
     let mut buf = [0u8; 24];
     let mut n = e as usize;
     let mut i = buf.len();
-    if n == 0 { i -= 1; buf[i] = b'0'; }
-    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
+    if n == 0 {
+        i -= 1;
+        buf[i] = b'0';
+    }
+    while n > 0 {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
     sys_debug_writeln(core::str::from_utf8(&buf[i..]).unwrap_or("?"));
 }
 
@@ -44,13 +51,17 @@ pub extern "C" fn service_main() -> ! {
     // RFC 058: signal service-manager we are ready.
     // RFC 058: signal READY to service-manager (best-effort; no reply expected).
     let _ = fjell_syscall::sys_ipc_try_send(SLOT_SHARED_EP, fjell_service_api::tags::SERVICE_READY);
-    let ep: u32 = 0;  // slot 0 = own endpoint (object 6, dedicated)
+    let ep: u32 = 0; // slot 0 = own endpoint (object 6, dedicated)
 
     loop {
         // Use recv_msg to capture data words (needed for BIND_LEASE_FOR_IPC_TEST).
-        let (label, w0, _, _, _, _) = match sys_ipc_recv_msg(ep) {  // RFC 055: ignore sender identity
-            Ok(v)  => v,
-            Err(_) => { let _ = sys_ipc_reply(0); continue; }
+        let (label, w0, _, _, _, _) = match sys_ipc_recv_msg(ep) {
+            // RFC 055: ignore sender identity
+            Ok(v) => v,
+            Err(_) => {
+                let _ = sys_ipc_reply(0);
+                continue;
+            }
         };
 
         match label {
@@ -81,7 +92,7 @@ pub extern "C" fn service_main() -> ! {
                 // v0.18 follow-up — same defect class as the neg-test quartet).
                 let leased_h = 'setup: {
                     let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_LEASED_EP) {
-                        Ok(h)  => h,
+                        Ok(h) => h,
                         Err(_) => {
                             sys_debug_writeln("sample: blocked_recv setup copy failed");
                             break 'setup None;
@@ -95,7 +106,7 @@ pub extern "C" fn service_main() -> ! {
                     Some(h)
                 };
                 let Some(leased_h) = leased_h else {
-                    let _ = sys_ipc_reply(usize::MAX);  // setup failed
+                    let _ = sys_ipc_reply(usize::MAX); // setup failed
                     continue;
                 };
                 // Reply OK — neg-test will now yield and then revoke the lease.
@@ -130,7 +141,7 @@ pub extern "C" fn service_main() -> ! {
                 let lease_id = LeaseId(w0 as u32);
                 let call_h = 'setup2: {
                     let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_CALL_EP) {
-                        Ok(h)  => h,
+                        Ok(h) => h,
                         Err(_) => {
                             sys_debug_writeln("sample: blocked_call setup copy failed");
                             break 'setup2 None;
@@ -173,7 +184,9 @@ pub extern "C" fn service_main() -> ! {
             }
 
             // ── Unknown label ────────────────────────────────────────────────
-            _ => { let _ = sys_ipc_reply(0); }
+            _ => {
+                let _ = sys_ipc_reply(0);
+            }
         }
     }
 

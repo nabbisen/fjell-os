@@ -4,7 +4,7 @@
 //! import only the trait.
 #![no_std]
 
-use fjell_arch::{ArchIdentity};
+use fjell_arch::ArchIdentity;
 
 /// RISC-V 64 GC architecture tag.
 pub struct Riscv64Gc;
@@ -13,8 +13,8 @@ impl fjell_arch::sealed::Sealed for Riscv64Gc {}
 
 impl ArchIdentity for Riscv64Gc {
     const ARCH_NAME: &'static str = "riscv64gc";
-    const GP_REGS:   usize        = 32;   // x0..x31
-    const PAGE_SIZE: usize        = 4096;
+    const GP_REGS: usize = 32; // x0..x31
+    const PAGE_SIZE: usize = 4096;
 }
 
 /// The active architecture for this build.
@@ -46,4 +46,6 @@ pub fn read_misa() -> u64 {
 }
 
 #[cfg(not(target_arch = "riscv64"))]
-pub fn read_misa() -> u64 { 0 }
+pub fn read_misa() -> u64 {
+    0
+}

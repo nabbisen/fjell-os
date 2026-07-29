@@ -5,16 +5,16 @@
 //! accepting a snapshot export.
 #![no_std]
 
+pub mod digest;
 pub mod identity;
 pub mod policy;
-pub mod digest;
 
-pub use identity::{
-    NodeIdentity, NodeId, NodeAlias, AttestationPubkey,
-    NODE_IDENTITY_SCHEMA_VERSION, STORE_RECORD_KIND_IDENTITY,
-};
-pub use policy::{NodeIdentityPolicy, TrustMode, RosterRef};
 pub use digest::identity_digest;
+pub use identity::{
+    AttestationPubkey, NODE_IDENTITY_SCHEMA_VERSION, NodeAlias, NodeId, NodeIdentity,
+    STORE_RECORD_KIND_IDENTITY,
+};
+pub use policy::{NodeIdentityPolicy, RosterRef, TrustMode};
 
 #[cfg(test)]
 mod tests;

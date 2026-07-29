@@ -11,13 +11,11 @@
 #![no_main]
 mod rt;
 
-use fjell_syscall::{
-    sys_exit, sys_yield, sys_debug_writeln,
-    sys_ipc_recv_msg, ipc_sender_image_id,
-    sys_task_status,
-};
-use fjell_service_api::{tags, negative_markers as M};
 use fjell_abi::service::TaskLifecycle;
+use fjell_service_api::{negative_markers as M, tags};
+use fjell_syscall::{
+    ipc_sender_image_id, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_task_status, sys_yield,
+};
 
 const SLOT_EP: u32 = 0;
 const SLOT_TASK_CONTROL: u32 = 29;
@@ -25,10 +23,10 @@ const READY_DEADLINE_YIELDS: u32 = 100;
 const MAX_TRACKED: usize = 32;
 
 struct ServiceEntry {
-    image_id:   u16,
+    image_id: u16,
     task_handle: usize,
-    ready:       bool,
-    timed_out:   bool,
+    ready: bool,
+    timed_out: bool,
     fault_emitted: bool,
 }
 
@@ -130,6 +128,8 @@ pub extern "C" fn service_main() -> ! {
             }
         }
 
-        if yields > 2000 { sys_exit(0); }
+        if yields > 2000 {
+            sys_exit(0);
+        }
     }
 }

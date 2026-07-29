@@ -1,8 +1,8 @@
 //! `TrustAnchor` and `AuthorityClass` definitions.
 
+use crate::ANCHOR_KEY_BYTES_MAX;
 use crate::algorithm::SignatureAlgorithm;
 use crate::epoch::KeyEpoch;
-use crate::{ANCHOR_KEY_BYTES_MAX};
 use fjell_trust_provider::KeyPurpose;
 
 /// Distinguishes a "genesis" anchor (the one baked into the OS image and
@@ -11,7 +11,7 @@ use fjell_trust_provider::KeyPurpose;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum AuthorityClass {
-    Genesis  = 0x01,
+    Genesis = 0x01,
     Standard = 0x02,
 }
 
@@ -26,12 +26,12 @@ impl AuthorityClass {
 /// Anchors are `Copy` and fixed-size so the keyring stays alloc-free.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TrustAnchor {
-    pub purpose:    KeyPurpose,
-    pub algorithm:  SignatureAlgorithm,
-    pub authority:  AuthorityClass,
-    pub epoch:      KeyEpoch,
-    pub key_len:    u8,
-    pub key_bytes:  [u8; ANCHOR_KEY_BYTES_MAX],
+    pub purpose: KeyPurpose,
+    pub algorithm: SignatureAlgorithm,
+    pub authority: AuthorityClass,
+    pub epoch: KeyEpoch,
+    pub key_len: u8,
+    pub key_bytes: [u8; ANCHOR_KEY_BYTES_MAX],
 }
 
 impl TrustAnchor {

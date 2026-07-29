@@ -12,9 +12,9 @@ use fjell_net_format::NET_RING_DESCRIPTORS;
 pub const QUEUE_SIZE: u16 = NET_RING_DESCRIPTORS as u16;
 
 /// Virtio queue descriptor flags (spec §2.7.5).
-pub const VRING_DESC_F_NEXT:     u16 = 1;  // descriptor is part of a chain
-pub const VRING_DESC_F_WRITE:    u16 = 2;  // device writes to this buffer
-pub const VRING_DESC_F_INDIRECT: u16 = 4;  // buffer is an indirect table
+pub const VRING_DESC_F_NEXT: u16 = 1; // descriptor is part of a chain
+pub const VRING_DESC_F_WRITE: u16 = 2; // device writes to this buffer
+pub const VRING_DESC_F_INDIRECT: u16 = 4; // buffer is an indirect table
 
 /// One virtio queue descriptor.
 /// 16 bytes. Stored contiguously in DMA-mapped memory.
@@ -22,28 +22,32 @@ pub const VRING_DESC_F_INDIRECT: u16 = 4;  // buffer is an indirect table
 #[repr(C)]
 pub struct VirtqDesc {
     /// Physical address of the buffer.
-    pub addr:  u64,
+    pub addr: u64,
     /// Length of the buffer in bytes.
-    pub len:   u32,
+    pub len: u32,
     /// Flags (VRING_DESC_F_*).
     pub flags: u16,
     /// Index of the next descriptor (if VRING_DESC_F_NEXT set).
-    pub next:  u16,
+    pub next: u16,
 }
 
 /// Available ring — driver → device.
 /// The driver writes descriptor indices here and bumps `avail_idx`.
 #[derive(Debug)]
 pub struct AvailRing {
-    pub flags:     u16,
-    pub idx:       u16,
+    pub flags: u16,
+    pub idx: u16,
     /// Descriptor indices posted by the driver.
-    pub ring:      [u16; QUEUE_SIZE as usize],
+    pub ring: [u16; QUEUE_SIZE as usize],
 }
 
 impl AvailRing {
     pub const fn new() -> Self {
-        Self { flags: 0, idx: 0, ring: [0; QUEUE_SIZE as usize] }
+        Self {
+            flags: 0,
+            idx: 0,
+            ring: [0; QUEUE_SIZE as usize],
+        }
     }
 
     /// Post a descriptor to the device.
@@ -59,7 +63,7 @@ impl AvailRing {
 #[repr(C)]
 pub struct VirtqUsedElem {
     /// Descriptor index the device processed.
-    pub id:  u32,
+    pub id: u32,
     /// Bytes written (for write descriptors).
     pub len: u32,
 }
@@ -68,9 +72,9 @@ pub struct VirtqUsedElem {
 /// The device writes `VirtqUsedElem`s and bumps `used_idx`.
 #[derive(Debug)]
 pub struct UsedRing {
-    pub flags:     u16,
-    pub idx:       u16,
-    pub ring:      [VirtqUsedElem; QUEUE_SIZE as usize],
+    pub flags: u16,
+    pub idx: u16,
+    pub ring: [VirtqUsedElem; QUEUE_SIZE as usize],
     /// Driver's last-seen `idx` from the used ring.
     pub last_seen: u16,
 }
@@ -78,9 +82,9 @@ pub struct UsedRing {
 impl UsedRing {
     pub const fn new() -> Self {
         Self {
-            flags:     0,
-            idx:       0,
-            ring:      [VirtqUsedElem { id: 0, len: 0 }; QUEUE_SIZE as usize],
+            flags: 0,
+            idx: 0,
+            ring: [VirtqUsedElem { id: 0, len: 0 }; QUEUE_SIZE as usize],
             last_seen: 0,
         }
     }
@@ -92,7 +96,9 @@ impl UsedRing {
 
     /// Consume the next completed element. Returns `None` if none pending.
     pub fn consume_next(&mut self) -> Option<VirtqUsedElem> {
-        if !self.has_pending() { return None; }
+        if !self.has_pending() {
+            return None;
+        }
         let slot = (self.last_seen % QUEUE_SIZE) as usize;
         let elem = self.ring[slot];
         self.last_seen = self.last_seen.wrapping_add(1);
@@ -106,19 +112,25 @@ impl UsedRing {
 pub struct DescriptorAllocator {
     /// Bitmask: bit `i` set = descriptor `i` is free.
     free_mask: u16,
-    total:     u16,
+    total: u16,
 }
 
 impl DescriptorAllocator {
     pub const fn new(total: u16) -> Self {
         // All descriptors start free.
-        let free_mask = if total >= 16 { 0xFFFF } else { (1u16 << total) - 1 };
+        let free_mask = if total >= 16 {
+            0xFFFF
+        } else {
+            (1u16 << total) - 1
+        };
         Self { free_mask, total }
     }
 
     /// Allocate a free descriptor index. Returns `None` if all are in flight.
     pub fn alloc(&mut self) -> Option<u16> {
-        if self.free_mask == 0 { return None; }
+        if self.free_mask == 0 {
+            return None;
+        }
         let idx = self.free_mask.trailing_zeros() as u16;
         self.free_mask &= !(1 << idx);
         Some(idx)
@@ -138,18 +150,23 @@ impl DescriptorAllocator {
 
 /// Combined per-direction queue state (RFC-v0.7.3-001).
 pub struct VirtQueue {
-    pub descs:    [VirtqDesc; QUEUE_SIZE as usize],
-    pub avail:    AvailRing,
-    pub used:     UsedRing,
-    pub alloc:    DescriptorAllocator,
+    pub descs: [VirtqDesc; QUEUE_SIZE as usize],
+    pub avail: AvailRing,
+    pub used: UsedRing,
+    pub alloc: DescriptorAllocator,
 }
 
 impl VirtQueue {
     pub const fn new() -> Self {
         Self {
-            descs: [VirtqDesc { addr: 0, len: 0, flags: 0, next: 0 }; QUEUE_SIZE as usize],
+            descs: [VirtqDesc {
+                addr: 0,
+                len: 0,
+                flags: 0,
+                next: 0,
+            }; QUEUE_SIZE as usize],
             avail: AvailRing::new(),
-            used:  UsedRing::new(),
+            used: UsedRing::new(),
             alloc: DescriptorAllocator::new(QUEUE_SIZE),
         }
     }
@@ -159,10 +176,10 @@ impl VirtQueue {
     pub fn post_tx(&mut self, phys_addr: u64, len: u32) -> Option<u16> {
         let idx = self.alloc.alloc()?;
         self.descs[idx as usize] = VirtqDesc {
-            addr:  phys_addr,
+            addr: phys_addr,
             len,
-            flags: 0,  // no NEXT, device reads this buffer
-            next:  0,
+            flags: 0, // no NEXT, device reads this buffer
+            next: 0,
         };
         self.avail.post(idx);
         Some(idx)
@@ -173,10 +190,10 @@ impl VirtQueue {
     pub fn post_rx_buffer(&mut self, phys_addr: u64, buf_len: u32) -> Option<u16> {
         let idx = self.alloc.alloc()?;
         self.descs[idx as usize] = VirtqDesc {
-            addr:  phys_addr,
-            len:   buf_len,
-            flags: VRING_DESC_F_WRITE,  // device writes received packet here
-            next:  0,
+            addr: phys_addr,
+            len: buf_len,
+            flags: VRING_DESC_F_WRITE, // device writes received packet here
+            next: 0,
         };
         self.avail.post(idx);
         Some(idx)
@@ -186,8 +203,8 @@ impl VirtQueue {
     /// Returns (descriptor_index, bytes_written) or `None`.
     pub fn pop_used(&mut self) -> Option<(u16, u32)> {
         let elem = self.used.consume_next()?;
-        let idx  = elem.id as u16;
-        self.alloc.free(idx);  // return descriptor to pool
+        let idx = elem.id as u16;
+        self.alloc.free(idx); // return descriptor to pool
         Some((idx, elem.len))
     }
 }
@@ -253,8 +270,8 @@ mod virtq_tests {
         let mut q = VirtQueue::new();
         let idx = q.post_tx(0xDEAD_BEEF, 128).unwrap();
         assert_eq!(q.descs[idx as usize].addr, 0xDEAD_BEEF);
-        assert_eq!(q.descs[idx as usize].len,  128);
-        assert_eq!(q.descs[idx as usize].flags, 0);  // TX: no WRITE flag
+        assert_eq!(q.descs[idx as usize].len, 128);
+        assert_eq!(q.descs[idx as usize].flags, 0); // TX: no WRITE flag
     }
 
     #[test]
@@ -269,7 +286,10 @@ mod virtq_tests {
         let mut q = VirtQueue::new();
         let tx_idx = q.post_tx(0x2000, 64).unwrap();
         // Simulate device completing the TX
-        q.used.ring[0] = VirtqUsedElem { id: tx_idx as u32, len: 64 };
+        q.used.ring[0] = VirtqUsedElem {
+            id: tx_idx as u32,
+            len: 64,
+        };
         q.used.idx = 1;
         let (ret_idx, len) = q.pop_used().unwrap();
         assert_eq!(ret_idx, tx_idx);

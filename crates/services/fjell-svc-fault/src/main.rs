@@ -21,5 +21,7 @@ pub extern "C" fn service_main() -> ! {
     let _ = unsafe { core::ptr::read_volatile(0usize as *const u8) };
 
     // Unreachable — fault above will trap and the kernel will Faulted the task.
-    loop { sys_yield(); }
+    loop {
+        sys_yield();
+    }
 }

@@ -10,18 +10,24 @@
 // so the kernel can emit the milestone marker. The full implementation is
 // post-v1.0 roadmap work; the allows below keep the intentional dead paths
 // from polluting the workspace warning baseline.
-#![allow(dead_code, unused_variables, unreachable_code, unused_imports, unused_assignments, unused_mut)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unreachable_code,
+    unused_imports,
+    unused_assignments,
+    unused_mut
+)]
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_syscall::{sys_debug_writeln, sys_exit};
 use fjell_cap::CapHandle;
 use fjell_net_format::{
-    NetSession, SessionId, SessionState, ChannelKind,
-    MAX_SESSIONS, MAX_CHANNELS, SessionError,
-    NetIpcTag, NetDeviceDescriptor, NetDeviceState,
+    ChannelKind, MAX_CHANNELS, MAX_SESSIONS, NetDeviceDescriptor, NetDeviceState, NetIpcTag,
+    NetSession, SessionError, SessionId, SessionState,
 };
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -35,8 +41,8 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //   slot 1 — Endpoint to driver (for query/control)
 //   slot 2 — Endpoint to service-manager (ready signal)
 //
-const CAP_NETDEV:  CapHandle = CapHandle(0);
-const CAP_DRV_EP:  CapHandle = CapHandle(1);
+const CAP_NETDEV: CapHandle = CapHandle(0);
+const CAP_DRV_EP: CapHandle = CapHandle(1);
 const CAP_SMGR_EP: CapHandle = CapHandle(2);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
@@ -72,14 +78,14 @@ fn recv_msg() -> (usize, usize, usize) {
 
 struct SessionTable {
     sessions: [NetSession; MAX_SESSIONS],
-    count:    u8,
+    count: u8,
 }
 
 impl SessionTable {
     const fn new() -> Self {
         Self {
             sessions: [NetSession::EMPTY; MAX_SESSIONS],
-            count:    0,
+            count: 0,
         }
     }
 
@@ -89,8 +95,8 @@ impl SessionTable {
         }
         for slot in &mut self.sessions {
             if slot.state == SessionState::Closed {
-                slot.session_id  = SessionId(self.count as u16);
-                slot.state       = SessionState::Pending;
+                slot.session_id = SessionId(self.count as u16);
+                slot.state = SessionState::Pending;
                 slot.server_name = server_name;
                 slot.channel_count = 0;
                 self.count = self.count.wrapping_add(1);
@@ -111,7 +117,10 @@ impl SessionTable {
     }
 
     fn count_active(&self) -> usize {
-        self.sessions.iter().filter(|s| s.state == SessionState::Active).count()
+        self.sessions
+            .iter()
+            .filter(|s| s.state == SessionState::Active)
+            .count()
     }
 }
 
@@ -141,7 +150,9 @@ pub extern "C" fn service_main() -> ! {
                 sys_debug_writeln("netd: link up");
                 // Pre-allocate an update-metadata session for secure-transportd.
                 let mut srv_name = [0u8; 64];
-                srv_name[0] = b'u'; srv_name[1] = b'p'; srv_name[2] = b'd';
+                srv_name[0] = b'u';
+                srv_name[1] = b'p';
+                srv_name[2] = b'd';
                 let _ = sessions.alloc(srv_name);
             }
             Some(NetIpcTag::LinkDown) => {

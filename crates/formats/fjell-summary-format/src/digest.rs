@@ -1,19 +1,45 @@
 //! Canonical summary digest computations (RFC v0.7-003 §6.1).
 
+use crate::measurement::{MSUMMARY_SCHEMA_VERSION, MeasurementSummary};
+use crate::release::{RSUMMARY_SCHEMA_VERSION, ReleaseSummary};
 use fjell_measure_format::Digest32;
-use crate::measurement::{MeasurementSummary, MSUMMARY_SCHEMA_VERSION};
-use crate::release::{ReleaseSummary, RSUMMARY_SCHEMA_VERSION};
 
 /// `SHA256("FJELL-MSUMMARY-V1" || schema || source_node_id || ...)`.
 pub fn measurement_summary_digest(s: &MeasurementSummary) -> Digest32 {
     let mut buf = [0u8; 512];
     let mut pos = 0usize;
 
-    macro_rules! w_u8  { ($v:expr) => { buf[pos] = $v; pos += 1; }; }
-    macro_rules! w_u16 { ($v:expr) => { buf[pos..pos+2].copy_from_slice(&($v as u16).to_le_bytes()); pos += 2; }; }
-    macro_rules! w_u32 { ($v:expr) => { buf[pos..pos+4].copy_from_slice(&($v as u32).to_le_bytes()); pos += 4; }; }
-    macro_rules! w_u64 { ($v:expr) => { buf[pos..pos+8].copy_from_slice(&($v as u64).to_le_bytes()); pos += 8; }; }
-    macro_rules! w_b   { ($b:expr) => { let bb: &[u8] = $b; buf[pos..pos+bb.len()].copy_from_slice(bb); pos += bb.len(); }; }
+    macro_rules! w_u8 {
+        ($v:expr) => {
+            buf[pos] = $v;
+            pos += 1;
+        };
+    }
+    macro_rules! w_u16 {
+        ($v:expr) => {
+            buf[pos..pos + 2].copy_from_slice(&($v as u16).to_le_bytes());
+            pos += 2;
+        };
+    }
+    macro_rules! w_u32 {
+        ($v:expr) => {
+            buf[pos..pos + 4].copy_from_slice(&($v as u32).to_le_bytes());
+            pos += 4;
+        };
+    }
+    macro_rules! w_u64 {
+        ($v:expr) => {
+            buf[pos..pos + 8].copy_from_slice(&($v as u64).to_le_bytes());
+            pos += 8;
+        };
+    }
+    macro_rules! w_b {
+        ($b:expr) => {
+            let bb: &[u8] = $b;
+            buf[pos..pos + bb.len()].copy_from_slice(bb);
+            pos += bb.len();
+        };
+    }
 
     w_b!(b"FJELL-MSUMMARY-V1");
     w_u16!(MSUMMARY_SCHEMA_VERSION);
@@ -36,11 +62,37 @@ pub fn release_summary_digest(s: &ReleaseSummary) -> Digest32 {
     let mut buf = [0u8; 512];
     let mut pos = 0usize;
 
-    macro_rules! w_u8  { ($v:expr) => { buf[pos] = $v; pos += 1; }; }
-    macro_rules! w_u16 { ($v:expr) => { buf[pos..pos+2].copy_from_slice(&($v as u16).to_le_bytes()); pos += 2; }; }
-    macro_rules! w_u32 { ($v:expr) => { buf[pos..pos+4].copy_from_slice(&($v as u32).to_le_bytes()); pos += 4; }; }
-    macro_rules! w_u64 { ($v:expr) => { buf[pos..pos+8].copy_from_slice(&($v as u64).to_le_bytes()); pos += 8; }; }
-    macro_rules! w_b   { ($b:expr) => { let bb: &[u8] = $b; buf[pos..pos+bb.len()].copy_from_slice(bb); pos += bb.len(); }; }
+    macro_rules! w_u8 {
+        ($v:expr) => {
+            buf[pos] = $v;
+            pos += 1;
+        };
+    }
+    macro_rules! w_u16 {
+        ($v:expr) => {
+            buf[pos..pos + 2].copy_from_slice(&($v as u16).to_le_bytes());
+            pos += 2;
+        };
+    }
+    macro_rules! w_u32 {
+        ($v:expr) => {
+            buf[pos..pos + 4].copy_from_slice(&($v as u32).to_le_bytes());
+            pos += 4;
+        };
+    }
+    macro_rules! w_u64 {
+        ($v:expr) => {
+            buf[pos..pos + 8].copy_from_slice(&($v as u64).to_le_bytes());
+            pos += 8;
+        };
+    }
+    macro_rules! w_b {
+        ($b:expr) => {
+            let bb: &[u8] = $b;
+            buf[pos..pos + bb.len()].copy_from_slice(bb);
+            pos += bb.len();
+        };
+    }
 
     w_b!(b"FJELL-RSUMMARY-V1");
     w_u16!(RSUMMARY_SCHEMA_VERSION);

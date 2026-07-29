@@ -10,16 +10,16 @@
 //! This means ALL scheduling decisions happen inside `trap_dispatch`; there
 //! is no separate "run loop" in Rust that srets to user mode repeatedly.
 
+use super::{fault::handle_user_fault, syscall::handle_syscall};
 use crate::{
-    arch::riscv64::trap::{decode_trap, TrapKind},
-    audit::ring::{AuditKindInternal, AUDIT},
+    arch::riscv64::trap::{TrapKind, decode_trap},
+    audit::ring::{AUDIT, AuditKindInternal},
     task::{
+        TaskId,
         scheduler::PRIORITY_IDLE,
         tcb::{FaultCause, TaskState, TrapFrame},
-        TaskId,
     },
 };
-use super::{fault::handle_user_fault, syscall::handle_syscall};
 
 // ── Shared kernel state accessed from trap_dispatch ───────────────────────────
 // These are the same KS statics defined in main.rs, accessed via extern.
@@ -112,18 +112,15 @@ pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
     let scause = tf_ref.scause;
 
     match decode_trap(scause) {
-        TrapKind::UserEcall    => handle_syscall(tf_ref),
+        TrapKind::UserEcall => handle_syscall(tf_ref),
         TrapKind::SupervisorTimer => handle_timer(),
-        TrapKind::InstructionPageFault =>
-            handle_user_fault(tf_ref, FaultCause::InstructionPageFault),
-        TrapKind::LoadPageFault =>
-            handle_user_fault(tf_ref, FaultCause::LoadPageFault),
-        TrapKind::StorePageFault =>
-            handle_user_fault(tf_ref, FaultCause::StorePageFault),
-        TrapKind::IllegalInstruction =>
-            handle_user_fault(tf_ref, FaultCause::IllegalInstruction),
-        TrapKind::Other(cause) =>
-            handle_unhandled(tf_ref, cause),
+        TrapKind::InstructionPageFault => {
+            handle_user_fault(tf_ref, FaultCause::InstructionPageFault)
+        }
+        TrapKind::LoadPageFault => handle_user_fault(tf_ref, FaultCause::LoadPageFault),
+        TrapKind::StorePageFault => handle_user_fault(tf_ref, FaultCause::StorePageFault),
+        TrapKind::IllegalInstruction => handle_user_fault(tf_ref, FaultCause::IllegalInstruction),
+        TrapKind::Other(cause) => handle_unhandled(tf_ref, cause),
     }
 
     // Schedule the next task and return its TrapFrame pointer.
@@ -135,7 +132,9 @@ pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
 fn handle_timer() {
     #[cfg(target_arch = "riscv64")]
     // SAFETY: category=page-table-mutation CLINT MMIO; single hart; no concurrent access.
-    unsafe { crate::arch::riscv64::timer::schedule_next_tick() };
+    unsafe {
+        crate::arch::riscv64::timer::schedule_next_tick()
+    };
     // RFC 037: mark this as a timer preemption (distinct from voluntary yield).
     TIMER_PREEMPTED.store(true);
     super::syscall::request_yield();
@@ -149,7 +148,9 @@ fn handle_timer() {
 /// the scheduler can track per-task quantum violations.
 static TIMER_PREEMPTED: super::syscall::Flag = super::syscall::Flag::new();
 
-fn take_timer_preempted() -> bool { TIMER_PREEMPTED.take() }
+fn take_timer_preempted() -> bool {
+    TIMER_PREEMPTED.take()
+}
 
 fn handle_unhandled(tf: &mut TrapFrame, cause: usize) {
     let from_user = tf.sstatus & (1 << 8) == 0; // SPP bit
@@ -192,7 +193,14 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 let label = task_label(id);
                 // RISC-V ABI: x14=a4, x29=t4, x30=t5 — the registers used
                 // by the LBU string-print loop at the observed fault sites.
-                crate::kprintln!("[task#{} {}]: fault({:?}) sepc={:#x} stval={:#x}", id.index, label, fault.cause, fault.sepc, fault.stval);
+                crate::kprintln!(
+                    "[task#{} {}]: fault({:?}) sepc={:#x} stval={:#x}",
+                    id.index,
+                    label,
+                    fault.cause,
+                    fault.sepc,
+                    fault.stval
+                );
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task fault.
@@ -208,8 +216,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 task.state = TaskState::Runnable;
                 // Voluntary yield: reset quantum violation counter (RFC 037).
                 task.accounting.quantum_violations = 0;
-                AUDIT.lock_free_append(
-                    AuditKindInternal::TaskSwitch, id.index as usize, 0, 0);
+                AUDIT.lock_free_append(AuditKindInternal::TaskSwitch, id.index as usize, 0, 0);
                 let prio = task.priority;
                 sched.on_yield(id, prio);
             } else {
@@ -242,19 +249,21 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     sched.set_current(next_id);
 
     // Idle: wfi until next interrupt.
-    let is_idle = table.get(next_id)
+    let is_idle = table
+        .get(next_id)
         .map(|t| t.priority == PRIORITY_IDLE)
         .unwrap_or(false);
     if is_idle {
         // SAFETY: category=kernel-global-mutable interrupts enabled after trap init.
         #[cfg(target_arch = "riscv64")]
-        unsafe { crate::arch::riscv64::asm::wfi() };
+        unsafe {
+            crate::arch::riscv64::asm::wfi()
+        };
         // After wfi returns (interrupt arrived), the trap entry will call
         // trap_dispatch again.  Return current_tf as a placeholder (it will
         // be overwritten by the next trap_dispatch call).
         return current_tf;
     }
-
 
     // Mark next task as running and switch to its address space.
     let next_tf = if let Some(task) = table.get_mut(next_id) {
@@ -262,8 +271,12 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         // If one ends up here it means something enqueued it incorrectly; skip
         // it and fall back to current_tf so the kernel stays alive.
         if matches!(task.state, TaskState::Exited(_) | TaskState::Faulted(_)) {
-            crate::kprintln!("[sched] BUG: dispatched dead task #{} {} state={:?}",
-                next_id.index, task_label(next_id), task.state);
+            crate::kprintln!(
+                "[sched] BUG: dispatched dead task #{} {} state={:?}",
+                next_id.index,
+                task_label(next_id),
+                task.state
+            );
             return current_tf;
         }
         task.state = TaskState::Running;
@@ -311,22 +324,22 @@ fn task_label(id: crate::task::TaskId) -> &'static str {
     // in fjell-abi, which may differ across builds).
     // Kernel-side labels are best-effort for diagnostics only.
     match id.index {
-        0  => "idle",
-        1  => "init",
-        2  => "configd",
-        3  => "cap-broker",
-        4  => "auditd",
-        5  => "svc-manager",
-        6  => "sample",
-        7  => "neg-test",
-        8  => "sem-stream",
-        9  => "proxy-text",
+        0 => "idle",
+        1 => "init",
+        2 => "configd",
+        3 => "cap-broker",
+        4 => "auditd",
+        5 => "svc-manager",
+        6 => "sample",
+        7 => "neg-test",
+        8 => "sem-stream",
+        9 => "proxy-text",
         10 => "devmgr",
         11 => "virtio-blk",
         12 => "storaged",
         13 => "bootctl",
         14 => "upgraded",
-        _  => "task",
+        _ => "task",
     }
 }
 
@@ -335,23 +348,31 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
     // init (slot 1) orchestrates M1-M7 and exits after those complete.
     // upgraded (slot 14) orchestrates M8 and exits after M8 completes.
     let exited_ok = |idx: u16| {
-        table.get(TaskId::new(idx, 0))
-             .map(|t| matches!(t.state, TaskState::Exited(0)))
-             .unwrap_or(false)
+        table
+            .get(TaskId::new(idx, 0))
+            .map(|t| matches!(t.state, TaskState::Exited(0)))
+            .unwrap_or(false)
     };
     let done = |idx: u16| {
-        table.get(TaskId::new(idx, 0))
-             .map(|t| matches!(t.state, TaskState::Exited(_) | TaskState::Faulted(_)))
-             .unwrap_or(true)
+        table
+            .get(TaskId::new(idx, 0))
+            .map(|t| matches!(t.state, TaskState::Exited(_) | TaskState::Faulted(_)))
+            .unwrap_or(true)
     };
 
     // Emit milestone markers atomically from the kernel so they are never
     // garbled by concurrent user-space UART writes.
     //
     // Spawn order: devmgr(10) upgraded(14) syncd(19) netd(21)
-    if exited_ok(10) { crate::kprintln!("TEST:V0.5-PLATFORM:PASS"); }
-    if exited_ok(19) { crate::kprintln!("TEST:V0.7-SYNC:PASS"); }
-    if exited_ok(21) { crate::kprintln!("TEST:V0.4-NET:PASS"); }
+    if exited_ok(10) {
+        crate::kprintln!("TEST:V0.5-PLATFORM:PASS");
+    }
+    if exited_ok(19) {
+        crate::kprintln!("TEST:V0.7-SYNC:PASS");
+    }
+    if exited_ok(21) {
+        crate::kprintln!("TEST:V0.4-NET:PASS");
+    }
 
     // M8 pass: upgraded (slot 14) exited cleanly.
     if exited_ok(14) {

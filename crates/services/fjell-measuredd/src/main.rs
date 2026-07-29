@@ -3,14 +3,14 @@
 //! v0.3.0-alpha.1: calls `set_measurement()` on the trust provider after
 //! every chain append, keeping the provider's chain-head view current for
 //! attestation (RFC v0.3-001 §5.3).
-#![allow(unused_assignments)]  // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
+#![allow(unused_assignments)] // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;
 
 use fjell_measure_format::{
-    Digest32, MeasurementEvent, MeasurementHead, MeasurementKind,
-    MeasurementSource, MeasurementSubject, MeasurementError,
+    Digest32, MeasurementError, MeasurementEvent, MeasurementHead, MeasurementKind,
+    MeasurementSource, MeasurementSubject,
 };
 use fjell_service_api::measuredd as proto;
 use fjell_syscall::{sys_debug_writeln, sys_exit};
@@ -18,7 +18,7 @@ use fjell_trust_provider::descriptor::TrustProviderDescriptor;
 use fjell_trust_provider::development::DevelopmentTrustProvider;
 use fjell_trust_provider::ids::TrustProviderId;
 use fjell_trust_provider::profile::{
-    TrustProviderCapabilities, TrustProviderKind, TrustProfile, TrustProviderState,
+    TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
 use fjell_trust_provider::registry::ProviderRegistry;
 
@@ -44,8 +44,7 @@ fn send_ready() {
 }
 
 fn recv_call() -> (usize, usize, usize, usize, usize) {
-    let (mut t, mut w0, mut w1, mut w2, mut w3) =
-        (0usize, 0usize, 0usize, 0usize, 0usize);
+    let (mut t, mut w0, mut w1, mut w2, mut w3) = (0usize, 0usize, 0usize, 0usize, 0usize);
     // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
     unsafe {
         core::arch::asm!(
@@ -76,31 +75,37 @@ fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
 const MAX_EVENTS: usize = 64;
 
 struct Chain {
-    events:   [Option<MeasurementEvent>; MAX_EVENTS],
-    head:     MeasurementHead,
+    events: [Option<MeasurementEvent>; MAX_EVENTS],
+    head: MeasurementHead,
     next_seq: u64,
 }
 
 impl Chain {
     const fn new() -> Self {
-        Self { events: [None; MAX_EVENTS], head: MeasurementHead::EMPTY, next_seq: 1 }
+        Self {
+            events: [None; MAX_EVENTS],
+            head: MeasurementHead::EMPTY,
+            next_seq: 1,
+        }
     }
 
     fn append(
         &mut self,
-        kind:    MeasurementKind,
-        source:  MeasurementSource,
+        kind: MeasurementKind,
+        source: MeasurementSource,
         subject: MeasurementSubject,
-        sd:      Digest32,
-        meta:    Option<Digest32>,
+        sd: Digest32,
+        meta: Option<Digest32>,
     ) -> Result<(u64, Digest32), MeasurementError> {
-        let seq  = self.next_seq;
+        let seq = self.next_seq;
         let prev = self.head.chain_digest;
-        let ev   = MeasurementEvent::new(seq, 0, kind, source, subject, sd, meta, prev);
+        let ev = MeasurementEvent::new(seq, 0, kind, source, subject, sd, meta, prev);
         self.events[((seq - 1) as usize) % MAX_EVENTS] = Some(ev);
         self.head = MeasurementHead {
-            latest_seq: seq, chain_digest: ev.chain_digest,
-            dropped: self.head.dropped, last_event_kind: kind,
+            latest_seq: seq,
+            chain_digest: ev.chain_digest,
+            dropped: self.head.dropped,
+            last_event_kind: kind,
         };
         self.next_seq = seq + 1;
         Ok((seq, ev.chain_digest))
@@ -117,7 +122,7 @@ fn decode_kind(b: u8) -> MeasurementKind {
         0x09 => MeasurementKind::BundleFreshnessChecked,
         0x0A => MeasurementKind::RecoveryTargetEntered,
         0x0C => MeasurementKind::AttestationGenerated,
-        _    => MeasurementKind::BootEvidenceImported,
+        _ => MeasurementKind::BootEvidenceImported,
     }
 }
 
@@ -128,7 +133,7 @@ fn decode_source(b: u8) -> MeasurementSource {
         0x09 => MeasurementSource::Upgraded,
         0x0A => MeasurementSource::Recoveryd,
         0x0B => MeasurementSource::Attestd,
-        _    => MeasurementSource::Measuredd,
+        _ => MeasurementSource::Measuredd,
     }
 }
 
@@ -142,7 +147,7 @@ fn decode_subject(b: u8) -> MeasurementSubject {
         0x09 => MeasurementSubject::BundleMetadata,
         0x0A => MeasurementSubject::RecoveryAction,
         0x0B => MeasurementSubject::AttestationRecord,
-        _    => MeasurementSubject::BootEvidence,
+        _ => MeasurementSubject::BootEvidence,
     }
 }
 
@@ -182,31 +187,31 @@ pub extern "C" fn service_main() -> ! {
         let tag = tag_packed & 0xFFFF;
         match tag {
             proto::APPEND_EVENT => {
-                let kind    = decode_kind   (((w0 >> 24) & 0xFF) as u8);
-                let source  = decode_source (((w0 >> 16) & 0xFF) as u8);
-                let subject = decode_subject(((w0 >>  8) & 0xFF) as u8);
-                let mut sd  = [0u8; 32];
+                let kind = decode_kind(((w0 >> 24) & 0xFF) as u8);
+                let source = decode_source(((w0 >> 16) & 0xFF) as u8);
+                let subject = decode_subject(((w0 >> 8) & 0xFF) as u8);
+                let mut sd = [0u8; 32];
                 sd[0..8].copy_from_slice(&w1.to_le_bytes());
                 sd[8..16].copy_from_slice(&w2.to_le_bytes());
                 match chain.append(kind, source, subject, Digest32(sd), None) {
                     Ok((seq, cd)) => {
                         // v0.3: keep provider chain-head view current.
                         provider.set_measurement(chain.head);
-                        let cd_lo = u64::from_le_bytes(
-                            cd.0[0..8].try_into().unwrap_or([0; 8]),
-                        );
+                        let cd_lo = u64::from_le_bytes(cd.0[0..8].try_into().unwrap_or([0; 8]));
                         reply(proto::APPEND_OK, seq as usize, cd_lo as usize, 0);
                     }
                     Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0),
                 }
             }
             proto::GET_HEAD => {
-                let h     = chain.head;
-                let cd_lo = u64::from_le_bytes(
-                    h.chain_digest.0[0..8].try_into().unwrap_or([0; 8]),
+                let h = chain.head;
+                let cd_lo = u64::from_le_bytes(h.chain_digest.0[0..8].try_into().unwrap_or([0; 8]));
+                reply(
+                    proto::HEAD_REPLY,
+                    h.latest_seq as usize,
+                    cd_lo as usize,
+                    h.dropped as usize,
                 );
-                reply(proto::HEAD_REPLY, h.latest_seq as usize, cd_lo as usize,
-                      h.dropped as usize);
             }
             proto::EXPORT_LOG => {
                 reply(proto::EXPORT_CHUNK, chain.head.latest_seq as usize, 0, 0);

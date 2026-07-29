@@ -8,8 +8,8 @@
 //! Per RFC 025: this tool is the only validator allowed for the smoke
 //! and negative-test paths. No per-test custom matcher is used.
 
-use std::process::ExitCode;
 use std::path::Path;
+use std::process::ExitCode;
 
 /// Entry point: `cargo xtask qemu-log-check <log-file> <marker>`.
 pub fn cmd_qemu_log_check(log: Option<&str>, marker: Option<&str>) -> ExitCode {
@@ -39,8 +39,10 @@ pub fn log_check(log_path: &Path, marker: &str) -> ExitCode {
     let content = match std::fs::read_to_string(log_path) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("[xtask] qemu-log-check: cannot read {}: {e}",
-                      log_path.display());
+            eprintln!(
+                "[xtask] qemu-log-check: cannot read {}: {e}",
+                log_path.display()
+            );
             return ExitCode::FAILURE;
         }
     };

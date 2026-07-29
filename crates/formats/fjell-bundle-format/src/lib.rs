@@ -141,12 +141,11 @@ pub enum BundleError {
 impl core::fmt::Display for BundleError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            BundleError::ServiceNameTooLong(n) =>
-                write!(f, "service name too long ({} > {})", n, SERVICE_NAME_MAX),
-            BundleError::ServiceNameEmpty =>
-                write!(f, "service name must be non-empty"),
-            BundleError::BinaryEmpty =>
-                write!(f, "service binary is empty"),
+            BundleError::ServiceNameTooLong(n) => {
+                write!(f, "service name too long ({} > {})", n, SERVICE_NAME_MAX)
+            }
+            BundleError::ServiceNameEmpty => write!(f, "service name must be non-empty"),
+            BundleError::BinaryEmpty => write!(f, "service binary is empty"),
         }
     }
 }
@@ -240,18 +239,15 @@ pub fn verify_bundle(bundle: &ServiceBundle) -> bool {
 
 /// Returns `true` if transitioning from `current` to `next` is a valid
 /// lifecycle step per RFC v0.9-004 §5.3.
-pub fn is_valid_lifecycle_transition(
-    current: BundleLifecycle,
-    next: BundleLifecycle,
-) -> bool {
+pub fn is_valid_lifecycle_transition(current: BundleLifecycle, next: BundleLifecycle) -> bool {
     use BundleLifecycle::*;
     matches!(
         (current, next),
         (Fetched, Verified)
-        | (Verified, Committed)
-        | (Committed, Running)
-        | (Running, Confirmed)
-        | (Running, RolledBack)
+            | (Verified, Committed)
+            | (Committed, Running)
+            | (Running, Confirmed)
+            | (Running, RolledBack)
     )
 }
 
@@ -335,17 +331,17 @@ mod tests {
     #[test]
     fn lifecycle_valid_transitions() {
         use BundleLifecycle::*;
-        assert!(is_valid_lifecycle_transition(Fetched,    Verified));
-        assert!(is_valid_lifecycle_transition(Verified,   Committed));
-        assert!(is_valid_lifecycle_transition(Committed,  Running));
-        assert!(is_valid_lifecycle_transition(Running,    Confirmed));
-        assert!(is_valid_lifecycle_transition(Running,    RolledBack));
+        assert!(is_valid_lifecycle_transition(Fetched, Verified));
+        assert!(is_valid_lifecycle_transition(Verified, Committed));
+        assert!(is_valid_lifecycle_transition(Committed, Running));
+        assert!(is_valid_lifecycle_transition(Running, Confirmed));
+        assert!(is_valid_lifecycle_transition(Running, RolledBack));
     }
 
     #[test]
     fn lifecycle_invalid_transitions() {
         use BundleLifecycle::*;
-        assert!(!is_valid_lifecycle_transition(Fetched,   Committed));
+        assert!(!is_valid_lifecycle_transition(Fetched, Committed));
         assert!(!is_valid_lifecycle_transition(Confirmed, Running));
         assert!(!is_valid_lifecycle_transition(RolledBack, Confirmed));
     }

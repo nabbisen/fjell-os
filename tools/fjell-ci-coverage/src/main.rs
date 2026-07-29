@@ -19,19 +19,23 @@ use std::{
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let check_mode    = args.iter().any(|a| a == "--check");
-    let workspace_dir = args.windows(2)
+    let check_mode = args.iter().any(|a| a == "--check");
+    let workspace_dir = args
+        .windows(2)
         .find(|w| w[0] == "--workspace")
         .map(|w| PathBuf::from(&w[1]))
         .unwrap_or_else(|| PathBuf::from("."));
-    let ci_path = args.windows(2)
+    let ci_path = args
+        .windows(2)
         .find(|w| w[0] == "--ci")
         .map(|w| PathBuf::from(&w[1]))
         .unwrap_or_else(|| workspace_dir.join(".github/workflows/ci.yml"));
 
     let cargo_toml_path = workspace_dir.join("Cargo.toml");
-    let cargo_toml = fs::read_to_string(&cargo_toml_path)
-        .unwrap_or_else(|e| { eprintln!("Cannot read {}: {e}", cargo_toml_path.display()); process::exit(2); });
+    let cargo_toml = fs::read_to_string(&cargo_toml_path).unwrap_or_else(|e| {
+        eprintln!("Cannot read {}: {e}", cargo_toml_path.display());
+        process::exit(2);
+    });
 
     // ── Parse workspace members ───────────────────────────────────────────────
     let members = parse_workspace_members(&cargo_toml);
@@ -82,9 +86,14 @@ fn parse_workspace_members(toml: &str) -> Vec<String> {
     let mut members = Vec::new();
     for line in toml.lines() {
         let t = line.trim();
-        if t == "members = [" || t.starts_with("members = [") { in_members = true; }
+        if t == "members = [" || t.starts_with("members = [") {
+            in_members = true;
+        }
         if in_members {
-            if let Some(s) = t.strip_prefix('"').and_then(|s| s.strip_suffix("\",").or_else(|| s.strip_suffix('"'))) {
+            if let Some(s) = t
+                .strip_prefix('"')
+                .and_then(|s| s.strip_suffix("\",").or_else(|| s.strip_suffix('"')))
+            {
                 // Extract the crate name from the path
                 let name = Path::new(s)
                     .file_name()
@@ -93,7 +102,9 @@ fn parse_workspace_members(toml: &str) -> Vec<String> {
                     .to_string();
                 members.push(name);
             }
-            if t == "]" { in_members = false; }
+            if t == "]" {
+                in_members = false;
+            }
         }
     }
     members
@@ -105,13 +116,18 @@ fn parse_ci_excluded(toml: &str) -> BTreeMap<String, String> {
     let mut excluded = BTreeMap::new();
     for line in toml.lines() {
         let t = line.trim();
-        if t == "[workspace.metadata.fjell.ci_excluded]" { in_section = true; continue; }
+        if t == "[workspace.metadata.fjell.ci_excluded]" {
+            in_section = true;
+            continue;
+        }
         if in_section {
-            if t.starts_with('[') { break; }
+            if t.starts_with('[') {
+                break;
+            }
             // Parse: "crate-name" = { reason = "..." }
             if let Some(pos) = t.find(" = ") {
                 let name = t[..pos].trim().trim_matches('"').to_string();
-                let reason = t[pos+3..].trim().to_string();
+                let reason = t[pos + 3..].trim().to_string();
                 excluded.insert(name, reason);
             }
         }
@@ -127,7 +143,9 @@ fn parse_ci_covered(yaml: &str) -> std::collections::BTreeSet<String> {
         // Match: -p fjell-foo or --package fjell-foo
         for prefix in ["-p ", "--package "] {
             if let Some(rest) = t.strip_prefix(prefix) {
-                let name = rest.split_whitespace().next()
+                let name = rest
+                    .split_whitespace()
+                    .next()
                     .unwrap_or("")
                     .trim_end_matches('\\')
                     .to_string();
@@ -139,7 +157,9 @@ fn parse_ci_covered(yaml: &str) -> std::collections::BTreeSet<String> {
             let mut s = t;
             while let Some(idx) = s.find(prefix) {
                 s = &s[idx + prefix.len()..];
-                let name = s.split_whitespace().next()
+                let name = s
+                    .split_whitespace()
+                    .next()
                     .unwrap_or("")
                     .trim_end_matches('\\')
                     .to_string();
@@ -203,7 +223,8 @@ members = [
         let mut ci_covered = std::collections::BTreeSet::new();
         ci_covered.insert("fjell-cap".to_string());
 
-        let missing: Vec<_> = members.iter()
+        let missing: Vec<_> = members
+            .iter()
             .filter(|n| !excluded.contains_key(n.as_str()) && !ci_covered.contains(n.as_str()))
             .collect();
         assert!(missing.is_empty());

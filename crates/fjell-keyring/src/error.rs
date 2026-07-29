@@ -9,22 +9,22 @@ pub enum SigError {
     /// The chosen algorithm cannot be used in release mode.
     AlgorithmForbiddenInRelease = 0x0001,
     /// The incoming anchor has an epoch <= the current head epoch.
-    EpochRegression             = 0x0002,
+    EpochRegression = 0x0002,
     /// No anchor for the requested purpose / epoch was found.
-    NoAnchorForPurpose          = 0x0003,
+    NoAnchorForPurpose = 0x0003,
     /// The signature did not verify against any active anchor.
-    SignatureVerifyFailed       = 0x0004,
+    SignatureVerifyFailed = 0x0004,
     /// The keyring is in `release_mode` but the requested operation would
     /// require `DevDigest32` or other forbidden material.
-    ReleaseModeViolation        = 0x0005,
+    ReleaseModeViolation = 0x0005,
     /// Anchor capacity for this purpose is exhausted.
-    AnchorsCapacityExhausted    = 0x0006,
+    AnchorsCapacityExhausted = 0x0006,
     /// Snapshot magic / schema check failed.
-    SnapshotMalformed           = 0x0007,
+    SnapshotMalformed = 0x0007,
     /// Snapshot digest check failed.
-    SnapshotDigestMismatch      = 0x0008,
+    SnapshotDigestMismatch = 0x0008,
     /// Generic internal error.
-    Internal                    = 0xFFFF,
+    Internal = 0xFFFF,
 }
 
 impl SigError {

@@ -9,15 +9,12 @@
 
 extern crate alloc;
 
-use crate::release_metadata::{
-    Provenance, ReleaseMetadata, RELEASE_METADATA_VERSION,
-};
+use crate::release_metadata::{Provenance, RELEASE_METADATA_VERSION, ReleaseMetadata};
 use crate::rollback_record::{
-    AdvanceSource, RollbackCheckResult, RollbackRecord,
-    advance_min_counter, check_rollback,
+    AdvanceSource, RollbackCheckResult, RollbackRecord, advance_min_counter, check_rollback,
 };
-use fjell_measure_format::Digest32;
 use fjell_keyring::KeyEpoch;
+use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -121,9 +118,15 @@ fn release_metadata_bad_digest_rejected() {
 #[test]
 fn release_metadata_consistent_when_embedded_min_le_counter() {
     let m = ReleaseMetadata::new(
-        *b"stable\0\0", 10, 8,
-        Digest32([0; 32]), KeyEpoch::ONE, TrustProviderId::new(1),
-        Digest32([0; 32]), 0, Provenance::DEV,
+        *b"stable\0\0",
+        10,
+        8,
+        Digest32([0; 32]),
+        KeyEpoch::ONE,
+        TrustProviderId::new(1),
+        Digest32([0; 32]),
+        0,
+        Provenance::DEV,
     );
     assert!(m.is_internally_consistent());
 }
@@ -148,7 +151,12 @@ fn release_metadata_serialise_then_parse_round_trip() {
 
 #[test]
 fn rollback_record_verify_digest_self_consistent() {
-    let r = RollbackRecord::new(*b"stable\0\0", 58, 1000, AdvanceSource::UpgradedConfirmation);
+    let r = RollbackRecord::new(
+        *b"stable\0\0",
+        58,
+        1000,
+        AdvanceSource::UpgradedConfirmation,
+    );
     assert!(r.verify_digest());
 }
 

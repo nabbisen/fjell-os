@@ -10,19 +10,19 @@ use fjell_measure_format::Digest32;
 #[repr(u8)]
 pub enum FleetActionKind {
     /// Request a diagnostic snapshot from a node.
-    RequestDiag        = 0x01,
+    RequestDiag = 0x01,
     /// Initiate recovery on a node (capability-controlled).
-    InitiateRecovery   = 0x02,
+    InitiateRecovery = 0x02,
     /// Revoke a fleet member's roster entry.
-    RevokeMember       = 0x03,
+    RevokeMember = 0x03,
     /// Advance a rollout stage to the next.
-    AdvanceRollout     = 0x04,
+    AdvanceRollout = 0x04,
     /// Pause/freeze a rollout.
-    PauseRollout       = 0x05,
+    PauseRollout = 0x05,
     /// Trigger attestation collection from a node.
     CollectAttestation = 0x06,
     /// Query current node state (non-mutating).
-    QueryState         = 0x07,
+    QueryState = 0x07,
 }
 
 impl FleetActionKind {
@@ -35,7 +35,7 @@ impl FleetActionKind {
             0x05 => Some(Self::PauseRollout),
             0x06 => Some(Self::CollectAttestation),
             0x07 => Some(Self::QueryState),
-            _    => None,
+            _ => None,
         }
     }
 
@@ -48,29 +48,29 @@ impl FleetActionKind {
 /// A fleet action request.
 #[derive(Clone, Copy, Debug)]
 pub struct FleetAction {
-    pub schema_version:    u16,
+    pub schema_version: u16,
     /// The fleet this action applies to.
-    pub fleet_id:          [u8; 16],
+    pub fleet_id: [u8; 16],
     /// The target node (all-zero = fleet-wide).
-    pub target_node_id:    [u8; 16],
-    pub action_kind:       FleetActionKind,
+    pub target_node_id: [u8; 16],
+    pub action_kind: FleetActionKind,
     /// Nonce to prevent replay.
-    pub nonce:             [u8; 16],
+    pub nonce: [u8; 16],
     /// Ed25519 signature over the canonical encoding by the fleet anchor.
-    pub signature:         [u8; 64],
+    pub signature: [u8; 64],
     /// Canonical digest (signed content).
-    pub action_digest:     Digest32,
+    pub action_digest: Digest32,
     /// Optional payload (action-specific, up to 128 bytes).
-    pub payload_len:       u8,
-    pub payload:           [u8; 128],
+    pub payload_len: u8,
+    pub payload: [u8; 128],
 }
 
 impl FleetAction {
     pub fn new(
-        fleet_id:    [u8; 16],
+        fleet_id: [u8; 16],
         target_node: [u8; 16],
-        kind:        FleetActionKind,
-        nonce:       [u8; 16],
+        kind: FleetActionKind,
+        nonce: [u8; 16],
     ) -> Self {
         Self {
             schema_version: 1,
@@ -106,17 +106,17 @@ pub enum FleetActionResult {
 #[repr(u8)]
 pub enum FleetActionError {
     /// The action type is not permitted by the current fleet policy.
-    PolicyDenied          = 0x01,
+    PolicyDenied = 0x01,
     /// The signature did not verify against the fleet anchor.
-    SignatureInvalid       = 0x02,
+    SignatureInvalid = 0x02,
     /// The nonce has been seen before (replay attempt).
-    ReplayDetected         = 0x03,
+    ReplayDetected = 0x03,
     /// The target node is not a member of this fleet.
-    UnknownTarget          = 0x04,
+    UnknownTarget = 0x04,
     /// The target node is revoked.
-    TargetRevoked          = 0x05,
+    TargetRevoked = 0x05,
     /// The action requires a capability the requestor does not hold.
-    InsufficientAuthority  = 0x06,
+    InsufficientAuthority = 0x06,
     /// Internal error in the fleet manager.
-    InternalError          = 0x07,
+    InternalError = 0x07,
 }

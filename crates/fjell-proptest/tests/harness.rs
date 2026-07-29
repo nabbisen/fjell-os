@@ -5,8 +5,8 @@
 
 use fjell_proptest::{
     generators::arb_op_sequence,
-    model::{ModelState, CapId, TaskId, LeaseId, CapKind, CapRights},
-    ops::{execute, Op},
+    model::{CapId, CapKind, CapRights, LeaseId, ModelState, TaskId},
+    ops::{Op, execute},
     properties,
 };
 use proptest::prelude::*;

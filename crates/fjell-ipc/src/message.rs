@@ -17,14 +17,20 @@ pub const IPC_CAPS: usize = 1;
 pub struct MessageTag {
     pub label: u16,
     pub words: u8,
-    pub caps:  u8,
+    pub caps: u8,
     pub flags: u16,
-    pub _pad:  u16,
+    pub _pad: u16,
 }
 
 impl MessageTag {
     pub const fn new(label: u16, words: u8, caps: u8) -> Self {
-        MessageTag { label, words, caps, flags: 0, _pad: 0 }
+        MessageTag {
+            label,
+            words,
+            caps,
+            flags: 0,
+            _pad: 0,
+        }
     }
 
     /// Is this a valid tag? (word/cap counts within limits)

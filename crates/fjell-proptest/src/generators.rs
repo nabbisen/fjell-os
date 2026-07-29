@@ -1,8 +1,8 @@
 //! `proptest` strategy generators for Op sequences (RFC v0.6-001 §7.2).
 
-use proptest::prelude::*;
 use crate::model::*;
 use crate::ops::Op;
+use proptest::prelude::*;
 
 // ── Leaf generators ───────────────────────────────────────────────────────────
 

@@ -44,21 +44,21 @@ pub enum IdentityError {
     /// `identity_digest` was all-zero after computation (should not happen).
     DigestComputationFailed = 0x01,
     /// Stored `identity_digest` does not match recomputed value (corruption).
-    DigestMismatch          = 0x02,
+    DigestMismatch = 0x02,
     /// Alias contains invalid UTF-8.
-    InvalidAlias            = 0x03,
+    InvalidAlias = 0x03,
 }
 
 /// Builder for a `NodeIdentity` (RFC-v0.7.2-003).
 pub struct NodeIdentityBuilder {
-    pub node_id:            NodeId,
-    pub alias:              NodeAlias,
-    pub created_tick:       u64,
-    pub trust_provider_id:  u32,
-    pub trust_profile_tag:  u8,
+    pub node_id: NodeId,
+    pub alias: NodeAlias,
+    pub created_tick: u64,
+    pub trust_provider_id: u32,
+    pub trust_profile_tag: u8,
     pub attestation_pubkey: AttestationPubkey,
-    pub platform_digest:    Digest32,
-    pub board_digest:       Digest32,
+    pub platform_digest: Digest32,
+    pub board_digest: Digest32,
 }
 
 /// Full node identity record.
@@ -67,19 +67,19 @@ pub struct NodeIdentityBuilder {
 /// the canonical prefix; it must be verified on load.
 #[derive(Clone, Copy, Debug)]
 pub struct NodeIdentity {
-    pub schema_version:     u16,
-    pub node_id:            NodeId,
-    pub alias:              NodeAlias,
-    pub created_tick:       u64,
-    pub trust_provider_id:  u32,
-    pub trust_profile_tag:  u8,
+    pub schema_version: u16,
+    pub node_id: NodeId,
+    pub alias: NodeAlias,
+    pub created_tick: u64,
+    pub trust_provider_id: u32,
+    pub trust_profile_tag: u8,
     pub attestation_pubkey: AttestationPubkey,
     /// SHA-256 of the `PlatformProfile` (from `fjell-platform-format`).
-    pub platform_digest:    Digest32,
+    pub platform_digest: Digest32,
     /// SHA-256 of the `BoardProfile`.
-    pub board_digest:       Digest32,
+    pub board_digest: Digest32,
     /// Canonical digest over all the above fields.
-    pub identity_digest:    Digest32,
+    pub identity_digest: Digest32,
 }
 
 impl NodeIdentity {
@@ -89,16 +89,16 @@ impl NodeIdentity {
     /// This is the PREFERRED path. Use `new()` only for backward compatibility.
     pub fn build(b: NodeIdentityBuilder) -> Result<Self, IdentityError> {
         let mut n = Self {
-            schema_version:     NODE_IDENTITY_SCHEMA_VERSION,
-            node_id:            b.node_id,
-            alias:              b.alias,
-            created_tick:       b.created_tick,
-            trust_provider_id:  b.trust_provider_id,
-            trust_profile_tag:  b.trust_profile_tag,
+            schema_version: NODE_IDENTITY_SCHEMA_VERSION,
+            node_id: b.node_id,
+            alias: b.alias,
+            created_tick: b.created_tick,
+            trust_provider_id: b.trust_provider_id,
+            trust_profile_tag: b.trust_profile_tag,
             attestation_pubkey: b.attestation_pubkey,
-            platform_digest:    b.platform_digest,
-            board_digest:       b.board_digest,
-            identity_digest:    Digest32([0u8; 32]),
+            platform_digest: b.platform_digest,
+            board_digest: b.board_digest,
+            identity_digest: Digest32([0u8; 32]),
         };
         n.identity_digest = crate::digest::identity_digest(&n);
         if n.identity_digest.0 == [0u8; 32] {
@@ -124,17 +124,17 @@ impl NodeIdentity {
     /// Callers that use this method MUST call `identity_digest()` and write
     /// back before storing, or call `validate_digest()` on load.
     pub fn new(
-        node_id:            NodeId,
-        alias:              NodeAlias,
-        created_tick:       u64,
-        trust_provider_id:  u32,
-        trust_profile_tag:  u8,
+        node_id: NodeId,
+        alias: NodeAlias,
+        created_tick: u64,
+        trust_provider_id: u32,
+        trust_profile_tag: u8,
         attestation_pubkey: AttestationPubkey,
-        platform_digest:    Digest32,
-        board_digest:       Digest32,
+        platform_digest: Digest32,
+        board_digest: Digest32,
     ) -> Self {
         Self {
-            schema_version:     NODE_IDENTITY_SCHEMA_VERSION,
+            schema_version: NODE_IDENTITY_SCHEMA_VERSION,
             node_id,
             alias,
             created_tick,
@@ -143,7 +143,7 @@ impl NodeIdentity {
             attestation_pubkey,
             platform_digest,
             board_digest,
-            identity_digest:    Digest32([0u8; 32]),
+            identity_digest: Digest32([0u8; 32]),
         }
     }
 }

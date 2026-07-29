@@ -28,8 +28,8 @@ pub struct BootInfo {
 
 impl BootInfo {
     /// Bootstrap capability CSpace indices used by `fjell-init`.
-    pub const SLOT_TASK_CREATE:  u16 = 0;
-    pub const SLOT_CAP_DERIVE:   u16 = 1;
-    pub const SLOT_AUDIT_DRAIN:  u16 = 2;
+    pub const SLOT_TASK_CREATE: u16 = 0;
+    pub const SLOT_CAP_DERIVE: u16 = 1;
+    pub const SLOT_AUDIT_DRAIN: u16 = 2;
     pub const SLOT_BOOTSTRAP_EP: u16 = 3;
 }

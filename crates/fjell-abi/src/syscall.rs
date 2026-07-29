@@ -14,65 +14,65 @@
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SyscallNumber {
     // ── M2 syscalls ────────────────────────────────────────────────────────
-    Yield      = 0,
-    Exit       = 1,
+    Yield = 0,
+    Exit = 1,
     /// Write bytes to UART — smoke-test only, removed in production ABI.
     DebugWrite = 2,
 
     // ── M3 capability syscalls ─────────────────────────────────────────────
     /// Copy a capability within the calling task's CSpace.
-    CapCopy    = 10,
+    CapCopy = 10,
     /// Copy with rights attenuation and/or badge assignment.
-    CapMint    = 11,
+    CapMint = 11,
     /// Delete a capability slot (slot becomes empty; object may survive).
-    CapDelete  = 12,
+    CapDelete = 12,
     /// Delete all descendants of a capability, keeping the target.
-    CapRevoke  = 13,
+    CapRevoke = 13,
     /// Inspect a capability slot (debug / introspection).
     CapInspect = 14,
     /// Explicitly drop a capability slot, freeing it for reuse (RFC 032 / v0.2).
     ///
     /// Unlike `CapDelete`, this succeeds even when the capability's lease has
     /// been revoked.  Existence check (ownership + generation) still applies.
-    CapDrop    = 15,
+    CapDrop = 15,
     /// Bind a lease to an existing capability (RFC 042 §"cap_bind_lease").
     ///
     /// After binding, `require_cap` step 7 checks whether the lease is still
     /// active before allowing the cap to be used.  Used by the neg-test service
     /// to create lease-bound caps for negative testing.
-    CapBindLease  = 16,
+    CapBindLease = 16,
     /// RFC 056: install a cap directly into another task's CSpace.
-    CapInstall    = 17,
+    CapInstall = 17,
     /// RFC 057: platform reboot (alias for existing Reboot=120 — use number 18 → platform reset).
     PlatformReboot = 18,
 
     // ── M3 IPC syscalls ────────────────────────────────────────────────────
     /// Synchronous send (blocks until a receiver is ready).
-    IpcSend    = 20,
+    IpcSend = 20,
     /// Synchronous receive (blocks until a sender delivers).
-    IpcRecv    = 21,
+    IpcRecv = 21,
     /// Send + block waiting for a one-shot reply.
-    IpcCall    = 22,
+    IpcCall = 22,
     /// Consume the one-shot reply edge and deliver a reply.
-    IpcReply    = 23,
+    IpcReply = 23,
     /// Non-blocking IPC recv — returns WouldBlock if no message pending.
-    IpcTryRecv  = 24,
+    IpcTryRecv = 24,
 
     // ── M4 task-spawn syscalls ─────────────────────────────────────────────
     /// Spawn a new task from a named embedded image; returns task_handle.
-    TaskSpawn  = 40,
+    TaskSpawn = 40,
     /// Make a Spawned task Runnable (first-time start).
-    TaskStart  = 41,
+    TaskStart = 41,
     /// Query a task's current state.
     TaskStatus = 42,
     /// Terminate a running task (optional M4).
-    TaskKill   = 43,
+    TaskKill = 43,
 
     // ── M4 lease syscalls ──────────────────────────────────────────────────
     /// Create a new lease; returns LeaseId packed into a0.
-    LeaseCreate  = 50,
+    LeaseCreate = 50,
     /// Revoke a lease (increment epoch); invalidates all bound capabilities.
-    LeaseRevoke  = 51,
+    LeaseRevoke = 51,
     /// Inspect a lease's current epoch.
     LeaseInspect = 52,
 
@@ -81,16 +81,16 @@ pub enum SyscallNumber {
     AuditDrain = 60,
     // ── M6: device / MMIO / DMA primitives ─────────────────────────────────
     PlatformInfoGet = 80,
-    MmioMap         = 90,
-    MmioUnmap       = 91,
-    IrqBind         = 100,
-    IrqAck          = 101,
+    MmioMap = 90,
+    MmioUnmap = 91,
+    IrqBind = 100,
+    IrqAck = 101,
     /// Block the calling task until the bound IRQ fires (RFC v0.4-001).
-    IrqWait         = 102,
-    DmaAlloc        = 110,
-    DmaShare        = 111,
-    DmaRevoke       = 112,
-    Reboot          = 120,
+    IrqWait = 102,
+    DmaAlloc = 110,
+    DmaShare = 111,
+    DmaRevoke = 112,
+    Reboot = 120,
 }
 
 impl SyscallNumber {
@@ -98,9 +98,9 @@ impl SyscallNumber {
     /// unknown values.
     pub fn from_usize(n: usize) -> Option<Self> {
         match n {
-            0  => Some(Self::Yield),
-            1  => Some(Self::Exit),
-            2  => Some(Self::DebugWrite),
+            0 => Some(Self::Yield),
+            1 => Some(Self::Exit),
+            2 => Some(Self::DebugWrite),
             10 => Some(Self::CapCopy),
             11 => Some(Self::CapMint),
             12 => Some(Self::CapDelete),
@@ -132,7 +132,7 @@ impl SyscallNumber {
             111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
             120 => Some(Self::Reboot),
-            _  => None,
+            _ => None,
         }
     }
 }

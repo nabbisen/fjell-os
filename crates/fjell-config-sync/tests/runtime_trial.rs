@@ -15,14 +15,17 @@
 //!
 //! Marker on success: `DRILL:SDK-CONFIG-SYNC-RUNTIME:PASS`.
 
-use fjell_config_sync::{ConfigState, ConfigDigest, ConfigIpcTag, handle_ipc};
+use fjell_config_sync::{ConfigDigest, ConfigIpcTag, ConfigState, handle_ipc};
 use fjell_sdk::cap::CapHandle;
 
 #[test]
 fn config_sync_runtime_lifecycle() {
     // ── Phase 1: cold start ───────────────────────────────────────────────────
     let mut state = ConfigState::new();
-    assert!(state.active_digest.is_zero(), "service starts with no config");
+    assert!(
+        state.active_digest.is_zero(),
+        "service starts with no config"
+    );
     assert_eq!(state.update_count, 0);
     assert!(state.sdk_compat, "SDK API revision must be compatible");
 
@@ -33,26 +36,46 @@ fn config_sync_runtime_lifecycle() {
         CapHandle(0),
         &mut state,
         blob_v1,
-    ).expect("config update must succeed");
+    )
+    .expect("config update must succeed");
     assert_eq!(reply_tag, ConfigIpcTag::DigestReport as u16);
     assert_eq!(state.update_count, 1);
-    assert!(!state.active_digest.is_zero(), "digest set after first update");
+    assert!(
+        !state.active_digest.is_zero(),
+        "digest set after first update"
+    );
 
     let digest_v1 = state.active_digest;
 
     // ── Phase 3: second, different config ─────────────────────────────────────
     let blob_v2 = b"log_level=debug\nmax_conns=256\n";
-    handle_ipc(ConfigIpcTag::ConfigUpdate as u16, CapHandle(0), &mut state, blob_v2)
-        .expect("second update must succeed");
+    handle_ipc(
+        ConfigIpcTag::ConfigUpdate as u16,
+        CapHandle(0),
+        &mut state,
+        blob_v2,
+    )
+    .expect("second update must succeed");
     assert_eq!(state.update_count, 2);
-    assert_ne!(state.active_digest, digest_v1, "digest must change with content");
+    assert_ne!(
+        state.active_digest, digest_v1,
+        "digest must change with content"
+    );
 
     // ── Phase 4: idempotent re-apply of v2 yields the same digest ─────────────
     let digest_v2 = state.active_digest;
-    handle_ipc(ConfigIpcTag::ConfigUpdate as u16, CapHandle(0), &mut state, blob_v2)
-        .expect("re-apply must succeed");
+    handle_ipc(
+        ConfigIpcTag::ConfigUpdate as u16,
+        CapHandle(0),
+        &mut state,
+        blob_v2,
+    )
+    .expect("re-apply must succeed");
     assert_eq!(state.active_digest, digest_v2, "same content → same digest");
-    assert_eq!(state.update_count, 3, "but the update counter still advances");
+    assert_eq!(
+        state.update_count, 3,
+        "but the update counter still advances"
+    );
 
     // ── Phase 5: query returns the count ──────────────────────────────────────
     let (q_tag, count) = handle_ipc(
@@ -60,7 +83,8 @@ fn config_sync_runtime_lifecycle() {
         CapHandle(0),
         &mut state,
         &[],
-    ).expect("query must succeed");
+    )
+    .expect("query must succeed");
     assert_eq!(q_tag, ConfigIpcTag::DigestReport as u16);
     assert_eq!(count, 3);
 
@@ -68,7 +92,7 @@ fn config_sync_runtime_lifecycle() {
     // The service should be eligible to emit CONFIG.UPDATED after applying.
     // (Whether the catalog tag is registered is the lesson L2/E-006 story;
     // we assert the service's own gating logic is internally consistent.)
-    let _ = state.should_emit_updated();   // exercises the SDK is_known_tag path
+    let _ = state.should_emit_updated(); // exercises the SDK is_known_tag path
     let _ = state.should_emit_report();
 
     // ── Phase 7: unknown message is rejected ──────────────────────────────────
@@ -87,8 +111,10 @@ fn config_digest_stable_across_instances() {
     let mut s2 = ConfigState::new();
     s1.apply_update(blob);
     s2.apply_update(blob);
-    assert_eq!(s1.active_digest, s2.active_digest,
-        "two nodes applying the same config must converge to the same digest");
+    assert_eq!(
+        s1.active_digest, s2.active_digest,
+        "two nodes applying the same config must converge to the same digest"
+    );
 
     // And a sanity check that ConfigDigest::of is what apply_update uses.
     assert_eq!(s1.active_digest, ConfigDigest::of(blob));

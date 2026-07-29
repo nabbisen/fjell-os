@@ -54,9 +54,9 @@ pub use epoch::KeyEpoch;
 pub use error::SigError;
 pub use keyring::{Keyring, PURPOSE_SLOT_COUNT};
 pub use provider::SignatureProvider;
-pub use snapshot::{KeyringSnapshot, KEYRING_SNAPSHOT_MAGIC, MAX_SNAPSHOT_ANCHORS};
+pub use snapshot::{KEYRING_SNAPSHOT_MAGIC, KeyringSnapshot, MAX_SNAPSHOT_ANCHORS};
 
+pub mod revocation;
 #[cfg(test)]
 mod tests;
-pub mod revocation;
 pub use revocation::{AnchorState, RevocationReason, RevocationRecord, RevocationTable};

@@ -21,17 +21,20 @@ pub struct CSpace {
 
 impl CSpace {
     pub const fn new() -> Self {
-        CSpace { slots: [CapSlot::empty(); CSPACE_SLOTS] }
+        CSpace {
+            slots: [CapSlot::empty(); CSPACE_SLOTS],
+        }
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────
 
     /// Find the first empty slot index.
     fn alloc_slot_idx(&self) -> Result<usize, SysError> {
-        self.slots.iter().position(|s| s.state == CapSlotState::Empty)
+        self.slots
+            .iter()
+            .position(|s| s.state == CapSlotState::Empty)
             .ok_or(SysError::NoMemory)
     }
-
 
     /// Install a capability into the first available empty slot.
     /// Returns the handle of the installed slot, or `Err(CSpaceFull)`.
@@ -39,8 +42,8 @@ impl CSpace {
         use fjell_abi::error::SysError;
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if slot.state == CapSlotState::Empty {
-                slot.cap        = Some(cap);
-                slot.state      = CapSlotState::Active;
+                slot.cap = Some(cap);
+                slot.state = CapSlotState::Active;
                 let h = CapHandle::new(i as u16, slot.generation);
                 return Ok(h);
             }
@@ -93,7 +96,9 @@ impl CSpace {
 
     fn resolve_mut(&mut self, h: CapHandle) -> Result<(usize, &mut CapSlot), SysError> {
         let idx = h.slot() as usize;
-        if idx >= CSPACE_SLOTS { return Err(SysError::InvalidCap); }
+        if idx >= CSPACE_SLOTS {
+            return Err(SysError::InvalidCap);
+        }
         if self.slots[idx].generation != h.generation() {
             return Err(SysError::InvalidCap);
         }
@@ -105,9 +110,9 @@ impl CSpace {
     /// Install a root capability with `ObjectScope::Any` (bootstrap / test use).
     pub fn install_root(
         &mut self,
-        kind:      CapKind,
+        kind: CapKind,
         object_id: u32,
-        rights:    CapRights,
+        rights: CapRights,
     ) -> Result<CapHandle, SysError> {
         self.install_root_scoped(kind, object_id, rights, ObjectScope::Any)
             .map_err(|_| SysError::NoMemory)
@@ -118,21 +123,21 @@ impl CSpace {
     /// Used by the kernel during task creation and by the enforcement tests.
     pub fn install_root_scoped(
         &mut self,
-        kind:      CapKind,
+        kind: CapKind,
         object_id: u32,
-        rights:    CapRights,
-        scope:     ObjectScope,
+        rights: CapRights,
+        scope: ObjectScope,
     ) -> Result<CapHandle, ()> {
         let idx = self.alloc_slot_idx().map_err(|_| ())?;
         let cap = Capability {
             kind,
-            state:     CapState::Active,
+            state: CapState::Active,
             object_id,
             rights,
-            badge:     0,
+            badge: 0,
             scope,
-            parent:    None,
-            lease:     None,
+            parent: None,
+            lease: None,
         };
         self.slots[idx].install(idx as u16, cap)
     }
@@ -140,8 +145,10 @@ impl CSpace {
     /// Install a capability into a specific slot (bootstrap use only).
     pub fn install_raw(&mut self, slot: usize, cap: Capability) -> Result<(), ()> {
         let s = self.slots.get_mut(slot).ok_or(())?;
-        if s.state == CapSlotState::Active { return Err(()); }
-        s.cap   = Some(cap);
+        if s.state == CapSlotState::Active {
+            return Err(());
+        }
+        s.cap = Some(cap);
         s.state = CapSlotState::Active;
         Ok(())
     }
@@ -170,15 +177,17 @@ impl CSpace {
     ///   2. Use `sys_lease_revoke` rather than `sys_cap_revoke`.
     ///
     /// See ADR-v0.7.4-003.
-    pub fn copy(
-        &mut self,
-        src:      CapHandle,
-        dst_slot: usize,
-    ) -> Result<CapHandle, SysError> {
+    pub fn copy(&mut self, src: CapHandle, dst_slot: usize) -> Result<CapHandle, SysError> {
         let (src_idx, _) = self.resolve(src)?;
-        let cap = self.slots[src_idx].cap.as_ref().ok_or(SysError::SlotEmpty)?.clone();
+        let cap = self.slots[src_idx]
+            .cap
+            .as_ref()
+            .ok_or(SysError::SlotEmpty)?
+            .clone();
 
-        if dst_slot >= CSPACE_SLOTS { return Err(SysError::InvalidArg); }
+        if dst_slot >= CSPACE_SLOTS {
+            return Err(SysError::InvalidArg);
+        }
         if self.slots[dst_slot].state == CapSlotState::Active {
             return Err(SysError::SlotOccupied);
         }
@@ -187,7 +196,7 @@ impl CSpace {
         // Intentional: parent = None. See doc comment above for the rationale.
         // Lease-based revocation is the correct mechanism for cascading revoke.
         new_cap.parent = None;
-        self.slots[dst_slot].cap   = Some(new_cap);
+        self.slots[dst_slot].cap = Some(new_cap);
         self.slots[dst_slot].state = CapSlotState::Active;
         Ok(self.handle_for(dst_slot))
     }
@@ -197,28 +206,33 @@ impl CSpace {
     /// Enforces CAP-A: new_rights ⊆ source.rights.
     pub fn mint(
         &mut self,
-        src:        CapHandle,
-        dst_slot:   usize,
+        src: CapHandle,
+        dst_slot: usize,
         new_rights: CapRights,
-        new_badge:  u64,
+        new_badge: u64,
     ) -> Result<CapHandle, SysError> {
         let (src_idx, _) = self.resolve(src)?;
-        let source_cap = self.slots[src_idx].cap.as_ref()
+        let source_cap = self.slots[src_idx]
+            .cap
+            .as_ref()
             .ok_or(SysError::SlotEmpty)?
             .clone();
 
         if !new_rights.is_subset_of(source_cap.rights) {
             return Err(SysError::RightsExceed);
         }
-        if dst_slot >= CSPACE_SLOTS { return Err(SysError::InvalidArg); }
+        if dst_slot >= CSPACE_SLOTS {
+            return Err(SysError::InvalidArg);
+        }
         if self.slots[dst_slot].state == CapSlotState::Active {
             return Err(SysError::SlotOccupied);
         }
 
         // Inherit parent scope; badge change is allowed.
-        let derived = source_cap.derive(new_rights, new_badge, ObjectScope::Any, src_idx as u16)
+        let derived = source_cap
+            .derive(new_rights, new_badge, ObjectScope::Any, src_idx as u16)
             .map_err(|_| SysError::RightsExceed)?;
-        self.slots[dst_slot].cap   = Some(derived);
+        self.slots[dst_slot].cap = Some(derived);
         self.slots[dst_slot].state = CapSlotState::Active;
         Ok(self.handle_for(dst_slot))
     }
@@ -241,7 +255,10 @@ impl CSpace {
     /// The capability at `h` itself is NOT deleted.
     pub fn revoke(&mut self, h: CapHandle) -> Result<(), SysError> {
         let (root_idx, _) = self.resolve(h)?;
-        self.slots[root_idx].cap.as_ref().ok_or(SysError::SlotEmpty)?;
+        self.slots[root_idx]
+            .cap
+            .as_ref()
+            .ok_or(SysError::SlotEmpty)?;
 
         loop {
             let mut deleted_any = false;
@@ -253,21 +270,23 @@ impl CSpace {
                     }
                 }
             }
-            if !deleted_any { break; }
+            if !deleted_any {
+                break;
+            }
         }
         Ok(())
     }
 
     fn is_descendant_of(
-        slots:        &[CapSlot; CSPACE_SLOTS],
-        candidate:    usize,
+        slots: &[CapSlot; CSPACE_SLOTS],
+        candidate: usize,
         ancestor_idx: usize,
     ) -> bool {
         let mut current = slots[candidate].cap.as_ref().and_then(|c| c.parent);
         for _ in 0..CSPACE_SLOTS {
             match current {
-                None                                        => return false,
-                Some(p) if p as usize == ancestor_idx      => return true,
+                None => return false,
+                Some(p) if p as usize == ancestor_idx => return true,
                 Some(p) => {
                     current = slots[p as usize].cap.as_ref().and_then(|c| c.parent);
                 }

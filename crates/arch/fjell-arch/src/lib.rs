@@ -42,12 +42,16 @@ pub type Asid = u16;
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PagePerm(pub u8);
 impl PagePerm {
-    pub const READ:    Self = Self(1 << 0);
-    pub const WRITE:   Self = Self(1 << 1);
+    pub const READ: Self = Self(1 << 0);
+    pub const WRITE: Self = Self(1 << 1);
     pub const EXECUTE: Self = Self(1 << 2);
-    pub const USER:    Self = Self(1 << 3);
-    pub const fn or(self, rhs: Self) -> Self { Self(self.0 | rhs.0) }
-    pub fn has(self, p: Self) -> bool { (self.0 & p.0) == p.0 }
+    pub const USER: Self = Self(1 << 3);
+    pub const fn or(self, rhs: Self) -> Self {
+        Self(self.0 | rhs.0)
+    }
+    pub fn has(self, p: Self) -> bool {
+        (self.0 & p.0) == p.0
+    }
 }
 
 /// Opaque bag of general-purpose register values.
@@ -64,15 +68,15 @@ pub struct ArchRegs {
 #[derive(Clone, Copy, Debug)]
 pub struct TrapFrame {
     /// Exception / interrupt return address.
-    pub epc:    usize,
+    pub epc: usize,
     /// Architecture status register snapshot (mstatus/SPSR).
     pub status: usize,
     /// Cause register (mcause / ESR_EL1).
-    pub cause:  usize,
+    pub cause: usize,
     /// Trap value register (mtval / FAR_EL1).
-    pub tval:   usize,
+    pub tval: usize,
     /// General-purpose register snapshot.
-    pub regs:   ArchRegs,
+    pub regs: ArchRegs,
 }
 
 /// Architecture identity sealed trait (RFC v0.5-003 §5.1).

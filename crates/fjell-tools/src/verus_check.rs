@@ -28,12 +28,13 @@ struct Target {
     conformance_cmd: String,
 }
 
-
 /// Run `verus --version` and return the version string, e.g.
 /// "0.2026.05.24.ecee80a".
 fn detect_verus_version() -> Option<String> {
     let out = std::process::Command::new("verus")
-        .arg("--version").output().ok()?;
+        .arg("--version")
+        .output()
+        .ok()?;
     let text = String::from_utf8_lossy(&out.stdout);
     // Expected output:
     //   Verus
@@ -44,8 +45,9 @@ fn detect_verus_version() -> Option<String> {
             return Some(rest.trim().to_string());
         }
         // Also accept bare version tokens that look like a date-based version
-        if trimmed.starts_with("release/") || trimmed.chars().next()
-            .map_or(false, |c| c.is_ascii_digit()) {
+        if trimmed.starts_with("release/")
+            || trimmed.chars().next().map_or(false, |c| c.is_ascii_digit())
+        {
             return Some(trimmed.to_string());
         }
     }
@@ -58,7 +60,10 @@ fn read_lock_release(path: &str) -> Option<String> {
     for line in src.lines() {
         let line = line.trim();
         if let Some(rest) = line.strip_prefix("release") {
-            if let Some(val) = rest.trim_start_matches(|c: char| c == ' ' || c == '=').strip_prefix('"') {
+            if let Some(val) = rest
+                .trim_start_matches(|c: char| c == ' ' || c == '=')
+                .strip_prefix('"')
+            {
                 return Some(val.trim_end_matches('"').to_string());
             }
         }
@@ -69,7 +74,10 @@ fn read_lock_release(path: &str) -> Option<String> {
 pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     let targets = match load_targets("verification/verus/verus-targets.toml") {
         Ok(t) => t,
-        Err(e) => { eprintln!("verus-check: {e}"); return ExitCode::FAILURE; }
+        Err(e) => {
+            eprintln!("verus-check: {e}");
+            return ExitCode::FAILURE;
+        }
     };
 
     let verus_present = which("verus");
@@ -78,19 +86,30 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     // versions and compare against the pinned TOOLCHAIN.lock release.
     if verus_present {
         let detected = detect_verus_version();
-        let pinned   = read_lock_release("verification/verus/TOOLCHAIN.lock");
-        println!("verus-check: detected version: {}", detected.as_deref().unwrap_or("unknown"));
-        println!("verus-check: pinned  version: {}", pinned.as_deref().unwrap_or("(unreadable)"));
-        let release_required_run = args.first().map(|a| a == "--release-required").unwrap_or(false);
+        let pinned = read_lock_release("verification/verus/TOOLCHAIN.lock");
+        println!(
+            "verus-check: detected version: {}",
+            detected.as_deref().unwrap_or("unknown")
+        );
+        println!(
+            "verus-check: pinned  version: {}",
+            pinned.as_deref().unwrap_or("(unreadable)")
+        );
+        let release_required_run = args
+            .first()
+            .map(|a| a == "--release-required")
+            .unwrap_or(false);
         // H-04 (architect review v0.19): release-required mode is fail-closed
         // on version identity — an unparseable detected version or an
         // unreadable lock both block, not just an explicit mismatch.
         if release_required_run && (detected.is_none() || pinned.is_none()) {
-            println!("verus-check: BLOCKING — could not establish Verus version \
+            println!(
+                "verus-check: BLOCKING — could not establish Verus version \
                 identity (detected: {}, pinned: {}). --release-required requires \
                 a verifiable toolchain match against TOOLCHAIN.lock.",
                 detected.as_deref().unwrap_or("unknown"),
-                pinned.as_deref().unwrap_or("unreadable"));
+                pinned.as_deref().unwrap_or("unreadable")
+            );
             return ExitCode::FAILURE;
         }
         let mismatch = match (&detected, &pinned) {
@@ -104,13 +123,17 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
             _ => false,
         };
         if mismatch {
-            println!("verus-check: WARNING: detected Verus version does not match \
+            println!(
+                "verus-check: WARNING: detected Verus version does not match \
                 TOOLCHAIN.lock pin — proofs were certified under the pinned version. \
-                Update TOOLCHAIN.lock if you intend to use this version.");
+                Update TOOLCHAIN.lock if you intend to use this version."
+            );
             if release_required_run {
-                println!("verus-check: BLOCKING — --release-required requires the pinned \
+                println!(
+                    "verus-check: BLOCKING — --release-required requires the pinned \
                     Verus version (see TOOLCHAIN.lock). Certify proofs under the pinned \
-                    version or update the lock with a recorded proof-review re-run.");
+                    version or update the lock with a recorded proof-review re-run."
+                );
                 return ExitCode::FAILURE;
             }
         }
@@ -123,9 +146,15 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
         Some(name) => {
             let hit: Vec<&Target> = targets.iter().filter(|t| t.name == name).collect();
             if hit.is_empty() {
-                eprintln!("verus-check: unknown target `{name}` \
-                    (known: {})", targets.iter().map(|t| t.name.as_str())
-                        .collect::<Vec<_>>().join(", "));
+                eprintln!(
+                    "verus-check: unknown target `{name}` \
+                    (known: {})",
+                    targets
+                        .iter()
+                        .map(|t| t.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
                 return ExitCode::FAILURE; // fail fast on unknown target
             }
             hit
@@ -133,8 +162,10 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     };
 
     if !verus_present {
-        eprintln!("verus-check: `verus` not on PATH — conformance-only mode \
-            (see verification/verus/TOOLCHAIN.md)");
+        eprintln!(
+            "verus-check: `verus` not on PATH — conformance-only mode \
+            (see verification/verus/TOOLCHAIN.md)"
+        );
     }
 
     let mut any_blocking_fail = false;
@@ -150,8 +181,11 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
             }
         } else {
             let ok = run_cmd(&t.conformance_cmd);
-            if ok { ("not_run_conformance_pass", "CONFORMANCE-ONLY", "not_run") }
-            else  { ("not_run_conformance_fail", "CONFORMANCE-FAIL", "not_run") }
+            if ok {
+                ("not_run_conformance_pass", "CONFORMANCE-ONLY", "not_run")
+            } else {
+                ("not_run_conformance_fail", "CONFORMANCE-FAIL", "not_run")
+            }
         };
 
         println!("VERUS:TARGET:{}:{}", t.name, marker);
@@ -184,24 +218,33 @@ fn run_verus(t: &Target) -> bool {
         .arg("--crate-type=lib")
         .arg(&t.proof)
         .status()
-        .map(|s| s.success()).unwrap_or(false)
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn run_cmd(cmd: &str) -> bool {
     let parts: Vec<&str> = cmd.split_whitespace().collect();
-    if parts.is_empty() { return false; }
-    Command::new(parts[0]).args(&parts[1..]).status()
-        .map(|s| s.success()).unwrap_or(false)
+    if parts.is_empty() {
+        return false;
+    }
+    Command::new(parts[0])
+        .args(&parts[1..])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn which(bin: &str) -> bool {
-    Command::new(bin).arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+    Command::new(bin)
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
 }
 
 /// Minimal TOML reader for the `[[target]]` array — avoids a new dependency.
 fn load_targets(path: &str) -> Result<Vec<Target>, String> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("cannot read {path}: {e}"))?;
+    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
     let mut targets = Vec::new();
     let mut cur: Option<Target> = None;
 
@@ -211,7 +254,9 @@ fn load_targets(path: &str) -> Result<Vec<Target>, String> {
             // double-quoted strings with no '#', so cutting at the first '#'
             // outside quotes is safe.
             let v = match v.split_once(" #") {
-                Some((head, _)) if !head.contains('"') || head.matches('"').count() % 2 == 0 => head,
+                Some((head, _)) if !head.contains('"') || head.matches('"').count() % 2 == 0 => {
+                    head
+                }
                 _ => v,
             };
             v.trim().trim_matches('"').to_string()
@@ -221,26 +266,43 @@ fn load_targets(path: &str) -> Result<Vec<Target>, String> {
     for raw in text.lines() {
         let line = raw.trim();
         if line.starts_with("[[target]]") {
-            if let Some(t) = cur.take() { targets.push(t); }
+            if let Some(t) = cur.take() {
+                targets.push(t);
+            }
             cur = Some(Target {
-                name: String::new(), proof: String::new(), tier: 0,
-                release_required: false, conformance_cmd: String::new(),
+                name: String::new(),
+                proof: String::new(),
+                tier: 0,
+                release_required: false,
+                conformance_cmd: String::new(),
             });
         } else if let Some(t) = cur.as_mut() {
-            if line.starts_with("name") { if let Some(v) = field(line) { t.name = v; } }
-            else if line.starts_with("proof") { if let Some(v) = field(line) { t.proof = v; } }
-            else if line.starts_with("tier") {
-                if let Some(v) = field(line) { t.tier = v.parse().unwrap_or(0); }
-            }
-            else if line.starts_with("release_required") {
-                if let Some(v) = field(line) { t.release_required = v == "true"; }
-            }
-            else if line.starts_with("conformance_cmd") {
-                if let Some(v) = field(line) { t.conformance_cmd = v; }
+            if line.starts_with("name") {
+                if let Some(v) = field(line) {
+                    t.name = v;
+                }
+            } else if line.starts_with("proof") {
+                if let Some(v) = field(line) {
+                    t.proof = v;
+                }
+            } else if line.starts_with("tier") {
+                if let Some(v) = field(line) {
+                    t.tier = v.parse().unwrap_or(0);
+                }
+            } else if line.starts_with("release_required") {
+                if let Some(v) = field(line) {
+                    t.release_required = v == "true";
+                }
+            } else if line.starts_with("conformance_cmd") {
+                if let Some(v) = field(line) {
+                    t.conformance_cmd = v;
+                }
             }
         }
     }
-    if let Some(t) = cur.take() { targets.push(t); }
+    if let Some(t) = cur.take() {
+        targets.push(t);
+    }
     if targets.is_empty() {
         return Err("no [[target]] entries found".into());
     }

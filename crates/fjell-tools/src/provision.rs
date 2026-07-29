@@ -44,7 +44,10 @@ pub fn cmd_provision_dev(args: &[String]) -> ExitCode {
     let key_hex: String = if let Some(pos) = args.iter().position(|a| a == "--key") {
         let path = match args.get(pos + 1) {
             Some(p) => p,
-            None => { eprintln!("provision-dev: --key requires a path"); return ExitCode::FAILURE; }
+            None => {
+                eprintln!("provision-dev: --key requires a path");
+                return ExitCode::FAILURE;
+            }
         };
         match fs::read_to_string(path) {
             Ok(s) => {
@@ -55,7 +58,10 @@ pub fn cmd_provision_dev(args: &[String]) -> ExitCode {
                 }
                 t
             }
-            Err(e) => { eprintln!("provision-dev: cannot read {path}: {e}"); return ExitCode::FAILURE; }
+            Err(e) => {
+                eprintln!("provision-dev: cannot read {path}: {e}");
+                return ExitCode::FAILURE;
+            }
         }
     } else {
         // --generate (default when flag present and no --key): derive 32
@@ -63,8 +69,7 @@ pub fn cmd_provision_dev(args: &[String]) -> ExitCode {
         // fs::read the whole device).
         use std::io::Read;
         let mut bytes = [0u8; 32];
-        match fs::File::open("/dev/urandom")
-            .and_then(|mut f| f.read_exact(&mut bytes)) {
+        match fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut bytes)) {
             Ok(()) => {}
             Err(e) => {
                 eprintln!("provision-dev: no entropy source available: {e}");
@@ -83,8 +88,11 @@ pub fn cmd_provision_dev(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let date = std::process::Command::new("date").arg("+%Y-%m-%d").output()
-        .ok().map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    let date = std::process::Command::new("date")
+        .arg("+%Y-%m-%d")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_else(|| "unknown".into());
     let provenance = format!(
         "# Trust-anchor provisioning provenance (RFC-v0.17-001)\n\
@@ -98,7 +106,8 @@ pub fn cmd_provision_dev(args: &[String]) -> ExitCode {
          # NOTE: bundles must be signed with the authority matching this\n\
          # anchor for verification to succeed. This anchor is NOT valid for\n\
          # factory/field deployments (factory-station provisioning, v1.1)\n\
-         # or high-assurance deployments (hardware-anchored, v2+).\n");
+         # or high-assurance deployments (hardware-anchored, v2+).\n"
+    );
     if let Err(e) = fs::write("provision/PROVENANCE.toml", provenance) {
         eprintln!("provision-dev: cannot write provenance: {e}");
         return ExitCode::FAILURE;

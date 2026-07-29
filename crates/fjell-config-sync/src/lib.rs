@@ -23,27 +23,34 @@
 //! | SDK version | `fjell_sdk::SDK_API_REV` |
 
 // host-testable library; no_std when built as the actual service
-use fjell_sdk::{SDK_API_REV, sdk_emit};
 use fjell_sdk::abi::SysError;
 use fjell_sdk::cap::CapHandle;
+use fjell_sdk::{SDK_API_REV, sdk_emit};
 
 // ── Configuration digest ──────────────────────────────────────────────────────
 
 /// A 32-byte content hash of the current configuration blob.
-#[derive(Clone, Copy, PartialEq, Eq)]
-#[derive(Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ConfigDigest(pub [u8; 32]);
 
 impl ConfigDigest {
     /// A zeroed digest signals "no configuration applied yet."
-    pub fn zero() -> Self { Self([0u8; 32]) }
-    pub fn is_zero(&self) -> bool { self.0 == [0u8; 32] }
+    pub fn zero() -> Self {
+        Self([0u8; 32])
+    }
+    pub fn is_zero(&self) -> bool {
+        self.0 == [0u8; 32]
+    }
 
     /// Compute a digest from raw bytes using a simple FNV-based hash.
     pub fn of(bytes: &[u8]) -> Self {
         let mut h = [0u64; 4];
-        let bases = [0xcbf29ce484222325u64, 0xcbf29ce484222327,
-                     0xcbf29ce484222329, 0xcbf29ce484222331];
+        let bases = [
+            0xcbf29ce484222325u64,
+            0xcbf29ce484222327,
+            0xcbf29ce484222329,
+            0xcbf29ce484222331,
+        ];
         for (i, &b) in bases.iter().enumerate() {
             let mut hv: u64 = b;
             for &byte in bytes {
@@ -55,7 +62,7 @@ impl ConfigDigest {
         }
         let mut out = [0u8; 32];
         for (i, &hv) in h.iter().enumerate() {
-            out[i*8..(i+1)*8].copy_from_slice(&hv.to_le_bytes());
+            out[i * 8..(i + 1) * 8].copy_from_slice(&hv.to_le_bytes());
         }
         Self(out)
     }
@@ -68,17 +75,17 @@ pub struct ConfigState {
     /// Digest of the most recently applied configuration.
     pub active_digest: ConfigDigest,
     /// Monotonic update counter.
-    pub update_count:  u32,
+    pub update_count: u32,
     /// Whether the SDK version at compile time is compatible.
-    pub sdk_compat:    bool,
+    pub sdk_compat: bool,
 }
 
 impl ConfigState {
     pub fn new() -> Self {
         Self {
             active_digest: ConfigDigest::zero(),
-            update_count:  0,
-            sdk_compat:    SDK_API_REV >= 1,
+            update_count: 0,
+            sdk_compat: SDK_API_REV >= 1,
         }
     }
 
@@ -92,18 +99,19 @@ impl ConfigState {
 
     /// Whether the service should emit `CONFIG.DIGEST_REPORTED` for this update.
     pub fn should_emit_report(&self) -> bool {
-        !self.active_digest.is_zero()
-            && sdk_emit::is_known_tag(0x0503)   // CONFIG.DIGEST_REPORTED
+        !self.active_digest.is_zero() && sdk_emit::is_known_tag(0x0503) // CONFIG.DIGEST_REPORTED
     }
 
     /// Whether the service should emit `CONFIG.UPDATED` after applying a blob.
     pub fn should_emit_updated(&self) -> bool {
-        sdk_emit::is_known_tag(0x0501)   // CONFIG.UPDATED
+        sdk_emit::is_known_tag(0x0501) // CONFIG.UPDATED
     }
 }
 
 impl Default for ConfigState {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Message handler skeleton ──────────────────────────────────────────────────
@@ -115,7 +123,7 @@ pub enum ConfigIpcTag {
     /// Inbound: apply a new config blob.
     ConfigUpdate = 0xC001,
     /// Inbound: query the current digest.
-    ConfigQuery  = 0xC002,
+    ConfigQuery = 0xC002,
     /// Outbound: report the active digest.
     DigestReport = 0xC003,
 }
@@ -152,11 +160,9 @@ pub const LESSONS: &[&str] = &[
     "L1 [manifest]: `intents` field requires pre-existing catalog tags — \
      we needed to allocate 0x0501–0x0503 as new CONFIG domain tags before \
      writing the manifest.",
-
     "L2 [sdk_emit]: `is_known_tag` returns false for newly-allocated tags \
      until the catalog v1 snapshot is regenerated. The typed emitter API \
      (RFC-v0.14-003) makes this a compile-time error instead.",
-
     "L3 [handle_ipc]: The IPC tag space is shared and collisions are \
      not yet tracked; a service registry (post-v1.0) would prevent \
      `ConfigIpcTag::ConfigUpdate` from conflicting with another service.",
@@ -206,8 +212,12 @@ mod tests {
     fn handle_update_returns_digest() {
         let mut s = ConfigState::new();
         let blob = b"test config blob";
-        let result = handle_ipc(ConfigIpcTag::ConfigUpdate as u16,
-                                CapHandle(0), &mut s, blob);
+        let result = handle_ipc(
+            ConfigIpcTag::ConfigUpdate as u16,
+            CapHandle(0),
+            &mut s,
+            blob,
+        );
         assert!(result.is_ok());
         let (tag, _) = result.unwrap();
         assert_eq!(tag, ConfigIpcTag::DigestReport as u16);
@@ -217,8 +227,7 @@ mod tests {
     fn handle_query_returns_count() {
         let mut s = ConfigState::new();
         s.apply_update(b"blob1");
-        let result = handle_ipc(ConfigIpcTag::ConfigQuery as u16,
-                                CapHandle(0), &mut s, &[]);
+        let result = handle_ipc(ConfigIpcTag::ConfigQuery as u16, CapHandle(0), &mut s, &[]);
         assert!(result.is_ok());
         let (_, count) = result.unwrap();
         assert_eq!(count, 1);
@@ -233,13 +242,19 @@ mod tests {
 
     #[test]
     fn lessons_non_empty() {
-        assert!(!LESSONS.is_empty(), "SDK trial must produce at least one lesson");
+        assert!(
+            !LESSONS.is_empty(),
+            "SDK trial must produce at least one lesson"
+        );
     }
 
     #[test]
     fn sdk_emit_integration() {
         // Verify SDK's is_known_tag works for standard catalog tags
-        assert!(sdk_emit::is_known_tag(0x0101), "UPDATE.STAGING_ADVANCED must be known");
+        assert!(
+            sdk_emit::is_known_tag(0x0101),
+            "UPDATE.STAGING_ADVANCED must be known"
+        );
         // CONFIG tags 0x0501+ are NOT in v1 catalog (allocated in v0.14)
         // This test captures the lesson L2 above
     }

@@ -33,8 +33,7 @@ const SERVICES: &[&str] = &[
 ];
 
 fn main() {
-    let manifest = env::var("CARGO_MANIFEST_DIR")
-        .expect("CARGO_MANIFEST_DIR not set");
+    let manifest = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
     let manifest = PathBuf::from(&manifest);
 
     // ── 1. Pass the linker script ─────────────────────────────────────────────
@@ -56,7 +55,8 @@ fn main() {
     }
 
     if !missing.is_empty() {
-        println!("cargo:warning=\n\
+        println!(
+            "cargo:warning=\n\
             ┌─────────────────────────────────────────────────────────────┐\n\
             │  fjell-kernel: prebuilt service binaries not found          │\n\
             │                                                              │\n\
@@ -64,7 +64,8 @@ fn main() {
             │    cargo xtask build-services                               │\n\
             │                                                              │\n\
             │  Missing: {missing:?}\n\
-            └─────────────────────────────────────────────────────────────┘");
+            └─────────────────────────────────────────────────────────────┘"
+        );
         // Emit an include_bytes path that won't exist, producing a compile error
         // with a useful message rather than a silent wrong binary.
         panic!(

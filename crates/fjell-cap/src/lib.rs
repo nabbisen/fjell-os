@@ -29,15 +29,17 @@
 
 pub use fjell_abi::task::TaskId;
 
+pub mod cspace;
+pub mod enforcement;
 pub mod handle;
 pub mod rights;
 pub mod slot;
-pub mod cspace;
-pub mod enforcement;
 
 // Re-exports for ergonomic use
+pub use cspace::{CSPACE_SLOTS, CSpace};
+pub use enforcement::{cap_drop, require_cap};
 pub use handle::CapHandle;
 pub use rights::{CapError, CapKind, CapRights, CapState, ObjectScope};
-pub use slot::{AlwaysRevoked, Capability, CapSlot, CapSlotState, LeaseBinding, LeaseChecker, NoLease};
-pub use cspace::{CSpace, CSPACE_SLOTS};
-pub use enforcement::{cap_drop, require_cap};
+pub use slot::{
+    AlwaysRevoked, CapSlot, CapSlotState, Capability, LeaseBinding, LeaseChecker, NoLease,
+};

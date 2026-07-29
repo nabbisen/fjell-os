@@ -13,8 +13,8 @@ use crate::task::tcb::MAX_TASKS;
 
 // ── Priority constants ────────────────────────────────────────────────────────
 
-pub const PRIORITY_IDLE:           u8 = 0;
-pub const PRIORITY_USER:           u8 = 32;
+pub const PRIORITY_IDLE: u8 = 0;
+pub const PRIORITY_USER: u8 = 32;
 pub const PRIORITY_KERNEL_SERVICE: u8 = 64;
 
 // ── Internal bucket mapping ───────────────────────────────────────────────────
@@ -30,21 +30,23 @@ fn priority_to_bucket(p: u8) -> usize {
 
 struct TaskQueue {
     items: [Option<TaskId>; MAX_TASKS],
-    head:  usize,
-    len:   usize,
+    head: usize,
+    len: usize,
 }
 
 impl TaskQueue {
     const fn new() -> Self {
         TaskQueue {
             items: [None; MAX_TASKS],
-            head:  0,
-            len:   0,
+            head: 0,
+            len: 0,
         }
     }
 
     fn push(&mut self, id: TaskId) -> bool {
-        if self.len == MAX_TASKS { return false; }
+        if self.len == MAX_TASKS {
+            return false;
+        }
         let tail = (self.head + self.len) % MAX_TASKS;
         self.items[tail] = Some(id);
         self.len += 1;
@@ -52,7 +54,9 @@ impl TaskQueue {
     }
 
     fn pop(&mut self) -> Option<TaskId> {
-        if self.len == 0 { return None; }
+        if self.len == 0 {
+            return None;
+        }
         let id = self.items[self.head].take();
         self.head = (self.head + 1) % MAX_TASKS;
         self.len -= 1;
@@ -62,7 +66,9 @@ impl TaskQueue {
     fn contains(&self, id: TaskId) -> bool {
         for i in 0..self.len {
             let idx = (self.head + i) % MAX_TASKS;
-            if self.items[idx] == Some(id) { return true; }
+            if self.items[idx] == Some(id) {
+                return true;
+            }
         }
         false
     }
@@ -72,31 +78,37 @@ impl TaskQueue {
 
 /// Multi-level ready queue.
 pub struct ReadyQueue {
-    queues:          [TaskQueue; MAX_PRIORITY_LEVELS],
-    non_empty_mask:  u8,   // bitmask of non-empty buckets
+    queues: [TaskQueue; MAX_PRIORITY_LEVELS],
+    non_empty_mask: u8, // bitmask of non-empty buckets
 }
 
 impl ReadyQueue {
     pub const fn new() -> Self {
         const EMPTY_Q: TaskQueue = TaskQueue::new();
         ReadyQueue {
-            queues:         [EMPTY_Q; MAX_PRIORITY_LEVELS],
+            queues: [EMPTY_Q; MAX_PRIORITY_LEVELS],
             non_empty_mask: 0,
         }
     }
 
     pub fn enqueue(&mut self, id: TaskId, priority: u8) -> bool {
         let bucket = priority_to_bucket(priority);
-        if self.queues[bucket].contains(id) { return false; } // SCHED-001
+        if self.queues[bucket].contains(id) {
+            return false;
+        } // SCHED-001
         let ok = self.queues[bucket].push(id);
-        if ok { self.non_empty_mask |= 1 << bucket; }
+        if ok {
+            self.non_empty_mask |= 1 << bucket;
+        }
         ok
     }
 
     /// Dequeue the highest-priority waiting task.
     pub fn dequeue_next(&mut self) -> Option<TaskId> {
         // Find the highest non-empty bucket (MSB of mask).
-        if self.non_empty_mask == 0 { return None; }
+        if self.non_empty_mask == 0 {
+            return None;
+        }
         let bucket = (7 - self.non_empty_mask.leading_zeros()) as usize;
         let id = self.queues[bucket].pop();
         if self.queues[bucket].len == 0 {
@@ -118,19 +130,19 @@ pub enum SchedError {
 
 /// Kernel scheduler state.
 pub struct Scheduler {
-    ready:        ReadyQueue,
-    current:      Option<TaskId>,
+    ready: ReadyQueue,
+    current: Option<TaskId>,
     idle_task_id: Option<TaskId>,
-    tick:         u64,
+    tick: u64,
 }
 
 impl Scheduler {
     pub const fn new() -> Self {
         Scheduler {
-            ready:        ReadyQueue::new(),
-            current:      None,
+            ready: ReadyQueue::new(),
+            current: None,
             idle_task_id: None,
-            tick:         0,
+            tick: 0,
         }
     }
 
@@ -145,7 +157,8 @@ impl Scheduler {
 
     /// Choose the next task to run (or idle if nothing is ready).
     pub fn choose_next(&mut self) -> TaskId {
-        self.ready.dequeue_next()
+        self.ready
+            .dequeue_next()
             .or(self.idle_task_id)
             .expect("idle task must always be set (SCHED-005)")
     }
@@ -214,7 +227,9 @@ impl Scheduler {
 mod tests {
     use super::*;
 
-    fn id(i: u16) -> TaskId { TaskId::new(i, 0) }
+    fn id(i: u16) -> TaskId {
+        TaskId::new(i, 0)
+    }
 
     #[test]
     fn basic_enqueue_dequeue() {

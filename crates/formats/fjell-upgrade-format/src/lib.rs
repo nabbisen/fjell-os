@@ -4,12 +4,12 @@
 pub mod release_metadata;
 pub mod rollback_record;
 
-pub use release_metadata::{ReleaseMetadata, Provenance,
-    RELEASE_METADATA_VERSION, RELEASE_METADATA_DOMAIN};
+pub use release_metadata::{
+    Provenance, RELEASE_METADATA_DOMAIN, RELEASE_METADATA_VERSION, ReleaseMetadata,
+};
 pub use rollback_record::{
-    RollbackRecord, AdvanceSource, RollbackCheckResult,
-    ROLLBACK_RECORD_VERSION, ROLLBACK_RECORD_DOMAIN,
-    check_rollback, advance_min_counter,
+    AdvanceSource, ROLLBACK_RECORD_DOMAIN, ROLLBACK_RECORD_VERSION, RollbackCheckResult,
+    RollbackRecord, advance_min_counter, check_rollback,
 };
 
 // ── CRC32 (ISO 3309 / Castagnoli) — no lookup table, no_std safe ─────────────
@@ -30,45 +30,64 @@ pub fn crc32(data: &[u8]) -> u32 {
 pub const BOOT_CTL_MAGIC: [u8; 8] = *b"FJBOOT\0\0";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SlotId { A = 0, B = 1 }
+pub enum SlotId {
+    A = 0,
+    B = 1,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
-pub enum SlotState { Empty = 0, Bootable = 1, Candidate = 2, Confirmed = 3, Failed = 4 }
+pub enum SlotState {
+    Empty = 0,
+    Bootable = 1,
+    Candidate = 2,
+    Confirmed = 3,
+    Failed = 4,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SlotInfo {
-    pub state:            SlotState,
+    pub state: SlotState,
     pub image_generation: u64,
-    pub confirmed:        u8,
-    pub tries_allowed:    u8,
-    pub remaining_tries:  u8,
+    pub confirmed: u8,
+    pub tries_allowed: u8,
+    pub remaining_tries: u8,
 }
 
 impl SlotInfo {
     pub const fn empty() -> Self {
-        SlotInfo { state: SlotState::Empty, image_generation: 0,
-                   confirmed: 0, tries_allowed: 3, remaining_tries: 3 }
+        SlotInfo {
+            state: SlotState::Empty,
+            image_generation: 0,
+            confirmed: 0,
+            tries_allowed: 3,
+            remaining_tries: 3,
+        }
     }
     pub const fn bootable(image_gen: u64) -> Self {
-        SlotInfo { state: SlotState::Bootable, image_generation: image_gen,
-                   confirmed: 1, tries_allowed: 3, remaining_tries: 3 }
+        SlotInfo {
+            state: SlotState::Bootable,
+            image_generation: image_gen,
+            confirmed: 1,
+            tries_allowed: 3,
+            remaining_tries: 3,
+        }
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BootControlBlock {
-    pub magic:                [u8; 8],
-    pub version:              u16,
-    pub generation:           u64,
-    pub active_slot:          u8,   // SlotId
-    pub last_confirmed_slot:  u8,
-    pub candidate_slot:       u8,   // 0xFF = none
-    pub slot_a:               SlotInfo,
-    pub slot_b:               SlotInfo,
-    pub crc32:                u32,
+    pub magic: [u8; 8],
+    pub version: u16,
+    pub generation: u64,
+    pub active_slot: u8, // SlotId
+    pub last_confirmed_slot: u8,
+    pub candidate_slot: u8, // 0xFF = none
+    pub slot_a: SlotInfo,
+    pub slot_b: SlotInfo,
+    pub crc32: u32,
 }
 
 pub const NO_CANDIDATE: u8 = 0xFF;
@@ -76,7 +95,9 @@ pub const NO_CANDIDATE: u8 = 0xFF;
 impl BootControlBlock {
     pub fn new(image_gen: u64) -> Self {
         BootControlBlock {
-            magic: BOOT_CTL_MAGIC, version: 1, generation: image_gen,
+            magic: BOOT_CTL_MAGIC,
+            version: 1,
+            generation: image_gen,
             active_slot: SlotId::A as u8,
             last_confirmed_slot: SlotId::A as u8,
             candidate_slot: NO_CANDIDATE,
@@ -90,23 +111,29 @@ impl BootControlBlock {
     pub fn seal(&mut self) {
         self.crc32 = 0;
         // SAFETY: category=raw-pointer-deref byte slice is aligned and sized correctly by the caller; no aliasing.
-        let bytes = unsafe { core::slice::from_raw_parts(
-            self as *const _ as *const u8, core::mem::size_of::<Self>()) };
+        let bytes = unsafe {
+            core::slice::from_raw_parts(self as *const _ as *const u8, core::mem::size_of::<Self>())
+        };
         self.crc32 = crc32(bytes);
     }
 
     /// Returns true if magic is correct AND CRC32 matches (RFC 008).
     pub fn is_valid(&self) -> bool {
-        if self.magic != BOOT_CTL_MAGIC { return false; }
+        if self.magic != BOOT_CTL_MAGIC {
+            return false;
+        }
         let mut copy = *self;
         copy.crc32 = 0;
         // SAFETY: category=raw-pointer-deref byte slice is aligned and sized correctly by the caller; no aliasing.
-        let bytes = unsafe { core::slice::from_raw_parts(
-            &copy as *const _ as *const u8, core::mem::size_of::<Self>()) };
+        let bytes = unsafe {
+            core::slice::from_raw_parts(
+                &copy as *const _ as *const u8,
+                core::mem::size_of::<Self>(),
+            )
+        };
         crc32(bytes) == self.crc32
     }
 }
-
 
 // ── RFC 023: BCB mirror selection ────────────────────────────────────────────
 
@@ -142,23 +169,29 @@ pub fn select_bcb_mirror<'a>(
 ) -> BcbMirrorSelection<'a> {
     match (a.is_valid(), b.is_valid()) {
         (false, false) => BcbMirrorSelection::NoneValid,
-        (true,  false) => BcbMirrorSelection::SelectedA(a),
-        (false, true ) => BcbMirrorSelection::SelectedB(b),
-        (true,  true ) => {
+        (true, false) => BcbMirrorSelection::SelectedA(a),
+        (false, true) => BcbMirrorSelection::SelectedB(b),
+        (true, true) => {
             use core::cmp::Ordering;
             match a.generation.cmp(&b.generation) {
                 Ordering::Greater => BcbMirrorSelection::SelectedA(a),
-                Ordering::Less    => BcbMirrorSelection::SelectedB(b),
-                Ordering::Equal   => BcbMirrorSelection::BothValidSameGeneration(a),
+                Ordering::Less => BcbMirrorSelection::SelectedB(b),
+                Ordering::Equal => BcbMirrorSelection::BothValidSameGeneration(a),
             }
         }
     }
 }
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UpgradeState {
-    Created, Verified, Staging, Staged, CandidateSet, Confirmed, Aborted, Failed
+    Created,
+    Verified,
+    Staging,
+    Staged,
+    CandidateSet,
+    Confirmed,
+    Aborted,
+    Failed,
 }
 
 #[cfg(test)]
@@ -168,8 +201,11 @@ mod tests {
     #[test]
     fn boot_control_block_initial_slot_b_is_empty() {
         let bcb = BootControlBlock::new(1);
-        assert_eq!(bcb.slot_b.state, SlotState::Empty,
-            "slot B must start as Empty; it has no staged image");
+        assert_eq!(
+            bcb.slot_b.state,
+            SlotState::Empty,
+            "slot B must start as Empty; it has no staged image"
+        );
         assert_eq!(bcb.slot_b.image_generation, 0);
         assert_eq!(bcb.slot_b.confirmed, 0);
     }
@@ -185,61 +221,82 @@ mod tests {
     #[test]
     fn boot_control_block_is_valid() {
         let mut bcb = BootControlBlock::new(1);
-        bcb.seal();  // is_valid() now checks CRC32 (RFC 008)
+        bcb.seal(); // is_valid() now checks CRC32 (RFC 008)
         assert!(bcb.is_valid(), "sealed BCB must pass is_valid");
     }
 }
 
-    #[test]
-    fn bcb_seal_produces_valid_crc() {
-        let mut bcb = BootControlBlock::new(1);
-        bcb.seal();
-        assert!(bcb.is_valid(), "sealed BCB must pass is_valid");
-    }
+#[test]
+fn bcb_seal_produces_valid_crc() {
+    let mut bcb = BootControlBlock::new(1);
+    bcb.seal();
+    assert!(bcb.is_valid(), "sealed BCB must pass is_valid");
+}
 
-    #[test]
-    fn bcb_corrupt_byte_fails_crc() {
-        let mut bcb = BootControlBlock::new(1);
-        bcb.seal();
-        bcb.version ^= 0xFF;  // corrupt one byte
-        assert!(!bcb.is_valid(), "corrupted BCB must fail is_valid");
-    }
+#[test]
+fn bcb_corrupt_byte_fails_crc() {
+    let mut bcb = BootControlBlock::new(1);
+    bcb.seal();
+    bcb.version ^= 0xFF; // corrupt one byte
+    assert!(!bcb.is_valid(), "corrupted BCB must fail is_valid");
+}
 
-    // ── RFC 023: mirror selection tests ──────────────────────────────────────
+// ── RFC 023: mirror selection tests ──────────────────────────────────────
 
-    #[test]
-    fn select_bcb_mirror_none_valid_when_both_corrupt() {
-        let bcb = BootControlBlock::new(1); // unsealed — magic ok but CRC=0
-        let mut bad = BootControlBlock::new(1);
-        bad.magic = [0u8; 8]; // corrupt magic
-        bad.seal();
-        let r = select_bcb_mirror(&bcb, &bad);
-        assert!(matches!(r, BcbMirrorSelection::NoneValid));
-    }
+#[test]
+fn select_bcb_mirror_none_valid_when_both_corrupt() {
+    let bcb = BootControlBlock::new(1); // unsealed — magic ok but CRC=0
+    let mut bad = BootControlBlock::new(1);
+    bad.magic = [0u8; 8]; // corrupt magic
+    bad.seal();
+    let r = select_bcb_mirror(&bcb, &bad);
+    assert!(matches!(r, BcbMirrorSelection::NoneValid));
+}
 
-    #[test]
-    fn select_bcb_mirror_prefers_only_valid() {
-        let mut a = BootControlBlock::new(1); a.seal();
-        let mut b = BootControlBlock::new(1); b.seal();
-        b.magic = [0u8; 8]; // corrupt B
-        assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::SelectedA(_)));
-        assert!(matches!(select_bcb_mirror(&b, &a), BcbMirrorSelection::SelectedB(_)));
-    }
+#[test]
+fn select_bcb_mirror_prefers_only_valid() {
+    let mut a = BootControlBlock::new(1);
+    a.seal();
+    let mut b = BootControlBlock::new(1);
+    b.seal();
+    b.magic = [0u8; 8]; // corrupt B
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::SelectedA(_)
+    ));
+    assert!(matches!(
+        select_bcb_mirror(&b, &a),
+        BcbMirrorSelection::SelectedB(_)
+    ));
+}
 
-    #[test]
-    fn select_bcb_mirror_higher_generation_wins() {
-        let mut a = BootControlBlock::new(2); a.seal();
-        let mut b = BootControlBlock::new(5); b.seal();
-        assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::SelectedB(_)));
-        assert!(matches!(select_bcb_mirror(&b, &a), BcbMirrorSelection::SelectedA(_)));
-    }
+#[test]
+fn select_bcb_mirror_higher_generation_wins() {
+    let mut a = BootControlBlock::new(2);
+    a.seal();
+    let mut b = BootControlBlock::new(5);
+    b.seal();
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::SelectedB(_)
+    ));
+    assert!(matches!(
+        select_bcb_mirror(&b, &a),
+        BcbMirrorSelection::SelectedA(_)
+    ));
+}
 
-    #[test]
-    fn select_bcb_mirror_equal_generation_selects_a() {
-        let mut a = BootControlBlock::new(3); a.seal();
-        let mut b = BootControlBlock::new(3); b.seal();
-        assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::BothValidSameGeneration(_)));
-    }
+#[test]
+fn select_bcb_mirror_equal_generation_selects_a() {
+    let mut a = BootControlBlock::new(3);
+    a.seal();
+    let mut b = BootControlBlock::new(3);
+    b.seal();
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::BothValidSameGeneration(_)
+    ));
+}
 
 #[cfg(test)]
 mod tests_v03;

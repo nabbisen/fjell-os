@@ -14,7 +14,7 @@ use fjell_abi::lease::{LeaseEpoch, LeaseId};
 /// Bootstrap capabilities carry `lease: None`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LeaseBinding {
-    pub lease_id:       LeaseId,
+    pub lease_id: LeaseId,
     pub epoch_at_issue: LeaseEpoch,
 }
 
@@ -27,20 +27,20 @@ pub struct LeaseBinding {
 /// `cap_revoke` walks all slots for matching `parent` values.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Capability {
-    pub kind:      CapKind,
-    pub state:     CapState,
+    pub kind: CapKind,
+    pub state: CapState,
     /// Index of the kernel object this capability refers to.
     pub object_id: u32,
-    pub rights:    CapRights,
+    pub rights: CapRights,
     /// Immutable badge — set at `cap_mint` time.
-    pub badge:     u64,
+    pub badge: u64,
     /// Object scope that limits the target of operations (RFC 031 §2.3).
-    pub scope:     ObjectScope,
+    pub scope: ObjectScope,
     /// Slot index of the parent capability (for derivation tree), if any.
-    pub parent:    Option<u16>,
+    pub parent: Option<u16>,
     /// Optional lease binding (RFC 006 / RFC 033).
     /// `None` for bootstrap capabilities.
-    pub lease:     Option<LeaseBinding>,
+    pub lease: Option<LeaseBinding>,
 }
 
 impl Capability {
@@ -48,10 +48,7 @@ impl Capability {
     ///
     /// Returns `Ok(())` for unbound caps or when the lease is still active.
     /// Returns `Err(CapError::LeaseRevoked)` on epoch mismatch or revoked state.
-    pub fn check_lease(
-        &self,
-        checker: &dyn LeaseChecker,
-    ) -> Result<(), super::rights::CapError> {
+    pub fn check_lease(&self, checker: &dyn LeaseChecker) -> Result<(), super::rights::CapError> {
         if let Some(lb) = self.lease {
             checker.check_active(lb.lease_id, lb.epoch_at_issue)?;
         }
@@ -67,10 +64,10 @@ impl Capability {
     /// Returns `Err(())` on rights amplification.
     pub fn derive(
         &self,
-        new_rights:    CapRights,
-        new_badge:     u64,
-        new_scope:     ObjectScope,
-        self_slot:     u16,
+        new_rights: CapRights,
+        new_badge: u64,
+        new_scope: ObjectScope,
+        self_slot: u16,
     ) -> Result<Capability, ()> {
         if !new_rights.is_subset_of(self.rights) {
             return Err(());
@@ -78,19 +75,19 @@ impl Capability {
         // Scope narrowing: child may be `Any` (inherits) or equal to parent;
         // it may not be *broader* than the parent.
         let effective_scope = match new_scope {
-            ObjectScope::Any => self.scope,   // inherit parent scope
-            s if s == self.scope => s,         // same scope is fine
-            _ => return Err(()),               // would widen: reject
+            ObjectScope::Any => self.scope, // inherit parent scope
+            s if s == self.scope => s,      // same scope is fine
+            _ => return Err(()),            // would widen: reject
         };
         Ok(Capability {
-            kind:      self.kind,
-            state:     CapState::Active,
+            kind: self.kind,
+            state: CapState::Active,
             object_id: self.object_id,
-            rights:    new_rights,
-            badge:     new_badge,
-            scope:     effective_scope,
-            parent:    Some(self_slot),
-            lease:     self.lease,   // derived cap inherits the lease binding
+            rights: new_rights,
+            badge: new_badge,
+            scope: effective_scope,
+            parent: Some(self_slot),
+            lease: self.lease, // derived cap inherits the lease binding
         })
     }
 }
@@ -122,17 +119,23 @@ pub enum CapSlotState {
 #[derive(Clone, Copy, Debug)]
 pub struct CapSlot {
     pub generation: u16,
-    pub state:      CapSlotState,
-    pub cap:        Option<Capability>,
+    pub state: CapSlotState,
+    pub cap: Option<Capability>,
 }
 
 impl Default for CapSlot {
-    fn default() -> Self { Self::empty() }
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl CapSlot {
     pub const fn empty() -> Self {
-        CapSlot { generation: 0, state: CapSlotState::Empty, cap: None }
+        CapSlot {
+            generation: 0,
+            state: CapSlotState::Empty,
+            cap: None,
+        }
     }
 
     /// Is this slot occupied by a live capability?
@@ -148,7 +151,7 @@ impl CapSlot {
         if self.state == CapSlotState::Active {
             return Err(());
         }
-        self.cap   = Some(cap);
+        self.cap = Some(cap);
         self.state = CapSlotState::Active;
         Ok(CapHandle::new(slot_idx, self.generation))
     }
@@ -157,8 +160,8 @@ impl CapSlot {
     ///
     /// Transitions: Active → Empty, generation++.
     pub fn clear(&mut self) {
-        self.cap       = None;
-        self.state     = CapSlotState::Empty;
+        self.cap = None;
+        self.state = CapSlotState::Empty;
         self.generation = self.generation.wrapping_add(1);
     }
 }
@@ -174,7 +177,7 @@ pub trait LeaseChecker {
     /// epoch `epoch_issued`, otherwise `Err(CapError::LeaseRevoked)`.
     fn check_active(
         &self,
-        id:           LeaseId,
+        id: LeaseId,
         epoch_issued: LeaseEpoch,
     ) -> Result<(), super::rights::CapError>;
 }
@@ -187,7 +190,7 @@ pub struct NoLease;
 impl LeaseChecker for NoLease {
     fn check_active(
         &self,
-        _id:    LeaseId,
+        _id: LeaseId,
         _epoch: LeaseEpoch,
     ) -> Result<(), super::rights::CapError> {
         Ok(())
@@ -202,7 +205,7 @@ pub struct AlwaysRevoked;
 impl LeaseChecker for AlwaysRevoked {
     fn check_active(
         &self,
-        _id:    LeaseId,
+        _id: LeaseId,
         _epoch: LeaseEpoch,
     ) -> Result<(), super::rights::CapError> {
         Err(super::rights::CapError::LeaseRevoked)

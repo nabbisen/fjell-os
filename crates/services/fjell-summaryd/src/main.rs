@@ -6,17 +6,16 @@
 #![no_std]
 #![no_main]
 mod rt;
-use fjell_syscall::{sys_exit, sys_debug_writeln};
+use fjell_measure_format::Digest32;
 use fjell_summary_format::{
-    MeasurementSummary, ReleaseSummary, ChannelSummary, AdvanceSource,
-    SummaryError,
+    AdvanceSource, ChannelSummary, MeasurementSummary, ReleaseSummary, SummaryError,
     measurement_summary_digest, release_summary_digest,
 };
-use fjell_measure_format::Digest32;
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 // Store record kinds for summaries (RFC-v0.7.2-001).
 const STORE_RECORD_KIND_MEASUREMENT_SUMMARY: u16 = 0x0030;
-const STORE_RECORD_KIND_RELEASE_SUMMARY:     u16 = 0x0031;
+const STORE_RECORD_KIND_RELEASE_SUMMARY: u16 = 0x0031;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
@@ -25,11 +24,7 @@ pub extern "C" fn service_main() -> ! {
     let node_id = [0x01u8; 16];
 
     // ── MeasurementSummary ────────────────────────────────────────────────────
-    let mut ms = MeasurementSummary::new(
-        node_id, 0, 0,
-        Digest32([0u8; 32]),
-        Digest32([0u8; 32]),
-    );
+    let mut ms = MeasurementSummary::new(node_id, 0, 0, Digest32([0u8; 32]), Digest32([0u8; 32]));
 
     // Kind counts: PlatformProfileLoaded (0x10), BoardProfileLoaded (0x11).
     if ms.add_kind_count(0x10, 1).is_err() {
@@ -62,11 +57,11 @@ pub extern "C" fn service_main() -> ! {
     let mut rs = ReleaseSummary::new(node_id, 0);
 
     let ch = ChannelSummary {
-        channel_id:          *b"default\0",
-        current_counter:     0,
-        min_counter:         0,
+        channel_id: *b"default\0",
+        current_counter: 0,
+        min_counter: 0,
         active_anchor_epoch: 0,
-        last_confirm_tick:   0,
+        last_confirm_tick: 0,
         last_advance_source: AdvanceSource::Unknown,
     };
 

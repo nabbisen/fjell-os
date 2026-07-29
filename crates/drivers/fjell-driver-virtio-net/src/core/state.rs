@@ -7,19 +7,19 @@ use fjell_net_format::{NetDeviceState, NetMac};
 #[repr(u8)]
 pub enum DriverState {
     /// Initial state: waiting for capability install from devmgr.
-    Boot        = 0x00,
+    Boot = 0x00,
     /// Capabilities received; negotiating virtio features.
-    Init        = 0x01,
+    Init = 0x01,
     /// Feature negotiation complete; IRQ bound; ready to exchange packets.
-    Ready       = 0x02,
+    Ready = 0x02,
     /// Processing an RX interrupt; will return to Ready after ack.
-    HandleRx    = 0x03,
+    HandleRx = 0x03,
     /// A fault has been detected; DMA cleanup in progress.
-    Faulted     = 0x04,
+    Faulted = 0x04,
     /// DMA regions have been revoked and zeroized; awaiting restart decision.
-    Quiesced    = 0x05,
+    Quiesced = 0x05,
     /// devmgr has decided not to restart; caps are withdrawn.
-    Withdrawn   = 0x06,
+    Withdrawn = 0x06,
 }
 
 /// Errors from state-machine transitions.
@@ -29,18 +29,18 @@ pub enum DriverStateError {
     /// Transition not permitted from the current state.
     InvalidTransition = 0x01,
     /// Feature negotiation produced an incompatible subset.
-    FeaturesMismatch  = 0x02,
+    FeaturesMismatch = 0x02,
     /// Device reset timed out; device is quarantined.
-    ResetTimeout      = 0x03,
+    ResetTimeout = 0x03,
 }
 
 /// All mutable state held by the driver task.
 #[derive(Clone, Copy, Debug)]
 pub struct DriverStateBlock {
-    pub state:         DriverState,
-    pub mac:           NetMac,
-    pub mtu:           u16,
-    pub link_up:       bool,
+    pub state: DriverState,
+    pub mac: NetMac,
+    pub mtu: u16,
+    pub link_up: bool,
     pub restart_count: u8,
 }
 
@@ -49,10 +49,10 @@ impl DriverStateBlock {
 
     pub const fn new() -> Self {
         Self {
-            state:         DriverState::Boot,
-            mac:           NetMac::ZERO,
-            mtu:           0,
-            link_up:       false,
+            state: DriverState::Boot,
+            mac: NetMac::ZERO,
+            mtu: 0,
+            link_up: false,
             restart_count: 0,
         }
     }
@@ -61,19 +61,23 @@ impl DriverStateBlock {
     /// not permitted from the current state.
     pub fn transition(&mut self, next: DriverState) -> Result<(), DriverStateError> {
         let ok = match (self.state, next) {
-            (DriverState::Boot,     DriverState::Init)     => true,
-            (DriverState::Init,     DriverState::Ready)    => true,
-            (DriverState::Ready,    DriverState::HandleRx) => true,
-            (DriverState::HandleRx, DriverState::Ready)    => true,
-            (DriverState::Ready,    DriverState::Faulted)  => true,
-            (DriverState::HandleRx, DriverState::Faulted)  => true,
-            (DriverState::Faulted,  DriverState::Quiesced) => true,
-            (DriverState::Quiesced, DriverState::Init)     => true, // restart
-            (DriverState::Quiesced, DriverState::Withdrawn)=> true,
+            (DriverState::Boot, DriverState::Init) => true,
+            (DriverState::Init, DriverState::Ready) => true,
+            (DriverState::Ready, DriverState::HandleRx) => true,
+            (DriverState::HandleRx, DriverState::Ready) => true,
+            (DriverState::Ready, DriverState::Faulted) => true,
+            (DriverState::HandleRx, DriverState::Faulted) => true,
+            (DriverState::Faulted, DriverState::Quiesced) => true,
+            (DriverState::Quiesced, DriverState::Init) => true, // restart
+            (DriverState::Quiesced, DriverState::Withdrawn) => true,
             _ => false,
         };
-        if ok { self.state = next; Ok(()) }
-        else  { Err(DriverStateError::InvalidTransition) }
+        if ok {
+            self.state = next;
+            Ok(())
+        } else {
+            Err(DriverStateError::InvalidTransition)
+        }
     }
 
     /// Transition to `Faulted` unconditionally (from any live state).

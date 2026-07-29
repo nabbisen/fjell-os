@@ -54,13 +54,13 @@ impl From<UserCopyError> for fjell_abi::error::SysError {
     fn from(e: UserCopyError) -> Self {
         use fjell_abi::error::SysError;
         match e {
-            UserCopyError::NullPointer          => SysError::InvalidArg,
-            UserCopyError::KernelAddress        => SysError::InvalidArg,
-            UserCopyError::LengthOverflow       => SysError::InvalidArg,
-            UserCopyError::RangeCrossesKernel   => SysError::InvalidArg,
-            UserCopyError::NotMapped            => SysError::InvalidAddress,
-            UserCopyError::PermissionDenied     => SysError::PermissionDenied,
-            UserCopyError::Internal             => SysError::InternalError,
+            UserCopyError::NullPointer => SysError::InvalidArg,
+            UserCopyError::KernelAddress => SysError::InvalidArg,
+            UserCopyError::LengthOverflow => SysError::InvalidArg,
+            UserCopyError::RangeCrossesKernel => SysError::InvalidArg,
+            UserCopyError::NotMapped => SysError::InvalidAddress,
+            UserCopyError::PermissionDenied => SysError::PermissionDenied,
+            UserCopyError::Internal => SysError::InternalError,
         }
     }
 }
@@ -73,7 +73,7 @@ impl From<UserCopyError> for fjell_abi::error::SysError {
 #[derive(Clone, Copy, Debug)]
 pub struct UserPtr {
     addr: usize,
-    len:  usize,
+    len: usize,
 }
 
 impl UserPtr {
@@ -110,12 +110,21 @@ impl UserPtr {
     }
 
     /// The validated base address.
-    #[inline] pub fn addr(self) -> usize { self.addr }
+    #[inline]
+    pub fn addr(self) -> usize {
+        self.addr
+    }
     /// The length in bytes.
-    #[allow(dead_code)]  // part of UserPtr API; used by copy_from_user_bytes callers
-    #[inline] pub fn len(self) -> usize { self.len }
+    #[allow(dead_code)] // part of UserPtr API; used by copy_from_user_bytes callers
+    #[inline]
+    pub fn len(self) -> usize {
+        self.len
+    }
     /// True if the range is empty.
-    #[inline] pub fn is_empty(self) -> bool { self.len == 0 }
+    #[inline]
+    pub fn is_empty(self) -> bool {
+        self.len == 0
+    }
 }
 
 // ── Host-side property tests ──────────────────────────────────────────────────
@@ -207,7 +216,7 @@ mod tests {
     fn partially_valid_range_crosses_kernel() {
         // RFC 039 §"partially valid range": addr is valid, addr+len is kernel.
         let addr = KBASE / 2;
-        let len  = KBASE / 2 + 1;   // addr + len > KBASE
+        let len = KBASE / 2 + 1; // addr + len > KBASE
         assert_eq!(
             UserPtr::new(addr, len).unwrap_err(),
             UserCopyError::RangeCrossesKernel

@@ -4,7 +4,7 @@
 //! Reads the persisted `RollbackRecord` (represented in-process as
 //! `min_counter` since storaged IPC is complete in v0.4) and rejects any
 //! candidate whose `release_counter` is below the floor.
-#![allow(unused_assignments)]  // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
+#![allow(unused_assignments)] // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;
@@ -15,16 +15,15 @@ use fjell_trust_provider::descriptor::TrustProviderDescriptor;
 use fjell_trust_provider::development::DevelopmentTrustProvider;
 use fjell_trust_provider::ids::TrustProviderId;
 use fjell_trust_provider::profile::{
-    TrustProviderCapabilities, TrustProviderKind, TrustProfile, TrustProviderState,
+    TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
 use fjell_trust_provider::provider::HardwareTrustProvider;
 use fjell_trust_provider::registry::ProviderRegistry;
 
-use fjell_upgrade_format::rollback_record::{
-    AdvanceSource, RollbackRecord, RollbackCheckResult, check_rollback, advance_min_counter,
-};
 use fjell_upgrade_format::release_metadata::ReleaseMetadata;
-
+use fjell_upgrade_format::rollback_record::{
+    AdvanceSource, RollbackCheckResult, RollbackRecord, advance_min_counter, check_rollback,
+};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -56,7 +55,9 @@ struct AntiRollbackState {
 
 impl AntiRollbackState {
     fn new(channel_id: [u8; 8]) -> Self {
-        Self { record: RollbackRecord::genesis(channel_id) }
+        Self {
+            record: RollbackRecord::genesis(channel_id),
+        }
     }
 
     /// Attempt to confirm `meta`.  Returns `true` on success.
@@ -70,10 +71,7 @@ impl AntiRollbackState {
             meta.embedded_min_counter,
         ) {
             RollbackCheckResult::Allowed => {
-                let new_min = advance_min_counter(
-                    self.record.min_counter,
-                    meta.release_counter,
-                );
+                let new_min = advance_min_counter(self.record.min_counter, meta.release_counter);
                 self.record = RollbackRecord::new(
                     meta.channel_id,
                     new_min,
@@ -145,13 +143,13 @@ use fjell_cap::CapHandle;
 const CAP_SXT_EP: CapHandle = CapHandle(6);
 
 /// SXT IPC tag constants (must match secure-transportd).
-const SXT_OPEN_CHANNEL:         u16 = 0x0100;
-const SXT_UPDATE_METADATA_FETCH:u16 = 0x0102;
-const SXT_CLOSE:                u16 = 0x0109;
-const SXT_OPENED:               u16 = 0x0101;
-const SXT_UPDATE_METADATA_REPLY:u16 = 0x0103;
+const SXT_OPEN_CHANNEL: u16 = 0x0100;
+const SXT_UPDATE_METADATA_FETCH: u16 = 0x0102;
+const SXT_CLOSE: u16 = 0x0109;
+const SXT_OPENED: u16 = 0x0101;
+const SXT_UPDATE_METADATA_REPLY: u16 = 0x0103;
 #[allow(dead_code)] // v0.7: SXT channel fault state tracking
-const SXT_FAULTED:              u16 = 0x010b;
+const SXT_FAULTED: u16 = 0x010b;
 
 fn send_sxt(tag: u16, w0: usize) {
     // SAFETY: category=raw-pointer-deref slot pointer is valid within the BCB; access serialised by the upgrade-lock capability.

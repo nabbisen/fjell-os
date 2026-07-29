@@ -61,7 +61,9 @@ impl PhysFrame {
         if pa & 0xFFF != 0 {
             return Err(MmError::Misaligned);
         }
-        Ok(PhysFrame { pfn: (pa >> 12) as u64 })
+        Ok(PhysFrame {
+            pfn: (pa >> 12) as u64,
+        })
     }
 
     /// Create a frame from a PFN (already validated).

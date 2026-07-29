@@ -20,20 +20,20 @@ compile_error!(
      this limitation. See RFC-v0.7.3-002 and docs/src/security/crypto-profile.md."
 );
 
+pub mod aead;
 pub mod aes128;
 pub mod gcm;
-pub mod aead;
-pub mod x25519;
-pub mod sha256;
 pub mod hkdf;
+pub mod sha256;
 pub mod tls_state;
+pub mod x25519;
 
 #[allow(unused_imports)] // v0.7: AEAD constants used by SXT handshake tests
-pub use aead::{Aead128Gcm, AeadError, AEAD_KEY_LEN, AEAD_NONCE_LEN, AEAD_TAG_LEN};
+pub use aead::{AEAD_KEY_LEN, AEAD_NONCE_LEN, AEAD_TAG_LEN, Aead128Gcm, AeadError};
+pub use hkdf::{hkdf_expand, hkdf_extract};
+pub use tls_state::{SxtError, TlsHandshakeState, TlsState};
 #[allow(unused_imports)] // v0.7: X25519Public used in key-exchange tests
-pub use x25519::{X25519Secret, X25519Public, x25519_diffie_hellman};
-pub use hkdf::{hkdf_extract, hkdf_expand};
-pub use tls_state::{TlsState, TlsHandshakeState, SxtError};
+pub use x25519::{X25519Public, X25519Secret, x25519_diffie_hellman};
 
 #[cfg(test)]
 mod tests;

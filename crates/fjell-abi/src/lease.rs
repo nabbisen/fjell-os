@@ -23,13 +23,19 @@ impl LeaseId {
     }
 
     #[inline]
-    pub fn index(self) -> u16 { (self.0 & 0xFFFF) as u16 }
+    pub fn index(self) -> u16 {
+        (self.0 & 0xFFFF) as u16
+    }
 
     #[inline]
-    pub fn generation(self) -> u16 { (self.0 >> 16) as u16 }
+    pub fn generation(self) -> u16 {
+        (self.0 >> 16) as u16
+    }
 
     #[inline]
-    pub fn is_valid(self) -> bool { self != Self::INVALID }
+    pub fn is_valid(self) -> bool {
+        self != Self::INVALID
+    }
 }
 
 /// Packed lease epoch checked during capability validation.

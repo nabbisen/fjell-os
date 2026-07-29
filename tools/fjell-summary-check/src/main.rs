@@ -9,7 +9,7 @@
 //!   1 — one or more consistency violations found
 //!   2 — argument or input error
 
-use fjell_fleet_sync::{check_summary_consistency, ConsistencyError};
+use fjell_fleet_sync::{ConsistencyError, check_summary_consistency};
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
@@ -26,23 +26,28 @@ fn main() -> ExitCode {
     //   [--prev-seq N] [--prev-epoch E] [--prev-boot B] [--prev-lifecycle L]
     //   [--bundle-digest <hex32>] [--known-bundle <hex32>]...
 
-    let new_seq    = parse_u64(&args, "--seq")      .unwrap_or(1);
-    let new_epoch  = parse_u32(&args, "--epoch")    .unwrap_or(1);
-    let new_boot   = parse_u32(&args, "--boot")     .unwrap_or(1);
-    let new_lc     = parse_u8(&args,  "--lifecycle").unwrap_or(4);
+    let new_seq = parse_u64(&args, "--seq").unwrap_or(1);
+    let new_epoch = parse_u32(&args, "--epoch").unwrap_or(1);
+    let new_boot = parse_u32(&args, "--boot").unwrap_or(1);
+    let new_lc = parse_u8(&args, "--lifecycle").unwrap_or(4);
 
-    let prev_seq   = parse_u64(&args, "--prev-seq")       .unwrap_or(0);
-    let prev_epoch = parse_u32(&args, "--prev-epoch")     .unwrap_or(0);
-    let prev_boot  = parse_u32(&args, "--prev-boot")      .unwrap_or(0);
-    let prev_lc    = parse_u8(&args,  "--prev-lifecycle") .unwrap_or(0);
+    let prev_seq = parse_u64(&args, "--prev-seq").unwrap_or(0);
+    let prev_epoch = parse_u32(&args, "--prev-epoch").unwrap_or(0);
+    let prev_boot = parse_u32(&args, "--prev-boot").unwrap_or(0);
+    let prev_lc = parse_u8(&args, "--prev-lifecycle").unwrap_or(0);
 
-    let bundle_digest = parse_hex32(&args, "--bundle-digest")
-        .unwrap_or([0u8; 32]);
+    let bundle_digest = parse_hex32(&args, "--bundle-digest").unwrap_or([0u8; 32]);
     let known_bundles: Vec<[u8; 32]> = collect_hex32(&args, "--known-bundle");
 
     let errors = check_summary_consistency(
-        new_seq, new_epoch, new_boot, new_lc,
-        prev_seq, prev_epoch, prev_boot, prev_lc,
+        new_seq,
+        new_epoch,
+        new_boot,
+        new_lc,
+        prev_seq,
+        prev_epoch,
+        prev_boot,
+        prev_lc,
         bundle_digest,
         &known_bundles,
     );
@@ -71,7 +76,9 @@ fn print_usage() {
 }
 
 fn flag_val<'a>(args: &'a [String], flag: &str) -> Option<&'a str> {
-    args.windows(2).find(|w| w[0] == flag).map(|w| w[1].as_str())
+    args.windows(2)
+        .find(|w| w[0] == flag)
+        .map(|w| w[1].as_str())
 }
 fn parse_u64(args: &[String], flag: &str) -> Option<u64> {
     flag_val(args, flag)?.parse().ok()
@@ -84,10 +91,12 @@ fn parse_u8(args: &[String], flag: &str) -> Option<u8> {
 }
 fn parse_hex32(args: &[String], flag: &str) -> Option<[u8; 32]> {
     let s = flag_val(args, flag)?;
-    if s.len() != 64 { return None; }
+    if s.len() != 64 {
+        return None;
+    }
     let mut out = [0u8; 32];
     for (i, b) in out.iter_mut().enumerate() {
-        *b = u8::from_str_radix(&s[i*2..i*2+2], 16).ok()?;
+        *b = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
     }
     Some(out)
 }
@@ -96,15 +105,21 @@ fn collect_hex32(args: &[String], flag: &str) -> Vec<[u8; 32]> {
     let mut i = 0;
     while i < args.len() {
         if args[i] == flag {
-            if let Some(v) = args.get(i+1) {
+            if let Some(v) = args.get(i + 1) {
                 if v.len() == 64 {
                     let mut buf = [0u8; 32];
                     let ok = buf.iter_mut().enumerate().all(|(j, b)| {
-                        u8::from_str_radix(&v[j*2..j*2+2], 16).ok().map(|x| *b = x).is_some()
+                        u8::from_str_radix(&v[j * 2..j * 2 + 2], 16)
+                            .ok()
+                            .map(|x| *b = x)
+                            .is_some()
                     });
-                    if ok { out.push(buf); }
+                    if ok {
+                        out.push(buf);
+                    }
                 }
-                i += 2; continue;
+                i += 2;
+                continue;
             }
         }
         i += 1;
@@ -129,8 +144,10 @@ mod tests {
         let hex1 = "ab".repeat(32);
         let hex2 = "cd".repeat(32);
         let args = vec![
-            "--known-bundle".to_string(), hex1,
-            "--known-bundle".to_string(), hex2,
+            "--known-bundle".to_string(),
+            hex1,
+            "--known-bundle".to_string(),
+            hex2,
         ];
         let result = collect_hex32(&args, "--known-bundle");
         assert_eq!(result.len(), 2);

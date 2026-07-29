@@ -5,7 +5,7 @@
 #[repr(u8)]
 pub enum FieldKind {
     /// Unsigned 8-bit integer.
-    U8  = 0x01,
+    U8 = 0x01,
     /// Unsigned 16-bit integer, LE.
     U16 = 0x02,
     /// Unsigned 32-bit integer, LE.
@@ -22,10 +22,10 @@ impl FieldKind {
     /// Wire size in bytes.
     pub const fn wire_size(self) -> usize {
         match self {
-            FieldKind::U8      => 1,
-            FieldKind::U16     => 2,
-            FieldKind::U32     => 4,
-            FieldKind::U64     => 8,
+            FieldKind::U8 => 1,
+            FieldKind::U16 => 2,
+            FieldKind::U32 => 4,
+            FieldKind::U64 => 8,
             FieldKind::Bytes16 => 16,
             FieldKind::Bytes32 => 32,
         }
@@ -35,13 +35,13 @@ impl FieldKind {
 /// Single field definition in an intent schema.
 #[derive(Clone, Copy, Debug)]
 pub struct FieldDef {
-    pub name:     &'static str,
-    pub kind:     FieldKind,
+    pub name: &'static str,
+    pub kind: FieldKind,
     pub required: bool,
 }
 
 /// Schema for a single intent tag.
 #[derive(Clone, Copy, Debug)]
 pub struct IntentSchema {
-    pub fields:      &'static [FieldDef],
+    pub fields: &'static [FieldDef],
 }

@@ -35,30 +35,31 @@ use std::process::ExitCode;
 
 // Crates whose public surface is part of the stable ABI.
 const STABLE_CRATES: &[(&str, &str)] = &[
-    ("fjell-sdk",          "crates/fjell-sdk/src"),
-    ("fjell-syscall",      "crates/fjell-syscall/src"),
-    ("fjell-cap",          "crates/fjell-cap/src"),
-    ("fjell-abi",          "crates/fjell-abi/src"),
-    ("fjell-service-api",  "crates/fjell-service-api/src"),
-    ("fjell-semantic-v1",  "crates/fjell-semantic-v1/src"),
+    ("fjell-sdk", "crates/fjell-sdk/src"),
+    ("fjell-syscall", "crates/fjell-syscall/src"),
+    ("fjell-cap", "crates/fjell-cap/src"),
+    ("fjell-abi", "crates/fjell-abi/src"),
+    ("fjell-service-api", "crates/fjell-service-api/src"),
+    ("fjell-semantic-v1", "crates/fjell-semantic-v1/src"),
     ("fjell-audit-format", "crates/fjell-audit-format/src"),
-    ("fjell-bundle-format","crates/fjell-bundle-format/src"),
+    ("fjell-bundle-format", "crates/fjell-bundle-format/src"),
 ];
 
 /// One public item in the stable surface.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct AbiItem {
     crate_name: String,
-    module:     String,
-    kind:       String,   // fn | struct | enum | trait | const | type
-    name:       String,
-    sig_hash:   String,   // first 16 hex chars of SHA-256-like hash of full sig line
+    module: String,
+    kind: String, // fn | struct | enum | trait | const | type
+    name: String,
+    sig_hash: String, // first 16 hex chars of SHA-256-like hash of full sig line
 }
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mode = args.first().map(String::as_str).unwrap_or("--help");
-    let snapshot_path = args.windows(2)
+    let snapshot_path = args
+        .windows(2)
         .find(|w| w[0] == "--snapshot")
         .and_then(|w| w.get(1))
         .map(String::as_str)
@@ -66,7 +67,7 @@ fn main() -> ExitCode {
 
     match mode {
         "--generate" => generate(snapshot_path),
-        "--verify"   => verify(snapshot_path),
+        "--verify" => verify(snapshot_path),
         _ => {
             eprintln!("Usage: fjell-abi-snapshot --generate|--verify [--snapshot <path>]");
             ExitCode::FAILURE
@@ -83,7 +84,10 @@ fn generate(out_path: &str) -> ExitCode {
             println!("fjell-abi-snapshot: wrote {} items to {}", n, out_path);
             ExitCode::SUCCESS
         }
-        Err(e) => { eprintln!("write error: {}", e); ExitCode::FAILURE }
+        Err(e) => {
+            eprintln!("write error: {}", e);
+            ExitCode::FAILURE
+        }
     }
 }
 
@@ -118,16 +122,19 @@ fn verify(snapshot_path: &str) -> ExitCode {
     };
 
     let current = scan_all();
-    let current_map: BTreeMap<(String,String,String), &AbiItem> = current.iter()
+    let current_map: BTreeMap<(String, String, String), &AbiItem> = current
+        .iter()
         .map(|i| ((i.crate_name.clone(), i.kind.clone(), i.name.clone()), i))
         .collect();
-    let baseline_map: BTreeMap<(String,String,String), &AbiItem> = baseline.iter()
+    let baseline_map: BTreeMap<(String, String, String), &AbiItem> = baseline
+        .iter()
         .map(|i| ((i.crate_name.clone(), i.kind.clone(), i.name.clone()), i))
         .collect();
 
     let mut removed: Vec<&AbiItem> = Vec::new();
     let mut changed: Vec<(&AbiItem, &AbiItem)> = Vec::new();
-    let added_count = current_map.keys()
+    let added_count = current_map
+        .keys()
         .filter(|k| !baseline_map.contains_key(*k))
         .count();
 
@@ -156,16 +163,21 @@ fn verify(snapshot_path: &str) -> ExitCode {
         if !removed.is_empty() {
             eprintln!("\nREMOVED stable items (breaking):");
             for r in &removed {
-                eprintln!("  - {}::{} {} {}",
-                    r.crate_name, r.module, r.kind, r.name);
+                eprintln!("  - {}::{} {} {}", r.crate_name, r.module, r.kind, r.name);
             }
         }
         if !changed.is_empty() {
             eprintln!("\nCHANGED stable signatures (breaking):");
             for (b, c) in &changed {
-                eprintln!("  ~ {}::{} {} {} (was sig={}, now sig={})",
-                    b.crate_name, b.module, b.kind, b.name,
-                    &b.sig_hash[..8], &c.sig_hash[..8]);
+                eprintln!(
+                    "  ~ {}::{} {} {} (was sig={}, now sig={})",
+                    b.crate_name,
+                    b.module,
+                    b.kind,
+                    b.name,
+                    &b.sig_hash[..8],
+                    &c.sig_hash[..8]
+                );
             }
         }
         eprintln!("\nResult: FAIL — update tests/abi/snapshot.json with --generate");
@@ -179,14 +191,22 @@ fn load_snapshot(path: &str) -> io::Result<Vec<AbiItem>> {
     // Minimal JSON parser: each line is one item object
     for line in content.lines() {
         let line = line.trim().trim_end_matches(',');
-        if !line.starts_with('{') { continue; }
-        let cr    = extract_json_str(line, "crate").unwrap_or_default();
-        let mo    = extract_json_str(line, "module").unwrap_or_default();
-        let ki    = extract_json_str(line, "kind").unwrap_or_default();
-        let na    = extract_json_str(line, "name").unwrap_or_default();
-        let sig   = extract_json_str(line, "sig").unwrap_or_default();
+        if !line.starts_with('{') {
+            continue;
+        }
+        let cr = extract_json_str(line, "crate").unwrap_or_default();
+        let mo = extract_json_str(line, "module").unwrap_or_default();
+        let ki = extract_json_str(line, "kind").unwrap_or_default();
+        let na = extract_json_str(line, "name").unwrap_or_default();
+        let sig = extract_json_str(line, "sig").unwrap_or_default();
         if !na.is_empty() {
-            items.push(AbiItem { crate_name: cr, module: mo, kind: ki, name: na, sig_hash: sig });
+            items.push(AbiItem {
+                crate_name: cr,
+                module: mo,
+                kind: ki,
+                name: na,
+                sig_hash: sig,
+            });
         }
     }
     Ok(items)
@@ -233,45 +253,58 @@ fn scan_dir(dir: &Path, crate_name: &str, prefix: &str, items: &mut Vec<AbiItem>
             .collect();
         paths.sort();
         for path in paths {
-            let mod_name = path.file_stem()
+            let mod_name = path
+                .file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown");
-            let full_prefix = if prefix.is_empty() { mod_name.to_string() }
-                              else { format!("{}::{}", prefix, mod_name) };
+            let full_prefix = if prefix.is_empty() {
+                mod_name.to_string()
+            } else {
+                format!("{}::{}", prefix, mod_name)
+            };
             scan_file(&path, crate_name, &full_prefix, items);
         }
     }
 }
 
 fn scan_file(path: &Path, crate_name: &str, module: &str, items: &mut Vec<AbiItem>) {
-    let Ok(content) = fs::read_to_string(path) else { return };
+    let Ok(content) = fs::read_to_string(path) else {
+        return;
+    };
     let mut inside_test = false;
 
     for line in content.lines() {
         let trimmed = line.trim();
         // Skip test modules
-        if trimmed.starts_with("#[cfg(test)]") { inside_test = true; }
-        if inside_test && trimmed.starts_with("mod tests") { continue; }
+        if trimmed.starts_with("#[cfg(test)]") {
+            inside_test = true;
+        }
+        if inside_test && trimmed.starts_with("mod tests") {
+            continue;
+        }
 
         let (kind, rest) = match () {
-            _ if trimmed.starts_with("pub fn ")     => ("fn",     &trimmed[7..]),
-            _ if trimmed.starts_with("pub async fn")=> ("fn",     &trimmed[13..]),
+            _ if trimmed.starts_with("pub fn ") => ("fn", &trimmed[7..]),
+            _ if trimmed.starts_with("pub async fn") => ("fn", &trimmed[13..]),
             _ if trimmed.starts_with("pub struct ") => ("struct", &trimmed[11..]),
-            _ if trimmed.starts_with("pub enum ")   => ("enum",   &trimmed[9..]),
-            _ if trimmed.starts_with("pub trait ")  => ("trait",  &trimmed[10..]),
-            _ if trimmed.starts_with("pub const ")  => ("const",  &trimmed[10..]),
-            _ if trimmed.starts_with("pub type ")   => ("type",   &trimmed[9..]),
+            _ if trimmed.starts_with("pub enum ") => ("enum", &trimmed[9..]),
+            _ if trimmed.starts_with("pub trait ") => ("trait", &trimmed[10..]),
+            _ if trimmed.starts_with("pub const ") => ("const", &trimmed[10..]),
+            _ if trimmed.starts_with("pub type ") => ("type", &trimmed[9..]),
             _ => continue,
         };
-        let name: String = rest.chars()
+        let name: String = rest
+            .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
-        if name.is_empty() { continue; }
+        if name.is_empty() {
+            continue;
+        }
         let sig_hash = simple_hash(trimmed);
         items.push(AbiItem {
             crate_name: crate_name.to_string(),
-            module:     module.to_string(),
-            kind:       kind.to_string(),
+            module: module.to_string(),
+            kind: kind.to_string(),
             name,
             sig_hash,
         });
@@ -302,17 +335,27 @@ mod tests {
     fn extract_json_str_works() {
         let json = r#"{"crate":"fjell-sdk","module":"cap","kind":"struct","name":"CapHandle","sig":"abcd1234"}"#;
         assert_eq!(extract_json_str(json, "crate"), Some("fjell-sdk".into()));
-        assert_eq!(extract_json_str(json, "name"),  Some("CapHandle".into()));
-        assert_eq!(extract_json_str(json, "sig"),   Some("abcd1234".into()));
+        assert_eq!(extract_json_str(json, "name"), Some("CapHandle".into()));
+        assert_eq!(extract_json_str(json, "sig"), Some("abcd1234".into()));
     }
 
     #[test]
     fn abi_item_sort_is_stable() {
         let mut items = vec![
-            AbiItem { crate_name: "b".into(), module: "".into(),
-                      kind: "fn".into(), name: "z".into(), sig_hash: "0".into() },
-            AbiItem { crate_name: "a".into(), module: "".into(),
-                      kind: "fn".into(), name: "a".into(), sig_hash: "0".into() },
+            AbiItem {
+                crate_name: "b".into(),
+                module: "".into(),
+                kind: "fn".into(),
+                name: "z".into(),
+                sig_hash: "0".into(),
+            },
+            AbiItem {
+                crate_name: "a".into(),
+                module: "".into(),
+                kind: "fn".into(),
+                name: "a".into(),
+                sig_hash: "0".into(),
+            },
         ];
         items.sort();
         assert_eq!(items[0].crate_name, "a");
@@ -326,8 +369,11 @@ mod tests {
         let items = scan_all();
         // If items are found, assert we got a reasonable surface count.
         if !items.is_empty() {
-            assert!(items.len() >= 10,
-                "scan_all found only {} items; expected ≥ 10", items.len());
+            assert!(
+                items.len() >= 10,
+                "scan_all found only {} items; expected ≥ 10",
+                items.len()
+            );
         }
         // Either way the function must not panic — reaching here is the pass.
     }

@@ -5,15 +5,19 @@
 #![no_std]
 #![no_main]
 mod rt;
-use fjell_syscall::{sys_exit, sys_debug_writeln};
+use fjell_measure_format::Digest32;
 use fjell_snapshot_format::{
-    SnapshotEnvelope, SnapshotRecord, ConflictDomain, SnapshotError,
-    snapshot_digest, MAX_SNAPSHOT_RECORDS,
+    ConflictDomain,
+    MAX_SNAPSHOT_RECORDS,
     SNAPSHOT_RECORD_BODY_MAX,
     // SnapshotImportOutcome, SnapshotImportError, SNAPSHOT_ENVELOPE_V2
     // — v0.7.2 import pipeline imports; wired when storaged import path lands
+    SnapshotEnvelope,
+    SnapshotError,
+    SnapshotRecord,
+    snapshot_digest,
 };
-use fjell_measure_format::Digest32;
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
@@ -21,19 +25,19 @@ pub extern "C" fn service_main() -> ! {
 
     // ── Envelope self-check ────────────────────────────────────────────────────
 
-    let mut env = SnapshotEnvelope::new_v2(
-        Digest32([0xAAu8; 32]),
-        42_000,
-        [0x01u8; 16],
-    );
+    let mut env = SnapshotEnvelope::new_v2(Digest32([0xAAu8; 32]), 42_000, [0x01u8; 16]);
 
     env.push_record(SnapshotRecord {
-        domain:   ConflictDomain::LocallyConfirmed,
-        kind:     0x0001,
-        seq:      1,
-        body:     [0u8; 64],
+        domain: ConflictDomain::LocallyConfirmed,
+        kind: 0x0001,
+        seq: 1,
+        body: [0u8; 64],
         body_len: 4,
-    }).unwrap_or_else(|_| { sys_debug_writeln("syncd: ERROR push failed"); sys_exit(1); });
+    })
+    .unwrap_or_else(|_| {
+        sys_debug_writeln("syncd: ERROR push failed");
+        sys_exit(1);
+    });
 
     env.snapshot_digest = snapshot_digest(&env);
     if env.snapshot_digest.0 == [0u8; 32] {
@@ -47,13 +51,15 @@ pub extern "C" fn service_main() -> ! {
 
     let mut full_env = SnapshotEnvelope::new_v2(Digest32([0xBBu8; 32]), 1, [0xFFu8; 16]);
     for i in 0..MAX_SNAPSHOT_RECORDS {
-        full_env.push_record(SnapshotRecord {
-            domain:   ConflictDomain::ForeignAuthoritative,
-            kind:     i as u16,
-            seq:      i as u64,
-            body:     [0xCCu8; 64],
-            body_len: 64,
-        }).unwrap_or_else(|_| {});
+        full_env
+            .push_record(SnapshotRecord {
+                domain: ConflictDomain::ForeignAuthoritative,
+                kind: i as u16,
+                seq: i as u64,
+                body: [0xCCu8; 64],
+                body_len: 64,
+            })
+            .unwrap_or_else(|_| {});
     }
     let full_digest = snapshot_digest(&full_env);
     if full_digest.0 == [0u8; 32] {
@@ -66,10 +72,10 @@ pub extern "C" fn service_main() -> ! {
 
     let mut check_env = SnapshotEnvelope::new_v2(Digest32([0u8; 32]), 0, [0u8; 16]);
     let bad_record = SnapshotRecord {
-        domain:   ConflictDomain::Pending,
-        kind:     0,
-        seq:      0,
-        body:     [0u8; 64],
+        domain: ConflictDomain::Pending,
+        kind: 0,
+        seq: 0,
+        body: [0u8; 64],
         body_len: (SNAPSHOT_RECORD_BODY_MAX + 1) as u32,
     };
     match check_env.push_record(bad_record) {

@@ -1,12 +1,16 @@
 //! Audit record encode benchmarks (RFC-v0.10-004).
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use fjell_audit_format::{AuditKind, AuditRecordBin};
 
 fn bench_audit(c: &mut Criterion) {
     let record = AuditRecordBin {
-        seq: 1, tick: 0x0001_0000,
+        seq: 1,
+        tick: 0x0001_0000,
         kind: AuditKind::Syscall as u16,
-        task: 0, arg0: 42, arg1: 0, result: 0,
+        task: 0,
+        arg0: 42,
+        arg1: 0,
+        result: 0,
     };
     let mut buf = [0u8; 32];
     // Encode to bytes manually for the from_bytes bench

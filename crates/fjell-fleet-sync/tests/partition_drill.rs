@@ -19,30 +19,38 @@
 //! The release rehearsal (RFC-v0.16-008) greps for this marker.
 
 use fjell_fleet_sync::{
-    FleetState, is_valid_fleet_transition,
-    ReconcileManifest, ReconcileEntry, ReconcileDecision,
-    check_summary_consistency,
+    FleetState, ReconcileDecision, ReconcileEntry, ReconcileManifest, check_summary_consistency,
+    is_valid_fleet_transition,
 };
 
 /// A simulated fleet node carrying just enough state to exercise the drill.
 struct Node {
-    id:        [u8; 16],
-    state:     FleetState,
-    sync_seq:  u64,
+    id: [u8; 16],
+    state: FleetState,
+    sync_seq: u64,
     /// Records this node accepted (digests), in order.
-    records:   Vec<[u8; 32]>,
+    records: Vec<[u8; 32]>,
 }
 
 impl Node {
     fn new(id_byte: u8) -> Self {
-        Self { id: [id_byte; 16], state: FleetState::Healthy, sync_seq: 1, records: Vec::new() }
+        Self {
+            id: [id_byte; 16],
+            state: FleetState::Healthy,
+            sync_seq: 1,
+            records: Vec::new(),
+        }
     }
 
     /// Transition with FSM guard enforcement; panics on illegal transition
     /// so the drill fails loudly if the FSM is wrong.
     fn transition(&mut self, to: FleetState) {
-        assert!(is_valid_fleet_transition(self.state, to),
-            "illegal fleet transition {:?} -> {:?}", self.state, to);
+        assert!(
+            is_valid_fleet_transition(self.state, to),
+            "illegal fleet transition {:?} -> {:?}",
+            self.state,
+            to
+        );
         self.state = to;
     }
 
@@ -63,8 +71,8 @@ fn fleet_partition_reconcile_drill() {
     let partition_start_seq = member_b.sync_seq;
 
     // ── Phase 2: heartbeats stop ──────────────────────────────────────────────
-    member_b.transition(FleetState::Suspect);      // missed heartbeat
-    member_b.transition(FleetState::Partitioned);  // threshold exceeded
+    member_b.transition(FleetState::Suspect); // missed heartbeat
+    member_b.transition(FleetState::Partitioned); // threshold exceeded
     assert_eq!(member_b.state, FleetState::Partitioned);
 
     // ── Phase 3: divergent writes during partition ────────────────────────────
@@ -85,9 +93,21 @@ fn fleet_partition_reconcile_drill() {
     // Policy: coordinator-side records are Accepted; the partition-side
     // record conflicts with coordinator authority and is Rejected.
     let entries = vec![
-        ReconcileEntry { record_digest: coord_record_1, decision: ReconcileDecision::Accepted, reason_code: 0 },
-        ReconcileEntry { record_digest: coord_record_2, decision: ReconcileDecision::Accepted, reason_code: 0 },
-        ReconcileEntry { record_digest: member_record_x, decision: ReconcileDecision::Rejected, reason_code: 1 },
+        ReconcileEntry {
+            record_digest: coord_record_1,
+            decision: ReconcileDecision::Accepted,
+            reason_code: 0,
+        },
+        ReconcileEntry {
+            record_digest: coord_record_2,
+            decision: ReconcileDecision::Accepted,
+            reason_code: 0,
+        },
+        ReconcileEntry {
+            record_digest: member_record_x,
+            decision: ReconcileDecision::Rejected,
+            reason_code: 1,
+        },
     ];
     let manifest = ReconcileManifest::new(
         /* seq */ 42,
@@ -123,11 +143,22 @@ fn fleet_partition_reconcile_drill() {
 
     let known_bundles = [[0xABu8; 32]];
     let errors = check_summary_consistency(
-        new_seq, /*epoch*/ 1, /*boot*/ 1, /*lifecycle*/ 4,
-        prev_seq, /*prev_epoch*/ 1, /*prev_boot*/ 1, /*prev_lifecycle*/ 3,
-        [0xABu8; 32], &known_bundles,
+        new_seq,
+        /*epoch*/ 1,
+        /*boot*/ 1,
+        /*lifecycle*/ 4,
+        prev_seq,
+        /*prev_epoch*/ 1,
+        /*prev_boot*/ 1,
+        /*prev_lifecycle*/ 3,
+        [0xABu8; 32],
+        &known_bundles,
     );
-    assert!(errors.is_empty(), "post-reconcile summary must be consistent: {:?}", errors);
+    assert!(
+        errors.is_empty(),
+        "post-reconcile summary must be consistent: {:?}",
+        errors
+    );
 
     // ── Drill marker ──────────────────────────────────────────────────────────
     println!("DRILL:FLEET-PARTITION-RECONCILE:PASS");
@@ -139,10 +170,20 @@ fn partition_drill_rejects_seq_regression_after_rejoin() {
     // (e.g. a rollback attack during partition), consistency must flag it.
     let known = [[0xABu8; 32]];
     let errors = check_summary_consistency(
-        /*new_seq*/ 2, 1, 1, 4,
-        /*prev_seq*/ 5, 1, 1, 3,   // previously at seq 5, now claims 2
-        [0xABu8; 32], &known,
+        /*new_seq*/ 2,
+        1,
+        1,
+        4,
+        /*prev_seq*/ 5,
+        1,
+        1,
+        3, // previously at seq 5, now claims 2
+        [0xABu8; 32],
+        &known,
     );
-    assert!(!errors.is_empty(), "seq regression on rejoin must be detected");
+    assert!(
+        !errors.is_empty(),
+        "seq regression on rejoin must be detected"
+    );
     println!("DRILL:FLEET-PARTITION-ROLLBACK-REJECTED:PASS");
 }

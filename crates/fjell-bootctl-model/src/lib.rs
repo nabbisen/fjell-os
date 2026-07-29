@@ -8,45 +8,66 @@ use proptest::prelude::*;
 pub const BOOT_COUNT_MAX: u8 = 3;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Slot { A, B }
+pub enum Slot {
+    A,
+    B,
+}
 
 impl Slot {
-    pub fn other(self) -> Slot { match self { Slot::A => Slot::B, Slot::B => Slot::A } }
+    pub fn other(self) -> Slot {
+        match self {
+            Slot::A => Slot::B,
+            Slot::B => Slot::A,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct SlotState {
-    pub installed:    bool,
-    pub confirmed:    bool,
-    pub booted_once:  bool,
-    pub health_ok:    bool,
+    pub installed: bool,
+    pub confirmed: bool,
+    pub booted_once: bool,
+    pub health_ok: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct BootModel {
-    pub slot_a:                   SlotState,
-    pub slot_b:                   SlotState,
-    pub active:                   Slot,
-    pub pending:                  Option<Slot>,
-    pub last_known_good:          Slot,
+    pub slot_a: SlotState,
+    pub slot_b: SlotState,
+    pub active: Slot,
+    pub pending: Option<Slot>,
+    pub last_known_good: Slot,
     pub boot_count_since_confirm: u8,
 }
 
 impl BootModel {
     pub fn new() -> Self {
         Self {
-            slot_a: SlotState { installed: true, confirmed: true, booted_once: true, health_ok: true },
+            slot_a: SlotState {
+                installed: true,
+                confirmed: true,
+                booted_once: true,
+                health_ok: true,
+            },
             slot_b: SlotState::default(),
-            active: Slot::A, pending: None, last_known_good: Slot::A,
+            active: Slot::A,
+            pending: None,
+            last_known_good: Slot::A,
             boot_count_since_confirm: 0,
         }
     }
 
     pub fn slot(&self, s: Slot) -> &SlotState {
-        match s { Slot::A => &self.slot_a, Slot::B => &self.slot_b }
+        match s {
+            Slot::A => &self.slot_a,
+            Slot::B => &self.slot_b,
+        }
     }
     pub fn slot_mut(&mut self, s: Slot) -> &mut SlotState {
-        match s { Slot::A => &mut self.slot_a, Slot::B => &mut self.slot_b }
+        match s {
+            Slot::A => &mut self.slot_a,
+            Slot::B => &mut self.slot_b,
+        }
     }
 
     // ── Operations ────────────────────────────────────────────────────────────
@@ -58,7 +79,9 @@ impl BootModel {
 
     pub fn mark_booted(&mut self, slot: Slot) {
         // Kernel enforces: only installed slots may be booted.
-        if !self.slot(slot).installed { return; }
+        if !self.slot(slot).installed {
+            return;
+        }
         self.slot_mut(slot).booted_once = true;
         self.active = slot;
         // Cap before incrementing — overflow triggers fallback on next reboot.
@@ -87,7 +110,7 @@ impl BootModel {
     /// boot count exceeded.
     pub fn reboot(&mut self) {
         let active_unhealthy = !self.slot(self.active).health_ok;
-        let boot_overflow    = self.boot_count_since_confirm >= BOOT_COUNT_MAX;
+        let boot_overflow = self.boot_count_since_confirm >= BOOT_COUNT_MAX;
         if active_unhealthy || boot_overflow {
             self.active = self.last_known_good;
             self.boot_count_since_confirm = 0;
@@ -110,11 +133,13 @@ pub enum BootOp {
 
 pub fn execute(m: &mut BootModel, op: &BootOp) {
     match op {
-        BootOp::SetPending(s)  => m.set_pending(*s),
-        BootOp::MarkBooted(s)  => m.mark_booted(*s),
-        BootOp::ConfirmSlot(s) => { let _ = m.confirm_slot(*s); }
-        BootOp::HealthFail(s)  => m.health_fail(*s),
-        BootOp::Reboot         => m.reboot(),
+        BootOp::SetPending(s) => m.set_pending(*s),
+        BootOp::MarkBooted(s) => m.mark_booted(*s),
+        BootOp::ConfirmSlot(s) => {
+            let _ = m.confirm_slot(*s);
+        }
+        BootOp::HealthFail(s) => m.health_fail(*s),
+        BootOp::Reboot => m.reboot(),
     }
 }
 
@@ -148,11 +173,14 @@ pub fn b2_pending_not_confirmed(_m: &BootModel) -> Result<(), String> {
 pub fn b3_health_fail_rolls_back(m: &BootModel) -> Result<(), String> {
     let mut test = m.clone();
     let active = test.active;
-    let lkg    = test.last_known_good;
+    let lkg = test.last_known_good;
     test.health_fail(active);
     test.reboot();
     if active != lkg && test.active != lkg {
-        return Err(format!("B3: after HealthFail+Reboot active={:?} not LKG={lkg:?}", test.active));
+        return Err(format!(
+            "B3: after HealthFail+Reboot active={:?} not LKG={lkg:?}",
+            test.active
+        ));
     }
     Ok(())
 }
@@ -175,7 +203,10 @@ pub fn b5_lkg_advances_on_confirm(m: &BootModel) -> Result<(), String> {
     test.mark_booted(slot);
     if test.confirm_slot(slot).is_ok() {
         if test.last_known_good != slot {
-            return Err(format!("B5: confirmed {slot:?} but LKG={:?}", test.last_known_good));
+            return Err(format!(
+                "B5: confirmed {slot:?} but LKG={:?}",
+                test.last_known_good
+            ));
         }
     }
     Ok(())
@@ -185,12 +216,17 @@ pub fn b5_lkg_advances_on_confirm(m: &BootModel) -> Result<(), String> {
 /// always either last_known_good, the pending slot, or the previously-active slot.
 pub fn b6_active_is_valid_slot(m: &BootModel, ops: &[BootOp]) -> Result<(), String> {
     let mut test = m.clone();
-    for op in ops { execute(&mut test, op); }
+    for op in ops {
+        execute(&mut test, op);
+    }
     // active must be A or B (always true) — deeper invariant: active is always
     // a slot that was once installed.
     let active_installed = test.slot(test.active).installed;
     if !active_installed {
-        return Err(format!("B6: active slot {:?} is not installed", test.active));
+        return Err(format!(
+            "B6: active slot {:?} is not installed",
+            test.active
+        ));
     }
     Ok(())
 }

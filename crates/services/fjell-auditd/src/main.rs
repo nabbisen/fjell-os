@@ -12,8 +12,8 @@
 #![no_main]
 mod rt;
 
-use fjell_audit_format::{AuditRecordBin, AuditKind, AUDIT_RECORD_BIN_SIZE};
-use fjell_syscall::{sys_audit_drain, sys_ipc_recv, sys_debug_write, sys_debug_writeln};
+use fjell_audit_format::{AUDIT_RECORD_BIN_SIZE, AuditKind, AuditRecordBin};
+use fjell_syscall::{sys_audit_drain, sys_debug_write, sys_debug_writeln, sys_ipc_recv};
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -22,17 +22,26 @@ const AUDIT_DRAIN_CAP: u32 = 1;
 
 /// Drain buffer: up to 64 records × 32 bytes = 2048 bytes.
 const DRAIN_BUF_RECORDS: usize = 64;
-const DRAIN_BUF_BYTES:   usize = DRAIN_BUF_RECORDS * AUDIT_RECORD_BIN_SIZE;
+const DRAIN_BUF_BYTES: usize = DRAIN_BUF_RECORDS * AUDIT_RECORD_BIN_SIZE;
 
 // ── JSON Lines formatting helpers ─────────────────────────────────────────────
 
 /// Emit an unsigned 64-bit value as decimal ASCII.
 fn emit_u64(mut n: u64) {
-    if n == 0 { sys_debug_write("0"); return; }
+    if n == 0 {
+        sys_debug_write("0");
+        return;
+    }
     let mut buf = [0u8; 20];
-    let mut i   = buf.len();
-    while n > 0 { i -= 1; buf[i] = b'0' + (n % 10) as u8; n /= 10; }
-    if let Ok(s) = core::str::from_utf8(&buf[i..]) { sys_debug_write(s); }
+    let mut i = buf.len();
+    while n > 0 {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
 }
 
 /// Emit one audit record as a JSON Lines object.
@@ -51,8 +60,12 @@ fn emit_record(r: &AuditRecordBin) {
     sys_debug_write(r#","result":"#);
     // result is signed
     let res = r.result;
-    if res < 0 { sys_debug_write("-"); emit_u64((-res) as u64); }
-    else        { emit_u64(res as u64); }
+    if res < 0 {
+        sys_debug_write("-");
+        emit_u64((-res) as u64);
+    } else {
+        emit_u64(res as u64);
+    }
     sys_debug_writeln("}");
 }
 

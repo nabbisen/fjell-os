@@ -21,7 +21,9 @@ impl VmPerms {
     pub const X: VmPerms = VmPerms(0b0100); // Executable
     pub const U: VmPerms = VmPerms(0b1000); // User-accessible
 
-    pub fn empty() -> Self { VmPerms(0) }
+    pub fn empty() -> Self {
+        VmPerms(0)
+    }
 
     pub fn contains(self, other: VmPerms) -> bool {
         self.0 & other.0 == other.0
@@ -30,11 +32,15 @@ impl VmPerms {
 
 impl core::ops::BitOr for VmPerms {
     type Output = Self;
-    fn bitor(self, rhs: Self) -> Self { VmPerms(self.0 | rhs.0) }
+    fn bitor(self, rhs: Self) -> Self {
+        VmPerms(self.0 | rhs.0)
+    }
 }
 
 impl core::ops::BitOrAssign for VmPerms {
-    fn bitor_assign(&mut self, rhs: Self) { self.0 |= rhs.0; }
+    fn bitor_assign(&mut self, rhs: Self) {
+        self.0 |= rhs.0;
+    }
 }
 
 // ── VmRegion ──────────────────────────────────────────────────────────────────
@@ -43,9 +49,9 @@ impl core::ops::BitOrAssign for VmPerms {
 #[derive(Clone, Copy, Debug)]
 pub struct VmRegion {
     pub start: VirtAddr,
-    pub end:   VirtAddr,   // exclusive
+    pub end: VirtAddr, // exclusive
     pub perms: VmPerms,
-    pub kind:  VmRegionKind,
+    pub kind: VmRegionKind,
 }
 
 // ── AddressSpace ──────────────────────────────────────────────────────────────
@@ -62,11 +68,11 @@ pub struct AddressSpaceId(pub u16);
 /// Owns the root page-table frame.  Region metadata is tracked inline
 /// without heap allocation.
 pub struct AddressSpace {
-    pub id:       AddressSpaceId,
-    pub root:     PhysFrame,
-    pub asid:     u16,          // 0 for M2 (ASID allocator deferred)
-    regions_len:  usize,
-    regions:      [Option<VmRegion>; MAX_VM_REGIONS],
+    pub id: AddressSpaceId,
+    pub root: PhysFrame,
+    pub asid: u16, // 0 for M2 (ASID allocator deferred)
+    regions_len: usize,
+    regions: [Option<VmRegion>; MAX_VM_REGIONS],
 }
 
 impl AddressSpace {

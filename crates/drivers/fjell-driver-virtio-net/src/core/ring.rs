@@ -5,7 +5,7 @@
 //! counters separately from the virtio-specified available/used rings to
 //! minimise DMA coherency requirements.
 
-use fjell_net_format::{NET_RING_DESCRIPTORS, NET_DESCRIPTOR_PAYLOAD};
+use fjell_net_format::{NET_DESCRIPTOR_PAYLOAD, NET_RING_DESCRIPTORS};
 
 /// Number of ring slots (must equal `NET_RING_DESCRIPTORS`).
 pub const RING_SIZE: usize = NET_RING_DESCRIPTORS;
@@ -19,7 +19,9 @@ impl RingIndex {
     pub fn next(self) -> Self {
         Self((self.0 + 1) % RING_SIZE as u8)
     }
-    pub const fn as_usize(self) -> usize { self.0 as usize }
+    pub const fn as_usize(self) -> usize {
+        self.0 as usize
+    }
 }
 
 /// A monotonically-increasing counter used to derive ring indices.
@@ -48,15 +50,19 @@ impl RingIndexCounter {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct RingDescriptor {
     /// Number of valid payload bytes in this slot.
-    pub len:   u16,
+    pub len: u16,
     /// Driver-private flags; MBZ for external consumers.
     pub flags: u16,
     /// Whether this slot is occupied (a packet is in-flight).
-    pub used:  bool,
+    pub used: bool,
 }
 
 impl RingDescriptor {
-    pub const EMPTY: Self = Self { len: 0, flags: 0, used: false };
+    pub const EMPTY: Self = Self {
+        len: 0,
+        flags: 0,
+        used: false,
+    };
 }
 
 /// Errors from ring operations.
@@ -64,15 +70,15 @@ impl RingDescriptor {
 #[repr(u8)]
 pub enum RingError {
     /// The ring is full (all `RING_SIZE` slots are occupied).
-    RingFull               = 0x01,
+    RingFull = 0x01,
     /// The ring index is out of bounds (>= `RING_SIZE`).
-    IndexOutOfBounds       = 0x02,
+    IndexOutOfBounds = 0x02,
     /// The slot is already free when a free operation was requested.
-    SlotAlreadyFree        = 0x03,
+    SlotAlreadyFree = 0x03,
     /// The requested packet length exceeds `NET_DESCRIPTOR_PAYLOAD`.
-    PacketTooLarge         = 0x04,
+    PacketTooLarge = 0x04,
     /// A descriptor has an internal inconsistency (reserved MBZ set).
-    MalformedDescriptor    = 0x05,
+    MalformedDescriptor = 0x05,
 }
 
 /// Descriptor ring state for one direction (RX or TX).
@@ -100,23 +106,41 @@ impl Ring {
         }
     }
 
-    pub fn is_full(&self) -> bool   { self.occupied as usize >= RING_SIZE }
-    pub fn is_empty(&self) -> bool  { self.occupied == 0 }
-    pub fn is_faulted(&self) -> bool { self.faulted }
-    pub fn occupied(&self) -> u8    { self.occupied }
+    pub fn is_full(&self) -> bool {
+        self.occupied as usize >= RING_SIZE
+    }
+    pub fn is_empty(&self) -> bool {
+        self.occupied == 0
+    }
+    pub fn is_faulted(&self) -> bool {
+        self.faulted
+    }
+    pub fn occupied(&self) -> u8 {
+        self.occupied
+    }
 
     /// Push a descriptor, returning the ring index it was placed at.
     pub fn push(&mut self, len: u16, flags: u16) -> Result<RingIndex, RingError> {
-        if self.faulted { return Err(RingError::MalformedDescriptor); }
-        if self.is_full() { return Err(RingError::RingFull); }
-        if len as usize > NET_DESCRIPTOR_PAYLOAD { return Err(RingError::PacketTooLarge); }
+        if self.faulted {
+            return Err(RingError::MalformedDescriptor);
+        }
+        if self.is_full() {
+            return Err(RingError::RingFull);
+        }
+        if len as usize > NET_DESCRIPTOR_PAYLOAD {
+            return Err(RingError::PacketTooLarge);
+        }
         // MBZ check: bits 8..15 of flags must be zero in v0.4.
         if flags & 0xFF00 != 0 {
             self.faulted = true;
             return Err(RingError::MalformedDescriptor);
         }
         let idx = self.head.idx();
-        self.descriptors[idx.as_usize()] = RingDescriptor { len, flags, used: true };
+        self.descriptors[idx.as_usize()] = RingDescriptor {
+            len,
+            flags,
+            used: true,
+        };
         self.head = self.head.advance();
         self.occupied += 1;
         Ok(idx)
@@ -124,10 +148,14 @@ impl Ring {
 
     /// Pop the descriptor at the tail, returning the index and descriptor.
     pub fn pop(&mut self) -> Result<(RingIndex, RingDescriptor), RingError> {
-        if self.is_empty() { return Err(RingError::SlotAlreadyFree); }
+        if self.is_empty() {
+            return Err(RingError::SlotAlreadyFree);
+        }
         let idx = self.tail.idx();
         let desc = self.descriptors[idx.as_usize()];
-        if !desc.used { return Err(RingError::SlotAlreadyFree); }
+        if !desc.used {
+            return Err(RingError::SlotAlreadyFree);
+        }
         self.descriptors[idx.as_usize()].used = false;
         self.tail = self.tail.advance();
         self.occupied -= 1;
@@ -136,12 +164,16 @@ impl Ring {
 
     /// Peek at a descriptor by raw ring index without consuming it.
     pub fn peek(&self, idx: RingIndex) -> Result<RingDescriptor, RingError> {
-        if idx.as_usize() >= RING_SIZE { return Err(RingError::IndexOutOfBounds); }
+        if idx.as_usize() >= RING_SIZE {
+            return Err(RingError::IndexOutOfBounds);
+        }
         Ok(self.descriptors[idx.as_usize()])
     }
 
     /// Return the head-counter modulo `RING_SIZE` (for IPC ring_idx field).
-    pub fn head_idx(&self) -> RingIndex { self.head.idx() }
+    pub fn head_idx(&self) -> RingIndex {
+        self.head.idx()
+    }
 }
 
 // ── RFC-v0.7.3-001: RX ring receive helpers ───────────────────────────────────
@@ -162,16 +194,25 @@ impl Ring {
     /// The caller MUST call `release_rx(descriptor)` after processing to refill
     /// the ring slot (RFC-v0.7.3-001).
     pub fn poll_rx(&mut self) -> Option<RxPacket> {
-        if self.is_empty() { return None; }
+        if self.is_empty() {
+            return None;
+        }
         let idx = self.tail.idx();
         let desc = self.descriptors[idx.as_usize()];
-        if !desc.used { return None; }
-        Some(RxPacket { descriptor: idx, len: desc.len })
+        if !desc.used {
+            return None;
+        }
+        Some(RxPacket {
+            descriptor: idx,
+            len: desc.len,
+        })
     }
 
     /// Release a consumed RX descriptor and return the slot to the ring.
     pub fn release_rx(&mut self, descriptor: RingIndex) -> Result<(), RingError> {
-        if descriptor.as_usize() >= RING_SIZE { return Err(RingError::IndexOutOfBounds); }
+        if descriptor.as_usize() >= RING_SIZE {
+            return Err(RingError::IndexOutOfBounds);
+        }
         if !self.descriptors[descriptor.as_usize()].used {
             return Err(RingError::SlotAlreadyFree);
         }

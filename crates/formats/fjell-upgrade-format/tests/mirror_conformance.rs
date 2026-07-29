@@ -5,9 +5,7 @@
 //!
 //! Marker on success: CONFORMANCE:BOOT-CONTROL-MIRROR:PASS
 
-use fjell_upgrade_format::{
-    BootControlBlock, BcbMirrorSelection, select_bcb_mirror,
-};
+use fjell_upgrade_format::{BcbMirrorSelection, BootControlBlock, select_bcb_mirror};
 
 /// Build a valid, sealed BCB at a given generation.
 fn valid_bcb(generation: u64) -> BootControlBlock {
@@ -30,14 +28,20 @@ fn a_valid_b_invalid_selects_a() {
     // BCB-VERUS-001
     let a = valid_bcb(5);
     let b = invalid_bcb();
-    assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::SelectedA(_)));
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::SelectedA(_)
+    ));
 }
 
 #[test]
 fn a_invalid_b_valid_selects_b() {
     let a = invalid_bcb();
     let b = valid_bcb(5);
-    assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::SelectedB(_)));
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::SelectedB(_)
+    ));
 }
 
 #[test]
@@ -45,14 +49,20 @@ fn both_valid_higher_generation_a_wins() {
     // BCB-VERUS-002
     let a = valid_bcb(9);
     let b = valid_bcb(4);
-    assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::SelectedA(_)));
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::SelectedA(_)
+    ));
 }
 
 #[test]
 fn both_valid_higher_generation_b_wins() {
     let a = valid_bcb(4);
     let b = valid_bcb(9);
-    assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::SelectedB(_)));
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::SelectedB(_)
+    ));
 }
 
 #[test]
@@ -60,8 +70,10 @@ fn both_valid_same_generation_deterministic_tiebreak() {
     // BCB-VERUS-003: equal generation → explicit tie-break variant (A).
     let a = valid_bcb(7);
     let b = valid_bcb(7);
-    assert!(matches!(select_bcb_mirror(&a, &b),
-        BcbMirrorSelection::BothValidSameGeneration(_)));
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::BothValidSameGeneration(_)
+    ));
 }
 
 #[test]
@@ -69,7 +81,10 @@ fn both_invalid_none_valid() {
     // BCB-VERUS-004
     let a = invalid_bcb();
     let b = invalid_bcb();
-    assert!(matches!(select_bcb_mirror(&a, &b), BcbMirrorSelection::NoneValid));
+    assert!(matches!(
+        select_bcb_mirror(&a, &b),
+        BcbMirrorSelection::NoneValid
+    ));
 }
 
 #[test]

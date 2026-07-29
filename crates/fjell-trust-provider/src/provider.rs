@@ -11,9 +11,7 @@
 use crate::descriptor::TrustProviderDescriptor;
 use crate::error::TrustError;
 use crate::ids::{KeyPurpose, TrustProviderId};
-use crate::material::{
-    AttestationDigest, KeyMaterial, MeasurementHead, SealedKey, Signature,
-};
+use crate::material::{AttestationDigest, KeyMaterial, MeasurementHead, SealedKey, Signature};
 
 /// Provider-neutral interface for hardware-rooted (or development-grade
 /// software-rooted) trust evidence.
@@ -54,11 +52,7 @@ pub trait HardwareTrustProvider {
     }
 
     /// Seal a key for the given purpose.
-    fn seal_key(
-        &self,
-        _purpose: KeyPurpose,
-        _key: KeyMaterial,
-    ) -> Result<SealedKey, TrustError> {
+    fn seal_key(&self, _purpose: KeyPurpose, _key: KeyMaterial) -> Result<SealedKey, TrustError> {
         Err(TrustError::NotSupported)
     }
 

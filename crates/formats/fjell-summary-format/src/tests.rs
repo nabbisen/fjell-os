@@ -1,14 +1,10 @@
 //! Host unit tests for `fjell-summary-format` (RFC v0.7-003 §11).
 
-use crate::measurement::{
-    MeasurementSummary, MeasurementKindCount,
-    MSUMMARY_SCHEMA_VERSION, MAX_KIND_COUNTS,
-};
-use crate::release::{
-    ReleaseSummary, ChannelSummary, AdvanceSource,
-    RSUMMARY_SCHEMA_VERSION,
-};
 use crate::digest::{measurement_summary_digest, release_summary_digest};
+use crate::measurement::{
+    MAX_KIND_COUNTS, MSUMMARY_SCHEMA_VERSION, MeasurementKindCount, MeasurementSummary,
+};
+use crate::release::{AdvanceSource, ChannelSummary, RSUMMARY_SCHEMA_VERSION, ReleaseSummary};
 use fjell_measure_format::Digest32;
 
 fn dummy_msummary() -> MeasurementSummary {
@@ -45,7 +41,13 @@ fn add_kind_count_increments() {
     s.add_kind_count(0x01, 5).unwrap();
     s.add_kind_count(0x02, 3).unwrap();
     assert_eq!(s.kind_count, 2);
-    assert_eq!(s.kind_counts[0], MeasurementKindCount { kind: 0x01, count: 5 });
+    assert_eq!(
+        s.kind_counts[0],
+        MeasurementKindCount {
+            kind: 0x01,
+            count: 5
+        }
+    );
 }
 
 #[test]
@@ -54,7 +56,10 @@ fn add_kind_count_rejects_at_capacity() {
     for i in 0..MAX_KIND_COUNTS {
         s.add_kind_count(i as u8, 1).unwrap();
     }
-    assert_eq!(s.add_kind_count(0xFF, 1), Err(crate::measurement::SummaryError::CapacityExhausted));
+    assert_eq!(
+        s.add_kind_count(0xFF, 1),
+        Err(crate::measurement::SummaryError::CapacityExhausted)
+    );
 }
 
 #[test]
@@ -66,7 +71,10 @@ fn measurement_digest_is_nonzero() {
 #[test]
 fn measurement_digest_is_deterministic() {
     let s = dummy_msummary();
-    assert_eq!(measurement_summary_digest(&s).0, measurement_summary_digest(&s).0);
+    assert_eq!(
+        measurement_summary_digest(&s).0,
+        measurement_summary_digest(&s).0
+    );
 }
 
 #[test]
@@ -74,7 +82,10 @@ fn measurement_digest_sensitive_to_head_seq() {
     let s1 = dummy_msummary();
     let mut s2 = dummy_msummary();
     s2.head_seq = 999;
-    assert_ne!(measurement_summary_digest(&s1).0, measurement_summary_digest(&s2).0);
+    assert_ne!(
+        measurement_summary_digest(&s1).0,
+        measurement_summary_digest(&s2).0
+    );
 }
 
 // ── ReleaseSummary ────────────────────────────────────────────────────────────
@@ -89,7 +100,8 @@ fn add_channel_increments() {
         active_anchor_epoch: 3,
         last_confirm_tick: 1000,
         last_advance_source: AdvanceSource::LocalInstall,
-    }).unwrap();
+    })
+    .unwrap();
     assert_eq!(s.channel_count, 1);
 }
 
@@ -123,9 +135,9 @@ fn release_digest_sensitive_to_channel_data() {
 fn advance_source_roundtrip() {
     for (byte, expected) in [
         (0u8, AdvanceSource::Unknown),
-        (1,   AdvanceSource::LocalInstall),
-        (2,   AdvanceSource::SnapshotSync),
-        (3,   AdvanceSource::ManualPinned),
+        (1, AdvanceSource::LocalInstall),
+        (2, AdvanceSource::SnapshotSync),
+        (3, AdvanceSource::ManualPinned),
     ] {
         assert_eq!(AdvanceSource::from_u8(byte).unwrap() as u8, expected as u8);
     }
@@ -136,7 +148,13 @@ fn advance_source_roundtrip() {
 
 #[test]
 fn measurement_summary_rejects_duplicate_kind() {
-    let mut s = MeasurementSummary::new([0u8; 16], 0, 0, fjell_measure_format::Digest32([0u8; 32]), fjell_measure_format::Digest32([0u8; 32]));
+    let mut s = MeasurementSummary::new(
+        [0u8; 16],
+        0,
+        0,
+        fjell_measure_format::Digest32([0u8; 32]),
+        fjell_measure_format::Digest32([0u8; 32]),
+    );
     s.add_kind_count(0x01, 5).unwrap();
     assert_eq!(
         s.add_kind_count(0x01, 3),

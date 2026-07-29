@@ -9,10 +9,10 @@ pub enum TrustMode {
     /// Only nodes with the same `trust_profile_tag` as self.
     SameFamily = 1,
     /// Any node in the fleet roster (pinned_roster must be set and validated).
-    Fleet      = 2,
+    Fleet = 2,
     /// Accept any node with a valid signature (open federation).
     /// Requires `trust-mode-open` feature flag (RFC-v0.7.2-003).
-    Open       = 3,
+    Open = 3,
 }
 
 impl TrustMode {
@@ -53,29 +53,29 @@ pub enum PolicyError {
     /// `allowed_count` exceeds the `allowed_profiles` array length.
     AllowedCountOverflow = 0x01,
     /// `TrustMode::Fleet` requires `pinned_roster` to be `Some`.
-    FleetWithoutRoster   = 0x02,
+    FleetWithoutRoster = 0x02,
 }
 
 /// Declarative snapshot-acceptance policy bound to this node.
 #[derive(Clone, Copy, Debug)]
 pub struct NodeIdentityPolicy {
-    pub mode:             TrustMode,
-    pub allowed_profiles: [u8; 4],   // trust_profile_tag allowlist (0 = any)
-    pub allowed_count:    u8,
+    pub mode: TrustMode,
+    pub allowed_profiles: [u8; 4], // trust_profile_tag allowlist (0 = any)
+    pub allowed_count: u8,
     /// Set in Fleet mode; reserved for v0.8 otherwise.
-    pub pinned_roster:    Option<RosterRef>,
-    pub policy_digest:    Digest32,
+    pub pinned_roster: Option<RosterRef>,
+    pub policy_digest: Digest32,
 }
 
 impl NodeIdentityPolicy {
     /// Default single-node policy (SameFamily, no roster, no profile filter).
     pub fn same_family_default(profile_tag: u8) -> Self {
         Self {
-            mode:             TrustMode::SameFamily,
+            mode: TrustMode::SameFamily,
             allowed_profiles: [profile_tag, 0, 0, 0],
-            allowed_count:    1,
-            pinned_roster:    None,
-            policy_digest:    Digest32([0u8; 32]),
+            allowed_count: 1,
+            pinned_roster: None,
+            policy_digest: Digest32([0u8; 32]),
         }
     }
 
@@ -145,10 +145,7 @@ pub enum RosterCheckResult {
 ///
 /// v0.7.x stub: always returns `NotValidated`.
 /// Callers MUST treat `NotValidated` as a denial (fail-closed).
-pub fn check_roster_membership(
-    _roster_ref: RosterRef,
-    _node_profile_tag: u8,
-) -> RosterCheckResult {
+pub fn check_roster_membership(_roster_ref: RosterRef, _node_profile_tag: u8) -> RosterCheckResult {
     RosterCheckResult::NotValidated
 }
 
@@ -167,11 +164,11 @@ mod fleet_stub_tests {
     #[test]
     fn fleet_mode_decision_requires_roster_validation() {
         let p = NodeIdentityPolicy {
-            mode:             TrustMode::Fleet,
+            mode: TrustMode::Fleet,
             allowed_profiles: [0; 4],
-            allowed_count:    0,
-            pinned_roster:    Some(RosterRef(Digest32([0xBBu8; 32]))),
-            policy_digest:    Digest32([0u8; 32]),
+            allowed_count: 0,
+            pinned_roster: Some(RosterRef(Digest32([0xBBu8; 32]))),
+            policy_digest: Digest32([0u8; 32]),
         };
         // Fleet must return NeedsRosterValidation, not Allow
         let d = p.permits(0x01);

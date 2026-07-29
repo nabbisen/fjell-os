@@ -3,20 +3,19 @@
 //! Covers: digest coverage, mutation sensitivity, signed-by envelope
 //! exclusion, round-trip, profile-type gating, and dev/v1 compatibility.
 
-#![allow(unused_imports)]  // test fixtures; future tests will use these
+#![allow(unused_imports)] // test fixtures; future tests will use these
 extern crate alloc;
 
 use crate::v2::{
-    AttestationRecordV2, FreshnessClaimsV2, KeyringClaims,
-    NonceClass, ProviderClaims, RollbackClaims, SignedAttestationRecordV2,
-    SignedByDescriptor,
+    AttestationRecordV2, FreshnessClaimsV2, KeyringClaims, NonceClass, ProviderClaims,
+    RollbackClaims, SignedAttestationRecordV2, SignedByDescriptor,
 };
 use crate::{AttestationProfile, AttestationRecordId, ProvenanceClaims};
 use fjell_measure_format::Digest32;
 use fjell_trust_provider::{
     development::DevelopmentTrustProvider,
     ids::TrustProviderId,
-    profile::{TrustProviderKind, TrustProfile},
+    profile::{TrustProfile, TrustProviderKind},
 };
 use fjell_upgrade_format::rollback_record::AdvanceSource;
 
@@ -39,10 +38,10 @@ fn dev_provider() -> DevelopmentTrustProvider {
 
 fn dev_signed_by() -> SignedByDescriptor {
     SignedByDescriptor {
-        provider_id:          TrustProviderId::new(1),
-        provider_generation:  1,
+        provider_id: TrustProviderId::new(1),
+        provider_generation: 1,
         keyring_anchor_epoch: 1,
-        algorithm:            0xFE, // DevDigest32 tag
+        algorithm: 0xFE, // DevDigest32 tag
     }
 }
 
@@ -152,15 +151,15 @@ fn signed_by_descriptor_not_in_record_digest() {
 
 #[test]
 fn v2_sign_then_verify_round_trip() {
-    let record   = dev_record();
+    let record = dev_record();
     let provider = dev_provider();
-    let signed   = SignedAttestationRecordV2::sign(record, &provider, dev_signed_by()).unwrap();
+    let signed = SignedAttestationRecordV2::sign(record, &provider, dev_signed_by()).unwrap();
     assert!(signed.verify(&provider));
 }
 
 #[test]
 fn v2_tampered_digest_fails_verify() {
-    let record   = dev_record();
+    let record = dev_record();
     let provider = dev_provider();
     let mut signed = SignedAttestationRecordV2::sign(record, &provider, dev_signed_by()).unwrap();
     signed.record_digest.0[0] ^= 0xFF;
@@ -190,7 +189,10 @@ fn v1_profile_tag_unchanged() {
 fn v2_digest_differs_with_provenance() {
     let r1 = dev_record(); // no provenance
     let mut r2 = r1;
-    r2.provenance = Some(ProvenanceClaims { sidecar_digest: Digest32([0x77; 32]), result: 0 });
+    r2.provenance = Some(ProvenanceClaims {
+        sidecar_digest: Digest32([0x77; 32]),
+        result: 0,
+    });
     assert_ne!(r1.canonical_digest(), r2.canonical_digest());
 }
 
@@ -198,8 +200,8 @@ fn v2_digest_differs_with_provenance() {
 
 #[test]
 fn nonce_class_tags_stable() {
-    assert_eq!(NonceClass::LocalOnly       as u8, 0x01);
-    assert_eq!(NonceClass::OperatorTyped   as u8, 0x02);
+    assert_eq!(NonceClass::LocalOnly as u8, 0x01);
+    assert_eq!(NonceClass::OperatorTyped as u8, 0x02);
     assert_eq!(NonceClass::RemoteChallenge as u8, 0x03);
 }
 

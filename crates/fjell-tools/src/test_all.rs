@@ -43,12 +43,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /// Smoke test profiles run in tier 4.
-const SMOKE_PROFILES: &[&str] = &[
-    "m8",
-    "v0.4-net",
-    "v0.5-platform",
-    "v0.7-sync",
-];
+const SMOKE_PROFILES: &[&str] = &["m8", "v0.4-net", "v0.5-platform", "v0.7-sync"];
 
 /// Negative test categories run in tier 5.
 const NEG_CATEGORIES: &[&str] = &[
@@ -72,7 +67,10 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     // Create the dated run directory.
     let run_dir = make_run_dir();
     println!("[test-all] run dir: {}", run_dir.display());
-    println!("[test-all] QEMU: {}", if qemu_available { "enabled" } else { "skipped" });
+    println!(
+        "[test-all] QEMU: {}",
+        if qemu_available { "enabled" } else { "skipped" }
+    );
     println!();
 
     let mut results: Vec<TierResult> = Vec::new();
@@ -82,7 +80,14 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
         &run_dir,
         "01-host-lib",
         "Host library tests",
-        &["cargo", "test", "--workspace", "--lib", "--exclude", "fjell-proptest"],
+        &[
+            "cargo",
+            "test",
+            "--workspace",
+            "--lib",
+            "--exclude",
+            "fjell-proptest",
+        ],
     ));
 
     // ── Tier 2: proptest ─────────────────────────────────────────────────────
@@ -98,8 +103,16 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
         &run_dir,
         "03-unsafe-audit",
         "Unsafe site audit",
-        &["cargo", "run", "-p", "fjell-unsafe-audit", "--",
-          "--workspace", ".", "--check"],
+        &[
+            "cargo",
+            "run",
+            "-p",
+            "fjell-unsafe-audit",
+            "--",
+            "--workspace",
+            ".",
+            "--check",
+        ],
     ));
 
     // ── Tier 3c: MMIO ordering audit ───────────────────────────────────────
@@ -107,7 +120,16 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
         &run_dir,
         "03c-mmio-audit",
         "MMIO ordering audit",
-        &["cargo", "run", "-p", "fjell-mmio-audit", "--", "--workspace", ".", "--check"],
+        &[
+            "cargo",
+            "run",
+            "-p",
+            "fjell-mmio-audit",
+            "--",
+            "--workspace",
+            ".",
+            "--check",
+        ],
     ));
 
     // ── Tier 3b: repro-check (skip-build mode — fast) ───────────────────────
@@ -115,7 +137,14 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
         &run_dir,
         "03b-repro-check",
         "Reproducible build (skip-build)",
-        &["cargo", "run", "-p", "fjell-repro-check", "--", "--skip-build"],
+        &[
+            "cargo",
+            "run",
+            "-p",
+            "fjell-repro-check",
+            "--",
+            "--skip-build",
+        ],
     ));
 
     // ── Tier 4: QEMU smoke ───────────────────────────────────────────────────
@@ -163,8 +192,14 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
             "qemu-system-riscv64 not found on PATH"
         };
         println!("[test-all] QEMU tiers skipped: {}", note);
-        for label in SMOKE_PROFILES.iter().map(|p| format!("QEMU smoke: {}", p))
-            .chain(NEG_CATEGORIES.iter().map(|c| format!("QEMU negative: {}", c)))
+        for label in SMOKE_PROFILES
+            .iter()
+            .map(|p| format!("QEMU smoke: {}", p))
+            .chain(
+                NEG_CATEGORIES
+                    .iter()
+                    .map(|c| format!("QEMU negative: {}", c)),
+            )
         {
             results.push(TierResult::skipped(label, note));
         }
@@ -177,38 +212,43 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     // found on PATH" skips were double-counted as failures and a skip-only
     // run exited FAILURE.)
     fn is_skip(r: &TierResult) -> bool {
-        matches!(r.note.as_deref(),
-            Some("skipped via --no-qemu")
-            | Some("qemu-system-riscv64 not found on PATH"))
+        matches!(
+            r.note.as_deref(),
+            Some("skipped via --no-qemu") | Some("qemu-system-riscv64 not found on PATH")
+        )
     }
-    let passed  = results.iter().filter(|r| r.passed).count();
+    let passed = results.iter().filter(|r| r.passed).count();
     let skipped = results.iter().filter(|r| is_skip(r)).count();
-    let failed  = results.iter().filter(|r| !r.passed && !is_skip(r)).count();
+    let failed = results.iter().filter(|r| !r.passed && !is_skip(r)).count();
 
     let txt = format_summary(&results, passed, skipped, failed);
     let json = format_summary_json(&results);
 
-    let txt_path  = run_dir.join("summary.txt");
+    let txt_path = run_dir.join("summary.txt");
     let json_path = run_dir.join("summary.json");
-    fs::write(&txt_path,  &txt).ok();
+    fs::write(&txt_path, &txt).ok();
     fs::write(&json_path, &json).ok();
 
     println!();
     print!("{}", txt);
     println!("Logs: {}", run_dir.display());
 
-    if failed == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+    if failed == 0 {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }
 
 // ── Tier execution ────────────────────────────────────────────────────────────
 
 struct TierResult {
-    id:       String,
-    label:    String,
-    passed:   bool,
+    id: String,
+    label: String,
+    passed: bool,
     duration: Duration,
     log_path: PathBuf,
-    note:     Option<String>,
+    note: Option<String>,
 }
 
 impl TierResult {
@@ -245,7 +285,14 @@ fn run_tier(run_dir: &Path, id: &str, label: &str, argv: &[&str]) -> TierResult 
     let status = if passed { "PASS" } else { "FAIL" };
     println!("{} ({:.1}s)", status, duration.as_secs_f32());
 
-    TierResult { id: id.into(), label: label.into(), passed, duration, log_path, note: None }
+    TierResult {
+        id: id.into(),
+        label: label.into(),
+        passed,
+        duration,
+        log_path,
+        note: None,
+    }
 }
 
 fn capture_command(argv: &[&str]) -> (bool, String) {
@@ -262,9 +309,11 @@ fn capture_command(argv: &[&str]) -> (bool, String) {
 
     match out {
         Ok(o) => {
-            let combined = format!("{}{}", 
+            let combined = format!(
+                "{}{}",
                 String::from_utf8_lossy(&o.stdout),
-                String::from_utf8_lossy(&o.stderr));
+                String::from_utf8_lossy(&o.stderr)
+            );
             (o.status.success(), combined)
         }
         Err(e) => (false, format!("spawn error: {}", e)),
@@ -276,9 +325,13 @@ fn run_silent(argv: &[&str]) -> bool {
         Some(pair) => pair,
         None => return false,
     };
-    Command::new(prog).args(rest)
-        .stdout(Stdio::null()).stderr(Stdio::null())
-        .status().map(|s| s.success()).unwrap_or(false)
+    Command::new(prog)
+        .args(rest)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -305,16 +358,19 @@ fn timestamp_str() -> String {
     // Days since epoch → approximate date (good enough for a log filename).
     // All arithmetic uses u64; no signed adjustment needed.
     let days = d + 719_468;
-    let era  = days / 146_097;
-    let doe  = days - era * 146_097;
-    let yoe  = (doe - doe/1460 + doe/36524 - doe/146096) / 365;
-    let y    = yoe + era * 400;
-    let doy  = doe - (365*yoe + yoe/4 - yoe/100);
-    let mp   = (5*doy + 2) / 153;
-    let day  = doy - (153*mp + 2)/5 + 1;
-    let month= if mp < 10 { mp + 3 } else { mp - 9 };
+    let era = days / 146_097;
+    let doe = days - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = if month <= 2 { y + 1 } else { y };
-    format!("{:04}{:02}{:02}-{:02}{:02}{:02}", year, month, day, hh, mm, ss)
+    format!(
+        "{:04}{:02}{:02}-{:02}{:02}{:02}",
+        year, month, day, hh, mm, ss
+    )
 }
 
 fn qemu_on_path() -> bool {
@@ -346,7 +402,10 @@ fn format_summary(results: &[TierResult], passed: usize, skipped: usize, failed:
     s.push('\n');
 
     // Column headers
-    s.push_str(&format!("{:<5} {:<50} {:>6}  {}\n", "Tier", "Label", "Time", "Result"));
+    s.push_str(&format!(
+        "{:<5} {:<50} {:>6}  {}\n",
+        "Tier", "Label", "Time", "Result"
+    ));
     s.push_str(&format!("{}\n", "─".repeat(75)));
 
     for (i, r) in results.iter().enumerate() {
@@ -362,8 +421,13 @@ fn format_summary(results: &[TierResult], passed: usize, skipped: usize, failed:
         } else {
             format!("{:>5.1}s", r.duration.as_secs_f32())
         };
-        s.push_str(&format!("{:<5} {:<50} {:>6}  {}\n",
-            i + 1, &r.label[..r.label.len().min(49)], time, result));
+        s.push_str(&format!(
+            "{:<5} {:<50} {:>6}  {}\n",
+            i + 1,
+            &r.label[..r.label.len().min(49)],
+            time,
+            result
+        ));
     }
 
     s.push_str(&format!("{}\n", "─".repeat(75)));
@@ -391,7 +455,10 @@ fn format_summary_json(results: &[TierResult]) -> String {
             r.passed,
             r.duration.as_millis(),
             r.log_path.display().to_string(),
-            r.note.as_ref().map(|n| format!(",\"note\":{:?}", n)).unwrap_or_default(),
+            r.note
+                .as_ref()
+                .map(|n| format!(",\"note\":{:?}", n))
+                .unwrap_or_default(),
         ));
     }
     format!("[\n{}\n]\n", entries.join(",\n"))
@@ -422,15 +489,14 @@ mod tests {
 
     #[test]
     fn format_summary_contains_headers() {
-        let r = vec![
-            TierResult {
-                id: "01".into(), label: "host tests".into(),
-                passed: true,
-                duration: Duration::from_secs(3),
-                log_path: PathBuf::from("01.log"),
-                note: None,
-            },
-        ];
+        let r = vec![TierResult {
+            id: "01".into(),
+            label: "host tests".into(),
+            passed: true,
+            duration: Duration::from_secs(3),
+            log_path: PathBuf::from("01.log"),
+            note: None,
+        }];
         let txt = format_summary(&r, 1, 0, 0);
         assert!(txt.contains("PASS"));
         assert!(txt.contains("host tests"));
@@ -439,15 +505,14 @@ mod tests {
 
     #[test]
     fn format_summary_shows_failures() {
-        let r = vec![
-            TierResult {
-                id: "01".into(), label: "broken".into(),
-                passed: false,
-                duration: Duration::from_secs(1),
-                log_path: PathBuf::from("01.log"),
-                note: None,
-            },
-        ];
+        let r = vec![TierResult {
+            id: "01".into(),
+            label: "broken".into(),
+            passed: false,
+            duration: Duration::from_secs(1),
+            log_path: PathBuf::from("01.log"),
+            note: None,
+        }];
         let txt = format_summary(&r, 0, 0, 1);
         assert!(txt.contains("FAIL"));
         assert!(txt.contains("FAILURES DETECTED"));
@@ -455,13 +520,14 @@ mod tests {
 
     #[test]
     fn format_summary_json_is_valid_array() {
-        let r = vec![
-            TierResult {
-                id: "x".into(), label: "y".into(),
-                passed: true, duration: Duration::ZERO,
-                log_path: PathBuf::new(), note: None,
-            },
-        ];
+        let r = vec![TierResult {
+            id: "x".into(),
+            label: "y".into(),
+            passed: true,
+            duration: Duration::ZERO,
+            log_path: PathBuf::new(),
+            note: None,
+        }];
         let j = format_summary_json(&r);
         assert!(j.starts_with('['));
         assert!(j.trim_end().ends_with(']'));

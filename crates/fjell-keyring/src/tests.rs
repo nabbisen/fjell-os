@@ -6,6 +6,8 @@
 
 extern crate alloc;
 
+use crate::ANCHORS_PER_PURPOSE;
+use crate::SCHEMA_VERSION;
 use crate::algorithm::SignatureAlgorithm;
 use crate::anchor::{AuthorityClass, TrustAnchor};
 use crate::dev_provider::DevSignatureProvider;
@@ -14,8 +16,6 @@ use crate::error::SigError;
 use crate::keyring::{Keyring, PURPOSE_SLOT_COUNT};
 use crate::provider::SignatureProvider;
 use crate::snapshot::{KeyringSnapshot, MAX_SNAPSHOT_ANCHORS};
-use crate::ANCHORS_PER_PURPOSE;
-use crate::SCHEMA_VERSION;
 use fjell_trust_provider::KeyPurpose;
 
 // ---------------------------------------------------------------------------
@@ -132,7 +132,10 @@ fn keyring_install_records_anchor() {
     assert_eq!(k.len(), 1);
     let a = k.latest(KeyPurpose::ReleaseVerification).unwrap();
     assert_eq!(a.epoch.raw(), 1);
-    assert_eq!(k.active_epoch(KeyPurpose::ReleaseVerification).unwrap(), KeyEpoch(1));
+    assert_eq!(
+        k.active_epoch(KeyPurpose::ReleaseVerification).unwrap(),
+        KeyEpoch(1)
+    );
 }
 
 #[test]
@@ -149,7 +152,10 @@ fn keyring_install_advances_active_epoch() {
         KeyEpoch(5)
     );
     assert_eq!(
-        k.latest(KeyPurpose::ReleaseVerification).unwrap().epoch.raw(),
+        k.latest(KeyPurpose::ReleaseVerification)
+            .unwrap()
+            .epoch
+            .raw(),
         5
     );
 }
@@ -404,7 +410,10 @@ fn snapshot_apply_rejects_tampered_digest() {
 
 #[test]
 fn snapshot_max_anchors_constant_matches_layout() {
-    assert_eq!(MAX_SNAPSHOT_ANCHORS, PURPOSE_SLOT_COUNT * ANCHORS_PER_PURPOSE);
+    assert_eq!(
+        MAX_SNAPSHOT_ANCHORS,
+        PURPOSE_SLOT_COUNT * ANCHORS_PER_PURPOSE
+    );
 }
 
 // ===========================================================================

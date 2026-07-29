@@ -1,8 +1,8 @@
 //! Canonical digest computation for fleet format types.
 
-use fjell_measure_format::Digest32;
-use crate::roster::NodeRoster;
 use crate::policy::FleetPolicy;
+use crate::roster::NodeRoster;
+use fjell_measure_format::Digest32;
 
 /// Domain-separated magic for fleet roster digest.
 const FLEET_ROSTER_DOMAIN: &[u8] = b"FJELL-FLEET-ROSTER-V1";
@@ -35,7 +35,11 @@ pub fn roster_digest(r: &NodeRoster) -> Digest32 {
     for e in &r.entries[..r.entry_count as usize] {
         write_bytes(&mut data, &mut pos, &e.identity_digest.0);
         write_bytes(&mut data, &mut pos, &e.node_id.0);
-        write_bytes(&mut data, &mut pos, &[e.trust_profile_tag.0, e.active as u8]);
+        write_bytes(
+            &mut data,
+            &mut pos,
+            &[e.trust_profile_tag.0, e.active as u8],
+        );
         write_u32(&mut data, &mut pos, e.generation);
     }
     Digest32::of(&data[..pos])
@@ -51,8 +55,12 @@ pub fn policy_digest(p: &FleetPolicy) -> Digest32 {
         buf[*pos..*pos + n].copy_from_slice(&src[..n]);
         *pos += n;
     }
-    fn wu16(buf: &mut [u8], pos: &mut usize, v: u16) { wb(buf, pos, &v.to_le_bytes()); }
-    fn wu32(buf: &mut [u8], pos: &mut usize, v: u32) { wb(buf, pos, &v.to_le_bytes()); }
+    fn wu16(buf: &mut [u8], pos: &mut usize, v: u16) {
+        wb(buf, pos, &v.to_le_bytes());
+    }
+    fn wu32(buf: &mut [u8], pos: &mut usize, v: u32) {
+        wb(buf, pos, &v.to_le_bytes());
+    }
 
     wb(&mut data, &mut pos, FLEET_POLICY_DOMAIN);
     wu16(&mut data, &mut pos, p.schema_version);
@@ -62,7 +70,11 @@ pub fn policy_digest(p: &FleetPolicy) -> Digest32 {
     wu16(&mut data, &mut pos, p.statement_count);
     for stmt in &p.statements[..p.statement_count as usize] {
         if let Some(s) = stmt {
-            wb(&mut data, &mut pos, &[s.action as u8, s.condition as u8, s.allow as u8]);
+            wb(
+                &mut data,
+                &mut pos,
+                &[s.action as u8, s.condition as u8, s.allow as u8],
+            );
             wu16(&mut data, &mut pos, s.audit_tag);
         }
     }

@@ -8,18 +8,18 @@
 //! - Allow-listed audit-event and semantic-intent tag constants.
 #![no_std]
 
+pub mod builder;
 pub mod bundle;
 pub mod events;
 pub mod intents;
-pub mod builder;
 
+pub use builder::BundleBuilder;
 pub use bundle::{
-    DiagnosticBundle, DiagAuditEvent, DiagIntent,
-    DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS,
+    DIAG_BUNDLE_VERSION, DiagAuditEvent, DiagIntent, DiagnosticBundle, MAX_AUDIT_EVENTS,
+    MAX_SEMANTIC_INTENTS,
 };
 pub use events::is_audit_event_allowed;
 pub use intents::is_intent_allowed;
-pub use builder::BundleBuilder;
 
 #[cfg(test)]
 mod tests;

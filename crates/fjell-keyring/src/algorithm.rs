@@ -10,8 +10,8 @@
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum SignatureAlgorithm {
-    Ed25519     = 0x01,
-    EcdsaP256   = 0x02,
+    Ed25519 = 0x01,
+    EcdsaP256 = 0x02,
     /// Development-only: signature is the SHA-256 of a domain-separated
     /// digest.  Permitted only when keyring is *not* in release mode.
     DevDigest32 = 0xFE,

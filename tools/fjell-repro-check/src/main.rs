@@ -21,7 +21,7 @@ use std::process::{Command, ExitCode, Stdio};
 /// Extended as new services are added.
 const DEFAULT_TARGETS: &[&str] = &[
     "target/riscv64gc-unknown-none-elf/release/fjell-kernel",
-    "crates/fjell-kernel/prebuilt",   // directory: all *.bin inside
+    "crates/fjell-kernel/prebuilt", // directory: all *.bin inside
 ];
 
 fn main() -> ExitCode {
@@ -41,7 +41,8 @@ fn main() -> ExitCode {
 
 fn two_build_check(args: &[String]) -> ExitCode {
     // Collect extra xtask build args (e.g. feature flags)
-    let extra: Vec<&str> = args.windows(2)
+    let extra: Vec<&str> = args
+        .windows(2)
         .find(|w| w[0] == "--build-cmd")
         .map(|w| vec![w[1].as_str()])
         .unwrap_or_default();
@@ -77,7 +78,8 @@ fn run_build(extra: &[&str]) -> bool {
 fn check_existing_digests(args: &[String]) -> ExitCode {
     // In --skip-build mode: hash what is currently in target/ against a
     // previously stored baseline (tests/repro/baseline-digests.txt).
-    let baseline_path = args.windows(2)
+    let baseline_path = args
+        .windows(2)
         .find(|w| w[0] == "--baseline")
         .and_then(|w| w.get(1))
         .map(String::as_str)
@@ -96,7 +98,10 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
                 eprintln!("fjell-repro-check: baseline written to {}", baseline_path);
                 return ExitCode::SUCCESS;
             }
-            Err(e) => { eprintln!("fjell-repro-check: {}", e); return ExitCode::FAILURE; }
+            Err(e) => {
+                eprintln!("fjell-repro-check: {}", e);
+                return ExitCode::FAILURE;
+            }
         }
     }
 
@@ -106,7 +111,10 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
             d.retain(|k, _| !k.starts_with("target/"));
             d
         }
-        Err(e) => { eprintln!("fjell-repro-check: {}", e); return ExitCode::FAILURE; }
+        Err(e) => {
+            eprintln!("fjell-repro-check: {}", e);
+            return ExitCode::FAILURE;
+        }
     };
 
     compare_and_report(baseline, current)
@@ -121,7 +129,8 @@ fn collect_digests() -> BTreeMap<String, String> {
         if path.is_dir() {
             // Collect all *.bin files in the directory
             if let Ok(entries) = fs::read_dir(path) {
-                let mut paths: Vec<PathBuf> = entries.flatten()
+                let mut paths: Vec<PathBuf> = entries
+                    .flatten()
                     .map(|e| e.path())
                     .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("bin"))
                     .collect();
@@ -168,10 +177,7 @@ fn sha256_hex(data: &[u8]) -> String {
 
 // ── Comparison and report ─────────────────────────────────────────────────────
 
-fn compare_and_report(
-    a: BTreeMap<String, String>,
-    b: BTreeMap<String, String>,
-) -> ExitCode {
+fn compare_and_report(a: BTreeMap<String, String>, b: BTreeMap<String, String>) -> ExitCode {
     let mut mismatches: Vec<String> = Vec::new();
     let mut present = 0usize;
 
@@ -182,8 +188,10 @@ fn compare_and_report(
             Some(digest_b) if digest_a != digest_b => {
                 let da = &digest_a[..digest_a.len().min(8)];
                 let db = &digest_b[..digest_b.len().min(8)];
-                mismatches.push(format!("DIGEST DIFFERS: {}\n  build1={}\n  build2={}",
-                    path, da, db));
+                mismatches.push(format!(
+                    "DIGEST DIFFERS: {}\n  build1={}\n  build2={}",
+                    path, da, db
+                ));
             }
             _ => {}
         }
@@ -198,7 +206,10 @@ fn compare_and_report(
         println!("fjell-repro-check: PASS ({} artefacts identical)", present);
         ExitCode::SUCCESS
     } else {
-        eprintln!("fjell-repro-check: FAIL — {} mismatch(es):", mismatches.len());
+        eprintln!(
+            "fjell-repro-check: FAIL — {} mismatch(es):",
+            mismatches.len()
+        );
         for m in &mismatches {
             eprintln!("  {}", m);
         }
@@ -242,7 +253,9 @@ fn load_digests(path: &str) -> std::io::Result<BTreeMap<String, String>> {
                          this is a legacy (pre-RFC-v0.16-005 FNV-1a) baseline. \
                          Delete the file and re-run with --skip-build to re-record \
                          it with SHA-256.",
-                        path, digest.len(), file
+                        path,
+                        digest.len(),
+                        file
                     ),
                 ));
             }
@@ -315,6 +328,9 @@ mod tests {
         // 16-hex-char FNV-1a style entry (pre-RFC-v0.16-005 baseline format).
         fs::write(&path, "ef78d19e980473e6 crates/x.bin\n").unwrap();
         let err = load_digests(path.to_str().unwrap()).unwrap_err();
-        assert!(err.to_string().contains("legacy"), "must name the real cause");
+        assert!(
+            err.to_string().contains("legacy"),
+            "must name the real cause"
+        );
     }
 }

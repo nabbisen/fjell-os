@@ -31,49 +31,49 @@ pub enum TlsState {
 #[repr(u16)]
 pub enum SxtError {
     /// Unknown or disallowed ChannelKind.
-    UnknownKind         = 0x01,
+    UnknownKind = 0x01,
     /// Server name not in pinned-anchor table.
     ServerNameNotPinned = 0x02,
     /// TLS handshake failed (alert from server or MAC error).
-    HandshakeFailed     = 0x03,
+    HandshakeFailed = 0x03,
     /// Certificate verification against pinned anchor failed.
-    CertVerifyFailed    = 0x04,
+    CertVerifyFailed = 0x04,
     /// HTTP response failed strict-parse rules.
-    HttpStrictReject    = 0x05,
+    HttpStrictReject = 0x05,
     /// Channel has been closed normally.
-    ChannelClosed       = 0x06,
+    ChannelClosed = 0x06,
     /// Channel is in Faulted state.
-    ChannelFaulted      = 0x07,
+    ChannelFaulted = 0x07,
     /// No netd Session capability available.
-    NoSessionCap        = 0x08,
+    NoSessionCap = 0x08,
     /// Session capability has been revoked.
-    SessionRevoked      = 0x09,
+    SessionRevoked = 0x09,
     /// HTTP response body exceeded `MAX_RESPONSE_BYTES`.
-    BodyTooLarge        = 0x0A,
+    BodyTooLarge = 0x0A,
     /// Internal implementation error.
-    Internal            = 0xFFFF,
+    Internal = 0xFFFF,
 }
 
 /// TLS handshake sub-state tracker used during the `ClientHelloSent` phase.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct TlsHandshakeState {
-    pub tls_state:           TlsState,
-    pub server_hello_done:   bool,
-    pub certificate_seen:    bool,
-    pub cert_verify_passed:  bool,
-    pub finished_verified:   bool,
-    pub anchor_epoch:        u32,
+    pub tls_state: TlsState,
+    pub server_hello_done: bool,
+    pub certificate_seen: bool,
+    pub cert_verify_passed: bool,
+    pub finished_verified: bool,
+    pub anchor_epoch: u32,
 }
 
 impl TlsHandshakeState {
     pub const fn new() -> Self {
         Self {
-            tls_state:          TlsState::Closed,
-            server_hello_done:  false,
-            certificate_seen:   false,
+            tls_state: TlsState::Closed,
+            server_hello_done: false,
+            certificate_seen: false,
             cert_verify_passed: false,
-            finished_verified:  false,
-            anchor_epoch:       0,
+            finished_verified: false,
+            anchor_epoch: 0,
         }
     }
 
@@ -107,7 +107,9 @@ impl TlsHandshakeState {
 
     /// Record a passed CertVerify check.
     pub fn on_cert_verify_pass(&mut self, anchor_epoch: u32) -> Result<(), SxtError> {
-        if !self.certificate_seen { return Err(SxtError::CertVerifyFailed); }
+        if !self.certificate_seen {
+            return Err(SxtError::CertVerifyFailed);
+        }
         self.cert_verify_passed = true;
         self.anchor_epoch = anchor_epoch;
         Ok(())
@@ -115,7 +117,9 @@ impl TlsHandshakeState {
 
     /// Record verification of the Finished MAC.
     pub fn on_finished(&mut self) -> Result<(), SxtError> {
-        if !self.cert_verify_passed { return Err(SxtError::HandshakeFailed); }
+        if !self.cert_verify_passed {
+            return Err(SxtError::HandshakeFailed);
+        }
         self.finished_verified = true;
         self.tls_state = TlsState::HandshakeComplete;
         Ok(())
@@ -156,8 +160,8 @@ mod net {
     #[derive(Clone, Copy, PartialEq, Eq)]
     pub enum ChannelKind {
         UpdateMetadata = 0x01,
-        Diagnostics    = 0x02,
-        Attestation    = 0x03,
-        FleetEnroll    = 0x04,
+        Diagnostics = 0x02,
+        Attestation = 0x03,
+        FleetEnroll = 0x04,
     }
 }

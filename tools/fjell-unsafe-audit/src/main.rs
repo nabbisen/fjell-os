@@ -8,8 +8,7 @@
 //! With `--json`, prints a JSON-lines inventory to stdout.
 
 use std::{
-    env, fs,
-    io,
+    env, fs, io,
     path::{Path, PathBuf},
     process,
 };
@@ -27,35 +26,35 @@ enum UnsafeCategory {
     PhysIdMapAssumption,
     KernelGlobalMutable,
     UserCopy,
-    Unknown,      // category= present but not a recognised name
-    Missing,      // no category= tag at all
+    Unknown, // category= present but not a recognised name
+    Missing, // no category= tag at all
 }
 
 impl UnsafeCategory {
     fn from_str(s: &str) -> Self {
         match s.trim() {
-            "raw-pointer-deref"       => Self::RawPointerDeref,
-            "page-table-mutation"     => Self::PageTableMutation,
-            "csr-asm"                 => Self::CsrAsm,
-            "mmio-access"             => Self::MmioAccess,
-            "phys-id-map-assumption"  => Self::PhysIdMapAssumption,
-            "kernel-global-mutable"   => Self::KernelGlobalMutable,
-            "user-copy"               => Self::UserCopy,
-            _                         => Self::Unknown,
+            "raw-pointer-deref" => Self::RawPointerDeref,
+            "page-table-mutation" => Self::PageTableMutation,
+            "csr-asm" => Self::CsrAsm,
+            "mmio-access" => Self::MmioAccess,
+            "phys-id-map-assumption" => Self::PhysIdMapAssumption,
+            "kernel-global-mutable" => Self::KernelGlobalMutable,
+            "user-copy" => Self::UserCopy,
+            _ => Self::Unknown,
         }
     }
 
     fn as_str(self) -> &'static str {
         match self {
-            Self::RawPointerDeref      => "raw-pointer-deref",
-            Self::PageTableMutation    => "page-table-mutation",
-            Self::CsrAsm               => "csr-asm",
-            Self::MmioAccess           => "mmio-access",
-            Self::PhysIdMapAssumption  => "phys-id-map-assumption",
-            Self::KernelGlobalMutable  => "kernel-global-mutable",
-            Self::UserCopy             => "user-copy",
-            Self::Unknown              => "unknown",
-            Self::Missing              => "missing",
+            Self::RawPointerDeref => "raw-pointer-deref",
+            Self::PageTableMutation => "page-table-mutation",
+            Self::CsrAsm => "csr-asm",
+            Self::MmioAccess => "mmio-access",
+            Self::PhysIdMapAssumption => "phys-id-map-assumption",
+            Self::KernelGlobalMutable => "kernel-global-mutable",
+            Self::UserCopy => "user-copy",
+            Self::Unknown => "unknown",
+            Self::Missing => "missing",
         }
     }
 
@@ -66,12 +65,12 @@ impl UnsafeCategory {
 
 #[derive(Debug)]
 struct UnsafeRecord {
-    file:          String,
-    line:          u32,
-    kind:          UnsafeKind,
-    has_safety:    bool,
-    safety_text:   String,
-    category:      UnsafeCategory,
+    file: String,
+    line: u32,
+    kind: UnsafeKind,
+    has_safety: bool,
+    safety_text: String,
+    category: UnsafeCategory,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,8 +85,8 @@ impl UnsafeKind {
     fn as_str(self) -> &'static str {
         match self {
             Self::Block => "block",
-            Self::Fn    => "fn",
-            Self::Impl  => "impl",
+            Self::Fn => "fn",
+            Self::Impl => "impl",
             Self::Trait => "trait",
         }
     }
@@ -114,7 +113,10 @@ fn strip_string_literals(line: &str) -> String {
         if c == 'r' && i + 1 < bytes.len() && (bytes[i + 1] == b'"' || bytes[i + 1] == b'#') {
             let mut j = i + 1;
             let mut hashes = 0;
-            while j < bytes.len() && bytes[j] == b'#' { hashes += 1; j += 1; }
+            while j < bytes.len() && bytes[j] == b'#' {
+                hashes += 1;
+                j += 1;
+            }
             if j < bytes.len() && bytes[j] == b'"' {
                 // skip body until closing `"` followed by `hashes` `#`s
                 j += 1;
@@ -123,9 +125,13 @@ fn strip_string_literals(line: &str) -> String {
                         let mut k = j + 1;
                         let mut matched = 0;
                         while matched < hashes && k < bytes.len() && bytes[k] == b'#' {
-                            matched += 1; k += 1;
+                            matched += 1;
+                            k += 1;
                         }
-                        if matched == hashes { j = k; break; }
+                        if matched == hashes {
+                            j = k;
+                            break;
+                        }
                     }
                     j += 1;
                 }
@@ -138,8 +144,14 @@ fn strip_string_literals(line: &str) -> String {
         if c == '"' {
             let mut j = i + 1;
             while j < bytes.len() {
-                if bytes[j] == b'\\' && j + 1 < bytes.len() { j += 2; continue; }
-                if bytes[j] == b'"' { j += 1; break; }
+                if bytes[j] == b'\\' && j + 1 < bytes.len() {
+                    j += 2;
+                    continue;
+                }
+                if bytes[j] == b'"' {
+                    j += 1;
+                    break;
+                }
                 j += 1;
             }
             i = j;
@@ -185,8 +197,8 @@ fn scan_file(path: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
             };
 
             records.push(UnsafeRecord {
-                file:        path.display().to_string(),
-                line:        (idx + 1) as u32,
+                file: path.display().to_string(),
+                line: (idx + 1) as u32,
                 kind,
                 has_safety,
                 safety_text,
@@ -227,8 +239,12 @@ fn find_safety_comment(preceding: &[&str]) -> (bool, String) {
                 let text = t.to_string();
                 return (true, text);
             }
-            if t.is_empty() { break; }
-            if !t.starts_with("//") && !t.starts_with('#') { break; }
+            if t.is_empty() {
+                break;
+            }
+            if !t.starts_with("//") && !t.starts_with('#') {
+                break;
+            }
         }
         return (false, String::new());
     }
@@ -243,7 +259,10 @@ fn extract_category(safety_text: &str) -> UnsafeCategory {
     // Look for "category=<name>" anywhere in the text
     if let Some(pos) = safety_text.find("category=") {
         let rest = &safety_text[pos + "category=".len()..];
-        let name = rest.split(|c: char| c.is_whitespace() || c == ',').next().unwrap_or("");
+        let name = rest
+            .split(|c: char| c.is_whitespace() || c == ',')
+            .next()
+            .unwrap_or("");
         return UnsafeCategory::from_str(name);
     }
     UnsafeCategory::Missing
@@ -254,11 +273,13 @@ fn extract_category(safety_text: &str) -> UnsafeCategory {
 fn walk(dir: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
-        let path  = entry.path();
+        let path = entry.path();
         if path.is_dir() {
             // Skip target/, .git/, node_modules/.
             let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(name, "target" | ".git" | "node_modules") { continue; }
+            if matches!(name, "target" | ".git" | "node_modules") {
+                continue;
+            }
             walk(&path, records)?;
         } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
             scan_file(&path, records)?;
@@ -271,17 +292,22 @@ fn walk(dir: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let mut root    = PathBuf::from(".");
-    let mut json    = false;
-    let mut check   = false;
+    let mut root = PathBuf::from(".");
+    let mut json = false;
+    let mut check = false;
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--root"  => { i += 1; if i < args.len() { root = PathBuf::from(&args[i]); } }
-            "--json"  => json  = true,
+            "--root" => {
+                i += 1;
+                if i < args.len() {
+                    root = PathBuf::from(&args[i]);
+                }
+            }
+            "--json" => json = true,
             "--check" => check = true,
-            _         => {}
+            _ => {}
         }
         i += 1;
     }
@@ -292,9 +318,9 @@ fn main() {
         process::exit(2);
     }
 
-    let total    = records.len();
-    let missing  = records.iter().filter(|r| !r.has_safety).count();
-    let covered  = total - missing;
+    let total = records.len();
+    let missing = records.iter().filter(|r| !r.has_safety).count();
+    let covered = total - missing;
 
     if json {
         for r in &records {
@@ -304,7 +330,7 @@ fn main() {
                 l = r.line,
                 k = r.kind.as_str(),
                 s = r.has_safety,
-                    cat = r.category.as_str(),
+                cat = r.category.as_str(),
                 t = r.safety_text.replace('"', "\\\""),
             );
         }
@@ -312,8 +338,14 @@ fn main() {
         println!("fjell-unsafe-audit  root={}", root.display());
         println!("  total unsafe sites : {total}");
         println!("  with SAFETY comment: {covered}");
-        let valid_cats = records.iter().filter(|r| r.has_safety && r.category.is_valid()).count();
-        let missing_cats = records.iter().filter(|r| r.has_safety && !r.category.is_valid()).count();
+        let valid_cats = records
+            .iter()
+            .filter(|r| r.has_safety && r.category.is_valid())
+            .count();
+        let missing_cats = records
+            .iter()
+            .filter(|r| r.has_safety && !r.category.is_valid())
+            .count();
         println!("  with valid category tag: {valid_cats}");
         if missing_cats > 0 {
             println!("  MISSING/UNKNOWN category: {missing_cats}");
@@ -351,14 +383,18 @@ mod tests {
             }
         }
         impl Drop for TmpFile {
-            fn drop(&mut self) { let _ = fs::remove_file(&self.0); }
+            fn drop(&mut self) {
+                let _ = fs::remove_file(&self.0);
+            }
         }
     }
 
     #[test]
     fn detects_unsafe_block_with_safety() {
-        let f = TmpFile::write("audit_test_1.rs",
-            "// SAFETY: category=raw-pointer-deref pointer is valid for the lifetime of the borrow.\nunsafe { *ptr }\n");
+        let f = TmpFile::write(
+            "audit_test_1.rs",
+            "// SAFETY: category=raw-pointer-deref pointer is valid for the lifetime of the borrow.\nunsafe { *ptr }\n",
+        );
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
         assert_eq!(recs.len(), 1);
@@ -376,8 +412,10 @@ mod tests {
 
     #[test]
     fn detects_unsafe_fn() {
-        let f = TmpFile::write("audit_test_3.rs",
-            "// SAFETY: category=raw-pointer-deref caller ensures alignment.\npub unsafe fn raw_write(ptr: *mut u8) {}\n");
+        let f = TmpFile::write(
+            "audit_test_3.rs",
+            "// SAFETY: category=raw-pointer-deref caller ensures alignment.\npub unsafe fn raw_write(ptr: *mut u8) {}\n",
+        );
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
         assert_eq!(recs.len(), 1);
@@ -425,12 +463,16 @@ mod tests {
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
         assert_eq!(recs.len(), 1);
-        assert!(recs[0].has_safety, "SAFETY 5 lines above should be found (12-line window)");
+        assert!(
+            recs[0].has_safety,
+            "SAFETY 5 lines above should be found (12-line window)"
+        );
     }
 
     #[test]
     fn multiple_unsafe_sites_per_file() {
-        let src = "// SAFETY: category=raw-pointer-deref ok\nunsafe { a() }\nfn x() {}\nunsafe { b() }\n";
+        let src =
+            "// SAFETY: category=raw-pointer-deref ok\nunsafe { a() }\nfn x() {}\nunsafe { b() }\n";
         let f = TmpFile::write("audit_test_8.rs", src);
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
@@ -446,7 +488,11 @@ mod tests {
         let f = TmpFile::write("audit_test_9.rs", src);
         let mut recs = vec![];
         scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 1, "only the real unsafe is counted, not the string");
+        assert_eq!(
+            recs.len(),
+            1,
+            "only the real unsafe is counted, not the string"
+        );
         assert!(recs[0].has_safety);
         assert_eq!(recs[0].line, 3);
     }

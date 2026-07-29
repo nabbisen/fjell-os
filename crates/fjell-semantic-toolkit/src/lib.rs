@@ -17,10 +17,7 @@
 
 // Host-only: uses std.
 
-use fjell_semantic_v1::{
-    catalog_len, encode, decode,
-    FieldValue, FieldKind, CATALOG_V1,
-};
+use fjell_semantic_v1::{CATALOG_V1, FieldKind, FieldValue, catalog_len, decode, encode};
 
 // ── Fixture generator ─────────────────────────────────────────────────────────
 
@@ -74,10 +71,10 @@ pub fn generate_all_fixtures() -> Vec<EntryFixture> {
 
 fn representative_value(kind: FieldKind) -> FieldValue {
     match kind {
-        FieldKind::U8      => FieldValue::U8(0x01),
-        FieldKind::U16     => FieldValue::U16(0x0102),
-        FieldKind::U32     => FieldValue::U32(0x0102_0304),
-        FieldKind::U64     => FieldValue::U64(0x0102_0304_0506_0708),
+        FieldKind::U8 => FieldValue::U8(0x01),
+        FieldKind::U16 => FieldValue::U16(0x0102),
+        FieldKind::U32 => FieldValue::U32(0x0102_0304),
+        FieldKind::U64 => FieldValue::U64(0x0102_0304_0506_0708),
         FieldKind::Bytes16 => FieldValue::Bytes16([0xAB; 16]),
         FieldKind::Bytes32 => FieldValue::Bytes32([0xCD; 32]),
     }
@@ -101,9 +98,7 @@ pub fn verify_all_fixtures_round_trip() -> Vec<(u16, String)> {
         match decode(&fx.minimal_encoded) {
             Ok(d) => {
                 if d.tag != fx.tag {
-                    errors.push((fx.tag, format!(
-                        "decode tag mismatch: got 0x{:04X}", d.tag
-                    )));
+                    errors.push((fx.tag, format!("decode tag mismatch: got 0x{:04X}", d.tag)));
                 }
             }
             Err(e) => {
@@ -113,9 +108,10 @@ pub fn verify_all_fixtures_round_trip() -> Vec<(u16, String)> {
         match decode(&fx.maximal_encoded) {
             Ok(d) => {
                 if d.tag != fx.tag {
-                    errors.push((fx.tag, format!(
-                        "maximal decode tag mismatch: got 0x{:04X}", d.tag
-                    )));
+                    errors.push((
+                        fx.tag,
+                        format!("maximal decode tag mismatch: got 0x{:04X}", d.tag),
+                    ));
                 }
             }
             Err(e) => {
@@ -151,8 +147,7 @@ pub fn render_catalog_markdown() -> String {
         md.push_str(&format!("### `0x{:04X}` — `{}`\n\n", entry.tag, entry.name));
         md.push_str(&format!(
             "- **Owner crate:** `{}`  \n- **Subsystem:** `{}`\n\n",
-            entry.owner.crate_name,
-            entry.owner.subsystem,
+            entry.owner.crate_name, entry.owner.subsystem,
         ));
 
         if entry.schema.fields.is_empty() {
@@ -223,17 +218,17 @@ mod tests {
     #[test]
     fn all_fixtures_round_trip() {
         let errors = verify_all_fixtures_round_trip();
-        assert!(errors.is_empty(),
-            "round-trip failures: {:?}", errors);
+        assert!(errors.is_empty(), "round-trip failures: {:?}", errors);
     }
 
     #[test]
     fn fixtures_have_correct_tags() {
-        for (i, (entry, fixture)) in
-            CATALOG_V1.iter().zip(generate_all_fixtures().iter()).enumerate()
+        for (i, (entry, fixture)) in CATALOG_V1
+            .iter()
+            .zip(generate_all_fixtures().iter())
+            .enumerate()
         {
-            assert_eq!(entry.tag, fixture.tag,
-                "fixture #{} tag mismatch", i);
+            assert_eq!(entry.tag, fixture.tag, "fixture #{} tag mismatch", i);
         }
     }
 
@@ -242,7 +237,8 @@ mod tests {
         for fx in generate_all_fixtures() {
             assert!(
                 fx.minimal_encoded.len() <= fx.maximal_encoded.len(),
-                "tag 0x{:04X}: minimal > maximal", fx.tag
+                "tag 0x{:04X}: minimal > maximal",
+                fx.tag
             );
         }
     }
@@ -252,27 +248,33 @@ mod tests {
         let md = render_catalog_markdown();
         for entry in CATALOG_V1.iter() {
             let tag_str = format!("0x{:04X}", entry.tag);
-            assert!(md.contains(&tag_str),
-                "catalog.md missing tag {}", tag_str);
-            assert!(md.contains(entry.name),
-                "catalog.md missing name {}", entry.name);
+            assert!(md.contains(&tag_str), "catalog.md missing tag {}", tag_str);
+            assert!(
+                md.contains(entry.name),
+                "catalog.md missing name {}",
+                entry.name
+            );
         }
     }
 
     #[test]
     fn doc_renderer_contains_domain_headers() {
         let md = render_catalog_markdown();
-        for domain in ["UPDATE", "ATTEST", "SECURITY", "NET",
-                        "RECOVERY", "PLATFORM", "HEALTH"] {
+        for domain in [
+            "UPDATE", "ATTEST", "SECURITY", "NET", "RECOVERY", "PLATFORM", "HEALTH",
+        ] {
             let header = format!("## {} domain", domain);
-            assert!(md.contains(&header),
-                "catalog.md missing '{}'", header);
+            assert!(md.contains(&header), "catalog.md missing '{}'", header);
         }
     }
 
     #[test]
     fn typed_emitter_update_staging_advanced() {
-        let args = UpdateStagingAdvancedArgs { candidate_id: 42, from_state: 1, to_state: 2 };
+        let args = UpdateStagingAdvancedArgs {
+            candidate_id: 42,
+            from_state: 1,
+            to_state: 2,
+        };
         let mut buf = [0u8; 128];
         let n = emit_update_staging_advanced(&args, 42, &mut buf).unwrap();
         assert!(n > 0);

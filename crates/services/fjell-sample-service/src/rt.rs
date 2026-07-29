@@ -11,4 +11,6 @@ global_asm!(
     "  tail service_main",
 );
 #[panic_handler]
-fn panic(_: &PanicInfo) -> ! { fjell_syscall::sys_exit(1) }
+fn panic(_: &PanicInfo) -> ! {
+    fjell_syscall::sys_exit(1)
+}

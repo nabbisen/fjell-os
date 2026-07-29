@@ -14,8 +14,8 @@ impl fjell_arch::sealed::Sealed for Arm64 {}
 
 impl ArchIdentity for Arm64 {
     const ARCH_NAME: &'static str = "arm64";
-    const GP_REGS:   usize        = 31;   // x0..x30 (SP is separate)
-    const PAGE_SIZE: usize        = 4096;
+    const GP_REGS: usize = 31; // x0..x30 (SP is separate)
+    const PAGE_SIZE: usize = 4096;
 }
 
 /// The active architecture for ARM64 builds.

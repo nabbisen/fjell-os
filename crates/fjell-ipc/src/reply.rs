@@ -33,11 +33,17 @@ pub struct ReplyEdge {
 impl ReplyEdge {
     /// Create a reply edge without a lease binding (backward compat / bootstrap).
     pub fn new(caller_tid: Tid) -> Self {
-        ReplyEdge { caller_tid, lease: None }
+        ReplyEdge {
+            caller_tid,
+            lease: None,
+        }
     }
 
     /// Create a reply edge with a lease binding (RFC 034).
     pub fn with_lease(caller_tid: Tid, lease: LeaseBinding) -> Self {
-        ReplyEdge { caller_tid, lease: Some(lease) }
+        ReplyEdge {
+            caller_tid,
+            lease: Some(lease),
+        }
     }
 }

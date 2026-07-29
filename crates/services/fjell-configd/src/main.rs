@@ -8,8 +8,8 @@
 #![no_main]
 mod rt;
 
-use fjell_syscall::{sys_exit, sys_ipc_recv, sys_ipc_reply};
 use fjell_service_api::tags;
+use fjell_syscall::{sys_exit, sys_ipc_recv, sys_ipc_reply};
 
 /// Embedded bootstrap service manifest (validated at compile time).
 ///
@@ -17,23 +17,43 @@ use fjell_service_api::tags;
 /// For M4 this is a statically validated Rust constant.
 struct ServiceManifest {
     name: &'static str,
-    #[allow(dead_code)] restart: RestartPolicy,
+    #[allow(dead_code)]
+    restart: RestartPolicy,
 }
-enum RestartPolicy { Never, OnFailure }
+enum RestartPolicy {
+    Never,
+    OnFailure,
+}
 
 const BOOTSTRAP_MANIFEST: &[ServiceManifest] = &[
-    ServiceManifest { name: "svc.cap-broker",      restart: RestartPolicy::Never },
-    ServiceManifest { name: "svc.auditd",           restart: RestartPolicy::Never },
-    ServiceManifest { name: "svc.svc-manager",      restart: RestartPolicy::Never },
-    ServiceManifest { name: "svc.sample",           restart: RestartPolicy::OnFailure },
+    ServiceManifest {
+        name: "svc.cap-broker",
+        restart: RestartPolicy::Never,
+    },
+    ServiceManifest {
+        name: "svc.auditd",
+        restart: RestartPolicy::Never,
+    },
+    ServiceManifest {
+        name: "svc.svc-manager",
+        restart: RestartPolicy::Never,
+    },
+    ServiceManifest {
+        name: "svc.sample",
+        restart: RestartPolicy::OnFailure,
+    },
 ];
 
 fn validate_manifest() -> bool {
     // Validate: no duplicate names, all names non-empty.
     for (i, a) in BOOTSTRAP_MANIFEST.iter().enumerate() {
-        if a.name.is_empty() { return false; }
-        for b in &BOOTSTRAP_MANIFEST[i+1..] {
-            if a.name == b.name { return false; }
+        if a.name.is_empty() {
+            return false;
+        }
+        for b in &BOOTSTRAP_MANIFEST[i + 1..] {
+            if a.name == b.name {
+                return false;
+            }
         }
     }
     true
@@ -62,7 +82,9 @@ pub extern "C" fn service_main() -> ! {
                 let _ = sys_ipc_reply(tags::CONFIG_GET | (BOOTSTRAP_MANIFEST.len() << 12));
             }
             Ok(tags::SERVICE_SHUTDOWN) => break,
-            Ok(_) | Err(_) => { let _ = sys_ipc_reply(0); }
+            Ok(_) | Err(_) => {
+                let _ = sys_ipc_reply(0);
+            }
         }
     }
 

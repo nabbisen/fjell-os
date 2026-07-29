@@ -52,12 +52,12 @@ const PASS_MARKERS: &[&str] = &[
 
 pub fn cmd_fleet_demo(sub: Option<&str>, _args: &[String]) -> ExitCode {
     match sub {
-        Some("up")           => cmd_up(),
-        Some("down")         => cmd_down(),
-        Some("status")       => cmd_status(),
-        Some("verify")       => cmd_verify(),
+        Some("up") => cmd_up(),
+        Some("down") => cmd_down(),
+        Some("status") => cmd_status(),
+        Some("verify") => cmd_verify(),
         Some("build-bundle") => cmd_build_bundle(),
-        Some("deploy")       => cmd_deploy(),
+        Some("deploy") => cmd_deploy(),
         _ => {
             eprintln!("Usage: cargo xtask fleet-demo <up|down|status|verify|build-bundle|deploy>");
             ExitCode::FAILURE
@@ -79,7 +79,10 @@ fn cmd_up() -> ExitCode {
     for (port, node_id, role) in &PORTS {
         let log_path = format!("tests/fleet-demo/logs/{}.log", node_id);
         match launch_node(*port, node_id, role, &log_path) {
-            Ok(_) => println!("[fleet-demo] launched {} ({}) on serial port {}", node_id, role, port),
+            Ok(_) => println!(
+                "[fleet-demo] launched {} ({}) on serial port {}",
+                node_id, role, port
+            ),
             Err(e) => {
                 eprintln!("[fleet-demo] failed to launch {}: {}", node_id, e);
                 return ExitCode::FAILURE;
@@ -97,13 +100,19 @@ fn launch_node(port: u16, node_id: &str, _role: &str, log_path: &str) -> std::io
 
     Command::new("qemu-system-riscv64")
         .args([
-            "-machine", "virt",
-            "-cpu", "rv64",
-            "-m", "128M",
+            "-machine",
+            "virt",
+            "-cpu",
+            "rv64",
+            "-m",
+            "128M",
             "-nographic",
-            "-bios", "none",
-            "-kernel", KERNEL,
-            "-serial", &format!("tcp::{},server,nowait", port),
+            "-bios",
+            "none",
+            "-kernel",
+            KERNEL,
+            "-serial",
+            &format!("tcp::{},server,nowait", port),
             // Pass the node identity as a kernel command-line-equivalent via
             // the bootarg mechanism.  For the demo, the kernel reads the
             // address of the serial port to determine its node index.
@@ -145,21 +154,34 @@ fn cmd_status() -> ExitCode {
         let reachable = TcpStream::connect_timeout(
             &format!("127.0.0.1:{}", port).parse().unwrap(),
             Duration::from_millis(300),
-        ).is_ok();
-        println!("  {:8} ({:11}) port {:4}  {}",
-            node_id, role, port,
+        )
+        .is_ok();
+        println!(
+            "  {:8} ({:11}) port {:4}  {}",
+            node_id,
+            role,
+            port,
             if reachable { "UP" } else { "down" }
         );
-        if !reachable { all_up = false; }
+        if !reachable {
+            all_up = false;
+        }
     }
-    if all_up { ExitCode::SUCCESS } else { ExitCode::FAILURE }
+    if all_up {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    }
 }
 
 // ── verify ────────────────────────────────────────────────────────────────────
 
 fn cmd_verify() -> ExitCode {
     let timeout = Duration::from_secs(120);
-    println!("[fleet-demo] waiting for pass markers ({}s timeout) …", timeout.as_secs());
+    println!(
+        "[fleet-demo] waiting for pass markers ({}s timeout) …",
+        timeout.as_secs()
+    );
 
     let mut missing: Vec<&str> = PASS_MARKERS.to_vec();
     let start = std::time::Instant::now();
@@ -167,9 +189,12 @@ fn cmd_verify() -> ExitCode {
     while !missing.is_empty() && start.elapsed() < timeout {
         thread::sleep(Duration::from_millis(500));
         // Check log files written by the running QEMU processes
-        for entry in fs::read_dir("tests/fleet-demo/logs").unwrap_or_else(|_| {
-            fs::read_dir(".").unwrap()  // fallback to avoid crash
-        }).flatten() {
+        for entry in fs::read_dir("tests/fleet-demo/logs")
+            .unwrap_or_else(|_| {
+                fs::read_dir(".").unwrap() // fallback to avoid crash
+            })
+            .flatten()
+        {
             if let Ok(content) = fs::read_to_string(entry.path()) {
                 missing.retain(|m| !content.contains(m));
             }
@@ -222,10 +247,7 @@ fn cmd_deploy() -> ExitCode {
     println!("[fleet-demo] === FULL DEMO RUN ===");
     println!();
 
-    let steps: &[(&str, fn() -> ExitCode)] = &[
-        ("build-bundle", cmd_build_bundle),
-        ("up",           cmd_up),
-    ];
+    let steps: &[(&str, fn() -> ExitCode)] = &[("build-bundle", cmd_build_bundle), ("up", cmd_up)];
 
     for (name, step_fn) in steps {
         print!("[fleet-demo] step: {} … ", name);
@@ -265,14 +287,20 @@ mod tests {
 
     #[test]
     fn demo_dir_exists() {
-        if !Path::new("examples").exists() { return; } // not workspace root
-        assert!(Path::new(DEMO_DIR).exists(),
-            "expected examples/three-node-fleet/ to exist");
+        if !Path::new("examples").exists() {
+            return;
+        } // not workspace root
+        assert!(
+            Path::new(DEMO_DIR).exists(),
+            "expected examples/three-node-fleet/ to exist"
+        );
     }
 
     #[test]
     fn fleet_demo_toml_exists() {
-        if !Path::new("examples").exists() { return; } // not workspace root
+        if !Path::new("examples").exists() {
+            return;
+        } // not workspace root
         assert!(Path::new(&format!("{}/fleet-demo.toml", DEMO_DIR)).exists());
     }
 

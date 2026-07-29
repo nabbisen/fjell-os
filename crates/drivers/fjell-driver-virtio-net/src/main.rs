@@ -10,23 +10,26 @@
 // so the kernel can emit the milestone marker. The full implementation is
 // post-v1.0 roadmap work; the allows below keep the intentional dead paths
 // from polluting the workspace warning baseline.
-#![allow(dead_code, unused_variables, unreachable_code, unused_imports, unused_assignments, unused_mut)]
+#![allow(
+    dead_code,
+    unused_variables,
+    unreachable_code,
+    unused_imports,
+    unused_assignments,
+    unused_mut
+)]
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_syscall::{sys_debug_writeln, sys_exit, sys_irq_wait, sys_irq_ack};
 use fjell_cap::CapHandle;
-use fjell_net_format::{
-    NetDeviceDescriptor, NetDeviceState, NetIpcTag,
-};
+use fjell_net_format::{NetDeviceDescriptor, NetDeviceState, NetIpcTag};
+use fjell_syscall::{sys_debug_writeln, sys_exit, sys_irq_ack, sys_irq_wait};
 
 // Re-use the host-testable core types.
 use fjell_driver_virtio_net::{
-    DriverStateBlock, DriverState, Ring,
-    negotiate_features, VirtioFeatureFlags,
-    negotiate_features_checked, FeatureError,
-    VirtQueue,
+    DriverState, DriverStateBlock, FeatureError, Ring, VirtQueue, VirtioFeatureFlags,
+    negotiate_features, negotiate_features_checked,
 };
 
 #[panic_handler]
@@ -46,10 +49,10 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //   slot 4 — Endpoint    (netd send-end; driver posts RX events here)
 //   slot 5 — Endpoint    (service-manager ready endpoint)
 //
-const CAP_MMIO:    CapHandle = CapHandle(0);
-const CAP_DMA_RX:  CapHandle = CapHandle(1);
-const CAP_DMA_TX:  CapHandle = CapHandle(2);
-const CAP_IRQ:     CapHandle = CapHandle(3);
+const CAP_MMIO: CapHandle = CapHandle(0);
+const CAP_DMA_RX: CapHandle = CapHandle(1);
+const CAP_DMA_TX: CapHandle = CapHandle(2);
+const CAP_IRQ: CapHandle = CapHandle(3);
 const CAP_NETD_EP: CapHandle = CapHandle(4);
 const CAP_SMGR_EP: CapHandle = CapHandle(5);
 
@@ -96,8 +99,7 @@ pub extern "C" fn service_main() -> ! {
     // a full MMIO read path lands once devmgr provides the mapped MMIO VA.
     // For now we use the QEMU-known minimal set (MAC + STATUS only).
     let offered = VirtioFeatureFlags(
-        fjell_driver_virtio_net::VIRTIO_NET_F_MAC
-        | fjell_driver_virtio_net::VIRTIO_NET_F_STATUS,
+        fjell_driver_virtio_net::VIRTIO_NET_F_MAC | fjell_driver_virtio_net::VIRTIO_NET_F_STATUS,
     );
     let (negotiated, legacy) = match negotiate_features_checked(offered) {
         Ok(r) => r,
@@ -119,8 +121,8 @@ pub extern "C" fn service_main() -> ! {
     // Pre-fill RX queue with empty receive buffers.
     // DMA buffer addresses are known from sys_dma_alloc at boot;
     // for the initial ring we use placeholder PAs until full DMA wiring lands.
-    const RX_BUF_PA_BASE: u64 = 0x8800_0000;  // placeholder QEMU PA
-    const RX_BUF_SIZE:    u32 = 256;
+    const RX_BUF_PA_BASE: u64 = 0x8800_0000; // placeholder QEMU PA
+    const RX_BUF_SIZE: u32 = 256;
     for i in 0..8u64 {
         let pa = RX_BUF_PA_BASE + i * RX_BUF_SIZE as u64;
         if rx_virtq.post_rx_buffer(pa, RX_BUF_SIZE).is_none() {
@@ -139,7 +141,9 @@ pub extern "C" fn service_main() -> ! {
     }
 
     // Transition to Ready.
-    state.transition(DriverState::Ready).unwrap_or_else(|_| sys_exit(1));
+    state
+        .transition(DriverState::Ready)
+        .unwrap_or_else(|_| sys_exit(1));
     sys_debug_writeln("driver-virtio-net: ready");
 
     // Notify service-manager.

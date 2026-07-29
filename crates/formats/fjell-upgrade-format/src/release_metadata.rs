@@ -2,8 +2,8 @@
 //! monotonic release counter, keyring epoch, trust provider, and measurement
 //! chain head (RFC v0.3-003 §6.1).
 
-use fjell_measure_format::{Digest32, MeasurementHead};
 use fjell_keyring::KeyEpoch;
+use fjell_measure_format::{Digest32, MeasurementHead};
 use fjell_trust_provider::ids::TrustProviderId;
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -33,33 +33,33 @@ impl Provenance {
 /// all trust-relevant context captured at staging time.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct ReleaseMetadata {
-    pub schema_version:          u16,
+    pub schema_version: u16,
     /// ASCII release channel identifier e.g. `b"stable\0\0"`.
-    pub channel_id:              [u8; 8],
+    pub channel_id: [u8; 8],
     /// Monotonically increasing counter within this channel.
-    pub release_counter:         u64,
+    pub release_counter: u64,
     /// Author-specified minimum counter that receivers must already hold.
-    pub embedded_min_counter:    u64,
+    pub embedded_min_counter: u64,
     /// SHA-256 of the release manifest.
     pub release_manifest_digest: Digest32,
     /// `KeyEpoch` of the anchor that signed this release.
-    pub signing_anchor_epoch:    KeyEpoch,
+    pub signing_anchor_epoch: KeyEpoch,
     /// Trust provider ID that authorised staging.
-    pub trust_provider_id:       TrustProviderId,
+    pub trust_provider_id: TrustProviderId,
     /// `MeasurementHead.chain_digest` at staging time.
-    pub measurement_at_stage:    Digest32,
+    pub measurement_at_stage: Digest32,
     /// Local kernel tick at staging time.
-    pub created_tick:            u64,
-    pub provenance:              Provenance,
+    pub created_tick: u64,
+    pub provenance: Provenance,
     /// SHA-256 of all fields above (this field zeroed during computation).
-    pub metadata_digest:         Digest32,
+    pub metadata_digest: Digest32,
 }
 
 impl ReleaseMetadata {
     /// Compute the canonical `metadata_digest`.
     /// `metadata_digest` itself is treated as `[0u8; 32]` during hashing.
     pub fn compute_digest(&self) -> Digest32 {
-        let sv  = self.schema_version.to_le_bytes();
+        let sv = self.schema_version.to_le_bytes();
         let ctr = self.release_counter.to_le_bytes();
         let min = self.embedded_min_counter.to_le_bytes();
         let aep = self.signing_anchor_epoch.raw().to_le_bytes();
@@ -85,15 +85,15 @@ impl ReleaseMetadata {
     /// Build a `ReleaseMetadata` with a freshly computed `metadata_digest`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        channel_id:              [u8; 8],
-        release_counter:         u64,
-        embedded_min_counter:    u64,
+        channel_id: [u8; 8],
+        release_counter: u64,
+        embedded_min_counter: u64,
         release_manifest_digest: Digest32,
-        signing_anchor_epoch:    KeyEpoch,
-        trust_provider_id:       TrustProviderId,
-        measurement_at_stage:    Digest32,
-        created_tick:            u64,
-        provenance:              Provenance,
+        signing_anchor_epoch: KeyEpoch,
+        trust_provider_id: TrustProviderId,
+        measurement_at_stage: Digest32,
+        created_tick: u64,
+        provenance: Provenance,
     ) -> Self {
         let mut m = Self {
             schema_version: RELEASE_METADATA_VERSION,

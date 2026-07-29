@@ -6,23 +6,21 @@
 //! attestation record.
 #![no_std]
 
-pub mod platform;
 pub mod board;
-pub mod isa;
 pub mod digest;
+pub mod isa;
+pub mod platform;
 
-pub use platform::{
-    PlatformProfile, PlatformFamily, IsaExtensions, KernelAbiVersion,
-    MemMap, PlicLayout, PLATFORM_PROFILE_VERSION,
-    ISA_EXT_I, ISA_EXT_M, ISA_EXT_A, ISA_EXT_F, ISA_EXT_D,
-    ISA_EXT_C, ISA_EXT_ZBB, ISA_EXT_ZICSR, ISA_EXT_ZIFENCEI,
-    ISA_MANDATORY,
-};
 pub use board::{
-    BoardProfile, BoardDevice, DeviceClass, RecoveryDescriptor, RecoveryKind,
-    BOARD_PROFILE_VERSION, MAX_BOARD_DEVICES,
+    BOARD_PROFILE_VERSION, BoardDevice, BoardProfile, DeviceClass, MAX_BOARD_DEVICES,
+    RecoveryDescriptor, RecoveryKind,
 };
-pub use digest::{platform_digest, board_digest};
+pub use digest::{board_digest, platform_digest};
+pub use platform::{
+    ISA_EXT_A, ISA_EXT_C, ISA_EXT_D, ISA_EXT_F, ISA_EXT_I, ISA_EXT_M, ISA_EXT_ZBB, ISA_EXT_ZICSR,
+    ISA_EXT_ZIFENCEI, ISA_MANDATORY, IsaExtensions, KernelAbiVersion, MemMap,
+    PLATFORM_PROFILE_VERSION, PlatformFamily, PlatformProfile, PlicLayout,
+};
 
 #[cfg(test)]
 mod tests;
