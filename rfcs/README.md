@@ -165,7 +165,18 @@ rfcs/
 
 ---
 
-## Proposed (proposed/) — 25 RFCs
+## Proposed (proposed/)
+
+### v0.21.3 — Build Restoration and As-Built Reconciliation
+
+| RFC | Title |
+|-----|-------|
+| v0.21.3-001 | [Build Restoration and As-Built Reconciliation](./proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md) — handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/implementation-handoff.md) |
+
+> **Index integrity notice.** The sections below (v0.11–v0.15) are listed as
+> Proposed at `./proposed/…` paths, but those RFCs are in `done/` and the links
+> do not resolve. The section counts are also stale (`done/` holds 154 RFCs, not
+> 99). Repairing this index is scoped work under RFC-v0.21.3-001 §M4.
 
 ### v0.11 — Trust Spine Hardening
 
