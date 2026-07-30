@@ -18,27 +18,58 @@ stack, GUI stack, font rendering, dynamic plugins, or app-compatibility layer
 
 ## 2. External surface
 
-The kernel's boundary is the **syscall surface**: 38 syscalls dispatched from
-`trap/syscall.rs` via the RISC-V `ecall` convention. The register-level contract
-is normative in [IPC Register Layout](../abi/ipc-register-layout.md); the
-syscall catalog is in [Syscall Reference](../api/syscalls.md).
+The kernel's boundary is the **syscall surface**. `fjell-abi` declares 35
+syscall numbers; `trap/syscall.rs` dispatches **26** of them via the RISC-V
+`ecall` convention. The register-level contract is normative in
+[IPC Register Layout](../abi/ipc-register-layout.md); the syscall catalog is
+in [Syscall Reference](../api/syscalls.md).
 
-Groups (as-built at v0.21.2):
+Dispatched groups (as-built at v0.21.2, 26 syscalls):
 
 | Group | Syscalls |
 |---|---|
 | Scheduler / lifecycle | `yield`, `exit` |
-| IPC | `ipc_call`, `ipc_call_words`, `ipc_recv`, `ipc_recv_msg`, `ipc_reply`, `ipc_try_send`, `ipc_try_recv` |
-| Capability | `cap_copy`, `cap_mint`, `cap_revoke`, `cap_drop`, `cap_install`, `cap_install_with_rights`, `cap_inspect`, `cap_bind_lease` |
+| IPC | `ipc_call` (also reached via `ipc_call_words`), `ipc_recv` (also reached via `ipc_recv_msg`), `ipc_reply`, `ipc_send` (also reached via `ipc_try_send`), `ipc_try_recv` |
+| Capability | `cap_copy`, `cap_mint`, `cap_delete`, `cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease` |
 | Lease | `lease_create`, `lease_revoke`, `lease_inspect` |
 | Task | `task_spawn`, `task_start`, `task_status` |
-| Hardware | `mmio_map`, `dma_alloc`, `dma_revoke`, `irq_bind`, `irq_wait`, `irq_ack` |
-| Platform | `reboot`, `platform_info_get`, `platform_region_resolve` |
+| Hardware | `mmio_map`, `dma_alloc`, `dma_revoke` |
+| Platform | `platform_info_get` |
 | Audit | `audit_drain` |
-| Debug (dev only) | `debug_write`, `debug_writeln`, `debug_write_byte` |
+| Debug (dev only) | `debug_write` |
 
-Every syscall except the debug helpers is capability-gated. The result is
+Every syscall except the debug helper is capability-gated. The result is
 returned in `a0` as a typed `SysError` (or `Ok`).
+
+### Declared, not dispatched (9 of the 35)
+
+These `SyscallNumber` variants exist in `fjell-abi` and have user-space
+wrapper functions in `fjell-syscall`, but `trap/syscall.rs` has no dispatch
+arm for them — the fallthrough (`Some(_) | None => SysError::UnknownSyscall`,
+`syscall.rs:52`) rejects every one. Calling any of them from user space
+returns `UnknownSyscall`, not the behaviour their wrapper's doc-comment may
+suggest:
+
+| Syscall number | Wrapper(s) that issue it |
+|---|---|
+| `CapInstall` (17) | `sys_cap_install`, `sys_cap_install_with_rights` |
+| `PlatformReboot` (18) | `sys_reboot` |
+| `TaskKill` (43) | — (no wrapper) |
+| `MmioUnmap` (91) | — (no wrapper) |
+| `IrqBind` (100) | `sys_irq_bind` |
+| `IrqAck` (101) | `sys_irq_ack` |
+| `IrqWait` (102) | `sys_irq_wait` |
+| `DmaShare` (111) | — (no wrapper) |
+| `Reboot` (120) | — (no wrapper; distinct from `PlatformReboot`) |
+
+`sys_platform_region_resolve` is a separate case: it is an explicit
+host-side stub that returns `UnknownSyscall` without issuing an `ecall` at
+all, so it never reaches the kernel.
+
+The disposition of these 9 — implement, remove from the ABI, or keep
+permanently reserved — is not decided; see
+`rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+§Deferred.
 
 ## 3. Internal module boundaries (as-built)
 
@@ -87,8 +118,13 @@ that the resource exists (NFR-SEC-001).
 - **Scheduling is cooperative**, not the full power-state-coupled scheduler of
   FR-KRN-005/FR-KRN-006; `powerd` provides telemetry but not active power-state
   scheduling yet.
-- **Interrupt syscalls** (`irq_bind/wait/ack`) exist; full driver interrupt
-  routing is exercised by virtio drivers but not all device classes.
+- **Interrupt syscalls are not dispatched.** `irq_bind`/`irq_ack`/`irq_wait`
+  are declared in `fjell-abi` and have user-space wrappers, but
+  `trap/syscall.rs` has no dispatch arm for any of them (see §2, "Declared,
+  not dispatched"); calling one returns `UnknownSyscall`. `driver-virtio-net`
+  calls `sys_irq_bind`, but it is a documented early-exit stub
+  (`docs/release/v1-limitations.md`), so this is not exercised as a live
+  interrupt path at v1.0.
 
 ## 7. Known gaps
 

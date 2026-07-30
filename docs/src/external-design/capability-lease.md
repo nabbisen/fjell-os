@@ -31,9 +31,15 @@ A 25+-bit rights lattice: `READ`, `WRITE`, `EXECUTE`, `SEND`, `RECV`, `CALL`,
 
 ### Capability operations (syscalls)
 
-`cap_copy` (equal-rights copy), `cap_mint` (strict subset), `cap_revoke`,
-`cap_drop`, `cap_install` / `cap_install_with_rights` (broker path),
-`cap_inspect`, `cap_bind_lease`.
+`cap_copy` (equal-rights copy), `cap_mint` (strict subset), `cap_delete`,
+`cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease`.
+
+`cap_install` and `cap_install_with_rights` are declared in `fjell-abi` and
+have user-space wrappers, but `trap/syscall.rs` has no dispatch arm for
+`CapInstall` — see [Kernel](./kernel.md) §2 "Declared, not dispatched".
+Bootstrap capability installation at v0.21.2 goes entirely through the
+in-kernel `CSpace::install_raw` path, called directly from `main.rs` during
+service spawn — not through a syscall a running service can invoke.
 
 ### Lease operations (syscalls)
 
@@ -89,8 +95,11 @@ hanging.
 
 - Capability persistence across reboot is out of scope for v1.0 (caps are
   bootstrapped fresh at boot).
-- `CapInstall` is granted only to cap-broker and init during bootstrap
-  (RFC 056); no general capability-installation authority exists in user space.
+- No syscall-level capability-installation authority exists in user space at
+  all: the `CapInstall` syscall is declared but not dispatched (§2 above).
+  What RFC 056 describes as cap-broker/init bootstrap installation is the
+  in-kernel `CSpace::install_raw` path invoked directly from `main.rs`, not
+  a capability a service holds and exercises via syscall.
 
 There are no known correctness gaps in the capability/lease core at v0.21.2; the
 Verus proofs and negative tests cover the security-critical predicates.

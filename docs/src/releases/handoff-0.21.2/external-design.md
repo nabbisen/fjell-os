@@ -16,14 +16,18 @@ surface, no kernel heap, no multi-hart in v1.0, no in-kernel policy decisions.
 
 ## 2. External design
 
-**Syscall surface (the kernel's public API).** 38 syscalls in eight groups:
-IPC (call/recv/reply/try-send/try-recv, synchronous rendezvous), capability
-management (copy/mint/revoke/drop/install/inspect/bind-lease), lease lifecycle
+**Syscall surface (the kernel's public API).** `fjell-abi` declares 35
+syscall numbers; **26 are dispatched** in eight groups: IPC
+(call/recv/reply/send/try-recv, synchronous rendezvous), capability
+management (copy/mint/delete/revoke/drop/inspect/bind-lease), lease lifecycle
 (create/revoke/inspect), task management (spawn/start/status), hardware access
-(mmio-map, dma-alloc/revoke, irq-bind/wait/ack — each gated by a capability
-naming the resource), platform (reboot, info-get, region-resolve), audit
-(drain), and scheduler (yield, exit). The register-level contract is normative
-in `docs/src/abi/ipc-register-layout.md` (a0 status/handle, a1 packed tag,
+(mmio-map, dma-alloc/revoke — each gated by a capability naming the resource),
+platform (info-get), audit (drain), and scheduler (yield, exit). The
+remaining 9 (`cap_install`, `irq_bind`/`irq_wait`/`irq_ack`, `reboot`,
+`task_kill`, `mmio_unmap`, `dma_share`, and a second reboot number) are
+declared but not dispatched — see
+[Kernel](../../external-design/kernel.md) §2. The register-level contract is
+normative in `docs/src/abi/ipc-register-layout.md` (a0 status/handle, a1 packed tag,
 a2–a5 message words, a6 kernel-attested sender identity, a7 syscall number).
 
 **Major components.** The kernel (`fjell-kernel`) holds the capability system,

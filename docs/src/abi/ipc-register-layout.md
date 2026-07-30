@@ -26,7 +26,7 @@ All IPC syscalls use the RISC-V ecall convention.
 | a2..a5 | in (call/send) | message words w0..w3 | Up to 4 words. Only `word_count` words are read from the sender's frame. |
 | a2..a5 | out (recv) | message words w0..w3 | Words are placed starting at a2 regardless of how many were sent. Unset words are 0. |
 | a6 | out (recv) | kernel-attested sender identity | `(sender_tid as u16) \| ((sender_image_id as u16) << 16)`. Written by `deliver()`; cannot be forged by the sender. |
-| a7 | in | syscall number | `SyscallNumber::IpcCall`, `IpcRecv`, `IpcReply`, `IpcTrySend`. |
+| a7 | in | syscall number | `SyscallNumber::IpcCall`, `IpcRecv`, `IpcReply`, `IpcSend`. |
 
 ### What is NOT delivered
 
@@ -95,10 +95,12 @@ recv:  a0 = status
 
 ### `sys_ipc_try_send(ep_handle, tag) → Result<(), SysError>`
 
-Non-blocking send. Returns `WouldBlock` if no receiver is waiting.
+Non-blocking send. Returns `WouldBlock` if no receiver is waiting. There is
+no distinct `IpcTrySend` syscall number — this wrapper issues `IpcSend` (20),
+the same number a future blocking send wrapper would use.
 
 ```
-send:  a0 = ep_handle, a1 = tag, a7 = IpcTrySend
+send:  a0 = ep_handle, a1 = tag, a7 = IpcSend
 recv:  a0 = status
 ```
 

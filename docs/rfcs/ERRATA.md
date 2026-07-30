@@ -104,6 +104,28 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   to a6, badge removed (no user-space consumer existed). Covered by the
   three new real IPC negative markers now passing for the first time.
 
+## E-011 — RFC-v0.7.4-003: `cap_install` rights validation
+
+- **Claim:** `sys_cap_install`'s doc-comment states "the kernel validates that
+  `rights` ⊆ installer authority"; `sys_cap_install_with_rights`'s doc-comment
+  states it "[a]llows cap-broker to install caps with a narrower right set
+  than `ALL_NON_META`."
+- **Shipped:** neither claim executes. `sys_cap_install_with_rights`
+  (`crates/fjell-syscall/src/lib.rs:639`) discards its `rights_bits` argument
+  (`let _ = rights_bits;`) and falls back to `sys_cap_install`. More
+  fundamentally, `CapInstall` (17) has no dispatch arm in
+  `crates/fjell-kernel/src/trap/syscall.rs` at all (RFC-v0.21.3-001 §M2) — both
+  wrappers issue a syscall number the kernel rejects with `UnknownSyscall`.
+  No rights check of any kind currently executes for this path, because the
+  path itself is unreachable.
+- **Resolution:** **ACCEPTED** pending RFC-v0.21.3-001. Deferred to v0.22: the
+  durable disposition of `CapInstall` and the other 8 declared-but-undispatched
+  syscalls (implement, remove from the ABI, or keep permanently reserved) is
+  an open roadmap item, not decided by RFC-v0.21.3-001 itself. Not a live
+  security hole — the syscall fails closed (`UnknownSyscall`) rather than
+  installing with excess rights — but the doc-comments must not be read as
+  describing shipped behaviour until v0.22 resolves it.
+
 ---
 
 ## Summary
@@ -120,7 +142,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-008 recovery follow-test | v0.16-003 | CLOSED |
 | E-009 non-goals review | v0.16-005 | CLOSED |
 | E-010 IPC words delivery | v0.20.0 fix | CLOSED |
+| E-011 cap_install rights validation | v0.21.3-001 (v0.22 disposition) | ACCEPTED |
 
-At v0.20.0 update: 0 OPEN, 9 CLOSED, 1 ACCEPTED. The one ACCEPTED item
-(hardware boot) is reflected in the v1.0 scope statement and release
-notes; it is a disclosed limitation, not silent drift.
+At v0.21.3 update: 0 OPEN, 9 CLOSED, 2 ACCEPTED. The ACCEPTED items
+(hardware boot, `cap_install` rights validation) are reflected in the v1.0
+scope statement / RFC-v0.21.3-001; both are disclosed limitations, not
+silent drift.

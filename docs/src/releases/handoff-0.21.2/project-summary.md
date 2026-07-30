@@ -25,8 +25,10 @@ production trust-anchor lifecycle.
 ## 2. Requirements snapshot
 
 **Functional (API-visible behaviour).** A capability-gated syscall surface
-(38 syscalls across IPC, capability management, lease lifecycle, task
-management, hardware access, platform, audit, and scheduler groups); synchronous
+(26 dispatched syscalls across IPC, capability management, lease lifecycle,
+task management, hardware access, platform, audit, and scheduler groups; a
+further 9 are declared in the ABI but not dispatched — see
+[Syscall Reference](../../api/syscalls.md)); synchronous
 rendezvous IPC with kernel-attested sender identity; lease-bounded authority
 where revocation atomically cancels in-flight IPC; signed-bundle verification;
 append-only audit evidence drainable to user space.
