@@ -32,3 +32,4 @@ target
 
 # Custom
 /.git-exclude/
+/.claude/
