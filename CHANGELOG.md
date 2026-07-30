@@ -94,7 +94,18 @@ with the shipped implementation. No v1.0 tag activity.
 
 ---
 
-## [0.21.2] — v1.0 handoff bundle + stale-reference cleanup
+## [0.21.2] — v1.0 handoff bundle + stale-reference cleanup — `KNOWN-BAD`
+
+**`KNOWN-BAD`** (RFC-v0.21.3-002, Decision request 2, owner-accepted
+2026-07-30): this tag's workspace manifest does not parse (`Cargo.toml`'s
+`members` array is an unterminated, non-recursive glob — introduced by
+`5091e54`, tagged as part of this release regardless). `cargo metadata`
+fails, so every `cargo` entry point is unreachable and no gate in this
+release can be re-run. Nothing in the tree below builds. Superseded by
+`0.21.3` (RFC-v0.21.3-001), which restores the build and re-verifies every
+mechanical gate. The tag is kept, not deleted or moved — see
+`docs/rfcs/ERRATA.md` and `rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+for the full account.
 
 ### Added
 
