@@ -111,8 +111,13 @@ fn main() -> ExitCode {
         }
         Some("bench") => bench::cmd_bench(&args[1..]),
         Some("repro-check") => {
+            // Forward any extra flags (e.g. --record-baseline, --baseline
+            // <path>) after the default --skip-build. Previously these were
+            // silently dropped, so `cargo xtask repro-check --record-baseline`
+            // had no way to reach the tool at all.
             let status = std::process::Command::new("cargo")
                 .args(["run", "-p", "fjell-repro-check", "--", "--skip-build"])
+                .args(&args[1..])
                 .status()
                 .map(|s| s.code().unwrap_or(1))
                 .unwrap_or(1);

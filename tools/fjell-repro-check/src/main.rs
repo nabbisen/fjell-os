@@ -13,9 +13,9 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode, Stdio};
+use std::process::{Command, ExitCode};
 
 /// Default artefact glob patterns relative to workspace root.
 /// Extended as new services are added.
@@ -36,6 +36,10 @@ fn main() -> ExitCode {
     eprintln!("fjell-repro-check: performing two-build reproducibility check");
     two_build_check(&args)
 }
+
+/// Name of the flag that opts in to recording a new baseline. Recording must
+/// never be a side effect of an ordinary check run — see RFC-v0.21.3-001 §M4.
+const RECORD_BASELINE_FLAG: &str = "--record-baseline";
 
 // ── Two-build check ───────────────────────────────────────────────────────────
 
@@ -84,6 +88,7 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
         .and_then(|w| w.get(1))
         .map(String::as_str)
         .unwrap_or("tests/repro/baseline-digests.txt");
+    let record_baseline = args.iter().any(|a| a == RECORD_BASELINE_FLAG);
 
     let mut current = collect_digests();
     // The committed baseline only tracks committed artefacts (prebuilt/*.bin).
@@ -91,18 +96,41 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
     // `cargo clean` — and are covered by the full two-build mode instead.
     current.retain(|k, _| !k.starts_with("target/"));
 
-    // If baseline doesn't exist, create it and pass.
+    // A missing baseline must fail closed, not silently record and pass —
+    // otherwise this tier detects nothing (RFC-v0.21.3-001 §M4). Recording a
+    // new baseline is only ever an explicit, opt-in action.
     if !Path::new(baseline_path).exists() {
-        match save_digests(&current, baseline_path) {
-            Ok(_) => {
-                eprintln!("fjell-repro-check: baseline written to {}", baseline_path);
-                return ExitCode::SUCCESS;
-            }
-            Err(e) => {
-                eprintln!("fjell-repro-check: {}", e);
-                return ExitCode::FAILURE;
-            }
+        if record_baseline {
+            return match save_digests(&current, baseline_path) {
+                Ok(_) => {
+                    eprintln!("fjell-repro-check: baseline recorded to {}", baseline_path);
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("fjell-repro-check: {}", e);
+                    ExitCode::FAILURE
+                }
+            };
         }
+        eprintln!(
+            "fjell-repro-check: FAIL — no baseline at {} (this is not a passing state).",
+            baseline_path
+        );
+        eprintln!(
+            "  To record one deliberately: cargo run -p fjell-repro-check -- \
+             --skip-build {} [--baseline <path>]",
+            RECORD_BASELINE_FLAG
+        );
+        return ExitCode::FAILURE;
+    }
+
+    if record_baseline {
+        eprintln!(
+            "fjell-repro-check: {} has no effect when a baseline already exists at {} \
+             — delete it first if you intend to re-record.",
+            RECORD_BASELINE_FLAG, baseline_path
+        );
+        return ExitCode::FAILURE;
     }
 
     let baseline = match load_digests(baseline_path) {

@@ -114,5 +114,15 @@ over the whole workspace will try to compile RISC-V-asm crates (e.g.
 Evidence for the latest successful gates: `cargo xtask build` produced zero
 warnings at v0.21.2; `cargo xtask test-all --no-qemu` passed all five required
 host tiers; `cargo xtask release-rehearsal` passed Gates 1–8, 10, 11 with Verus
-machine-checked (capability 8/8, lease 5/5). Re-run to regenerate logs (the
-repro baseline is re-recorded per run by design).
+machine-checked (capability 8/8, lease 5/5). Re-run to regenerate logs.
+
+**Repro baseline, corrected (RFC-v0.21.3-001 §M4):** `fjell-repro-check` has
+two modes. The default (two-build) mode needs no stored baseline — it builds
+twice and compares. `--skip-build` mode (test-all tier 5, used in CI for
+speed) hashes the committed `crates/fjell-kernel/prebuilt/*.bin` against the
+committed `tests/repro/baseline-digests.txt` and **fails closed** if that
+baseline is absent. The earlier statement here — "the repro baseline is
+re-recorded per run by design" — described a fail-open bug (a missing
+baseline silently recorded itself and reported PASS), not a design. Recording
+a new baseline now requires the explicit `--record-baseline` flag and is
+never a side effect of a check run.
