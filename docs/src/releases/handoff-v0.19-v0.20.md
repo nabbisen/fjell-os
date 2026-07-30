@@ -8,6 +8,10 @@ manual sign-off pending; architect re-review of v0.20.0 pending).
 **Audience:** architect review.
 **Author:** implementation assistant.
 
+**Correction (RFC-v0.22-001):** `release-rehearsal` gained a twelfth gate
+(consistency-check) in v0.22. "Gates 1–11" was accurate at this v0.20.0
+handoff and is left as originally written, per the frozen-bundle convention.
+
 This document is written from six perspectives in sequence. Each is
 intentionally narrow — read all of them before forming a judgment.
 

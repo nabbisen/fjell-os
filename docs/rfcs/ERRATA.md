@@ -126,6 +126,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   installing with excess rights — but the doc-comments must not be read as
   describing shipped behaviour until v0.22 resolves it.
 
+## E-012 — RFC-v0.15-003: v1.0 release checklist Step 9 bundle path
+
+- **Claim:** `docs/release/release-checklist.md` Step 9 ("Sign all bundles")
+  iterates `target/release-bundles/*.bundle` and signs each one.
+- **Shipped:** `cargo xtask package-release`
+  (`crates/fjell-tools/src/package_release.rs`) produces a single
+  `fjell-os-v{version}.tar.gz` archive at the repository root. No code under
+  `crates/` or `tools/` writes to `target/release-bundles/`, and no
+  `.bundle` file is produced anywhere in the toolchain — Step 9's glob would
+  match nothing.
+- **Resolution:** **OPEN**. Recorded per RFC-v0.22-001 §Scope item 5 as a
+  record-only finding — v1.0 is not in view for this RFC, and a checklist
+  executability audit is explicitly out of its scope. Not investigated or
+  fixed here; whoever next executes the v1.0 release checklist for real
+  must resolve this before Step 9 can run.
+
 ---
 
 ## Summary
@@ -143,8 +159,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-009 non-goals review | v0.16-005 | CLOSED |
 | E-010 IPC words delivery | v0.20.0 fix | CLOSED |
 | E-011 cap_install rights validation | v0.21.3-001 (v0.22 disposition) | ACCEPTED |
+| E-012 release checklist Step 9 bundle path | v0.22-001 (recorded, not fixed) | OPEN |
 
-At v0.21.3 update: 0 OPEN, 9 CLOSED, 2 ACCEPTED. The ACCEPTED items
+At v0.22 update: 1 OPEN, 9 CLOSED, 2 ACCEPTED. The ACCEPTED items
 (hardware boot, `cap_install` rights validation) are reflected in the v1.0
 scope statement / RFC-v0.21.3-001; both are disclosed limitations, not
-silent drift.
+silent drift. E-012 is a v1.0-checklist-specific finding recorded per
+RFC-v0.22-001 §Scope item 5; it does not block a v0 release and was not
+investigated further, per that RFC's explicit non-goal.

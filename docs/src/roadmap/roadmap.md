@@ -227,9 +227,9 @@ trust-anchor lifecycle, a fully verified kernel, POSIX compatibility, or
 general-purpose OS readiness.
 
 **Remaining before the tag:** Gate 9 manual sign-off, plus re-verification
-that the eleven mechanical gates actually pass post-RFC-v0.21.3-001 (see
-"Current state" above) — the gates were unreachable at v0.21.2 and are being
-re-run, not re-litigated, by that RFC.
+that the twelve mechanical gates (RFC-v0.22-001 added Gate 12) actually pass
+post-RFC-v0.21.3-001 (see "Current state" above) — the gates were
+unreachable at v0.21.2 and are being re-run, not re-litigated, by that RFC.
 
 ## Immediately after v1.0.0 (required soon, per architect review)
 

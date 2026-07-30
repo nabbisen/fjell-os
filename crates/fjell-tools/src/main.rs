@@ -14,7 +14,9 @@
 //!                                        captured log  (RFC 025)
 //!   qemu-run --profile <name>          — run an explicit profile from
 //!                                        tests/qemu/profiles/<name>.toml
-//!   release-rehearsal                  — run v1.0 tag gates 1-8 (RFC-v0.16-008)
+//!   release-rehearsal                  — run v1.0 tag gates (RFC-v0.16-008)
+//!   consistency-check [<subcheck>|--all] — declared vs. actual state
+//!                                        checks  (RFC-v0.22-001, Gate 12)
 //!   test-all [--no-qemu]              — run every test tier; write
 //!                                        dated log bundle to tests/runs/
 
@@ -166,6 +168,20 @@ fn main() -> ExitCode {
                 ExitCode::from(status as u8)
             }
         }
+        Some("consistency-check") => {
+            // RFC-v0.22-001 (Gate 12): declared vs. actual repository state
+            let sub = args.get(1).map(String::as_str).unwrap_or("--all");
+            let status = std::process::Command::new("cargo")
+                .args(["run", "-q", "-p", "fjell-consistency-check", "--", sub])
+                .status()
+                .map(|s| s.code().unwrap_or(1))
+                .unwrap_or(1);
+            if status == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
         Some("trust-report") => trust_report::cmd_trust_report(&args[1..]),
         Some("callsite-audit") => callsite_audit::cmd_callsite_audit(),
         Some("package-release") => package_release::cmd_package_release(),
@@ -201,7 +217,8 @@ Subcommands:
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
   dev lint <manifest.toml>
   verus-check [<target>|--all-pilot|--release-required]  (RFC-v0.17-005)
-  release-rehearsal              run v1.0 tag gates 1-8 (RFC-v0.16-008)
+  release-rehearsal              run v1.0 tag gates (RFC-v0.16-008)
+  consistency-check [<subcheck>|--all]  declared vs. actual state (RFC-v0.22-001)
   test-all [--no-qemu]           run every tier, save logs to tests/runs/
   trust-report [--dry-run]       RFC 061 §6 six-section trust report"
     );

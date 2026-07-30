@@ -13,6 +13,10 @@ emitters, end-to-end trust-anchor provisioning. Compatibility the implementation
 must preserve: the `fjell-abi` snapshot surface (no removals without an RFC) and
 the IPC register layout in `docs/src/abi/ipc-register-layout.md`.
 
+**Correction (RFC-v0.22-001):** the release-rehearsal harness gained a
+twelfth gate (consistency-check) in v0.22. "Eleven-gate" was accurate as of
+v0.21.2 and is left as originally written, per the frozen-bundle convention.
+
 ## 2. Repository map
 
 ```text
@@ -47,6 +51,10 @@ Inspect first:
 | `crates/fjell-tools/src/qemu.rs` | `SERVICES` build list + objcopy pipeline | Add new services to `SERVICES` |
 | `crates/fjell-tools/src/release_rehearsal.rs` | The 11 gates | Release gate definitions |
 | `docs/src/abi/ipc-register-layout.md` | Normative IPC ABI | Change requires an RFC |
+
+**Correction (RFC-v0.22-001):** `release_rehearsal.rs` now defines twelve
+gates (Gate 12, consistency-check, added in v0.22). Row left as originally
+written, per the frozen-bundle convention.
 
 ## 3. Setup and build commands
 

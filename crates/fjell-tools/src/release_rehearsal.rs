@@ -1,8 +1,9 @@
 //! Release rehearsal — RFC-v0.16-008.
 //!
-//! Runs the mechanical v1.0 tag gates 1–8 and prints a PASS/FAIL matrix.
-//! Gate 9 (release-notes limitations section) is a human checklist item
-//! and is reported as a manual reminder, not auto-checked.
+//! Runs the mechanical v1.0 tag gates and prints a PASS/FAIL matrix: gates
+//! 1–8, 10, 11, and 12 (RFC-v0.22-001 added Gate 12). Gate 9 (release-notes
+//! limitations section) is a human checklist item and is reported as a
+//! manual reminder, not auto-checked.
 //!
 //! This does not apply any tag. The v1.0.0 tag remains owner/architect
 //! gated; this command only produces the evidence that the gates pass.
@@ -286,6 +287,28 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     println!(
         "  [{}] Gate 11 Callsite conformance           LEASE/CAP/BCB-CALLSITE checks (static heuristic guard)",
         g11_mark
+    );
+
+    // Gate 12 (RFC-v0.22-001): repository consistency — declared state vs.
+    // actual state (syscall surface, errata/limitations binding, RFC
+    // folder/Status agreement, handoff status inheritance).
+    let g12_ok = run_cmd_status(&[
+        "cargo",
+        "run",
+        "-q",
+        "-p",
+        "fjell-tools",
+        "--",
+        "consistency-check",
+        "--all",
+    ]);
+    let g12_mark = if g12_ok { "PASS" } else { "FAIL" };
+    if !g12_ok {
+        all_pass = false;
+    }
+    println!(
+        "  [{}] Gate 12 Consistency check                syscall-surface, errata-limitations, rfc-status-folder, handoff-status",
+        g12_mark
     );
 
     if all_pass {

@@ -8,10 +8,14 @@
 //! implementation handoff §0.1.
 //!
 //! Subchecks:
-//!   - `syscall-surface`   — declared vs. dispatched syscalls vs. the
-//!                           committed expectations file (Slice 1)
-//!   - (Slice 4 adds `errata-limitations`, `rfc-status-folder`,
-//!     `handoff-status`)
+//!   - `syscall-surface` — declared vs. dispatched syscalls vs. the
+//!     committed expectations file (Slice 1)
+//!   - `errata-limitations` — every ACCEPTED erratum is referenced in the
+//!     v1.0 limitations doc (Slice 4)
+//!   - `rfc-status-folder` — each RFC's Status agrees with its folder
+//!     (Slice 4)
+//!   - `handoff-status` — each handoff's inherited Status matches its
+//!     governing RFC (Slice 4)
 //!
 //! Usage:
 //!   `fjell-consistency-check <subcheck>`
@@ -20,6 +24,10 @@
 use std::fs;
 use std::process::ExitCode;
 
+mod errata_limitations;
+mod handoff_status;
+mod rfc_status_folder;
+mod status;
 mod syscall_surface;
 
 fn main() -> ExitCode {
@@ -28,16 +36,29 @@ fn main() -> ExitCode {
 
     match sub {
         "syscall-surface" => run_named("syscall-surface", syscall_surface::check),
+        "errata-limitations" => run_named("errata-limitations", errata_limitations::check),
+        "rfc-status-folder" => run_named("rfc-status-folder", rfc_status_folder::check),
+        "handoff-status" => run_named("handoff-status", handoff_status::check),
         "--all" => run_all(),
         _ => {
-            eprintln!("Usage: fjell-consistency-check <syscall-surface|--all>");
+            eprintln!(
+                "Usage: fjell-consistency-check \
+                 <syscall-surface|errata-limitations|rfc-status-folder|handoff-status|--all>"
+            );
             ExitCode::FAILURE
         }
     }
 }
 
+type Subcheck = (&'static str, fn() -> ExitCode);
+
 /// All subchecks, in the order Gate 12 reports them.
-const ALL_SUBCHECKS: &[(&str, fn() -> ExitCode)] = &[("syscall-surface", syscall_surface::check)];
+const ALL_SUBCHECKS: &[Subcheck] = &[
+    ("syscall-surface", syscall_surface::check),
+    ("errata-limitations", errata_limitations::check),
+    ("rfc-status-folder", rfc_status_folder::check),
+    ("handoff-status", handoff_status::check),
+];
 
 fn run_all() -> ExitCode {
     let mut all_ok = true;
