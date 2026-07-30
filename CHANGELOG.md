@@ -5,6 +5,79 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.22.0] — 2026-07-31 — Gate integrity
+
+RFC-v0.22-001. No new OS functionality; no kernel, ABI, capability, lease,
+IPC, or crypto behaviour change. Strengthens the mechanical gates
+themselves — the instruments that certify this project's release claims —
+after RFC-v0.21.3-001 found four separate instances of a gate reporting
+green while a documented rule went unmet.
+
+### Added
+
+- New Gate 12 (`tools/fjell-consistency-check/`, `cargo xtask
+  consistency-check`): declared-vs-actual-state checks.
+  - `syscall-surface` — compares declared `SyscallNumber` variants,
+    dispatched match arms, and a committed `tests/syscall/expected.toml`
+    (35 declared, 26 dispatched, the explicit 9-name undispatched set).
+  - `errata-limitations` — every `ACCEPTED` erratum in `docs/rfcs/ERRATA.md`
+    must be referenced in `docs/release/v1-limitations.md`.
+  - `rfc-status-folder` — each RFC's `Status:` field must agree with its
+    `rfcs/proposed/` vs. `rfcs/done/` folder.
+  - `handoff-status` — each handoff's inherited Status must match its
+    governing RFC's actual Status.
+- Erratum **E-012** recorded: the v1.0 release checklist's Step 9
+  references a `target/release-bundles/*.bundle` path that
+  `package_release.rs` never produces. Classified ACCEPTED (a deliberate,
+  disclosed v1.0-checklist-specific gap — v1.0 is not in view for this
+  line); must be resolved before v1.0 preparation begins.
+
+### Fixed
+
+- **Gate 11 (callsite-audit) no longer decides capability/lease/BCB
+  conformance by substring match.** The prior `src.contains(...)` check
+  passed if the required token appeared anywhere in the file, including a
+  comment, a doc-string, or an unrelated function. Now strips comments and
+  string-literal contents before searching, and scopes the LEASE- and
+  CAP-CALLSITE checks to the relevant function's body via brace-matching.
+  Re-running the strengthened check against the real codebase found no
+  violation of any of the three checks.
+- **Gate 4 (ABI snapshot) is no longer formatting-sensitive.** Signatures
+  are now whitespace-normalised before hashing, and a wrapped
+  (multi-line) declaration is joined before normalising. A whole-tree
+  `cargo fmt --all` now produces zero signature changes (previously 163 at
+  v0.21.3, entirely cosmetic). One-time baseline regeneration: 404/404
+  items, 0 added, 0 removed, 28 signatures changed — all attributable to
+  normalisation alone, confirmed by name-for-name comparison.
+- **`rfcs/done/RFC-v0.17-001-trust-anchor-provisioning.md`'s Status field
+  was stale for two release lines.** It read "Accepted (design options —
+  requires architect decision)" while the decision it named was recorded
+  2026-06-04 and that ruling's v1.0-tier deliverable (TOFU provisioning
+  behind `--allow-tofu-provision`) shipped in v0.20.0. Corrected to
+  `Implemented (v0.20.0)`, with an explicit deferred note for the
+  remaining tiers (factory-station v1.1, hardware-anchored v2+). Caught
+  mechanically by the new `rfc-status-folder` subcheck — the first time
+  this project's "status fields that lie" anti-pattern (RFC 000) was
+  found by a gate rather than by review.
+- Two stale "gates 1-8" references in `crates/fjell-tools/src/main.rs`'s
+  own usage text and doc comment, and the repo-wide "eleven gates" sweep:
+  one live forward-looking claim updated (`docs/src/roadmap/roadmap.md`),
+  three frozen historical bundles given correction notes in place
+  (`handoff-0.21.2/implementation-notes.md` ×2, `handoff-v0.19-v0.20.md`).
+
+### Notes
+
+- `cargo xtask release-rehearsal` reports **ALL MECHANICAL GATES PASS**
+  across all twelve gates. Gate 9 remains the manual, human-only gate and
+  is correctly unsigned.
+- Review record: `rfcs/handoffs/RFC-v0.22-001-gate-integrity/review-record-slices-1-4.md`
+  identifies a v0.23 candidate: `ACCEPTED` in the errata register has no
+  gate, review-by date, or owner-acknowledgement requirement of its own,
+  so it is structurally the path of least resistance for reclassifying an
+  inconvenient `OPEN` erratum. Not decided or acted on in this release.
+
+---
+
 ## [0.21.3] — 2026-07-30 — Build restoration and as-built reconciliation
 
 RFC-v0.21.3-001. No new OS functionality; no security-boundary change.

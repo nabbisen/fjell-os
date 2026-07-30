@@ -136,11 +136,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `crates/` or `tools/` writes to `target/release-bundles/`, and no
   `.bundle` file is produced anywhere in the toolchain — Step 9's glob would
   match nothing.
-- **Resolution:** **OPEN**. Recorded per RFC-v0.22-001 §Scope item 5 as a
-  record-only finding — v1.0 is not in view for this RFC, and a checklist
-  executability audit is explicitly out of its scope. Not investigated or
-  fixed here; whoever next executes the v1.0 release checklist for real
-  must resolve this before Step 9 can run.
+- **Resolution:** **ACCEPTED** (architect, 2026-07-31; reclassified from the
+  initial recording as OPEN). Recorded per RFC-v0.22-001 §Scope item 5.
+  Declining to investigate E-012 was a deliberate owner decision
+  (2026-07-30 — cutting the v1.0 checklist audit because v1.0 is not in
+  view), which is ACCEPTED semantics under this register's own legend
+  (a documented, deliberate limitation), on the same grounds as E-004.
+  Not investigated or fixed; must be resolved before v1.0 preparation
+  begins. See `docs/release/v1-limitations.md`.
 
 ---
 
