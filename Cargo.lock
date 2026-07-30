@@ -580,6 +580,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-consistency-check"
+version = "0.21.3"
+
+[[package]]
 name = "fjell-dev-harness"
 version = "0.21.3"
 dependencies = [

@@ -1,0 +1,27 @@
+# Syscall surface expectations (RFC-v0.22-001 Slice 1).
+#
+# Update this file deliberately whenever crates/fjell-abi/src/syscall.rs's
+# SyscallNumber enum or crates/fjell-kernel/src/trap/syscall.rs's dispatch
+# match changes. `cargo run -p fjell-consistency-check -- syscall-surface`
+# fails if the source and this file disagree, in either direction: a
+# syscall added to the enum without updating this file, or an entry here
+# naming a syscall that no longer exists.
+#
+# `undispatched` is deliberately the explicit set of names, not a bare
+# count — a count would let one undispatched syscall silently replace
+# another and still pass.
+
+declared_count = 35
+dispatched_count = 26
+
+undispatched = [
+    "CapInstall",
+    "PlatformReboot",
+    "TaskKill",
+    "MmioUnmap",
+    "IrqBind",
+    "IrqAck",
+    "IrqWait",
+    "DmaShare",
+    "Reboot",
+]

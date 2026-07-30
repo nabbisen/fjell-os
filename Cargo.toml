@@ -73,6 +73,7 @@ members = [
     "tools/fjell-mmio-audit",
     "tools/fjell-summary-check",
     "tools/fjell-readiness-check",
+    "tools/fjell-consistency-check",
     "benches",
     "tools/fjell-ci-coverage",
     "crates/services/fjell-fleetd",

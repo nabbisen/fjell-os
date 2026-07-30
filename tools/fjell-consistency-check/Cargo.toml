@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-consistency-check"
+description = "Checks that the repository's declared state agrees with its actual state (RFC-v0.22-001): syscall surface, ERRATA/limitations binding, RFC folder/Status agreement, handoff status inheritance."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-consistency-check"
+path = "src/main.rs"
