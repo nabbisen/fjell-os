@@ -411,14 +411,14 @@ pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
 pub(crate) static TRAP_SCRATCH: KS<[usize; 5]> = KS(UnsafeCell::new([0usize; 5]));
 
 macro_rules! ks_init {
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     ($ks:expr, $val:expr) => {
+        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
         unsafe { (*$ks.0.get()).write($val) }
     };
 }
 macro_rules! ks_get {
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     ($ks:expr) => {
+        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
         unsafe { (*$ks.0.get()).assume_init_mut() }
     };
 }
