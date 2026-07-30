@@ -301,7 +301,7 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 
 | RFC | Title |
 |-----|-------|
-| v0.21.3-002 | [v0 Development Release Cycle](./proposed/RFC-v0.21.3-002-v0-release-cycle.md) — 2 owner decisions pending |
+| v0.21.3-002 | [v0 Development Release Cycle](./proposed/RFC-v0.21.3-002-v0-release-cycle.md) — both owner decisions closed; handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-002-v0-release-cycle/implementation-handoff.md) |
 
 ---
 
