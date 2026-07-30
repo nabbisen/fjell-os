@@ -102,6 +102,14 @@ over the whole workspace will try to compile RISC-V-asm crates (e.g.
 | IMP-05 | ABI surface frozen; snapshot forbids removals | Downstream stability | abi-snapshot gate (Gate 4) |
 | IMP-06 | Release archive unpacks to `fjell-os-v{version}/`, no nesting | Clean extraction | `cargo xtask package-release` |
 
+**Correction (RFC-v0.21.3-002):** "no nesting" means no *double* nesting, not
+"no parent directory" — the archive intentionally does have one
+(`fjell-os-v{version}/`). See
+[`docs/src/release/v0-release-cycle.md`](../../release/v0-release-cycle.md)
+§Release archive convention for the authoritative, single-source statement
+(owner-accepted, Decision request 1). Row left as originally written, per
+the frozen-bundle convention.
+
 ## 6. Known issues and maintenance notes
 
 | Type | Item | Impact | Suggested fix | Owner |

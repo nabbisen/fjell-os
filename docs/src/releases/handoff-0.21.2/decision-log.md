@@ -32,6 +32,16 @@ consciously revisit. Version: v0.21.2.*
 | IMP-05 | ABI surface frozen; snapshot forbids removals | Downstream stability | Gate 4 (abi-snapshot) |
 | IMP-06 | Release archive unpacks to `fjell-os-v{version}/`, no nesting | Clean extraction | `package-release` xtask |
 | E-010 | IPC word count packed in tag bits 16–23; identity at a6; badge dropped | Correct payload delivery | `docs/rfcs/ERRATA.md` §E-010; `docs/src/abi/ipc-register-layout.md` |
+
+**Correction (RFC-v0.21.3-002):** IMP-06's "no nesting" reads as though the
+archive has no top-level parent directory at all — it does not; it means
+*no double nesting* (one `fjell-os-v{version}/` directory, not two). That
+phrasing is exactly how an undocumented deviation from the project's
+general archive-layout rule stayed invisible for multiple releases. The
+convention is now stated once, authoritatively, in
+[`docs/src/release/v0-release-cycle.md`](../../release/v0-release-cycle.md)
+§Release archive convention, owner-accepted (Decision request 1). IMP-06's
+row above is left as originally written, per the frozen-bundle convention.
 | H-02 | `CapError::WrongKind → SysError::WrongType` (canonical) | Removed divergence from `to_sys_error()` | `trap/syscall.rs` (v0.20.1) |
 
 ## Security decisions
