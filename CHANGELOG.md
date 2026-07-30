@@ -5,7 +5,7 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.21.3] — Build restoration and as-built reconciliation
+## [0.21.3] — 2026-07-30 — Build restoration and as-built reconciliation
 
 RFC-v0.21.3-001. No new OS functionality; no security-boundary change.
 Corrects regressions introduced by `5091e54` and reconciles documentation
