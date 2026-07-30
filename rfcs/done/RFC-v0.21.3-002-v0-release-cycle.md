@@ -1,6 +1,6 @@
 # RFC-v0.21.3-002: v0 Development Release Cycle
 
-**Status:** Proposed
+**Status:** Implemented (v0.21.3)
 **Milestone:** v0.21.3
 **Tracks.** Cross-cutting release governance. Not tied to a feature.
 **Touches.** `docs/release/release-checklist.md`, `CHANGELOG.md`, tag

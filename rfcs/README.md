@@ -12,9 +12,9 @@ rfcs/
 
 ---
 
-## Implemented (done/) — 155 files
+## Implemented (done/) — 156 files
 
-154 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+155 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -292,16 +292,14 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 | RFC | Title | Shipped |
 |-----|-------|---------|
 | v0.21.3-001 | [Build Restoration and As-Built Reconciliation](./done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md) — handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/implementation-handoff.md) | v0.21.3 |
+| v0.21.3-002 | [v0 Development Release Cycle](./done/RFC-v0.21.3-002-v0-release-cycle.md) — handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-002-v0-release-cycle/implementation-handoff.md) | v0.21.3 |
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-### v0.21.3 — v0 Development Release Cycle
-
-| RFC | Title |
-|-----|-------|
-| v0.21.3-002 | [v0 Development Release Cycle](./proposed/RFC-v0.21.3-002-v0-release-cycle.md) — both owner decisions closed; handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-002-v0-release-cycle/implementation-handoff.md) |
+No RFC is currently open. See the note below and the v0.22 candidate themes
+recorded in `rfcs/handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/review-record-disposition.md` §5.
 
 ---
 

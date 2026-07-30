@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-v0.21.3-002
 
-**Governing RFC:** [RFC-v0.21.3-002](../../proposed/RFC-v0.21.3-002-v0-release-cycle.md)
+**Governing RFC:** [RFC-v0.21.3-002](../../done/RFC-v0.21.3-002-v0-release-cycle.md)
 **Milestone:** v0.21.3
-**Status:** inherited from the governing RFC (Proposed — both owner decisions closed 2026-07-30)
+**Status:** inherited from the governing RFC — **Implemented (v0.21.3)**
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
