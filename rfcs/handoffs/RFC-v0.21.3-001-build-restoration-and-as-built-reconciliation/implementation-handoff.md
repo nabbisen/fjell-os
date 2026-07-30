@@ -144,24 +144,36 @@ report it.
 Do not record the repro baseline yet — that happens in §4.3, after this slice,
 and only via the explicit recording flag.
 
-### 3.3 Finding C — characterize the 11 changed prebuilt binaries
+### 3.3 Finding C — build-output non-determinism
 
-Raised by the review record §6. Slice 1's rebuild changed 11 of 28 prebuilt
-binaries at identical sizes, with no source change. **17 of 28 reproduced
-byte-identically across the same environment change**, so "expected
-non-reproducibility across environments" does not explain it.
+**Status: characterized. No longer blocks anything.** See
+[review-record-slice-2b-2c.md](./review-record-slice-2b-2c.md) §3–§4. The
+earlier instruction here ("do not record the repro baseline over it") is
+**withdrawn** — it rested on an assumption about baseline stability that turned
+out to be false.
 
-Before §4.3 records a baseline, determine whether the difference is confined to
-a known-volatile region or reaches executable content — e.g.:
+Summary of where it landed:
+
+- 2 of the 11 (`diagnosticsd`, `syncd`) had real source changes at `a02f4a9`,
+  after the last prebuilt rebuild at `a5b5167`. Their binaries *should* have
+  changed. Explained and benign.
+- The other 9 have no source change since `a5b5167` and still rebuilt to
+  different bytes, while 17 rebuilt byte-identically. That anomaly stands.
+- Disposition: **v0.22, its own RFC.** A fix touches `codegen-units`,
+  incremental compilation, or linker ordering — build configuration, outside
+  this patch's premise.
+
+**One task remains here**, and it is cheap:
 
 ```sh
-cmp -l <old>.bin <new>.bin | awk '{print $1}' | head -40   # byte-offset spread
+cargo xtask repro-check      # default two-build mode, NOT --skip-build
 ```
 
-If it cannot be explained, **do not record the repro baseline over it**, and
-report §4.3 as blocked. Recording across an unexplained delta bakes the anomaly
-in as correct — the exact failure mode §4.3's fail-closed change exists to
-prevent. This blocks §4.3 only; Slices 2b and 2c proceed regardless.
+This builds twice in one environment and compares. It discriminates the two
+competing hypotheses: within-environment non-determinism (the reproducible-build
+NFR is broken — significant) versus cross-environment only (the NFR holds as
+scoped). Report the result either way; it determines the severity of the v0.22
+RFC and, if negative, goes to the owner.
 
 ---
 
@@ -268,7 +280,18 @@ recorded where a reader looking for limitations will find it.
 
 ### 4.3 Repro baseline — make the tier able to fail
 
-Not blocked. Decided in RFC §M4; implement as follows.
+Not blocked (Finding C does not gate this — see review-record-slice-2b-2c §4.2).
+Decided in RFC §M4; implement as follows.
+
+Why Finding C does not block it: `collect_digests()` hashes the **committed**
+`prebuilt/*.bin`, and `--skip-build` strips `target/` entries. Those files
+change only when someone deliberately rebuilds and commits, so the baseline is
+stable under ordinary work regardless of build determinism. Slice 1 rebuilt
+them from current source, so recording now records the correct state.
+
+Record this as a known limitation alongside the baseline: regenerating
+`prebuilt/*.bin` requires re-recording the baseline, and per Finding C a
+rebuild may produce different bytes even with unchanged source.
 
 `tools/fjell-repro-check` has two modes. Default mode builds twice and compares
 — no stored baseline needed. `--skip-build` mode (this is `test-all` tier 5,
