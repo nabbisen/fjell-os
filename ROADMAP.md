@@ -143,7 +143,51 @@ release). Each line delivered a coherent theme:
 | v0.18.0 | Verus Promotion to Release-Required | ✅ |
 | v0.19.x | Negative-test conversion (found six latent kernel bugs) | ✅ |
 | v0.20.x | v1-readiness: fail-closed gate, IPC ABI fix (E-010) | ✅ |
-| v0.21.x | Crate reorganization, audits, handoff + design docs | ✅ current |
+| v0.21.x | Crate reorganization, audits, handoff + design docs | ✅ |
+| v0.21.3 | Build restoration, as-built reconciliation, v0 release cycle | ✅ released |
+
+### v0.22 — Gate Integrity (planned; owner-approved 2026-07-30)
+
+v0.21.3 found **four** separate instances of a mechanical gate reporting
+green while a documented rule went unmet. That is one class of defect, not
+four bugs. Every completion claim in this project is settled by the eleven
+gates, so v0.22 makes them mean what they claim before further function is
+built on top of them.
+
+Governing principle for the line: **every gate added or strengthened must be
+demonstrated failing on a deliberately broken input before it is accepted.**
+
+| # | Item |
+|---|---|
+| 1 | Gate 11 from substring matching to a real function-body scan (architect review H-03) |
+| 2 | Gate 4 ABI signature normalisation — today a whole-tree `cargo fmt` invalidates the baseline wholesale |
+| 3 | Mechanical syscall-count check, to stop documented-surface drift recurring |
+| 4 | Bind documented rules to gates where cheap (ACCEPTED errata ↔ limitations; RFC folder ↔ Status; handoff status inheritance) |
+
+Governed by `RFC-v0.22-001`. Out of scope: negative-coverage completion, the
+9 undispatched syscalls, build determinism, DMA unmap, and anything touching
+kernel/ABI/crypto behaviour.
+
+### Beyond v0.22 — under discussion, not yet decided
+
+**v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
+continues. The owner has directed that functional advancement, not only
+stabilization, must precede any v1.0 consideration — the current state is
+far from production readiness or demonstrable appeal.
+
+Candidate directions are recorded but **deliberately undecided**; choosing
+among them is a joint planning discussion still to be held:
+
+- Make the semantic plane real (the ABDD live path and beyond)
+- Make the service plane real (17 of 29 services currently never receive IPC)
+- Make the system operable by a human (base userland, FR-SVC-006)
+- Make it run on metal (hardware bring-up)
+
+A measured finding that bears on that discussion: `proxy-text` contains 845
+lines of working renderer that nothing calls — its service entry point
+prints one line and exits. The same is true of `semantic-stream`. Fjell's
+distinguishing demonstration is largely built and entirely unwired, so the
+gap may be smaller than the current state suggests.
 
 **v1.0.0 — First Supported Profile** is architect-conditionally-approved.
 At v0.21.2, the workspace manifest was broken (`cargo metadata` failed to

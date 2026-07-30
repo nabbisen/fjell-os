@@ -296,10 +296,13 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently open. See the note below and the v0.22 candidate themes
-recorded in `rfcs/handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/review-record-disposition.md` §5.
+### v0.22 — Gate Integrity
+
+| RFC | Title |
+|-----|-------|
+| v0.22-001 | [Gate Integrity](./proposed/RFC-v0.22-001-gate-integrity.md) — owner-approved planning baseline 2026-07-30; handoff pending |
 
 ---
 
