@@ -222,7 +222,11 @@ Within this RFC's scope, in `docs/release/release-checklist.md`:
 - [ ] `release-checklist.md` Step 11 uses the bare-tag convention (`0.21.2`,
       not `v0.21.2`) per M4. Tag and archive-filename conventions are correct
       as-is and must not be "harmonised".
-- [ ] The archive-layout deviation is recorded per Decision request 1.
+- [ ] The archive convention (internal `fjell-os-v{version}/` directory) is
+      stated once, authoritatively, in this project's release documentation —
+      not as an exception logged against the generic rule, and not duplicated
+      across two documents. IMP-06's "no nesting" wording is corrected, since
+      it reads as rule-compliant while describing the opposite.
 
 ## Risks
 
@@ -234,9 +238,27 @@ Within this RFC's scope, in `docs/release/release-checklist.md`:
 
 ## Decision requests (owner)
 
-### Decision request 1 — release archive layout
+### Decision request 1 — release archive layout — **ACCEPTED (owner, 2026-07-30)**
 
-**Decision required.** Archives currently unpack to `fjell-os-v{version}/`.
+**Decision: keep the internal `fjell-os-v{version}/` directory, and state the
+convention once in this project's own release documentation.**
+
+Not recorded as a "deviation logged against the generic rule" — that would leave
+two documents that must be read together to know the truth. The owner's stated
+principles are a single source of truth in documentation and clear simplicity in
+project structure, and both point the same way here: the project's release docs
+state the archive convention, authoritatively, in one place. The generic project
+rule remains the default for other projects; it is not amended and not
+cross-referenced.
+
+Implementation is an acceptance criterion of this RFC. `package_release.rs`
+changes not at all — what ships today is what was chosen.
+
+---
+
+*Original decision request, retained for the record:*
+
+Archives currently unpack to `fjell-os-v{version}/`.
 Your project rules mark an intermediate parent directory as ❌ Bad.
 
 Scope of the question: the **archive's internal top-level directory**, i.e.
