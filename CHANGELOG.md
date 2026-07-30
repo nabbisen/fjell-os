@@ -5,6 +5,95 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.21.3] — Build restoration and as-built reconciliation
+
+RFC-v0.21.3-001. No new OS functionality; no security-boundary change.
+Corrects regressions introduced by `5091e54` and reconciles documentation
+with the shipped implementation. No v1.0 tag activity.
+
+### Fixed — build restoration (blocker)
+
+- **`Cargo.toml` did not parse.** `members` was an unterminated, non-recursive
+  glob (`5091e54`), so `cargo metadata` — and therefore every `cargo`
+  entry point, including `cargo xtask release-rehearsal` — failed before
+  doing any work. Restored the explicit 88-entry member list. `cargo
+  metadata --no-deps` now exits 0 with 88 members; no globs.
+- Removed 56 empty, untracked leftover directories under `crates/` from the
+  v0.21.0 reorganization that made a glob-based member list unrecoverable
+  in the first place.
+- `cargo fmt --all` applied workspace-wide (254 files) — the manifest fix
+  is what made this possible for the first time since the outage.
+- Two Gate 2 (unsafe-audit) regressions from the formatting pass fixed:
+  `cargo fmt` separated 4 `// SAFETY:` comments from their `unsafe` token
+  by one line (macro-arm and function-body expansion); moved each comment
+  to sit immediately above `unsafe` (comment-only, no compiled tokens
+  changed). `fjell-unsafe-audit`: 274/274, fmt-stable.
+- Fixed two stale pre-v0.21.0 paths in `tools/fjell-abi-snapshot`'s
+  `STABLE_CRATES` table (`fjell-audit-format`, `fjell-bundle-format` had
+  moved under `crates/formats/`), which made the tool see zero items in
+  both crates and report 28 real items as "removed." Regenerated
+  `tests/abi/snapshot.json` (401 → 404 items); verified the pre-fmt
+  baseline was never stale in content — only the tool's paths were, and
+  every post-fmt signature change is attributable to formatting alone.
+- Made `tools/fjell-repro-check`'s `--skip-build` mode fail closed: a
+  missing baseline previously auto-recorded itself and reported PASS,
+  so this tier detected nothing. Recording now requires the explicit
+  `--record-baseline` flag and is never a side effect of a check run.
+  Committed `tests/repro/baseline-digests.txt`.
+- Ran the two-build reproducibility check for the first time since the
+  outage: PASS, 29 artefacts identical, in one environment — the
+  reproducible-build NFR holds within an environment.
+
+### Fixed — as-built documentation reconciliation
+
+- Corrected the documented syscall surface: `fjell-abi` declares 35
+  syscall numbers, but `trap/syscall.rs` dispatches 26 (verified against
+  source, not assumed); the other 9 are declared and have user-space
+  wrappers but return `UnknownSyscall`. Updated
+  `docs/src/external-design/kernel.md`, `capability-lease.md`,
+  `docs/src/abi/ipc-register-layout.md` (removed the nonexistent
+  `SyscallNumber::IpcTrySend`), and replaced the 7-line
+  `docs/src/api/syscalls.md` stub with the authoritative 26-entry
+  catalog. Recorded as ERRATA E-011: `sys_cap_install_with_rights`'s
+  doc-comment claims a kernel rights check that cannot execute, because
+  `CapInstall` is not dispatched at all — not a live security hole (it
+  fails closed), but not shipped behaviour either. Disposition of the 9
+  deferred to v0.22.
+- Fixed `docs/src/SUMMARY.md`: a duplicate-file mdBook build error
+  (`./intro/what-is-fjell.md` listed twice), 7 dead links to a renamed
+  handoff-bundle directory, and wired in `docs/src/requirements/`,
+  `docs/src/external-design/` (9 subsystem pages), and
+  `docs/src/roadmap/roadmap.md`, none of which mdBook had ever built.
+- Rebuilt `rfcs/README.md` against `rfcs/done/` (154 files):
+  bidirectionally verified every file is linked exactly once and every
+  link resolves. Moved the v0.11–v0.15 RFCs out of "Proposed" (they were
+  listed there at paths that never existed; all are actually
+  implemented) and added the previously entirely-unlisted v0.9.0,
+  v0.9.4, v0.10.0, and v0.16.0 sections.
+- Corrected stale figures in the root `README.md` (version, RFC count,
+  unsafe-site count re-derived from `fjell-unsafe-audit`) and in
+  `docs/src/releases/handoff-0.21.2/*.md` (version stamps v0.21.1 →
+  v0.21.2).
+- Corrected the claim that Gate 9 was the sole remaining blocker to
+  v1.0.0 in `ROADMAP.md` and `docs/src/roadmap/roadmap.md`: the
+  mechanical gates could not run at all at v0.21.2, so that claim was
+  never actually verified.
+
+### Known limitations introduced or clarified by this release
+
+- 9 of 28 prebuilt service binaries can rebuild to different bytes with
+  no source change (same file size); confirmed cross-environment rather
+  than within-environment via the two-build check above. Root cause
+  (build/link determinism) deferred to its own v0.22 RFC.
+- The ABI snapshot gate is formatting-sensitive by design (line-based
+  signature hashing) — a whole-tree `cargo fmt` invalidates it wholesale.
+  Deferred to the v0.22 candidate list.
+- The durable disposition of the 9 declared-but-undispatched syscalls
+  (implement / remove from the ABI / keep reserved) is not decided by
+  this release.
+
+---
+
 ## [0.21.2] — v1.0 handoff bundle + stale-reference cleanup
 
 ### Added
