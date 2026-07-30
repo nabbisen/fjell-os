@@ -41,6 +41,9 @@ See `testing-and-gates.md` for the full command set and expected results.
 
 - **Version:** v0.21.2 (v1.0 freeze candidate, patch)
 - **v1.0.0 tag:** architect-conditionally-approved; **Gate 9 manual sign-off by
-  the owner (nabbisen) is the only remaining blocker.**
+  the owner (nabbisen) is the only remaining blocker.** *(Superseded —
+  RFC-v0.21.3-001: at v0.21.2 the workspace manifest did not parse, so the
+  mechanical gates could not run at all; Gate 9 was not actually the only
+  blocker, only the only one believed to remain. See `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`.)*
 - **Publication control:** v1.0.0 must not be tagged, published, announced, or
   released without explicit confirmation from nabbisen.

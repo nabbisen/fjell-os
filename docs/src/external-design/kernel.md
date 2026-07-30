@@ -68,7 +68,7 @@ all, so it never reaches the kernel.
 
 The disposition of these 9 — implement, remove from the ABI, or keep
 permanently reserved — is not decided; see
-`rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+`rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
 §Deferred.
 
 ## 3. Internal module boundaries (as-built)

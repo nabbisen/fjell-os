@@ -149,7 +149,7 @@ release). Each line delivered a coherent theme:
 At v0.21.2, the workspace manifest was broken (`cargo metadata` failed to
 parse), so the eleven mechanical gates could not actually run — Gate 9
 (manual limitations sign-off by the owner) was not the only blocker at that
-point, even though it was described as such. `rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+point, even though it was described as such. `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
 restores the build and re-verifies the mechanical gates; see
 `rfcs/handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/`
 for current gate status. Gate 9 remains the only blocker that requires the

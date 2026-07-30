@@ -94,3 +94,9 @@ READY partial coverage (2/4), and the deferred DMA unmap. **Gate 9 (manual
 limitations sign-off by the owner) is the one remaining blocker** before the
 v1.0.0 tag. Evidence: `cargo xtask release-rehearsal` output;
 `docs/release/v1.0-release-notes.md`; `docs/release/v1-limitations.md`.
+
+*(Superseded — RFC-v0.21.3-001: at v0.21.2 the workspace manifest did not
+parse, so none of the eleven mechanical gates could actually run; "all
+eleven pass" and "Gate 9 is the one remaining blocker" both described an
+intended, not a verified, state. See
+`rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`.)*

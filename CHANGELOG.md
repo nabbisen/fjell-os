@@ -104,7 +104,7 @@ fails, so every `cargo` entry point is unreachable and no gate in this
 release can be re-run. Nothing in the tree below builds. Superseded by
 `0.21.3` (RFC-v0.21.3-001), which restores the build and re-verifies every
 mechanical gate. The tag is kept, not deleted or moved — see
-`docs/rfcs/ERRATA.md` and `rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+`docs/rfcs/ERRATA.md` and `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
 for the full account.
 
 ### Added

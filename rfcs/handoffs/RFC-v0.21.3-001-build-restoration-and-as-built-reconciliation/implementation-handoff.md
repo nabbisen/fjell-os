@@ -1,6 +1,6 @@
 # Developer Handoff — RFC-v0.21.3-001
 
-**Governing RFC:** [RFC-v0.21.3-001](../../proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md)
+**Governing RFC:** [RFC-v0.21.3-001](../../done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md)
 **Milestone:** v0.21.3 (patch)
 **Status:** inherited from the governing RFC (Proposed — accepted for implementation, 2026-07-30)
 **Audience:** implementation model

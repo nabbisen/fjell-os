@@ -202,7 +202,7 @@ original MVP intentionally left out. Each line is a coherent theme:
   broken (`cargo metadata` failed to parse), so the eleven mechanical release
   gates could not actually run — the "all eleven pass" and "Gate 9 is the
   single remaining blocker" claims below described an intended, not a
-  verified, state. `rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+  verified, state. `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
   restores the build and re-runs the gates; see
   `rfcs/handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/`
   for current, verified gate status.

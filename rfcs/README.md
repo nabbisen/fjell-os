@@ -12,9 +12,9 @@ rfcs/
 
 ---
 
-## Implemented (done/) — 154 files
+## Implemented (done/) — 155 files
 
-153 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+154 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -287,15 +287,20 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 |-----|-------|
 | v0.17-001 | [Trust Anchor Provisioning and Manufacturing Flow](./done/RFC-v0.17-001-trust-anchor-provisioning.md) — **Accepted**; TOFU dev profile flag-gated (`--allow-tofu-provision`), factory station v1.1, hardware-anchored v2+ |
 
+### v0.21.3 — Build Restoration and As-Built Reconciliation
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| v0.21.3-001 | [Build Restoration and As-Built Reconciliation](./done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md) — handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/implementation-handoff.md) | v0.21.3 |
+
 ---
 
 ## Proposed (proposed/) — 1 RFC
 
-### v0.21.3 — Build Restoration and As-Built Reconciliation
+### v0.21.3 — v0 Development Release Cycle
 
 | RFC | Title |
 |-----|-------|
-| v0.21.3-001 | [Build Restoration and As-Built Reconciliation](./proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md) — handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/implementation-handoff.md) |
 | v0.21.3-002 | [v0 Development Release Cycle](./proposed/RFC-v0.21.3-002-v0-release-cycle.md) — 2 owner decisions pending |
 
 ---

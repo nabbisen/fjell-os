@@ -1,6 +1,6 @@
 # RFC-v0.21.3-001: Build Restoration and As-Built Reconciliation
 
-**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-07-30**
+**Status:** Implemented (v0.21.3)
 **Milestone:** v0.21.3 (patch)
 **Depends on:** —
 **Corrects:** regressions introduced by commit `5091e54` ("`Cargo.toml` format; CI actions checkout version")
