@@ -1,7 +1,14 @@
-# Fjell OS — Release Checklist
+# Fjell OS — v1.0 Release Checklist
 
-*Governed by RFC-v0.15-003. Run this exactly to produce a v1.0 release.*
+*Governed by RFC-v0.15-003. Scope: **`v1.0.0` specifically** — bundle
+signing, an offline release key, and attestation, which are deliberately
+heavier than any v0 release needs. Run this exactly to produce the v1.0.0
+release.*
 *Every command must produce the documented output or the step is FAIL.*
+
+*For every release before `v1.0.0`, use the
+[v0 Development Release Cycle](../src/release/v0-release-cycle.md)
+(RFC-v0.21.3-002) instead — this checklist does not apply there.*
 
 ---
 
@@ -84,9 +91,12 @@ grep "^§[1-6]\." docs/release/trust-report.txt
 
 ## Step 6 — Documentation build
 
+There is no `cargo xtask docs` subcommand. Documentation is built directly
+with mdBook (see `.github/workflows/ci.yml` `ci-docs` job):
+
 ```bash run-verified
-cargo xtask docs build
-# Expected: docs build: OK
+cd docs && mdbook build && cd ..
+# Expected: "HTML book written to .../docs/book" and exit 0
 ```
 
 ---
@@ -165,18 +175,30 @@ cargo xtask sign-bundle \
 
 ## Step 11 — Tag
 
+Tags carry no `v` prefix (Rust crate convention; owner-confirmed). The
+archive filename does use a `v` prefix (`fjell-os-v1.0.0.tar.gz`) — that is
+a separate, intentional convention in a different namespace and must not be
+"harmonised" with the tag.
+
 ```bash
-git tag -s v1.0.0 -m "Fjell OS v1.0.0"
-git push origin v1.0.0
+git tag -s 1.0.0 -m "Fjell OS 1.0.0"
+git push origin 1.0.0
 ```
 
 ---
 
 ## Step 12 — Package
 
+The subcommand is `package-release`, not `release`, and it takes no
+`--version` flag — the version comes from `Cargo.toml` directly. Unpacks to
+a single top-level `fjell-os-v{version}/` directory (this project's
+convention; see the
+[v0 Development Release Cycle](../src/release/v0-release-cycle.md)
+§Release archive convention — the same convention applies to `v1.0.0`).
+
 ```bash run-verified
-cargo xtask release --version v1.0.0
-# Expected: release.tar.gz written
+cargo xtask package-release
+# Expected: "package-release: wrote fjell-os-v1.0.0.tar.gz (<size>)"
 ```
 
 ---
