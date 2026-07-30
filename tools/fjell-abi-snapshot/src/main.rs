@@ -29,7 +29,7 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -41,8 +41,14 @@ const STABLE_CRATES: &[(&str, &str)] = &[
     ("fjell-abi", "crates/fjell-abi/src"),
     ("fjell-service-api", "crates/fjell-service-api/src"),
     ("fjell-semantic-v1", "crates/fjell-semantic-v1/src"),
-    ("fjell-audit-format", "crates/fjell-audit-format/src"),
-    ("fjell-bundle-format", "crates/fjell-bundle-format/src"),
+    (
+        "fjell-audit-format",
+        "crates/formats/fjell-audit-format/src",
+    ),
+    (
+        "fjell-bundle-format",
+        "crates/formats/fjell-bundle-format/src",
+    ),
 ];
 
 /// One public item in the stable surface.
