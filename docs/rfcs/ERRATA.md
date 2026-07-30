@@ -159,11 +159,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-009 non-goals review | v0.16-005 | CLOSED |
 | E-010 IPC words delivery | v0.20.0 fix | CLOSED |
 | E-011 cap_install rights validation | v0.21.3-001 (v0.22 disposition) | ACCEPTED |
-| E-012 release checklist Step 9 bundle path | v0.22-001 (recorded, not fixed) | OPEN |
+| E-012 release checklist Step 9 bundle path | v0.22-001 (recorded, not fixed) | ACCEPTED |
 
-At v0.22 update: 1 OPEN, 9 CLOSED, 2 ACCEPTED. The ACCEPTED items
+At v0.22 update: 0 OPEN, 9 CLOSED, 3 ACCEPTED. The ACCEPTED items
 (hardware boot, `cap_install` rights validation) are reflected in the v1.0
 scope statement / RFC-v0.21.3-001; both are disclosed limitations, not
 silent drift. E-012 is a v1.0-checklist-specific finding recorded per
-RFC-v0.22-001 §Scope item 5; it does not block a v0 release and was not
-investigated further, per that RFC's explicit non-goal.
+RFC-v0.22-001 §Scope item 5. **Classified ACCEPTED, not OPEN** (architect,
+2026-07-31): this register defines OPEN as live, unresolved drift and ACCEPTED
+as a documented, deliberate limitation. Not investigating E-012 was a deliberate
+owner decision (2026-07-30, cutting the v1.0 checklist audit from v0.22 scope
+because v1.0 is not in view), which is ACCEPTED semantics — the same grounds on
+which E-004 is ACCEPTED. To be revisited when v1.0 preparation actually begins.

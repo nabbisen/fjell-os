@@ -16,6 +16,15 @@ require updating the governing record first, then this page.*
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
+- **v1.0 release-checklist Step 9 references a build output that does not
+  exist** (Errata **E-012**, ACCEPTED). Step 9 signs
+  `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes
+  that path, and `package-release` produces a single tarball. Steps 9–10 are
+  the signing steps, so the v1.0 checklist cannot currently be executed to
+  completion. Deliberately not investigated in v0.22 (owner decision,
+  2026-07-30 — v1.0 is not in view); must be resolved before v1.0 preparation
+  begins.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

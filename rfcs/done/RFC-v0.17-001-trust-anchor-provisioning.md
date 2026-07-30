@@ -1,6 +1,19 @@
 # RFC-v0.17-001: Trust Anchor Provisioning and Manufacturing Flow
 
-**Status:** Accepted (design options — requires architect decision)
+**Status:** Implemented (v0.20.0)
+
+*Status corrected by RFC-v0.22-001 (architect, 2026-07-31). The previous value,
+"Accepted (design options — requires architect decision)", was stale in two
+ways: the architect ruling it awaited was recorded 2026-06-04, and the ruling's
+v1.0-tier deliverable — TOFU provisioning behind an explicit
+`--allow-tofu-provision` flag — shipped in v0.20.0. Caught mechanically by
+Gate 12 `rfc-status-folder`, the first time this project's own "status fields
+that lie" anti-pattern was detected by a gate rather than by review.*
+
+***Deferred (RFC 000 partial-implementation rule):*** *the tier→mechanism table's
+remaining tiers are not implemented — factory-station provisioning (v1.1) and
+hardware-anchored provisioning (v2+). Both are recorded in
+`docs/release/v1-limitations.md` item 6.*
 **Milestone:** v0.17
 **Origin:** Deferred from RFC-v0.16-005 (architect review H-02).
 **Supersedes:** RFC-v0.17-001 RESERVED placeholder.
