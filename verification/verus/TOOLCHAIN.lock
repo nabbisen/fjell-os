@@ -1,34 +1,54 @@
 # Verus toolchain lock — reproducibility pin (RFC-v0.17-005, architect C8).
 #
-# These are the exact versions and invocation under which the v0.17/v0.18
-# pilot proofs were machine-checked. Update only with a recorded proof-review
-# re-run; refresh last_success_date on each successful full run.
+# These are the exact versions and invocation under which the pilot proofs were
+# machine-checked. Update only with a recorded proof-review re-run; refresh
+# last_success_date on each successful full run.
+#
+# Updated 2026-07-30 (v0.21.3): prover upgraded from
+# release/0.2026.05.24.ecee80a to release/0.2026.07.27.31579f0, moving from a
+# hand-unpacked release zip to the package-managed AUR `verus-bin`. All 20
+# obligations re-verified unchanged, with no proof source modified. Recorded
+# proof-review re-run:
+#   docs/verification/verus/review-records/v0.21.3-prover-upgrade.md
 
 [verus]
-release        = "release/0.2026.05.24.ecee80a"
-asset          = "verus-0.2026.05.24.ecee80a-x86-linux.zip"
+release        = "release/0.2026.07.27.31579f0"
+install        = "aur:verus-bin"           # Arch/CachyOS; Provides: verus
+binary         = "/usr/bin/verus"
 platform       = "linux_x86_64"
 
 [toolchain]
 # Required by the Verus binary itself (via rustup). Independent of the Fjell
-# build toolchain in rust-toolchain.toml (channel 1.91, apt-managed).
-channel        = "1.95.0-x86_64-unknown-linux-gnu"
+# build toolchain in rust-toolchain.toml (channel 1.91) — Verus is never a
+# Fjell build dependency, and ordinary contributors need none of this.
+channel        = "1.97.1-x86_64-unknown-linux-gnu"
 installer      = "rustup"
 
 [z3]
-version        = "4.12.5"
-source         = "bundled-with-verus-release"
+version        = "4.12.5"                  # unchanged across the prover upgrade
+source         = "bundled-with-verus-package"
+path           = "/opt/verus/z3"
 
 [run]
 command           = "cargo xtask verus-check --all-pilot"
 targets           = ["capability", "lease", "boot-control"]
-host_os           = "ubuntu-24.04 (x86_64)"
-last_success_date = "2026-06-04"
+host_os           = "cachyos-linux (x86_64)"
+last_success_date = "2026-07-30"
 
 [result]
 # Latest full machine-check, recorded for regression reference.
 # lease gained LEASE-VERUS-005 (bounded domain, architect C6) at v0.18.1.
+# Identical results under both the previous and the current prover — see the
+# v0.21.3 proof-review re-run record.
 capability     = "8 verified, 0 errors"
 lease          = "5 verified, 0 errors"
 boot_control   = "7 verified, 0 errors"
 total          = "20 verified, 0 errors"
+
+[history]
+# The previously pinned prover; its certification is not retracted. The same
+# obligations hold under both.
+previous_release  = "release/0.2026.05.24.ecee80a"
+previous_channel  = "1.95.0-x86_64-unknown-linux-gnu"
+previous_host_os  = "ubuntu-24.04 (x86_64)"
+previous_success  = "2026-06-04"
