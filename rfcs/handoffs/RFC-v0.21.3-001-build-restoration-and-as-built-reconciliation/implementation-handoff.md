@@ -36,10 +36,25 @@ Everything below assumes you have fixed this first.
 `cargo fmt`; documentation under `docs/`; `rfcs/README.md`; `README.md`;
 `CHANGELOG.md`; regenerated gate evidence.
 
+**Scope amendment (architect, 2026-07-30 — see
+[review-record-slice-1-2.md](./review-record-slice-1-2.md)):** the following are
+now in scope, and only these:
+
+- Relocating `// SAFETY:` comments so each sits immediately above its `unsafe`
+  token, in `crates/fjell-kernel/src/main.rs` and
+  `crates/services/fjell-recoveryd/src/main.rs`. **Comments only — no tokens
+  the compiler sees may change.** (Slice 2b)
+- The two stale paths in `tools/fjell-abi-snapshot/src/main.rs` `STABLE_CRATES`,
+  and regeneration of `tests/abi/snapshot.json` under the condition in the
+  review record §4. (Slice 2c)
+
 **Explicitly NOT in scope — do not touch:**
 
 - `crates/fjell-kernel/src/**` logic. In particular **do not add dispatch arms**
-  for the 9 undispatched syscalls.
+  for the 9 undispatched syscalls. The comment relocation above is the sole
+  exception and changes no compiled tokens.
+- Loosening `fjell-unsafe-audit`'s adjacency rule to make Finding A disappear.
+  The strict rule is intentional.
 - `crates/fjell-abi/src/syscall.rs` — **do not remove or renumber** any variant.
 - Capability, lease, IPC, MM, or crypto behaviour.
 - `verification/verus/**` proof content.
@@ -129,7 +144,72 @@ report it.
 Do not record the repro baseline yet — that happens in §4.3, after this slice,
 and only via the explicit recording flag.
 
+### 3.3 Finding C — characterize the 11 changed prebuilt binaries
+
+Raised by the review record §6. Slice 1's rebuild changed 11 of 28 prebuilt
+binaries at identical sizes, with no source change. **17 of 28 reproduced
+byte-identically across the same environment change**, so "expected
+non-reproducibility across environments" does not explain it.
+
+Before §4.3 records a baseline, determine whether the difference is confined to
+a known-volatile region or reaches executable content — e.g.:
+
+```sh
+cmp -l <old>.bin <new>.bin | awk '{print $1}' | head -40   # byte-offset spread
+```
+
+If it cannot be explained, **do not record the repro baseline over it**, and
+report §4.3 as blocked. Recording across an unexplained delta bakes the anomaly
+in as correct — the exact failure mode §4.3's fail-closed change exists to
+prevent. This blocks §4.3 only; Slices 2b and 2c proceed regardless.
+
 ---
+
+## 3b. Slice 2b — Annotation restoration
+
+Authorized by the review record §3. Four sites lost their Gate 2 annotation
+when `fmt` separated the comment from the `unsafe` token:
+
+```
+crates/fjell-kernel/src/main.rs:416, :422            (ks_init! / ks_get! macro arms)
+crates/services/fjell-recoveryd/src/main.rs:20, :34  (send_ready, reply)
+```
+
+Move each `// SAFETY:` comment so it sits immediately above its `unsafe`
+token — inside the macro arm body, inside the function body. The model is
+`recv_call()` in the same recoveryd file: it already has the comment inside the
+function and survived the formatting pass untouched.
+
+Evidence required:
+
+```sh
+cargo run -p fjell-unsafe-audit      # expect 274/274, 0 missing
+cargo fmt --all && git diff --stat   # expect EMPTY — proves the fix is fmt-stable
+```
+
+Commit separately. Do not fold into Slice 2 — Slice 2 must remain provably pure
+`fmt` output.
+
+## 3c. Slice 2c — ABI snapshot path fix and regeneration
+
+Authorized by the review record §4.
+
+1. In `tools/fjell-abi-snapshot/src/main.rs`, `STABLE_CRATES`:
+   `crates/fjell-audit-format/src` → `crates/formats/fjell-audit-format/src`,
+   and the same for `fjell-bundle-format`. These predate the v0.21.0 reorg.
+   The other 6 entries were checked and are correct.
+2. Fold in the unused-import warning at `main.rs:32` (`Write`).
+3. Regenerate `tests/abi/snapshot.json` — **only after** demonstrating the tree
+   is `fmt(pre-fmt tree)` plus Slice 2b's comment moves plus step 1, i.e.
+   `cargo fmt --all` produces no diff.
+
+Measured by the architect, for your commit message: at `f3519dc` (pre-fmt) with
+only step 1 applied, the gate reports `Added 3 / Removed 0 / Changed sig 0 /
+PASS`. The committed baseline was therefore never stale in content, and all 163
+post-fmt signature changes are attributable to formatting alone. Record this so
+the diff's provenance stays recoverable.
+
+Expected after: Gate 4 green.
 
 ## 4. Slice 3 — As-built reconciliation
 
