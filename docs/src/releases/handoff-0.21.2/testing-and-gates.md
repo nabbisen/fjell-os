@@ -1,10 +1,10 @@
 # Fjell OS — Testing and Gates (QA Handoff)
 
-*Compact testing handoff. Version: v0.21.1.*
+*Compact testing handoff. Version: v0.21.2.*
 
 ## 1. Test goal
 
-This handoff provides confidence that v0.21.1 is the v1.0 freeze candidate: the
+This handoff provides confidence that v0.21.2 is the v1.0 freeze candidate: the
 capability and lease security boundaries are enforced (and machine-checked for
 their core predicates), the negative-test harness is fail-closed for the covered
 categories, and the build is reproducible. Behaviours validated: capability

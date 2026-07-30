@@ -1,6 +1,6 @@
 # Fjell OS — Ops, Release & Security (Cross-Cutting Handoff)
 
-*Compact operational + security handoff. Version: v0.21.1.*
+*Compact operational + security handoff. Version: v0.21.2.*
 
 ## 1. Release and packaging essentials
 

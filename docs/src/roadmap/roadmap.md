@@ -198,10 +198,17 @@ original MVP intentionally left out. Each line is a coherent theme:
 
 - **80 crates**, reorganized into `arch/`, `drivers/`, `formats/`, `services/`
   plus flat library/infra crates.
-- **All eleven mechanical release gates pass**; Verus machine-checks capability
-  (8/8) and lease (5/5) as release-required proofs.
-- **v1.0.0 is architect-conditionally-approved.** The single remaining blocker
-  is **Gate 9 — the manual limitations sign-off by the owner (nabbisen)**.
+- **Correction (RFC-v0.21.3-001):** at v0.21.2 the workspace manifest was
+  broken (`cargo metadata` failed to parse), so the eleven mechanical release
+  gates could not actually run — the "all eleven pass" and "Gate 9 is the
+  single remaining blocker" claims below described an intended, not a
+  verified, state. `rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+  restores the build and re-runs the gates; see
+  `rfcs/handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/`
+  for current, verified gate status.
+- **v1.0.0 is architect-conditionally-approved.** Gate 9 — the manual
+  limitations sign-off by the owner (nabbisen) — remains the only blocker
+  that requires the owner rather than a mechanical check.
 - Publication control: v1.0.0 must not be tagged, published, or announced
   without explicit owner confirmation.
 
@@ -219,7 +226,10 @@ negative coverage, complete service-manager lifecycle coverage, a production
 trust-anchor lifecycle, a fully verified kernel, POSIX compatibility, or
 general-purpose OS readiness.
 
-**Remaining before the tag:** Gate 9 manual sign-off only.
+**Remaining before the tag:** Gate 9 manual sign-off, plus re-verification
+that the eleven mechanical gates actually pass post-RFC-v0.21.3-001 (see
+"Current state" above) — the gates were unreachable at v0.21.2 and are being
+re-run, not re-litigated, by that RFC.
 
 ## Immediately after v1.0.0 (required soon, per architect review)
 

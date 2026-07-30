@@ -1,6 +1,6 @@
 # Fjell OS — External Design (Architect Handoff)
 
-*Compact design handoff. Version: v0.21.1.*
+*Compact design handoff. Version: v0.21.2.*
 
 ## 1. Design goal
 
@@ -52,7 +52,7 @@ Default-deny everywhere: absence of a capability yields `PermissionDenied` with
 no observation of the resource.
 
 **Compatibility.** ABI stability is enforced by a snapshot gate over `fjell-abi`
-(401 tracked items at v0.21.1); removals fail the gate. Changes require an RFC
+(401 tracked items at v0.21.2); removals fail the gate. Changes require an RFC
 with an architect decision record.
 
 ## 3. Requirements coverage

@@ -145,10 +145,16 @@ release). Each line delivered a coherent theme:
 | v0.20.x | v1-readiness: fail-closed gate, IPC ABI fix (E-010) | ✅ |
 | v0.21.x | Crate reorganization, audits, handoff + design docs | ✅ current |
 
-**v1.0.0 — First Supported Profile** is architect-conditionally-approved; the
-one remaining blocker is Gate 9 (manual limitations sign-off by the owner).
-v1.0.0 must not be tagged, published, or announced without explicit owner
-confirmation.
+**v1.0.0 — First Supported Profile** is architect-conditionally-approved.
+At v0.21.2, the workspace manifest was broken (`cargo metadata` failed to
+parse), so the eleven mechanical gates could not actually run — Gate 9
+(manual limitations sign-off by the owner) was not the only blocker at that
+point, even though it was described as such. `rfcs/proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+restores the build and re-verifies the mechanical gates; see
+`rfcs/handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/`
+for current gate status. Gate 9 remains the only blocker that requires the
+owner rather than a mechanical check. v1.0.0 must not be tagged, published,
+or announced without explicit owner confirmation.
 
 ---
 

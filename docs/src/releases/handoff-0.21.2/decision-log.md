@@ -1,7 +1,7 @@
 # Fjell OS — Decision Log
 
 *Consolidated register of decisions that future work must preserve or
-consciously revisit. Version: v0.21.1.*
+consciously revisit. Version: v0.21.2.*
 
 ## Project / scope decisions
 

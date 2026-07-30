@@ -1,6 +1,6 @@
 # Fjell OS — Project Summary (PM Handoff)
 
-*Compact project-level handoff. Version: v0.21.1.*
+*Compact project-level handoff. Version: v0.21.2.*
 
 ## 1. Project goal
 
@@ -53,7 +53,7 @@ Apache-2.0, author nabbisen. Full requirements live in
 |---|---|---|---|---|
 | Requirements | Done | `rfcs/done/` (154 resolved RFCs), `docs/release/v1-limitations.md` | nabbisen | v1.0 scope frozen |
 | External design | Done | `rfcs/`, `docs/src/adr/` (10 current ADRs) | nabbisen | Crate boundaries reorganized v0.21.0 |
-| Implementation | Done | `cargo xtask build` (zero warnings at v0.21.1) | — | 80 crates; kernel + 29 service programs |
+| Implementation | Done | `cargo xtask build` (zero warnings at v0.21.2) | — | 80 crates; kernel + 29 service programs |
 | Tests / proofs | Done | `cargo xtask release-rehearsal` (Gates 1–8,10,11 pass); Verus capability 8/8, lease 5/5 | — | Gate 9 manual, pending |
 | Release readiness | Partial | `docs/release/v1.0-release-notes.md` | nabbisen | Gate 9 sign-off is the only blocker |
 

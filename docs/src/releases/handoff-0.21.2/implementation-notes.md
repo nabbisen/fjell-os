@@ -1,10 +1,10 @@
 # Fjell OS — Implementation Notes (Implementer Handoff)
 
-*Compact implementation handoff. Version: v0.21.1.*
+*Compact implementation handoff. Version: v0.21.2.*
 
 ## 1. Implementation goal
 
-v0.21.1 is the v1.0 freeze candidate. Implemented: the full capability/lease
+v0.21.2 is the v1.0 freeze candidate. Implemented: the full capability/lease
 kernel, synchronous IPC with kernel-attested identity, the 29-program user-space
 service plane, signed-bundle verification, append-only audit, reproducible
 build, and the eleven-gate release-rehearsal harness. Postponed (non-goals for
@@ -112,7 +112,7 @@ over the whole workspace will try to compile RISC-V-asm crates (e.g.
 | Debt | arm64 arch crate is a stub | No ARM build | Implement when ARM target is scheduled | post-v1.0 |
 
 Evidence for the latest successful gates: `cargo xtask build` produced zero
-warnings at v0.21.1; `cargo xtask test-all --no-qemu` passed all five required
+warnings at v0.21.2; `cargo xtask test-all --no-qemu` passed all five required
 host tiers; `cargo xtask release-rehearsal` passed Gates 1–8, 10, 11 with Verus
 machine-checked (capability 8/8, lease 5/5). Re-run to regenerate logs (the
 repro baseline is re-recorded per run by design).

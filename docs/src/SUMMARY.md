@@ -1,6 +1,6 @@
 # Summary
 
-[Introduction](./intro/what-is-fjell.md)
+[Introduction](./README.md)
 
 ---
 
@@ -32,12 +32,25 @@
 
 # Maintainers (P3)
 
+- [Requirements Definition](./requirements/requirements-definition.md)
+- [Requirements Analysis](./requirements/requirements-analysis.md)
+- [External Design](./external-design/README.md)
+  - [Kernel](./external-design/kernel.md)
+  - [Capability & Lease](./external-design/capability-lease.md)
+  - [IPC](./external-design/ipc.md)
+  - [Boot & Upgrade](./external-design/boot-upgrade.md)
+  - [User-Space Services](./external-design/services.md)
+  - [Audit & Observability](./external-design/audit-observability.md)
+  - [ABDD / Semantic Streams](./external-design/abdd-semantic.md)
+  - [Security & Trust](./external-design/security-trust.md)
+  - [Developer Surface](./external-design/developer-surface.md)
 - [Architecture Overview](./architecture/overview.md)
 - [Capability System](./architecture/capability-system.md)
 - [Leases](./architecture/leases.md)
 - [Measurement and Attestation](./architecture/measurement-and-attestation.md)
 - [Fleet Operations](./architecture/fleet.md)
 - [v1.0 Direction and Identity](./identity/v1-direction.md)
+- [Roadmap and Milestones](./roadmap/roadmap.md)
 - [Unsafe Charter](./verification/unsafe-charter.md)
 - [Unsafe Inventory](./verification/unsafe-inventory.md)
 - [Property Tests](./verification/property-tests.md)
@@ -62,12 +75,12 @@
 - [Session Handoff v0.9–v0.15](./releases/handoff-v0.9-v0.15.md)
 - [Session Handoff v0.17–v0.18](./releases/handoff-v0.17-v0.18.md)
 - [Session Handoff v0.19–v0.20](./releases/handoff-v0.19-v0.20.md)
-- [v1.0 Handoff Bundle](./releases/handoff/README.md)
-  - [Project Summary](./releases/handoff/project-summary.md)
-  - [External Design](./releases/handoff/external-design.md)
-  - [Implementation Notes](./releases/handoff/implementation-notes.md)
-  - [Testing and Gates](./releases/handoff/testing-and-gates.md)
-  - [Ops, Release & Security](./releases/handoff/ops-security.md)
-  - [Decision Log](./releases/handoff/decision-log.md)
+- [v1.0 Handoff Bundle](./releases/handoff-0.21.2/README.md)
+  - [Project Summary](./releases/handoff-0.21.2/project-summary.md)
+  - [External Design](./releases/handoff-0.21.2/external-design.md)
+  - [Implementation Notes](./releases/handoff-0.21.2/implementation-notes.md)
+  - [Testing and Gates](./releases/handoff-0.21.2/testing-and-gates.md)
+  - [Ops, Release & Security](./releases/handoff-0.21.2/ops-security.md)
+  - [Decision Log](./releases/handoff-0.21.2/decision-log.md)
 - [SDK Trial Lessons v0.14](./releases/lessons-from-v0.14.md)
 - [v0.7 Release Notes](./releases/v0.7-release-notes.md)
