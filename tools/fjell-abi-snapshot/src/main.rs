@@ -277,15 +277,25 @@ fn scan_file(path: &Path, crate_name: &str, module: &str, items: &mut Vec<AbiIte
     let Ok(content) = fs::read_to_string(path) else {
         return;
     };
-    let mut inside_test = false;
+    items.extend(scan_content(&content, crate_name, module));
+}
 
-    for line in content.lines() {
-        let trimmed = line.trim();
+/// The parsing core of `scan_file`, taking source text directly so it can
+/// be exercised in tests without touching the filesystem.
+fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
+    let mut items = Vec::new();
+    let mut inside_test = false;
+    let lines: Vec<&str> = content.lines().collect();
+
+    let mut i = 0;
+    while i < lines.len() {
+        let trimmed = lines[i].trim();
         // Skip test modules
         if trimmed.starts_with("#[cfg(test)]") {
             inside_test = true;
         }
         if inside_test && trimmed.starts_with("mod tests") {
+            i += 1;
             continue;
         }
 
@@ -297,16 +307,31 @@ fn scan_file(path: &Path, crate_name: &str, module: &str, items: &mut Vec<AbiIte
             _ if trimmed.starts_with("pub trait ") => ("trait", &trimmed[10..]),
             _ if trimmed.starts_with("pub const ") => ("const", &trimmed[10..]),
             _ if trimmed.starts_with("pub type ") => ("type", &trimmed[9..]),
-            _ => continue,
+            _ => {
+                i += 1;
+                continue;
+            }
         };
         let name: String = rest
             .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_')
             .collect();
         if name.is_empty() {
+            i += 1;
             continue;
         }
-        let sig_hash = simple_hash(trimmed);
+
+        // rustfmt wraps long declarations (chiefly long parameter lists)
+        // across multiple lines. Join lines while unclosed `(` remain, so
+        // the hashed text is the whole declaration, not just its first
+        // physical line. `{`/`}` are deliberately not tracked, so this
+        // never runs on into a struct/enum/trait body: the join stops at
+        // the declaration's own parens even when the same line also opens
+        // a body brace (e.g. `) -> Foo {`).
+        let (full_decl, last_index) = join_wrapped_declaration(&lines, i);
+        i = last_index;
+
+        let sig_hash = simple_hash(&normalize_signature(&full_decl));
         items.push(AbiItem {
             crate_name: crate_name.to_string(),
             module: module.to_string(),
@@ -314,7 +339,50 @@ fn scan_file(path: &Path, crate_name: &str, module: &str, items: &mut Vec<AbiIte
             name,
             sig_hash,
         });
+
+        i += 1;
     }
+    items
+}
+
+/// Starting at `lines[start]`, join subsequent lines while the declaration
+/// has more `(` than `)` so far. Returns the joined text and the index of
+/// the last line consumed (so the caller resumes scanning after it).
+fn join_wrapped_declaration(lines: &[&str], start: usize) -> (String, usize) {
+    let mut text = lines[start].trim().to_string();
+    let mut depth = paren_depth(&text);
+    let mut i = start;
+    while depth > 0 && i + 1 < lines.len() {
+        i += 1;
+        let next = lines[i].trim();
+        text.push(' ');
+        text.push_str(next);
+        depth += paren_depth(next);
+    }
+    (text, i)
+}
+
+/// Count of `(` minus `)` in a line. Only parens are tracked (not `<>` or
+/// `[]`) to avoid `->`'s `>` being mistaken for a closing generic bracket,
+/// which would throw off the balance on the overwhelmingly common case of
+/// a plain one-line function signature ending in `-> ReturnType {`.
+fn paren_depth(s: &str) -> i32 {
+    let mut d = 0i32;
+    for c in s.chars() {
+        match c {
+            '(' => d += 1,
+            ')' => d -= 1,
+            _ => {}
+        }
+    }
+    d
+}
+
+/// Collapse all whitespace runs to a single space and trim, so that
+/// rustfmt reflow (e.g. re-aligning a run of `NAME = value,` constants, or
+/// wrapping a long line differently) does not change the hash by itself.
+fn normalize_signature(s: &str) -> String {
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Fast non-cryptographic hash sufficient for change detection.
@@ -335,6 +403,89 @@ mod tests {
     fn simple_hash_deterministic() {
         assert_eq!(simple_hash("pub fn foo()"), simple_hash("pub fn foo()"));
         assert_ne!(simple_hash("pub fn foo()"), simple_hash("pub fn bar()"));
+    }
+
+    /// Required failure demonstration, direction 1a (RFC-v0.22-001 §Testing
+    /// item 2): re-padding alignment whitespace on an unwrapped declaration
+    /// produces NO signature change. This is the exact real-world bug found
+    /// in this codebase (`pub const WRITE_ACK:    usize = 0x204;` — extra
+    /// spaces for column alignment).
+    #[test]
+    fn realigned_whitespace_produces_no_signature_change() {
+        let padded = "pub const WRITE_ACK:    usize = 0x204;";
+        let compact = "pub const WRITE_ACK: usize = 0x204;";
+
+        let items_a = scan_content(padded, "c", "m");
+        let items_b = scan_content(compact, "c", "m");
+
+        assert_eq!(items_a.len(), 1);
+        assert_eq!(items_b.len(), 1);
+        assert_eq!(
+            items_a[0].sig_hash, items_b[0].sig_hash,
+            "re-padding alignment whitespace must not change the signature hash"
+        );
+    }
+
+    /// Required failure demonstration, direction 1b: two *wrapped* renderings
+    /// of the identical signature — differing only in indentation amount,
+    /// not in tokens — must hash identically. This is the wrapped-declaration
+    /// analogue of the whitespace test above: whichever way rustfmt happens
+    /// to indent a multi-line declaration, the join-then-normalise pipeline
+    /// must converge on the same hash.
+    #[test]
+    fn differently_indented_wrapped_declaration_produces_no_signature_change() {
+        let indent_4 = "pub fn foo(\n    a: usize,\n    b: usize,\n) -> usize {";
+        let indent_8 = "pub fn foo(\n        a: usize,\n        b: usize,\n) -> usize {";
+
+        let items_a = scan_content(indent_4, "c", "m");
+        let items_b = scan_content(indent_8, "c", "m");
+
+        assert_eq!(items_a.len(), 1);
+        assert_eq!(items_b.len(), 1);
+        assert_eq!(
+            items_a[0].sig_hash, items_b[0].sig_hash,
+            "indentation depth of a wrapped declaration must not change its \
+             signature hash once joined and normalised"
+        );
+    }
+
+    /// Required failure demonstration, direction 2 (RFC-v0.22-001 §Testing
+    /// item 2): a genuine signature change (here, a parameter type) DOES
+    /// still change the hash — normalisation must not paper over a real
+    /// change along with the cosmetic ones.
+    #[test]
+    fn genuine_signature_change_still_detected() {
+        let original = "pub fn foo(a: usize, b: usize) -> usize {";
+        let changed_param_type = "pub fn foo(a: u32, b: usize) -> usize {";
+        let changed_return_type = "pub fn foo(a: usize, b: usize) -> u32 {";
+
+        let base = scan_content(original, "c", "m");
+        let param_changed = scan_content(changed_param_type, "c", "m");
+        let return_changed = scan_content(changed_return_type, "c", "m");
+
+        assert_ne!(
+            base[0].sig_hash, param_changed[0].sig_hash,
+            "a parameter type change must still change the signature hash"
+        );
+        assert_ne!(
+            base[0].sig_hash, return_changed[0].sig_hash,
+            "a return type change must still change the signature hash"
+        );
+    }
+
+    #[test]
+    fn wrapped_declaration_does_not_swallow_the_body() {
+        // The joined declaration must stop at the closing paren, not run
+        // on into the function body — even though the same line that
+        // closes the parens also opens the body brace.
+        let src =
+            "pub fn foo(\n    a: usize,\n) -> usize {\n    a + should_not_appear_in_signature()\n}";
+        let items = scan_content(src, "c", "m");
+        assert_eq!(items.len(), 1);
+        // If the join over-consumed, this hash would differ from the
+        // signature-only hash below (computed independently, same inputs).
+        let expected = simple_hash(&normalize_signature("pub fn foo( a: usize, ) -> usize {"));
+        assert_eq!(items[0].sig_hash, expected);
     }
 
     #[test]
