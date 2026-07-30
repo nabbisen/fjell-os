@@ -283,8 +283,10 @@ Evidence is required, not asserted. Each item must be produced by a real run:
       --skip-build` fails closed when the baseline is absent (see §M4); the
       `implementation-notes.md` "re-recorded per run" wording is corrected.
 - [ ] `CHANGELOG.md` has a v0.21.3 entry describing the above.
-- [ ] The handoff bundle's evidence is regenerated or explicitly re-stamped
-      against v0.21.3.
+- [ ] The handoff bundle's version stamps stop lying — each file states the
+      version whose state it actually describes (v0.21.2 for the frozen
+      `handoff-0.21.2/` bundle). Do **not** relabel historical content to
+      v0.21.3: that would close one false claim by creating another.
 
 ## Risks
 
