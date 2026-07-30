@@ -2,7 +2,7 @@
 
 **Governing RFC:** [RFC-v0.21.3-001](../../done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md)
 **Milestone:** v0.21.3 (patch)
-**Status:** inherited from the governing RFC (Proposed — accepted for implementation, 2026-07-30)
+**Status:** inherited from the governing RFC — **Implemented (v0.21.3)**
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
