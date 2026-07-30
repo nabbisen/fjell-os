@@ -62,11 +62,19 @@ conditions, gates, tagging at Step 11 *after* the gates. Two problems:
    The checklist is not executable as written. This is consistent with it never
    having been run end to end.
 
-### M4 — Tag and archive naming disagree
+### M4 — The v1.0 checklist contradicts the project's tag convention
 
-Tags are bare (`0.21.2`); archives are `fjell-os-v{version}.tar.gz`; the v1.0
-checklist Step 11 says `git tag -s v1.0.0` — a *third* convention. Minor, but it
-means no single string identifies a release across git, archive, and docs.
+Three naming elements, only one of which is wrong:
+
+| Element | Value | Status |
+|---|---|---|
+| Git tag | `0.21.2` | Project convention (Rust crate style, no `v` prefix) — correct |
+| Archive filename | `fjell-os-v0.21.2.tar.gz` | Matches the project rules' own example `project-v1.0.0.tar` — correct |
+| `release-checklist.md` Step 11 | `git tag -s v1.0.0` | **Contradicts the tag convention** |
+
+The tag and archive-filename conventions occupy different namespaces and are
+both intentional. Only the checklist is wrong, and it is a checklist bug rather
+than a tag-policy question. Owner-confirmed 2026-07-30.
 
 ### M5 — An unrecorded deviation from the project rules
 
@@ -75,10 +83,19 @@ archive root, and explicitly mark `/project-v1.0.0/file1` as ❌ Bad.
 `package_release.rs:40` sets `internal_dir = fjell-os-v{version}`, and decision
 IMP-06 records this as settled — with no note that it contradicts the rule.
 
+This concerns the archive's **internal directory only**. It is unrelated to the
+`v` prefix and unrelated to tag naming (see M4) — the rule's own naming example
+uses `v`, and the bare-tag convention is deliberate.
+
+Note how the conflict stayed invisible: IMP-06 records the behaviour as
+*"Release archive unpacks to `fjell-os-v{version}/`, no nesting"*. "No nesting"
+reads as compliant, but means "no *double* nesting". The decision log describes
+the behaviour accurately and its rule-compliance incorrectly.
+
 The governing organisation document requires that a project-specific deviation
 from the baseline rules be *explicitly documented and approved by the owner*. No
 such record exists. The deviation may well be the right choice; the defect is
-that it is undocumented either way. See §7 (Decision request 1).
+that it is undocumented either way. See §Decision requests.
 
 ## Goals
 
@@ -202,7 +219,9 @@ Within this RFC's scope, in `docs/release/release-checklist.md`:
 - [ ] `docs/release/records/` exists with a record for the first release cut
       under this cycle.
 - [ ] `CHANGELOG.md` marks `0.21.2` per Decision request 2.
-- [ ] Tag/archive naming is consistent, or the difference is documented.
+- [ ] `release-checklist.md` Step 11 uses the bare-tag convention (`0.21.2`,
+      not `v0.21.2`) per M4. Tag and archive-filename conventions are correct
+      as-is and must not be "harmonised".
 - [ ] The archive-layout deviation is recorded per Decision request 1.
 
 ## Risks
@@ -220,9 +239,13 @@ Within this RFC's scope, in `docs/release/release-checklist.md`:
 **Decision required.** Archives currently unpack to `fjell-os-v{version}/`.
 Your project rules mark an intermediate parent directory as ❌ Bad.
 
+Scope of the question: the **archive's internal top-level directory**, i.e.
+whether `fjell-os-v0.21.2.tar.gz` extracts to `fjell-os-v0.21.2/README.md` or to
+`README.md`. Not about the `v` prefix; not about tag naming.
+
 | Option | Benefit | Drawback |
 |---|---|---|
-| **(A) Keep the parent dir; record as an approved deviation** *(recommended)* | Safe extraction — cannot scatter files into the user's cwd; matches common convention and IMP-06 as built | Contradicts the rule as written; needs an explicit approval record |
+| **(A) Keep the parent dir; record as an approved deviation** *(recommended)* | Extraction cannot scatter ~90 entries into the user's cwd, which has no undo; matches IMP-06 as built and common practice | Contradicts the rule as written; needs an explicit approval record |
 | (B) Change `package_release.rs` to match the rule | Rules and practice agree with no exception | Extracting scatters files into the current directory; reverses a shipped convention |
 
 Recommendation: **(A)**. The rule reads as a general default; this project has a
@@ -230,7 +253,10 @@ specific reason. But it is your rule, so the deviation needs your approval
 rather than my inference. Consequence of deferring: IMP-06 remains an
 undocumented rule violation.
 
-### Decision request 2 — disposition of `0.21.2`
+### Decision request 2 — disposition of `0.21.2` — **ACCEPTED (owner, 2026-07-30)**
+
+**Decision: mark `0.21.2` as `KNOWN-BAD` in the CHANGELOG.** Option (A) below.
+Implementation is an acceptance criterion of this RFC.
 
 | Option | Benefit | Drawback |
 |---|---|---|
