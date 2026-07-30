@@ -176,7 +176,11 @@ stabilization, must precede any v1.0 consideration — the current state is
 far from production readiness or demonstrable appeal.
 
 Candidate directions are recorded but **deliberately undecided**; choosing
-among them is a joint planning discussion still to be held:
+among them is a joint planning discussion **scheduled for v0.22 completion**
+(owner, 2026-07-31). The RFC-v0.22-001 disposition checkpoint is the trigger:
+the architect owes an options paper at that point — per direction, what
+already exists, what is genuinely missing, the dependency chain, honest
+sizing, and what claim each would let the project make. Not a menu.
 
 - Make the semantic plane real (the ABDD live path and beyond)
 - Make the service plane real (17 of 29 services currently never receive IPC)

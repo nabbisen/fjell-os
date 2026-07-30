@@ -1,6 +1,6 @@
 # RFC-v0.22-001: Gate Integrity
 
-**Status:** Proposed
+**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-07-31**
 **Milestone:** v0.22
 **Tracks.** Verification-instrument quality. Cross-cutting; not a feature.
 **Touches.** `crates/fjell-tools/src/callsite_audit.rs`,

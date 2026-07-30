@@ -302,7 +302,7 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 
 | RFC | Title |
 |-----|-------|
-| v0.22-001 | [Gate Integrity](./proposed/RFC-v0.22-001-gate-integrity.md) — owner-approved planning baseline 2026-07-30; handoff pending |
+| v0.22-001 | [Gate Integrity](./proposed/RFC-v0.22-001-gate-integrity.md) — accepted for implementation 2026-07-31; handoff: [`handoffs/`](./handoffs/RFC-v0.22-001-gate-integrity/implementation-handoff.md) |
 
 ---
 
