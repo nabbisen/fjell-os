@@ -296,6 +296,7 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 | RFC | Title |
 |-----|-------|
 | v0.21.3-001 | [Build Restoration and As-Built Reconciliation](./proposed/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md) — handoff: [`handoffs/`](./handoffs/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation/implementation-handoff.md) |
+| v0.21.3-002 | [v0 Development Release Cycle](./proposed/RFC-v0.21.3-002-v0-release-cycle.md) — 2 owner decisions pending |
 
 ---
 
