@@ -14,13 +14,22 @@ this RFC acts on), original milestones M7/M8, FR-SEM-001…005.
 ## Summary
 
 Fjell's stated reason for existing is that applications emit **meaning**, not
-drawing commands, and a proxy renders it. That claim is currently demonstrated
-only by unit tests. `proxy-text` holds 845 lines of working renderer behind an
-entry point that prints one line and exits; `semantic-stream` is the same.
+drawing commands, and a **separate** proxy renders it.
 
-This RFC connects them. A service emits an intent node, `semantic-stream` routes
-it, `proxy-text` renders it, and the proxy's return leg issues a
-capability-checked `ActionRequest`. It adds no kernel surface and no syscalls.
+That separation does not exist at runtime. `fjell-init` constructs
+`StateNode`/`EventNode` values and renders them **itself**, linking
+`fjell-proxy-text` as a library — 13 call sites, all in init's own address space.
+Meanwhile `proxy-text` as a *service* prints one line and exits, and
+`semantic-stream` does the same.
+
+So the serial output that resembles an ABDD demonstration is an **ABDD
+violation**: the emitter and the renderer are the same process, which is exactly
+what the architecture forbids.
+
+This RFC moves rendering across the boundary. A service emits an intent node,
+`semantic-stream` routes it, the `proxy-text` **service** renders it, and the
+proxy's return leg issues a capability-checked `ActionRequest`. `init` stops
+rendering. It adds no kernel surface and no syscalls.
 
 ## Motivation
 
@@ -45,10 +54,26 @@ Measured at `0.22.0`:
 | `init` spawns neither | no spawn call for either image |
 | `semantic-stream` service loop | `main.rs` ends in `sys_exit(0)` |
 | `proxy-text` service loop | `main.rs` is 10 lines, ends in `sys_exit(0)` |
-| An emitter | nothing emits an intent node at runtime |
+| An emitter over IPC | nothing emits an intent node *across a process boundary* |
+| Separation | `init` links `fjell-proxy-text` and renders inline — 13 call sites |
 
 Nine release lines built the infrastructure around this and never closed it.
-The measured gap is roughly **100–150 lines**.
+The measured gap is roughly **200–300 lines**, including converting init's 13
+render call sites into emissions.
+
+### A note on how this was nearly missed
+
+The options paper originally recorded that the renderer was "845 lines that
+nothing calls." That was wrong, and the recommendation was accepted while it
+stood. `init/src/main.rs` contains two NUL bytes inside a legitimate NUL-padded
+byte literal (`*b"release-m8-dev\0\0"`), so GNU grep classifies the file as
+binary and **silently suppresses every match** — reporting a clean result that
+looked like evidence of absence.
+
+Recorded because it is the same failure class this project keeps finding in its
+gates: a tool reporting nothing while not looking. The `.rs` file is valid Rust
+and the Rust-based gate tooling (`fs::read_to_string`) is unaffected; only
+grep-based inspection is blinded.
 
 ### Why now
 
@@ -104,7 +129,7 @@ loop-local. **Checked, not a risk** — recorded so nobody re-derives it.
 | Slice | Content | Evidence |
 |---|---|---|
 | 1 | Bring both services live: `ep_obj` arms, `init` spawn, service loops on the `recoveryd` pattern | Both appear in the serial log and do **not** exit |
-| 2 | Forward path: `sample-service` emits an intent node → `semantic-stream` routes → `proxy-text` renders | Rendered output visible in the serial log |
+| 2 | Forward path: `sample-service` emits an intent node → `semantic-stream` routes → `proxy-text` renders. **`init` stops linking `fjell-proxy-text`**; its 13 render call sites become emissions | Rendered output visible in the serial log, produced by the proxy **task**, not by init |
 | 3 | Return leg: proxy issues `ActionRequest`; capability-checked; refused without the right | Both accept and refuse observed |
 | 4 | Gate it: a `semantic` QEMU profile with fail-closed markers | Profile passes in `test-all`; absent marker fails the run |
 
@@ -138,6 +163,15 @@ twelve-gate table.
 - [ ] `cargo xtask test-all` includes the new profile; all tiers pass.
 - [ ] Twelve mechanical gates pass; Gate 12 stays green (the syscall surface is
       unchanged — 35 declared, 26 dispatched — and this RFC must not alter it).
+- [ ] **`init` no longer depends on `fjell-proxy-text`** — removed from its
+      `Cargo.toml` and its imports. Without this the demonstration coexists with
+      the violation it exists to remove, and the separation is cosmetic.
+- [ ] Rendered output in the serial log is attributable to the `proxy-text`
+      task, not to `init`.
+- [ ] Consider removing the literal NUL bytes from `init`'s release-id byte
+      literal so grep-based inspection stops silently skipping the file. Small,
+      in-scope since this RFC edits init anyway; not required if it complicates
+      the format.
 - [ ] No new syscall; no kernel behaviour change.
 - [ ] Release record for `0.23.0` per RFC-v0.21.3-002.
 
@@ -147,7 +181,7 @@ twelve-gate table.
 |---|---|---|---|---|
 | R1 | Running the path exposes ABDD boundary design gaps the renderer's unit tests never exercised | **Medium** | Medium | Expected and useful. **Report findings; do not redesign the boundary inside a slice.** A design gap becomes its own RFC. |
 | R2 | Scope creep into Direction B — "while we're here, wire these too" | Medium | Medium | Explicit non-goal. The other 15 services are out of scope regardless of how cheap they look mid-slice. |
-| R3 | The demonstration is written to pass its own markers rather than to be real | Low–medium | **High** | The emitter is a real service (`sample-service`), not a test stub, and the refusal case must be genuine. A path that only works for the test is worse than none. |
+| R3 | The demonstration is written to pass its own markers rather than to be real | **Medium** | **High** | Sharpened by the corrected finding: it is now possible to "demonstrate" ABDD by standing a proxy service up beside init's inline rendering and leaving both. The acceptance criteria therefore require init to *stop* rendering, not merely require the proxy to *start*. |
 | R4 | Endpoint-number collision with the existing assignments (1–6 in use) | Low | Low | Assign 7 and 8; verify against `spawn.rs` before use. |
 
 ## Alternatives considered
