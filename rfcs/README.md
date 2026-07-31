@@ -309,7 +309,7 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 | RFC | Title |
 |-----|-------|
 | v0.23-001 | [ABDD Live Path](./proposed/RFC-v0.23-001-abdd-live-path.md) — accepted for implementation 2026-07-31; handoff: [`handoffs/`](./handoffs/RFC-v0.23-001-abdd-live-path/implementation-handoff.md) |
-| v0.23-002 | [Milestone Markers by Identity](./proposed/RFC-v0.23-002-milestone-markers-by-identity.md) — blocks 0.23.0; handoff pending |
+| v0.23-002 | [Milestone Markers by Identity](./proposed/RFC-v0.23-002-milestone-markers-by-identity.md) — blocks 0.23.0; handoff: [`handoffs/`](./handoffs/RFC-v0.23-002-milestone-markers-by-identity/implementation-handoff.md) |
 
 ---
 

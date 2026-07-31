@@ -1,6 +1,6 @@
 # RFC-v0.23-002: Milestone Markers by Identity
 
-**Status:** Proposed
+**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-07-31**
 **Milestone:** v0.23
 **Tracks.** Gate integrity. The smoke-test suite's PASS markers do not attest
 what they name.
