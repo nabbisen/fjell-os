@@ -1,0 +1,28 @@
+═══════════════════════════════════════════════════════════
+                    FJELL TEST-ALL SUMMARY
+═══════════════════════════════════════════════════════════
+
+Tier  Label                                                Time  Result
+───────────────────────────────────────────────────────────────────────────
+1     Host library tests                                   0.6s  PASS
+2     Property tests (proptest)                            0.1s  PASS
+3     Unsafe site audit                                    0.1s  PASS
+4     MMIO ordering audit                                  0.1s  PASS
+5     Reproducible build (skip-build)                      0.0s  PASS
+6     QEMU smoke: m8                                      60.8s  PASS
+7     QEMU smoke: v0.4-net                                60.8s  PASS
+8     QEMU smoke: v0.5-platform                           60.8s  PASS
+9     QEMU smoke: v0.7-sync                               60.8s  PASS
+10    QEMU negative: capability                           90.0s  PASS
+11    QEMU negative: mmio                                 60.0s  PASS
+12    QEMU negative: dma                                  60.0s  PASS
+13    QEMU negative: user-copy                            60.0s  PASS
+14    QEMU negative: audit                                90.0s  PASS
+15    QEMU negative: policy                               90.0s  PASS
+16    QEMU negative: ipc                                  90.1s  PASS
+17    QEMU negative: svc                                  90.0s  PASS
+18    QEMU negative: harness                              60.1s  PASS
+───────────────────────────────────────────────────────────────────────────
+Total: 18  |  PASS: 18  |  FAIL: 0  |  SKIP: 0
+
+✓ ALL REQUIRED TIERS PASSED

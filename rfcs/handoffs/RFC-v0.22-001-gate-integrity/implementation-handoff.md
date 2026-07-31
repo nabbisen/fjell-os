@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-v0.22-001
 
-**Governing RFC:** [RFC-v0.22-001](../../proposed/RFC-v0.22-001-gate-integrity.md)
+**Governing RFC:** [RFC-v0.22-001](../../done/RFC-v0.22-001-gate-integrity.md)
 **Milestone:** v0.22
-**Status:** inherited from the governing RFC (Proposed — accepted for implementation 2026-07-31)
+**Status:** inherited from the governing RFC — **Implemented (v0.22.0)**
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
