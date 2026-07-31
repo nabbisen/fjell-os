@@ -96,7 +96,7 @@ the success path.
 console.
 
 **Corrected 2026-07-31 — this originally named `renderer::ingest`, which was
-wrong.** See `review-record-design-conflict.md` (`.git-exclude/reviewed/`).
+wrong.** See `.git-exclude/reviewed/review-record-design-conflict.md`.
 There are two non-interoperating semantic subsystems in this codebase:
 
 | | **Subsystem A — use this** | Subsystem B — out of scope |
