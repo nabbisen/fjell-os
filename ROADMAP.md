@@ -204,6 +204,13 @@ The remaining directions stay **undecided** and are re-opened when v0.23 closes:
   syscall before any userland command set
 - Make it run on metal — hardware bring-up, currently placed at v2+
 
+Two v0.23 candidates added by the RFC-v0.23-001 design-conflict review
+(2026-07-31): the **nine-syscall disposition rises in priority**, because
+`DmaShare` blocks the documented bulk-transfer path and forced a divergence in
+v0.23; and **`renderer.rs`'s `ingest` subsystem** (~540 lines, a tag-keyed
+catalog codec called by nothing but its own tests) needs a decision — unfinished
+successor, or abandoned work to retire.
+
 Full analysis, with measurements and the dependency map, in
 `docs/src/roadmap/v0.23-direction-options.md`.
 

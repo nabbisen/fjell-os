@@ -92,8 +92,44 @@ the success path.
 **This is the slice that matters.** Two halves, both required:
 
 **(a) Stand up the path.** `sample-service` emits an intent node →
-`semantic-stream` routes it → `proxy-text` receives it and calls
-`renderer::ingest`, rendering to the serial console.
+`semantic-stream` routes it → the `proxy-text` service renders it to the serial
+console.
+
+**Corrected 2026-07-31 — this originally named `renderer::ingest`, which was
+wrong.** See [review-record-design-conflict.md](./review-record-design-conflict.md).
+There are two non-interoperating semantic subsystems in this codebase:
+
+| | **Subsystem A — use this** | Subsystem B — out of scope |
+|---|---|---|
+| Types | `fjell-semantic-format`: `StateNode`, `EventNode`, `IntentNode` | `fjell-semantic-v1`: tag-keyed catalog + codec |
+| Entry points | `render_state` / `render_event` / `render_intent` (`lib.rs`) | `ProxyState::ingest(bytes, …)` (`renderer.rs`) |
+| `semantic-stream` speaks it | **yes** — `publish`, `validate_and_publish`, `dispatch_action` already exist | no |
+| Action concept | **yes** — `IntentNode.actions`, and `render_intent` returns `Option<ActionId>` | none at all |
+
+Build on **A**. It is what init's 13 call sites use, what `semantic-stream`
+already speaks, and the only one with an action concept for Slice 3. B is a
+second unwired subsystem and is not this RFC's problem.
+
+For Slice 3, use `ActionSpec.required_capability: Option<CapabilityRequirement>`
+as the declared source of truth for the capability check rather than hardcoding
+it — the intent states which capability its action needs.
+
+**Transfer:** these nodes are kilobyte-scale (`TextToken` ≈ 136 B; `StateNode`
+carries two plus `FixedVec<StateFact, 16>`) and do not fit a 4-word message. Use
+chunked byte transfer on the `storaged` `WRITE_BEGIN`/`WRITE_CHUNK`/
+`WRITE_COMMIT` precedent; the types are `Copy` with fixed-size arrays and no
+pointers, so raw chunking and reassembly is sound.
+
+**Record the divergence.** `docs/src/external-design/ipc.md:76` says bulk
+transfer "uses a shared region granted by capability." That is `DmaShare` (111)
+— one of the nine undispatched syscalls — so the documented mechanism is
+unavailable. Chunking is correct here, but add a note to `ipc.md` stating the
+shared-region path is not currently available. Do **not** leave this as a silent
+workaround.
+
+Report the round-trip count per node in the review request. Dozens of messages
+per node is acceptable for a demonstration; it should not be mistaken later for
+a designed transport.
 
 **(b) Remove the old path.** Convert init's 13 `render_*` call sites into
 emissions over IPC, then **delete `fjell-proxy-text` from

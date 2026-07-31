@@ -39,7 +39,7 @@ Measured at `0.22.0`:
 
 | Component | State |
 |---|---|
-| `proxy-text` renderer | **845 lines**, 29 functions — `ingest()`, severity/status labelling, scroll ring, pinned criticals, rate limiting |
+| `proxy-text` renderer | **845 lines**. Note (2026-07-31): these split across *two* subsystems — `lib.rs`'s `render_*` (used by init, **the target**) and `renderer.rs`'s `ingest()` (a separate catalog-codec path, unwired, out of scope). See the design-conflict review record. |
 | Round-trip data model | `ActionId`, `ActionSpec`, `ActionKind`, `ActionRequest`, `ActionResult` in `fjell-semantic-format` |
 | Intent catalog | frozen v1 (ADR-v0.5-004), auto-published |
 | Service binaries | both built and embedded in the kernel image |
