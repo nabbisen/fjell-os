@@ -57,6 +57,7 @@
 - [Reproducible Builds](./release/reproducibility.md)
 - [v1.0 Readiness Matrix](./release/v1-readiness.md)
 - [v0 Development Release Cycle](./release/v0-release-cycle.md)
+- [v0.23+ Direction Options](./roadmap/v0.23-direction-options.md)
 - [RFC Process](./contributing/rfc-process.md)
 - [Performance Baseline](./perf/baseline.md)
 
