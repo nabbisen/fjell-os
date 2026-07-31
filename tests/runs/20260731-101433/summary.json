@@ -1,0 +1,20 @@
+[
+  {"id":"01-host-lib","label":"Host library tests","passed":true,"duration_ms":624,"log":"tests/runs/20260731-101433/01-host-lib.log"},
+  {"id":"02-proptest","label":"Property tests (proptest)","passed":true,"duration_ms":77,"log":"tests/runs/20260731-101433/02-proptest.log"},
+  {"id":"03-unsafe-audit","label":"Unsafe site audit","passed":true,"duration_ms":70,"log":"tests/runs/20260731-101433/03-unsafe-audit.log"},
+  {"id":"03c-mmio-audit","label":"MMIO ordering audit","passed":true,"duration_ms":64,"log":"tests/runs/20260731-101433/03c-mmio-audit.log"},
+  {"id":"03b-repro-check","label":"Reproducible build (skip-build)","passed":false,"duration_ms":31,"log":"tests/runs/20260731-101433/03b-repro-check.log"},
+  {"id":"04-qemu-smoke-m8","label":"QEMU smoke: m8","passed":true,"duration_ms":60791,"log":"tests/runs/20260731-101433/04-qemu-smoke-m8.log"},
+  {"id":"04-qemu-smoke-v0_4-net","label":"QEMU smoke: v0.4-net","passed":true,"duration_ms":60845,"log":"tests/runs/20260731-101433/04-qemu-smoke-v0_4-net.log"},
+  {"id":"04-qemu-smoke-v0_5-platform","label":"QEMU smoke: v0.5-platform","passed":true,"duration_ms":60905,"log":"tests/runs/20260731-101433/04-qemu-smoke-v0_5-platform.log"},
+  {"id":"04-qemu-smoke-v0_7-sync","label":"QEMU smoke: v0.7-sync","passed":true,"duration_ms":60837,"log":"tests/runs/20260731-101433/04-qemu-smoke-v0_7-sync.log"},
+  {"id":"05-qemu-neg-capability","label":"QEMU negative: capability","passed":true,"duration_ms":90037,"log":"tests/runs/20260731-101433/05-qemu-neg-capability.log"},
+  {"id":"05-qemu-neg-mmio","label":"QEMU negative: mmio","passed":true,"duration_ms":60039,"log":"tests/runs/20260731-101433/05-qemu-neg-mmio.log"},
+  {"id":"05-qemu-neg-dma","label":"QEMU negative: dma","passed":true,"duration_ms":60045,"log":"tests/runs/20260731-101433/05-qemu-neg-dma.log"},
+  {"id":"05-qemu-neg-user-copy","label":"QEMU negative: user-copy","passed":true,"duration_ms":60037,"log":"tests/runs/20260731-101433/05-qemu-neg-user-copy.log"},
+  {"id":"05-qemu-neg-audit","label":"QEMU negative: audit","passed":true,"duration_ms":90039,"log":"tests/runs/20260731-101433/05-qemu-neg-audit.log"},
+  {"id":"05-qemu-neg-policy","label":"QEMU negative: policy","passed":true,"duration_ms":90037,"log":"tests/runs/20260731-101433/05-qemu-neg-policy.log"},
+  {"id":"05-qemu-neg-ipc","label":"QEMU negative: ipc","passed":true,"duration_ms":90051,"log":"tests/runs/20260731-101433/05-qemu-neg-ipc.log"},
+  {"id":"05-qemu-neg-svc","label":"QEMU negative: svc","passed":true,"duration_ms":90044,"log":"tests/runs/20260731-101433/05-qemu-neg-svc.log"},
+  {"id":"05-qemu-neg-harness","label":"QEMU negative: harness","passed":true,"duration_ms":60037,"log":"tests/runs/20260731-101433/05-qemu-neg-harness.log"}
+]

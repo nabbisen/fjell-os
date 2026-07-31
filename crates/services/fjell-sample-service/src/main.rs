@@ -14,7 +14,9 @@
 mod rt;
 
 use fjell_abi::lease::LeaseId;
-use fjell_cap::CapHandle;
+use fjell_cap::{CapHandle, CapRights};
+use fjell_semantic_format::*;
+use fjell_service_api::semantic_stream as sem_proto;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
     sys_cap_bind_lease, sys_cap_copy, sys_cap_drop, sys_debug_writeln, sys_exit, sys_ipc_recv,
@@ -28,6 +30,89 @@ const SLOT_CALL_EP: u32 = 6; // blocked-call test (BIND_LEASE_AND_CALL_BACK)
 const SLOT_OWN_EP: u32 = 0;
 // Shared endpoint (object 0) — used only for the SERVICE_READY signal.
 const SLOT_SHARED_EP: u32 = 2;
+// semantic-stream endpoint cap (object 7), pre-installed by spawn.rs
+// (RFC-v0.23-001) so the SDK reference service can emit an intent node.
+const SEM_STREAM_EP: u32 = 3;
+
+/// Build and emit a demonstration `IntentNode` to semantic-stream (RFC-v0.23-001).
+///
+/// Two actions are declared, deliberately requiring different capabilities:
+/// one whose required right (`SEND | REPLY`) matches what proxy-text is
+/// granted, and one requiring `MMIO_MAP`, which it is not. This is what lets
+/// the return leg (Slice 3) demonstrate both the accept and the refuse case
+/// from a single intent, rather than asserting success alone.
+fn emit_sample_intent() {
+    let mut actions: FixedVec<ActionSpec, MAX_ACTIONS> = FixedVec::new();
+    actions.push(ActionSpec {
+        action_id: ActionId(1),
+        label: TextToken::new("acknowledge"),
+        kind: ActionKind::Confirm,
+        required_capability: Some(CapabilityRequirement {
+            resource_class: BoundedText::from_str("demo"),
+            resource_name: ResourceName::new("proxy-ack"),
+            rights: (CapRights::SEND.0 | CapRights::REPLY.0) as u32,
+        }),
+        reversibility: Reversibility::Reversible,
+        confirmation: ConfirmationPolicy::None,
+    });
+    actions.push(ActionSpec {
+        action_id: ActionId(2),
+        label: TextToken::new("remap-device"),
+        kind: ActionKind::Inspect,
+        required_capability: Some(CapabilityRequirement {
+            resource_class: BoundedText::from_str("demo"),
+            resource_name: ResourceName::new("proxy-mmio"),
+            rights: CapRights::MMIO_MAP.0 as u32,
+        }),
+        reversibility: Reversibility::Reversible,
+        confirmation: ConfirmationPolicy::None,
+    });
+
+    let intent = IntentNode {
+        kind: IntentKind::ActionRequest,
+        title: TextToken::new("sample-service demo intent"),
+        description: TextToken::new("RFC-v0.23-001 ABDD live path demonstration"),
+        severity: Severity::Normal,
+        actions,
+        consequences: FixedVec::new(),
+        expires_at_tick: None,
+    };
+
+    // producer_index=6 (ImageId::SAMPLE_SERVICE's endpoint id, for a stable
+    // demo identifier — not itself load-bearing for the capability check).
+    let node_id = NodeId {
+        producer_index: 6,
+        local_sequence: 1,
+    };
+    let envelope = SemanticEnvelope::new_intent(node_id, 1, intent);
+
+    // SAFETY: category=raw-pointer-deref `SemanticEnvelope` is `Copy` with no
+    // pointers or heap allocations — every field is a fixed-size array, enum,
+    // or primitive (verified against fjell-semantic-format/src/lib.rs in
+    // full). Reinterpreting it as a byte slice for wire transfer is sound
+    // because sender and receiver are built from the identical type
+    // definition by the identical compiler for the identical target (one
+    // `cargo build` invocation produces every service binary).
+    let bytes: &[u8] = unsafe {
+        core::slice::from_raw_parts(
+            &envelope as *const SemanticEnvelope as *const u8,
+            core::mem::size_of::<SemanticEnvelope>(),
+        )
+    };
+
+    let reply = fjell_service_api::chunked::send(
+        SEM_STREAM_EP,
+        sem_proto::PUBLISH_BEGIN,
+        sem_proto::PUBLISH_CHUNK,
+        sem_proto::PUBLISH_COMMIT,
+        bytes,
+    );
+    if reply == sem_proto::PUBLISH_OK {
+        sys_debug_writeln("sample-service: intent emitted");
+    } else {
+        sys_debug_writeln("sample-service: intent emit FAILED");
+    }
+}
 
 /// Print a SysError discriminant as a decimal line (no alloc, no fmt).
 fn debug_err(e: fjell_abi::error::SysError) {
@@ -52,6 +137,11 @@ pub extern "C" fn service_main() -> ! {
     // RFC 058: signal READY to service-manager (best-effort; no reply expected).
     let _ = fjell_syscall::sys_ipc_try_send(SLOT_SHARED_EP, fjell_service_api::tags::SERVICE_READY);
     let ep: u32 = 0; // slot 0 = own endpoint (object 6, dedicated)
+
+    // RFC-v0.23-001: emit a demonstration intent to semantic-stream. Done
+    // once at startup, before the request loop — semantic-stream and
+    // proxy-text are already spawned and ready by this point (Slice 1).
+    emit_sample_intent();
 
     loop {
         // Use recv_msg to capture data words (needed for BIND_LEASE_FOR_IPC_TEST).

@@ -14,7 +14,6 @@ fjell-abi              = { path = "../../fjell-abi" }
 fjell-syscall          = { path = "../../fjell-syscall" }
 fjell-service-api      = { path = "../../fjell-service-api" }
 fjell-semantic-format  = { path = "../../formats/fjell-semantic-format" }
-fjell-proxy-text       = { path = "../fjell-proxy-text" }
 fjell-store-format     = { path = "../../formats/fjell-store-format" }
 fjell-upgrade-format   = { path = "../../formats/fjell-upgrade-format" }
 fjell-verify-format   = { path = "../../formats/fjell-verify-format" }

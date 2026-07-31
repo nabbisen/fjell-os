@@ -720,7 +720,6 @@ dependencies = [
  "fjell-abi",
  "fjell-cap",
  "fjell-measure-format",
- "fjell-proxy-text",
  "fjell-recovery-format",
  "fjell-rootfs-format",
  "fjell-semantic-format",
@@ -845,6 +844,7 @@ name = "fjell-proxy-text"
 version = "0.22.0"
 dependencies = [
  "fjell-abi",
+ "fjell-cap",
  "fjell-semantic-format",
  "fjell-semantic-v1",
  "fjell-service-api",
@@ -913,6 +913,7 @@ version = "0.22.0"
 dependencies = [
  "fjell-abi",
  "fjell-cap",
+ "fjell-semantic-format",
  "fjell-service-api",
  "fjell-syscall",
 ]

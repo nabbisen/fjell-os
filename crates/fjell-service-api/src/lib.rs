@@ -406,6 +406,87 @@ pub mod proxy_text {
     pub const ERR: usize = 0x51F;
 }
 
+/// Chunked byte transfer (RFC-v0.23-001): sends a `Copy`, no-pointer struct's
+/// raw bytes as `BEGIN(len)` / `CHUNK(4 words)` x N / `COMMIT`, 32 bytes
+/// (4 `usize` words on riscv64gc) per round trip. Modelled on `storaged`'s
+/// `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` protocol.
+///
+/// This is a **documented divergence**, not the mechanism
+/// `docs/src/external-design/ipc.md` describes for bulk transfer (a
+/// capability-granted shared region) — that mechanism is `DmaShare` (111),
+/// one of the nine declared-but-undispatched syscalls, and is therefore
+/// unavailable without adding a syscall, which this RFC's scope forbids.
+/// Kilobyte-scale nodes at 32 bytes per message mean dozens of round trips;
+/// acceptable for this demonstration, not a designed transport.
+pub mod chunked {
+    /// Bytes carried per chunk: 4 `usize` words at 8 bytes each (riscv64gc).
+    pub const CHUNK_BYTES: usize = 32;
+
+    /// Raw 4-word blocking IPC call (`SyscallNumber::IpcCall` = 22).
+    /// `fjell-syscall::sys_ipc_call_words` only exposes 3 data words;
+    /// chunked transfer needs the full 4 the kernel's `build_msg` supports
+    /// (`.min(4)` in `crates/fjell-kernel/src/cap/syscall.rs`).
+    fn ipc_call4(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) -> usize {
+        let reply: usize;
+        #[cfg(target_arch = "riscv64")]
+        // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, RFC-v0.23-001).
+        unsafe {
+            core::arch::asm!(
+                "li a7, 22", "ecall",
+                inlateout("a0") ep_slot as usize => _,
+                inlateout("a1") tag | (4usize << 16) => reply,
+                in("a2") w0, in("a3") w1, in("a4") w2, in("a5") w3,
+                lateout("a7") _,
+                options(nostack),
+            );
+        }
+        #[cfg(not(target_arch = "riscv64"))]
+        {
+            let _ = (ep_slot, tag, w0, w1, w2, w3);
+            reply = 0;
+        }
+        reply & 0xFFFF
+    }
+
+    /// Send `bytes` to `ep_slot` as BEGIN/CHUNK.../COMMIT. Returns the
+    /// COMMIT step's reply tag (e.g. `PUBLISH_OK`/`PUBLISH_ERR`).
+    pub fn send(
+        ep_slot: u32,
+        begin_tag: usize,
+        chunk_tag: usize,
+        commit_tag: usize,
+        bytes: &[u8],
+    ) -> usize {
+        ipc_call4(ep_slot, begin_tag, bytes.len(), 0, 0, 0);
+        let mut i = 0;
+        while i < bytes.len() {
+            let n = (bytes.len() - i).min(CHUNK_BYTES);
+            let mut buf = [0u8; CHUNK_BYTES];
+            buf[..n].copy_from_slice(&bytes[i..i + n]);
+            let w0 = usize::from_le_bytes(buf[0..8].try_into().unwrap());
+            let w1 = usize::from_le_bytes(buf[8..16].try_into().unwrap());
+            let w2 = usize::from_le_bytes(buf[16..24].try_into().unwrap());
+            let w3 = usize::from_le_bytes(buf[24..32].try_into().unwrap());
+            ipc_call4(ep_slot, chunk_tag, w0, w1, w2, w3);
+            i += n;
+        }
+        ipc_call4(ep_slot, commit_tag, 0, 0, 0, 0)
+    }
+
+    /// Reassemble one chunk's four words into `out` at `offset`. Bytes past
+    /// `out.len()` are dropped (the final chunk is zero-padded by the
+    /// sender past the BEGIN-declared length; callers truncate to that
+    /// length, so nothing beyond it is ever read back).
+    pub fn write_chunk(out: &mut [u8], offset: usize, w0: usize, w1: usize, w2: usize, w3: usize) {
+        for (i, w) in [w0, w1, w2, w3].iter().enumerate() {
+            let start = offset + i * 8;
+            if start + 8 <= out.len() {
+                out[start..start + 8].copy_from_slice(&w.to_le_bytes());
+            }
+        }
+    }
+}
+
 /// v0.7 distributed sync IPC tags (RFC-v0.7.2-001).
 ///
 /// IPC tags use u16 to fit in the standard packed message tag format.

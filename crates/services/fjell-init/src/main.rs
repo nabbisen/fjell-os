@@ -16,11 +16,6 @@ const INIT_SLOT_TASK_CONTROL: u32 = 29;
 // (e.g. creating a boot lease that all early services are bound to).
 #[allow(dead_code)]
 const INIT_SLOT_LEASE_ADMIN: u32 = 30;
-use fjell_proxy_text::{
-    render_attestation_status, render_event, render_freshness_rejected_event,
-    render_freshness_status, render_measurement_status, render_recovery_intent,
-    render_recovery_status, render_rollback_selected_event, render_state,
-};
 use fjell_rootfs_format::*;
 use fjell_semantic_format::*;
 use fjell_snapshot_format::*;
@@ -167,6 +162,238 @@ fn wait_ready_exact(ep: usize, expected: usize) {
             break;
         }
     }
+}
+
+// ── RFC-v0.23-001 Slice 2(b): emit semantic nodes instead of rendering them ────
+//
+// `init` used to construct StateNode/EventNode/IntentNode values and render
+// them itself by linking `fjell-proxy-text` as a library — 13 call sites, in
+// init's own address space, which is the ABDD violation this RFC exists to
+// remove. `init` no longer depends on `fjell-proxy-text` at all (see
+// Cargo.toml); it emits the same node content over IPC to semantic-stream
+// instead, which forwards to proxy-text for rendering.
+
+// semantic-stream endpoint cap (object 7), slot 6 — already installed by
+// spawn.rs and already used to wait for semantic-stream's READY signal
+// (Slice 1); reused here as the emission target.
+const SEM_STREAM_EP: u32 = 6;
+
+fn emit_envelope(envelope: SemanticEnvelope) {
+    // SAFETY: category=raw-pointer-deref `SemanticEnvelope` is `Copy` with no
+    // pointers or heap allocations (every field is a fixed-size array, enum,
+    // or primitive) — reinterpreting it as a byte slice for wire transfer is
+    // sound because sender and receiver are built from the identical type
+    // definition by the identical compiler for the identical target. Same
+    // reasoning as fjell-sample-service's emission (Slice 2).
+    let bytes: &[u8] = unsafe {
+        core::slice::from_raw_parts(
+            &envelope as *const SemanticEnvelope as *const u8,
+            core::mem::size_of::<SemanticEnvelope>(),
+        )
+    };
+    let _ = fjell_service_api::chunked::send(
+        SEM_STREAM_EP,
+        fjell_service_api::semantic_stream::PUBLISH_BEGIN,
+        fjell_service_api::semantic_stream::PUBLISH_CHUNK,
+        fjell_service_api::semantic_stream::PUBLISH_COMMIT,
+        bytes,
+    );
+}
+
+/// producer_index=1 (init's own task index) for every node init emits.
+const INIT_PRODUCER: u16 = 1;
+
+fn emit_state(n: StateNode) {
+    let node_id = NodeId {
+        producer_index: INIT_PRODUCER,
+        local_sequence: 0,
+    };
+    emit_envelope(SemanticEnvelope::new_state(node_id, 1, n));
+}
+
+fn emit_event(n: EventNode) {
+    let node_id = NodeId {
+        producer_index: INIT_PRODUCER,
+        local_sequence: 0,
+    };
+    emit_envelope(SemanticEnvelope::new_event(node_id, 1, n));
+}
+
+fn emit_intent(n: IntentNode) {
+    let node_id = NodeId {
+        producer_index: INIT_PRODUCER,
+        local_sequence: 0,
+    };
+    emit_envelope(SemanticEnvelope::new_intent(node_id, 1, n));
+}
+
+// ── M8 semantic node constructors ──────────────────────────────────────────────
+//
+// Ported from `fjell-proxy-text`'s former `render_measurement_status` /
+// `render_attestation_status` / `render_freshness_status` /
+// `render_recovery_status` / `render_recovery_intent` /
+// `render_freshness_rejected_event` / `render_rollback_selected_event`
+// convenience constructors — identical node content, emitted instead of
+// rendered directly, since `init` can no longer call into that crate.
+
+fn emit_measurement_status(seq: u64, dropped: u64) {
+    let mut n = StateNode {
+        kind: StateKind::MeasurementStatus,
+        title: TextToken::new("Measurement status"),
+        summary: TextToken::new("measurement chain active"),
+        status: Status::Ok,
+        facts: FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("measurement.seq"),
+        value: FactValue::U64(seq),
+        importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("measurement.dropped"),
+        value: FactValue::U64(dropped),
+        importance: Importance::Normal,
+    });
+    emit_state(n);
+}
+
+fn emit_attestation_status() {
+    let mut n = StateNode {
+        kind: StateKind::AttestationStatus,
+        title: TextToken::new("Attestation status"),
+        summary: TextToken::new("local attestation record generated"),
+        status: Status::Ok,
+        facts: FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("profile"),
+        value: FactValue::Text(TextToken::new("fjell.local.v1")),
+        importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("signature"),
+        value: FactValue::Text(TextToken::new("development-ed25519")),
+        importance: Importance::Normal,
+    });
+    emit_state(n);
+}
+
+fn emit_freshness_status(status_ok: bool, generation: u64, key_epoch: u64) {
+    let mut n = StateNode {
+        kind: StateKind::BundleFreshnessStatus,
+        title: TextToken::new("Bundle freshness"),
+        summary: if status_ok {
+            TextToken::new("bundle metadata valid")
+        } else {
+            TextToken::new("bundle rejected")
+        },
+        status: if status_ok {
+            Status::Ok
+        } else {
+            Status::Failed
+        },
+        facts: FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("generation"),
+        value: FactValue::U64(generation),
+        importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("key_epoch"),
+        value: FactValue::U64(key_epoch),
+        importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("status"),
+        value: FactValue::Text(if status_ok {
+            TextToken::new("valid")
+        } else {
+            TextToken::new("rejected")
+        }),
+        importance: Importance::Normal,
+    });
+    emit_state(n);
+}
+
+fn emit_recovery_status(snapshots: u64) {
+    let mut n = StateNode {
+        kind: StateKind::RecoveryStatus,
+        title: TextToken::new("Recovery status"),
+        summary: TextToken::new("recovery target available"),
+        status: Status::Ok,
+        facts: FixedVec::new(),
+    };
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("recovery_target"),
+        value: FactValue::Bool(true),
+        importance: Importance::Normal,
+    });
+    let _ = n.facts.push(StateFact {
+        key: TextToken::new("snapshots_available"),
+        value: FactValue::U64(snapshots),
+        importance: Importance::Normal,
+    });
+    emit_state(n);
+}
+
+fn emit_recovery_intent() {
+    let mut n = IntentNode {
+        kind: IntentKind::ActionRequest,
+        severity: Severity::Important,
+        title: TextToken::new("Recovery action available"),
+        description: TextToken::new("Manual rollback or diagnostics available"),
+        consequences: FixedVec::new(),
+        actions: FixedVec::new(),
+        expires_at_tick: None,
+    };
+    let _ = n.consequences.push(Consequence {
+        level: Severity::Important,
+        text: TextToken::new("Rollback boots the last confirmed slot"),
+    });
+    let _ = n.actions.push(ActionSpec {
+        action_id: ActionId(1),
+        label: TextToken::new("Inspect snapshots"),
+        kind: ActionKind::InspectSnapshots,
+        required_capability: None,
+        reversibility: Reversibility::Reversible,
+        confirmation: ConfirmationPolicy::None,
+    });
+    let _ = n.actions.push(ActionSpec {
+        action_id: ActionId(2),
+        label: TextToken::new("Select rollback"),
+        kind: ActionKind::SelectRollback,
+        required_capability: None,
+        reversibility: Reversibility::Irreversible,
+        confirmation: ConfirmationPolicy::Required,
+    });
+    emit_intent(n);
+}
+
+fn emit_freshness_rejected_event() {
+    let n = EventNode {
+        kind: EventKind::BundleFreshnessRejected,
+        severity: Severity::Important,
+        result: EventResult::Failed,
+        title: TextToken::new("Bundle freshness rejected"),
+        description: TextToken::new("candidate bundle rejected as stale"),
+        subject: None,
+        related_audit_seq: None,
+    };
+    emit_event(n);
+}
+
+fn emit_rollback_selected_event() {
+    let n = EventNode {
+        kind: EventKind::RollbackSelected,
+        severity: Severity::Important,
+        result: EventResult::Ok,
+        title: TextToken::new("Rollback preserved last confirmed slot"),
+        description: TextToken::new("rollback selected to last confirmed slot"),
+        subject: None,
+        related_audit_seq: None,
+    };
+    emit_event(n);
 }
 
 fn spawn(img: ImageId, label: &str) -> usize {
@@ -442,7 +669,7 @@ pub extern "C" fn service_main() -> ! {
     vf.push(fact_bool("rootfs_verified", true));
     vf.push(fact_bool("policy_verified", true));
     vf.push(fact_text("active_slot", "B"));
-    render_state(&StateNode {
+    emit_state(StateNode {
         kind: StateKind::SystemOverview,
         status: Status::Ok,
         title: TextToken::new("Verified boot status"),
@@ -454,7 +681,7 @@ pub extern "C" fn service_main() -> ! {
     let mut rf: FixedVec<StateFact, MAX_FACTS> = FixedVec::new();
     rf.push(fact_text("status", "verified"));
     rf.push(fact_bool("read_only", true));
-    render_state(&StateNode {
+    emit_state(StateNode {
         kind: StateKind::SystemOverview,
         status: Status::Ok,
         title: TextToken::new("Immutable rootfs"),
@@ -466,7 +693,7 @@ pub extern "C" fn service_main() -> ! {
     let mut sf: FixedVec<StateFact, MAX_FACTS> = FixedVec::new();
     sf.push(fact_u64("snapshot_count", 2));
     sf.push(fact_text("last_reason", "post-confirmation"));
-    render_state(&StateNode {
+    emit_state(StateNode {
         kind: StateKind::SystemOverview,
         status: Status::Ok,
         title: TextToken::new("System snapshot"),
@@ -475,7 +702,7 @@ pub extern "C" fn service_main() -> ! {
     });
 
     // [EVENT][Normal][Ok] Slot confirmed after health
-    render_event(&EventNode {
+    emit_event(EventNode {
         kind: EventKind::ActionCompleted,
         title: TextToken::new("Slot confirmed after health"),
         description: TextToken::new("Slot B confirmed after health target success"),
@@ -618,7 +845,7 @@ pub extern "C" fn service_main() -> ! {
         4u64
     };
     sys_debug_writeln("M8: measurement chain ready");
-    render_measurement_status(4, 0); // seq=4 events, dropped=0
+    emit_measurement_status(4, 0); // seq=4 events, dropped=0
 
     // 5. Generate local attestation record.
     {
@@ -640,7 +867,7 @@ pub extern "C" fn service_main() -> ! {
         let vr = ipc_call(attestd_ep, attestd_proto::VERIFY_LATEST, 0, 0, 0, 0);
         if vr == attestd_proto::VERIFY_OK {
             sys_debug_writeln("M8: attestation verified");
-            render_attestation_status();
+            emit_attestation_status();
         }
     }
 
@@ -651,10 +878,10 @@ pub extern "C" fn service_main() -> ! {
         // Inspect slot A.
         let _ir = ipc_call(recoveryd_ep, recoveryd_proto::INSPECT_SLOT, 0, 0, 0, 0);
         sys_debug_writeln("M8: recovery target available");
-        render_recovery_status(1); // 1 snapshot available
+        emit_recovery_status(1); // 1 snapshot available
 
         // Publish recovery intent.
-        render_recovery_intent();
+        emit_recovery_intent();
 
         // Unconfirmed rollback must be rejected (INV REC-001).
         let er = ipc_call(
@@ -683,7 +910,7 @@ pub extern "C" fn service_main() -> ! {
         );
         if cr == recoveryd_proto::ROLLBACK_SELECTED {
             sys_debug_writeln("M8: rollback selected as expected");
-            render_rollback_selected_event();
+            emit_rollback_selected_event();
         }
     }
 
@@ -703,17 +930,17 @@ pub extern "C" fn service_main() -> ! {
         if !r.status.is_admissible() {
             sys_debug_writeln("M8: verification freshness failed");
             sys_debug_writeln("M8: candidate bundle rejected as stale");
-            render_freshness_rejected_event();
-            render_freshness_status(false, 3, 3);
+            emit_freshness_rejected_event();
+            emit_freshness_status(false, 3, 3);
 
             // Enter recovery target.
             let _ = ipc_call(recoveryd_ep, recoveryd_proto::ENTER_RECOVERY, 0x02, 0, 0, 0);
             sys_debug_writeln("M8: recovery target entered");
             sys_debug_writeln("M8: last confirmed slot A preserved");
-            render_recovery_status(1);
+            emit_recovery_status(1);
 
             // Rollback intent for negative path.
-            render_recovery_intent();
+            emit_recovery_intent();
         }
     }
 

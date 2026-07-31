@@ -1,0 +1,22 @@
+# RFC-v0.23-001 (ABDD Live Path): semantic-stream and proxy-text run as live
+# IPC participants; sample-service emits an intent node that is routed and
+# rendered by the proxy task (not by init); the proxy's return leg issues a
+# capability-checked ActionRequest, demonstrated both accepted and refused.
+
+name             = "semantic"
+timeout_secs     = 60
+# Note: markers must not contain `]` — the hand-rolled TOML array reader
+# (qemu_run.rs::load_profile) treats the first `]` in any accumulated line
+# as the array's closing bracket, even when it's part of a marker string's
+# own content (e.g. a literal "[INTENT]" prefix). Confirmed live: an
+# earlier version of this file used "[INTENT][Normal] sample-service demo
+# intent" as a marker and only 2 of 4 markers loaded silently. Kept
+# bracket-free here rather than changing the shared parser, which is out
+# of this RFC's scope and used by every other profile.
+expected_markers = [
+    "M5: semantic operations ready",
+    "sample-service demo intent",
+    "proxy-text: action accepted",
+    "proxy-text: action DENIED (capability not held)",
+]
+extra_args       = []

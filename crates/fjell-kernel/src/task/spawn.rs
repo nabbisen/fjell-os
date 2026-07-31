@@ -444,6 +444,93 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 3: semantic-stream endpoint cap (object 7) for SAMPLE_SERVICE
+            // (RFC-v0.23-001) — lets the SDK reference service emit an intent
+            // node over IPC, demonstrating the authoring pattern.
+            if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
+                let _ = cs.install_raw(
+                    3,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: 7,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+            // Slot 1: proxy-text endpoint cap (object 8) for SEMANTIC_STREAM
+            // (RFC-v0.23-001) — lets semantic-stream forward a node on to the
+            // proxy for rendering.
+            if image_id == fjell_abi::service::ImageId::SEMANTIC_STREAM {
+                let _ = cs.install_raw(
+                    1,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: 8,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+            // Slots 1-2 for PROXY_TEXT (RFC-v0.23-001):
+            //   1 = semantic-stream endpoint cap (object 7), for the
+            //       capability-checked ActionRequest return leg.
+            //   2 = a deliberately narrow-rights capability (SEND | REPLY |
+            //       INSPECT only — no MMIO_MAP, no DMA_*, no TASK_*) that
+            //       proxy-text introspects via sys_cap_inspect to obtain its
+            //       OWN kernel-verified rights, rather than self-asserting a
+            //       bitmask. INSPECT must be included on *this* capability
+            //       itself, not just held generally — RFC 049's
+            //       sys_cap_inspect checks `cap.rights.contains(INSPECT)` on
+            //       the exact capability being inspected
+            //       (crates/fjell-kernel/src/cap/syscall.rs), confirmed live:
+            //       omitting it here made every sys_cap_inspect call fail
+            //       with PermissionDenied, silently defaulting
+            //       `granted_rights` to 0 and denying every action
+            //       regardless of its required right. This is what makes
+            //       the accept/refuse demonstration real: an action whose
+            //       required right is a subset of slot 2's rights is
+            //       accepted; one that is not, is refused. The object_id is
+            //       unused (this capability is never sent through) and is
+            //       set to 0.
+            if image_id == fjell_abi::service::ImageId::PROXY_TEXT {
+                let _ = cs.install_raw(
+                    1,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: 7,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+                let _ = cs.install_raw(
+                    2,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: 0,
+                        rights: CapRights(
+                            CapRights::SEND.0 | CapRights::REPLY.0 | CapRights::INSPECT.0,
+                        ),
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
         }
     }
 

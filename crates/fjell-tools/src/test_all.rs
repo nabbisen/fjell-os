@@ -56,6 +56,7 @@ const NEG_CATEGORIES: &[&str] = &[
     "ipc",
     "svc",
     "harness",
+    "semantic",
 ];
 
 // ── Entry point ───────────────────────────────────────────────────────────────

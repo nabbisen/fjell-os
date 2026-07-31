@@ -1,0 +1,4 @@
+M5: semantic operations ready
+sample-service demo intent
+proxy-text: action accepted
+proxy-text: action DENIED (capability not held)
