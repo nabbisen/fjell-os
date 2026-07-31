@@ -485,6 +485,28 @@ pub mod chunked {
             }
         }
     }
+
+    /// Reassemble a chunked byte buffer back into `T`. `buf` must hold at
+    /// least `size_of::<T>()` bytes (every byte either real transferred
+    /// data or the sender's zero-padding — see `send`/`write_chunk` above).
+    ///
+    /// Restricted to `T: Copy` — every caller in this codebase uses this
+    /// for `Copy`, no-pointer, fixed-size structs
+    /// (`StateNode`/`EventNode`/`IntentNode`/`SemanticEnvelope`), for which
+    /// bytewise reinterpretation is sound as long as sender and receiver
+    /// share the identical type definition, compiled by the identical
+    /// compiler for the identical target — true here, since one `cargo
+    /// build` invocation produces every service binary. `T: Copy` does not
+    /// by itself prove the absence of pointers for an arbitrary type; this
+    /// is a documented caller contract, not a compiler-enforced one.
+    pub fn reassemble<T: Copy>(buf: &[u8]) -> T {
+        // SAFETY: category=raw-pointer-deref caller contract (see doc
+        // comment above) guarantees `buf` holds at least `size_of::<T>()`
+        // initialised bytes of `T`'s own wire representation;
+        // `read_unaligned` handles any alignment mismatch between the byte
+        // buffer and `T`'s required alignment.
+        unsafe { core::ptr::read_unaligned(buf.as_ptr().cast()) }
+    }
 }
 
 /// v0.7 distributed sync IPC tags (RFC-v0.7.2-001).

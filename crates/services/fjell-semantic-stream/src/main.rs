@@ -169,15 +169,11 @@ pub extern "C" fn service_main() -> ! {
                 reply(proto::PUBLISH_OK, 0, 0, 0);
             }
             t if t == proto::PUBLISH_COMMIT => {
-                // SAFETY: category=raw-pointer-deref `buf` holds ENV_BUF_SIZE
-                // >= ENV_SIZE bytes, every byte either real transferred data
-                // or the sender's zero-padding (see fjell_service_api::chunked's
-                // doc comment) — read_unaligned handles any alignment mismatch
-                // between the byte array and SemanticEnvelope's required
-                // alignment, so this is sound regardless of `buf`'s address.
-                let envelope: SemanticEnvelope = unsafe {
-                    core::ptr::read_unaligned(buf.as_ptr() as *const SemanticEnvelope)
-                };
+                // `buf` holds ENV_BUF_SIZE >= ENV_SIZE bytes, every byte
+                // either real transferred data or the sender's
+                // zero-padding — see fjell_service_api::chunked::reassemble
+                // for the safety reasoning.
+                let envelope: SemanticEnvelope = fjell_service_api::chunked::reassemble(&buf);
                 if let SemanticPayload::Intent(n) = &envelope.payload {
                     last_intent = Some(*n);
                 }

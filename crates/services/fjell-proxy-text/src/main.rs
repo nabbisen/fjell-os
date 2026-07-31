@@ -129,15 +129,12 @@ pub extern "C" fn service_main() -> ! {
                 reply(proto::RENDER_OK, 0, 0, 0);
             }
             t if t == proto::RENDER_COMMIT => {
-                // SAFETY: category=raw-pointer-deref `buf` holds ENV_BUF_SIZE
-                // >= ENV_SIZE bytes, every byte either real transferred data
-                // or the sender's zero-padding — read_unaligned handles any
-                // alignment mismatch, so this is sound regardless of `buf`'s
-                // address. See fjell-semantic-stream/src/main.rs for the
-                // matching send-side reasoning.
-                let envelope: SemanticEnvelope = unsafe {
-                    core::ptr::read_unaligned(buf.as_ptr() as *const SemanticEnvelope)
-                };
+                // `buf` holds ENV_BUF_SIZE >= ENV_SIZE bytes, every byte
+                // either real transferred data or the sender's
+                // zero-padding — see fjell_service_api::chunked::reassemble
+                // for the safety reasoning (shared with the send side in
+                // fjell-semantic-stream/src/main.rs).
+                let envelope: SemanticEnvelope = fjell_service_api::chunked::reassemble(&buf);
                 // Render (and, for an Intent, copy out what the return leg
                 // needs) BEFORE replying. `dispatch_action` below calls back
                 // into semantic-stream — which is, right now, still blocked

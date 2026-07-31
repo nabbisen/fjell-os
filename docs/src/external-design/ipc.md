@@ -75,6 +75,24 @@ fail-closed runtime tests.
 
 - Payload is bounded to 4 words inline; bulk transfer uses a shared region
   granted by capability rather than large in-band messages.
+
+  **Correction (RFC-v0.23-001):** the shared-region mechanism this describes
+  is `DmaShare` (syscall 111) — one of the nine declared-but-undispatched
+  syscalls (`crates/fjell-abi/src/syscall.rs` declares it;
+  `crates/fjell-kernel/src/trap/syscall.rs` does not dispatch it). It is
+  **not currently available**. RFC-v0.23-001 needed to transfer
+  kilobyte-scale `SemanticEnvelope` values (`fjell-semantic-format`) between
+  services and, lacking the documented mechanism, used chunked byte
+  transfer instead — the same shape as `storaged`'s
+  `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` protocol, 32 bytes (4 inline
+  words) per round trip (`fjell-service-api::chunked`). This is a
+  demonstration-scale workaround, not a designed transport:
+  `SemanticEnvelope` is 4936 bytes, so one chunked transfer is 157 round
+  trips (`BEGIN` + 155 `CHUNK` + `COMMIT`), and the full path — one
+  emission plus one forward hop — is 314. The
+  documented shared-region path remains the intended mechanism once the
+  nine-syscall disposition (deferred to v0.22+, still open) resolves
+  `DmaShare`.
 - No zero-copy page-remap fast path yet (FR-KRN-004 allows "room for" it; not
   built at v1.0). Small-message register passing is the implemented low-copy
   form.
