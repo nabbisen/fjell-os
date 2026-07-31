@@ -358,6 +358,54 @@ pub mod diagnosticsd {
     pub const AUDIT_STREAM_END: usize = 0x412;
 }
 
+// ── RFC-v0.23-001: ABDD live path IPC protocols ──────────────────────────────
+//
+// Nodes (`fjell-semantic-format`'s `IntentNode`/`StateNode`/`EventNode`) are
+// kilobyte-scale `Copy` types with no pointers, so they are transferred as
+// raw bytes in a chunked protocol modelled on `storaged`'s
+// `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` (see `docs/src/external-design/
+// ipc.md`'s bulk-transfer note for why this is a chunking, not a shared-region,
+// transfer: the documented shared-region mechanism is `DmaShare`, one of the
+// nine declared-but-undispatched syscalls, and is therefore unavailable).
+//
+// Wire shape, both hops (sample-service -> semantic-stream,
+// semantic-stream -> proxy-text):
+//   BEGIN(total_bytes, node_kind)      — node_kind: 0=Intent, 1=State, 2=Event
+//   CHUNK(b0, b1, b2, b3) × N          — 4 words = 32 bytes per chunk (usize
+//                                        is 8 bytes on riscv64gc); the raw
+//                                        struct bytes, in order, zero-padded
+//                                        in the final chunk
+//   COMMIT                             — decode + act; reply OK or ERR
+pub mod semantic_stream {
+    /// Service is ready.
+    pub const READY: usize = 0x500;
+    pub const PUBLISH_BEGIN: usize = 0x501;
+    pub const PUBLISH_CHUNK: usize = 0x502;
+    pub const PUBLISH_COMMIT: usize = 0x503;
+    pub const PUBLISH_OK: usize = 0x504;
+    pub const PUBLISH_ERR: usize = 0x505;
+    /// An ActionRequest submitted by proxy-text for capability-checked
+    /// dispatch (words[0]=correlation_id, words[1]=action_id,
+    /// words[2]=granted_rights bitmask presented by the caller — 0 if none
+    /// held).
+    pub const DISPATCH_ACTION: usize = 0x50A;
+    /// Reply: EventResult as usize (see fjell_semantic_format::EventResult).
+    pub const ACTION_RESULT: usize = 0x50B;
+    pub const ERR: usize = 0x50F;
+}
+
+pub mod proxy_text {
+    /// Service is ready.
+    pub const READY: usize = 0x510;
+    /// Chunked node transfer from semantic-stream — same shape as
+    /// semantic_stream::PUBLISH_BEGIN/CHUNK/COMMIT above.
+    pub const RENDER_BEGIN: usize = 0x511;
+    pub const RENDER_CHUNK: usize = 0x512;
+    pub const RENDER_COMMIT: usize = 0x513;
+    pub const RENDER_OK: usize = 0x514;
+    pub const ERR: usize = 0x51F;
+}
+
 /// v0.7 distributed sync IPC tags (RFC-v0.7.2-001).
 ///
 /// IPC tags use u16 to fit in the standard packed message tag format.

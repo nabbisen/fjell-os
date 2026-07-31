@@ -736,6 +736,14 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // (architect review v0.18 follow-up).
     let sample_ep_id = et.alloc().expect("alloc sample-service endpoint");
     let _ = sample_ep_id; // id=6
+    // RFC-v0.23-001: dedicated endpoints for the ABDD live path. Allocated
+    // here alongside their object IDs, not just referenced by spawn.rs's
+    // ep_obj table and init's CSpace slots — see the cap-broker/sample-service
+    // comments just above for what happens when this step is skipped.
+    let semantic_stream_ep_id = et.alloc().expect("alloc semantic-stream endpoint");
+    let _ = semantic_stream_ep_id; // id=7
+    let proxy_text_ep_id = et.alloc().expect("alloc proxy-text endpoint");
+    let _ = proxy_text_ep_id; // id=8
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
@@ -1012,6 +1020,35 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     // recoveryd (ep id=4)
                     kind: CapKind::Endpoint,
                     object_id: 4,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            // Slots 6-7: RFC-v0.23-001 ABDD live path private endpoints.
+            let _ = cs.install_raw(
+                6,
+                Capability {
+                    // semantic-stream (ep id=7)
+                    kind: CapKind::Endpoint,
+                    object_id: 7,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            let _ = cs.install_raw(
+                7,
+                Capability {
+                    // proxy-text (ep id=8)
+                    kind: CapKind::Endpoint,
+                    object_id: 8,
                     rights: CapRights::ALL_NON_META,
                     badge: 0,
                     scope: ObjectScope::Any,

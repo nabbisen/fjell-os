@@ -144,6 +144,31 @@ fn wait_service_ready(ep: usize) {
     }
 }
 
+/// Wait for exactly one expected READY tag on `ep` (a CSpace slot index in
+/// init's own CSpace). Unlike `wait_service_ready`, which tolerates any of
+/// three known READY values, this checks a single expected tag — used where
+/// there is exactly one dedicated endpoint slot per service and ambiguity
+/// would hide a slot/service mismatch rather than tolerate one.
+fn wait_ready_exact(ep: usize, expected: usize) {
+    loop {
+        let tag: usize;
+        // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
+        unsafe {
+            core::arch::asm!(
+                "li a7, 21", "ecall",
+                in("a0")        ep,
+                lateout("a1")   tag,
+                lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
+                lateout("a7") _,
+                options(nostack),
+            );
+        }
+        if (tag & 0xFFFF) == expected {
+            break;
+        }
+    }
+}
+
 fn spawn(img: ImageId, label: &str) -> usize {
     match sys_task_spawn(INIT_SLOT_TASK_CREATE, img) {
         Ok(h) => {
@@ -204,6 +229,12 @@ pub extern "C" fn service_main() -> ! {
     // ── M5 ───────────────────────────────────────────────────────────────────
     spawn(ImageId::SEMANTIC_STREAM, "M5: semantic-stream started");
     spawn(ImageId::PROXY_TEXT, "M5: proxy-text started");
+    // RFC-v0.23-001: slots 6=semantic-stream (ep id=7), 7=proxy-text (ep id=8).
+    // Wait for both before init (or, from Slice 2 on, sample-service) emits
+    // anything — established here, in Slice 1, while the only observable is
+    // "they start and stay alive."
+    wait_ready_exact(6, fjell_service_api::semantic_stream::READY);
+    wait_ready_exact(7, fjell_service_api::proxy_text::READY);
     sys_debug_writeln("M5: semantic policy loaded");
     sys_debug_writeln("M5: semantic operations ready");
 

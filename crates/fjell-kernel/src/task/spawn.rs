@@ -186,6 +186,9 @@ pub fn spawn(
                 // RFC 042: dedicated endpoint so the neg-test IPC protocol
                 // cannot be stolen by other shared-endpoint receivers.
                 fjell_abi::service::ImageId::SAMPLE_SERVICE => 6,
+                // RFC-v0.23-001: dedicated endpoints for the ABDD live path.
+                fjell_abi::service::ImageId::SEMANTIC_STREAM => 7,
+                fjell_abi::service::ImageId::PROXY_TEXT => 8,
                 _ => 0,
             };
             let _ = cs.install_raw(
