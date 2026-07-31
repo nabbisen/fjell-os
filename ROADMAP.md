@@ -211,6 +211,15 @@ v0.23; and **`renderer.rs`'s `ingest` subsystem** (~540 lines, a tag-keyed
 catalog codec called by nothing but its own tests) needs a decision — unfinished
 successor, or abandoned work to retire.
 
+Three more added by the RFC-v0.23-001 Slices 1-4 review (2026-07-31):
+**services cannot write to any static** (`spawn.rs` maps a service image
+`R | X | U` with no `W`; applies to `static UnsafeCell`, not just `static mut`)
+— a constraint every service author needs and the SDK docs do not state; the
+**shared TOML array parser** closing an array on a `]` inside a string, which
+silently loaded 2 of 4 markers — a fail-open in the harness itself; and the
+**M8 slot/endpoint-ID confusion** in init's waits, folded into RFC-v0.23-002 as
+the marker defect's first victim.
+
 Full analysis, with measurements and the dependency map, in
 `docs/src/roadmap/v0.23-direction-options.md`.
 
