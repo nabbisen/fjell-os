@@ -168,19 +168,44 @@ Governed by `RFC-v0.22-001`. Out of scope: negative-coverage completion, the
 9 undispatched syscalls, build determinism, DMA unmap, and anything touching
 kernel/ABI/crypto behaviour.
 
-### Beyond v0.22 — under discussion, not yet decided
+### v0.23 — ABDD Live Path (planned; owner-approved 2026-07-31)
+
+The first line in several to add runtime behaviour rather than documentation or
+tooling. Fjell's distinguishing claim — applications emit meaning, a proxy
+renders it — is currently demonstrated only by unit tests: `proxy-text` holds
+845 lines of working renderer behind an entry point that prints one line and
+exits, and `semantic-stream` is the same shape.
+
+v0.23 connects them. A real service emits an intent node, `semantic-stream`
+routes it, `proxy-text` renders it, and the proxy's return leg issues a
+capability-checked `ActionRequest` — proven by refusal, not only by success.
+The path is gated by a fail-closed QEMU profile so it cannot rot.
+
+Adds no kernel surface and no syscalls. Governed by `RFC-v0.23-001`.
+
+Chosen from four measured directions (`docs/src/roadmap/v0.23-direction-options.md`)
+because it is roughly an order of magnitude smaller than any alternative,
+depends on nothing, and is the only one producing a claim the project cannot
+currently make.
+
+### Beyond v0.23 — under discussion, not yet decided
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
 continues. The owner has directed that functional advancement, not only
 stabilization, must precede any v1.0 consideration — the current state is
 far from production readiness or demonstrable appeal.
 
-Candidate directions are recorded but **deliberately undecided**; choosing
-among them is a joint planning discussion **scheduled for v0.22 completion**
-(owner, 2026-07-31). The RFC-v0.22-001 disposition checkpoint is the trigger:
-the architect owes an options paper at that point — per direction, what
-already exists, what is genuinely missing, the dependency chain, honest
-sizing, and what claim each would let the project make. Not a menu.
+The options paper was prepared and the first direction chosen (v0.23, above).
+The remaining directions stay **undecided** and are re-opened when v0.23 closes:
+
+- Make the service plane real — 17 of 29 services never receive IPC
+- Make it operable by a human — **kernel work first**: no console input path
+  exists at any layer, so this needs UART RX, an interrupt path, and a read
+  syscall before any userland command set
+- Make it run on metal — hardware bring-up, currently placed at v2+
+
+Full analysis, with measurements and the dependency map, in
+`docs/src/roadmap/v0.23-direction-options.md`.
 
 - Make the semantic plane real (the ABDD live path and beyond)
 - Make the service plane real (17 of 29 services currently never receive IPC)

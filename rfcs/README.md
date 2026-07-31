@@ -302,10 +302,13 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently open. The v0.23 candidate themes and the deferred
-direction discussion are recorded in `ROADMAP.md`.
+### v0.23 — ABDD Live Path
+
+| RFC | Title |
+|-----|-------|
+| v0.23-001 | [ABDD Live Path](./proposed/RFC-v0.23-001-abdd-live-path.md) — owner-approved direction 2026-07-31; handoff pending |
 
 ---
 
