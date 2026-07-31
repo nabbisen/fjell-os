@@ -220,6 +220,33 @@ silently loaded 2 of 4 markers — a fail-open in the harness itself; and the
 **M8 slot/endpoint-ID confusion** in init's waits, folded into RFC-v0.23-002 as
 the marker defect's first victim.
 
+**The marker defect itself (RFC-v0.23-002, to be written).** `dispatch.rs`
+emits the milestone markers from the kernel keyed on **hardcoded task-table
+indices**, with the spawn order recorded in a code comment
+(`exited_ok(10/14/19/21/1)`). So `TEST:V0.7-SYNC:PASS` does not mean "syncd
+succeeded" — it means "whatever task occupies index 19 exited cleanly."
+
+All four QEMU smoke profiles key on markers emitted this way (`smoke.rs`):
+`m8`←14, `v0.4-net`←21, `v0.5-platform`←10, `v0.7-sync`←19. **None verifies
+that the service it names succeeded.**
+
+This has already caused harm, not merely risked it: init's M8 section passes
+endpoint IDs where CSpace slots are expected, so that section never runs — and
+the `m8` profile stayed green throughout, because its marker attests a
+different task's exit. RFC-v0.23-001's added latency shifted task allocation
+and re-pointed index 19, turning a silent wrong-reason pass into a visible
+failure.
+
+Same class as the four defects v0.22 addressed: a check reporting green for a
+reason other than the thing it claims to check.
+
+**Link rot in tracked documentation.** A sweep of every relative markdown link
+in tracked files (2026-07-31) found **13 broken**, all pre-existing: superseded
+ADR cross-references, `rfcs/proposed/v0.10/` paths from before that set moved to
+`done/`, `../release/trust-report.md` where the file is `.txt`, and others.
+Gate 12's R4 says bind only rules already violated in practice — this one is
+violated 13 times, so a link-integrity subcheck now qualifies.
+
 Full analysis, with measurements and the dependency map, in
 `docs/src/roadmap/v0.23-direction-options.md`.
 

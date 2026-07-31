@@ -37,7 +37,7 @@ Everything below assumes you have fixed this first.
 `CHANGELOG.md`; regenerated gate evidence.
 
 **Scope amendment (architect, 2026-07-30 — see
-[review-record-slice-1-2.md](./review-record-slice-1-2.md)):** the following are
+`review-record-slice-1-2.md` (`.git-exclude/reviewed/`)):** the following are
 now in scope, and only these:
 
 - Relocating `// SAFETY:` comments so each sits immediately above its `unsafe`
@@ -147,7 +147,7 @@ and only via the explicit recording flag.
 ### 3.3 Finding C — build-output non-determinism
 
 **Status: characterized. No longer blocks anything.** See
-[review-record-slice-2b-2c.md](./review-record-slice-2b-2c.md) §3–§4. The
+`review-record-slice-2b-2c.md` (`.git-exclude/reviewed/`) §3–§4. The
 earlier instruction here ("do not record the repro baseline over it") is
 **withdrawn** — it rested on an assumption about baseline stability that turned
 out to be false.
