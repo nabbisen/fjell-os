@@ -1,6 +1,6 @@
 # RFC-v0.23-001: ABDD Live Path
 
-**Status:** Proposed
+**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-07-31**
 **Milestone:** v0.23
 **Tracks.** Runtime realization of the semantic plane. The project's
 distinguishing architectural bet, currently unexercised at runtime.
