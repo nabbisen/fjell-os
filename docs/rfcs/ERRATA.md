@@ -145,6 +145,33 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   Not investigated or fixed; must be resolved before v1.0 preparation
   begins. See `docs/release/v1-limitations.md`.
 
+## E-013 — `crates/fjell-tools/src/test_all.rs` tier 1: "Host library tests" claim
+
+- **Claim:** tier 1 of `cargo xtask test-all` ("Host library tests",
+  `cargo test --workspace --lib --exclude fjell-proptest`) verifies the
+  workspace's host-side unit tests.
+- **Shipped:** `crates/fjell-kernel/Cargo.toml` declares only a `[[bin]]`
+  target, no `[lib]`. `cargo test --workspace --lib` silently skips any
+  package with no library target — no error, no warning — so tier 1 has
+  never once executed fjell-kernel's own `#[cfg(test)]` modules:
+  `mm/frame_alloc.rs`, `mm/user_ptr.rs`, `task/scheduler.rs`,
+  `trap/dispatch.rs` (including the RFC-v0.23-002 milestone-marker tests
+  added under that RFC's Slice 1), and **`lease/mod.rs`** — the kernel-side
+  lease table, one half of a Verus release-required target. The proof
+  covers the predicate; these tests cover the table that invokes it, and
+  neither has executed. The real target, `riscv64gc-unknown-none-elf`, is
+  bare-metal with no OS and no libtest harness, so no alternate `cargo
+  test` invocation reaches them either.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-01). Found during
+  RFC-v0.23-002 Slice 1 while writing the two-demonstration unit tests that
+  RFC requires — they could not be proven to run under tier 1 or any other
+  `cargo test` invocation. The fix is architectural (add a `[lib]` target,
+  or split a host-testable subset out of the kernel crate) and is real
+  design work deserving its own RFC rather than an in-line exception during
+  a marker-emission fix. Pre-existing; makes nothing worse; does not block
+  `0.23.0`. RFC to follow after the release. See
+  `docs/release/v1-limitations.md`.
+
 ---
 
 ## Summary
@@ -163,8 +190,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-010 IPC words delivery | v0.20.0 fix | CLOSED |
 | E-011 cap_install rights validation | v0.21.3-001 (v0.22 disposition) | ACCEPTED |
 | E-012 release checklist Step 9 bundle path | v0.22-001 (recorded, not fixed) | ACCEPTED |
+| E-013 fjell-kernel has no host-testable `[lib]` target | RFC after v0.23.0 (recorded, not fixed) | ACCEPTED |
 
-At v0.22 update: 0 OPEN, 9 CLOSED, 3 ACCEPTED. The ACCEPTED items
+At v0.23 update: 0 OPEN, 9 CLOSED, 4 ACCEPTED. The ACCEPTED items
 (hardware boot, `cap_install` rights validation) are reflected in the v1.0
 scope statement / RFC-v0.21.3-001; both are disclosed limitations, not
 silent drift. E-012 is a v1.0-checklist-specific finding recorded per
@@ -174,3 +202,7 @@ as a documented, deliberate limitation. Not investigating E-012 was a deliberate
 owner decision (2026-07-30, cutting the v1.0 checklist audit from v0.22 scope
 because v1.0 is not in view), which is ACCEPTED semantics — the same grounds on
 which E-004 is ACCEPTED. To be revisited when v1.0 preparation actually begins.
+E-013 is recorded per RFC-v0.23-002, found while authoring that RFC's required
+unit tests. **Classified ACCEPTED, not OPEN** (architect, 2026-08-01): deferring
+the fix to a dedicated RFC after the `0.23.0` cut is a deliberate decision, not
+live unresolved drift — the same distinction applied to E-004/E-011/E-012.

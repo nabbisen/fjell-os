@@ -16,6 +16,18 @@ require updating the governing record first, then this page.*
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
+- **`fjell-kernel` has no host-testable `[lib]` target** (Errata **E-013**,
+  ACCEPTED). `cargo xtask test-all`'s tier 1 ("Host library tests") runs
+  `cargo test --workspace --lib`, which silently skips any package with no
+  library target; `fjell-kernel` declares only `[[bin]]`, so tier 1 has
+  never executed any of its `#[cfg(test)]` modules, including the
+  kernel-side lease table (`lease/mod.rs`, one half of a Verus
+  release-required target) and the RFC-v0.23-002 milestone-marker tests.
+  The real target is bare-metal with no libtest harness, so no alternate
+  invocation reaches them either. Fixing this is architectural (a `[lib]`
+  target, or a host-testable subset split out of the crate) and is deferred
+  to its own RFC after `0.23.0`; found during RFC-v0.23-002 Slice 1.
+
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes
