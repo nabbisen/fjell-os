@@ -311,6 +311,12 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 | v0.23-001 | [ABDD Live Path](./proposed/RFC-v0.23-001-abdd-live-path.md) — accepted for implementation 2026-07-31; handoff: [`handoffs/`](./handoffs/RFC-v0.23-001-abdd-live-path/implementation-handoff.md) |
 | v0.23-002 | [Milestone Markers by Identity](./proposed/RFC-v0.23-002-milestone-markers-by-identity.md) — blocks 0.23.0; handoff: [`handoffs/`](./handoffs/RFC-v0.23-002-milestone-markers-by-identity/implementation-handoff.md) |
 
+### v0.24 — Instrument Audit (provisional; direction not yet set)
+
+| RFC | Title |
+|-----|-------|
+| v0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-v0.24-001-instrument-audit.md) — scoped at owner request; milestone assignment is an open roadmap decision |
+
 ---
 
 ## Note — no RFC coverage for v0.19–v0.21
