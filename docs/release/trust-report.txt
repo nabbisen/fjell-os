@@ -1,7 +1,7 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-08-01 02:45:54 UTC
+Generated : 2026-07-30 23:56:21 UTC
 Version   : 0.22.0
 Mode      : full
 
@@ -30,17 +30,17 @@ Mode      : full
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Service binaries in prebuilt/: 28
-    fjell-init.bin (16636 bytes)
+    fjell-init.bin (18160 bytes)
     fjell-configd.bin (472 bytes)
     fjell-cap-broker.bin (1728 bytes)
     fjell-auditd.bin (2720 bytes)
     fjell-service-manager.bin (1272 bytes)
-    fjell-sample-service.bin (4464 bytes)
+    fjell-sample-service.bin (2464 bytes)
     fjell-neg-test.bin (8672 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (50 bytes)
-    fjell-semantic-stream.bin (1605 bytes)
-    fjell-proxy-text.bin (5520 bytes)
+    fjell-semantic-stream.bin (189 bytes)
+    fjell-proxy-text.bin (138 bytes)
     fjell-devmgr.bin (4600 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
     fjell-storaged.bin (1915 bytes)
@@ -73,8 +73,8 @@ Mode      : full
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 284
-  with SAFETY comment: 284
+  total unsafe sites : 274
+  with SAFETY comment: 274
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -82,12 +82,12 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260731-153210
-  19    QEMU negative: semantic                             60.0s  PASS
+  Latest test-all run: 20260730-233630
+  18    QEMU negative: harness                              60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 19  |  PASS: 18  |  FAIL: 1  |  SKIP: 0
+  Total: 18  |  PASS: 18  |  FAIL: 0  |  SKIP: 0
   
-  ✗ FAILURES DETECTED — check per-tier logs above
+  ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
     Host tests   : 566 passed, 0 failed  [PASS]
