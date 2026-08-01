@@ -253,6 +253,12 @@ impl TaskTable {
         slot.generation = slot.generation.wrapping_add(1);
         Some(task)
     }
+
+    /// Iterate over every occupied slot (RFC-v0.23-002: milestone markers
+    /// scan by `image_id` rather than trusting a fixed table index).
+    pub fn iter(&self) -> impl Iterator<Item = &Task> {
+        self.slots.iter().filter_map(|s| s.task.as_ref())
+    }
 }
 
 /// Errors from `TaskTable` operations.

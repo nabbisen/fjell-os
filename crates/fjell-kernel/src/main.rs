@@ -870,6 +870,13 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         t.trap_frame.gpr[11] = 0; // a1 = BootInfo ptr (0 = use defaults)
         t.trap_frame.sstatus = 1 << 5; // SPIE, SPP=0
         t.state = TaskState::Runnable;
+        // RFC-v0.23-002: init is spawned directly here rather than through
+        // task::spawn::spawn() (which sets image_id for every other
+        // service), so it never got a real image_id — it stayed at
+        // Task::new's ImageId(0xFFFF) sentinel. The kernel's milestone
+        // markers now key on image_id rather than table index, and need
+        // this to identify init's own exit.
+        t.image_id = ImageId::INIT;
 
         let ins_id = table.insert(t).expect("init insert");
         sched.enqueue_runnable(ins_id, PRIORITY_USER);

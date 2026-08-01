@@ -759,10 +759,16 @@ pub extern "C" fn service_main() -> ! {
     spawn(ImageId::ATTESTD, "M8: attestd started");
     spawn(ImageId::RECOVERYD, "M8: recoveryd started");
 
-    // EP slots: 3=measuredd, 4=attestd, 5=recoveryd (endpoints 2,3,4).
-    let measuredd_ep = 2usize;
-    let attestd_ep = 3usize;
-    let recoveryd_ep = 4usize;
+    // RFC-v0.23-002: these are CSpace slot numbers in init's own CSpace,
+    // not endpoint IDs — sys_ipc_recv/ipc_call index by slot. The kernel
+    // installs measuredd/attestd/recoveryd (endpoint ids 2,3,4) into
+    // init's CSpace at slots 3,4,5 respectively (crates/fjell-kernel/src/
+    // main.rs, init-CSpace section). Passing the endpoint ids themselves
+    // (2,3,4) here silently pointed at the wrong slots (storaged's slot
+    // and unallocated ones), so this section never actually ran.
+    let measuredd_ep = 3usize;
+    let attestd_ep = 4usize;
+    let recoveryd_ep = 5usize;
 
     // Wait for each M8 service to signal READY on its private endpoint.
     wait_service_ready(measuredd_ep);

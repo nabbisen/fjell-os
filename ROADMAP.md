@@ -247,6 +247,21 @@ ADR cross-references, `rfcs/proposed/v0.10/` paths from before that set moved to
 Gate 12's R4 says bind only rules already violated in practice — this one is
 violated 13 times, so a link-integrity subcheck now qualifies.
 
+**`fjell-kernel` has no `[lib]` target, so `test-all` tier 1 skips it entirely**
+(found 2026-08-01, RFC-v0.23-002 review; ERRATA E-013). `cargo test --workspace
+--lib` silently omits a crate with only a `[[bin]]`, so five `#[cfg(test)]`
+modules have never run under the tier that claims to run them — including
+`lease/mod.rs`, the kernel-side half of a Verus release-required target. Fourth
+instance of the class in this line and the most serious: a test tier reporting
+green over a crate it never loads. Its own RFC, after `0.23.0`; the fix is
+architectural (a `[lib]` target, or splitting a host-testable subset out).
+
+**Grep blindness, three occurrences in one line.** A NUL-padded byte literal, a
+decimal-only regex over hex constants, and UART interleaving tripping the binary
+heuristic — each made a tool report nothing where there was something. Prefer
+`grep -a` on build and serial output, and treat an empty result over a file
+known to have content as suspect rather than conclusive.
+
 Full analysis, with measurements and the dependency map, in
 `docs/src/roadmap/v0.23-direction-options.md`.
 
