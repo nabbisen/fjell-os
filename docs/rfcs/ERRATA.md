@@ -147,6 +147,32 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 ## E-013 — `crates/fjell-tools/src/test_all.rs` tier 1: "Host library tests" claim
 
+> **Scope widened 2026-08-02 (RFC-v0.24-001 Pass 1).** This entry originally
+> described `fjell-kernel` alone. Measured across the workspace: **40 of 89
+> manifests have no lib target**, and **10 of those carry 166 `#[test]`
+> functions that `--lib` never reaches.**
+>
+> The composition is the point. Eight of the ten are the **gate tools
+> themselves**: `fjell-tools` (68, including `callsite_audit`'s — Gate 11's own
+> demonstrations), `fjell-consistency-check` (26 — Gate 12's),
+> `fjell-unsafe-audit` (10 — Gate 2's), `fjell-abi-snapshot` (8 — Gate 4's),
+> `fjell-mmio-audit` (7 — Gate 3's), `fjell-readiness-check` (5 — Gate 5's),
+> plus `fjell-repro-check` (6), `fjell-ci-coverage` (4), `fjell-summary-check`
+> (2), and `fjell-kernel` (30).
+>
+> So the demonstrations that establish five gates as sound are themselves never
+> run by the tier that claims to run the test suite. They pass when invoked
+> directly; nothing in `test-all` or `release-rehearsal` would catch a
+> regression in them.
+>
+> This is not "kernel unit tests do not run" but **"the verification tooling's
+> own tests do not run under the tier that claims to run the test suite."**
+>
+> The follow-up RFC therefore has two separable halves: the **nine host
+> binaries**, ordinary `std` crates where the gap is the bare `--lib` flag and
+> the fix is trivial; and **`fjell-kernel`**, where it is architectural
+> (a `[lib]` target, or splitting out a host-testable subset).
+
 - **Claim:** tier 1 of `cargo xtask test-all` ("Host library tests",
   `cargo test --workspace --lib --exclude fjell-proptest`) verifies the
   workspace's host-side unit tests.

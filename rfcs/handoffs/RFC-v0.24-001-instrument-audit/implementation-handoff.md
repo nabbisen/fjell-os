@@ -56,7 +56,7 @@ do not believe.
 ## 1. Change scope
 
 **In scope:** `docs/verification/instrument-audit.md` (new); test files needed
-for demonstrations; the small adjacent fix in §6.
+for demonstrations. (§6 is withdrawn.)
 
 **Explicitly NOT in scope:**
 
@@ -113,17 +113,20 @@ instrument catches it.
 Lowest priority, and the most likely to be `UNAUDITED` — many cannot be broken
 locally. Record what you can determine by reading, mark the rest honestly.
 
-## 6. One small adjacent fix — in scope, not part of the audit
+## 6. ~~One small adjacent fix~~ — WITHDRAWN, the premise was false
 
-**Ten manifests lack `publish = false`** — `fjell-sdk`, `fjell-sig-ed25519`,
-`fjell-bundle-format` among them. 79 of 89 have it, so the omission is almost
-certainly accidental. A stray `cargo publish` would push something real and
-unretractable to crates.io.
+**Withdrawn 2026-08-02.** This asked for `publish = false` to be added to ten
+manifests said to lack it. **All 89 already have it.** The architect's
+measurement used `grep "^publish = false"` against manifests that use aligned
+formatting (`publish               = false`), so a whitespace-brittle pattern
+reported ten false negatives.
 
-Add `publish = false` to the ten. This is a safety guard, not an audit finding —
-flagged separately so it is not mistaken for one.
+Verified by the implementer during Pass 1, who checked rather than following the
+instruction, and confirmed with `git blame` that the lines predate this RFC.
 
-**Do not** publish anything, and do not touch the ten crates otherwise.
+Left in place rather than deleted, because a handoff instruction derived from a
+bad measurement is itself an instance of what this RFC audits — and because a
+withdrawn item that vanishes teaches nothing. **No action.**
 
 ## 7. Prohibited shortcuts
 
