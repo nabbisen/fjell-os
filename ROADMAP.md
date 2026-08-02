@@ -188,15 +188,35 @@ because it is roughly an order of magnitude smaller than any alternative,
 depends on nothing, and is the only one producing a claim the project cannot
 currently make.
 
-### Beyond v0.23 — under discussion, not yet decided
+### v0.24 — Instrument Audit (planned; owner-approved 2026-08-02)
+
+Do the checks check what they claim? Eleven instruments have been caught
+reporting success without having checked — and **every one was found
+incidentally**, while doing something else. There are roughly **55**: 12
+release-rehearsal gates, 19 `test-all` tiers, 16 CI jobs, and 8 committed
+artifacts that assert repository state. They have never been audited as a set.
+
+v0.23 made the project more *capable* — the ABDD path runs. It also revealed
+that four smoke profiles had been attesting the wrong thing and that a whole
+test tier never executed. Both by luck. v0.24 makes the project more
+*trustworthy*, on the reasoning that every future capability line is declared
+complete by these same instruments.
+
+Audit-only: findings are reported and dispositioned individually, never fixed
+in-pass. Governed by `RFC-v0.24-001`, which carries the taxonomy — scope
+blindness, proxy attestation, fail-open on absence, weak predicate, stale
+assertion — derived from the eleven known instances.
+
+### Beyond v0.24 — under discussion, not yet decided
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
 continues. The owner has directed that functional advancement, not only
 stabilization, must precede any v1.0 consideration — the current state is
 far from production readiness or demonstrable appeal.
 
-The options paper was prepared and the first direction chosen (v0.23, above).
-The remaining directions stay **undecided** and are re-opened when v0.23 closes:
+Two directions have now been chosen from the options paper — v0.23 (semantic
+plane) and v0.24 (instrument audit, above). The remaining three stay
+**undecided** and are re-opened when v0.24 closes:
 
 - Make the service plane real — 17 of 29 services never receive IPC
 - Make it operable by a human — **kernel work first**: no console input path

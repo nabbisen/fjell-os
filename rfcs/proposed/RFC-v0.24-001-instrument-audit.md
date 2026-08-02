@@ -1,8 +1,8 @@
 # RFC-v0.24-001: Instrument Audit — do the checks check what they claim?
 
-**Status:** Proposed
-**Milestone:** v0.24 — **provisional.** The owner has not set the v0.24
-direction. This RFC scopes the work; it does not claim the slot.
+**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-08-02**
+**Milestone:** v0.24 — **confirmed.** The owner set the v0.24 direction to this
+line on 2026-08-02, choosing trustworthiness over capability for this release.
 **Tracks.** Verification-instrument integrity, systematically rather than
 incidentally.
 **Touches.** Audit-only in its first pass — no instrument is changed without a

@@ -316,7 +316,7 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 
 | RFC | Title |
 |-----|-------|
-| v0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-v0.24-001-instrument-audit.md) — scoped at owner request; milestone assignment is an open roadmap decision |
+| v0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-v0.24-001-instrument-audit.md) — accepted 2026-08-02; handoff: [`handoffs/`](./handoffs/RFC-v0.24-001-instrument-audit/implementation-handoff.md) |
 
 ---
 
