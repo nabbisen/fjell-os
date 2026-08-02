@@ -5,6 +5,63 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.23.0] — 2026-08-01 — Semantic plane live; milestone markers by identity
+
+The first release line to add runtime behaviour rather than documentation or
+tooling, and the line in which the project's distinguishing architectural bet
+runs for the first time.
+
+### Added — the ABDD live path (RFC-v0.23-001)
+
+- `sample-service` emits an intent node, `semantic-stream` routes it, and the
+  **`proxy-text` task** renders it. Emitter and renderer are now separate
+  processes, which is what ABDD requires and what the tree did not do.
+- The return leg: `proxy-text` issues an `ActionRequest`, capability-checked,
+  with the **refusal** case demonstrated alongside the accept. A boundary is
+  shown to exist by it saying no.
+- `tests/qemu/profiles/semantic.toml` — a fail-closed profile gating the whole
+  path, so it cannot rot.
+- Chunked byte transfer (`fjell-service-api::chunked`) for kilobyte-scale
+  semantic nodes. A **documented divergence**: `ipc.md` specifies a
+  capability-granted shared region for bulk transfer, which is `DmaShare` — one
+  of the nine declared-but-undispatched syscalls, so unavailable.
+
+### Fixed — the violation the live path exists to remove
+
+- `fjell-init` no longer links `fjell-proxy-text`. It had been constructing
+  `StateNode`/`EventNode` values and rendering them **in its own address
+  space**, across 13 call sites — emitter and renderer in one process, exactly
+  what the architecture forbids. Its serial output resembled an ABDD
+  demonstration and was an ABDD violation.
+
+### Fixed — milestone markers (RFC-v0.23-002)
+
+- Markers are keyed on the kernel-attested `image_id`, not on hardcoded
+  task-table indices. `TEST:V0.7-SYNC:PASS` previously meant *"whatever task
+  occupies index 19 exited cleanly"*; all four smoke profiles rested on markers
+  of that kind, and none verified the service it named.
+- `init`'s M8 waits passed **endpoint IDs where CSpace slots were expected**, so
+  the M8 section never ran — concealed because `TEST:M8:PASS` attested a
+  different task's exit. The `m8` profile had been green while the path it is
+  named after never executed. It now runs; 18 `M8:` narration lines appear.
+- `init` never had a real `image_id`: spawned directly in `kmain` rather than
+  through `spawn()`, it sat at the `ImageId(0xFFFF)` sentinel, so the identity
+  scheme could never have matched its own exit.
+
+### Known limitations carried into this release
+
+- **E-013** — `fjell-kernel` declares only `[[bin]]`, so `test-all` tier 1's
+  `cargo test --workspace --lib` skips it silently. Five `#[cfg(test)]` modules
+  have never executed under the tier that claims to run them, including
+  `lease/mod.rs`, the kernel-side half of a Verus release-required target.
+  ACCEPTED, deferred; the fix is architectural.
+- **E-012** — the v1.0 release checklist's Step 9 signs a build output that does
+  not exist. ACCEPTED, deferred to v1.0 preparation.
+- The nine declared-but-undispatched syscalls remain undecided, and now have a
+  concrete cost: `DmaShare` blocked the documented bulk-transfer path.
+
+---
+
 ## [0.22.0] — 2026-07-31 — Gate integrity
 
 RFC-v0.22-001. No new OS functionality; no kernel, ABI, capability, lease,

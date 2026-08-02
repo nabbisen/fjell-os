@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-v0.23-002
 
-**Governing RFC:** [RFC-v0.23-002](../../proposed/RFC-v0.23-002-milestone-markers-by-identity.md)
+**Governing RFC:** [RFC-v0.23-002](../../done/RFC-v0.23-002-milestone-markers-by-identity.md)
 **Milestone:** v0.23
-**Status:** inherited from the governing RFC (Proposed — accepted for implementation 2026-07-31)
+**Status:** inherited from the governing RFC — **Implemented (v0.23.0)**
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

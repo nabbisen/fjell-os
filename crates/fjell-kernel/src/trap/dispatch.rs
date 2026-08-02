@@ -14,7 +14,10 @@ use super::{fault::handle_user_fault, syscall::handle_syscall};
 use crate::{
     arch::riscv64::trap::{TrapKind, decode_trap},
     audit::ring::{AUDIT, AuditKindInternal},
-    task::{scheduler::PRIORITY_IDLE, tcb::{FaultCause, TaskState, TrapFrame}},
+    task::{
+        scheduler::PRIORITY_IDLE,
+        tcb::{FaultCause, TaskState, TrapFrame},
+    },
 };
 use fjell_abi::service::ImageId;
 
