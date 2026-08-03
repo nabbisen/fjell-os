@@ -173,10 +173,25 @@ they still hold, not re-derived from scratch.
 > `fn` as a name; and 237 items carry `module:""`, so adding `module` to the key
 > would not separate the nine empty-module `READY`s. Both go to the close-out.
 >
-> **Disposition:** proposed **Slice 8** of RFC-0.24-002 — fail `--verify` on
-> duplicate identity keys (the important half: a silent 45-item hole becomes a
-> loud error), and add `module` to the key. Awaiting owner acceptance, since the
-> RFC was accepted at seven slices. Row stays `finding` until it lands.
+> **Disposition — RFC-0.24-003**, which blocks the 0.24 cut (owner decision,
+> 2026-08-03). Originally proposed as an eighth slice of RFC-0.24-002 on the
+> architect's estimate that it was "a duplicate-key check plus one field in a
+> tuple." **That estimate was wrong**, and sizing it found three further
+> scanner defects that are what *make* the duplicates:
+>
+> | | Defect | Items |
+> |---|---|---|
+> | B | `pub const fn` parsed as a `const` named `fn` | **15** |
+> | C | Inline `mod` blocks untracked — items take the file's path | **162** |
+> | D | `storaged.rs` has no `mod` declaration anywhere; scanned anyway | **17 phantom** |
+>
+> Adding `module` to the key alone takes shadowing from 45 to 27 and leaves nine
+> duplicate groups, so the gate would stay red. D is the inverse failure: the
+> gate asserts ABI stability over code not compiled into the crate — and its
+> cause is that `scan_dir` walks the *filesystem* as a proxy for the *module
+> tree*, **mode 2 again**, in the same instrument.
+>
+> Row stays `finding` until RFC-0.24-003 lands.
 
 ### fjell-unsafe-audit category extractor — **finding** (new, RFC-0.24-002 review)
 
