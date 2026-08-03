@@ -665,3 +665,315 @@ still 35/26/9 after all Pass 3 demonstrations were reverted — captured in
 the review request for this pass. One incidental `trust-report.txt`
 regeneration (a byproduct of re-running the rehearsal during the
 `rfcs/README.md` demonstration) was reverted, not committed.
+
+---
+
+## Pass 4 — the sixteen CI jobs
+
+Source: `.github/workflows/ci.yml`. Sixteen `jobs:` entries (excluding the
+`on:` trigger keys): `ci-format`, `ci-check`, `ci-cross-check`,
+`ci-test-host`, `ci-test-services`, `ci-docs`, `ci-qemu-smoke`,
+`ci-qemu-negative`, `ci-test-v07-formats`, `ci-proptest`,
+`ci-unsafe-audit`, `ci-arm64-check`, `ci-schema-gate`, `ci-qemu-v07`,
+`ci-fuzz-nightly`, `ci-verus`.
+
+Cannot trigger GitHub Actions from here. Where a job's `run:` step is a
+command reproducible locally, ran it directly (several jobs run the exact
+mechanisms already audited in Passes 1–3, so those are cross-referenced
+rather than re-demonstrated). Where it genuinely cannot be reproduced
+locally (a scheduled nightly fuzz run, the GitHub-hosted step environment
+itself), recorded `UNAUDITED` with the reason, per handoff §0.1 — not
+manufactured.
+
+### A cross-cutting finding first: 21 workspace crates are never named in `ci.yml` at all
+
+Every host `cargo check`/`cargo test` job in this workflow (`ci-check`,
+`ci-cross-check`, `ci-test-host`, `ci-test-services`,
+`ci-test-v07-formats`) lists its packages **explicitly**, by name — the
+same shape as `abi-snapshot`'s `STABLE_CRATES` before its RFC-v0.22-001
+fix, and exactly the RFC's own concern about explicit-list staleness.
+Extracted every `-p <crate>` argument across the whole file and diffed
+against all workspace package names:
+
+```
+comm -23 <workspace-crate-names> <every -p argument in ci.yml>
+```
+
+**19 of 89 crates never appear:** `fjell-abi-snapshot`, `fjell-benchmarks`,
+`fjell-bundle-format`, `fjell-cap-manifest`, `fjell-config-sync`,
+`fjell-consistency-check`, `fjell-dev-harness`, `fjell-dtb-validate`,
+`fjell-fleet-sync`, `fjell-mmio-audit`, `fjell-readiness-check`,
+`fjell-replay-cache`, `fjell-repro-check`, `fjell-sdk`,
+`fjell-semantic-toolkit`, `fjell-sig-ed25519`, `fjell-summary-check`,
+`fjell-svc-fault`, `fjell-svc-timeout`.
+
+> **Corrected in Pass 4 review (2026-08-03).** Originally recorded as *21 of
+> 91*, and `fjell-fuzz` / `fjell-hello` were in the list. `cargo metadata
+> --no-deps` reports **89** workspace packages; the 92 manifests on disk are
+> 1 root + 89 members + those two, which are **not workspace members** and so
+> cannot be named with `-p` in a workspace command — they were never in the
+> population. A denominator including things outside the population is mode 1
+> arriving in this audit's own measurement. Both sub-findings below are
+> unaffected: all nine named crates are genuine members.
+
+Two sub-findings inside that list matter more than the count:
+
+- **Six are the gate tools** (`fjell-abi-snapshot`, `fjell-consistency-check`,
+  `fjell-mmio-audit`, `fjell-readiness-check`, `fjell-repro-check`,
+  `fjell-summary-check`). This compounds E-013 for CI specifically: their
+  unit tests are already unreachable via `test-all` tier 1 (`--lib` skip);
+  they are *also* never named in any CI job, so nothing in ordinary CI ever
+  runs them either, by any mechanism.
+- **Three back Gate 8's validation drills** (`fjell-sig-ed25519`,
+  `fjell-fleet-sync`, `fjell-config-sync`). Gate 8's five markers — the ones
+  Pass 1 found sound — run only at `release-rehearsal` time. Ordinary CI, on
+  every push and PR, never executes them. That may be an intentional
+  design choice (drills reserved for release checks, not every commit) —
+  recorded as a finding because nothing in the workflow says so; it reads
+  as an omission rather than a decision.
+
+Not all 21 are necessarily meaningful gaps — `fjell-benchmarks`,
+`fjell-hello`, `fjell-fuzz`, `fjell-dev-harness` may be intentionally
+excluded example/scratch crates. Did not individually adjudicate all 21
+(timebox, per handoff §0.2.3) — the two sub-findings above are the ones with
+a concrete, checkable consequence; the full list is reported for whoever
+dispositions this.
+
+### ci-format — **sound**
+
+- **Claim:** the workspace is `rustfmt`-clean.
+- **Actual:** `cargo fmt --all --check`, a real Cargo subcommand with a real
+  exit code.
+- **Demonstration:** appended deliberately malformatted lines to
+  `crates/fjell-abi/src/lib.rs` and ran the exact command: exit 1, diff
+  printed. Reverted; clean.
+
+### ci-check, ci-cross-check, ci-test-host, ci-test-services, ci-test-v07-formats — **finding** (the explicit-list gap above)
+
+- **Claim:** each checks/tests its named set of crates for the target it
+  specifies (host, RISC-V bare-metal host-check, host-pure lib tests,
+  RISC-V service cross-check, v0.4–v0.7 format crates).
+- **Actual:** each is internally consistent — every crate it lists really
+  does get checked/tested by that job. The finding is not that any one job
+  is wrong; it's that the five lists, even unioned, don't cover the
+  workspace, and nothing diffs them against the crate set the way this
+  audit just did.
+- **Modes:** 1 (scope blindness), same shape as the historical
+  `STABLE_CRATES` incident this project already fixed once, in the tool
+  that fixed it.
+- Not independently re-demonstrated per job (five jobs, one mechanism,
+  same reasoning as Pass 2's fourteen QEMU tiers); the cross-cutting
+  section above is the demonstration; run once, applies to all five.
+
+### ci-docs — **UNAUDITED**
+
+- **Claim:** the mdBook documentation builds without error.
+- **Reason UNAUDITED:** ran `cd docs && mdbook build` locally — it succeeds,
+  which confirms the job's literal claim (the book builds), but auditing
+  *what mdbook itself does and doesn't catch* (e.g. broken internal links
+  within the book, vs. the separate `rfcs/README.md` finding from Pass 3
+  which is outside the book entirely) is a question about a third-party
+  tool's own behavior, not this repository's instrument. Recording
+  `UNAUDITED` rather than asserting soundness I didn't verify.
+
+### ci-qemu-smoke, ci-qemu-v07 — **finding** (inherits Pass 2's shared-harness findings, plus a new gap)
+
+- Both matrix jobs call `cargo xtask qemu-test <name>` — the exact mechanism
+  Pass 2 already found has a silent catch-all to `m8` for any unrecognized
+  name (`smoke.rs`'s `_ => ("m8", "TEST:M8:PASS")`). Not re-demonstrated
+  (same mechanism, same fact).
+- **New for this pass:** `smoke.rs` supports a `"v0.6-verification"`
+  milestone (`TEST:V0.6-VERIFY:PASS`), but it appears in **neither**
+  matrix (`ci-qemu-smoke`: `m1..m8`; `ci-qemu-v07`:
+  `v0.4-net, v0.5-platform, v0.7-sync`) — nor in `test_all.rs`'s own
+  `SMOKE_PROFILES` constant. Confirmed by reading all three lists directly.
+  This specific profile is defined in code and never invoked by any
+  instrument, local or CI — likely vestigial from a milestone-naming
+  transition, not a live risk, but exactly the "instrument exists on paper,
+  never runs" shape this RFC catalogues.
+
+### ci-qemu-negative — **finding**
+
+- **Claim:** runs every negative-test category.
+- **Actual:** matrix lists `[capability, ipc, mmio, dma, user-copy, audit,
+  policy, svc, harness]` — **nine** categories.
+- **Modes:** 5 (stale assertion). `test_all.rs`'s `NEG_CATEGORIES` lists
+  **ten** — the same nine plus `"semantic"` (RFC-v0.23-001's addition,
+  confirmed passing under `test-all` in Passes 1–3 of this very audit).
+  Confirmed by direct comparison of the two lists. The `semantic` negative
+  category has never been added to this CI matrix — it runs locally under
+  `test-all` and never in ordinary CI, on any push or PR, since the RFC
+  that added it.
+
+### ci-test-v07-formats — covered above
+
+`ci-test-v07-formats` is one of the five explicit-list jobs (see above).
+
+### ci-proptest — **finding** (reversed from `sound` in Pass 4 review)
+
+- **Claim:** the job is named "Property tests"; it runs the workspace's
+  property-based tests on every push and PR.
+- **Actual:** `cargo test -p fjell-proptest --lib` (plus `fjell-store-model`
+  and `fjell-bootctl-model`). `fjell-proptest` has **no `proptest!`
+  invocation in `src/`** — all 24 live in `tests/` (`harness.rs` 10,
+  `verus_lemma_properties.rs` 14), which `--lib` excludes. The step runs
+  **zero** of them:
+  ```
+  $ cargo test -p fjell-proptest --lib
+  running 0 tests
+  test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+  ```
+- **Modes:** 1 (scope blindness) — the same `--lib` narrowing as Tier 1 /
+  E-013, this pass's own worked example.
+- **Where they do run:** only `test-all` tier 2
+  (`cargo test -p fjell-proptest --release`, no `--lib`), which is manual.
+  Gate 1 and Tier 1 `--exclude fjell-proptest` explicitly, and
+  `release-rehearsal` has **no proptest gate at all** (gates 1–8, 10, 11,
+  12). So on every push and PR the "Property tests" job is green having run
+  nothing — including the 14 `verus_lemma_properties` cases that
+  cross-check the Verus proofs behind capability 8/8 and lease 5/5.
+
+> **Reversed in Pass 4 review (2026-08-03).** Originally recorded `sound`,
+> reasoned as "a small, complete, explicit list — no gap." The *list* is
+> complete; all three property-test-bearing crates are named. The
+> **predicate** was not examined. A complete list of crates is not an answer
+> to *what would make this report success without having checked* — and per
+> handoff §0.1, no demonstration was produced, so `UNAUDITED` was the floor
+> here, never `sound`. Fix (drop `--lib`) is in the pre-cut group.
+
+### ci-unsafe-audit — **finding**
+
+- **Claim:** every `unsafe` site in the workspace has a `SAFETY:` comment
+  (the same claim as Gate 2 / Tier 3).
+- **Actual:** `cargo run -p fjell-unsafe-audit -- --root crates --check` —
+  scoped to `crates/` only, unlike Gate 2 and Tier 3's `--workspace .`.
+- **Modes:** 1 (scope blindness) — confirmed live, not hypothetical. A real
+  `unsafe` block already exists outside `crates/`
+  (`examples/three-node-fleet/fjell-hello/src/main.rs:43`, currently
+  correctly commented). Removed its `SAFETY:` comment and ran both scopes:
+  ```
+  --root crates      → missing comment: 0, exit 0 (PASS)
+  --workspace .       → missing comment: 1, exit 1 (FAIL)
+  ```
+  CI's exact command does not see the violation the local gate and tier
+  both catch. Reverted; `git diff --stat` clean.
+
+> **Extended in Pass 4 review (2026-08-03) — a second, live finding on the
+> same tool.** Run on the **untouched** tree, `--workspace .` reports
+> `MISSING/UNKNOWN category: 1` **and exits 0 anyway**. The site is the same
+> file, one line up (`…/fjell-hello/src/main.rs:46`), tagged
+> `category=asm-instruction`, which is not a valid category — `from_str`'s
+> `_ => Self::Unknown` catch-all swallows it, the same silent-catch-all shape
+> as `smoke.rs`'s `_ => ("m8", …)`. `main.rs:363` reads
+> `if check && missing > 0 { process::exit(1); }`: `missing_cats` is
+> computed, printed, and **never enforced**. Three consumers pass over it —
+> CI, whose step is *named* "Unsafe audit (category= check)";
+> release-rehearsal Gate 2, whose predicate is
+> `out.contains("missing comment    : 0")` and never reads the category
+> line; and `test-all` Tier 3. Mode 4 (weak predicate) on top of the mode 1
+> above. **This is the only live, present-tense false green in the entire
+> 55-instrument audit** — every other finding required constructing a break.
+> **Do not correct the `asm-instruction` tag:** it is the pre-cut RFC's
+> built-in demonstration on real committed input.
+
+### ci-arm64-check — **sound**
+
+- **Claim:** `fjell-arch-arm64` type-checks for the `aarch64-unknown-none`
+  target.
+- **Actual:** narrowly scoped by design (one crate, one cross-compilation
+  boundary) — not claiming workspace-wide coverage, so the narrowness isn't
+  a gap the way the explicit-list jobs' is. No finding.
+
+### ci-schema-gate — **finding** (the sharpest of this pass)
+
+- **Claim:** the job step is literally named "Verify frozen schemas have
+  not drifted."
+- **Actual:** the script checks only that every `*.frozen` file exists and
+  is non-empty (`[ -s "$f" ]`). It does not read, parse, or compare against
+  any current schema definition. Its own comment says why: *"Full
+  schema-dump tooling lands with the fjell-tools schema subcommand"* —
+  confirmed no `schema` subcommand exists yet in `fjell-tools/src/main.rs`.
+- **Modes:** 4 (weak predicate) — the starkest instance found in this whole
+  audit. The check's name promises content comparison; the implementation
+  performs none.
+- **Demonstration:** replaced
+  `crates/fjell-semantic-v1/schema/intent-v1.frozen`'s entire content with
+  an unrelated sentence (still non-empty) and ran the exact CI script:
+  ```
+  schema-gate: all *.frozen files present and non-empty
+  ```
+  exit 0. A schema file containing garbage passes a job whose name claims
+  to verify it hasn't drifted. Reverted; `git diff --stat` clean.
+
+> **Extended in Pass 4 review (2026-08-03) — the deletion case is worse.**
+> Run the same script against a tree with the `*.frozen` files **deleted**:
+> `find` returns nothing, the loop body never executes, and
+> `schema-gate: all *.frozen files present and non-empty` prints with exit 0.
+> The step's own echo says *"checking `*.frozen` files are committed"* — and
+> deleting every one of them passes. **Mode 3 (fail-open on absence)**
+> underneath the mode 4 above. Two further notes: the empty-file branch
+> *does* work — `exit 1` inside a `find | while` subshell propagates under
+> GitHub Actions' default `bash -e`, and that one line is the only thing the
+> step enforces; all 11 `.frozen` files are currently under `crates/`, so the
+> `find crates` scope is adequate today. And the step carries a **comment
+> describing two behaviours it does not have** (BREAKING-SCHEMA marker
+> scanning on PRs, frozen-counterpart matching on push to main): the name is
+> a false claim and the comment is two more.
+
+### ci-fuzz-nightly — **UNAUDITED**
+
+- **Claim:** eight fuzz targets each run without crashing for 300s.
+- **Reason UNAUDITED:** `if: github.event_name == 'schedule'` — does not
+  run on push or PR at all, only a weekly cron. Requires a nightly
+  toolchain, `cargo-fuzz`, and genuine multi-minute fuzzing runs per target;
+  not practical to reproduce meaningfully within this audit's timebox, and
+  a manufactured "did it crash in 10 seconds" run would not honestly answer
+  the claim. Recording `UNAUDITED` rather than a weak substitute.
+
+### ci-verus — **sound (by explicit design)**
+
+- **Claim:** records Verus machine-check markers; explicitly does **not**
+  gate the pipeline.
+- **Actual:** `continue-on-error: true`, and the job's own comment states
+  the real blocking check is `release-rehearsal` Gate 10 (audited sound in
+  Pass 1, with its own vacuous-empty-target finding recorded there). This
+  job succeeding or failing has no effect on CI's outcome by design — asked
+  whether that design is itself honestly represented, and it is: nothing
+  here claims to block, and nothing does.
+
+### Pass 4 summary
+
+- **Audited:** 16 / 16.
+- **Sound:** ~~4~~ **3** — `ci-format`, `ci-arm64-check`, `ci-verus`.
+- **Findings:** ~~10~~ **11** — the five explicit-list jobs (one shared
+  cross-cutting finding), `ci-qemu-smoke`, `ci-qemu-v07`, `ci-qemu-negative`,
+  `ci-unsafe-audit`, `ci-schema-gate`, **`ci-proptest`** (reversed from
+  `sound` in review — runs zero tests).
+- **UNAUDITED:** 2 — `ci-docs` (third-party tool behavior out of this
+  repository's instruments), `ci-fuzz-nightly` (schedule-only, not
+  practically reproducible in this session).
+
+This closes the audit's four passes: 55 instruments attempted, 0 skipped
+outright — every one answered with either a demonstration or an honest
+`UNAUDITED`.
+
+**Audit totals, as corrected in review:**
+
+| | Pass 1 | Pass 2 | Pass 3 | Pass 4 | Total |
+|---|---|---|---|---|---|
+| Sound | 6 | 4 | 2 | 3 | **15** |
+| Findings | 5 | 15 | 6 | 11 | **37** |
+| `UNAUDITED` | 1 | 0 | 0 | 2 | **3** |
+| | 12 | 19 | 8 | 16 | **55** |
+
+Before this line, all 55 were reporting green.
+
+**Carried to close-out (Pass 4 review ruling):** the `ci-proptest` reversal
+means a `sound` verdict was reached by checking a list's completeness rather
+than the predicate. All **15** `sound` rows are to be re-derived against one
+question — *was a demonstration actually produced, or was a completeness
+check mistaken for one?*
+
+Required evidence: `cargo xtask release-rehearsal` re-run clean and Gate 12
+still 35/26/9 after all Pass 4 demonstrations were reverted — captured in
+the review request for this pass.
