@@ -30,7 +30,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::ExitCode;
 
 // Crates whose public surface is part of the stable ABI.
@@ -165,14 +165,44 @@ fn verify(snapshot_path: &str) -> ExitCode {
     let baseline = loaded.items;
 
     let current = scan_all();
-    let current_map: BTreeMap<(String, String, String), &AbiItem> = current
-        .iter()
-        .map(|i| ((i.crate_name.clone(), i.kind.clone(), i.name.clone()), i))
-        .collect();
-    let baseline_map: BTreeMap<(String, String, String), &AbiItem> = baseline
-        .iter()
-        .map(|i| ((i.crate_name.clone(), i.kind.clone(), i.name.clone()), i))
-        .collect();
+
+    // RFC-0.24-003 R1: `module` joins the identity key, and either map
+    // containing a duplicate key fails the gate outright — the important
+    // half of this repair. Building the map by hand rather than
+    // `.collect()`-ing into a `BTreeMap` (which silently keeps only the
+    // last of any duplicate key) is what makes a duplicate loud instead of
+    // a 10%-of-the-surface hole no comparison could ever see.
+    let current_map = match build_identity_map(&current) {
+        Ok(m) => m,
+        Err(dups) => {
+            eprintln!(
+                "fjell-abi-snapshot: current workspace scan has {} duplicate \
+                 identity key(s) — cannot verify against a duplicated surface:",
+                dups.len()
+            );
+            for (cr, mo, ki, na) in &dups {
+                eprintln!("  {}::{} {} {}", cr, mo, ki, na);
+            }
+            eprintln!("Result: FAIL");
+            return ExitCode::from(1);
+        }
+    };
+    let baseline_map = match build_identity_map(&baseline) {
+        Ok(m) => m,
+        Err(dups) => {
+            eprintln!(
+                "fjell-abi-snapshot: {} has {} duplicate identity key(s) — \
+                 cannot verify against a duplicated baseline:",
+                snapshot_path,
+                dups.len()
+            );
+            for (cr, mo, ki, na) in &dups {
+                eprintln!("  {}::{} {} {}", cr, mo, ki, na);
+            }
+            eprintln!("Result: FAIL");
+            return ExitCode::from(1);
+        }
+    };
 
     let mut removed: Vec<&AbiItem> = Vec::new();
     let mut changed: Vec<(&AbiItem, &AbiItem)> = Vec::new();
@@ -225,6 +255,38 @@ fn verify(snapshot_path: &str) -> ExitCode {
         }
         eprintln!("\nResult: FAIL — update tests/abi/snapshot.json with --generate");
         ExitCode::from(1)
+    }
+}
+
+/// Build the diff identity map, keyed on `(crate, module, kind, name)`.
+/// Unlike `.collect()`-ing directly into a `BTreeMap` (which silently
+/// keeps only the last of any duplicate key), this returns every
+/// duplicated key as an error instead of dropping the rest — RFC-0.24-003
+/// R1. Before `module` joined the key, 45 of 423 baseline items collapsed
+/// into 378 keys with no signal that anything had been lost.
+fn build_identity_map(
+    items: &[AbiItem],
+) -> Result<BTreeMap<(String, String, String, String), &AbiItem>, Vec<(String, String, String, String)>>
+{
+    let mut map: BTreeMap<(String, String, String, String), &AbiItem> = BTreeMap::new();
+    let mut duplicates = Vec::new();
+    for item in items {
+        let key = (
+            item.crate_name.clone(),
+            item.module.clone(),
+            item.kind.clone(),
+            item.name.clone(),
+        );
+        if map.contains_key(&key) {
+            duplicates.push(key);
+        } else {
+            map.insert(key, item);
+        }
+    }
+    if duplicates.is_empty() {
+        Ok(map)
+    } else {
+        Err(duplicates)
     }
 }
 
@@ -298,85 +360,149 @@ fn extract_json_usize(json: &str, key: &str) -> Option<usize> {
 }
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
+//
+// RFC-0.24-003 R4: the scanner follows the module tree the crate actually
+// compiles — starting at `lib.rs` and descending through `mod` declarations
+// — rather than walking the directory. A file no `mod` declaration reaches
+// (e.g. an orphaned sibling file with no `mod` line anywhere) is never
+// scanned; a file reached only through an inline `mod name { … }` block is
+// scanned with that block's name correctly qualifying its items' `module`.
 
 fn scan_all() -> Vec<AbiItem> {
     let mut items = Vec::new();
     for (crate_name, src_dir) in STABLE_CRATES {
-        scan_dir(Path::new(src_dir), crate_name, "", &mut items);
+        scan_crate(Path::new(src_dir), crate_name, &mut items);
     }
     items.sort();
     items
 }
 
-fn scan_dir(dir: &Path, crate_name: &str, prefix: &str, items: &mut Vec<AbiItem>) {
-    let lib = dir.join("lib.rs");
-    if lib.exists() {
-        scan_file(&lib, crate_name, prefix, items);
-    }
-    if let Ok(entries) = fs::read_dir(dir) {
-        let mut paths: Vec<PathBuf> = entries
-            .flatten()
-            .map(|e| e.path())
-            .filter(|p| {
-                p.is_file()
-                    && p.extension().and_then(|e| e.to_str()) == Some("rs")
-                    && p.file_name().and_then(|n| n.to_str()) != Some("lib.rs")
-            })
-            .collect();
-        paths.sort();
-        for path in paths {
-            let mod_name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown");
-            let full_prefix = if prefix.is_empty() {
-                mod_name.to_string()
-            } else {
-                format!("{}::{}", prefix, mod_name)
-            };
-            scan_file(&path, crate_name, &full_prefix, items);
-        }
-    }
-}
-
-fn scan_file(path: &Path, crate_name: &str, module: &str, items: &mut Vec<AbiItem>) {
-    let Ok(content) = fs::read_to_string(path) else {
+/// Scan one stable crate starting at `src_dir/lib.rs`.
+fn scan_crate(src_dir: &Path, crate_name: &str, items: &mut Vec<AbiItem>) {
+    let lib_path = src_dir.join("lib.rs");
+    let Ok(content) = fs::read_to_string(&lib_path) else {
         return;
     };
-    items.extend(scan_content(&content, crate_name, module));
+    scan_module_tree(&content, src_dir, crate_name, "", items);
 }
 
-/// The parsing core of `scan_file`, taking source text directly so it can
-/// be exercised in tests without touching the filesystem.
-fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
-    let mut items = Vec::new();
-    let mut inside_test = false;
+/// Scan one file's content (`scan_content_into`), then follow every
+/// file-backed `mod NAME;` declaration it contained by reading `NAME.rs`
+/// (or `NAME/mod.rs`) from `dir` and recursing. Inline `mod NAME { … }`
+/// blocks are already fully handled inside `scan_content_into` — they need
+/// no file I/O, since their content is already loaded.
+fn scan_module_tree(
+    content: &str,
+    dir: &Path,
+    crate_name: &str,
+    prefix: &str,
+    items: &mut Vec<AbiItem>,
+) {
+    let mut file_mods = Vec::new();
+    scan_content_into(content, crate_name, prefix, items, &mut file_mods);
+    for (mod_prefix, name) in file_mods {
+        let flat = dir.join(format!("{name}.rs"));
+        let nested = dir.join(&name).join("mod.rs");
+        let path = if flat.exists() {
+            Some(flat)
+        } else if nested.exists() {
+            Some(nested)
+        } else {
+            None
+        };
+        // A `mod NAME;` with no resolvable file is a compile error in the
+        // real crate — nothing to scan; not this tool's problem to report.
+        if let Some(path) = path {
+            if let Ok(child_content) = fs::read_to_string(&path) {
+                let child_prefix = join_prefix(&mod_prefix, &name);
+                scan_module_tree(&child_content, dir, crate_name, &child_prefix, items);
+            }
+        }
+    }
+}
+
+/// The parsing core, taking source text directly so it can be exercised in
+/// tests without touching the filesystem. Handles inline `mod name { … }`
+/// blocks by recursing with a qualified prefix; file-backed `mod name;`
+/// declarations are recorded into `file_mods` for the caller (which has
+/// filesystem access) to resolve and follow.
+fn scan_content_into(
+    content: &str,
+    crate_name: &str,
+    module: &str,
+    items: &mut Vec<AbiItem>,
+    file_mods: &mut Vec<(String, String)>,
+) {
+    let stripped = strip_for_module_tracking(content);
     let lines: Vec<&str> = content.lines().collect();
+    let stripped_lines: Vec<&str> = stripped.lines().collect();
 
     let mut i = 0;
+    let mut prev_line_was_cfg_test = false;
     while i < lines.len() {
         let trimmed = lines[i].trim();
-        // Skip test modules
-        if trimmed.starts_with("#[cfg(test)]") {
-            inside_test = true;
-        }
-        if inside_test && trimmed.starts_with("mod tests") {
+        let clean = stripped_lines.get(i).copied().unwrap_or("").trim();
+
+        if clean.starts_with("#[cfg(test)]") {
+            prev_line_was_cfg_test = true;
             i += 1;
             continue;
         }
 
-        let (kind, rest) = match () {
-            _ if trimmed.starts_with("pub fn ") => ("fn", &trimmed[7..]),
-            _ if trimmed.starts_with("pub async fn") => ("fn", &trimmed[13..]),
-            _ if trimmed.starts_with("pub struct ") => ("struct", &trimmed[11..]),
-            _ if trimmed.starts_with("pub enum ") => ("enum", &trimmed[9..]),
-            _ if trimmed.starts_with("pub trait ") => ("trait", &trimmed[10..]),
-            _ if trimmed.starts_with("pub const ") => ("const", &trimmed[10..]),
-            _ if trimmed.starts_with("pub type ") => ("type", &trimmed[9..]),
-            _ => {
-                i += 1;
-                continue;
+        // Inline module: `[pub] mod NAME { … }` — recurse into the
+        // already-loaded body; no file to read. A `#[cfg(test)]`-gated
+        // block is skipped entirely (it compiles out of a release build).
+        if let Some(name) = inline_mod_name(clean) {
+            let (body, end_line) = extract_inline_mod_body(&lines, &stripped_lines, i);
+            if !prev_line_was_cfg_test {
+                let child_prefix = join_prefix(module, &name);
+                scan_content_into(&body, crate_name, &child_prefix, items, file_mods);
             }
+            prev_line_was_cfg_test = false;
+            i = end_line + 1;
+            continue;
+        }
+
+        // File-backed module: `[pub] mod NAME;` — recorded for the caller
+        // to resolve (this function has no filesystem access by design).
+        if let Some(name) = file_mod_name(clean) {
+            if !prev_line_was_cfg_test {
+                file_mods.push((module.to_string(), name));
+            }
+            prev_line_was_cfg_test = false;
+            i += 1;
+            continue;
+        }
+
+        prev_line_was_cfg_test = false;
+
+        let Some(after_pub) = trimmed.strip_prefix("pub ") else {
+            i += 1;
+            continue;
+        };
+        // RFC-0.24-003 R2: `pub const fn`, `pub unsafe fn`, `pub async fn`,
+        // `pub extern "C" fn` (in any combination, e.g. `pub const unsafe
+        // fn`) all declare a function — previously only bare `pub fn` and
+        // `pub async fn` were recognised, so `pub const fn` fell through to
+        // the `const` arm below and was recorded as `kind:"const"
+        // name:"fn"` (the literal keyword, not the function's real name),
+        // and `pub unsafe fn` matched nothing at all and was silently
+        // absent from the scanned surface.
+        let (kind, rest): (&str, &str) = if let Some(r) = strip_fn_modifiers(after_pub) {
+            ("fn", r)
+        } else if let Some(r) = after_pub.strip_prefix("struct ") {
+            ("struct", r)
+        } else if let Some(r) = after_pub.strip_prefix("enum ") {
+            ("enum", r)
+        } else if let Some(r) = after_pub.strip_prefix("trait ") {
+            ("trait", r)
+        } else if let Some(r) = after_pub.strip_prefix("const ") {
+            ("const", r)
+        } else if let Some(r) = after_pub.strip_prefix("type ") {
+            ("type", r)
+        } else {
+            i += 1;
+            continue;
         };
         let name: String = rest
             .chars()
@@ -408,7 +534,230 @@ fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
 
         i += 1;
     }
+}
+
+/// Test-only, filesystem-free entry point preserving the original
+/// `scan_content` signature.
+fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
+    let mut items = Vec::new();
+    let mut file_mods = Vec::new();
+    scan_content_into(content, crate_name, module, &mut items, &mut file_mods);
     items
+}
+
+/// Strip `fn`-declaration modifier keywords (`const`, `async`, `unsafe`,
+/// `extern "ABI"`, in any legal combination and order) from `rest` and
+/// return the text after `fn `, or `None` if `rest` is not a function
+/// declaration at all. `rest` is everything after `pub `.
+fn strip_fn_modifiers(rest: &str) -> Option<&str> {
+    let mut s = rest;
+    loop {
+        let trimmed = s.trim_start();
+        if let Some(r) = trimmed.strip_prefix("const ") {
+            s = r;
+        } else if let Some(r) = trimmed.strip_prefix("async ") {
+            s = r;
+        } else if let Some(r) = trimmed.strip_prefix("unsafe ") {
+            s = r;
+        } else if let Some(r) = trimmed.strip_prefix("extern ") {
+            let r = r.trim_start();
+            if let Some(after_quote) = r.strip_prefix('"') {
+                if let Some(end) = after_quote.find('"') {
+                    s = after_quote[end + 1..].trim_start();
+                    continue;
+                }
+            }
+            s = r;
+        } else {
+            s = trimmed;
+            break;
+        }
+    }
+    s.strip_prefix("fn ")
+}
+
+/// If `clean_line` (comment/string/char-literal stripped) is an inline
+/// module opener — `[pub] mod NAME {` — return `NAME`.
+fn inline_mod_name(clean_line: &str) -> Option<String> {
+    let rest = mod_decl_rest(clean_line)?;
+    let name = leading_ident(rest);
+    if name.is_empty() {
+        return None;
+    }
+    let after_name = rest[name.len()..].trim_start();
+    after_name.starts_with('{').then_some(name)
+}
+
+/// If `clean_line` is a file-backed module declaration — `[pub] mod
+/// NAME;` — return `NAME`.
+fn file_mod_name(clean_line: &str) -> Option<String> {
+    let rest = mod_decl_rest(clean_line)?;
+    let name = leading_ident(rest);
+    if name.is_empty() {
+        return None;
+    }
+    let after_name = rest[name.len()..].trim_start();
+    after_name.starts_with(';').then_some(name)
+}
+
+fn mod_decl_rest(clean_line: &str) -> Option<&str> {
+    clean_line
+        .strip_prefix("pub mod ")
+        .or_else(|| clean_line.strip_prefix("mod "))
+        .map(str::trim_start)
+}
+
+fn leading_ident(s: &str) -> String {
+    s.chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect()
+}
+
+fn join_prefix(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        name.to_string()
+    } else {
+        format!("{}::{}", prefix, name)
+    }
+}
+
+/// Net change in brace depth for one already-stripped line.
+fn brace_delta(line: &str) -> i32 {
+    let mut d = 0i32;
+    for c in line.chars() {
+        match c {
+            '{' => d += 1,
+            '}' => d -= 1,
+            _ => {}
+        }
+    }
+    d
+}
+
+/// Starting at `lines[start]` (containing a module's opening `{`), find
+/// the line where brace depth — counted on `stripped_lines`, so a
+/// `{`/`}` inside a string, char literal, or comment can never perturb it
+/// — returns to zero, and return the ORIGINAL lines strictly between
+/// opener and closer (joined back into text to recurse on) plus the
+/// index of the closing line.
+fn extract_inline_mod_body(
+    lines: &[&str],
+    stripped_lines: &[&str],
+    start: usize,
+) -> (String, usize) {
+    let mut depth = brace_delta(stripped_lines[start]);
+    let mut end = start;
+    while depth > 0 && end + 1 < lines.len() {
+        end += 1;
+        depth += brace_delta(stripped_lines[end]);
+    }
+    let body = if start + 1 < end {
+        lines[start + 1..end].join("\n")
+    } else {
+        String::new()
+    };
+    (body, end)
+}
+
+/// Blank out line comments, block comments, string literal contents, and
+/// char literal contents — preserving line structure (newlines) and the
+/// byte length/position of everything else — so brace-depth tracking on
+/// the result cannot be perturbed by a `{`/`}` inside any of them
+/// (RFC-0.24-003 R3). Lifetimes (`'a`) are left untouched; only genuine
+/// char literals (`'x'`, `'\''`, `'\n'`, `'\u{2603}'`) are blanked.
+fn strip_for_module_tracking(content: &str) -> String {
+    let bytes = content.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    while i < n {
+        let c = bytes[i];
+        if c == b'/' && i + 1 < n && bytes[i + 1] == b'/' {
+            while i < n && bytes[i] != b'\n' {
+                out.push(' ');
+                i += 1;
+            }
+            continue;
+        }
+        if c == b'/' && i + 1 < n && bytes[i + 1] == b'*' {
+            out.push(' ');
+            out.push(' ');
+            i += 2;
+            while i + 1 < n && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                out.push(if bytes[i] == b'\n' { '\n' } else { ' ' });
+                i += 1;
+            }
+            if i + 1 < n {
+                out.push(' ');
+                out.push(' ');
+                i += 2;
+            } else {
+                i = n;
+            }
+            continue;
+        }
+        if c == b'"' {
+            out.push(' ');
+            i += 1;
+            while i < n {
+                let cc = bytes[i];
+                if cc == b'\\' && i + 1 < n {
+                    out.push(' ');
+                    out.push(' ');
+                    i += 2;
+                    continue;
+                }
+                if cc == b'"' {
+                    out.push(' ');
+                    i += 1;
+                    break;
+                }
+                out.push(if cc == b'\n' { '\n' } else { ' ' });
+                i += 1;
+            }
+            continue;
+        }
+        if c == b'\'' {
+            if let Some(len) = char_literal_len(&bytes[i..]) {
+                for k in 0..len {
+                    out.push(if bytes[i + k] == b'\n' { '\n' } else { ' ' });
+                }
+                i += len;
+                continue;
+            }
+            // Lifetime (`'a`, `'static`): pass the quote through unchanged.
+            out.push('\'');
+            i += 1;
+            continue;
+        }
+        out.push(c as char);
+        i += 1;
+    }
+    out
+}
+
+/// If `bytes` (starting at a `'`) is a genuine char literal, return its
+/// total length including both quotes; `None` means it's a lifetime.
+fn char_literal_len(bytes: &[u8]) -> Option<usize> {
+    if bytes.len() < 3 {
+        return None;
+    }
+    if bytes[1] == b'\\' {
+        // Escape sequence: '\n', '\\', '\'', '\0', '\u{2603}', etc. Find
+        // the closing quote within a bounded lookahead (long enough for
+        // any unicode escape, `'\u{10FFFF}'`).
+        let max_escape = bytes.len().min(12);
+        for end in 3..max_escape {
+            if bytes[end] == b'\'' {
+                return Some(end + 1);
+            }
+        }
+        None
+    } else if bytes[2] == b'\'' {
+        Some(3)
+    } else {
+        None
+    }
 }
 
 /// Starting at `lines[start]`, join subsequent lines while the declaration
@@ -664,5 +1013,176 @@ mod tests {
         let loaded = load_snapshot(&path).unwrap();
         assert_eq!(loaded.declared_count, Some(2));
         assert_eq!(loaded.items.len(), 2);
+    }
+
+    // ── RFC-0.24-003 R2: fn-modifier prefixes ───────────────────────────────
+
+    #[test]
+    fn const_fn_recognised_as_fn_not_const_named_fn() {
+        let items = scan_content("pub const fn from_bytes(b: &[u8]) -> Self {", "c", "m");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, "fn");
+        assert_eq!(items[0].name, "from_bytes");
+    }
+
+    #[test]
+    fn unsafe_fn_is_scanned_at_all() {
+        // Before R2, `pub unsafe fn` matched no pattern and was silently
+        // absent from the surface entirely — not misnamed, just missing.
+        let items = scan_content("pub unsafe fn sys_audit_drain_ptr(ptr: usize) -> usize {", "c", "m");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, "fn");
+        assert_eq!(items[0].name, "sys_audit_drain_ptr");
+    }
+
+    #[test]
+    fn async_fn_recognised() {
+        let items = scan_content("pub async fn connect() -> Self {", "c", "m");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, "fn");
+        assert_eq!(items[0].name, "connect");
+    }
+
+    #[test]
+    fn extern_c_fn_recognised() {
+        let items = scan_content(r#"pub extern "C" fn callback() {"#, "c", "m");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, "fn");
+        assert_eq!(items[0].name, "callback");
+    }
+
+    #[test]
+    fn const_unsafe_fn_recognised() {
+        // Not found in any of the eight stable crates today, but the
+        // handoff asks for the same prefix-confusion class to be checked
+        // regardless — reported here rather than left untested.
+        let items = scan_content("pub const unsafe fn raw_new() -> Self {", "c", "m");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].kind, "fn");
+        assert_eq!(items[0].name, "raw_new");
+    }
+
+    // ── RFC-0.24-003 R3: braces inside strings/chars/comments must not ──────
+    // ── affect module-depth tracking ─────────────────────────────────────────
+
+    #[test]
+    fn brace_in_string_literal_does_not_affect_module_depth() {
+        let src = "pub mod outer {\n    pub const MSG: &str = \"unbalanced { brace\";\n    pub const INNER: usize = 1;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|i| i.module == "outer"));
+    }
+
+    #[test]
+    fn brace_in_char_literal_does_not_affect_module_depth() {
+        let src = "pub mod outer {\n    pub const OPEN: char = '{';\n    pub const CLOSE: char = '}';\n    pub const INNER: usize = 1;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 3);
+        assert!(items.iter().all(|i| i.module == "outer"));
+    }
+
+    #[test]
+    fn lifetime_is_not_mistaken_for_a_char_literal() {
+        let src =
+            "pub mod outer {\n    pub fn f<'a>(x: &'a str) -> &'a str { x }\n    pub const INNER: usize = 1;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().all(|i| i.module == "outer"));
+    }
+
+    #[test]
+    fn brace_in_line_comment_does_not_affect_module_depth() {
+        let src = "pub mod outer {\n    // this comment has a { brace in it\n    pub const INNER: usize = 1;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].module, "outer");
+    }
+
+    #[test]
+    fn brace_in_block_comment_does_not_affect_module_depth() {
+        let src = "pub mod outer {\n    /* a block comment { with a brace\n       spanning multiple lines } */\n    pub const INNER: usize = 1;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].module, "outer");
+    }
+
+    #[test]
+    fn nested_inline_modules_qualify_the_full_path() {
+        let src = "pub mod outer {\n    pub mod inner {\n        pub const DEEP: usize = 1;\n    }\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].module, "outer::inner");
+    }
+
+    #[test]
+    fn six_inline_modules_with_same_named_const_all_qualify_distinctly() {
+        // The worked example from the RFC: six inline `pub mod` blocks,
+        // each with its own `pub const READY`, previously all collapsed to
+        // `module:""` because the old scanner derived `module` from the
+        // file path only.
+        let src = "pub mod a {\n    pub const READY: usize = 1;\n}\npub mod b {\n    pub const READY: usize = 2;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 2);
+        let modules: std::collections::BTreeSet<_> = items.iter().map(|i| i.module.as_str()).collect();
+        assert_eq!(modules.len(), 2, "each READY must keep its own module");
+        assert!(modules.contains("a"));
+        assert!(modules.contains("b"));
+    }
+
+    #[test]
+    fn cfg_test_inline_module_is_not_scanned() {
+        let src = "#[cfg(test)]\nmod v07_tag_tests {\n    pub const LEAKED: usize = 1;\n}\n";
+        let items = scan_content(src, "c", "");
+        assert!(
+            items.is_empty(),
+            "a #[cfg(test)] module must not contribute to the stable surface"
+        );
+    }
+
+    // ── RFC-0.24-003 R1: duplicate identity keys must fail, not collapse ────
+
+    #[test]
+    fn build_identity_map_reports_duplicate_keys() {
+        let items = vec![
+            AbiItem {
+                crate_name: "c".into(),
+                module: "m".into(),
+                kind: "const".into(),
+                name: "READY".into(),
+                sig_hash: "1".into(),
+            },
+            AbiItem {
+                crate_name: "c".into(),
+                module: "m".into(),
+                kind: "const".into(),
+                name: "READY".into(),
+                sig_hash: "2".into(),
+            },
+        ];
+        let err = build_identity_map(&items).unwrap_err();
+        assert_eq!(err, vec![("c".into(), "m".into(), "const".into(), "READY".into())]);
+    }
+
+    #[test]
+    fn build_identity_map_distinguishes_by_module() {
+        // The exact shape R1 exists to fix: same crate/kind/name, distinct
+        // modules — must NOT be reported as a duplicate.
+        let items = vec![
+            AbiItem {
+                crate_name: "c".into(),
+                module: "a".into(),
+                kind: "const".into(),
+                name: "READY".into(),
+                sig_hash: "1".into(),
+            },
+            AbiItem {
+                crate_name: "c".into(),
+                module: "b".into(),
+                kind: "const".into(),
+                name: "READY".into(),
+                sig_hash: "2".into(),
+            },
+        ];
+        assert!(build_identity_map(&items).is_ok());
     }
 }
