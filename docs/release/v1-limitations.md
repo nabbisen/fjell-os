@@ -16,17 +16,34 @@ require updating the governing record first, then this page.*
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
-- **`fjell-kernel` has no host-testable `[lib]` target** (Errata **E-013**,
-  ACCEPTED). `cargo xtask test-all`'s tier 1 ("Host library tests") runs
+- **`test-all` tier 1 never runs the tests of any package without a library
+  target — including the verification tooling's own** (Errata **E-013**,
+  ACCEPTED). Tier 1 ("Host library tests") runs
   `cargo test --workspace --lib`, which silently skips any package with no
-  library target; `fjell-kernel` declares only `[[bin]]`, so tier 1 has
-  never executed any of its `#[cfg(test)]` modules, including the
-  kernel-side lease table (`lease/mod.rs`, one half of a Verus
+  library target. Measured across the workspace: **40 of 89 manifests have no
+  lib target, and 10 of those carry 166 `#[test]` functions that `--lib` never
+  reaches.**
+
+  **Eight of those ten are the gate tools themselves** — `fjell-tools` (68,
+  including `callsite_audit`'s, which are Gate 11's own demonstrations),
+  `fjell-consistency-check` (26 — Gate 12's), `fjell-unsafe-audit` (10 —
+  Gate 2's), `fjell-abi-snapshot` (8 — Gate 4's), `fjell-mmio-audit` (7 —
+  Gate 3's), `fjell-readiness-check` (5 — Gate 5's), plus `fjell-repro-check`
+  (6), `fjell-ci-coverage` (4), `fjell-summary-check` (2), and `fjell-kernel`
+  (30). So the demonstrations that establish several gates as sound are
+  themselves never run by the tier that claims to run the test suite.
+
+  For `fjell-kernel` specifically, the real target is bare-metal with no
+  libtest harness, so no alternate invocation reaches its modules either —
+  including the kernel-side lease table (`lease/mod.rs`, one half of a Verus
   release-required target) and the RFC-v0.23-002 milestone-marker tests.
-  The real target is bare-metal with no libtest harness, so no alternate
-  invocation reaches them either. Fixing this is architectural (a `[lib]`
-  target, or a host-testable subset split out of the crate) and is deferred
-  to its own RFC after `0.23.0`; found during RFC-v0.23-002 Slice 1.
+
+  The follow-up RFC has two separable halves: the **nine host binaries**,
+  ordinary `std` crates where the gap is the bare `--lib` flag and the fix is
+  trivial; and **`fjell-kernel`**, where it is architectural (a `[lib]`
+  target, or a host-testable subset split out). Deferred to its own RFC after
+  `0.23.0`. Found during RFC-v0.23-002 Slice 1; scope widened by
+  RFC-v0.24-001 Pass 1.
 
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs

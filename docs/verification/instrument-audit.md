@@ -490,3 +490,178 @@ items.
 Required evidence: `cargo xtask release-rehearsal` re-run clean and Gate 12
 still 35/26/9 after all Pass 2 demonstrations were reverted — captured in
 the review request for this pass.
+
+---
+
+## Pass 3 — the eight committed state-asserting artifacts
+
+The question per the handoff (§4) is different from Passes 1–2: not "does
+this instrument correctly check its input" but **"what makes this artifact
+go stale, and would anything notice?"** Three of the eight were already
+examined from the reader's side in Pass 1 (Gates 5/6/7 read
+`v1-readiness.md`/`trust-report.txt`/`ERRATA.md`); this pass looks from the
+artifact's side, plus covers the five Pass 1 didn't touch directly.
+
+### trust-report.txt — **finding** (carried from Pass 1, Gate 6)
+
+What makes it stale: any value inside a section can drift from reality while
+the section headers — unconditional string literals — stay present. What
+would notice: nothing, per Pass 1's demonstration (regeneration failure
+falls back silently to the stale committed file, which still has all six
+headers). No new demonstration; see Gate 6's entry above for the evidence.
+
+### v1-readiness.md — **finding** (carried from Pass 1, Gate 5)
+
+What makes it stale: a row using any status text other than the four exact
+literals (`**DONE**`, `**IN PROGRESS**`/`IN_PROGRESS`, `**DEFERRED**`,
+`**OPEN**`) is invisible to every counter — not flagged, not miscounted,
+simply absent from the totals. What would notice: nothing, per Pass 1's
+demonstration. No new demonstration; see Gate 5's entry above.
+
+### ERRATA.md — **finding** (carried from Pass 1, Gate 7, plus a live current instance found this pass)
+
+What makes it stale: the summary table can disagree with the authoritative
+per-entry prose above it, or use annotated status text the exact-literal
+grep doesn't match. Pass 1 demonstrated the second. This pass found the
+first **already true in this repository, right now, not constructed**:
+
+`v1-limitations.md`'s E-013 note (lines 19–27) still describes only
+`fjell-kernel` — the pre-widening version. `ERRATA.md`'s E-013 entry was
+widened during Pass 1's own review (commit `b82d949`) to ten crates and 166
+tests, eight of them the gate tools themselves. Nothing surfaced the gap
+between the two, including Gate 12's own `errata-limitations` sub-check,
+because that check only asks whether the literal string `E-013` appears
+*anywhere* in `v1-limitations.md` — confirmed by reading
+`errata_limitations.rs::run_check`: `!limitations_src.contains(id.as_str())`.
+The old note still contains the string `E-013`, so the check is satisfied
+regardless of what the note actually says. Re-ran the exact command to
+confirm:
+```
+$ cargo run -q -p fjell-tools -- consistency-check --all
+errata-limitations: PASS (4 ACCEPTED errata, all referenced in docs/release/v1-limitations.md)
+```
+This is not a constructed demonstration — it is the artifact's present,
+uncorrected state, produced as a side effect of this RFC's own Pass 1
+review, not fixed by that review because the ruling addressed `ERRATA.md`
+specifically and did not extend to its paired note. Not fixed here either,
+per the non-goal; reported for disposition like every other finding, not
+edited unilaterally just because it would be easy to.
+
+### v1-limitations.md — **finding** (same live instance as ERRATA.md, above)
+
+This is the other half of the same pair — recorded as its own row because
+it is its own artifact per the RFC's list of eight, not because it is a
+second, independent defect. What makes it stale: nothing re-derives its
+content from `ERRATA.md` when the latter changes; the linkage is a
+one-directional "does the ID string appear" check with no content
+comparison. See the ERRATA.md row above for the live instance and evidence.
+
+### abi/snapshot.json — **finding** (new this pass; distinct from Gate 4's already-sound signature-diffing)
+
+- **What makes it stale:** the file's *parseability*, not just its content.
+  `load_snapshot()` is a hand-rolled reader with a hard assumption: exactly
+  one JSON object per line (`tools/fjell-abi-snapshot/src/main.rs`,
+  `load_snapshot`). It does not use a real JSON parser.
+- **What would notice:** nothing, and the failure mode is silent rather than
+  a parse error. Demonstrated live: reformatted the committed
+  `tests/abi/snapshot.json` into valid, semantically-identical, minified
+  single-line JSON (the kind of change a well-meaning formatter or editor
+  auto-save could produce) and ran the exact Gate 4 command:
+  ```
+  $ cargo run -q -p fjell-tools -- abi-snapshot --verify
+  Baseline items : 0
+  Current items  : 423
+  Added          : 378 (additive — OK)
+  Removed        : 0
+  Changed sig    : 0
+  Result         : PASS
+  ```
+  The parser silently read zero baseline items from perfectly valid JSON.
+  With an empty baseline, every real item in the current scan counts as
+  "Added — OK", nothing counts as removed or changed, and the gate most
+  responsible for catching ABI drift passes having compared against
+  nothing. Reverted; `git diff --stat tests/abi/snapshot.json` clean.
+- This is a sharper, format-level version of the same class Gate 4 was
+  otherwise found sound against in Pass 1 (real signature changes are
+  caught; formatting-only *signature line* changes are correctly ignored).
+  The gap is one level up: the *snapshot file's own* formatting is
+  load-bearing and unvalidated.
+
+### repro/baseline-digests.txt — **sound**
+
+- **What makes it stale:** a prebuilt binary rebuilt without re-recording
+  the baseline (the actual, real incident this project already had —
+  RFC-v0.23-002's review corrections re-recorded exactly this).
+- **What would notice:** the digest-mismatch check, already re-verified
+  fail-closed-on-missing-baseline in Pass 2 (Tier 3b). Additionally checked
+  for this pass: (a) format fragility — `load_digests` explicitly rejects a
+  non-64-hex-char digest with a named error ("legacy FNV-1a baseline"),
+  not a silent empty-parse, unlike `abi/snapshot.json`; (b) scope
+  completeness — `DEFAULT_TARGETS` covers `crates/fjell-kernel/prebuilt/`
+  and the kernel ELF; confirmed by search that no other `prebuilt/`
+  directory or committed `.bin` exists in the repository outside that scope,
+  so the target list is not currently under-scoped.
+
+### syscall/expected.toml — **sound** (cross-referenced from Pass 1, Gate 12)
+
+- **What makes it stale:** a syscall added to the ABI enum without a
+  matching entry, or an entry naming a syscall no longer in source, in
+  either direction.
+- **What would notice:** `syscall_surface.rs`'s check, already demonstrated
+  both directions failing correctly in Pass 1 (`new_declared_syscall_not_in_expected_fails`,
+  `stale_expected_entry_no_longer_in_source_fails`). Not re-demonstrated;
+  same reasoning as Tier 1's cross-reference in Pass 2 — re-running an
+  already-established fact isn't new evidence.
+
+### rfcs/README.md — **finding** (new this pass; zero coverage found)
+
+- **Claim:** the file states outright, in its second line, "Folder is the
+  source of truth for state" and presents itself as an index: file counts
+  per lifecycle folder, and a full table of links into `rfcs/done/`.
+- **What makes it stale:** a renamed or moved RFC file breaking a relative
+  link; the folder's actual file count diverging from the header's stated
+  count. Exactly the RFC's own motivation example #10 ("13 broken relative
+  links in tracked docs"), which happened to this exact file's class of
+  content before.
+- **What would notice:** nothing. Searched the full instrument set audited
+  in Passes 1–2 for any markdown-link-checker or count-verifier —
+  none exists. `rfc_status_folder.rs` (Gate 12's own sub-check that this
+  file's introductory text explicitly references) reads `rfcs/proposed/`
+  and `rfcs/done/` **directly from disk** and never opens `rfcs/README.md`
+  at all — confirmed by reading its `check()` function.
+- **Demonstration:** broke the very first link in the file (the one in its
+  own second line, pointing readers to the RFC lifecycle policy) and
+  changed the stated count from 159 to 200, then ran the full gate matrix:
+  ```
+  $ cargo xtask release-rehearsal
+  ... [PASS] Gate 12 Consistency check ...
+  --- consistency-check: rfc-status-folder ---
+  rfc-status-folder: PASS (158 RFCs checked)
+  RELEASE-REHEARSAL: ALL MECHANICAL GATES PASS
+  ```
+  All twelve gates passed, unaffected, with a dangling link and a wrong
+  count sitting in the one document that calls itself the source of truth.
+  Reverted; `git diff --stat rfcs/README.md` clean.
+- The file's *current* content happens to be accurate (verified separately:
+  159 files in `rfcs/done/`, 159 links in the README, all 159 resolving,
+  0 broken) — this is a finding about the complete absence of anything that
+  would notice the next time it isn't, not a claim that it is wrong today.
+
+### Pass 3 summary
+
+- **Audited:** 8 / 8.
+- **Sound:** 2 — `repro/baseline-digests.txt`, `syscall/expected.toml`.
+- **Findings:** 6 — `trust-report.txt`, `v1-readiness.md`, `ERRATA.md`,
+  `v1-limitations.md`, `abi/snapshot.json`, `rfcs/README.md`.
+- **UNAUDITED:** 0.
+- **Notable:** one finding (the ERRATA.md / v1-limitations.md pair) is not
+  a constructed demonstration but the artifact's actual, current,
+  uncorrected state — produced as a side effect of this RFC's own Pass 1
+  review and still present as of this pass. Not fixed here, per the
+  non-goal; flagged explicitly as live rather than hypothetical.
+
+Required evidence: `cargo xtask release-rehearsal` re-run clean and Gate 12
+still 35/26/9 after all Pass 3 demonstrations were reverted — captured in
+the review request for this pass. One incidental `trust-report.txt`
+regeneration (a byproduct of re-running the rehearsal during the
+`rfcs/README.md` demonstration) was reverted, not committed.
