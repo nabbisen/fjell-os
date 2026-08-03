@@ -198,6 +198,109 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `0.23.0`. RFC to follow after the release. See
   `docs/release/v1-limitations.md`.
 
+> **Second confirmation 2026-08-03 (RFC-0.24-001 Pass 4).** The six gate-tool
+> crates — `fjell-abi-snapshot`, `fjell-consistency-check`, `fjell-mmio-audit`,
+> `fjell-readiness-check`, `fjell-repro-check`, `fjell-summary-check` — are
+> **also never named in any job in `.github/workflows/ci.yml`**, which lists its
+> packages explicitly by name. So nothing runs their tests anywhere, by any
+> mechanism, in ordinary operation: not `test-all` tier 1 (`--lib`, no lib
+> target), and not CI (never enumerated).
+>
+> Not a new erratum — the same one, reached by a second independent mechanism.
+> Recorded because the disclosure understates the reach without it.
+>
+> The three crates backing Gate 8's validation drills (`fjell-sig-ed25519`,
+> `fjell-fleet-sync`, `fjell-config-sync`) are **deliberately not folded in**:
+> their tests exist and are reachable, and CI simply never invokes them. That is
+> **E-015**, and filing it here would blur an erratum that is currently precise.
+
+## E-014 — Verification instruments that decide by matching a fixed string
+
+- **Claim:** several instruments assert a semantic property —
+  RFC-v0.22-001 Slice 4 (`errata-limitations`: *"every ACCEPTED erratum appears
+  in `v1-limitations.md`"*), Gates 5/6/7, RFC 026's negative harness
+  (`FORBIDDEN` markers), and `fjell-unsafe-audit`'s category tagging.
+- **Shipped:** each decides by matching a fixed literal, satisfiable without the
+  property holding, and unsatisfiable when the property holds in a form the
+  literal does not anticipate. Found by RFC-0.24-001, Passes 1–4:
+  - **Gate 5** counts rows containing `**OPEN**`. A row marked `**BLOCKED**` is
+    counted in none of the four buckets — not miscounted, absent. Demonstrated.
+  - **Gate 6** counts the literals `§1`..`§6` in `trust-report.txt` and discards
+    the regeneration's own exit status (`let _ = sh(...)`).
+  - **Gate 7** counts `OPEN` in this register.
+  - **`FORBIDDEN`** matches `"TEST:FAIL"`, which is not a substring of the real
+    message `TEST:M7:FAIL (init did not exit cleanly)`.
+  - **`errata-limitations`** requires only that an erratum's *ID string* appear
+    in `v1-limitations.md`. It passed over a live divergence in which the
+    architect widened E-013 here and not there — the content disagreed while the
+    ID matched.
+  - **`fjell-unsafe-audit`'s category extractor** splits on whitespace and commas
+    only, so `category=csr-asm; <explanation>` yields the token `"csr-asm;"` and
+    falls to `Unknown`. All 283 pre-existing sites happen to use the convention
+    that works; nothing enforces it.
+  - **The shared TOML array parser** closes an array at a `]` inside a string
+    literal, loading 2 of 4 markers silently.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-03). Recorded, not fixed.
+  Each individual patch would be a better string; the family needs one answer to
+  *how these instruments should decide*, which is design work and a 0.25
+  candidate. None is a live false-green today — Gate 5's is the closest, and
+  requires someone to use a status word outside the recognised four. See
+  `docs/verification/instrument-audit-closeout.md` §3.1 and
+  `docs/release/v1-limitations.md`.
+
+## E-015 — Hand-enumerated instrument scopes that no longer match reality
+
+- **Claim:** RFC 025 (CI/QEMU automation foundation) and RFC 026 (negative test
+  harness) present CI and the negative-test harness as covering the workspace
+  and its negative categories.
+- **Shipped:** both enumerate their subjects by hand, and the lists have drifted.
+  Found by RFC-0.24-001 Passes 2 and 4:
+  - **19 of 89 workspace crates are never named in any `ci.yml` job.** Six are
+    the gate tools (see E-013); three back Gate 8's validation drills
+    (`fjell-sig-ed25519`, `fjell-fleet-sync`, `fjell-config-sync`), whose five
+    markers therefore run only at `release-rehearsal` time and never on a push
+    or PR. Possibly intentional; nothing in the workflow says so.
+  - **`ci-qemu-negative`'s matrix lists nine categories; `test_all.rs` runs
+    ten.** The `semantic` category, added by RFC-v0.23-001, has never run in
+    ordinary CI since the RFC that introduced it.
+  - **`KNOWN_V01X_CATEGORIES` / `KNOWN_V02_CATEGORIES`** no longer describe the
+    profiles on disk.
+  - **`smoke.rs`'s `v0.6-verification` milestone** appears in neither CI matrix
+    nor `SMOKE_PROFILES` — defined in code, invoked by nothing, anywhere.
+    Vestigial from a naming transition.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-03). Recorded, not fixed.
+  Distinct in kind from E-014: these are checks that **do not run**, or run over
+  an incomplete set — not checks that report success without checking. That
+  distinction is why they were held out of the pre-cut repair line
+  (RFC-0.24-002). Fixing them is mechanical once someone decides whether CI
+  should enumerate or derive its package list; 0.25 candidate. See
+  `docs/verification/instrument-audit-closeout.md` §3.2.
+
+## E-016 — No instrument verifies any document link, index, or count
+
+- **Claim:** RFC 000 (RFC Lifecycle Policy) makes `rfcs/README.md` the
+  repository's RFC index, and the documentation set is presented as
+  cross-navigable.
+- **Shipped:** nothing checks any of it. Found by RFC-0.24-001 Pass 3 and the
+  0.24 review cycle:
+  - **`rfcs/README.md` has zero instrument coverage.** The only trace of it
+    anywhere in the instrument set is a **doc comment in
+    `rfc_status_folder.rs` that mentions the file without opening it.** A search
+    for coverage found a sentence claiming coverage.
+  - **13 broken relative links** in tracked documentation.
+  - **The index's "Shipped" column names a release for roughly 150 rows as
+    `v0.3.0`, `v0.22.0`, and so on — tags that do not exist under those names.**
+    Release tags have never carried a `v` prefix. Its section headers do the
+    same. The 0.24 series was renamed to match (2026-08-03); historical rows
+    were left, because renaming ~150 files to apply a convention retroactively
+    would break the links that commits and release records point at.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-03). Recorded, not fixed.
+  One link-and-count integrity instrument closes all three, and **adding an
+  instrument was RFC-0.24-001's explicit non-goal** — which is why this waits
+  for 0.25 rather than being fixed quietly by the person who would then write
+  the checker. The drift and the reason nobody noticed it are the same finding.
+  See `docs/verification/instrument-audit-closeout.md` §3.3.
+
 ---
 
 ## Summary
@@ -216,7 +319,23 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-010 IPC words delivery | v0.20.0 fix | CLOSED |
 | E-011 cap_install rights validation | v0.21.3-001 (v0.22 disposition) | ACCEPTED |
 | E-012 release checklist Step 9 bundle path | v0.22-001 (recorded, not fixed) | ACCEPTED |
-| E-013 fjell-kernel has no host-testable `[lib]` target | RFC after v0.23.0 (recorded, not fixed) | ACCEPTED |
+| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC after v0.23.0 (recorded, not fixed) | ACCEPTED |
+| E-014 instruments deciding by fixed-string match | 0.25 candidate (recorded, not fixed) | ACCEPTED |
+| E-015 hand-enumerated instrument scopes drifted from reality | 0.25 candidate (recorded, not fixed) | ACCEPTED |
+| E-016 no link, index, or count integrity instrument | 0.25 candidate (recorded, not fixed) | ACCEPTED |
+
+At the 0.24 instrument-audit close-out (2026-08-03): **0 OPEN, 9 CLOSED,
+7 ACCEPTED.** E-014, E-015 and E-016 were filed together as that audit's
+disposition — grouped by root cause rather than one per finding, so the register
+records four families instead of thirty-three individually-true rows. Each names
+its member findings explicitly; `docs/verification/instrument-audit.md` remains
+the authoritative row-level record and
+`docs/verification/instrument-audit-closeout.md` the disposition. All three are
+**ACCEPTED, not OPEN**, on the same grounds as E-004/E-011/E-012/E-013:
+scheduled deferral to a named future line is a deliberate decision, not live
+unresolved drift. Seven of the audit's findings were repaired in RFC-0.24-002
+and are therefore not filed here; one more (Gate 4's ABI identity collapse) is
+in flight under RFC-0.24-003 and blocks the 0.24 cut, so it is not filed either.
 
 At v0.23 update: 0 OPEN, 9 CLOSED, 4 ACCEPTED. The ACCEPTED items
 (hardware boot, `cap_install` rights validation) are reflected in the v1.0

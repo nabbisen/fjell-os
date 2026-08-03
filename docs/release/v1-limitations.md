@@ -45,6 +45,59 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `0.23.0`. Found during RFC-v0.23-002 Slice 1; scope widened by
   RFC-0.24-001 Pass 1.
 
+  **Second confirmation (RFC-0.24-001 Pass 4).** The six gate-tool crates —
+  `fjell-abi-snapshot`, `fjell-consistency-check`, `fjell-mmio-audit`,
+  `fjell-readiness-check`, `fjell-repro-check`, `fjell-summary-check` — are
+  **also never named in any job in `.github/workflows/ci.yml`**, which lists
+  its packages explicitly by name. So nothing runs their tests anywhere, by
+  any mechanism, in ordinary operation: not tier 1, and not CI. The three
+  crates backing Gate 8's validation drills are a separate matter and are
+  recorded under E-015, not here.
+
+- **Several verification instruments decide by matching a fixed string**
+  (Errata **E-014**, ACCEPTED). Gate 5 counts rows containing `**OPEN**`, so a
+  row marked `**BLOCKED**` is counted in none of its four buckets — absent, not
+  miscounted. Gate 6 counts the literals `§1`..`§6` and discards its
+  regeneration's exit status. Gate 7 counts `OPEN` in the errata register. The
+  negative harness's `FORBIDDEN` list matches `"TEST:FAIL"`, which is not a
+  substring of the real message `TEST:M7:FAIL (init did not exit cleanly)`.
+  `errata-limitations` requires only that an erratum's *ID* appear in this
+  file, and passed over a live case where the content diverged while the ID
+  matched. `fjell-unsafe-audit`'s category extractor splits on whitespace and
+  commas, so `category=csr-asm; <explanation>` silently reads as `Unknown`.
+  The shared TOML array parser closes an array at a `]` inside a string
+  literal, loading 2 of 4 markers silently. None is a live false-green today;
+  each individual patch would be a better string, and the family needs one
+  design answer instead. Recorded, not fixed; 0.25 candidate.
+
+- **Instrument scopes are hand-enumerated and have drifted from reality**
+  (Errata **E-015**, ACCEPTED). **19 of 89 workspace crates are never named in
+  any `ci.yml` job** — six are the gate tools above, and three back Gate 8's
+  validation drills (`fjell-sig-ed25519`, `fjell-fleet-sync`,
+  `fjell-config-sync`), whose markers therefore run only at
+  `release-rehearsal` time and never on a push or PR. `ci-qemu-negative`'s
+  matrix lists nine categories while `test-all` runs ten: the `semantic`
+  category added by RFC-v0.23-001 has never run in ordinary CI. The
+  `KNOWN_V01X_CATEGORIES` / `KNOWN_V02_CATEGORIES` lists no longer describe the
+  profiles on disk, and `smoke.rs`'s `v0.6-verification` milestone is defined
+  in code and invoked by nothing anywhere. These are checks that **do not
+  run**, or run over an incomplete set — distinct from E-014's checks that
+  report success without checking. Recorded, not fixed; 0.25 candidate.
+
+- **No instrument verifies any document link, index, or count** (Errata
+  **E-016**, ACCEPTED). `rfcs/README.md` — the repository's RFC index under
+  RFC 000 — has zero instrument coverage; the only trace of it in the entire
+  instrument set is a doc comment that mentions the file without opening it.
+  Thirteen relative links in tracked documentation are broken. The index's
+  "Shipped" column names a release for roughly 150 rows as `v0.3.0`, `v0.22.0`
+  and so on — tags that do not exist under those names, since release tags
+  have never carried a `v` prefix. The 0.24 series was renamed to match on
+  2026-08-03; historical rows were left, because renaming ~150 files to apply
+  a convention retroactively would break the links that commits and release
+  records point at. One link-and-count instrument closes all three, and adding
+  an instrument was RFC-0.24-001's explicit non-goal. Recorded, not fixed;
+  0.25 candidate.
+
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes
