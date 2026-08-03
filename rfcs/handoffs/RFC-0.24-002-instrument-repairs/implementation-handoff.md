@@ -2,7 +2,7 @@
 
 **Governing RFC:** [RFC-0.24-002](../../proposed/RFC-0.24-002-instrument-repairs.md)
 **Milestone:** 0.24 — blocks the cut
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Proposed — accepted for implementation 2026-08-03)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
