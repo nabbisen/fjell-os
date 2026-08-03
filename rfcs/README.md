@@ -312,11 +312,16 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 ## Proposed (proposed/) — 1 RFC
 
 
-### 0.24 — Instrument Audit (provisional; direction not yet set)
+### 0.24 — Instrument Audit and Repairs
+
+The first milestone of this project whose subject is the verification apparatus
+itself rather than the system it verifies. From 0.24 onward, RFC identifiers
+carry no `v` prefix, matching the release tags, which never did.
 
 | RFC | Title |
 |-----|-------|
-| 0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-0.24-001-instrument-audit.md) — accepted 2026-08-02; handoff: [`handoffs/`](./handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md) |
+| 0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-0.24-001-instrument-audit.md) — accepted 2026-08-02; audit complete, 4 passes, 55 instruments, 15 sound / 37 findings / 3 unaudited; handoff: [`handoffs/`](./handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md) |
+| 0.24-002 | [Instrument Repairs — the seven that cannot wait for the cut](./proposed/RFC-0.24-002-instrument-repairs.md) — proposed 2026-08-03; blocks the 0.24 cut; handoff: [`handoffs/`](./handoffs/RFC-0.24-002-instrument-repairs/implementation-handoff.md) |
 
 ---
 
