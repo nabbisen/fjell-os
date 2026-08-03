@@ -144,6 +144,53 @@ deleted from the repository. It is dead code duplicating an inline module, and
 that is a source-hygiene question for its owner, not an instrument repair.
 **Record it; do not delete it.**
 
+### R6 — Impl scope *(added 2026-08-03, in review of R1)*
+
+**Found by R1's own duplicate-key check**, on its first run, which is the branch
+this RFC's acceptance criteria anticipated: *"if any survive, escalate rather
+than adjust the check."* Two keys survived R1–R4:
+
+```
+fjell-audit-format::         fn kind    (AuditRecordBin::kind, AuditPersistRecord::kind)
+fjell-semantic-v1::catalog   fn new     (CatalogOwner::new,    CatalogRangeOwner::new)
+```
+
+Neither is B, C, or D. **The identity has no notion of which type's `impl` block
+a method belongs to**, so two types in the same crate and module with a
+same-named method collide however correctly `module` is computed.
+`CatalogOwner::new` and `CatalogRangeOwner::new` are distinct ABI items; a gate
+that cannot tell them apart cannot do its job.
+
+**Required — a distinct field, not a fatter `module`:**
+
+```
+key = (crate, module, impl_type, kind, name)
+```
+
+- `module` keeps its honest meaning — the module path. R3's work is unchanged.
+- `impl_type` holds the impl block's **self type**; `""` for free items.
+- Generics stripped: `impl<T> Foo<T>` → `Foo`.
+- Trait impls: `impl Trait for Type` → `Type`. Most trait methods are not
+  `pub fn` and will not appear; handle it rather than assume.
+
+**Appending the type to `module` is explicitly rejected.** A field named
+`module` holding a type name is the "name that lies" pattern this milestone
+exists to correct. R5 rewrites the schema regardless, so a clean field costs
+least now and never less.
+
+### R2′ — `pub unsafe fn` never captured at all *(found during R2)*
+
+`crates/fjell-syscall/src/…:349` and `:518` declare `pub unsafe fn
+sys_audit_drain_ptr` and `sys_audit_drain_raw`. Both appear **zero times** in
+the committed baseline — not misnamed, **absent**. The gate guarding the syscall
+ABI has never known they exist and would not have noticed either being removed
+or re-signed.
+
+Cause: the scanner **enumerated prefix strings** (`pub fn `, `pub async fn `)
+instead of recognising *modifiers-then-`fn`*. That is E-014's literal-matching
+defect one level down, and the third instance in this tool alone. Repaired by
+the same `strip_fn_modifiers()` generalisation as B.
+
 ### R5 — Reconciliation, and this is the crux
 
 R1–R4 will change many entries. Regenerating the baseline under a corrected
@@ -155,17 +202,34 @@ disappear.
 accounts for **every** difference between the old and new baselines and assigns
 each to exactly one cause:
 
-| Cause | Expected shape |
-|---|---|
-| B | `name:"fn"` → the real function name |
-| C | `module:""` → a qualified inline-module path |
-| D | item disappears (was never in the crate) |
-| **unexplained** | **stop and escalate** |
+| Cause | Expected | Shape |
+|---|---|---|
+| **B** — `const fn` misparse | **15** | `name:"fn"` → the real function name |
+| **B′** — `pub unsafe fn` never captured | **+2** | items **added** |
+| **C** — inline `mod` | **162** | `module:""` → a qualified inline-module path |
+| **D** — orphaned `storaged.rs` | **−17** | item disappears (was never in the crate) |
+| **E** — impl scope (R6) | **~60** | `impl_type:""` → the self type |
+| **unexplained** | **0** | **stop and escalate** |
 
-**Any difference not explained by B, C, or D is a real ABI change and must be
-escalated, not regenerated over.** The count is knowable in advance: 15 for B,
-162 for C, 17 for D. If the reconciliation produces more than that, something
-else moved.
+**Any difference not explained by B, B′, C, D, or E is a real ABI change and
+must be escalated, not regenerated over.** Net item count: **423 − 17 + 2 =
+408**.
+
+**On E's ~60.** The architect measured 60 `pub fn` inside impl blocks across 22
+self types in the eight stable crates — with a short script, not the production
+scanner. **60 is not asserted as exact.** A different figure is not a failure;
+an *unexplained* difference is. Every item whose `impl_type` changes must be
+attributable to being inside an impl block.
+
+**Overlaps are stated, not double-counted.** An item can be both C and E. Assign
+causes per item and report how many carry more than one.
+
+**The `git diff` cannot serve as evidence this time.** R6 adds a field, so every
+line of the file changes. In the RFC-0.24-002 review a `20 0` numstat was
+accepted as structural proof that a regeneration was purely additive; **no such
+proof is available here**, and it must not be simulated by eyeballing a 408-line
+diff. The reconciliation is a semantic comparison — parse old and new, match
+items, assign causes — and the review request must say so explicitly.
 
 ## Non-goals
 
@@ -196,13 +260,18 @@ else moved.
 
 - [ ] **The Gate 4 demonstration reproduced, then defeated:** corrupt a
       previously-shadowed entry's signature; `--verify` must now `FAIL` where it
-      reported `PASS`.
+      reported `PASS` — **and fail by the signature-mismatch pathway, naming the
+      item.** A `FAIL` reached via the duplicate-key check is the right outcome
+      by the wrong route and does not satisfy this.
 - [ ] `--verify` fails on a baseline containing duplicate identity keys —
       demonstrated with a hand-made duplicate.
 - [ ] Zero duplicate identity keys in the regenerated baseline. If any survive,
       escalate rather than adjust the check.
 - [ ] No item named `fn` remains. No `fjell-service-api` item carries
-      `module:""`. No item traces to `storaged.rs`.
+      `module:""`. No item traces to `storaged.rs`. **Both `pub unsafe fn`
+      items in `fjell-syscall` are present.**
+- [ ] **R6:** `impl_type` populated for every item inside an impl block, `""`
+      otherwise; generics stripped; the two escalated collisions resolved.
 - [ ] **R5's reconciliation table committed**, every difference assigned a
       cause, counts matching 15 / 162 / 17 or the discrepancy explained.
 - [ ] Brace-depth tracking has unit tests covering braces in string literals,

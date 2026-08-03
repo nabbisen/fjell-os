@@ -31,13 +31,30 @@ rationalised afterwards:
 | Cause | Items | Shape |
 |---|---|---|
 | B — `const fn` | **15** | `name:"fn"` → the real function name |
+| B′ — `pub unsafe fn` | **+2** | items **added** (`sys_audit_drain_ptr`, `sys_audit_drain_raw`) |
 | C — inline `mod` | **162** | `module:""` → a qualified path |
-| D — orphaned file | **17** | disappears entirely |
+| D — orphaned file | **−17** | disappears entirely |
+| E — impl scope (R6) | **~60** | `impl_type:""` → the self type |
+
+**Net item count: 423 − 17 + 2 = 408**, matching your own preliminary scan.
 
 **Any difference outside these is a real ABI change. Stop and escalate.** Do not
-regenerate over it, do not explain it in the review request and proceed. If the
-totals come out at 15/162/17 exactly, say so; if they do not, that discrepancy
-is the most important thing in your submission.
+regenerate over it, do not explain it in the review request and proceed.
+
+**E's ~60 is not exact.** The architect measured 60 `pub fn` inside impl blocks
+across 22 self types, with a short script rather than your scanner. A different
+figure is not a failure; an *unexplained* one is. Every item whose `impl_type`
+changes must be attributable to being inside an impl block.
+
+**Overlaps are stated, not double-counted.** An item can be both C and E.
+Assign causes per item and report how many carry more than one.
+
+**The `git diff` cannot serve as evidence this time.** R6 adds a field, so every
+line of the file changes. Last time a `20 0` numstat was structural proof that a
+regeneration was purely additive; **no such proof exists here**, and it must not
+be simulated by eyeballing a 408-line diff. The reconciliation is a semantic
+comparison — parse old and new, match items, assign causes — and your review
+request must say so explicitly.
 
 ## 0.2 Design decisions settled — do not re-open
 
@@ -53,9 +70,31 @@ is the most important thing in your submission.
 
 ---
 
+## 0.3 R6 — added in review, and where it came from
+
+R1's duplicate-key check found two survivors on its first run, neither
+explained by B, C or D: `AuditRecordBin::kind` vs `AuditPersistRecord::kind`,
+and `CatalogOwner::new` vs `CatalogRangeOwner::new`. **The identity has no
+notion of which type's `impl` block a method belongs to.**
+
+**Ruling: extend it.** `key = (crate, module, impl_type, kind, name)`.
+`module` keeps its honest meaning; `impl_type` holds the self type and is `""`
+for free items. Generics stripped (`impl<T> Foo<T>` → `Foo`); trait impls take
+the self type (`impl Trait for Type` → `Type`) — most trait methods are not
+`pub fn` and will not appear, but handle it rather than assume.
+
+**Do not append the type to `module`.** A field named `module` holding a type
+name is the "name that lies" pattern this milestone exists to correct.
+
+This was the right escalation, and it is the first defect in this milestone
+found by an instrument rather than a person. Your reasoning for not deciding it
+yourself was correct.
+
+---
+
 ## 1. Order
 
-**R2, R3, R4 first — then R1 last.**
+**R2, R3, R4 first — then R1, then R6.**
 
 This is the reverse of how the RFC lists them, and it matters. R1's duplicate-key
 check will fail loudly while B, C and D are still present, because they are what
@@ -100,7 +139,7 @@ from the Gate 4 demonstration.
 
 | # | Break | Instrument must |
 |---|---|---|
-| 1 | Corrupt a **previously-shadowed** entry's signature (e.g. the first of the ten `READY` rows in the current baseline) | `--verify` → `FAIL`, where it reported `PASS` before this RFC |
+| 1 | Corrupt a **previously-shadowed** entry's signature (e.g. the first of the ten `READY` rows in the current baseline) | `--verify` → `FAIL` **by the signature-mismatch pathway, naming the item** — not via the duplicate-key check. Right outcome by the wrong route does not count. |
 | 2 | Hand-add a duplicate identity key to a baseline copy | `--verify` → `FAIL`, naming the duplicated key |
 | 3 | Existing Slice 5 guards (no `count` header; truncated file) | still `FAIL` — confirm this RFC did not regress them |
 
