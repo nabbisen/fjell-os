@@ -304,3 +304,189 @@ they still hold, not re-derived from scratch.
 Required evidence per handoff §8, item 4 (`cargo xtask release-rehearsal`
 still green and Gate 12 still 35/26/9 syscall-surface) captured in the
 review request for this pass, not duplicated here.
+
+---
+
+## Pass 2 — the nineteen `test-all` tiers
+
+Source: `crates/fjell-tools/src/test_all.rs`, plus the shared QEMU harness
+(`qemu_run.rs`, `smoke.rs`, `negative.rs`) that fourteen of the nineteen
+tiers delegate to. Per the ruling on Pass 1, tier 1 gets its own row here
+rather than a cross-reference to Gate 1's, per the architect's note that the
+register should stand alone.
+
+A structural point that applies across this whole pass: `test_all.rs`'s own
+`capture_command()` checks the real process **exit status**
+(`o.status.success()`), not a substring of the output. This is a materially
+different, and better, design than `release_rehearsal.rs`'s `sh()` +
+string-match pattern audited in Pass 1 — most of this pass's tiers are sound
+*because of* that difference, even where the underlying tool being invoked is
+the same one Pass 1 already looked at.
+
+### Tier 1 — Host library tests — **finding**
+
+- **Claim:** the workspace's host-side unit tests all pass.
+- **Actual:** `cargo test --workspace --lib --exclude fjell-proptest`,
+  checked via real exit status (sound on that axis — see the pass note
+  above; this is *not* Gate 1's flaw, which never inspected exit status at
+  all).
+- **Modes:** 1 (scope blindness) — inherited whole from E-013. `--lib`
+  silently omits any package with no library target. 40 of 89 non-proptest
+  packages have none; 10 of those carry 166 real `#[test]` functions
+  (figures per the corrected count in E-013's widened entry).
+- **Demonstration:** not re-run here (identical mechanism to Gate 1's
+  already-demonstrated case; re-breaking `fjell-store-model` would reproduce
+  the same skip, not a new fact). Recorded as its own row per instruction,
+  cross-referencing E-013 for the underlying figures rather than duplicating
+  the count derivation.
+
+### Tier 2 — Property tests (proptest) — **sound**
+
+- **Claim:** the fourteen `proptest`-based properties over capability rights
+  and lease epochs all hold.
+- **Actual:** `cargo test -p fjell-proptest --release`, exit status checked.
+- **Demonstration:** temporarily forced `prop_zero_is_subset` to
+  `prop_assert!(false, ...)` and ran the exact tier command:
+  ```
+  test result: FAILED. 0 passed; 1 failed; ...
+  ```
+  real exit code 101, correctly surfaced. Reverted; also removed the
+  `.proptest-regressions` seed file the failing run generated (an artefact
+  of the deliberate break, not a real regression worth keeping).
+
+### Tier 3 — Unsafe site audit — **sound**
+
+- **Claim:** every `unsafe` site has a preceding `SAFETY:` comment.
+- **Actual:** `fjell-unsafe-audit --workspace . --check`, exit status
+  checked. Read the tool's own `main()`: `if check && missing > 0 {
+  process::exit(1); }` — a real, direct exit-code contract, not a string
+  the caller has to parse (contrast Gate 2 in Pass 1, which greps this same
+  tool's text output instead of reading its exit code — sound today, per
+  Pass 1, but structurally more fragile than tier 3's own check of the
+  identical tool).
+- **Demonstration:** covered by Gate 2's demonstration in Pass 1 (same
+  tool); not repeated.
+
+### Tier 3c — MMIO ordering audit — **sound**
+
+- **Claim:** every MMIO access carries a recognized ordering annotation.
+- **Actual:** `fjell-mmio-audit --workspace . --check`, exit status checked
+  (`ExitCode::FAILURE` on any missing annotation, read directly from source).
+- **Demonstration:** covered by Gate 3's demonstration in Pass 1; not
+  repeated.
+
+### Tier 3b — Reproducible build (skip-build) — **sound**
+
+- **Claim:** the committed `prebuilt/*.bin` artefacts match their recorded
+  baseline digests.
+- **Actual:** `fjell-repro-check --skip-build`, exit status checked.
+- **Modes considered:** 3 (fail-open on absence) — this is the RFC's own
+  worked example ("Tier 5 auto-recorded a missing baseline and passed, until
+  v0.21.3"). Re-verified rather than assumed.
+- **Demonstration:** moved `tests/repro/baseline-digests.txt` aside and ran
+  the exact tier command:
+  ```
+  fjell-repro-check: FAIL — no baseline at tests/repro/baseline-digests.txt
+  (this is not a passing state).
+  ```
+  exit 1. The RFC-v0.21.3-001 fail-closed fix still holds. Restored the
+  file; `git diff --stat` clean.
+
+### Tiers 4–7 — QEMU smoke: m8, v0.4-net, v0.5-platform, v0.7-sync — **finding** (shared mechanism)
+
+- **Claim:** each names a milestone/subsystem and its serial-log marker
+  (`TEST:M8:PASS`, `TEST:V0.4-NET:PASS`, etc.) attests that milestone
+  completed — the *marker-identity* question RFC-v0.23-002 already settled.
+  This pass's question is different: does the **runner** correctly map a
+  requested profile name to the right marker at all, and correctly fail
+  closed on a bad log?
+- **Actual:** `smoke.rs` maps a milestone string to `(profile_id, marker)`
+  via a `match`; `qemu_run.rs::run_profile` boots QEMU, then requires every
+  expected marker present **and** none of a `FORBIDDEN` list present
+  (`NEG:HARNESS:WRONG_ERROR`, `NEG:HARNESS:UNEXPECTED_OK`, `TEST:FAIL`,
+  `kernel panic`, `panicked at`).
+- **Modes:** 1 (scope blindness) — `smoke.rs`'s match has a catch-all:
+  `_ => ("m8", "TEST:M8:PASS")`. Any unrecognized milestone name — a typo,
+  a name for a milestone not yet wired up — silently runs the **m8**
+  profile instead of erroring.
+- **Demonstration:**
+  ```
+  $ cargo xtask qemu-test totally-bogus-milestone-xyz
+  [xtask] running profile `smoke-m8` (timeout 60s)
+  [xtask] profile `smoke-m8` PASS (1 marker(s) matched) ✓
+  ```
+  exit 0. A caller requesting a milestone that does not exist gets a clean
+  PASS for a *different* milestone, with nothing in the output naming the
+  substitution as anything other than the profile that was asked for having
+  simply run.
+- **Secondary finding, same shared code, smaller:** the `FORBIDDEN` literal
+  `"TEST:FAIL"` does not match the one real fail-marker the kernel emits,
+  `"TEST:M7:FAIL (init did not exit cleanly)"` — confirmed by direct
+  substring check (`"TEST:FAIL" in "TEST:M7:FAIL (init did not exit
+  cleanly)"` → `False`, the `:M7` breaks the match). In practice an M7
+  failure is very likely also caught by a missing expected-marker check
+  further down the same dependency chain (M8 cannot pass if M7 failed), so
+  this looks currently masked rather than actively exploited — but the
+  forbidden-marker guard specifically does not do the job its own comment
+  says it does for the one message it was seemingly written to catch.
+- **Third finding, same shared code, confirmed relevant to this pass:** the
+  TOML array parser truncates `expected_markers` silently at the first
+  embedded `]` (RFC-v0.23-001's already-reported, still-unfixed parser bug —
+  re-demonstrated here with a disposable fixture profile rather than
+  assumed still present):
+  ```
+  parsed 1 markers: ["[INTENT][Normal] first marker"]
+  ```
+  against a 3-marker fixture array. None of the four smoke profiles
+  currently use bracket-containing marker text (the RFC-v0.23-001 workaround
+  was exactly to avoid this), so this is not live for tiers 4–7 today, but
+  the runner they share with tiers 8–17 has no such workaround available if
+  a future marker needs bracket characters.
+- Reverted: temporary test module and fixture file both removed;
+  `git diff --stat crates/fjell-tools/src/qemu_run.rs` clean.
+
+### Tiers 8–17 — QEMU negative: capability, mmio, dma, user-copy, audit, policy, ipc, svc, harness, semantic — **finding** (shared mechanism)
+
+- **Claim:** each category's negative-test scenarios exercise a real
+  fail-path and the run only passes if every expected `NEG:*:PASS` marker
+  is present and no forbidden marker fired.
+- **Actual:** `negative.rs::cmd_qemu_negative` delegates to the identical
+  `run_profile`/`load_profile` machinery as tiers 4–7 when
+  `tests/qemu/profiles/<category>.toml` exists (true for all ten today).
+- **Modes:** 3 (fail-open on absence) — same TOML-truncation and
+  `FORBIDDEN` gap as tiers 4–7, since it is the same code. Not re-run
+  per-category (would reproduce the identical mechanism ten times); recorded
+  once here and cross-referenced.
+- **Additional, minor, mode-1 observation specific to this entry point:**
+  `cmd_qemu_negative`'s `KNOWN_V01X_CATEGORIES` / `KNOWN_V02_CATEGORIES`
+  lists — used only for the *placeholder* fallback path when no profile file
+  exists yet — do not include `"harness"` or `"semantic"`, two of the ten
+  categories `test-all` actually runs. Not currently live (both have real
+  profile files, so the `Path::exists()` check short-circuits before the
+  known-category list is ever consulted), but the list no longer describes
+  the real category set, which is exactly the shape of a stale assertion
+  (mode 5) waiting for the day one of those profile files is temporarily
+  absent (e.g. a bad rebase) — at which point the category would be
+  rejected as "unknown" rather than falling through to a placeholder.
+
+### Pass 2 summary
+
+- **Audited:** 19 / 19.
+- **Sound:** 4 — Tiers 2 (proptest), 3 (unsafe audit), 3c (MMIO audit), 3b
+  (repro-check).
+- **Findings:** 15 — Tier 1 (E-013's `--lib` gap, its own row) and Tiers
+  4–17 (fourteen tiers sharing the smoke/negative QEMU harness's three
+  findings: silent milestone fallback to m8, a forbidden-marker string that
+  doesn't match the one real message it names, and the still-unfixed
+  TOML-array bracket truncation).
+- **UNAUDITED:** 0.
+
+The fourteen QEMU-tier findings are one underlying set of code defects, not
+fourteen independent discoveries — recorded per-tier because each tier is
+its own instrument per the RFC's framing, but the disposition question is
+almost certainly "fix `qemu_run.rs`/`smoke.rs` once," not fourteen separate
+items.
+
+Required evidence: `cargo xtask release-rehearsal` re-run clean and Gate 12
+still 35/26/9 after all Pass 2 demonstrations were reverted — captured in
+the review request for this pass.
