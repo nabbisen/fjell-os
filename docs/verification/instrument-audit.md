@@ -1,7 +1,7 @@
 # Instrument Audit Register
 
-**Governing RFC:** [RFC-v0.24-001](../../rfcs/proposed/RFC-v0.24-001-instrument-audit.md)
-**Handoff:** [implementation-handoff.md](../../rfcs/handoffs/RFC-v0.24-001-instrument-audit/implementation-handoff.md)
+**Governing RFC:** [RFC-0.24-001](../../rfcs/proposed/RFC-0.24-001-instrument-audit.md)
+**Handoff:** [implementation-handoff.md](../../rfcs/handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md)
 
 One register, appended to as each pass lands (handoff §0.2.1). One row per
 instrument: Claim, Actual, Modes it could exhibit (of the RFC's five —

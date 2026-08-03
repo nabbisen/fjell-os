@@ -312,11 +312,11 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 ## Proposed (proposed/) — 1 RFC
 
 
-### v0.24 — Instrument Audit (provisional; direction not yet set)
+### 0.24 — Instrument Audit (provisional; direction not yet set)
 
 | RFC | Title |
 |-----|-------|
-| v0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-v0.24-001-instrument-audit.md) — accepted 2026-08-02; handoff: [`handoffs/`](./handoffs/RFC-v0.24-001-instrument-audit/implementation-handoff.md) |
+| 0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-0.24-001-instrument-audit.md) — accepted 2026-08-02; handoff: [`handoffs/`](./handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md) |
 
 ---
 

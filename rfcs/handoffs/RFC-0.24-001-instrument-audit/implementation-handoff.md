@@ -1,7 +1,7 @@
-# Developer Handoff — RFC-v0.24-001
+# Developer Handoff — RFC-0.24-001
 
-**Governing RFC:** [RFC-v0.24-001](../../proposed/RFC-v0.24-001-instrument-audit.md)
-**Milestone:** v0.24
+**Governing RFC:** [RFC-0.24-001](../../proposed/RFC-0.24-001-instrument-audit.md)
+**Milestone:** 0.24
 **Status:** inherited from the governing RFC (Proposed — accepted for implementation 2026-08-02)
 **Audience:** implementation model
 

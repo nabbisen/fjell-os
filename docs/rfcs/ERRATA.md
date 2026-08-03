@@ -147,7 +147,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 ## E-013 — `crates/fjell-tools/src/test_all.rs` tier 1: "Host library tests" claim
 
-> **Scope widened 2026-08-02 (RFC-v0.24-001 Pass 1).** This entry originally
+> **Scope widened 2026-08-02 (RFC-0.24-001 Pass 1).** This entry originally
 > described `fjell-kernel` alone. Measured across the workspace: **40 of 89
 > manifests have no lib target**, and **10 of those carry 166 `#[test]`
 > functions that `--lib` never reaches.**

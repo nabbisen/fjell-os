@@ -43,7 +43,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   trivial; and **`fjell-kernel`**, where it is architectural (a `[lib]`
   target, or a host-testable subset split out). Deferred to its own RFC after
   `0.23.0`. Found during RFC-v0.23-002 Slice 1; scope widened by
-  RFC-v0.24-001 Pass 1.
+  RFC-0.24-001 Pass 1.
 
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs

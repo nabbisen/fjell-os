@@ -1,7 +1,7 @@
-# RFC-v0.24-001: Instrument Audit — do the checks check what they claim?
+# RFC-0.24-001: Instrument Audit — do the checks check what they claim?
 
 **Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-08-02**
-**Milestone:** v0.24 — **confirmed.** The owner set the v0.24 direction to this
+**Milestone:** 0.24 — **confirmed.** The owner set the 0.24 direction to this
 line on 2026-08-02, choosing trustworthiness over capability for this release.
 **Tracks.** Verification-instrument integrity, systematically rather than
 incidentally.
@@ -146,7 +146,7 @@ the repository; each can go stale silently.
 
 ## Open question for the owner
 
-**Whether this is v0.24's theme at all.** It is scoped here because scoping it
+**Whether this is 0.24's theme at all.** It is scoped here because scoping it
 was requested, not because the slot is claimed. It competes with the three
 directions left open in the options paper — service plane, human operability,
 hardware — and with the v0.23 candidate list.
