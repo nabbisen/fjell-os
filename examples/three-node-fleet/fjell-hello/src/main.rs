@@ -40,7 +40,7 @@ pub extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
-    // SAFETY: category=asm-instruction; `wfi` is a no-op on RISC-V when
+    // SAFETY: category=csr-asm `wfi` is a no-op on RISC-V when
     // the supervisor is not halted; spinning here is the only correct
     // behaviour for a no_std panic handler with no heap and no UART.
     loop { unsafe { core::arch::asm!("wfi"); } }

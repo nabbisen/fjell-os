@@ -28,7 +28,7 @@ Source: `crates/fjell-tools/src/release_rehearsal.rs`. Per handoff §2, gates
 (unit tests in the tools that implement them) — these were re-run to confirm
 they still hold, not re-derived from scratch.
 
-### Gate 1 — Host test suite (0 failures) — **finding**
+### Gate 1 — Host test suite (0 failures) — **sound** (RFC-0.24-002 Slice 1)
 
 - **Claim:** the host test suite has zero failures.
 - **Actual:** runs `cargo test --workspace --lib --exclude fjell-proptest`,
@@ -47,7 +47,18 @@ they still hold, not re-derived from scratch.
   ```
   Exit code of the underlying `cargo test` was 101 (compile failure); the
   gate reported PASS regardless. Reverted; `git diff --stat` clean.
-- **A second, larger finding surfaced investigating this one:** `fjell-kernel`
+- **Repaired (RFC-0.24-002 Slice 1):** `release_rehearsal.rs` gained
+  `sh_status()`, a sibling of `sh()` that also returns the real process
+  exit status; Gate 1 now consumes it instead of matching a substring.
+  Re-ran the identical demonstration after the fix:
+  ```
+  $ cargo xtask release-rehearsal   # fjell-store-model still broken
+  [FAIL] Gate 1  Host test suite (0 failures)     host lib tests
+  ```
+  then reverted the break and confirmed `[PASS]` on a clean tree. Gates
+  3–8's predicates are unchanged — this slice touched Gates 1 and 2 only.
+- **A second, larger finding surfaced investigating this one (still open,
+  not this slice's to fix):** `fjell-kernel`
   is not the only crate whose tests tier 1 silently skips (E-013). Of 91
   workspace packages, **10 declare `[[bin]]` with no `[lib]` and contain real
   `#[test]` functions that tier 1's `--lib` never reaches** — 166 tests total:
@@ -99,20 +110,88 @@ they still hold, not re-derived from scratch.
 - **Demonstration (RFC-v0.22-001, re-verified now):** `cargo test -p
   fjell-mmio-audit` — 7/7 pass, including `missing_annotation_returns_none`.
 
-### Gate 4 — ABI snapshot verify — **sound**
+### Gate 4 — ABI snapshot verify — **finding** (reversed from `sound`, RFC-0.24-002 review)
 
 - **Claim:** the committed ABI snapshot matches the current signatures of the
   ABI-stable crates.
 - **Actual:** runs `abi-snapshot --verify`, checks for `Result: PASS` /
   `Result         : PASS` in the output.
-- **Modes considered:** 4 — the tool's own tests
+- **Modes considered in Pass 1:** 4 — the tool's own tests
   (`realigned_whitespace_produces_no_signature_change`,
   `differently_indented_wrapped_declaration_produces_no_signature_change`)
   show it deliberately normalizes formatting-only diffs rather than being
   fooled by them in the *unsafe* direction; `genuine_signature_change_still_detected`
   confirms a real change is still caught.
-- **Demonstration (RFC-v0.22-001, re-verified now):** `cargo test -p
+- **Pass 1 "demonstration" (RFC-v0.22-001, re-verified then):** `cargo test -p
   fjell-abi-snapshot` — 8/8 pass, including the genuine-change-detected case.
+
+> **Reversed in the RFC-0.24-002 review (2026-08-03) — identity-key collapse.**
+> `verify()` keys both maps on `(crate_name, kind, name)`. **`module` is not in
+> the key**, and both are built with `.collect()` into a `BTreeMap`, so
+> **duplicate keys silently overwrite — last one wins.**
+>
+> ```
+> items in baseline            : 423
+> distinct keys after collapse : 378
+> items never compared         :  45      ← 10.6% of the declared stable ABI
+> ```
+>
+> Worst groups: `fjell-service-api const READY` ×10, `fjell-abi const fn` ×8,
+> `fjell-service-api const ERR` ×7. **Seventeen collisions span different
+> modules** — genuinely distinct items, e.g. `fjell-cap const fn` across
+> `cspace`, `handle`, and `slot`.
+>
+> **Demonstration.** Corrupted the signature of a *shadowed* baseline entry —
+> the first of ten `READY` rows — leaving everything else untouched:
+>
+> ```
+> $ cargo run -p fjell-abi-snapshot -- --verify --snapshot <corrupted>
+>   Baseline items : 423
+>   Changed sig    : 0
+>   Result         : PASS
+> exit=0
+> ```
+>
+> A corrupted signature inside the file the gate exists to protect, and the gate
+> reports `PASS`. The removal case follows from the same collapse — `removed` is
+> computed over collapsed keys, so a deleted shadowed item's key survives via a
+> sibling — but only the signature case was demonstrated.
+>
+> **Modes:** 1 (scope blindness — 45 items are outside what it examines) and 4
+> (weak predicate — the key does not identify an item).
+>
+> **Why Pass 1 missed it.** The row's "demonstration" was the tool's own unit
+> suite passing. That is not the gate observed failing on a broken repository
+> state; it is **mode 2, proxy attestation**, and it is precisely why the
+> collapse stayed invisible — the unit tests use synthetic items that do not
+> collide. This row is the architect's, approved in the Pass 1 review, and it is
+> the **first of the 15 `sound` verdicts re-derived under the Pass 4 close-out
+> item** — which found something on the first attempt.
+>
+> **Two adjacent defects, recorded, not repaired here:** 15 entries carry
+> `kind:"const", name:"fn"` — extractor misparses capturing the literal token
+> `fn` as a name; and 237 items carry `module:""`, so adding `module` to the key
+> would not separate the nine empty-module `READY`s. Both go to the close-out.
+>
+> **Disposition:** proposed **Slice 8** of RFC-0.24-002 — fail `--verify` on
+> duplicate identity keys (the important half: a silent 45-item hole becomes a
+> loud error), and add `module` to the key. Awaiting owner acceptance, since the
+> RFC was accepted at seven slices. Row stays `finding` until it lands.
+
+### fjell-unsafe-audit category extractor — **finding** (new, RFC-0.24-002 review)
+
+- **Claim:** a `// SAFETY: category=X` comment tags the site with category `X`.
+- **Actual:** the extractor splits on whitespace and commas only. A valid
+  category followed by ordinary punctuation — `category=csr-asm; <explanation>`
+  — yields the token `"csr-asm;"`, which matches no valid category and falls to
+  `_ => Self::Unknown`.
+- **Modes:** 4 (weak predicate).
+- **How it was found:** by the implementer during RFC-0.24-002 Slice 3, writing
+  the corrected tag for `fjell-hello` and having it silently not take. All 283
+  pre-existing sites happen to use `category=X <explanation>` with a space and
+  no semicolon. **Nothing enforces that convention.**
+- **Not repaired in Slice 3** — hardening the extractor was correctly declined
+  as scope creep. Carried to the close-out with the extractor work.
 
 ### Gate 5 — Readiness matrix (0 OPEN) — **finding**
 
@@ -419,7 +498,20 @@ the same one Pass 1 already looked at.
   PASS for a *different* milestone, with nothing in the output naming the
   substitution as anything other than the profile that was asked for having
   simply run.
-- **Secondary finding, same shared code, smaller:** the `FORBIDDEN` literal
+- **Repaired (RFC-0.24-002 Slice 2):** the `_` catch-all arm is now a hard
+  error naming the unrecognised milestone. Re-ran the identical command
+  after the fix:
+  ```
+  $ cargo xtask qemu-test m8-typo
+  [xtask] qemu-test: unknown milestone `m8-typo`
+  [xtask] known: m1, m2, m3, m4, m5, m6, m7, m8, v0.4-net, v0.5-platform, v0.6-verification, v0.7-sync
+  ```
+  exit 1. A bare `qemu-test` (no argument) still defaults to `m8` — kept
+  deliberately as "current milestone" shorthand; only an unrecognised
+  *name* is now an error. **This one sub-finding is sound; the other two
+  below are unchanged and remain open**, so the row's overall status
+  stays `finding` until they're dispositioned.
+- **Secondary finding, same shared code, smaller, still open:** the `FORBIDDEN` literal
   `"TEST:FAIL"` does not match the one real fail-marker the kernel emits,
   `"TEST:M7:FAIL (init did not exit cleanly)"` — confirmed by direct
   substring check (`"TEST:FAIL" in "TEST:M7:FAIL (init did not exit
@@ -456,7 +548,21 @@ the same one Pass 1 already looked at.
 - **Modes:** 3 (fail-open on absence) — same TOML-truncation and
   `FORBIDDEN` gap as tiers 4–7, since it is the same code. Not re-run
   per-category (would reproduce the identical mechanism ten times); recorded
-  once here and cross-referenced.
+  once here and cross-referenced. **Also mode 3, and now repaired
+  (RFC-0.24-002 Slice 4):** `negative.rs`'s placeholder fallback — a
+  category listed in `KNOWN_V01X_CATEGORIES`/`KNOWN_V02_CATEGORIES` with no
+  profile file (`lease`, `evidence`) ran a zero-marker placeholder and
+  passed. The placeholder path is removed entirely (not merely bypassed;
+  `Profile::negative_placeholder` deleted as dead code once its only call
+  site was gone). Demonstrated:
+  ```
+  $ cargo xtask qemu-negative lease
+  [xtask] qemu-negative: `lease` is a known category with no profile at tests/qemu/profiles/lease.toml — write one before running it.
+  ```
+  exit 1. Confirmed `test-all`'s ten real categories (all have profiles)
+  are unaffected — spot-checked `capability` still delegates to the real
+  profile path. **This sub-finding is sound; the shared TOML/FORBIDDEN
+  gaps above remain open**, so the row's overall status stays `finding`.
 - **Additional, minor, mode-1 observation specific to this entry point:**
   `cmd_qemu_negative`'s `KNOWN_V01X_CATEGORIES` / `KNOWN_V02_CATEGORIES`
   lists — used only for the *placeholder* fallback path when no profile file
@@ -556,7 +662,7 @@ content from `ERRATA.md` when the latter changes; the linkage is a
 one-directional "does the ID string appear" check with no content
 comparison. See the ERRATA.md row above for the live instance and evidence.
 
-### abi/snapshot.json — **finding** (new this pass; distinct from Gate 4's already-sound signature-diffing)
+### abi/snapshot.json — **sound** (RFC-0.24-002 Slice 5; distinct from Gate 4's already-sound signature-diffing)
 
 - **What makes it stale:** the file's *parseability*, not just its content.
   `load_snapshot()` is a hand-rolled reader with a hard assumption: exactly
@@ -586,6 +692,29 @@ comparison. See the ERRATA.md row above for the live instance and evidence.
   caught; formatting-only *signature line* changes are correctly ignored).
   The gap is one level up: the *snapshot file's own* formatting is
   load-bearing and unvalidated.
+- **Repaired (RFC-0.24-002 Slice 5):** the snapshot now carries a declared
+  `{"count":N}` header as its first element; `--verify` requires
+  `parsed items == declared count` before trusting either, catching both
+  failure shapes — not just the total case above. `tests/abi/snapshot.json`
+  regenerated in this slice (also picked up legitimate, pre-existing
+  additive API growth unrelated to this fix — `ACTION_RESULT`,
+  `CHUNK_BYTES`, `DISPATCH_ACTION` and others from RFC-v0.23-001 — since
+  `--generate` necessarily reflects current source truth; verified
+  additive-only, nothing removed or changed). Both shapes re-demonstrated
+  after the fix:
+  ```
+  $ jq -c . tests/abi/snapshot.json > /tmp/minified.json   # total: reformatted
+  fjell-abi-snapshot: tests/abi/snapshot.json has no `count` header — malformed or reformatted snapshot, cannot trust its contents
+
+  $ head -200 tests/abi/snapshot.json > /tmp/truncated.json; echo ']' >> /tmp/truncated.json   # partial
+  fjell-abi-snapshot: tests/abi/snapshot.json declares 423 items but 198 were parsed — file is truncated or malformed
+  ```
+  Both exit 1. Restored the regenerated file; `--verify` passes clean
+  (423/423, 0 removed, 0 changed). Four new unit tests added
+  (`load_snapshot_reports_no_count_header_when_reformatted_to_one_line`,
+  `load_snapshot_declared_count_disagrees_with_truncated_items`,
+  `load_snapshot_agrees_when_file_is_intact`, `extract_json_usize_works`);
+  all 12 of the tool's own tests pass.
 
 ### repro/baseline-digests.txt — **sound**
 
@@ -809,7 +938,7 @@ dispositions this.
 
 `ci-test-v07-formats` is one of the five explicit-list jobs (see above).
 
-### ci-proptest — **finding** (reversed from `sound` in Pass 4 review)
+### ci-proptest — **sound** (RFC-0.24-002 Slice 6; reversed from `sound` in Pass 4 review, now genuinely sound)
 
 - **Claim:** the job is named "Property tests"; it runs the workspace's
   property-based tests on every push and PR.
@@ -841,7 +970,25 @@ dispositions this.
 > handoff §0.1, no demonstration was produced, so `UNAUDITED` was the floor
 > here, never `sound`. Fix (drop `--lib`) is in the pre-cut group.
 
-### ci-unsafe-audit — **finding**
+- **Repaired (RFC-0.24-002 Slice 6):** dropped `--lib` for the
+  `fjell-proptest` invocation only; `fjell-store-model` and
+  `fjell-bootctl-model` keep `--lib` (their `proptest!` blocks are
+  correctly in `src/`). Before/after:
+  ```
+  $ cargo test -p fjell-proptest --lib      # before
+  running 0 tests
+
+  $ cargo test -p fjell-proptest            # after
+  running 10 tests   (harness.rs)  ... ok
+  running 14 tests   (verus_lemma_properties.rs)  ... ok
+  ```
+  24 of 24, matching the claim. Then broke `p1_no_generation_alias` with
+  `prop_assert!(false, ...)` and reran: `test result: FAILED. 9 passed; 1
+  failed`, exit 101 — the job now genuinely fails on a broken property.
+  Reverted the break and removed the `.regressions` artifact it generated;
+  `git diff --stat` clean.
+
+### ci-unsafe-audit — **sound** (RFC-0.24-002 Slice 3)
 
 - **Claim:** every `unsafe` site in the workspace has a `SAFETY:` comment
   (the same claim as Gate 2 / Tier 3).
@@ -876,6 +1023,33 @@ dispositions this.
 > **Do not correct the `asm-instruction` tag:** it is the pre-cut RFC's
 > built-in demonstration on real committed input.
 
+- **Repaired (RFC-0.24-002 Slice 3, done first — the tree was red before
+  anything else was touched):**
+  1. Captured the untouched-tree failure exactly as above: `exit=0` despite
+     `MISSING/UNKNOWN category: 1`.
+  2. Made `--check` exit non-zero on `missing_cats > 0` too (not just
+     `missing > 0`), and added `category_valid` to the `--json` output
+     (previously category validity was invisible to JSON consumers
+     entirely). Re-ran on the **still-uncorrected** tree: `exit=1` — the
+     tree went red on real committed input, no construction needed.
+  3. Verified the chain to Gate 2 explicitly, per the handoff's required
+     ordering: with the tool now enforcing but Gate 1/2's exit-status
+     consumption (Slice 1) not yet implemented, `release-rehearsal` Gate 2
+     still reported `[PASS]` — proof Slice 1 is load-bearing, not
+     cosmetic. After Slice 1, re-ran the same still-uncorrected tree: Gate
+     2 correctly reported `[FAIL]`.
+  4. *Only then* corrected the tag — to `csr-asm`, matching the codebase's
+     own comment convention (`category=X <explanation>`, no semicolon; an
+     initial `category=csr-asm;` attempt tripped the same whitespace/comma
+     tokenizer that caused the original defect, `Unknown`-ing the corrected
+     tag until the punctuation was fixed to match every other of the 283
+     valid sites). Confirmed clean: `284/284` valid, `exit=0`.
+  5. CI's invocation changed from `--root crates` to `--workspace .`,
+     matching Gate 2 and Tier 3. The scope gap (finding 1, above) is closed
+     by construction — there is no longer a narrower CI scope to diverge
+     from the local instruments.
+  All 10 of the tool's own tests still pass unmodified.
+
 ### ci-arm64-check — **sound**
 
 - **Claim:** `fjell-arch-arm64` type-checks for the `aarch64-unknown-none`
@@ -884,7 +1058,7 @@ dispositions this.
   boundary) — not claiming workspace-wide coverage, so the narrowness isn't
   a gap the way the explicit-list jobs' is. No finding.
 
-### ci-schema-gate — **finding** (the sharpest of this pass)
+### ci-schema-gate — **sound** (RFC-0.24-002 Slice 7; naming and presence only — see repair note)
 
 - **Claim:** the job step is literally named "Verify frozen schemas have
   not drifted."
@@ -919,6 +1093,25 @@ dispositions this.
 > describing two behaviours it does not have** (BREAKING-SCHEMA marker
 > scanning on PRs, frozen-counterpart matching on push to main): the name is
 > a false claim and the comment is two more.
+
+- **Repaired (RFC-0.24-002 Slice 7) — presence and non-emptiness only; the
+  actual drift check remains explicitly out of scope, a v0.25 candidate:**
+  1. Renamed the step to "Frozen schema files present and non-empty" —
+     what it actually does, nothing more.
+  2. Deleted the two comment lines describing BREAKING-SCHEMA scanning and
+     frozen-counterpart matching; replaced with a pointer to the
+     RFC-0.24-001 close-out where the real check is a v0.25 candidate.
+  3. Replaced the `find crates -name "*.frozen"` loop source with a fixed,
+     enumerated list of the 11 expected paths, so a *missing* file is
+     checked against (and fails) rather than never appearing in the loop
+     at all.
+  - Demonstrated: deleted `crates/fjell-semantic-v1/schema/intent-v1.frozen`
+    and ran the corrected script — `ERROR: missing or empty frozen schema:
+    ...intent-v1.frozen`, exit 1 (previously exit 0). Restored the file;
+    confirmed green (`all 11 expected *.frozen files present and
+    non-empty`). Re-confirmed the corrupted-but-non-empty-content case
+    still passes — correctly, since the renamed step no longer claims to
+    catch that.
 
 ### ci-fuzz-nightly — **UNAUDITED**
 
@@ -977,3 +1170,67 @@ check mistaken for one?*
 Required evidence: `cargo xtask release-rehearsal` re-run clean and Gate 12
 still 35/26/9 after all Pass 4 demonstrations were reverted — captured in
 the review request for this pass.
+
+---
+
+## RFC-0.24-002 — the seven repairs, and the tallies after them
+
+Seven slices, each a small change to an existing instrument, each
+demonstrated failing before the fix and passing after (per-instrument rows
+above cite each demonstration). Nothing outside the seven was touched; 30
+findings remain open by design (RFC-0.24-002 §Non-goals).
+
+**Five rows moved `finding` → `sound` in full:**
+
+| Row | Slice |
+|---|---|
+| Gate 1 — Host test suite | 1 |
+| `abi/snapshot.json` | 5 |
+| `ci-unsafe-audit` | 3 |
+| `ci-proptest` | 6 |
+| `ci-schema-gate` | 7 |
+
+**Two rows repaired in part — status stays `finding`, one sub-issue of
+several now sound:**
+
+| Row | Slice | Sub-issue repaired | Still open |
+|---|---|---|---|
+| Tiers 4–7 (QEMU smoke) | 2 | Silent milestone catch-all | `FORBIDDEN`'s `"TEST:FAIL"` miss; TOML bracket truncation |
+| Tiers 8–17 (QEMU negative) | 4 | `lease`/`evidence` placebo pass | Same two, shared code |
+
+Gate 2 (Pass 1) was already `sound`; Slice 1 additionally wired it to
+`sh_status()` so Slice 3's enforcement reaches it — recorded as a repair
+note on Gate 1's row rather than a second status flip, since Gate 2's own
+verdict didn't change.
+
+**Updated totals** — as submitted, then reconciled in review:
+
+| | Pass 1 | Pass 2 | Pass 3 | Pass 4 | Total |
+|---|---|---|---|---|---|
+| Sound | 6 → 7 → **6** | 4 | 2 → **3** | 3 → **5** | 15 → 20 → **18** |
+| Findings | 5 → 4 → **5** | 15 | 6 → **5** | 11 → **8** | 37 → 32 → **33** |
+| `UNAUDITED` | 1 | 0 | 0 | 2 | **3** |
+| | 12 | 19 | 8 | 16 | 55 → **56** |
+
+Three review adjustments to the submitted figures:
+
+1. **Gate 4 reverts** `sound` → `finding` (identity-key collapse, above). Pass 1
+   loses the slice-1 gain it made, netting back to 6 sound / 5 findings.
+2. **A new instrument row** — the `fjell-unsafe-audit` category extractor — takes
+   the population from 55 to **56**. It was never one of the enumerated 55; it is
+   a sub-component surfaced by repairing the tool that contains it.
+3. Everything else stands exactly as submitted.
+
+**33 findings remain**, all dispositioned — the deferred literal-matching family,
+the audit close-out, or (for Gate 4) proposed Slice 8. None forgotten.
+
+This RFC made the instruments that block a 0.24 cut honest — with one exception
+that the cut now waits on. It did not make every instrument honest; that was
+never its goal.
+
+**A note on the population figure.** "55 instruments" was always an enumeration,
+not a measurement: it counted gates, tiers, jobs, and artifacts at the
+granularity someone chose when scoping the audit. Item 2 above is the first time
+that boundary moved, and it moved because repairing a tool exposed a component
+inside it that makes its own claim. Expect the number to keep moving. A fixed
+denominator would be the more comfortable record and the less honest one.

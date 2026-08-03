@@ -3,16 +3,15 @@
 //!
 //! Per RFC 026 (negative-test harness) and RFC 042 (v0.2 expansion),
 //! every category corresponds to a profile under
-//! `tests/qemu/profiles/<category>.toml`.  v0.1.1 ships only
-//! placeholder profiles — they assert that the *infrastructure*
-//! runs in CI without asserting any specific marker.  Real test
-//! cases are added incrementally by v0.1.2 onwards (RFC 026 §case
-//! bodies) and by each v0.2 RFC.
+//! `tests/qemu/profiles/<category>.toml`. A category with no profile is
+//! an error (RFC-0.24-002 Slice 4) — the RFC 025 placeholder path that
+//! silently passed against an empty expectation set (`lease`, `evidence`
+//! reachable with no profile ever written for either) was removed, not
+//! bypassed, since a category `KNOWN_*` lists but never wires up a
+//! profile for is itself the defect, not a state to run cleanly through.
 
 use std::path::Path;
 use std::process::ExitCode;
-
-use crate::qemu_run::{Profile, run_profile};
 
 const KNOWN_V01X_CATEGORIES: &[&str] = &[
     "capability",
@@ -44,21 +43,19 @@ pub fn cmd_qemu_negative(category: Option<&str>) -> ExitCode {
         }
     };
 
-    // If a real profile exists, run it; otherwise emit a placeholder.
-    // Both paths share `run_profile` so artefact capture is identical.
     let profile_path = format!("tests/qemu/profiles/{category}.toml");
     if Path::new(&profile_path).exists() {
         // Delegate to the explicit loader via qemu_run::cmd_qemu_run.
-        crate::qemu_run::cmd_qemu_run(Some(category))
-    } else {
-        if !KNOWN_V01X_CATEGORIES.contains(&category) && !KNOWN_V02_CATEGORIES.contains(&category) {
-            eprintln!("[xtask] qemu-negative: unknown category `{category}`");
-            return ExitCode::FAILURE;
-        }
-        println!(
-            "[xtask] qemu-negative: no profile for `{category}` \
-                  yet — running placeholder (RFC 025 §chicken-and-egg)."
-        );
-        run_profile(&Profile::negative_placeholder(category))
+        return crate::qemu_run::cmd_qemu_run(Some(category));
     }
+
+    if !KNOWN_V01X_CATEGORIES.contains(&category) && !KNOWN_V02_CATEGORIES.contains(&category) {
+        eprintln!("[xtask] qemu-negative: unknown category `{category}`");
+    } else {
+        eprintln!(
+            "[xtask] qemu-negative: `{category}` is a known category with no \
+             profile at {profile_path} — write one before running it."
+        );
+    }
+    ExitCode::FAILURE
 }

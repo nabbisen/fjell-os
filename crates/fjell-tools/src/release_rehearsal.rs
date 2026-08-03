@@ -24,8 +24,12 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     let mut gates: Vec<Gate> = Vec::new();
 
     // Gate 1 — host tests
+    // RFC-0.24-002 Slice 1: the exit status is the verdict. `cargo test`
+    // failing to even compile prints neither "FAILED" nor "test result:
+    // FAILED" — a substring check alone reported PASS on a non-compiling
+    // workspace (RFC-0.24-001 Pass 1).
     gates.push(run_gate("1", "Host test suite (0 failures)", || {
-        let out = sh(&[
+        let (ok, _out) = sh_status(&[
             "cargo",
             "test",
             "--workspace",
@@ -33,13 +37,16 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
             "--exclude",
             "fjell-proptest",
         ]);
-        let failed = out.contains("FAILED") || out.contains("test result: FAILED");
-        (!failed, "host lib tests".into())
+        (ok, "host lib tests".into())
     }));
 
     // Gate 2 — unsafe audit
+    // RFC-0.24-002 Slice 1: exit status, not a substring, is the verdict —
+    // `fjell-unsafe-audit --check` now also exits non-zero on an
+    // unrecognised/missing category tag (Slice 3), which the old
+    // `"missing comment    : 0"` substring check could never see.
     gates.push(run_gate("2", "Unsafe audit (0 missing)", || {
-        let out = sh(&[
+        let (ok, _out) = sh_status(&[
             "cargo",
             "run",
             "-q",
@@ -50,10 +57,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
             ".",
             "--check",
         ]);
-        (
-            out.contains("missing comment    : 0"),
-            "unsafe-audit".into(),
-        )
+        (ok, "unsafe-audit".into())
     }));
 
     // Gate 3 — MMIO audit
@@ -350,5 +354,23 @@ fn sh(parts: &[&str]) -> String {
             s
         }
         Err(e) => format!("command failed: {}", e),
+    }
+}
+
+/// Like `sh`, but also returns the real process exit status (RFC-0.24-002
+/// Slice 1). `sh` alone lets a gate's verdict rest on a substring of
+/// captured text, which reads a compile error or a spawn failure as neither
+/// pass nor fail — silence that a text-only check cannot distinguish from
+/// success. Used by Gates 1 and 2 only; Gates 3–8's predicates are
+/// unchanged (RFC-0.24-001's deferred literal-matching family).
+fn sh_status(parts: &[&str]) -> (bool, String) {
+    let out = Command::new(parts[0]).args(&parts[1..]).output();
+    match out {
+        Ok(o) => {
+            let mut s = String::from_utf8_lossy(&o.stdout).into_owned();
+            s.push_str(&String::from_utf8_lossy(&o.stderr));
+            (o.status.success(), s)
+        }
+        Err(e) => (false, format!("command failed: {}", e)),
     }
 }

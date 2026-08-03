@@ -29,7 +29,21 @@ pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
         Some("v0.6-verification") => ("v0.6-verify", "TEST:V0.6-VERIFY:PASS"),
         Some("v0.7-sync") => ("v0.7-sync", "TEST:V0.7-SYNC:PASS"),
 
-        _ => ("m8", "TEST:M8:PASS"), // default = current milestone
+        // No milestone given at all: default to the current milestone.
+        // RFC-0.24-002 Slice 2: this is the only silent fallback — an
+        // unrecognised *name* (a typo, or a milestone not yet wired up)
+        // must be a hard error, not another route to this same default
+        // (RFC-0.24-001 Pass 2: `qemu-test totally-bogus-xyz` ran `m8` and
+        // reported PASS for it).
+        None => ("m8", "TEST:M8:PASS"),
+        Some(unknown) => {
+            eprintln!("[xtask] qemu-test: unknown milestone `{unknown}`");
+            eprintln!(
+                "[xtask] known: m1, m2, m3, m4, m5, m6, m7, m8, v0.4-net, \
+                 v0.5-platform, v0.6-verification, v0.7-sync"
+            );
+            return ExitCode::FAILURE;
+        }
     };
 
     // Smoke always rebuilds before running so the test reflects the

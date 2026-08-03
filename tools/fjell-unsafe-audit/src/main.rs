@@ -321,16 +321,25 @@ fn main() {
     let total = records.len();
     let missing = records.iter().filter(|r| !r.has_safety).count();
     let covered = total - missing;
+    let valid_cats = records
+        .iter()
+        .filter(|r| r.has_safety && r.category.is_valid())
+        .count();
+    let missing_cats = records
+        .iter()
+        .filter(|r| r.has_safety && !r.category.is_valid())
+        .count();
 
     if json {
         for r in &records {
             println!(
-                r#"{{"file":"{f}","line":{l},"kind":"{k}","has_safety":{s},"category":"{cat}","safety_text":"{t}"}}"#,
+                r#"{{"file":"{f}","line":{l},"kind":"{k}","has_safety":{s},"category":"{cat}","category_valid":{cv},"safety_text":"{t}"}}"#,
                 f = r.file.replace('\\', "/"),
                 l = r.line,
                 k = r.kind.as_str(),
                 s = r.has_safety,
                 cat = r.category.as_str(),
+                cv = r.has_safety && r.category.is_valid(),
                 t = r.safety_text.replace('"', "\\\""),
             );
         }
@@ -338,14 +347,6 @@ fn main() {
         println!("fjell-unsafe-audit  root={}", root.display());
         println!("  total unsafe sites : {total}");
         println!("  with SAFETY comment: {covered}");
-        let valid_cats = records
-            .iter()
-            .filter(|r| r.has_safety && r.category.is_valid())
-            .count();
-        let missing_cats = records
-            .iter()
-            .filter(|r| r.has_safety && !r.category.is_valid())
-            .count();
         println!("  with valid category tag: {valid_cats}");
         if missing_cats > 0 {
             println!("  MISSING/UNKNOWN category: {missing_cats}");
@@ -360,7 +361,7 @@ fn main() {
         }
     }
 
-    if check && missing > 0 {
+    if check && (missing > 0 || missing_cats > 0) {
         process::exit(1);
     }
 }

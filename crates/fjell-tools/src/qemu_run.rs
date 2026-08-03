@@ -46,19 +46,6 @@ impl Profile {
             extra_args: vec![],
         }
     }
-    /// Build a placeholder negative profile for one category — used
-    /// when no test cases are registered yet (RFC 025 §"chicken-
-    /// and-egg").  Succeeds with a no-op.
-    pub fn negative_placeholder(category: &str) -> Self {
-        Self {
-            name: format!("negative-{category}"),
-            kernel: PathBuf::from(KERNEL_ELF),
-            disk: PathBuf::from("fjell-disk.img"),
-            timeout_secs: 1,
-            expected_markers: vec![],
-            extra_args: vec![],
-        }
-    }
 }
 
 /// Where artefacts are written for one run.

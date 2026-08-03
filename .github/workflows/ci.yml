@@ -313,8 +313,13 @@ jobs:
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Property tests
+        # RFC-0.24-002 Slice 6: fjell-proptest's 24 proptest! cases all live
+        # in tests/ (harness.rs, verus_lemma_properties.rs), not src/ — with
+        # --lib this job ran 0 tests and reported green (RFC-0.24-001 Pass
+        # 4). fjell-store-model and fjell-bootctl-model hold their cases in
+        # src/ and are correctly covered by --lib; left unchanged.
         run: |
-          cargo test -p fjell-proptest      --lib
+          cargo test -p fjell-proptest
           cargo test -p fjell-store-model   --lib
           cargo test -p fjell-bootctl-model --lib
 
@@ -333,7 +338,7 @@ jobs:
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Unsafe audit (category= check)
-        run: cargo run -p fjell-unsafe-audit -- --root crates --check
+        run: cargo run -p fjell-unsafe-audit -- --workspace . --check
 
   ci-arm64-check:
     name: arm64-check
@@ -370,19 +375,40 @@ jobs:
           ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      - name: Verify frozen schemas have not drifted
+      - name: Frozen schema files present and non-empty
+        # RFC-0.24-002 Slice 7: this step checks presence and non-emptiness
+        # only — it does not compare against current schema definitions, so
+        # it cannot detect drift. That check is a new instrument (a real
+        # schema-dump/diff tool) and is out of this slice's scope; see the
+        # RFC-0.24-001 close-out for the v0.25 candidate.
+        #
+        # The expected paths are a fixed list, not `find`'s output: `find`
+        # returning nothing (e.g. every *.frozen file deleted) previously
+        # made the loop body never run, printing success over an empty set
+        # (RFC-0.24-001 Pass 4 / RFC-0.24-002 review). A fixed list fails
+        # closed on a missing file instead of silently checking zero files.
         run: |
-          # Scan for BREAKING-SCHEMA markers in modified files (PR context only).
-          # On push to main, any schema file must match its *.frozen counterpart.
-          # Full schema-dump tooling lands with the fjell-tools schema subcommand.
-          echo "schema-gate: checking *.frozen files are committed"
-          find crates -name "*.frozen" | while read f; do
+          echo "schema-gate: checking expected *.frozen files"
+          FROZEN_FILES=(
+            crates/fjell-keyring/schema/snapshot-v1.frozen
+            crates/fjell-semantic-v1/schema/intent-v1.frozen
+            crates/formats/fjell-attestation-format/schema/v2.frozen
+            crates/formats/fjell-diag-format/schema/bundle-v1.frozen
+            crates/formats/fjell-identity-format/schema/node-identity-v1.frozen
+            crates/formats/fjell-platform-format/schema/board-v1.frozen
+            crates/formats/fjell-snapshot-format/schema/snapshot-v2.frozen
+            crates/formats/fjell-summary-format/schema/measurement-summary-v1.frozen
+            crates/formats/fjell-summary-format/schema/release-summary-v1.frozen
+            crates/formats/fjell-upgrade-format/schema/release-metadata-v1.frozen
+            crates/formats/fjell-upgrade-format/schema/rollback-record-v1.frozen
+          )
+          for f in "${FROZEN_FILES[@]}"; do
             if [ ! -s "$f" ]; then
-              echo "ERROR: empty frozen schema: $f"
+              echo "ERROR: missing or empty frozen schema: $f"
               exit 1
             fi
           done
-          echo "schema-gate: all *.frozen files present and non-empty"
+          echo "schema-gate: all ${#FROZEN_FILES[@]} expected *.frozen files present and non-empty"
 
   ci-qemu-v07:
     name: qemu-v07

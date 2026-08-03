@@ -103,6 +103,12 @@ fn write_snapshot(items: &[AbiItem], path: &str) -> io::Result<usize> {
     }
     let mut out = String::new();
     out.push_str("[\n");
+    // RFC-0.24-002 Slice 5: a declared count as the first element. The
+    // reader is still line-oriented (no parser dependency), but a file
+    // that does not parse to exactly this many items — whether reformatted
+    // to one line, or truncated mid-array — now fails loudly instead of
+    // silently reading as empty or partial.
+    out.push_str(&format!("  {{\"count\":{}}},\n", items.len()));
     for (i, item) in items.iter().enumerate() {
         let comma = if i + 1 < items.len() { "," } else { "" };
         out.push_str(&format!(
@@ -118,7 +124,7 @@ fn write_snapshot(items: &[AbiItem], path: &str) -> io::Result<usize> {
 // ── Verify ───────────────────────────────────────────────────────────────────
 
 fn verify(snapshot_path: &str) -> ExitCode {
-    let baseline = match load_snapshot(snapshot_path) {
+    let loaded = match load_snapshot(snapshot_path) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("fjell-abi-snapshot: cannot read {}: {}", snapshot_path, e);
@@ -126,6 +132,37 @@ fn verify(snapshot_path: &str) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+
+    // RFC-0.24-002 Slice 5: a snapshot that does not parse completely must
+    // fail here, never be read as empty or partial. Two shapes, both
+    // caught by the same check: no `count` header at all (e.g. the file
+    // was reformatted onto one line, so no line starts with `{"count"`),
+    // or a header present but the parsed item count doesn't match it
+    // (e.g. the file was truncated mid-array).
+    let declared = match loaded.declared_count {
+        Some(n) => n,
+        None => {
+            eprintln!(
+                "fjell-abi-snapshot: {} has no `count` header — malformed or \
+                 reformatted snapshot, cannot trust its contents",
+                snapshot_path
+            );
+            eprintln!("Run --generate to rewrite it in the current format.");
+            return ExitCode::FAILURE;
+        }
+    };
+    if loaded.items.len() != declared {
+        eprintln!(
+            "fjell-abi-snapshot: {} declares {} items but {} were parsed — \
+             file is truncated or malformed",
+            snapshot_path,
+            declared,
+            loaded.items.len()
+        );
+        eprintln!("Run --generate to rewrite it in the current format.");
+        return ExitCode::FAILURE;
+    }
+    let baseline = loaded.items;
 
     let current = scan_all();
     let current_map: BTreeMap<(String, String, String), &AbiItem> = current
@@ -191,13 +228,26 @@ fn verify(snapshot_path: &str) -> ExitCode {
     }
 }
 
-fn load_snapshot(path: &str) -> io::Result<Vec<AbiItem>> {
+/// A snapshot load: the declared item count (from the `{"count":N}`
+/// header, if one was found) alongside whatever items were actually
+/// parsed. `verify()` requires these to agree before trusting either.
+struct LoadedSnapshot {
+    declared_count: Option<usize>,
+    items: Vec<AbiItem>,
+}
+
+fn load_snapshot(path: &str) -> io::Result<LoadedSnapshot> {
     let content = fs::read_to_string(path)?;
     let mut items = Vec::new();
-    // Minimal JSON parser: each line is one item object
+    let mut declared_count = None;
+    // Minimal JSON parser: each line is one object.
     for line in content.lines() {
         let line = line.trim().trim_end_matches(',');
         if !line.starts_with('{') {
+            continue;
+        }
+        if let Some(n) = extract_json_usize(line, "count") {
+            declared_count = Some(n);
             continue;
         }
         let cr = extract_json_str(line, "crate").unwrap_or_default();
@@ -215,7 +265,10 @@ fn load_snapshot(path: &str) -> io::Result<Vec<AbiItem>> {
             });
         }
     }
-    Ok(items)
+    Ok(LoadedSnapshot {
+        declared_count,
+        items,
+    })
 }
 
 fn extract_json_str(json: &str, key: &str) -> Option<String> {
@@ -228,6 +281,19 @@ fn extract_json_str(json: &str, key: &str) -> Option<String> {
         Some(inner[..end].to_string())
     } else {
         None
+    }
+}
+
+/// Like `extract_json_str`, for a bare numeric value: `"count":423`.
+fn extract_json_usize(json: &str, key: &str) -> Option<usize> {
+    let needle = format!("\"{}\":", key);
+    let idx = json.find(&needle)?;
+    let rest = json[idx + needle.len()..].trim_start();
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
     }
 }
 
@@ -533,5 +599,70 @@ mod tests {
             );
         }
         // Either way the function must not panic — reaching here is the pass.
+    }
+
+    // ── RFC-0.24-002 Slice 5: a snapshot that does not parse completely ────
+    // ── must never be read as empty or partial. ────────────────────────────
+
+    fn write_temp(name: &str, content: &str) -> String {
+        let path = std::env::temp_dir().join(name);
+        fs::write(&path, content).unwrap();
+        path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn extract_json_usize_works() {
+        assert_eq!(extract_json_usize(r#"{"count":423}"#, "count"), Some(423));
+        assert_eq!(extract_json_usize(r#"{"count":0}"#, "count"), Some(0));
+        assert_eq!(extract_json_usize(r#"{"crate":"x"}"#, "count"), None);
+    }
+
+    /// Required failure demonstration, total case: a snapshot reformatted
+    /// onto a single line (as `jq -c .` or an editor auto-save could
+    /// produce) has no line starting with `{"count"`, so `declared_count`
+    /// is `None` — the loader must not silently treat that as zero items.
+    #[test]
+    fn load_snapshot_reports_no_count_header_when_reformatted_to_one_line() {
+        let path = write_temp(
+            "fjell-abi-snapshot-test-total.json",
+            r#"[{"count":2},{"crate":"a","module":"","kind":"fn","name":"f","sig":"1"},{"crate":"a","module":"","kind":"fn","name":"g","sig":"2"}]"#,
+        );
+        let loaded = load_snapshot(&path).unwrap();
+        assert_eq!(
+            loaded.declared_count, None,
+            "a single-line file has no line starting with `{{\"count\"`, so no \
+             header can be found — this must not be silently treated as 0 \
+             declared items matching 0 parsed items"
+        );
+    }
+
+    /// Required failure demonstration, partial case: a truncated file (some
+    /// items missing, not all) must disagree on count even though a valid
+    /// header line is present — the more insidious shape, since a bare
+    /// zero-items check alone would miss it.
+    #[test]
+    fn load_snapshot_declared_count_disagrees_with_truncated_items() {
+        let path = write_temp(
+            "fjell-abi-snapshot-test-partial.json",
+            "[\n  {\"count\":3},\n  {\"crate\":\"a\",\"module\":\"\",\"kind\":\"fn\",\"name\":\"f\",\"sig\":\"1\"},\n]\n",
+        );
+        let loaded = load_snapshot(&path).unwrap();
+        assert_eq!(loaded.declared_count, Some(3));
+        assert_eq!(
+            loaded.items.len(),
+            1,
+            "only one of the three declared items is actually present"
+        );
+    }
+
+    #[test]
+    fn load_snapshot_agrees_when_file_is_intact() {
+        let path = write_temp(
+            "fjell-abi-snapshot-test-intact.json",
+            "[\n  {\"count\":2},\n  {\"crate\":\"a\",\"module\":\"\",\"kind\":\"fn\",\"name\":\"f\",\"sig\":\"1\"},\n  {\"crate\":\"a\",\"module\":\"\",\"kind\":\"fn\",\"name\":\"g\",\"sig\":\"2\"}\n]\n",
+        );
+        let loaded = load_snapshot(&path).unwrap();
+        assert_eq!(loaded.declared_count, Some(2));
+        assert_eq!(loaded.items.len(), 2);
     }
 }
