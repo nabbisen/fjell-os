@@ -1,19 +1,25 @@
 # Fjell OS — RFC Index
 
-Folder is the source of truth for state (see
-[RFC 000](./done/000-rfc-lifecycle-policy.md)).
+Folder is the source of truth for state.
+
+> This line previously cited [RFC 000](./done/000-rfc-lifecycle-policy.md) as
+> the authority for that rule. **RFC 000 does not state it** — it mentions
+> folders zero times. The citation was false and is removed rather than
+> propagated. RFC-0.25-002 R2 writes the rule into RFC 000's successor, at
+> which point the citation can be restored accurately.
 
 ```
 rfcs/
-  proposed/   — open; not yet shipped
+  proposed/   — under review
+  accepted/   — signed off; implementer may start; not yet shipped
   done/       — implemented; historical record
+  archive/    — withdrawn or superseded
   handoffs/   — companion execution docs; status inherited from the RFC
 ```
 
-> **`archive/` is documented in RFC 000's successor but does not exist**, because
-> nothing has been withdrawn or superseded yet. It is created by RFC-0.25-002's
-> R1 alongside `accepted/`. Listing a folder that is not there was a false claim
-> and has been removed from this block rather than left to imply otherwise.
+**5-folder variant**, adopted 2026-08-03 (RFC-0.25-002). Every folder listed
+here exists. `rfc-status-folder` reads `proposed/`, `accepted/` and `done/` and
+enforces that each RFC's Status field matches its folder.
 
 ---
 
@@ -330,14 +336,9 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Open (proposed/) — 2 RFCs, both **Accepted**
+## Accepted (accepted/) — 2 RFCs
 
-> **Transitional.** Both RFCs below carry `Status: Accepted`, and both sit in
-> `proposed/` because `rfcs/accepted/` does not exist yet — creating it is R1 of
-> RFC-0.25-002. This is legal under the policy currently in force (the 4-folder
-> variant leaves an RFC in `proposed/` until it ships, and `rfc-status-folder`
-> accepts both keywords there). It stops being legal when RFC-0.25-002 lands,
-> which narrows `proposed/` to `Proposed` only and moves these two.
+Signed off by the owner; implementation may begin; not yet shipped.
 
 ### 0.25 — Functional advancement (owner direction, 2026-08-03)
 
@@ -347,8 +348,19 @@ functional lines. Errata E-013 through E-017 remain open and disclosed.
 
 | RFC | Title |
 |-----|-------|
-| 0.25-001 | [The External Interrupt Plane — and the first console input path](./proposed/RFC-0.25-001-external-interrupt-plane.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-001-external-interrupt-plane/implementation-handoff.md) |
-| 0.25-002 | [Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does](./proposed/RFC-0.25-002-rfc-lifecycle-policy-adoption.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-002-rfc-lifecycle-policy-adoption/implementation-handoff.md) |
+| 0.25-001 | [The External Interrupt Plane — and the first console input path](./accepted/RFC-0.25-001-external-interrupt-plane.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-001-external-interrupt-plane/implementation-handoff.md) |
+| 0.25-002 | [Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does](./accepted/RFC-0.25-002-rfc-lifecycle-policy-adoption.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-002-rfc-lifecycle-policy-adoption/implementation-handoff.md) |
+
+---
+
+## Proposed (proposed/) — none
+
+No RFC is currently under review.
+
+## Archive (archive/) — none
+
+Nothing has been withdrawn or superseded. The folder exists so the documented
+layout and the tree agree.
 
 ---
 
@@ -362,8 +374,3 @@ RFC-v0.21.3-001 §Open questions; not resolved by this index update, and no
 v0.21.3 action is proposed for it.
 
 ---
-
-## Archive (archive/)
-
-Does not exist on disk — no RFC has ever been withdrawn or superseded, so the
-folder has never been created.

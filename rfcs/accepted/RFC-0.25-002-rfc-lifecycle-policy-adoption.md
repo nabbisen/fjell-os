@@ -173,6 +173,44 @@ Today `rfc_status_folder.rs` allows **both** `Proposed` and `Accepted` in
 
 `proposed/` narrows to `Proposed` only. `accepted/` takes `Accepted` only.
 
+## Implementation status
+
+**R1, R3, and R4 landed on 2026-08-03, ahead of R2, by owner direction.**
+
+The handoff ordered R2 (write the policy) before R1 (create the folder), so the
+policy would describe the layout before the layout shipped. The owner directed
+`rfcs/accepted/` be created immediately. That inverts the ordering, and the
+architect noted it once and complied.
+
+**The inversion was not taken cheaply.** Moving the two `Accepted` RFCs without
+touching the instrument would have left them in a folder
+`rfc_status_folder` does not read — **unchecked, while Gate 12 still reported
+PASS.** That is mode 1 scope blindness, and it is what this project spent 0.24
+removing. So R3 landed in the same change, with both failure demonstrations,
+verified against the old predicate:
+
+```
+old predicate (Accepted tolerated in proposed/) → test FAILED   (miss)
+new predicate                                   → test ok       (caught)
+```
+
+R4's two false citations were corrected in the same change, because both files
+were being edited anyway and leaving a known-false claim in place while
+touching the file around it is not defensible.
+
+**Remaining: R2** — the merged policy document itself. Until it lands, the
+repository runs the 5-folder layout under a policy that describes neither it
+nor the 4-folder one. That gap is the cost of the inversion, and it is stated
+here rather than left implicit.
+
+| # | Requirement | Status |
+|---|---|---|
+| R1 | `accepted/` + `archive/`, two RFCs moved | **done 2026-08-03** |
+| R2 | The merged policy | **outstanding** |
+| R3 | Instrument learns `accepted/`; `proposed/` narrows | **done 2026-08-03** |
+| R4 | Both false citations corrected | **done 2026-08-03** |
+| R5 | README restructured, links swept (3 → 0) | **done 2026-08-03** |
+
 ## Scope
 
 | # | Requirement |

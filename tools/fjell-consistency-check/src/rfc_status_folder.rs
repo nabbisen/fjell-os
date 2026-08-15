@@ -1,10 +1,17 @@
 //! Slice 4 (RFC-v0.22-001): the `rfc-status-folder` subcheck.
 //!
-//! `rfcs/README.md` documents the folder as the source of truth for an
-//! RFC's lifecycle state (RFC 000): `proposed/` holds RFCs not yet finally
-//! dispositioned (`Proposed` or `Accepted`); `done/` holds RFCs whose
+//! The folder is the source of truth for an RFC's lifecycle state:
+//! `proposed/` holds RFCs under review (`Proposed`); `accepted/` holds RFCs
+//! signed off but not yet shipped (`Accepted`); `done/` holds RFCs whose
 //! disposition is final (`Implemented`, `Implemented-with-Errata`,
-//! `Superseded`, `Withdrawn`, `Closed`). A `Status:` field that disagrees
+//! `Superseded`, `Withdrawn`, `Closed`); `archive/` holds withdrawn or
+//! superseded ones.
+//!
+//! NOTE: this comment previously attributed that rule to RFC 000 via
+//! `rfcs/README.md`. **RFC 000 does not state it** — it mentions folders zero
+//! times. The citation was false and is removed here rather than propagated;
+//! RFC-0.25-002 R2 writes the rule into RFC 000's successor, at which point a
+//! citation becomes accurate. A `Status:` field that disagrees
 //! with its own folder is the "status field that lies" anti-pattern RFC 000
 //! exists to prevent.
 //!
@@ -17,9 +24,15 @@ use std::fs;
 use std::process::ExitCode;
 
 const PROPOSED_DIR: &str = "rfcs/proposed";
+const ACCEPTED_DIR: &str = "rfcs/accepted";
 const DONE_DIR: &str = "rfcs/done";
 
-const PROPOSED_STATUSES: &[&str] = &["Proposed", "Accepted"];
+// RFC-0.25-002 R1/R3: the 5-folder variant. Before `accepted/` existed,
+// `proposed/` had to tolerate `Accepted` because there was nowhere else to
+// put a signed-off RFC. Now there is, and that tolerance would be a hole —
+// an Accepted RFC left in `proposed/` would pass.
+const PROPOSED_STATUSES: &[&str] = &["Proposed"];
+const ACCEPTED_STATUSES: &[&str] = &["Accepted"];
 const DONE_STATUSES: &[&str] = &[
     "Implemented-with-Errata",
     "Implemented",
@@ -30,7 +43,11 @@ const DONE_STATUSES: &[&str] = &[
 
 pub fn check() -> ExitCode {
     let mut files: Vec<(String, String, &[&str])> = Vec::new();
-    for (dir, allowed) in [(PROPOSED_DIR, PROPOSED_STATUSES), (DONE_DIR, DONE_STATUSES)] {
+    for (dir, allowed) in [
+        (PROPOSED_DIR, PROPOSED_STATUSES),
+        (ACCEPTED_DIR, ACCEPTED_STATUSES),
+        (DONE_DIR, DONE_STATUSES),
+    ] {
         let Ok(entries) = fs::read_dir(dir) else {
             eprintln!("consistency-check: cannot read {dir}");
             return ExitCode::FAILURE;
@@ -101,6 +118,40 @@ mod tests {
             "rfcs/done/X.md",
             "**Status:** Implemented (v0.5.0)\n",
             DONE_STATUSES,
+        )];
+        assert_eq!(run_check(&files), ExitCode::SUCCESS);
+    }
+
+    /// RFC-0.25-002 R3 failure demonstration (1 of 2): an `Accepted` RFC left
+    /// behind in `proposed/`. Legal before the 5-folder variant, a hole after.
+    #[test]
+    fn accepted_rfc_left_in_proposed_fails() {
+        let files = [(
+            "rfcs/proposed/X.md",
+            "**Status:** Accepted — by the owner, 2026-08-03\n",
+            PROPOSED_STATUSES,
+        )];
+        assert_eq!(run_check(&files), ExitCode::FAILURE);
+    }
+
+    /// RFC-0.25-002 R3 failure demonstration (2 of 2): a `Proposed` RFC placed
+    /// in `accepted/` — the opposite direction, which a one-way check misses.
+    #[test]
+    fn proposed_rfc_placed_in_accepted_fails() {
+        let files = [(
+            "rfcs/accepted/X.md",
+            "**Status:** Proposed — awaiting owner acceptance\n",
+            ACCEPTED_STATUSES,
+        )];
+        assert_eq!(run_check(&files), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn accepted_rfc_in_accepted_passes() {
+        let files = [(
+            "rfcs/accepted/X.md",
+            "**Status:** Accepted — by the owner, 2026-08-03\n",
+            ACCEPTED_STATUSES,
         )];
         assert_eq!(run_check(&files), ExitCode::SUCCESS);
     }
