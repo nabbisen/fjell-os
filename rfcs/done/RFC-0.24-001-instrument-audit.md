@@ -1,6 +1,6 @@
 # RFC-0.24-001: Instrument Audit — do the checks check what they claim?
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-02; implementation may begin (RFC 000)
+**Status:** Implemented-with-Errata (0.24.0) — accepted 2026-08-02; see ERRATA E-017
 **Milestone:** 0.24 — **confirmed.** The owner set the 0.24 direction to this
 line on 2026-08-02, choosing trustworthiness over capability for this release.
 **Tracks.** Verification-instrument integrity, systematically rather than

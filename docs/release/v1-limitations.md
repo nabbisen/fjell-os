@@ -101,6 +101,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   an instrument was RFC-0.24-001's explicit non-goal. Recorded, not fixed;
   0.25 candidate.
 
+- **The instrument audit's `sound` verdicts are not all demonstration-backed**
+  (Errata **E-017**, ACCEPTED). RFC-0.24-001 requires every instrument claimed
+  `sound` to carry a committed demonstration of it failing, and records
+  `UNAUDITED` otherwise. Two rows were found violating that in review —
+  `ci-proptest`, certified on the completeness of its crate list while running
+  zero tests, and `Gate 4`, certified by the architect because the tool's own
+  unit suite passed, which is proxy attestation rather than the gate observed
+  failing. Both were repaired. The re-derivation of the remaining `sound` rows
+  against the same question is **incomplete**, and Gate 4 — the first
+  re-derived — fell immediately, so the base rate is not known to be low. **The
+  22 `sound` verdicts are provisional.** This is why RFC-0.24-001 ships
+  `Implemented-with-Errata`. Recorded, not fixed; 0.25 candidate.
+
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes

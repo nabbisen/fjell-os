@@ -1,6 +1,6 @@
 # Instrument Audit — Close-Out and Disposition
 
-**Governing RFC:** [RFC-0.24-001](../../rfcs/proposed/RFC-0.24-001-instrument-audit.md)
+**Governing RFC:** [RFC-0.24-001](../../rfcs/done/RFC-0.24-001-instrument-audit.md)
 **Register:** [instrument-audit.md](./instrument-audit.md) — the authoritative
 row-level record; this document disposes of what it found.
 **Author:** architect
@@ -23,20 +23,23 @@ Eleven for eleven, by accident. The audit existed to replace luck with a method.
 
 | | Count |
 |---|---|
-| Instruments examined | **56** |
-| Sound | **18** |
+| Instruments examined | **58** |
+| Sound | **22** |
 | Findings | **33** |
 | `UNAUDITED` | **3** |
 
-Thirty-three findings against eighteen sound. Before this line, **all of them
-were reporting green.**
+Thirty-three findings against twenty-two sound. Before this line, **all of
+them were reporting green** — and the sound count is **provisional**, for the
+reason in §4.1 and erratum **E-017**.
 
 ### The population moved, and that is a result too
 
-The audit was scoped at "55 instruments." It closes at 56. The extra is the
-`fjell-unsafe-audit` category extractor — never one of the enumerated gates,
-tiers, jobs, or artifacts, but a component inside one that makes its own claim,
-surfaced only when the tool containing it was repaired.
+The audit was scoped at "55 instruments." It closes at **58**. The three extras
+are all components inside instruments that make their own claims, surfaced only
+when the tools containing them were repaired: the `fjell-unsafe-audit` category
+extractor, and — during RFC-0.24-003 — `fjell-abi-snapshot`'s `pub unsafe fn`
+blindness and its lack of impl scope. The boundary moved three times in one
+milestone.
 
 "55" was always an enumeration at a granularity someone chose while scoping, not
 a measurement. **Expect it to keep moving.** A fixed denominator would be the
@@ -57,9 +60,13 @@ more comfortable record and the less honest one.
 | `ci-proptest` | Ran **zero** tests under a job named "Property tests" |
 | `ci-schema-gate` | Name and comments claimed three behaviours it lacked |
 
-**RFC-0.24-003** — accepted, in flight, **blocks the 0.24 cut**: the ABI
-snapshot's diff identity and scanner (45 items never compared, 15 misnamed, 162
-mis-attributed, 17 phantom).
+**RFC-0.24-003** — **complete, shipped in 0.24.0**: the ABI snapshot's diff
+identity and scanner. 45 items never compared, 15 misnamed, 162 mis-attributed,
+17 phantom — plus two found during the repair itself: **two `pub unsafe fn`
+items in the syscall-ABI crate that had never appeared in any snapshot at all**,
+and methods lacking impl scope, caught by the new duplicate-key check on its
+first run. Gate 4 is now the first row in this audit to reach `sound` on a live
+demonstration against real committed input rather than a proxy.
 
 ## 3. Disposition of the 33 open findings
 
@@ -273,5 +280,5 @@ more honest, not honest.** Thirty-three findings remain open, their instruments
 are still green, and they are recorded, grouped, disclosed, and scheduled rather
 than fixed.
 
-That is a better position than the one this line started from, where all 56 were
+That is a better position than the one this line started from, where all 58 were
 green and nobody had asked why.

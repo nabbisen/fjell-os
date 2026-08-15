@@ -306,6 +306,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the checker. The drift and the reason nobody noticed it are the same finding.
   See `docs/verification/instrument-audit-closeout.md` §3.3.
 
+## E-017 — RFC-0.24-001: "every instrument claimed as sound has a committed demonstration"
+
+- **Claim:** RFC-0.24-001's acceptance criteria require that *"every instrument
+  claimed as sound has a **committed demonstration of it failing**"*, and its
+  handoff §0.1 states that *"an instrument with no demonstration is recorded
+  `UNAUDITED`, never `sound`."*
+- **Shipped:** the criterion held for most rows and demonstrably failed for two,
+  both caught only in review and on opposite sides of the review boundary:
+  - **`ci-proptest`** was certified `sound` on the completeness of its crate
+    list. The list was correct; the predicate (`--lib`) was never examined, and
+    the job ran **zero** tests.
+  - **`Gate 4 — ABI snapshot verify`** was certified `sound`, by the architect
+    in Pass 1, because the tool's own unit suite passed. A tool's unit tests
+    passing is not the gate observed failing on a broken repository state — it
+    is **mode 2, proxy attestation**, the taxonomy's own second entry, and it is
+    why a 45-item identity collapse stayed invisible.
+
+  Both were repaired (RFC-0.24-002 Slice 6; RFC-0.24-003). **The re-derivation
+  of the remaining `sound` rows against the same question — *was a demonstration
+  produced, or was something else mistaken for one?* — is incomplete.** Gate 4
+  was the first re-derived and it fell immediately, so the base rate is not
+  known to be low.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-03). The audit's stated
+  standard is right and is not being weakened; what is disclosed is that
+  compliance with it has been verified for two rows by counter-example and
+  assumed for the rest. **The 22 `sound` verdicts are provisional**, and the
+  count should be read that way until the re-derivation completes — listed as a
+  0.25 candidate in the close-out. This is why RFC-0.24-001 ships
+  `Implemented-with-Errata` rather than `Implemented`: its normative text claims
+  more than the merged work verifies. See
+  `docs/verification/instrument-audit-closeout.md` §4.1 and
+  `docs/release/v1-limitations.md`.
+
 ---
 
 ## Summary
@@ -328,9 +361,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-014 instruments deciding by fixed-string match | 0.25 candidate (recorded, not fixed) | ACCEPTED |
 | E-015 hand-enumerated instrument scopes drifted from reality | 0.25 candidate (recorded, not fixed) | ACCEPTED |
 | E-016 no link, index, or count integrity instrument | 0.25 candidate (recorded, not fixed) | ACCEPTED |
+| E-017 audit `sound` verdicts not all demonstration-backed | 0.25 candidate (re-derivation incomplete) | ACCEPTED |
 
-At the 0.24 instrument-audit close-out (2026-08-03): **0 OPEN, 9 CLOSED,
-7 ACCEPTED.** E-014, E-015 and E-016 were filed together as that audit's
+At the 0.24.0 cut (2026-08-03): **0 OPEN, 9 CLOSED, 8 ACCEPTED.** E-014,
+E-015 and E-016 were filed together as the instrument audit's
 disposition — grouped by root cause rather than one per finding, so the register
 records four families instead of thirty-three individually-true rows. Each names
 its member findings explicitly; `docs/verification/instrument-audit.md` remains
@@ -341,6 +375,14 @@ scheduled deferral to a named future line is a deliberate decision, not live
 unresolved drift. Seven of the audit's findings were repaired in RFC-0.24-002
 and are therefore not filed here; one more (Gate 4's ABI identity collapse) is
 in flight under RFC-0.24-003 and blocks the 0.24 cut, so it is not filed either.
+
+**E-017 was filed at the cut itself**, and is the one that qualifies the rest:
+RFC-0.24-001 requires every instrument claimed `sound` to carry a committed
+demonstration of it failing, and two rows were found violating that — one on
+each side of the review boundary. Both were repaired, but the re-derivation of
+the remaining `sound` rows is incomplete, and the first one re-derived (Gate 4)
+fell immediately. It is why RFC-0.24-001 ships `Implemented-with-Errata` and
+why the audit's 22 `sound` verdicts are recorded as provisional.
 
 At v0.23 update: 0 OPEN, 9 CLOSED, 4 ACCEPTED. The ACCEPTED items
 (hardware boot, `cap_install` rights validation) are reflected in the v1.0

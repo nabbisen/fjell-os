@@ -12,9 +12,9 @@ rfcs/
 
 ---
 
-## Implemented (done/) — 159 files
+## Implemented (done/) — 162 files
 
-158 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+161 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -309,9 +309,6 @@ archetypes (A1/A2/A3), non-goals, and commitments that bind v0.10 → v1.0.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
-
-
 ### 0.24 — Instrument Audit and Repairs
 
 The first milestone of this project whose subject is the verification apparatus
@@ -320,9 +317,18 @@ carry no `v` prefix, matching the release tags, which never did.
 
 | RFC | Title |
 |-----|-------|
-| 0.24-001 | [Instrument Audit — do the checks check what they claim?](./proposed/RFC-0.24-001-instrument-audit.md) — accepted 2026-08-02; audit complete, 4 passes, 55 instruments, 15 sound / 37 findings / 3 unaudited; handoff: [`handoffs/`](./handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md) |
-| 0.24-002 | [Instrument Repairs — the seven that cannot wait for the cut](./proposed/RFC-0.24-002-instrument-repairs.md) — accepted 2026-08-03; seven slices implemented and reviewed; closed at seven — the proposed eighth became 0.24-003; handoff: [`handoffs/`](./handoffs/RFC-0.24-002-instrument-repairs/implementation-handoff.md) |
-| 0.24-003 | [ABI Snapshot Identity — what the gate compares, and what it is comparing it to](./proposed/RFC-0.24-003-abi-snapshot-identity.md) — accepted 2026-08-03; blocks the 0.24 cut; handoff: [`handoffs/`](./handoffs/RFC-0.24-003-abi-snapshot-identity/implementation-handoff.md) |
+| 0.24-001 | [Instrument Audit — do the checks check what they claim?](./done/RFC-0.24-001-instrument-audit.md) — shipped 0.24.0 as `Implemented-with-Errata` (E-017); 4 passes, 58 instruments, 22 sound / 33 findings / 3 unaudited; handoff: [`handoffs/`](./handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md) |
+| 0.24-002 | [Instrument Repairs — the seven that cannot wait for the cut](./done/RFC-0.24-002-instrument-repairs.md) — accepted 2026-08-03; seven slices implemented and reviewed; closed at seven — the proposed eighth became 0.24-003; handoff: [`handoffs/`](./handoffs/RFC-0.24-002-instrument-repairs/implementation-handoff.md) |
+| 0.24-003 | [ABI Snapshot Identity — what the gate compares, and what it is comparing it to](./done/RFC-0.24-003-abi-snapshot-identity.md) — accepted 2026-08-03; blocks the 0.24 cut; handoff: [`handoffs/`](./handoffs/RFC-0.24-003-abi-snapshot-identity/implementation-handoff.md) |
+
+---
+
+---
+
+## Proposed (proposed/) — none
+
+No RFC is currently open. The 0.25 direction is undecided; candidates are
+listed in [`docs/verification/instrument-audit-closeout.md`](../docs/verification/instrument-audit-closeout.md) §6.
 
 ---
 

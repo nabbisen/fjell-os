@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.24-003
 
-**Governing RFC:** [RFC-0.24-003](../../proposed/RFC-0.24-003-abi-snapshot-identity.md)
+**Governing RFC:** [RFC-0.24-003](../../done/RFC-0.24-003-abi-snapshot-identity.md)
 **Milestone:** 0.24 — blocks the cut
-**Status:** inherited from the governing RFC (Accepted, 2026-08-03)
+**Status:** inherited from the governing RFC (Implemented, 0.24.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

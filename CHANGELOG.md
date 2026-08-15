@@ -5,6 +5,119 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.24.0] — 2026-08-03 — The instruments audited, and the ones that lied repaired
+
+No new OS functionality; no kernel, ABI, capability, lease, IPC, or crypto
+behaviour change. This line's subject is the **verification apparatus itself** —
+the ~55 gates, tiers, CI jobs, and committed artifacts that certify every other
+release claim this project makes.
+
+Eleven instances of an instrument reporting success without having checked had
+been found before this line. Every one was found **incidentally**, while doing
+something else. Eleven for eleven, by accident.
+
+### Added — the instrument audit (RFC-0.24-001)
+
+- `docs/verification/instrument-audit.md` — one register, one row per
+  instrument, four passes: the 12 release-rehearsal gates, the 19 `test-all`
+  tiers, the 8 committed state-asserting artifacts, the 16 CI jobs.
+- `docs/verification/instrument-audit-closeout.md` — the disposition: what was
+  repaired, what was deferred and to which erratum, and what the audit found
+  about the review process itself.
+- A five-mode taxonomy — scope blindness, proxy attestation, fail-open on
+  absence, weak predicate, stale assertion — derived from the eleven known
+  instances, so "be careful" becomes something checkable.
+- The rule every row rests on: **an instrument with no demonstration is recorded
+  `UNAUDITED`, never `sound`.**
+
+**Result: 58 instruments — 22 sound, 33 findings, 3 `UNAUDITED`.** Before this
+line, all of them were reporting green.
+
+### Fixed — the seven that could not wait (RFC-0.24-002)
+
+- **Gate 1** passed on a workspace that did not compile. Its verdict was a
+  substring search over combined output; a compile error prints neither
+  `FAILED` nor `test result: FAILED`, so the first mechanical gate reported
+  `PASS` at exit 101. Gates 1 and 2 now read exit status.
+- **`smoke.rs`** ran `m8` for any unrecognised milestone and reported
+  `TEST:M8:PASS`.
+- **`fjell-unsafe-audit --check`** computed, printed, and then ignored its own
+  category verdict. One site in the committed tree was failing it silently —
+  the only live, present-tense false green in the whole audit.
+- **`ci-unsafe-audit`** scoped `--root crates`, missing a real `unsafe` site
+  that both local instruments catch.
+- **`qemu-negative lease` and `evidence`** passed against an empty expectation
+  set — the RFC 025 placeholder behaviour v0.19 was meant to have retired.
+- **`ci-proptest` ran zero tests.** All 24 `proptest!` cases live in `tests/`,
+  which `--lib` excludes, so a job named "Property tests" was green having run
+  nothing — including the 14 cases that cross-check the Verus proofs behind
+  capability 8/8 and lease 5/5.
+- **`ci-schema-gate`** was named "Verify frozen schemas have not drifted" and
+  checked only that files were non-empty; with the files deleted it passed
+  outright. Renamed to what it does, and its two comments describing
+  unimplemented behaviour removed.
+
+### Fixed — the ABI gate could not identify its own items (RFC-0.24-003)
+
+The gate most responsible for detecting breaking changes, found by re-deriving
+a `sound` verdict rather than by any failure:
+
+- **45 of 423 baseline items were never compared.** The diff key omitted
+  `module` and collected into a `BTreeMap`, so duplicate keys silently
+  overwrote — last one wins. A corrupted signature on a shadowed item reported
+  `PASS`.
+- **`pub const fn` was parsed as a `const` named `fn`** — 15 items.
+- **`pub unsafe fn` matched no pattern at all** — `sys_audit_drain_ptr` and
+  `sys_audit_drain_raw`, in the crate carrying the syscall ABI, had **never**
+  appeared in any snapshot. Not misnamed: absent.
+- **Inline `mod` blocks were untracked** — 162 items took their file's path.
+  `fjell-service-api` declares six inline modules each with its own
+  `pub const READY`; all six collapsed to one entry.
+- **A file outside the module tree was scanned as public ABI** — `storaged.rs`
+  has no `mod` declaration anywhere, so 17 items asserted stability over code
+  not compiled into the crate.
+- **Methods had no impl scope** — found by the new duplicate-key check on its
+  first run, the first defect in this milestone caught by an instrument rather
+  than a person. Identity is now `(crate, module, impl_type, kind, name)`.
+
+The baseline was regenerated under a corrected scanner, which is the most
+dangerous action in the line: a real breaking change would have been absorbed
+and lost. Guarded by a reconciliation registered **in advance** and reproduced
+independently — every difference assigned a cause, zero unexplained.
+
+### Changed
+
+- RFC identifiers drop the `v` prefix from 0.24 onward, matching the release
+  tags, which never carried one. Historical RFCs keep their names.
+- The ABI snapshot carries a declared item count; a file that does not parse
+  completely now fails rather than reading as empty or partial.
+
+### Known limitations carried into this release
+
+- **E-014** — six instruments decide a semantic property by matching a fixed
+  string. ACCEPTED; the family needs one design answer, not six patches.
+- **E-015** — hand-enumerated instrument scopes have drifted: 19 of 89 crates
+  are never named in CI, and the `semantic` negative category has never run
+  there. ACCEPTED.
+- **E-016** — nothing verifies any document link, index, or count. The RFC index
+  has zero instrument coverage; 13 doc links are broken; the audit's **own**
+  totals table drifted unnoticed. ACCEPTED.
+- **E-017** — RFC-0.24-001 requires every `sound` row to carry a committed
+  demonstration. Two rows were found violating it and were corrected; the
+  re-derivation of the remaining rows is **incomplete**, so the sound count is
+  provisional. ACCEPTED, and the reason RFC-0.24-001 ships
+  `Implemented-with-Errata`.
+- **E-013** — the gate tools' own tests run under no mechanism: skipped by
+  `test-all` tier 1's `--lib`, and never named in any CI job. ACCEPTED.
+- **E-012** — the v1.0 checklist signs a build output that does not exist.
+  ACCEPTED, deferred to v1.0 preparation.
+
+**This milestone made the instruments more honest, not honest.** 33 findings
+remain open, their instruments are still green, and each is recorded, grouped,
+disclosed, and scheduled.
+
+---
+
 ## [0.23.0] — 2026-08-01 — Semantic plane live; milestone markers by identity
 
 The first release line to add runtime behaviour rather than documentation or

@@ -1,6 +1,6 @@
 # Instrument Audit Register
 
-**Governing RFC:** [RFC-0.24-001](../../rfcs/proposed/RFC-0.24-001-instrument-audit.md)
+**Governing RFC:** [RFC-0.24-001](../../rfcs/done/RFC-0.24-001-instrument-audit.md)
 **Handoff:** [implementation-handoff.md](../../rfcs/handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md)
 **Close-out and disposition:** [instrument-audit-closeout.md](./instrument-audit-closeout.md)
 — this file is the authoritative row-level record; the close-out disposes of
@@ -1374,7 +1374,7 @@ never its goal.
 
 Slice 8 (above) became its own RFC when sizing it found three further scanner
 defects (B, C, D) that were *what made the duplicates* — see
-[RFC-0.24-003](../../rfcs/proposed/RFC-0.24-003-abi-snapshot-identity.md). R1's
+[RFC-0.24-003](../../rfcs/done/RFC-0.24-003-abi-snapshot-identity.md). R1's
 own duplicate-key check, run for the first time against a corrected scanner,
 found a fourth (impl scope, repaired as R6) — the first defect in this entire
 milestone caught by an instrument's own guard rather than a person.

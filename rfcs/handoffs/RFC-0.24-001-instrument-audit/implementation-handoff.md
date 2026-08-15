@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.24-001
 
-**Governing RFC:** [RFC-0.24-001](../../proposed/RFC-0.24-001-instrument-audit.md)
+**Governing RFC:** [RFC-0.24-001](../../done/RFC-0.24-001-instrument-audit.md)
 **Milestone:** 0.24
-**Status:** inherited from the governing RFC (Accepted, 2026-08-02)
+**Status:** inherited from the governing RFC (Implemented-with-Errata, 0.24.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

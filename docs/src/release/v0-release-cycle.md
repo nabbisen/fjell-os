@@ -43,6 +43,32 @@ All four must hold before beginning:
 | 7 | CHANGELOG entry | present, version and date correct |
 | 8 | Docs match reality | no doc asserts behaviour the tree does not have |
 
+### Before criterion 4 — re-record the repro baseline after a version bump
+
+**The workspace version is an input to the built binaries.** Cargo's `-C
+metadata` incorporates the package version, so bumping
+`[workspace.package] version` changes the emitted artefacts even when no source
+line changed. `tests/repro/baseline-digests.txt` therefore goes stale at every
+version bump, and tier 5 (reproducible build) fails until it is re-recorded:
+
+```
+rm tests/repro/baseline-digests.txt
+cargo run -p fjell-repro-check -- --skip-build --record-baseline
+```
+
+The tool refuses to re-record over an existing baseline by design
+(RFC-v0.21.3-001 §M4) — recording must never be a side effect of a check. The
+deletion is deliberate and must be.
+
+**Verify the regeneration before trusting it.** `git diff --numstat` on the
+baseline must show only the lines a version bump can explain. A baseline
+regenerated without that check would silently absorb a genuine reproducibility
+failure, and the gate would report `PASS` from then on.
+
+*Added 2026-08-03, during the 0.24.0 cut. The 0.23.0 cut hit the same thing and
+handled it correctly, but the step was never written down, so it was
+rediscovered as a red tier rather than followed as a procedure.*
+
 **Criterion 1 is listed first and separately on purpose.** `0.21.2` failed
 only this one criterion, and failing it makes every other criterion
 unevaluable — a workspace that doesn't resolve means no gate, no test, and

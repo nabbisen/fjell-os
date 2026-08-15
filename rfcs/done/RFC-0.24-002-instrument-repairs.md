@@ -1,6 +1,6 @@
 # RFC-0.24-002: Instrument Repairs — the seven that cannot wait for the cut
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-03; implementation may begin (RFC 000)
+**Status:** Implemented (0.24.0) — accepted 2026-08-03
 **Milestone:** 0.24 — **blocks the cut.**
 **Tracks.** Repair of instruments the 0.24 audit demonstrated do not check what
 they claim.

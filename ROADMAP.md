@@ -188,7 +188,7 @@ because it is roughly an order of magnitude smaller than any alternative,
 depends on nothing, and is the only one producing a claim the project cannot
 currently make.
 
-### 0.24 — Instrument Audit (planned; owner-approved 2026-08-02)
+### 0.24 — Instrument Audit and Repairs (**shipped 2026-08-03**)
 
 Do the checks check what they claim? Eleven instruments have been caught
 reporting success without having checked — and **every one was found
@@ -207,6 +207,23 @@ in-pass. Governed by `RFC-0.24-001`, which carries the taxonomy — scope
 blindness, proxy attestation, fail-open on absence, weak predicate, stale
 assertion — derived from the eleven known instances.
 
+**Outcome.** 58 instruments — **22 sound, 33 findings, 3 `UNAUDITED`.** Before
+this line, all of them were reporting green. The audit was followed by two
+repair lines it did not originally anticipate: `RFC-0.24-002` (seven
+instruments that could not be trusted through a cut, including a first
+mechanical gate that passed on a non-compiling workspace and a CI job named
+"Property tests" that ran zero) and `RFC-0.24-003` (the ABI gate could not
+identify 45 of its own 423 items, and had never seen two functions in the crate
+carrying the syscall ABI).
+
+**The honest summary is that this milestone made the instruments more honest,
+not honest.** 33 findings remain open under errata E-013 through E-017; the 22
+`sound` verdicts are themselves provisional, because two were found violating
+the audit's own demonstration rule and the re-derivation of the rest is
+incomplete (**E-017**). Records: `docs/verification/instrument-audit.md`,
+`docs/verification/instrument-audit-closeout.md`,
+`docs/release/records/0.24.0.md`.
+
 ### Beyond 0.24 — under discussion, not yet decided
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
@@ -215,8 +232,12 @@ stabilization, must precede any v1.0 consideration — the current state is
 far from production readiness or demonstrable appeal.
 
 Two directions have now been chosen from the options paper — v0.23 (semantic
-plane) and 0.24 (instrument audit, above). The remaining three stay
-**undecided** and are re-opened when 0.24 closes:
+plane) and 0.24 (instrument audit, above). **0.24 has closed**, so the
+remaining three are re-opened and undecided, alongside the 0.25 candidates the
+audit's close-out produced (§6 there: a `release-rehearsal` proptest gate, the
+literal-predicate design answer for E-014, a link-and-count integrity
+instrument for E-016, CI list reconciliation for E-015, E-013's fix, and
+completing E-017's re-derivation):
 
 - Make the service plane real — 17 of 29 services never receive IPC
 - Make it operable by a human — **kernel work first**: no console input path
