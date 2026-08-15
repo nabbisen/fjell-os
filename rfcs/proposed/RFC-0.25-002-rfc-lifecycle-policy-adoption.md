@@ -1,0 +1,190 @@
+# RFC-0.25-002: Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does
+
+**Status:** Proposed — awaiting owner acceptance
+**Milestone:** 0.25 — runs alongside RFC-0.25-001; does not displace it
+**Tracks.** RFC governance: folder layout, lifecycle states, and the document
+that defines them.
+**Touches.** `rfcs/` (new `accepted/`), `rfcs/done/000-rfc-lifecycle-policy.md`,
+`rfcs/README.md`, `tools/fjell-consistency-check/src/rfc_status_folder.rs`.
+No kernel, ABI, capability, lease, IPC, or crypto behaviour.
+**Relates to:** `.git-exclude/rules/000-rfc-lifecycle-policy.md` (the source
+policy), RFC-v0.22-001 (Gate 12's `rfc-status-folder` subcheck changes here),
+RFC-0.24-001 (E-016 — nothing verifies a document's claims).
+
+## Summary
+
+The owner has directed adoption of the **5-folder variant**, and replacement of
+the in-repo `rfcs/done/000-rfc-lifecycle-policy.md` with the rules document,
+**after re-confirmation.**
+
+Re-confirmation done. **The diagnosis is correct and understated.** But a
+verbatim replacement would delete five rules this project actively depends on,
+one of which is in use today. This RFC therefore **merges** rather than
+replaces, and says exactly what it keeps and why.
+
+## Motivation
+
+### The in-repo RFC 000 is worse than stale
+
+It is 64 lines. It documents file naming as flat `rfcs/<NNN>-<slug>.md`.
+
+**It mentions folders zero times.** Not `proposed/`, not `done/`, not
+`archive/`, not the word "folder".
+
+Yet two places cite it as the authority for exactly that:
+
+- `rfcs/README.md:3` — *"Folder is the source of truth for state (see RFC 000)"*
+- `tools/fjell-consistency-check/src/rfc_status_folder.rs:3` — *"`rfcs/README.md`
+  documents the folder as the source of truth for an RFC's lifecycle state
+  (RFC 000)"*
+
+**Both cite a rule the cited document does not contain.** The instrument whose
+entire purpose is catching a status field that lies is itself resting on a false
+citation, in its own doc comment.
+
+This is E-016's shape — *no instrument verifies any document's claims* — landing
+in the governance document. It is also the fourth instance this project has
+found of a reference asserting something the target does not say.
+
+### And the naming section describes a scheme nothing uses
+
+| Scheme | Files | Where documented |
+|---|---|---|
+| `RFC-<milestone>-NNN-slug.md` | **99** | nowhere |
+| `NNN-slug.md` | **62** | RFC 000, but as flat `rfcs/NNN-slug.md`, not in folders |
+
+The project also **restarts numbering per milestone** — `0.24-001`, `0.24-002`,
+`0.24-003`, then `0.25-001`. The rules document mandates the opposite:
+sequential from `001`, stable forever, never reused.
+
+So RFC 000 documents a third scheme that no file follows.
+
+### What a verbatim replacement would delete
+
+This is why the owner's "after re-confirmed" mattered.
+
+| In-repo RFC 000 has | Rules document | Consequence of straight replacement |
+|---|---|---|
+| **`Implemented-with-Errata`** | absent | **RFC-0.24-001 is in this state right now.** Its status would become undefined, and `rfc_status_folder.rs` accepts it in `done/` |
+| **`Closed`** | absent | Same — a currently-legal state becomes unspecified |
+| **The drift/errata rule** — *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* | absent | **`ERRATA.md`'s entire premise.** Gate 7 and Gate 12's `errata-limitations` both rest on it. E-001 through E-017 exist because of this rule |
+| **Required sections** (9, incl. Problem/Rationale/Test plan) | explicitly disclaimed — *"makes no claim about what an RFC contains"* | RFCs lose their required shape |
+| — | mandates `NNN-slug.md`, sequential, never reused | Declares **99 of 161** existing files non-conforming |
+
+The rules document is a **portable, general-purpose policy**, and says so: it is
+written to be *"adopted verbatim"* by *"any project starting an `rfcs/`
+directory."* This project is not starting one. It has 161 RFCs, a seventeen-item
+errata register that depends on a state the general policy does not define, and
+a naming convention the general policy forbids.
+
+**Adopting it verbatim would make the policy correct and the project
+non-conforming.** The merge goes the other way.
+
+## Design decisions
+
+### D1 — Merge, and enumerate what is kept
+
+Take from the **rules document**: the folder layout and the 5-folder variant,
+folder-as-source-of-truth stated *explicitly* (the thing currently only cited),
+transitions, handoff conventions, README integrity, cross-reference discipline,
+the anti-patterns, and the CI invariants.
+
+Keep from the **in-repo policy**: `Accepted`, `Implemented-with-Errata`,
+`Closed`, the drift/errata rule, and the required-sections list.
+
+**The drift/errata rule is the one to protect.** It is this project's most
+distinctive governance rule, it is why the errata register exists, and the
+general policy has no equivalent because most projects have no such register.
+
+### D2 — Document the naming the project actually uses
+
+`RFC-<milestone>-NNN-slug.md`, numbered per milestone. Historical `NNN-slug.md`
+files keep their names.
+
+This contradicts the rules document, deliberately. **A policy that declares 99
+existing files non-conforming is a policy nobody will follow**, and the
+alternative — renaming 99 files — breaks every commit message, release record,
+and cross-reference pointing at them, which is the rules document's own
+"Renumbering RFCs during reorganisation" anti-pattern.
+
+Where the merged policy departs from the source, it says so and says why.
+
+### D3 — The 5-folder variant fits, by the source's own test
+
+The rules document warns that `accepted/` sits empty where "proposed" and
+"implemented" collapse, because the same person does both.
+
+**They do not collapse here.** The architect proposes, the owner accepts, a
+separate implementation model builds, the architect reviews. "The owner signed
+off" and "the implementer finished" are distinct, dated, separately-recorded
+events — which is precisely the criterion the source gives for adopting the
+variant.
+
+### D4 — `proposed/` narrows when `accepted/` exists
+
+Today `rfc_status_folder.rs` allows **both** `Proposed` and `Accepted` in
+`proposed/`, because there was nowhere else to put an accepted RFC. Once
+`accepted/` exists, that tolerance becomes a hole: an Accepted RFC left in
+`proposed/` would pass.
+
+`proposed/` narrows to `Proposed` only. `accepted/` takes `Accepted` only.
+
+## Scope
+
+| # | Requirement |
+|---|---|
+| **R1** | Create `rfcs/accepted/`; move every RFC whose status is `Accepted` into it. Today that is **RFC-0.25-001** alone |
+| **R2** | Replace `rfcs/done/000-rfc-lifecycle-policy.md` with the merged policy per D1/D2/D3 |
+| **R3** | `rfc_status_folder.rs` learns `accepted/`; `proposed/` narrows to `Proposed` only (D4) |
+| **R4** | Fix both false citations — `rfcs/README.md:3` and `rfc_status_folder.rs:3` — so they cite a rule the target actually states |
+| **R5** | `rfcs/README.md` restructured for five folders; inbound links to moved files swept |
+
+### Non-goals
+
+- **Renaming any existing RFC.** See D2.
+- **Renumbering.** The source document's own anti-pattern.
+- Adding a `draft/` folder. Nothing needs it; the source says add it only when
+  multiple authors need shared drafts.
+- Any of E-016's other instances (13 broken doc links, the `v`-prefixed
+  "Shipped" column). Those remain 0.25 candidates.
+- Any kernel, ABI, capability, lease, IPC, or crypto behaviour.
+- Gate 12 `syscall-surface` must stay **35/26/9** — untouched by this line.
+
+## Risks
+
+| ID | Risk | Likelihood | Impact | Mitigation |
+|---|---|---|---|---|
+| R1 | The merge quietly drops one of the five kept rules | Medium | **High** | D1 enumerates them. The review checks each by name against the new document, not by reading for general sense |
+| R2 | **R3 strengthens a gate and is not demonstrated failing** | Medium | High | RFC-v0.22-001's governing rule. An `Accepted` RFC left in `proposed/`, and a `Proposed` RFC placed in `accepted/`, must both be **observed failing** before the change is trusted |
+| R3 | The link sweep misses inbound references to moved files | Medium | Medium | Only one file moves (R1). `grep -rl` before and after, and the count of matches reported |
+| R4 | Scope creep into fixing E-016's other instances | Medium | Medium | Explicit non-goal. This line fixes the two citations it creates work adjacent to, nothing else |
+
+## Acceptance criteria
+
+- [ ] `rfcs/accepted/` exists; RFC-0.25-001 is in it with `Status: Accepted`;
+      `proposed/` is empty.
+- [ ] The merged RFC 000 **states folder-as-source-of-truth explicitly** — the
+      rule currently cited but unwritten.
+- [ ] All five kept rules present and checked **by name**:
+      `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule,
+      the required-sections list.
+- [ ] The naming section describes `RFC-<milestone>-NNN-slug.md` and per-milestone
+      numbering, and states where and why it departs from the source policy.
+- [ ] **R3 demonstrated failing both ways** before being trusted: an `Accepted`
+      RFC in `proposed/` → FAIL; a `Proposed` RFC in `accepted/` → FAIL.
+- [ ] Both false citations corrected; no document cites RFC 000 for a rule it
+      does not contain.
+- [ ] `cargo xtask release-rehearsal` green, Gate 12 `rfc-status-folder` passing
+      across all five folders, `syscall-surface` still **35/26/9**.
+- [ ] `cargo fmt --all --check` clean.
+
+## A note on why this is worth doing now
+
+The owner deprioritised release-stability work in favour of functional lines,
+and this is neither. It earns its slot on a narrower ground: **the project's
+governance document does not describe the project**, and two artefacts —
+including a verification instrument — cite it for a rule it does not contain.
+
+It is also small, it does not compete with RFC-0.25-001 for the same work, and
+it is the kind of drift that gets more expensive the longer 161 files accumulate
+against a policy describing something else.

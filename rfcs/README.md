@@ -325,7 +325,7 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — 2 RFCs
 
 ### 0.25 — Functional advancement (owner direction, 2026-08-03)
 
@@ -336,6 +336,7 @@ functional lines. Errata E-013 through E-017 remain open and disclosed.
 | RFC | Title |
 |-----|-------|
 | 0.25-001 | [The External Interrupt Plane — and the first console input path](./proposed/RFC-0.25-001-external-interrupt-plane.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-001-external-interrupt-plane/implementation-handoff.md) |
+| 0.25-002 | [Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does](./proposed/RFC-0.25-002-rfc-lifecycle-policy-adoption.md) — proposed 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-002-rfc-lifecycle-policy-adoption/implementation-handoff.md) |
 
 ---
 
