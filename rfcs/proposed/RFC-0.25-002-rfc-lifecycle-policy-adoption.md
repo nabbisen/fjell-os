@@ -1,6 +1,6 @@
 # RFC-0.25-002: Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-08-03; implementation may begin (RFC 000)
 **Milestone:** 0.25 — runs alongside RFC-0.25-001; does not displace it
 **Tracks.** RFC governance: folder layout, lifecycle states, and the document
 that defines them.
