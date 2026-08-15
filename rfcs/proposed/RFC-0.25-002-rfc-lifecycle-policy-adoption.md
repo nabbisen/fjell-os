@@ -24,6 +24,16 @@ replaces, and says exactly what it keeps and why.
 
 ## Motivation
 
+### `archive/` is documented and does not exist
+
+`rfcs/` contains `done/`, `handoffs/`, and `proposed/`. **There is no
+`archive/`.** `rfcs/README.md`'s structure block listed one anyway, until this
+RFC's review corrected it.
+
+Nothing has been withdrawn or superseded yet, so the folder was never needed —
+but documenting a folder that is not there is the same defect as citing a rule
+that is not written. R1 therefore creates **both** `accepted/` and `archive/`.
+
 ### The in-repo RFC 000 is worse than stale
 
 It is 64 lines. It documents file naming as flat `rfcs/<NNN>-<slug>.md`.
@@ -167,7 +177,7 @@ Today `rfc_status_folder.rs` allows **both** `Proposed` and `Accepted` in
 
 | # | Requirement |
 |---|---|
-| **R1** | Create `rfcs/accepted/`; move every RFC whose status is `Accepted` into it. Today that is **RFC-0.25-001** alone |
+| **R1** | Create `rfcs/accepted/` **and `rfcs/archive/`**; move every RFC whose status is `Accepted` into `accepted/`. Today that is **RFC-0.25-001 and RFC-0.25-002 itself** |
 | **R2** | Replace `rfcs/done/000-rfc-lifecycle-policy.md` with the merged policy per D1/D2/D3 |
 | **R3** | `rfc_status_folder.rs` learns `accepted/`; `proposed/` narrows to `Proposed` only (D4) |
 | **R4** | Fix both false citations — `rfcs/README.md:3` and `rfc_status_folder.rs:3` — so they cite a rule the target actually states |
@@ -195,8 +205,9 @@ Today `rfc_status_folder.rs` allows **both** `Proposed` and `Accepted` in
 
 ## Acceptance criteria
 
-- [ ] `rfcs/accepted/` exists; RFC-0.25-001 is in it with `Status: Accepted`;
-      `proposed/` is empty.
+- [ ] `rfcs/accepted/` **and `rfcs/archive/`** exist; RFC-0.25-001 and
+      RFC-0.25-002 are in `accepted/` with `Status: Accepted`; `proposed/` is
+      empty; no folder is documented that does not exist.
 - [ ] The merged RFC 000 **states folder-as-source-of-truth explicitly** — the
       rule currently cited but unwritten.
 - [ ] All five kept rules present and checked **by name**:

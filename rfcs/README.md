@@ -7,8 +7,13 @@ Folder is the source of truth for state (see
 rfcs/
   proposed/   — open; not yet shipped
   done/       — implemented; historical record
-  archive/    — withdrawn or superseded
+  handoffs/   — companion execution docs; status inherited from the RFC
 ```
+
+> **`archive/` is documented in RFC 000's successor but does not exist**, because
+> nothing has been withdrawn or superseded yet. It is created by RFC-0.25-002's
+> R1 alongside `accepted/`. Listing a folder that is not there was a false claim
+> and has been removed from this block rather than left to imply otherwise.
 
 ---
 
@@ -325,7 +330,14 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Proposed (proposed/) — 2 RFCs
+## Open (proposed/) — 2 RFCs, both **Accepted**
+
+> **Transitional.** Both RFCs below carry `Status: Accepted`, and both sit in
+> `proposed/` because `rfcs/accepted/` does not exist yet — creating it is R1 of
+> RFC-0.25-002. This is legal under the policy currently in force (the 4-folder
+> variant leaves an RFC in `proposed/` until it ships, and `rfc-status-folder`
+> accepts both keywords there). It stops being legal when RFC-0.25-002 lands,
+> which narrows `proposed/` to `Proposed` only and moves these two.
 
 ### 0.25 — Functional advancement (owner direction, 2026-08-03)
 

@@ -89,10 +89,17 @@ Where the merged document departs from the source, **say so inline and say
 why.** A reader comparing the two should never have to guess whether a
 difference was deliberate.
 
-**R1 — `rfcs/accepted/`.** Today exactly one RFC moves: `RFC-0.25-001`. After
-the move `proposed/` is empty, which is correct and not a problem.
+**R1 — `rfcs/accepted/` and `rfcs/archive/`.** Two RFCs move: `RFC-0.25-001`
+and **this RFC itself**, both `Accepted`. After the move `proposed/` is empty,
+which is correct and not a problem.
 
-Move the file with `git mv` so history follows it.
+`archive/` does not currently exist either, though the README documented it
+until review. Create it empty. Nothing has been withdrawn or superseded yet.
+
+**Moving this RFC while implementing it is the bootstrap** — expected, not a
+conflict. Move it in the same commit as the others.
+
+Move files with `git mv` so history follows them.
 
 **R3 — the instrument.** `rfc_status_folder.rs` currently has:
 
