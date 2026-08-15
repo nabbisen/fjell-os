@@ -1,6 +1,6 @@
 # RFC-0.24-003: ABI Snapshot Identity — what the gate compares, and what it is comparing it to
 
-**Status:** Proposed — **accepted for implementation by the owner (nabbisen), 2026-08-03**
+**Status:** Accepted — by the owner (nabbisen), 2026-08-03; implementation may begin (RFC 000)
 **Milestone:** 0.24 — **blocks the cut** (owner decision, 2026-08-03)
 **Tracks.** Correctness of `fjell-abi-snapshot`'s scanner and diff identity.
 **Touches.** `tools/fjell-abi-snapshot/src/main.rs`, `tests/abi/snapshot.json`.

@@ -2,7 +2,7 @@
 
 **Governing RFC:** [RFC-0.24-001](../../proposed/RFC-0.24-001-instrument-audit.md)
 **Milestone:** 0.24
-**Status:** inherited from the governing RFC (Proposed — accepted for implementation 2026-08-02)
+**Status:** inherited from the governing RFC (Accepted, 2026-08-02)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
