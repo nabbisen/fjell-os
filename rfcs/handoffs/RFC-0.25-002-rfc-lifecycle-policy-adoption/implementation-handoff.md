@@ -55,8 +55,15 @@ existed.
    from 001, never reused", deliberately. Say so in the document, and say why:
    renaming 99 files breaks every commit message and release record pointing at
    them, which is the source's own anti-pattern.
-3. **No renaming, no renumbering, no `draft/` folder.**
-4. **`proposed/` narrows to `Proposed` only** once `accepted/` exists.
+3. **State what the prefix does not mean.** It is a **batch label** — the
+   milestone an RFC was *raised under* — **not** a claim about where it shipped.
+   Nine of the ninety-nine prefixed RFCs shipped in a different release, three
+   of them *earlier* than their prefix (`RFC-v0.7.4-001` shipped in `v0.7.1`).
+   Those are not mistakes; they are the scheme working as designed. The
+   README's "Shipped" column is authoritative, and the merged policy must say
+   all of this normatively — see the RFC's D2 for the required four points.
+4. **No renaming, no renumbering, no `draft/` folder.**
+5. **`proposed/` narrows to `Proposed` only** once `accepted/` exists.
 
 ---
 
@@ -131,6 +138,8 @@ true statements. Check that they name the section they now point at.
 
 1. **The five kept rules, quoted from the new document**, one line each, so the
    review can check them by name rather than by reading for sense.
+1a. **D2's four naming points, quoted** — including the statement that the
+   prefix is a batch label and not a release claim.
 2. The new document's explicit folder-as-source-of-truth statement, quoted.
 3. **R3's two demonstrations**, each observed failing before the fix is trusted.
 4. `rfcs/accepted/` containing RFC-0.25-001; `proposed/` empty.

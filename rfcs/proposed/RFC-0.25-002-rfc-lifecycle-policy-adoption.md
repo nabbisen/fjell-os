@@ -96,18 +96,52 @@ Keep from the **in-repo policy**: `Accepted`, `Implemented-with-Errata`,
 distinctive governance rule, it is why the errata register exists, and the
 general policy has no equivalent because most projects have no such register.
 
-### D2 — Document the naming the project actually uses
+### D2 — Document the naming the project uses, **and what its prefix does not mean**
 
 `RFC-<milestone>-NNN-slug.md`, numbered per milestone. Historical `NNN-slug.md`
-files keep their names.
+files (`000`–`061`, gapless) keep their names.
 
 This contradicts the rules document, deliberately. **A policy that declares 99
 existing files non-conforming is a policy nobody will follow**, and the
 alternative — renaming 99 files — breaks every commit message, release record,
-and cross-reference pointing at them, which is the rules document's own
+and errata entry pointing at them, which is the rules document's own
 "Renumbering RFCs during reorganisation" anti-pattern.
 
-Where the merged policy departs from the source, it says so and says why.
+**But documenting the scheme is not enough, because the scheme misleads.**
+The prefix looks like a release and is not one. Measured across the 99 prefixed
+RFCs, **nine shipped in a release different from their prefix** — and three
+shipped *earlier* than it:
+
+| RFC | Prefix implies | Actually shipped |
+|---|---|---|
+| `RFC-v0.7.4-001` — DMA Lifetime Safety | v0.7.4 | **v0.7.1** |
+| `RFC-v0.7.3-002` — Crypto Profile Documentation | v0.7.3 | **v0.7.1** |
+| `RFC-v0.7.5-001` — Catalog Ownership | v0.7.5 | **v0.7.4** |
+| …six more | | |
+
+**These are not mistakes. They are the scheme working as designed**, and it will
+keep producing them: the prefix records the milestone an RFC was *raised under*,
+milestones get re-planned, and an immutable identifier cannot follow a mutable
+fact.
+
+So the merged policy must state, normatively:
+
+1. The prefix is a **batch label — the milestone under which the RFC was
+   raised** — and is **not** a claim about where it shipped.
+2. **`rfcs/README.md`'s "Shipped" column is the authority** for where an RFC
+   landed.
+3. The divergence is **measured at nine of ninety-nine**, recorded so the
+   convention is not mistaken for an invariant.
+4. Two schemes coexist: flat `NNN-slug.md` for `000`–`061`, prefixed from v0.3
+   onward. The break is historical and frozen; new RFCs use the prefixed form.
+
+**Nothing currently checks (1) or (2)** — no instrument compares an RFC's
+identifier to its Shipped column. That is a concrete instance for **E-016**'s
+link-and-count instrument, and is recorded there rather than built here.
+
+An identifier that invites a false inference is the same defect class the 0.24
+audit spent a milestone on. This RFC cannot fix the scheme without a rename it
+should not do; it can stop the scheme from lying by saying what it means.
 
 ### D3 — The 5-folder variant fits, by the source's own test
 
@@ -170,6 +204,9 @@ Today `rfc_status_folder.rs` allows **both** `Proposed` and `Accepted` in
       the required-sections list.
 - [ ] The naming section describes `RFC-<milestone>-NNN-slug.md` and per-milestone
       numbering, and states where and why it departs from the source policy.
+- [ ] It states **normatively** that the prefix is a batch label and not a
+      release claim, that the README's "Shipped" column is authoritative, and
+      that nine of ninety-nine prefixed RFCs shipped elsewhere.
 - [ ] **R3 demonstrated failing both ways** before being trusted: an `Accepted`
       RFC in `proposed/` → FAIL; a `Proposed` RFC in `accepted/` → FAIL.
 - [ ] Both false citations corrected; no document cites RFC 000 for a rule it
