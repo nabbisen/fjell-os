@@ -224,7 +224,45 @@ incomplete (**E-017**). Records: `docs/verification/instrument-audit.md`,
 `docs/verification/instrument-audit-closeout.md`,
 `docs/release/records/0.24.0.md`.
 
-### Beyond 0.24 — under discussion, not yet decided
+### 0.25 — Functional advancement: the external interrupt plane (owner direction, 2026-08-03)
+
+**Release stability is deprioritised.** The owner has directed functional
+advancement first — service plane and human operability — with the instrument
+audit's 0.25 candidates deferred behind it. Errata E-013 through E-017 stay
+open and disclosed; new functional work will be certified by instruments
+carrying 33 open findings, which is a stated and accepted cost.
+
+Scoping the two chosen themes found them **coupled, and both blocked on the
+same wall**: of the nine declared-but-undispatched syscalls, three are
+`IrqBind` / `IrqAck` / `IrqWait`. Measured state of the tree:
+
+- `scause` cause 9 (`SupervisorExternal`) is **not decoded** — it falls to
+  `Other(scause)`, logged-and-ignored in user mode and **panicking in kernel
+  mode**.
+- There is **no PLIC driver** anywhere in the kernel.
+- `IRQ_BIND` / `IRQ_UNBIND` / `IRQ_ACK` exist **only inside a doc comment**;
+  no constants are defined.
+- The UART driver is **TX-only** — `THR`/`LCR`/`FCR`, no `RBR`/`IER`/`LSR` —
+  and `console.rs` has no read path of any kind.
+- **`fjell-driver-virtio-net` calls all three syscalls**, gets
+  `UnknownSyscall` from `sys_irq_bind`, prints "IRQ bind failed" and
+  `sys_exit(1)`. **It has never once got past its own initialisation**, so the
+  RX queue drain and `netd` notifications written under RFC-v0.7.3-001 have
+  never executed.
+
+So the project has been carrying a designed, documented interrupt architecture
+with nothing underneath it — E-011's shape, one layer wider. `RFC-0.25-001`
+builds the floor: PLIC, trap decode, the rights constants, the three dispatch
+arms, UART RX, and a `fjell-driver-uart` service. Gate 12's `syscall-surface`
+moves **35/26/9 → 35/29/6**.
+
+**Correction to the service-plane figure below.** This roadmap has said "17 of
+29 services never receive IPC." Measured by recv-loop presence: **15 of 29**.
+Neither number is trustworthy enough to scope against — the grep only catches
+direct `ipc_recv`/`try_recv` — and an actual count is a prerequisite for taking
+the service-plane theme.
+
+### Beyond 0.25 — under discussion, not yet decided
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
 continues. The owner has directed that functional advancement, not only
