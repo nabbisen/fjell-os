@@ -113,7 +113,7 @@ they still hold, not re-derived from scratch.
 - **Demonstration (RFC-v0.22-001, re-verified now):** `cargo test -p
   fjell-mmio-audit` — 7/7 pass, including `missing_annotation_returns_none`.
 
-### Gate 4 — ABI snapshot verify — **finding** (reversed from `sound`, RFC-0.24-002 review)
+### Gate 4 — ABI snapshot verify — **sound** (RFC-0.24-003, R1–R6; citing Demonstration 1's signature-mismatch pathway, not the tool's unit suite)
 
 - **Claim:** the committed ABI snapshot matches the current signatures of the
   ABI-stable crates.
@@ -194,7 +194,129 @@ they still hold, not re-derived from scratch.
 > cause is that `scan_dir` walks the *filesystem* as a proxy for the *module
 > tree*, **mode 2 again**, in the same instrument.
 >
-> Row stays `finding` until RFC-0.24-003 lands.
+> Row stayed `finding` until RFC-0.24-003 landed — see below.
+
+> **Repaired — RFC-0.24-003, R2/R3/R4 first, then R1, then R6 (added in
+> review of R1; see the two new rows below for how R6 was found).**
+>
+> - **R2** — `strip_fn_modifiers()` replaces enumerated prefix strings with
+>   recognition of the general *modifiers-then-`fn`* shape (`const`,
+>   `async`, `unsafe`, `extern "ABI"`, any combination). Fixes B (15 items)
+>   and, as a byproduct, a second gap in the same class — see the
+>   `pub unsafe fn` row below.
+> - **R3** — inline `mod name { … }` blocks tracked via a whole-file
+>   comment/string/char-literal stripper (braces inside any of them,
+>   including a multi-line block comment, verified not to perturb depth)
+>   plus a brace-depth walk; items take the qualified `parent::child` path.
+>   Fixes C.
+> - **R4** — the scanner starts at `lib.rs` and follows only the `mod`
+>   declarations it actually contains (`mod NAME;` resolved to a sibling
+>   file; inline blocks recursed into directly), replacing the directory
+>   walk. Fixes D: `storaged.rs` — reachable by no `mod` declaration
+>   anywhere — is confirmed never visited.
+> - **R1** — `module` joins the identity key; `build_identity_map()`
+>   returns every duplicate instead of a `BTreeMap` silently keeping the
+>   last. Run first against the untouched-by-R1-alone tree, **as the
+>   handoff specified, it did not pass**: two duplicates survived, neither
+>   explained by B, C, or D — see the impl-scope row below for what that
+>   found.
+> - **R6** — `impl_type` (the impl block's self type, generics stripped;
+>   the type after `for` in a trait impl; `""` for free items) joins the
+>   key as its own field, not appended to `module`. Fixes the two R1
+>   survivors and the wider class they were an instance of.
+>
+> **R5 — reconciliation** (required before regenerating; the RFC's own
+> words: *"the single most dangerous action in this RFC"*). `git diff`
+> could not serve as evidence — R6 added a field, so every line changed.
+> Semantic comparison instead, parsing old (423 items) and new (408)
+> baselines directly:
+>
+> | Cause | Expected | Found | Note |
+> |---|---|---|---|
+> | B — `const fn` | 15 | **15** | exact |
+> | B′ — `pub unsafe fn` | +2 | **+2** | exact — `sys_audit_drain_ptr`, `sys_audit_drain_raw` present |
+> | C — inline `mod` | ~162 | **159** | 3-item gap explained: `SvcLifecycle`, `ServiceManifestEntry`, `ServiceManifestEntry::new` were already genuinely top-level in the *old* scan too — the 162 estimate counted all `module:""` items in the crate, not only the ones that actually move |
+> | D — orphaned file | −17 | **−17** | exact — `StoreResult`, `store_read`, `store_append` confirmed absent |
+> | E — impl scope | ~60 | **129** (60 `fn` + 69 `const`) | the `fn`-only subset matches the architect's independent spot-check exactly (60 across 22 self types); the remaining 69 are associated `const`s the spot-check's script didn't enumerate by design |
+> | C ∩ E overlap | — | **0** | no inline-mod-reattributed item is also inside an impl block in this codebase |
+> | unexplained | 0 | **0** | — |
+>
+> Net: 423 − 17 + 2 = **408**, matching the pre-registered prediction exactly.
+>
+> **Demonstration 1, re-run against the reconciled baseline** (the RFC
+> required this fail by the signature-mismatch pathway specifically, not
+> the duplicate-key check — a `FAIL` via the wrong pathway does not count):
+> ```
+> $ cargo run -p fjell-abi-snapshot -- --verify   # attestd's READY corrupted
+>   Changed sig    : 1
+>   ~ fjell-service-api::attestd const READY (was sig=CORRUPTE, now sig=4183035c)
+> Result: FAIL
+> ```
+> Reverted; `--verify` on the clean, regenerated `tests/abi/snapshot.json`
+> now reports `PASS` (408/408, 0 removed, 0 changed) — this **is** the
+> demonstration this row is `sound` on, not the tool's own unit suite (37
+> tests, including dedicated brace-depth and impl-scope cases, all pass and
+> are necessary but not sufficient — Pass 1's mistake, corrected).
+
+### fjell-abi-snapshot — `pub unsafe fn` matched no pattern, absent from the surface — **sound** (found and repaired within RFC-0.24-003, R2; new row per review)
+
+- **Claim (implicit in R2):** the scanner recognizes function declarations
+  regardless of modifier combination.
+- **Actual, before repair:** the old code enumerated specific prefix
+  strings (`pub fn `, `pub async fn `) rather than the general shape. `pub
+  unsafe fn` matched none of them and fell through silently — not
+  misparsed, **absent**.
+- **Modes:** 1 (scope blindness), and named explicitly in review as the
+  same defect class as E-014's literal matching, one level down — the
+  third instance in this tool alone (line-oriented parser, collapsed key,
+  now enumerated prefixes).
+- **Consequence:** two real functions in `fjell-syscall` — the crate
+  carrying the kernel/user-space syscall ABI — never appeared in any
+  generated snapshot: `sys_audit_drain_ptr`, `sys_audit_drain_raw`
+  (`crates/fjell-syscall/src/lib.rs:349`, `:518`). The gate guarding the
+  syscall ABI had never known they exist and would not have noticed either
+  being removed or re-signed.
+- **Repaired** by the same `strip_fn_modifiers()` generalisation as B (R2).
+  Confirmed present in the regenerated baseline; unit test
+  `unsafe_fn_is_scanned_at_all` covers it directly, plus zero-count checks
+  for `pub async fn` / `pub extern "C" fn` / `pub const unsafe fn` (none
+  found in the eight stable crates today; the scanner is verified correct
+  for them regardless, via synthetic-content tests).
+
+### fjell-abi-snapshot — identity lacked impl scope — **sound** (found and repaired within RFC-0.24-003, R6; new row per review)
+
+- **Claim (implicit in R1):** `(crate, module, kind, name)` uniquely
+  identifies a stable-surface item.
+- **Actual, before repair:** it does not — two distinct types in the same
+  crate and module with a same-named method collide, because the identity
+  has no notion of which type's `impl` block a method belongs to.
+- **How it was found — worth recording, per the review:** this is the
+  first defect in the whole 0.24 line found by **an instrument's own
+  guard**, not a person. R1's duplicate-key check, run for the first time,
+  reported two survivors on real committed input:
+  ```
+  fjell-audit-format::         fn kind    (AuditRecordBin::kind, AuditPersistRecord::kind)
+  fjell-semantic-v1::catalog   fn new     (CatalogOwner::new,    CatalogRangeOwner::new)
+  ```
+  Per the handoff's explicit instruction ("if it does not [pass], a defect
+  remains unfound — report the surviving keys and escalate"), this was
+  reported rather than resolved in code — deciding "the scanner should also
+  understand `impl` blocks" was correctly treated as outside R1–R4's named
+  scope, not the implementer's to decide by extension.
+- **Modes:** 4 (weak predicate) and 2 (proxy attestation, one level
+  removed) — `CatalogOwner::new` and `CatalogRangeOwner::new` are distinct
+  ABI items; a gate that cannot tell them apart cannot do its job regardless
+  of how correctly `module` is computed.
+- **Ruling (design authority, in review):** a distinct `impl_type` field,
+  **not** appended to `module` — a field named `module` holding a type name
+  would itself be the "name that lies" pattern this whole line exists to
+  correct. Generics stripped (`impl<T> Foo<T>` → `Foo`); trait impls take
+  the type after `for`, not the trait name.
+- **Repaired** as R6. `build_identity_map()` keys on five fields; zero
+  duplicates in the regenerated 408-item baseline. Unit tests cover a
+  simple impl, a generic impl, a trait impl, a generic trait impl, impl
+  scope not affecting module path, and the exact real collision shape (two
+  types, one method name each, confirmed distinct post-repair).
 
 ### fjell-unsafe-audit category extractor — **finding** (new, RFC-0.24-002 review)
 
@@ -1245,6 +1367,69 @@ the audit close-out, or (for Gate 4) proposed Slice 8. None forgotten.
 This RFC made the instruments that block a 0.24 cut honest — with one exception
 that the cut now waits on. It did not make every instrument honest; that was
 never its goal.
+
+---
+
+## RFC-0.24-003 — Gate 4's exception closes
+
+Slice 8 (above) became its own RFC when sizing it found three further scanner
+defects (B, C, D) that were *what made the duplicates* — see
+[RFC-0.24-003](../../rfcs/proposed/RFC-0.24-003-abi-snapshot-identity.md). R1's
+own duplicate-key check, run for the first time against a corrected scanner,
+found a fourth (impl scope, repaired as R6) — the first defect in this entire
+milestone caught by an instrument's own guard rather than a person.
+
+**Gate 4's row moves `finding` → `sound`**, this time citing a live
+signature-mismatch demonstration against a semantically-reconciled baseline,
+not the tool's own unit suite — the substitution that made the row wrong the
+first time. Full repair narrative and reconciliation table on Gate 4's row,
+above.
+
+**Two new rows**, both `sound` — found and repaired within the same RFC, so
+recorded here rather than filed as errata: the `pub unsafe fn` gap (found
+during R2, a real absence in the syscall-ABI crate) and the impl-scope gap
+(found by R1's own check, repaired as R6).
+
+Delta from this RFC: Gate 4 `finding` → `sound`; +2 new `sound` rows
+(population 56 → 58).
+
+### Totals, corrected
+
+The implementer noted that the pre-RFC-0.24-003 figures (18 sound / 33
+findings / 3 `UNAUDITED` / 56) sum to 54, and correctly left them alone as not
+theirs to have written. They are the architect's, and the gap was **two**
+errors, not one:
+
+1. **Pass 4's `sound` cell read 5; it should have been 6.** RFC-0.24-002 moved
+   three Pass-4 rows to `sound` (`ci-unsafe-audit`, `ci-proptest`,
+   `ci-schema-gate`) from a base of 3. That submission's *total* of 20 required
+   6 — cell and total disagreed, and the architect recomputed the total **from
+   the cells**, propagating 5 into an 18 that should have been 19.
+2. **The 56th instrument's finding was never added to any total.** The
+   `fjell-unsafe-audit` category extractor was correctly recorded as taking the
+   population from 55 to 56, but it belongs to no pass, so the per-pass column
+   sums silently omitted it. Findings should have read 34, not 33.
+
+**Corrected, with rows outside the four passes given their own column so the
+same omission cannot recur:**
+
+| | Pass 1 | Pass 2 | Pass 3 | Pass 4 | Outside | Total |
+|---|---|---|---|---|---|---|
+| Sound | 7 | 4 | 3 | 6 | 2 | **22** |
+| Findings | 4 | 15 | 5 | 8 | 1 | **33** |
+| `UNAUDITED` | 1 | 0 | 0 | 2 | 0 | **3** |
+| | 12 | 19 | 8 | 16 | 3 | **58** |
+
+22 + 33 + 3 = 58, and every column sums to its own instrument count.
+
+**33 findings remain open**, all previously dispositioned (deferred
+literal-matching family or audit close-out) and unaffected by this RFC.
+
+**Why this happened, recorded rather than left as an anecdote.** This table was
+maintained as prose arithmetic across four passes and three RFCs, by two
+parties, with **no instrument checking it**. That is **E-016**'s shape — *no
+instrument verifies any document link, index, or count* — occurring inside the
+audit's own record, and it is filed there as a concrete instance.
 
 **A note on the population figure.** "55 instruments" was always an enumeration,
 not a measurement: it counted gates, tiers, jobs, and artifacts at the

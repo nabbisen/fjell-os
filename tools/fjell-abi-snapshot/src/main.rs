@@ -56,6 +56,11 @@ const STABLE_CRATES: &[(&str, &str)] = &[
 struct AbiItem {
     crate_name: String,
     module: String,
+    // RFC-0.24-003 R6: the impl block's self type, "" for free items.
+    // Deliberately a separate field, not appended to `module` — a field
+    // named `module` holding a type name would be exactly the "name that
+    // lies" pattern this whole line exists to correct.
+    impl_type: String,
     kind: String, // fn | struct | enum | trait | const | type
     name: String,
     sig_hash: String, // first 16 hex chars of SHA-256-like hash of full sig line
@@ -112,8 +117,8 @@ fn write_snapshot(items: &[AbiItem], path: &str) -> io::Result<usize> {
     for (i, item) in items.iter().enumerate() {
         let comma = if i + 1 < items.len() { "," } else { "" };
         out.push_str(&format!(
-            "  {{\"crate\":{:?},\"module\":{:?},\"kind\":{:?},\"name\":{:?},\"sig\":{:?}}}{}\n",
-            item.crate_name, item.module, item.kind, item.name, item.sig_hash, comma
+            "  {{\"crate\":{:?},\"module\":{:?},\"impl_type\":{:?},\"kind\":{:?},\"name\":{:?},\"sig\":{:?}}}{}\n",
+            item.crate_name, item.module, item.impl_type, item.kind, item.name, item.sig_hash, comma
         ));
     }
     out.push_str("]\n");
@@ -180,8 +185,13 @@ fn verify(snapshot_path: &str) -> ExitCode {
                  identity key(s) — cannot verify against a duplicated surface:",
                 dups.len()
             );
-            for (cr, mo, ki, na) in &dups {
-                eprintln!("  {}::{} {} {}", cr, mo, ki, na);
+            for (cr, mo, im, ki, na) in &dups {
+                let owner = if im.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}::", im)
+                };
+                eprintln!("  {}::{} {}{} {}", cr, mo, owner, ki, na);
             }
             eprintln!("Result: FAIL");
             return ExitCode::from(1);
@@ -196,8 +206,13 @@ fn verify(snapshot_path: &str) -> ExitCode {
                 snapshot_path,
                 dups.len()
             );
-            for (cr, mo, ki, na) in &dups {
-                eprintln!("  {}::{} {} {}", cr, mo, ki, na);
+            for (cr, mo, im, ki, na) in &dups {
+                let owner = if im.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}::", im)
+                };
+                eprintln!("  {}::{} {}{} {}", cr, mo, owner, ki, na);
             }
             eprintln!("Result: FAIL");
             return ExitCode::from(1);
@@ -236,18 +251,15 @@ fn verify(snapshot_path: &str) -> ExitCode {
         if !removed.is_empty() {
             eprintln!("\nREMOVED stable items (breaking):");
             for r in &removed {
-                eprintln!("  - {}::{} {} {}", r.crate_name, r.module, r.kind, r.name);
+                eprintln!("  - {}", item_label(r));
             }
         }
         if !changed.is_empty() {
             eprintln!("\nCHANGED stable signatures (breaking):");
             for (b, c) in &changed {
                 eprintln!(
-                    "  ~ {}::{} {} {} (was sig={}, now sig={})",
-                    b.crate_name,
-                    b.module,
-                    b.kind,
-                    b.name,
+                    "  ~ {} (was sig={}, now sig={})",
+                    item_label(b),
                     &b.sig_hash[..8],
                     &c.sig_hash[..8]
                 );
@@ -258,22 +270,47 @@ fn verify(snapshot_path: &str) -> ExitCode {
     }
 }
 
-/// Build the diff identity map, keyed on `(crate, module, kind, name)`.
-/// Unlike `.collect()`-ing directly into a `BTreeMap` (which silently
-/// keeps only the last of any duplicate key), this returns every
+/// Human-readable label for an item, naming its impl-block self type when
+/// it has one — so e.g. two same-named methods on different types (the
+/// exact R6 collision) are unambiguous in any diagnostic that names one.
+fn item_label(item: &AbiItem) -> String {
+    if item.impl_type.is_empty() {
+        format!(
+            "{}::{} {} {}",
+            item.crate_name, item.module, item.kind, item.name
+        )
+    } else {
+        format!(
+            "{}::{} {}::{} {}",
+            item.crate_name, item.module, item.impl_type, item.kind, item.name
+        )
+    }
+}
+
+/// Identity key: crate, module path, impl-block self type ("" for free
+/// items), kind, name.
+type IdentityKey = (String, String, String, String, String);
+
+/// Build the diff identity map, keyed on `(crate, module, impl_type, kind,
+/// name)`. Unlike `.collect()`-ing directly into a `BTreeMap` (which
+/// silently keeps only the last of any duplicate key), this returns every
 /// duplicated key as an error instead of dropping the rest — RFC-0.24-003
 /// R1. Before `module` joined the key, 45 of 423 baseline items collapsed
-/// into 378 keys with no signal that anything had been lost.
+/// into 378 keys with no signal that anything had been lost. `impl_type`
+/// joined the key in R6, added in review after R1's own check caught two
+/// further collisions — `CatalogOwner::new` vs `CatalogRangeOwner::new` and
+/// similar — that `module` alone could not distinguish: two different
+/// types' same-named methods, at the same module path.
 fn build_identity_map(
     items: &[AbiItem],
-) -> Result<BTreeMap<(String, String, String, String), &AbiItem>, Vec<(String, String, String, String)>>
-{
-    let mut map: BTreeMap<(String, String, String, String), &AbiItem> = BTreeMap::new();
+) -> Result<BTreeMap<IdentityKey, &AbiItem>, Vec<IdentityKey>> {
+    let mut map: BTreeMap<IdentityKey, &AbiItem> = BTreeMap::new();
     let mut duplicates = Vec::new();
     for item in items {
         let key = (
             item.crate_name.clone(),
             item.module.clone(),
+            item.impl_type.clone(),
             item.kind.clone(),
             item.name.clone(),
         );
@@ -314,6 +351,7 @@ fn load_snapshot(path: &str) -> io::Result<LoadedSnapshot> {
         }
         let cr = extract_json_str(line, "crate").unwrap_or_default();
         let mo = extract_json_str(line, "module").unwrap_or_default();
+        let it = extract_json_str(line, "impl_type").unwrap_or_default();
         let ki = extract_json_str(line, "kind").unwrap_or_default();
         let na = extract_json_str(line, "name").unwrap_or_default();
         let sig = extract_json_str(line, "sig").unwrap_or_default();
@@ -321,6 +359,7 @@ fn load_snapshot(path: &str) -> io::Result<LoadedSnapshot> {
             items.push(AbiItem {
                 crate_name: cr,
                 module: mo,
+                impl_type: it,
                 kind: ki,
                 name: na,
                 sig_hash: sig,
@@ -399,7 +438,7 @@ fn scan_module_tree(
     items: &mut Vec<AbiItem>,
 ) {
     let mut file_mods = Vec::new();
-    scan_content_into(content, crate_name, prefix, items, &mut file_mods);
+    scan_content_into(content, crate_name, prefix, "", items, &mut file_mods);
     for (mod_prefix, name) in file_mods {
         let flat = dir.join(format!("{name}.rs"));
         let nested = dir.join(&name).join("mod.rs");
@@ -423,13 +462,18 @@ fn scan_module_tree(
 
 /// The parsing core, taking source text directly so it can be exercised in
 /// tests without touching the filesystem. Handles inline `mod name { … }`
-/// blocks by recursing with a qualified prefix; file-backed `mod name;`
+/// blocks by recursing with a qualified prefix (and a reset `impl_type`,
+/// since a fresh module body starts with no enclosing impl); `impl Type {
+/// … }` / `impl Trait for Type { … }` blocks similarly, recursing with the
+/// self type and the SAME `module` (RFC-0.24-003 R6 — entering an impl
+/// block does not change the module path). File-backed `mod name;`
 /// declarations are recorded into `file_mods` for the caller (which has
 /// filesystem access) to resolve and follow.
 fn scan_content_into(
     content: &str,
     crate_name: &str,
     module: &str,
+    impl_type: &str,
     items: &mut Vec<AbiItem>,
     file_mods: &mut Vec<(String, String)>,
 ) {
@@ -453,10 +497,23 @@ fn scan_content_into(
         // already-loaded body; no file to read. A `#[cfg(test)]`-gated
         // block is skipped entirely (it compiles out of a release build).
         if let Some(name) = inline_mod_name(clean) {
-            let (body, end_line) = extract_inline_mod_body(&lines, &stripped_lines, i);
+            let (body, end_line) = extract_braced_body(&lines, &stripped_lines, i);
             if !prev_line_was_cfg_test {
                 let child_prefix = join_prefix(module, &name);
-                scan_content_into(&body, crate_name, &child_prefix, items, file_mods);
+                scan_content_into(&body, crate_name, &child_prefix, "", items, file_mods);
+            }
+            prev_line_was_cfg_test = false;
+            i = end_line + 1;
+            continue;
+        }
+
+        // Impl block: `impl [<…>] Type[<…>] { … }` or `impl [<…>] Trait
+        // [<…>] for Type[<…>] { … }` — recurse with the self type; module
+        // path is unchanged (RFC-0.24-003 R6).
+        if let Some(self_type) = impl_self_type(clean) {
+            let (body, end_line) = extract_braced_body(&lines, &stripped_lines, i);
+            if !prev_line_was_cfg_test {
+                scan_content_into(&body, crate_name, module, &self_type, items, file_mods);
             }
             prev_line_was_cfg_test = false;
             i = end_line + 1;
@@ -527,6 +584,7 @@ fn scan_content_into(
         items.push(AbiItem {
             crate_name: crate_name.to_string(),
             module: module.to_string(),
+            impl_type: impl_type.to_string(),
             kind: kind.to_string(),
             name,
             sig_hash,
@@ -541,7 +599,7 @@ fn scan_content_into(
 fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
     let mut items = Vec::new();
     let mut file_mods = Vec::new();
-    scan_content_into(content, crate_name, module, &mut items, &mut file_mods);
+    scan_content_into(content, crate_name, module, "", &mut items, &mut file_mods);
     items
 }
 
@@ -613,6 +671,75 @@ fn leading_ident(s: &str) -> String {
         .collect()
 }
 
+/// If `clean_line` (stripped) is an `impl` block opener, return its self
+/// type: generics stripped (`impl<T> Foo<T> {` → `Foo`), and for a trait
+/// impl, the type after `for` (`impl Trait for Type {` → `Type`, not the
+/// trait name) — RFC-0.24-003 R6.
+fn impl_self_type(clean_line: &str) -> Option<String> {
+    let rest = clean_line.strip_prefix("impl")?;
+    // Must be the real keyword — the next char must not continue an
+    // identifier (rules out e.g. a hypothetical `impls_foo(...)` line).
+    if rest
+        .chars()
+        .next()
+        .is_some_and(|c| c.is_alphanumeric() || c == '_')
+    {
+        return None;
+    }
+    let rest = skip_generic_params(rest.trim_start());
+    let rest = rest.trim_start();
+    let target = match find_top_level_for(rest) {
+        Some(pos) => rest[pos..].trim_start(),
+        None => rest,
+    };
+    let name = leading_ident(target);
+    if name.is_empty() { None } else { Some(name) }
+}
+
+/// If `s` starts with `<`, skip past the matching `>` (respecting nested
+/// `<>` depth, e.g. `<T: Foo<Bar>>`) and return the remainder trimmed;
+/// otherwise return `s` unchanged.
+fn skip_generic_params(s: &str) -> &str {
+    if !s.starts_with('<') {
+        return s;
+    }
+    let bytes = s.as_bytes();
+    let mut depth = 0i32;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'<' => depth += 1,
+            b'>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return s[i + 1..].trim_start();
+                }
+            }
+            _ => {}
+        }
+    }
+    s // unterminated `<...>` — give up and return as-is
+}
+
+/// Byte index just past a top-level (not inside `<...>`) `"for "` in `s`,
+/// i.e. the start of the self type in `impl Trait for Type`.
+fn find_top_level_for(s: &str) -> Option<usize> {
+    let bytes = s.as_bytes();
+    let mut depth = 0i32;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'<' => depth += 1,
+            b'>' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 && s[i..].starts_with("for ") && (i == 0 || bytes[i - 1] == b' ') {
+            return Some(i + 4);
+        }
+        i += 1;
+    }
+    None
+}
+
 fn join_prefix(prefix: &str, name: &str) -> String {
     if prefix.is_empty() {
         name.to_string()
@@ -634,17 +761,13 @@ fn brace_delta(line: &str) -> i32 {
     d
 }
 
-/// Starting at `lines[start]` (containing a module's opening `{`), find
-/// the line where brace depth — counted on `stripped_lines`, so a
-/// `{`/`}` inside a string, char literal, or comment can never perturb it
-/// — returns to zero, and return the ORIGINAL lines strictly between
+/// Starting at `lines[start]` (containing a `mod`/`impl` block's opening
+/// `{`), find the line where brace depth — counted on `stripped_lines`, so
+/// a `{`/`}` inside a string, char literal, or comment can never perturb
+/// it — returns to zero, and return the ORIGINAL lines strictly between
 /// opener and closer (joined back into text to recurse on) plus the
 /// index of the closing line.
-fn extract_inline_mod_body(
-    lines: &[&str],
-    stripped_lines: &[&str],
-    start: usize,
-) -> (String, usize) {
+fn extract_braced_body(lines: &[&str], stripped_lines: &[&str], start: usize) -> (String, usize) {
     let mut depth = brace_delta(stripped_lines[start]);
     let mut end = start;
     while depth > 0 && end + 1 < lines.len() {
@@ -917,6 +1040,7 @@ mod tests {
             AbiItem {
                 crate_name: "b".into(),
                 module: "".into(),
+                impl_type: "".into(),
                 kind: "fn".into(),
                 name: "z".into(),
                 sig_hash: "0".into(),
@@ -924,6 +1048,7 @@ mod tests {
             AbiItem {
                 crate_name: "a".into(),
                 module: "".into(),
+                impl_type: "".into(),
                 kind: "fn".into(),
                 name: "a".into(),
                 sig_hash: "0".into(),
@@ -1029,7 +1154,11 @@ mod tests {
     fn unsafe_fn_is_scanned_at_all() {
         // Before R2, `pub unsafe fn` matched no pattern and was silently
         // absent from the surface entirely — not misnamed, just missing.
-        let items = scan_content("pub unsafe fn sys_audit_drain_ptr(ptr: usize) -> usize {", "c", "m");
+        let items = scan_content(
+            "pub unsafe fn sys_audit_drain_ptr(ptr: usize) -> usize {",
+            "c",
+            "m",
+        );
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].kind, "fn");
         assert_eq!(items[0].name, "sys_audit_drain_ptr");
@@ -1083,8 +1212,7 @@ mod tests {
 
     #[test]
     fn lifetime_is_not_mistaken_for_a_char_literal() {
-        let src =
-            "pub mod outer {\n    pub fn f<'a>(x: &'a str) -> &'a str { x }\n    pub const INNER: usize = 1;\n}\n";
+        let src = "pub mod outer {\n    pub fn f<'a>(x: &'a str) -> &'a str { x }\n    pub const INNER: usize = 1;\n}\n";
         let items = scan_content(src, "c", "");
         assert_eq!(items.len(), 2);
         assert!(items.iter().all(|i| i.module == "outer"));
@@ -1108,7 +1236,8 @@ mod tests {
 
     #[test]
     fn nested_inline_modules_qualify_the_full_path() {
-        let src = "pub mod outer {\n    pub mod inner {\n        pub const DEEP: usize = 1;\n    }\n}\n";
+        let src =
+            "pub mod outer {\n    pub mod inner {\n        pub const DEEP: usize = 1;\n    }\n}\n";
         let items = scan_content(src, "c", "");
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].module, "outer::inner");
@@ -1123,7 +1252,8 @@ mod tests {
         let src = "pub mod a {\n    pub const READY: usize = 1;\n}\npub mod b {\n    pub const READY: usize = 2;\n}\n";
         let items = scan_content(src, "c", "");
         assert_eq!(items.len(), 2);
-        let modules: std::collections::BTreeSet<_> = items.iter().map(|i| i.module.as_str()).collect();
+        let modules: std::collections::BTreeSet<_> =
+            items.iter().map(|i| i.module.as_str()).collect();
         assert_eq!(modules.len(), 2, "each READY must keep its own module");
         assert!(modules.contains("a"));
         assert!(modules.contains("b"));
@@ -1147,6 +1277,7 @@ mod tests {
             AbiItem {
                 crate_name: "c".into(),
                 module: "m".into(),
+                impl_type: "".into(),
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "1".into(),
@@ -1154,13 +1285,23 @@ mod tests {
             AbiItem {
                 crate_name: "c".into(),
                 module: "m".into(),
+                impl_type: "".into(),
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "2".into(),
             },
         ];
         let err = build_identity_map(&items).unwrap_err();
-        assert_eq!(err, vec![("c".into(), "m".into(), "const".into(), "READY".into())]);
+        assert_eq!(
+            err,
+            vec![(
+                "c".into(),
+                "m".into(),
+                "".into(),
+                "const".into(),
+                "READY".into()
+            )]
+        );
     }
 
     #[test]
@@ -1171,6 +1312,7 @@ mod tests {
             AbiItem {
                 crate_name: "c".into(),
                 module: "a".into(),
+                impl_type: "".into(),
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "1".into(),
@@ -1178,8 +1320,118 @@ mod tests {
             AbiItem {
                 crate_name: "c".into(),
                 module: "b".into(),
+                impl_type: "".into(),
                 kind: "const".into(),
                 name: "READY".into(),
+                sig_hash: "2".into(),
+            },
+        ];
+        assert!(build_identity_map(&items).is_ok());
+    }
+
+    // ── RFC-0.24-003 R6: impl scope ──────────────────────────────────────────
+
+    #[test]
+    fn impl_self_type_simple() {
+        assert_eq!(impl_self_type("impl Foo {"), Some("Foo".to_string()));
+    }
+
+    #[test]
+    fn impl_self_type_generic_strips_params() {
+        assert_eq!(impl_self_type("impl<T> Foo<T> {"), Some("Foo".to_string()));
+        assert_eq!(
+            impl_self_type("impl<T: Clone, U> Foo<T, U> {"),
+            Some("Foo".to_string())
+        );
+    }
+
+    #[test]
+    fn impl_self_type_trait_impl_takes_the_type_after_for() {
+        assert_eq!(
+            impl_self_type("impl Display for Foo {"),
+            Some("Foo".to_string()),
+            "the self type, not the trait name"
+        );
+    }
+
+    #[test]
+    fn impl_self_type_generic_trait_impl() {
+        assert_eq!(
+            impl_self_type("impl<T> From<T> for Foo<T> {"),
+            Some("Foo".to_string())
+        );
+    }
+
+    #[test]
+    fn impl_self_type_none_for_non_impl_lines() {
+        assert_eq!(impl_self_type("pub fn foo() {"), None);
+        assert_eq!(impl_self_type("pub struct Foo {"), None);
+    }
+
+    #[test]
+    fn methods_inside_an_impl_block_carry_its_self_type() {
+        let src = "impl Foo {\n    pub fn new() -> Self { Self }\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].impl_type, "Foo");
+        assert_eq!(items[0].name, "new");
+    }
+
+    #[test]
+    fn free_items_carry_no_impl_type() {
+        let src = "pub const TOP: usize = 1;\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].impl_type, "");
+    }
+
+    #[test]
+    fn impl_type_does_not_affect_module_path() {
+        let src =
+            "pub mod outer {\n    impl Foo {\n        pub fn new() -> Self { Self }\n    }\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].module, "outer",
+            "entering an impl block must not change the module path"
+        );
+        assert_eq!(items[0].impl_type, "Foo");
+    }
+
+    #[test]
+    fn two_types_with_same_named_method_stay_distinct_by_impl_type() {
+        // The exact shape R1 found: two different types, same method name,
+        // same module — must not collide once impl_type joins the key.
+        let src = "impl AuditRecordBin {\n    pub fn kind(self) -> AuditKind { AuditKind::A }\n}\nimpl AuditPersistRecord {\n    pub fn kind(&self) -> AuditKind { AuditKind::B }\n}\n";
+        let items = scan_content(src, "c", "");
+        assert_eq!(items.len(), 2);
+        assert!(
+            build_identity_map(&items).is_ok(),
+            "distinct impl_type must not collide"
+        );
+        let types: std::collections::BTreeSet<_> =
+            items.iter().map(|i| i.impl_type.as_str()).collect();
+        assert!(types.contains("AuditRecordBin"));
+        assert!(types.contains("AuditPersistRecord"));
+    }
+
+    #[test]
+    fn build_identity_map_distinguishes_by_impl_type() {
+        let items = vec![
+            AbiItem {
+                crate_name: "c".into(),
+                module: "".into(),
+                impl_type: "A".into(),
+                kind: "fn".into(),
+                name: "new".into(),
+                sig_hash: "1".into(),
+            },
+            AbiItem {
+                crate_name: "c".into(),
+                module: "".into(),
+                impl_type: "B".into(),
+                kind: "fn".into(),
+                name: "new".into(),
                 sig_hash: "2".into(),
             },
         ];

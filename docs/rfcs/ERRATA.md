@@ -288,6 +288,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     `rfc_status_folder.rs` that mentions the file without opening it.** A search
     for coverage found a sentence claiming coverage.
   - **13 broken relative links** in tracked documentation.
+  - **The audit's own totals table drifted** — maintained as prose arithmetic
+    across four passes and three RFCs, by two parties, with nothing checking
+    it; it stated a population of 56 while summing to 54. Found by the
+    implementer during RFC-0.24-003 and corrected in review. This instance is
+    inside the verification record itself.
   - **The index's "Shipped" column names a release for roughly 150 rows as
     `v0.3.0`, `v0.22.0`, and so on — tags that do not exist under those names.**
     Release tags have never carried a `v` prefix. Its section headers do the

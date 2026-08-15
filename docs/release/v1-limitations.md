@@ -88,7 +88,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **E-016**, ACCEPTED). `rfcs/README.md` — the repository's RFC index under
   RFC 000 — has zero instrument coverage; the only trace of it in the entire
   instrument set is a doc comment that mentions the file without opening it.
-  Thirteen relative links in tracked documentation are broken. The index's
+  Thirteen relative links in tracked documentation are broken. The
+  instrument audit's own totals table stated a population of 56 while summing
+  to 54, unnoticed across four passes and three RFCs because nothing checks a
+  count. The index's
   "Shipped" column names a release for roughly 150 rows as `v0.3.0`, `v0.22.0`
   and so on — tags that do not exist under those names, since release tags
   have never carried a `v` prefix. The 0.24 series was renamed to match on
