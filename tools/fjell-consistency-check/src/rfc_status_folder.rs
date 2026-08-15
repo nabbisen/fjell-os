@@ -1,18 +1,21 @@
 //! Slice 4 (RFC-v0.22-001): the `rfc-status-folder` subcheck.
 //!
-//! The folder is the source of truth for an RFC's lifecycle state:
-//! `proposed/` holds RFCs under review (`Proposed`); `accepted/` holds RFCs
-//! signed off but not yet shipped (`Accepted`); `done/` holds RFCs whose
-//! disposition is final (`Implemented`, `Implemented-with-Errata`,
-//! `Superseded`, `Withdrawn`, `Closed`); `archive/` holds withdrawn or
-//! superseded ones.
+//! **The folder is the source of truth for an RFC's lifecycle state** — RFC
+//! 000, § Folder layout. `proposed/` holds RFCs under review (`Proposed`);
+//! `accepted/` holds RFCs signed off but not yet shipped (`Accepted`);
+//! `done/` holds RFCs whose disposition is final (`Implemented`,
+//! `Implemented-with-Errata`, `Superseded`, `Withdrawn`, `Closed`) — this
+//! project has never formally withdrawn or superseded an RFC, so `Withdrawn`
+//! and `Superseded` currently live in `done/` alongside `Implemented` ones;
+//! `archive/` exists (RFC-0.25-002 R1) but is not read by this check, since
+//! nothing has ever needed to move there.
 //!
-//! NOTE: this comment previously attributed that rule to RFC 000 via
-//! `rfcs/README.md`. **RFC 000 does not state it** — it mentions folders zero
-//! times. The citation was false and is removed here rather than propagated;
-//! RFC-0.25-002 R2 writes the rule into RFC 000's successor, at which point a
-//! citation becomes accurate. A `Status:` field that disagrees
-//! with its own folder is the "status field that lies" anti-pattern RFC 000
+//! This citation was false from RFC-v0.22-001 until RFC-0.25-002 R2: RFC 000
+//! mentioned folders zero times, and this comment (and `rfcs/README.md`)
+//! cited it anyway. The citation was removed rather than left standing, and
+//! is restored here now that RFC 000's merged successor states the rule
+//! this comment was already assuming. A `Status:` field that disagrees with
+//! its own folder is the "status field that lies" anti-pattern RFC 000
 //! exists to prevent.
 //!
 //! A handful of files carry no `Status:` field at all, by documented

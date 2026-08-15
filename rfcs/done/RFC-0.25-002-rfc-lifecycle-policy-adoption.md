@@ -1,6 +1,6 @@
 # RFC-0.25-002: Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-03; implementation may begin (RFC 000)
+**Status:** Implemented (0.25) — accepted 2026-08-03, R1–R5 complete
 **Milestone:** 0.25 — runs alongside RFC-0.25-001; does not displace it
 **Tracks.** RFC governance: folder layout, lifecycle states, and the document
 that defines them.
@@ -129,6 +129,11 @@ shipped *earlier* than it:
 | `RFC-v0.7.5-001` — Catalog Ownership | v0.7.5 | **v0.7.4** |
 | …six more | | |
 
+**Nine of the sixty-four prefixed RFCs that record a shipped release — 14%.**
+*(Corrected in the R2 review from "nine of ninety-nine": 37 prefixed RFCs have
+not shipped and so cannot diverge, so the wider denominator counted things
+outside the population.)*
+
 **These are not mistakes. They are the scheme working as designed**, and it will
 keep producing them: the prefix records the milestone an RFC was *raised under*,
 milestones get re-planned, and an immutable identifier cannot follow a mutable
@@ -140,8 +145,11 @@ So the merged policy must state, normatively:
    raised** — and is **not** a claim about where it shipped.
 2. **`rfcs/README.md`'s "Shipped" column is the authority** for where an RFC
    landed.
-3. The divergence is **measured at nine of ninety-nine**, recorded so the
-   convention is not mistaken for an invariant.
+3. The divergence is **measured at nine of sixty-four** — prefixed RFCs that
+   record a shipped release, 14% — recorded so the convention is not mistaken
+   for an invariant. *(This RFC originally stated "nine of ninety-nine". That
+   denominator included 37 RFCs which have not shipped and therefore cannot
+   diverge; corrected in the R2 review.)*
 4. Two schemes coexist: flat `NNN-slug.md` for `000`–`061`, prefixed from v0.3
    onward. The break is historical and frozen; new RFCs use the prefixed form.
 
@@ -206,7 +214,7 @@ here rather than left implicit.
 | # | Requirement | Status |
 |---|---|---|
 | R1 | `accepted/` + `archive/`, two RFCs moved | **done 2026-08-03** |
-| R2 | The merged policy | **outstanding** |
+| R2 | The merged policy | **done 2026-08-03** |
 | R3 | Instrument learns `accepted/`; `proposed/` narrows | **done 2026-08-03** |
 | R4 | Both false citations corrected | **done 2026-08-03** |
 | R5 | README restructured, links swept (3 → 0) | **done 2026-08-03** |
@@ -255,7 +263,7 @@ here rather than left implicit.
       numbering, and states where and why it departs from the source policy.
 - [ ] It states **normatively** that the prefix is a batch label and not a
       release claim, that the README's "Shipped" column is authoritative, and
-      that nine of ninety-nine prefixed RFCs shipped elsewhere.
+      that nine of sixty-four prefixed-and-shipped RFCs shipped elsewhere.
 - [ ] **R3 demonstrated failing both ways** before being trusted: an `Accepted`
       RFC in `proposed/` → FAIL; a `Proposed` RFC in `accepted/` → FAIL.
 - [ ] Both false citations corrected; no document cites RFC 000 for a rule it

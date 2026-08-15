@@ -1,12 +1,12 @@
 # Fjell OS — RFC Index
 
-Folder is the source of truth for state.
+**Folder is the source of truth for state** — [RFC 000, § Folder
+layout](./done/000-rfc-lifecycle-policy.md#folder-layout--the-5-folder-variant-as-adopted).
 
-> This line previously cited [RFC 000](./done/000-rfc-lifecycle-policy.md) as
-> the authority for that rule. **RFC 000 does not state it** — it mentions
-> folders zero times. The citation was false and is removed rather than
-> propagated. RFC-0.25-002 R2 writes the rule into RFC 000's successor, at
-> which point the citation can be restored accurately.
+> This line previously cited RFC 000 for that rule while RFC 000 did not
+> state it — it mentioned folders zero times. The citation was removed
+> rather than propagated, and restored here now that RFC-0.25-002 R2 has
+> written the rule into RFC 000's merged successor.
 
 ```
 rfcs/
@@ -336,7 +336,7 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 1 RFC
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -349,7 +349,14 @@ functional lines. Errata E-013 through E-017 remain open and disclosed.
 | RFC | Title |
 |-----|-------|
 | 0.25-001 | [The External Interrupt Plane — and the first console input path](./accepted/RFC-0.25-001-external-interrupt-plane.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-001-external-interrupt-plane/implementation-handoff.md) |
-| 0.25-002 | [Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does](./accepted/RFC-0.25-002-rfc-lifecycle-policy-adoption.md) — accepted 2026-08-03; handoff: [`handoffs/`](./handoffs/RFC-0.25-002-rfc-lifecycle-policy-adoption/implementation-handoff.md) |
+
+---
+
+### 0.25 — governance
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.25-002 | [Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does](./done/RFC-0.25-002-rfc-lifecycle-policy-adoption.md) — R1–R5 complete; handoff: [`handoffs/`](./handoffs/RFC-0.25-002-rfc-lifecycle-policy-adoption/implementation-handoff.md) | 0.25 |
 
 ---
 
