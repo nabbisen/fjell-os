@@ -2,7 +2,7 @@
 
 **Governing RFC:** [RFC-0.25-001](../../proposed/RFC-0.25-001-external-interrupt-plane.md)
 **Milestone:** 0.25
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-08-03)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
