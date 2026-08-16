@@ -224,7 +224,7 @@ incomplete (**E-017**). Records: `docs/verification/instrument-audit.md`,
 `docs/verification/instrument-audit-closeout.md`,
 `docs/release/records/0.24.0.md`.
 
-### 0.25 — Functional advancement: the external interrupt plane (owner direction, 2026-08-03)
+### 0.25 — Functional advancement: the external interrupt plane (**shipped 2026-08-16**)
 
 **Release stability is deprioritised.** The owner has directed functional
 advancement first — service plane and human operability — with the instrument
@@ -262,7 +262,36 @@ Neither number is trustworthy enough to scope against — the grep only catches
 direct `ipc_recv`/`try_recv` — and an actual count is a prerequisite for taking
 the service-plane theme.
 
-### Beyond 0.25 — under discussion, not yet decided
+**Outcome.** Shipped as `0.25.0`. `RFC-0.25-001` built the floor — PLIC driver,
+`SupervisorExternal` decode, the three rights constants, three dispatch arms,
+UART RX, and `fjell-driver-uart` — and `syscall-surface` moved **35/26/9 →
+35/29/6**. `RFC-0.25-002` adopted the 5-folder RFC lifecycle and gave RFC 000 a
+folder-as-source-of-truth rule it had been cited for without containing.
+
+**A byte typed at the console now reaches a userspace service over a
+capability-checked, interrupt-driven path.** Not usable — there is no shell, no
+command set, no line editing. Interactive.
+
+Two things the line turned up that outlive it. `fjell-driver-virtio-net` gets
+past `sys_irq_bind` for the first time since v0.4 and now fails one layer
+further along for an honest reason (nothing ever populated its `CAP_IRQ` slot),
+so the network receive path has still never executed. And **E-018**: the
+scheduler's `PRIORITY_USER` has three disconnected copies with two values, so
+`init` preempts every other spawned task — invisible until now because every
+prior `init` path used a blocking recv that removed it from ready-queue
+contention. Correcting the constant hung the M6 boot sequence and was reverted.
+
+Records: `docs/release/records/0.25.0.md`.
+
+### 0.26 — the scheduler priority defect (owner direction, 2026-08-16)
+
+**E-018 becomes its own RFC.** Three copies of one constant with two values, a
+narrow `image_id`-keyed stopgap shipped in 0.25.0, and a proper fix that hangs
+the M6 boot sequence — meaning something already shipped depends on the broken
+ordering in a way nobody yet understands. That investigation, not the cleanup,
+is the line.
+
+### Beyond 0.26 — under discussion, not yet decided
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
 continues. The owner has directed that functional advancement, not only

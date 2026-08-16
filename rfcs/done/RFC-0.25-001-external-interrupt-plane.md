@@ -1,6 +1,6 @@
 # RFC-0.25-001: The External Interrupt Plane — and the first console input path
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-03; implementation may begin (RFC 000)
+**Status:** Implemented (0.25.0) — accepted 2026-08-03
 **Milestone:** 0.25
 **Tracks.** Kernel external-interrupt handling; the first user-facing input path.
 **Touches.** `crates/fjell-kernel` (trap decode, PLIC, three syscall dispatch

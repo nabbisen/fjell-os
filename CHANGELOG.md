@@ -5,6 +5,88 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.25.0] — 2026-08-16 — The external interrupt plane; the project accepts input
+
+The first release in which a person can put something into this system and a
+service receives it.
+
+Before this line the kernel decoded **no external interrupt at all**. `scause`
+cause 9, `SupervisorExternal`, was not a `TrapKind` — it fell through to
+`Other(scause)`, which its own doc comment describes as logged-and-ignored in
+user mode and **panicking in kernel mode**. Above that absence sat a complete,
+documented design: three syscalls with doc-comments describing PLIC
+claim/complete semantics, an `Interrupt` capability kind, and a shipped driver
+whose entire receive loop was written against them.
+
+### Added — the interrupt plane (RFC-0.25-001)
+
+- **A PLIC driver** (`crates/fjell-kernel/src/plic.rs`) — init, per-source
+  enable and priority, threshold, claim, complete. QEMU `virt` S-mode context 1.
+- **`TrapKind::SupervisorExternal`** decoded and dispatched. The kernel claims
+  the interrupt, finds the bound task, and **unblocks it — it never reads
+  device data.** The driver reads its own registers afterwards.
+- **`IRQ_BIND` / `IRQ_UNBIND` / `IRQ_ACK` rights**, which previously existed
+  only as words inside a doc comment on the `Interrupt` capability variant. No
+  constants were defined; nothing could enforce them.
+- **`sys_irq_bind` / `sys_irq_wait` / `sys_irq_ack` dispatch arms**, each
+  capability-checked. `sys_irq_wait` blocks through the *existing* IPC
+  `Blocked`/wake path — no second blocking mechanism — with a per-source
+  pending flag guarding the check-then-block window against lost wakeups.
+- **UART `RBR` / `IER` / `LSR`**, and the RX interrupt enabled at boot. The
+  kernel keeps `THR` and `LSR` bit 5 for panic output; the driver owns `RBR`,
+  `IER`, and `LSR` bits 0–4. `LSR` clears its error bits on read, so the
+  ownership split is stated in a comment at both sites.
+- **`crates/drivers/fjell-driver-uart`** — binds UART0's IRQ, waits, reads the
+  byte, delivers it over IPC. Bytes to a service; no shell, no echo policy, no
+  line editing.
+- **Two fail-closed QEMU profiles** — `uart-rx` (a real keystroke injected into
+  QEMU's stdin once a marker appears) and `uart-rx-unbound`. `test-all` is now
+  21 tiers.
+- `syscall-surface` moves **35/26/9 → 35/29/6**.
+
+### Fixed
+
+- **`SyscallNumber::from_usize` had no arm for `IrqWait`.** Its number never
+  round-tripped, so the ecall could not have reached any dispatch arm
+  regardless of what was implemented. Found because debug prints inside the
+  function did not fire — the absence of expected output, not a failure.
+- **Two interrupt storms**, both found by running rather than reasoning.
+  Completing a PLIC claim before the driver has cleared a *level-triggered*
+  condition re-arms a line that is still asserting. Completion moved to
+  `sys_irq_ack`; the unbound path leaves the source claimed and
+  `sys_irq_bind` completes any outstanding claim on the source it binds.
+
+### Known limitations carried into this release
+
+- **E-018** *(new)* — `PRIORITY_USER` has **three disconnected copies with two
+  values**: `spawn.rs`'s local `2`, `scheduler::PRIORITY_USER = 32`, and a
+  third hardcoded `2` in `sys_task_start`. `init` therefore preempts every
+  other spawned task whenever both are ready. Invisible until now because every
+  prior `init` path used a *blocking* recv, which removed it from ready-queue
+  contention entirely. Correcting the constant hung the M6 boot sequence and
+  was reverted; a narrow `image_id`-keyed stopgap covers `driver-uart` alone.
+  **ACCEPTED; its own RFC next.**
+- **E-013** — the gate tools' own tests run under no mechanism. This is the
+  first release where that constrains the work: `fjell-kernel` has no `[lib]`,
+  so every claim in the interrupt plane rests on a QEMU log rather than a test.
+- **E-014 / E-015 / E-016 / E-017** — carried unchanged from 0.24.0. The
+  instrument audit's 33 findings remain open and its 22 `sound` verdicts remain
+  provisional.
+
+### Also in this release (RFC-0.25-002)
+
+- The **5-folder RFC lifecycle** (`proposed/`, `accepted/`, `done/`,
+  `archive/`, `handoffs/`), and an RFC 000 that finally **states
+  folder-as-source-of-truth** — a rule two files had been citing it for while
+  it mentioned folders zero times.
+- `rfc-status-folder` reads three folders and narrows `proposed/` to `Proposed`
+  only, demonstrated failing in both directions before being trusted.
+- The RFC filename prefix is documented as a **batch label, not a release
+  claim** — nine of the sixty-four prefixed RFCs that record a shipped release
+  shipped under a different milestone than their prefix names.
+
+---
+
 ## [0.24.0] — 2026-08-03 — The instruments audited, and the ones that lied repaired
 
 No new OS functionality; no kernel, ABI, capability, lease, IPC, or crypto

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.25-001
 
-**Governing RFC:** [RFC-0.25-001](../../accepted/RFC-0.25-001-external-interrupt-plane.md)
+**Governing RFC:** [RFC-0.25-001](../../done/RFC-0.25-001-external-interrupt-plane.md)
 **Milestone:** 0.25
-**Status:** inherited from the governing RFC (Accepted, 2026-08-03)
+**Status:** inherited from the governing RFC (Implemented, 0.25.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
