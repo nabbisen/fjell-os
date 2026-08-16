@@ -339,6 +339,48 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `docs/verification/instrument-audit-closeout.md` §4.1 and
   `docs/release/v1-limitations.md`.
 
+## E-018 — `task::scheduler::PRIORITY_USER` has three disconnected copies, two values
+
+- **Claim:** every spawned user task, including `init`, runs at the same
+  ready-queue priority bucket, so the round-robin scheduler gives each a fair
+  turn. `task::scheduler::PRIORITY_USER = 32` is the one real constant this
+  implies.
+- **Shipped:** two other, disconnected copies exist with a different value:
+  `task/spawn.rs`'s local `const PRIORITY_USER: u8 = 2`, used for every task
+  spawned through `spawn()` (i.e. every service except `init`, which is
+  constructed by a separate hand-rolled path in `main.rs` using the real
+  `32`), and a third hardcoded literal `2` in `trap/syscall.rs`'s
+  `sys_task_start`, which ignores `Task.priority` entirely at enqueue time.
+  `priority_to_bucket` places 2 and 32 in different buckets
+  (`(p as usize) * 8 / 256`), and `Scheduler::choose_next` always drains the
+  higher bucket first — so **`init` preempts every other spawned task
+  whenever both are ready.**
+
+  Invisible until RFC-0.25-001: every existing `init` code path that waits on
+  another service uses a *blocking* `sys_ipc_recv` (`wait_service_ready`,
+  `wait_storaged_ready`, `wait_ready_exact`), which removes `init` from the
+  ready queue entirely and sidesteps the bug by construction — nothing before
+  RFC-0.25-001 ever yield-looped from `init` while another service was still
+  starting. RFC-0.25-001's `init` needed a *non-blocking* poll for its uart-rx
+  byte (a blocking wait would hang every QEMU profile that never types
+  anything), and that poll starved `crates/drivers/fjell-driver-uart`
+  completely — `init`'s poll budget exhausted and moved on before
+  `driver-uart`'s own spawn code ever ran a single instruction.
+
+  Fixing the constant directly was attempted and reverted: it hung the M6
+  boot sequence, meaning some already-shipped code path depends on today's
+  (broken) ordering in a way not yet understood. RFC-0.25-001 ships a narrow,
+  `image_id`-keyed stopgap instead — `crates/drivers/fjell-driver-uart` alone
+  is spawned at `init`'s own priority bucket
+  (`crates/fjell-kernel/src/task/spawn.rs`, `crates/fjell-kernel/src/trap/
+  syscall.rs::sys_task_start`) — rather than correcting the general constant.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-16, reviewing
+  RFC-0.25-001). The stopgap is keyed on task identity (`image_id`), not
+  table position, so it does not reintroduce the class of defect
+  RFC-v0.23-002 removed from milestone markers. The general fix is real
+  investigation — why the M6 hang happens — not a cleanup, and needs its own
+  RFC. See `docs/release/v1-limitations.md`.
+
 ---
 
 ## Summary
@@ -362,8 +404,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-015 hand-enumerated instrument scopes drifted from reality | 0.25 candidate (recorded, not fixed) | ACCEPTED |
 | E-016 no link, index, or count integrity instrument | 0.25 candidate (recorded, not fixed) | ACCEPTED |
 | E-017 audit `sound` verdicts not all demonstration-backed | 0.25 candidate (re-derivation incomplete) | ACCEPTED |
+| E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC after 0.25 (recorded, not fixed) | ACCEPTED |
 
-At the 0.24.0 cut (2026-08-03): **0 OPEN, 9 CLOSED, 8 ACCEPTED.** E-014,
+E-018 was filed during RFC-0.25-001, after the 0.24.0 cut. At the 0.24.0 cut
+(2026-08-03): **0 OPEN, 9 CLOSED, 8 ACCEPTED.** E-014,
 E-015 and E-016 were filed together as the instrument audit's
 disposition — grouped by root cause rather than one per finding, so the register
 records four families instead of thirty-three individually-true rows. Each names

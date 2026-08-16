@@ -76,6 +76,8 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::NETD => Some(NETD_BIN),
         ImageId::SECURE_TRANSPORTD => Some(SECURE_TRANSPORT_BIN),
         ImageId::DIAGNOSTICSD => Some(DIAGNOSTICSD_BIN),
+        // RFC-0.25-001
+        ImageId::DRIVER_UART => Some(DRIVER_UART_BIN),
         _ => None,
     }
 }
@@ -108,3 +110,5 @@ static VIRTIO_NET_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-driver-virti
 static NETD_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-netd.bin");
 static SECURE_TRANSPORT_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-secure-transportd.bin");
 static DIAGNOSTICSD_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-diagnosticsd.bin");
+// RFC-0.25-001: external interrupt plane
+static DRIVER_UART_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-driver-uart.bin");

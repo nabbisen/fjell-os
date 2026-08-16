@@ -330,6 +330,11 @@ pub mod negative_markers {
     /// Snapshot continuity check reports dropped records correctly.
     pub const AUDIT_EVIDENCE_GAP: &str = "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS";
 
+    // ── external interrupt plane (RFC-0.25-001) ───────────────────────────────
+    /// `sys_irq_bind` rejects an `Interrupt` capability without `IRQ_BIND`
+    /// (Demonstration 4: a boundary is shown to exist by it saying no).
+    pub const IRQ_BIND_WITHOUT_RIGHT: &str = "NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED:PASS";
+
     // ── v0.2 release gate ─────────────────────────────────────────────────────
     /// All v0.2 negative-test categories have been exercised.
     pub const V02_RELEASE_GATE: &str = "TEST:V02:PASS";

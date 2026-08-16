@@ -1,0 +1,4 @@
+irq: external interrupt plane enabled
+driver-uart: ready
+driver-uart: byte received
+v0.25: uart byte='Q' delivered over IPC

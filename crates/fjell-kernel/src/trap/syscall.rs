@@ -5,7 +5,7 @@
 //!   TRAP-001  sepc is advanced by 4 after every ecall.
 //!   TRAP-002  Unknown syscall → SysError::UnknownSyscall, no panic.
 
-use crate::task::tcb::{REG_A0, REG_A1, REG_A2, REG_A3, REG_A7, TrapFrame};
+use crate::task::tcb::{BlockReason, REG_A0, REG_A1, REG_A2, REG_A3, REG_A7, TaskState, TrapFrame};
 use fjell_abi::{error::SysError, syscall::SyscallNumber};
 
 /// Dispatch a syscall.
@@ -48,6 +48,10 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::MmioMap)         => sys_mmio_map(tf),
         Some(SyscallNumber::DmaAlloc)        => sys_dma_alloc(tf),
         Some(SyscallNumber::DmaRevoke)       => sys_dma_revoke(tf),
+        // RFC-0.25-001: external interrupt plane
+        Some(SyscallNumber::IrqBind)         => sys_irq_bind(tf),
+        Some(SyscallNumber::IrqWait)         => sys_irq_wait(tf),
+        Some(SyscallNumber::IrqAck)          => sys_irq_ack(tf),
         // DebugWrite handled before
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
@@ -412,7 +416,21 @@ pub fn sys_task_start(
                 task.trap_frame.gpr[2] = stack;
             }
             task.state = TaskState::Runnable;
-            sched.enqueue_runnable(tid, 2 /* PRIORITY_USER */);
+            // STOPGAP (Errata E-018, docs/rfcs/ERRATA.md), not a considered
+            // priority decision: this "2" is a third disconnected copy of
+            // the same stale priority value as `task/spawn.rs`'s local
+            // `PRIORITY_USER` — it ignores `task.priority` entirely. Not
+            // fixed generally here (confirmed live via an M6 hang when
+            // tried; needs its own RFC). driver-uart alone is bumped to
+            // init's own priority bucket, identity-keyed (`image_id`, not
+            // table position), so it can actually run while init's
+            // non-blocking uart-rx poll loop is yielding — see E-018.
+            let priority = if task.image_id == fjell_abi::service::ImageId::DRIVER_UART {
+                crate::task::scheduler::PRIORITY_USER
+            } else {
+                2 /* PRIORITY_USER */
+            };
+            sched.enqueue_runnable(tid, priority);
             tf.gpr[REG_A0] = 0;
         }
         None => {
@@ -972,6 +990,201 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     }
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = device_va_base; // RFC 051: VA in device range, not PA
+}
+
+// ── RFC-0.25-001: IRQ syscalls ──────────────────────────────────────────────
+
+/// `sys_irq_bind(a0=irq_cap) -> a0=status`
+///
+/// Records the calling task as the owner of the interrupt line described by
+/// `irq_cap`. Requires an `Interrupt` capability with `IRQ_BIND`. Does not
+/// touch the PLIC — the source's PLIC-level enable/priority is programmed
+/// once at boot (`plic::init` + `plic::enable`, `main.rs`); binding only
+/// records which task the trap handler should wake.
+pub fn sys_irq_bind(tf: &mut TrapFrame) {
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
+    let tidx = crate::trap::dispatch::current_task_idx();
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (_, sched, cap_table, _) = unsafe { crate::get_kernel_state() };
+    let cur_id = match sched.current() {
+        Some(id) => id,
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let lt = unsafe { crate::get_lease_table() };
+    let cs = match cap_table.cspace(tidx) {
+        Some(c) => c,
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
+    let irq = match fjell_cap::enforcement::require_cap(
+        cs,
+        cap_handle,
+        CapKind::Interrupt,
+        CapRights::IRQ_BIND,
+        None,
+        lt,
+    ) {
+        Ok(cap) => cap.object_id,
+        Err(e) => {
+            tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+            return;
+        }
+    };
+
+    if !crate::irq_table().bind(irq, cur_id) {
+        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
+        return;
+    }
+    // Demonstration 3 (recovery half): if this source fired with no bound
+    // task before now, the trap handler left it claimed-and-not-completed
+    // (masked) rather than storming on a persistently-asserted level
+    // condition — see `trap/dispatch.rs::handle_external_interrupt`. Binding
+    // now completes that outstanding claim so the source can re-arm for its
+    // new owner. Harmless if there was nothing outstanding (see
+    // `plic::complete`'s doc comment).
+    // SAFETY: category=mmio-access `irq` came from a capability-checked
+    // Interrupt cap.
+    unsafe { crate::plic::complete(irq) };
+    tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+}
+
+/// `sys_irq_wait(a0=irq_cap) -> a0=status`
+///
+/// Blocks the calling task until the interrupt line described by `irq_cap`
+/// fires. Requires an `Interrupt` capability with `IRQ_BIND` (the same right
+/// as bind — there is no separate `IRQ_WAIT` right; see `rights.rs`).
+///
+/// D3 / handoff §0.1 (lost-wakeup guard): if the interrupt already arrived
+/// before this call (recorded as "pending" by the trap handler because the
+/// task was not yet blocked), this returns immediately instead of blocking —
+/// the same check-then-block shape `sys_ipc_try_recv`/`sys_ipc_recv` already
+/// use for endpoints. Otherwise this reuses the scheduler's existing
+/// `Blocked` state and `suspend_current` wake path (`scheduler.rs`), not a
+/// second blocking mechanism.
+pub fn sys_irq_wait(tf: &mut TrapFrame) {
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
+    let tidx = crate::trap::dispatch::current_task_idx();
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (table, sched, cap_table, _) = unsafe { crate::get_kernel_state() };
+    let cur_id = match sched.current() {
+        Some(id) => id,
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let lt = unsafe { crate::get_lease_table() };
+    let cs = match cap_table.cspace(tidx) {
+        Some(c) => c,
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
+    let irq = match fjell_cap::enforcement::require_cap(
+        cs,
+        cap_handle,
+        CapKind::Interrupt,
+        CapRights::IRQ_BIND,
+        None,
+        lt,
+    ) {
+        Ok(cap) => cap.object_id,
+        Err(e) => {
+            tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+            return;
+        }
+    };
+
+    let it = crate::irq_table();
+    if it.bound_task(irq) != Some(cur_id) {
+        // Waiting without having successfully bound first is a caller error
+        // (and guards against a stray cap to the same irq object_id
+        // "hijacking" wakeups meant for the task that actually bound it).
+        tf.gpr[REG_A0] = SysError::BadState as isize as usize;
+        return;
+    }
+
+    if it.take_pending(irq) {
+        tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+        return;
+    }
+
+    // Block exactly as blocked IPC does (D3): Blocked state + suspend_current.
+    // a0 is set to Ok now, before blocking, so it is already correct in the
+    // trap frame when the interrupt handler later wakes this task and it
+    // resumes past the ecall (same pattern as sys_ipc_call's Queued path).
+    if let Some(t) = table.get_mut(cur_id) {
+        t.state = TaskState::Blocked(BlockReason::Irq(irq));
+    }
+    tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+    sched.suspend_current();
+}
+
+/// `sys_irq_ack(a0=irq_cap) -> a0=status`
+///
+/// Re-arms the interrupt line after `sys_irq_wait` has returned. Requires an
+/// `Interrupt` capability with `IRQ_ACK`.
+///
+/// The PLIC-level claim/complete pairing (R1) already happens synchronously
+/// in the trap handler (`trap/dispatch.rs::handle_external_interrupt`) at
+/// the moment the interrupt fires, not deferred to this call — so this is a
+/// capability-checked protocol step for the driver ("I have finished
+/// handling the last interrupt") and, having verified that, completes the
+/// PLIC claim the trap handler deliberately left outstanding
+/// (`trap/dispatch.rs::handle_external_interrupt`) — completing any earlier
+/// re-arms the source, which is only safe once the driver has actually
+/// cleared the device-side condition. Completing synchronously in the trap
+/// handler instead was tried and reverted: with a level-triggered source
+/// (UART RX-data-ready) it re-fires before the woken driver task ever gets
+/// to run, an infinite-interrupt storm confirmed live during Demonstration
+/// 6 testing.
+pub fn sys_irq_ack(tf: &mut TrapFrame) {
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
+    let tidx = crate::trap::dispatch::current_task_idx();
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let lt = unsafe { crate::get_lease_table() };
+    let cs = match cap_table.cspace(tidx) {
+        Some(c) => c,
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
+    let irq = match fjell_cap::enforcement::require_cap(
+        cs,
+        cap_handle,
+        CapKind::Interrupt,
+        CapRights::IRQ_ACK,
+        None,
+        lt,
+    ) {
+        Ok(cap) => cap.object_id,
+        Err(e) => {
+            tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+            return;
+        }
+    };
+    // SAFETY: category=mmio-access `irq` came from a capability-checked
+    // Interrupt cap; completing an irq that was not actually outstanding is
+    // a PLIC-spec violation but harmless on QEMU's model (see `plic::complete`).
+    unsafe { crate::plic::complete(irq) };
+    tf.gpr[REG_A0] = SysError::Ok as isize as usize;
 }
 
 /// `sys_dma_alloc(a0=dma_cap_handle, a1=size_bytes) -> a0=status, a1=user_va, a2=device_pa`

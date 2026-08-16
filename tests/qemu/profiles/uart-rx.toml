@@ -1,0 +1,28 @@
+# RFC-0.25-001 (Demonstration 6, the headline capability this line exists
+# for): a byte typed at the QEMU console reaches fjell-driver-uart and is
+# delivered over IPC to init. Fail-closed and permanent — folded into
+# test-all's coverage so this cannot rot per the handoff's explicit
+# instruction, following the `semantic.toml` pattern.
+#
+# `-nographic` (the default extra_args, added by qemu_run.rs) wires QEMU's
+# emulated UART0 to the host process's stdin/stdout. `inject_after_marker`
+# writes `inject_bytes` to that stdin once the named marker appears in the
+# captured output — simulating a real keystroke, not a kernel-internal
+# shortcut. See qemu_run.rs::run_with_stdin_injection.
+#
+# Note: markers must not contain `]` — the hand-rolled TOML array reader
+# (qemu_run.rs::load_profile) treats the first `]` in any accumulated line
+# as the array's closing bracket (see semantic.toml for the live incident
+# this note documents). Kept bracket-free here for the same reason.
+
+name                 = "uart-rx"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "Q"
+expected_markers = [
+    "irq: external interrupt plane enabled",
+    "driver-uart: ready",
+    "driver-uart: byte received",
+    "v0.25: uart byte='Q' delivered over IPC",
+]
+extra_args = []

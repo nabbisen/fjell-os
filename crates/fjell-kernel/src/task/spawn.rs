@@ -13,6 +13,16 @@ use fjell_abi::error::SysError;
 use fjell_abi::service::ImageId;
 use fjell_abi::task::TaskId;
 
+// Errata E-018 (docs/rfcs/ERRATA.md), ACCEPTED: this local constant shadows
+// `task::scheduler::PRIORITY_USER` (32) with a different value (2). They map
+// to different ready-queue buckets (`priority_to_bucket`: 2 → bucket 0, 32 →
+// bucket 1), so every service spawned through this function runs in a
+// strictly lower-priority bucket than init (constructed by a separate
+// hand-rolled path in main.rs using the real constant 32) — init preempts
+// every other task whenever both are ready. Changing this constant to fix it
+// was tried and reverted: it made the M6 boot sequence hang (a different,
+// already-shipped code path apparently depends on today's ordering), so the
+// fix needs its own RFC, not an in-line correction here.
 const PRIORITY_USER: u8 = 2;
 
 /// Spawn a new task from `image_id`.
@@ -54,6 +64,25 @@ pub fn spawn(
             fa,
         )
         .map_err(|_| SysError::NoMemory)?;
+
+    // RFC-0.25-001: map the PLIC pages the trap handler touches on every
+    // external interrupt (`crate::plic::claim`/`complete`, and `enable` from
+    // `sys_irq_bind`). Trap-handling code runs under whichever task's page
+    // table happens to be active, same reasoning as the UART mapping above —
+    // R|W, no U: only S-mode trap-handling code touches the PLIC directly.
+    for &pa in crate::plic::MAPPED_PAGES.iter() {
+        if let Ok(f) = PhysFrame::from_pa(pa) {
+            aspace
+                .map_page(
+                    VirtAddr(pa),
+                    f,
+                    VmPerms::R | VmPerms::W,
+                    VmRegionKind::Mmio,
+                    fa,
+                )
+                .map_err(|_| SysError::NoMemory)?;
+        }
+    }
 
     // Map all 8 virtio-mmio slots (0x10001000..0x10008000) with R|W (no U).
     // Supervisor-mode trap handlers (sys_platform_info_get, sys_mmio_map) can
@@ -142,10 +171,26 @@ pub fn spawn(
         .alloc_frame(FrameOwner::KernelStack)
         .map_err(|_| SysError::NoMemory)?;
 
+    // STOPGAP (Errata E-018, docs/rfcs/ERRATA.md), not a considered priority
+    // decision: driver-uart alone is bumped to init's own priority bucket so
+    // it can actually run while init's non-blocking uart-rx poll loop is
+    // yielding (init blocking here instead would hang every OTHER QEMU
+    // profile that never types anything — see fjell-init/src/main.rs). Every
+    // other spawned service is left at the existing (broken) `PRIORITY_USER`
+    // — see E-018 and the note on that constant above. This is a narrow,
+    // identity-keyed (`image_id`, not table position) patch for the one
+    // interaction this RFC needed fair, not a fix for the underlying
+    // three-copies-two-values defect, which needs its own RFC.
+    let priority = if image_id == fjell_abi::service::ImageId::DRIVER_UART {
+        crate::task::scheduler::PRIORITY_USER
+    } else {
+        PRIORITY_USER
+    };
+
     // Build TCB.
     let mut t = Task::new(
         tid,
-        PRIORITY_USER,
+        priority,
         asp_id,
         kstack_f.pa() + 4096,
         SERVICE_STACK_TOP,
@@ -175,6 +220,7 @@ pub fn spawn(
             //   2 = measuredd (M8)
             //   3 = attestd   (M8)
             //   4 = recoveryd (M8)
+            //   9 = uart-rx (RFC-0.25-001 — driver-uart posts received bytes here)
             let ep_obj: u32 = match image_id {
                 fjell_abi::service::ImageId::STORAGED => 1,
                 fjell_abi::service::ImageId::MEASUREDD => 2,
@@ -189,6 +235,8 @@ pub fn spawn(
                 // RFC-v0.23-001: dedicated endpoints for the ABDD live path.
                 fjell_abi::service::ImageId::SEMANTIC_STREAM => 7,
                 fjell_abi::service::ImageId::PROXY_TEXT => 8,
+                // RFC-0.25-001: driver-uart's send end of the uart-rx endpoint.
+                fjell_abi::service::ImageId::DRIVER_UART => 9,
                 _ => 0,
             };
             let _ = cs.install_raw(
@@ -258,6 +306,12 @@ pub fn spawn(
                     static ALL: &[usize] = &[0, 1, 2, 3, 4];
                     Some(ALL)
                 }
+                fjell_abi::service::ImageId::DRIVER_UART => {
+                    // RFC-0.25-001: UART0's own registers (region 1) — slot
+                    // 31+1=32, matching `fjell-driver-uart`'s CAP_MMIO constant.
+                    static UART0: &[usize] = &[1];
+                    Some(UART0)
+                }
                 _ => None,
             };
             if let Some(regions) = mmio_regions_for_service {
@@ -280,6 +334,25 @@ pub fn spawn(
                         }
                     }
                 }
+            }
+            // Slot 1: Interrupt cap — granted to driver-uart only (RFC-0.25-001).
+            // object_id = 10 = UART0's IRQ line on QEMU virt (handoff §2, R6).
+            if image_id == fjell_abi::service::ImageId::DRIVER_UART {
+                let _ = cs.install_raw(
+                    1,
+                    Capability {
+                        kind: CapKind::Interrupt,
+                        object_id: 10,
+                        rights: CapRights(
+                            CapRights::IRQ_BIND.0 | CapRights::IRQ_UNBIND.0 | CapRights::IRQ_ACK.0,
+                        ),
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
             }
             // Slot 1: AuditDrain cap — granted to auditd only (RFC 020).
             // Fixed in v0.2.9: was RECV (wrong right), now AUDIT_DRAIN per sys_audit_drain check.
@@ -319,6 +392,26 @@ pub fn spawn(
                         kind: CapKind::DmaRegion,
                         object_id: 0,
                         rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+            // Slot 9: Interrupt cap for NEG_TEST, deliberately WITHOUT
+            // IRQ_BIND (RFC-0.25-001 Demonstration 4: a task without the
+            // right must be refused, not merely lack the capability kind —
+            // IRQ_ACK is granted so the rejection is specifically a
+            // MissingRight, not a WrongKind or EmptySlot).
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(
+                    9,
+                    Capability {
+                        kind: CapKind::Interrupt,
+                        object_id: 10,
+                        rights: CapRights::IRQ_ACK,
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,

@@ -42,6 +42,8 @@ pub const SERVICES: &[&str] = &[
     "fjell-netd",
     "fjell-secure-transportd",
     "fjell-diagnosticsd",
+    // RFC-0.25-001
+    "fjell-driver-uart",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.

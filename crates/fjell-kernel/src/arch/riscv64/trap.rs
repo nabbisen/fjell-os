@@ -9,6 +9,9 @@ pub enum TrapKind {
     UserEcall,
     /// Supervisor timer interrupt (interrupt bit set, cause = 5).
     SupervisorTimer,
+    /// Supervisor external interrupt (interrupt bit set, cause = 9).
+    /// RFC-0.25-001: routed through the PLIC (`crate::plic`).
+    SupervisorExternal,
     /// Instruction page fault (cause = 12).
     InstructionPageFault,
     /// Load page fault (cause = 13).
@@ -29,6 +32,7 @@ pub fn decode_trap(scause: usize) -> TrapKind {
     if interrupt == 1 {
         match code {
             5 => TrapKind::SupervisorTimer,
+            9 => TrapKind::SupervisorExternal,
             _ => TrapKind::Other(scause),
         }
     } else {

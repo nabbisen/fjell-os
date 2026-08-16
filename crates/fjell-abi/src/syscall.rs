@@ -128,12 +128,47 @@ impl SyscallNumber {
             91 => Some(Self::MmioUnmap),
             100 => Some(Self::IrqBind),
             101 => Some(Self::IrqAck),
+            // RFC-0.25-001: this arm was missing — IrqWait's ecalls (a7=102)
+            // fell through to `None`/UnknownSyscall no matter what dispatch
+            // logic R4 added, since `from_usize` never round-tripped 102 at
+            // all. IrqBind/IrqAck happened to be adjacent and correct, which
+            // is presumably why this was never noticed before now: nothing
+            // exercised IrqWait's numeric round-trip until R4 gave it a real
+            // dispatch arm to reach. Caught live via a QEMU serial log
+            // showing "irq_wait error" with no kernel-side log line at all
+            // from `sys_irq_wait` — i.e. the syscall never reached it.
+            102 => Some(Self::IrqWait),
             110 => Some(Self::DmaAlloc),
             111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
             120 => Some(Self::Reboot),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod rfc_0_25_001_tests {
+    use super::SyscallNumber;
+
+    /// RFC-0.25-001: `from_usize` must round-trip IrqBind/IrqWait/IrqAck —
+    /// 102 (IrqWait) was silently absent from the match until this RFC,
+    /// discovered live via a QEMU log showing the syscall never reaching
+    /// its kernel dispatch arm at all.
+    #[test]
+    fn irq_syscalls_round_trip() {
+        assert_eq!(
+            SyscallNumber::from_usize(SyscallNumber::IrqBind as usize),
+            Some(SyscallNumber::IrqBind)
+        );
+        assert_eq!(
+            SyscallNumber::from_usize(SyscallNumber::IrqWait as usize),
+            Some(SyscallNumber::IrqWait)
+        );
+        assert_eq!(
+            SyscallNumber::from_usize(SyscallNumber::IrqAck as usize),
+            Some(SyscallNumber::IrqAck)
+        );
     }
 }
 // v0.7.x additions

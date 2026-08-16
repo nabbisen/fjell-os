@@ -54,6 +54,7 @@ members = [
     "crates/fjell-keyring",
     "crates/formats/fjell-net-format",
     "crates/drivers/fjell-driver-virtio-net",
+    "crates/drivers/fjell-driver-uart",
     "crates/services/fjell-netd",
     "crates/fjell-sxt-crypto",
     "crates/services/fjell-secure-transportd",

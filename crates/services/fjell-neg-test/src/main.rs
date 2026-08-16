@@ -10,6 +10,7 @@
 //! | 0    | Endpoint      | ALL              | Own endpoint             |
 //! | 1    | AuditDrain    | AUDIT_DRAIN      | User-copy tests (RFC 039)|
 //! | 2    | DmaRegion     | DMA_ALLOC+USE+..| DMA revoke test (RFC 036)|
+//! | 9    | Interrupt     | IRQ_ACK only     | IRQ rights test (RFC-0.25-001)|
 //! | 31   | MmioRegion 0  | ALL              | Bounds test (RFC 035)    |
 //!
 //! # Test categories covered
@@ -45,6 +46,7 @@ const SLOT_TASK_CREATE: u32 = 5; // TaskCreate cap (used by sys_task_spawn)
 #[allow(dead_code)]
 const SLOT_TASK_CONTROL: u32 = 6; // TaskControl cap (used by sys_task_start/status)
 const SLOT_SAMPLE_EP: u32 = 7; // Endpoint cap to sample-service (object 6, RFC 042)
+const SLOT_IRQ: u32 = 9; // Interrupt cap, IRQ_ACK only, no IRQ_BIND (RFC-0.25-001)
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 const SLOT_SCRATCH_C: u32 = 12; // scratch slot for audit overflow loop
@@ -132,6 +134,17 @@ fn test_cap_rights_denied() {
         }
         Err(_) => setup_failed("rights_denied: scratch mint"),
     }
+}
+
+/// IRQ: `sys_irq_bind` on an `Interrupt` cap that holds `IRQ_ACK` but not
+/// `IRQ_BIND` → PermissionDenied (RFC-0.25-001 Demonstration 4).
+fn test_irq_bind_without_right() {
+    let result = fjell_syscall::sys_irq_bind(CapHandle(SLOT_IRQ));
+    check_err(
+        result,
+        fjell_abi::error::SysError::PermissionDenied,
+        M::IRQ_BIND_WITHOUT_RIGHT,
+    );
 }
 
 /// CAP: copy a cap, bind a lease, revoke the lease, use the cap → LeaseRevoked.
@@ -814,6 +827,7 @@ pub extern "C" fn service_main() -> ! {
     test_cap_lease_revoked();
     test_cap_drop_on_revoked();
     test_cap_wrong_kind();
+    test_irq_bind_without_right();
     // ── RFC 049: capability management rights ─────────────────────────────────
     test_cap_copy_without_right();
     test_cap_mint_without_right();

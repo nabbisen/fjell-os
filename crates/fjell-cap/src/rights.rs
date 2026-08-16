@@ -67,15 +67,24 @@ impl CapRights {
     /// RFC 056: authority to call `sys_cap_install` (meta-right; bit 26).
     pub const CAP_INSTALL: Self = CapRights(1 << 26);
 
+    // Interrupt rights (RFC-0.25-001)
+    /// Authority to call `sys_irq_bind` on an `Interrupt` capability.
+    pub const IRQ_BIND: Self = CapRights(1 << 27);
+    /// Authority to call `sys_irq_unbind` on an `Interrupt` capability.
+    pub const IRQ_UNBIND: Self = CapRights(1 << 28);
+    /// Authority to call `sys_irq_ack` on an `Interrupt` capability.
+    pub const IRQ_ACK: Self = CapRights(1 << 29);
+
     /// All rights EXCLUDING meta-rights (CAP_INSTALL, CAP_REVOKE).
     /// Use for ordinary service grants. Formerly named `ALL`.
     pub const ALL_NON_META: Self = CapRights((1 << 26) - 1);
     /// Backward-compatible alias for `ALL_NON_META`.
     #[deprecated(since = "0.7.1", note = "use ALL_NON_META or ALL_DEFINED explicitly")]
     pub const ALL: Self = Self::ALL_NON_META;
-    /// All currently defined rights, including meta-rights CAP_INSTALL (bit 26).
+    /// All currently defined rights, including meta-rights CAP_INSTALL (bit 26)
+    /// and the IRQ rights (bits 27-29, RFC-0.25-001).
     /// Use only for cap-broker and trust-provider admin paths.
-    pub const ALL_DEFINED: Self = CapRights((1 << 27) - 1);
+    pub const ALL_DEFINED: Self = CapRights((1 << 30) - 1);
     /// No rights.
     pub const NONE: Self = CapRights(0);
 

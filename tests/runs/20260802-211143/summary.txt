@@ -1,0 +1,29 @@
+═══════════════════════════════════════════════════════════
+                    FJELL TEST-ALL SUMMARY
+═══════════════════════════════════════════════════════════
+
+Tier  Label                                                Time  Result
+───────────────────────────────────────────────────────────────────────────
+1     Host library tests                                   1.5s  PASS
+2     Property tests (proptest)                            5.8s  PASS
+3     Unsafe site audit                                    0.2s  PASS
+4     MMIO ordering audit                                  0.2s  PASS
+5     Reproducible build (skip-build)                      0.0s  PASS
+6     QEMU smoke: m8                                             SKIP (skipped via --no-qemu)
+7     QEMU smoke: v0.4-net                                       SKIP (skipped via --no-qemu)
+8     QEMU smoke: v0.5-platform                                  SKIP (skipped via --no-qemu)
+9     QEMU smoke: v0.7-sync                                      SKIP (skipped via --no-qemu)
+10    QEMU negative: capability                                  SKIP (skipped via --no-qemu)
+11    QEMU negative: mmio                                        SKIP (skipped via --no-qemu)
+12    QEMU negative: dma                                         SKIP (skipped via --no-qemu)
+13    QEMU negative: user-copy                                   SKIP (skipped via --no-qemu)
+14    QEMU negative: audit                                       SKIP (skipped via --no-qemu)
+15    QEMU negative: policy                                      SKIP (skipped via --no-qemu)
+16    QEMU negative: ipc                                         SKIP (skipped via --no-qemu)
+17    QEMU negative: svc                                         SKIP (skipped via --no-qemu)
+18    QEMU negative: harness                                     SKIP (skipped via --no-qemu)
+19    QEMU negative: semantic                                    SKIP (skipped via --no-qemu)
+───────────────────────────────────────────────────────────────────────────
+Total: 19  |  PASS: 5  |  FAIL: 0  |  SKIP: 14
+
+✓ ALL REQUIRED TIERS PASSED

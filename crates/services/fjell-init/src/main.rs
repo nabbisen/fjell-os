@@ -21,8 +21,8 @@ use fjell_semantic_format::*;
 use fjell_snapshot_format::*;
 use fjell_store_format::*;
 use fjell_syscall::{
-    sys_debug_writeln, sys_exit, sys_ipc_call_words, sys_platform_info_get, sys_task_spawn,
-    sys_task_start, sys_yield,
+    sys_debug_write, sys_debug_write_byte, sys_debug_writeln, sys_exit, sys_ipc_call_words,
+    sys_ipc_try_recv, sys_platform_info_get, sys_task_spawn, sys_task_start, sys_yield,
 };
 use fjell_upgrade_format::*;
 use fjell_verify_format::*;
@@ -951,6 +951,39 @@ pub extern "C" fn service_main() -> ! {
     }
 
     sys_debug_writeln("TEST:M8:PASS");
+
+    // ── RFC-0.25-001: External Interrupt Plane — first console input path ────
+    //
+    // driver-uart runs its own IRQ-wait loop indefinitely (like
+    // driver-virtio-net); init does not wait for it to exit. Instead init
+    // polls its uart-rx endpoint (slot 8, ep id=9) non-blockingly: most QEMU
+    // profiles never type anything, and a blocking recv here would hang
+    // every one of them until timeout. The poll budget below is generous
+    // enough for a byte injected right after "driver-uart: ready" to arrive,
+    // but bounded so profiles with nothing typed fall through quickly.
+    spawn(ImageId::DRIVER_UART, "v0.25: uart driver started");
+    {
+        use fjell_cap::CapHandle;
+        const UART_RX_EP: CapHandle = CapHandle(8);
+        const POLL_BUDGET: u32 = 20_000;
+        let mut received = false;
+        for _ in 0..POLL_BUDGET {
+            match sys_ipc_try_recv(UART_RX_EP) {
+                Ok(byte) => {
+                    sys_debug_write("v0.25: uart byte='");
+                    sys_debug_write_byte(byte as u8);
+                    sys_debug_writeln("' delivered over IPC");
+                    received = true;
+                    break;
+                }
+                Err(_) => sys_yield(),
+            }
+        }
+        if !received {
+            sys_debug_writeln("v0.25: no uart byte received (informational; nothing typed)");
+        }
+    }
+
     sys_debug_writeln("TEST:M7:PASS"); // keep backward compat
     sys_exit(0)
 }

@@ -11,8 +11,12 @@
 //! profiles; v0.2 may switch to `toml` if profiles grow.
 
 use std::fs;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::{Command, ExitCode, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use crate::qemu::{KERNEL_ELF, build_all};
 
@@ -32,6 +36,13 @@ pub struct Profile {
     pub expected_markers: Vec<String>,
     /// Optional extra QEMU args beyond the defaults.
     pub extra_args: Vec<String>,
+    /// RFC-0.25-001 (Demonstration 6): once this marker appears in the
+    /// captured output, write `.1`'s bytes to QEMU's stdin — `-nographic`
+    /// wires the guest's UART0 RX to the host process's stdin by default,
+    /// so this simulates a character typed at the console. `None` for every
+    /// other profile: they keep the plain `Command::output()` path
+    /// unchanged (no piped stdin, no reader threads).
+    pub inject_after_marker: Option<(String, Vec<u8>)>,
 }
 
 impl Profile {
@@ -44,6 +55,7 @@ impl Profile {
             timeout_secs: 60,
             expected_markers: vec![marker.to_string()],
             extra_args: vec![],
+            inject_after_marker: None,
         }
     }
 }
@@ -148,14 +160,21 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         p.expected_markers.join("\n").as_bytes(),
     );
 
-    let output = Command::new("timeout")
-        .args(&argv[..])
-        .output()
-        .expect("failed to run qemu-system-riscv64");
+    let combined = match &p.inject_after_marker {
+        None => {
+            let output = Command::new("timeout")
+                .args(&argv[..])
+                .output()
+                .expect("failed to run qemu-system-riscv64");
+            let mut combined = output.stdout.clone();
+            combined.extend_from_slice(&output.stderr);
+            combined
+        }
+        Some((marker, inject_bytes)) => {
+            run_with_stdin_injection(&argv, marker.as_bytes(), inject_bytes)
+        }
+    };
 
-    // Capture combined output as serial.log.
-    let mut combined = output.stdout.clone();
-    combined.extend_from_slice(&output.stderr);
     let log_path = art.join("serial.log");
     let _ = fs::write(&log_path, &combined);
 
@@ -245,6 +264,81 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     }
 }
 
+/// Run `timeout <argv...>` with piped stdio, writing `inject_bytes` to the
+/// child's stdin the first time `marker` appears in its combined
+/// stdout+stderr (RFC-0.25-001 Demonstration 6: simulates a character typed
+/// at the QEMU console, since `-nographic` wires UART0's RX to host stdin).
+///
+/// Returns the full combined output, same shape as the plain
+/// `Command::output()` path (stdout bytes followed by stderr bytes would
+/// lose ordering across the two streams; this merges them as they actually
+/// arrive instead, which is more accurate, not less).
+fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8]) -> Vec<u8> {
+    let mut child = Command::new("timeout")
+        .args(argv)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to spawn qemu-system-riscv64");
+
+    let child_stdin = child.stdin.take().expect("piped stdin");
+    let mut child_stdout = child.stdout.take().expect("piped stdout");
+    let mut child_stderr = child.stderr.take().expect("piped stderr");
+
+    let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+    let injected = Arc::new(AtomicBool::new(false));
+
+    let stdout_thread = {
+        let buf = Arc::clone(&buf);
+        let injected = Arc::clone(&injected);
+        let marker = marker.to_vec();
+        let inject_bytes = inject_bytes.to_vec();
+        let mut stdin = child_stdin;
+        thread::spawn(move || {
+            let mut chunk = [0u8; 256];
+            loop {
+                match child_stdout.read(&mut chunk) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        let mut b = buf.lock().unwrap();
+                        b.extend_from_slice(&chunk[..n]);
+                        if !injected.load(Ordering::SeqCst)
+                            && !marker.is_empty()
+                            && b.windows(marker.len()).any(|w| w == marker.as_slice())
+                        {
+                            let _ = stdin.write_all(&inject_bytes);
+                            let _ = stdin.flush();
+                            injected.store(true, Ordering::SeqCst);
+                        }
+                    }
+                }
+            }
+        })
+    };
+
+    let stderr_thread = {
+        let buf = Arc::clone(&buf);
+        thread::spawn(move || {
+            let mut chunk = [0u8; 256];
+            loop {
+                match child_stderr.read(&mut chunk) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => buf.lock().unwrap().extend_from_slice(&chunk[..n]),
+                }
+            }
+        })
+    };
+
+    let _ = child.wait();
+    let _ = stdout_thread.join();
+    let _ = stderr_thread.join();
+
+    Arc::try_unwrap(buf)
+        .map(|m| m.into_inner().unwrap())
+        .unwrap_or_default()
+}
+
 /// Minimal TOML reader for the v0.1.x profile schema.
 ///
 /// Supports:
@@ -265,6 +359,8 @@ fn load_profile(name: &str) -> Result<Profile, String> {
     let mut timeout_v: u32 = 60;
     let mut markers: Vec<String> = Vec::new();
     let mut extra: Vec<String> = Vec::new();
+    let mut inject_after_marker_v: Option<String> = None;
+    let mut inject_bytes_v: Option<String> = None;
 
     let mut lines = src.lines().peekable();
     while let Some(raw) = lines.next() {
@@ -307,9 +403,20 @@ fn load_profile(name: &str) -> Result<Profile, String> {
             }
             "expected_markers" => markers = parse_list(v),
             "extra_args" => extra = parse_list(v),
+            // RFC-0.25-001 (Demonstration 6): a byte is written to QEMU's
+            // stdin once `inject_after_marker` appears in the output.
+            // `inject_bytes` is the literal string whose bytes are sent —
+            // both keys must be present or injection is disabled.
+            "inject_after_marker" => inject_after_marker_v = Some(unquote(v)),
+            "inject_bytes" => inject_bytes_v = Some(unquote(v)),
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
+
+    let inject_after_marker = match (inject_after_marker_v, inject_bytes_v) {
+        (Some(m), Some(b)) => Some((m, b.into_bytes())),
+        _ => None,
+    };
 
     Ok(Profile {
         name: name_v,
@@ -318,6 +425,7 @@ fn load_profile(name: &str) -> Result<Profile, String> {
         timeout_secs: timeout_v,
         expected_markers: markers,
         extra_args: extra,
+        inject_after_marker,
     })
 }
 

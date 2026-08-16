@@ -57,6 +57,12 @@ const NEG_CATEGORIES: &[&str] = &[
     "svc",
     "harness",
     "semantic",
+    // RFC-0.25-001: Demonstration 6 (a typed byte reaches driver-uart and is
+    // delivered over IPC) and Demonstration 3 (an unbound interrupt is
+    // claimed and completed, not livelocked) — fail-closed, folded in here
+    // so neither can rot.
+    "uart-rx",
+    "uart-rx-unbound",
 ];
 
 // ── Entry point ───────────────────────────────────────────────────────────────

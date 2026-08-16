@@ -114,6 +114,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   22 `sound` verdicts are provisional.** This is why RFC-0.24-001 ships
   `Implemented-with-Errata`. Recorded, not fixed; 0.25 candidate.
 
+- **The scheduler's `PRIORITY_USER` constant exists as three disconnected
+  copies with two different values** (Errata **E-018**, ACCEPTED).
+  `task::scheduler::PRIORITY_USER = 32` is the real constant; `task/
+  spawn.rs`'s local `PRIORITY_USER = 2` (used for every spawned service
+  except `init`) and a third hardcoded `2` in `sys_task_start` disagree with
+  it. `init` — the only task built with the real `32` — therefore preempts
+  every other task whenever both are ready, invisible until RFC-0.25-001
+  because every existing `init` wait path blocks rather than yield-loops.
+  RFC-0.25-001 ships a narrow, `image_id`-keyed stopgap for the one task that
+  needed fairness (`crates/drivers/fjell-driver-uart`); the general fix was
+  attempted, hung the M6 boot sequence, and was reverted rather than chased.
+  Recorded, not fixed; needs its own RFC.
+
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes

@@ -135,6 +135,11 @@ impl ImageId {
     pub const SYNCD: ImageId = ImageId(0x1D); // 29
 }
 
+impl ImageId {
+    /// RFC-0.25-001: the external interrupt plane's first console input path.
+    pub const DRIVER_UART: ImageId = ImageId(0x1E); // 30
+}
+
 #[cfg(test)]
 mod image_id_v07_tests {
     use super::ImageId;

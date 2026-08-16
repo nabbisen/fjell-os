@@ -15,8 +15,8 @@ use crate::{
     arch::riscv64::trap::{TrapKind, decode_trap},
     audit::ring::{AUDIT, AuditKindInternal},
     task::{
-        scheduler::PRIORITY_IDLE,
-        tcb::{FaultCause, TaskState, TrapFrame},
+        scheduler::{PRIORITY_IDLE, PRIORITY_USER},
+        tcb::{BlockReason, FaultCause, TaskState, TrapFrame},
     },
 };
 use fjell_abi::service::ImageId;
@@ -114,6 +114,7 @@ pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
     match decode_trap(scause) {
         TrapKind::UserEcall => handle_syscall(tf_ref),
         TrapKind::SupervisorTimer => handle_timer(),
+        TrapKind::SupervisorExternal => handle_external_interrupt(),
         TrapKind::InstructionPageFault => {
             handle_user_fault(tf_ref, FaultCause::InstructionPageFault)
         }
@@ -138,6 +139,91 @@ fn handle_timer() {
     // RFC 037: mark this as a timer preemption (distinct from voluntary yield).
     TIMER_PREEMPTED.store(true);
     super::syscall::request_yield();
+}
+
+/// RFC-0.25-001 (D1): claim from the PLIC, identify the bound task, unblock
+/// it. The kernel does not touch the device's data registers here — the
+/// driver task reads its own device after `sys_irq_wait` returns.
+fn handle_external_interrupt() {
+    // SAFETY: category=mmio-access PLIC MMIO is mapped into every task's
+    // page table by spawn.rs (see `plic::MAPPED_PAGES`); called only from
+    // trap context, single hart.
+    let irq = unsafe { crate::plic::claim() };
+    if irq == 0 {
+        // Spurious claim: nothing pending, nothing to complete.
+        return;
+    }
+    crate::kprintln!("[irq] external interrupt: source={}", irq);
+
+    let it = crate::irq_table();
+    match it.bound_task(irq) {
+        Some(task_id) => {
+            // SAFETY: category=kernel-global-mutable single-hart; no
+            // concurrent access.
+            let (table, sched, _, _) = unsafe { crate::get_kernel_state() };
+            let woke = table
+                .get_mut(task_id)
+                .map(|t| {
+                    if matches!(t.state, TaskState::Blocked(BlockReason::Irq(w)) if w == irq) {
+                        t.state = TaskState::Runnable;
+                        sched.enqueue_runnable(task_id, PRIORITY_USER);
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .unwrap_or(false);
+            if !woke {
+                // Lost-wakeup guard (handoff §0.1): the bound task exists
+                // but has not called sys_irq_wait yet (or is between ack
+                // and its next wait). Record the interrupt so the next
+                // sys_irq_wait returns immediately instead of blocking on
+                // an event that already happened.
+                it.set_pending(irq);
+            }
+            // Deliberately NOT completed here. While claimed-and-not-
+            // completed, the PLIC will not re-raise this source (that is
+            // what claim/complete pairing is for) — `sys_irq_ack`
+            // completes it, once the driver has actually cleared the
+            // device-side condition (D2). Completing synchronously here,
+            // while the level-triggered condition is still asserted
+            // (unread data in RBR), re-fires the interrupt before the
+            // woken task ever gets to run: confirmed live as an infinite
+            // "[irq] external interrupt" storm during Demonstration 6
+            // testing, with the driver task never reaching its own code.
+        }
+        None => {
+            // Demonstration 3: no task is bound to this source. Left
+            // claimed-and-not-completed, exactly like the bound-but-not-
+            // yet-waiting case above — masked until something completes
+            // it. `sys_irq_bind` completes any outstanding claim on the
+            // source it just bound (see there), so this does not mask the
+            // source forever once a driver shows up.
+            //
+            // Consequence, stated plainly: this source is masked at the
+            // PLIC gateway until something binds it. If nothing ever does,
+            // it is dead for the rest of this run — no further interrupts
+            // from it, ever, not even a re-log of this same line. This is
+            // contained (PLIC completion is per-source, so one outstanding
+            // claim cannot wedge any other source), but it is real, and a
+            // future reader must not have to re-derive it from PLIC
+            // semantics. The cleaner long-term shape is an explicit
+            // per-source PLIC enable-bit disable on this path, re-enabled
+            // at bind, which states the intent in the register rather than
+            // in an outstanding claim — recorded as a follow-up, not worth
+            // reopening this working, demonstrated path for now.
+            //
+            // Completing synchronously here (an earlier revision did) is
+            // categorically worse than the storm this whole function's
+            // comment already describes for the bound case: with nobody
+            // ever going to ack it, UART's level-triggered RX condition
+            // stays asserted, so the source re-fires on every single
+            // instruction boundary once SIE is restored — confirmed live
+            // as *no task in the system making forward progress at all*,
+            // not merely this IRQ line, while testing Demonstration 3.
+            crate::kprintln!("[irq] source={} has no bound task; discarding", irq);
+        }
+    }
 }
 
 // ── RFC 037: timer-preemption flag ───────────────────────────────────────────

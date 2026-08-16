@@ -1,0 +1,6 @@
+irq: external interrupt plane enabled
+source=10 has no bound task; discarding
+TEST:M8:PASS
+driver-uart: ready
+driver-uart: byte received
+v0.25: uart byte='Z' delivered over IPC

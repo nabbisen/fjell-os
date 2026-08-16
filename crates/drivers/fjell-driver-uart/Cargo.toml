@@ -1,0 +1,20 @@
+[package]
+build = "build.rs"
+name = "fjell-driver-uart"
+description = "User-space UART RX driver for Fjell OS (RFC-0.25-001)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-driver-uart"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall = { path = "../../fjell-syscall" }
+fjell-cap     = { path = "../../fjell-cap" }
+
+[package.metadata.fjell]
+service-id = "svc.driver-uart"

@@ -142,6 +142,31 @@ pub unsafe fn enable_interrupts() {
     unsafe { write_sstatus(s | (1 << 1)) }; // SIE = bit 1
 }
 
+/// Enable only the supervisor external interrupt (SEIE, bit 9).
+///
+/// RFC-0.25-001: deliberately narrower than `enable_interrupts` (which also
+/// sets STIE/SSIE). This kernel has never enabled the timer interrupt
+/// before — `sie` has been `0` since boot on every prior milestone — and
+/// turning STIE on as a side effect of bringing up the external-interrupt
+/// plane would silently activate RFC 037's dormant timer-preemption path
+/// kernel-wide, on every existing QEMU profile, which is not this RFC's
+/// scope to change.
+///
+/// # Safety
+/// Must only be called after `stvec` is installed, the trap handler is
+/// ready, and `sscratch` points at a valid scratch record.
+#[inline]
+// SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
+pub unsafe fn enable_external_interrupt() {
+    // SEIE = bit 9 only.
+    // SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
+    unsafe { write_sie(1 << 9) };
+    // SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
+    let s = unsafe { read_sstatus() };
+    // SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
+    unsafe { write_sstatus(s | (1 << 1)) }; // SIE = bit 1
+}
+
 // ── M-mode CSRs (only accessible from M-mode shim) ──────────────────────────
 
 /// Write `mstatus`.

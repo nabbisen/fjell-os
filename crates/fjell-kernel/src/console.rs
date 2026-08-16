@@ -45,6 +45,17 @@ pub unsafe fn init() {
     unsafe { (*UART.0.get()).init() }
 }
 
+/// Enable the UART's RX interrupt (RFC-0.25-001 R5). Must be called exactly
+/// once, after `init`, before `sie.SEIE` is enabled.
+///
+/// # Safety
+/// Same single-hart, call-once invariant as `init`.
+// SAFETY: category=kernel-global-mutable single boot hart; called exactly once, after `init`.
+pub unsafe fn enable_rx_interrupt() {
+    // SAFETY: category=kernel-global-mutable single boot hart; called exactly once, after `init`.
+    unsafe { (*UART.0.get()).enable_rx_interrupt() }
+}
+
 /// Internal print implementation called by the `print!` macro.
 pub fn _print(args: fmt::Arguments) {
     // Mask supervisor interrupts (SSTATUS.SIE, bit 1) for the duration of one

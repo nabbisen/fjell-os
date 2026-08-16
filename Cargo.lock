@@ -631,6 +631,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-driver-uart"
+version = "0.24.0"
+dependencies = [
+ "fjell-cap",
+ "fjell-syscall",
+]
+
+[[package]]
 name = "fjell-driver-virtio-blk"
 version = "0.24.0"
 dependencies = [

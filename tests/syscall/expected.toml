@@ -12,16 +12,16 @@
 # another and still pass.
 
 declared_count = 35
-dispatched_count = 26
+dispatched_count = 29
 
+# RFC-0.25-001: IrqBind, IrqAck, IrqWait now have kernel dispatch arms
+# (crates/fjell-kernel/src/trap/syscall.rs). Changed in the same commit as
+# those dispatch arms, per RFC 000's drift rule.
 undispatched = [
     "CapInstall",
     "PlatformReboot",
     "TaskKill",
     "MmioUnmap",
-    "IrqBind",
-    "IrqAck",
-    "IrqWait",
     "DmaShare",
     "Reboot",
 ]

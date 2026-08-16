@@ -1,0 +1,35 @@
+# RFC-0.25-001 Demonstration 3: an interrupt with no bound task must still
+# be claimed and completed, or the PLIC re-raises it forever and the system
+# livelocks (RFC risk R2 / handoff §2 R1). Injects the byte right as
+# "TEST:M8:PASS" prints — the last marker before init spawns driver-uart —
+# so the interrupt genuinely arrives with no bound task, for the brief
+# window between injection and driver-uart's own bind a few lines of code
+# later. (An earlier draft of this profile injected right after boot, long
+# before driver-uart exists at all: since UART's RX interrupt is
+# level-triggered on unread data, and the unbound branch completes the
+# claim so the PLIC can re-arm — see trap/dispatch.rs — an unconsumed byte
+# with genuinely nobody ever going to bind it re-raises indefinitely at the
+# claim/complete rate. That is a real, expected consequence of a
+# level-triggered source with no driver home for it, not a bug, but it
+# swamped the run before boot ever reached driver-uart's spawn. Injecting
+# close to the bind point keeps the unbound window real without letting a
+# test artifact make the whole profile look identical to a livelock.)
+#
+# This also demonstrates recovery, not just survival: the same byte sits
+# unread in RBR until driver-uart binds moments later in the same run, at
+# which point it is delivered normally — proving the unbound case does not
+# *permanently* mask the source, only until something claims ownership.
+
+name                 = "uart-rx-unbound"
+timeout_secs         = 60
+inject_after_marker  = "TEST:M8:PASS"
+inject_bytes         = "Z"
+expected_markers = [
+    "irq: external interrupt plane enabled",
+    "source=10 has no bound task; discarding",
+    "TEST:M8:PASS",
+    "driver-uart: ready",
+    "driver-uart: byte received",
+    "v0.25: uart byte='Z' delivered over IPC",
+]
+extra_args = []

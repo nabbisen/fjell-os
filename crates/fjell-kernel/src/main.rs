@@ -15,9 +15,11 @@ mod audit;
 mod boot;
 mod cap;
 mod console;
+mod irq;
 mod lease;
 mod mm;
 mod platform;
+mod plic;
 mod task;
 mod trap;
 mod uart;
@@ -401,6 +403,18 @@ pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
     unsafe { &mut *DMA_REGION_TABLE.0.get() }
 }
 
+/// RFC-0.25-001: IRQ bind table (task ↔ PLIC source, plus a pending flag).
+struct IrqTableStatic(core::cell::UnsafeCell<irq::IrqTable>);
+// SAFETY: category=kernel-global-mutable single-hart; accessed only from
+// trap-handling context, never concurrently.
+unsafe impl Sync for IrqTableStatic {}
+static IRQ_TABLE: IrqTableStatic =
+    IrqTableStatic(core::cell::UnsafeCell::new(irq::IrqTable::new()));
+pub(crate) fn irq_table() -> &'static mut irq::IrqTable {
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    unsafe { &mut *IRQ_TABLE.0.get() }
+}
+
 /// Per-request DMA VA bump allocator (RFC 007).
 /// Monotonically increases; no free list needed for v0.2.
 pub(crate) static DMA_VA_NEXT: core::sync::atomic::AtomicUsize =
@@ -744,6 +758,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let _ = semantic_stream_ep_id; // id=7
     let proxy_text_ep_id = et.alloc().expect("alloc proxy-text endpoint");
     let _ = proxy_text_ep_id; // id=8
+    // RFC-0.25-001: driver-uart's dedicated endpoint for delivering received
+    // bytes to init. See the cap-broker/sample-service comments above for
+    // what happens when this allocation step is skipped.
+    let uart_rx_ep_id = et.alloc().expect("alloc uart-rx endpoint");
+    let _ = uart_rx_ep_id; // id=9
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
@@ -789,6 +808,25 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 fa!(),
             )
             .expect("init uart map");
+
+        // RFC-0.25-001: init is bootstrapped here directly rather than via
+        // task::spawn::spawn() (which every OTHER service goes through), so
+        // it needs its own copy of the PLIC page mapping that spawn.rs
+        // applies to every task it creates. Missing this made kmain's own
+        // plic::init() call (after satp switches to init's table, below)
+        // fault with StorePageFault the first time it touched the PLIC —
+        // caught live rather than assumed.
+        for &pa in plic::MAPPED_PAGES.iter() {
+            if let Ok(f) = PhysFrame::from_pa(pa) {
+                let _ = aspace.map_page(
+                    VirtAddr(pa),
+                    f,
+                    VmPerms::R | VmPerms::W,
+                    VmRegionKind::Mmio,
+                    fa!(),
+                );
+            }
+        }
 
         // Map all 8 virtio-mmio slots (R|W, no U) for kernel-mode scanning.
         for i in 0..8usize {
@@ -1064,6 +1102,21 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     lease: None,
                 },
             );
+            // Slot 8: uart-rx endpoint (ep id=9, RFC-0.25-001). driver-uart
+            // sends received bytes here; init receives them.
+            let _ = cs.install_raw(
+                8,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: 9,
+                    rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).
             let mmio_table = mmio_region_table();
             for (i, _region) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
@@ -1121,6 +1174,26 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         s[1] = first_tf as *const _ as usize;
         csr::write_sscratch(s.as_ptr() as usize);
     }
+
+    // RFC-0.25-001: bring up the external interrupt plane. Must run after
+    // sscratch is initialised (a trap taken before this point would follow
+    // a dangling scratch pointer) and is the last step before entering user
+    // mode, so nothing downstream depends on interrupts being masked.
+    //
+    // SAFETY: category=mmio-access sscratch is initialised above; the PLIC's
+    // three pages and UART0 are mapped in the first task's page table by
+    // spawn.rs, and satp already points at it (enable_sv39 above).
+    unsafe {
+        plic::init();
+        // UART0 = IRQ 10 on QEMU virt (handoff §2, R6). Enabled here, once,
+        // independent of whether any driver has bound it yet — required so
+        // an interrupt with no bound task can actually be observed
+        // (RFC-0.25-001 Demonstration 3), not just theorised about.
+        plic::enable(10);
+        console::enable_rx_interrupt();
+        csr::enable_external_interrupt();
+    }
+    kprintln!("irq: external interrupt plane enabled (PLIC ctx 1, UART0=irq10)");
 
     // SAFETY: category=csr-asm first_tf is valid; sepc in user VA; sstatus.SPP=0.
     unsafe { trap::dispatch::first_entry(first_tf) }

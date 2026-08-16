@@ -114,6 +114,8 @@ pub enum BlockReason {
     Sleep,
     /// Placeholder for M3 IPC blocking.
     ReservedForIpc,
+    /// Blocked in `sys_irq_wait` on the given PLIC source (RFC-0.25-001).
+    Irq(u32),
 }
 
 // ── TaskAccounting ────────────────────────────────────────────────────────────
