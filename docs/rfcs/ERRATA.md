@@ -369,17 +369,123 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
   Fixing the constant directly was attempted and reverted: it hung the M6
   boot sequence, meaning some already-shipped code path depends on today's
-  (broken) ordering in a way not yet understood. RFC-0.25-001 ships a narrow,
-  `image_id`-keyed stopgap instead — `crates/drivers/fjell-driver-uart` alone
-  is spawned at `init`'s own priority bucket
-  (`crates/fjell-kernel/src/task/spawn.rs`, `crates/fjell-kernel/src/trap/
-  syscall.rs::sys_task_start`) — rather than correcting the general constant.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-16, reviewing
-  RFC-0.25-001). The stopgap is keyed on task identity (`image_id`), not
-  table position, so it does not reintroduce the class of defect
-  RFC-v0.23-002 removed from milestone markers. The general fix is real
-  investigation — why the M6 hang happens — not a cleanup, and needs its own
-  RFC. See `docs/release/v1-limitations.md`.
+  (broken) ordering in a way not yet understood. RFC-0.25-001 shipped a
+  narrow, `image_id`-keyed stopgap instead — `crates/drivers/
+  fjell-driver-uart` alone spawned at `init`'s own priority bucket — rather
+  than correcting the general constant.
+- **Resolution:** **CLOSED** by RFC-0.26-001. The M6 hang was investigated
+  before anything was unified (D1): `svc-timeout`
+  (`crates/services/fjell-svc-timeout`) is RFC 042's negative-test service
+  and *by design* never exits, looping `sys_yield()` forever. Its first
+  enqueue used `sys_task_start`'s hardcoded `2` (bucket 0); every enqueue
+  after its first yield used `task.priority`, set by `spawn.rs`. Changing
+  only `spawn.rs`'s constant to `32` moved `svc-timeout`'s *ongoing*
+  re-enqueues to bucket 1 while leaving newly spawned M6 services
+  (`devmgr`, `driver-virtio-blk`, `storaged`) enqueuing into the still-`2`
+  bucket 0 via `sys_task_start` — bucket 1, permanently occupied by a task
+  that never blocks or exits, was drained on every scheduling decision, and
+  bucket 0 was never reached again. Full explanation, with log evidence:
+  `docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md`.
+
+  The fix unifies both enqueue paths to the same value —
+  `task/spawn.rs` now imports `task::scheduler::PRIORITY_USER` directly
+  (no local shadow), and `trap/syscall.rs::sys_task_start`'s initial enqueue
+  reads `task.priority` instead of a disconnected literal — so the two
+  paths can no longer disagree. The `driver-uart` stopgap is removed
+  entirely; `uart-rx`/`uart-rx-unbound` both pass without it. No
+  `PRIORITY_INIT` was introduced — nothing in the investigation showed
+  `init` needs to be genuinely privileged.
+
+## E-019 — The `ipc` negative profile assumes an unsynchronised scheduling order
+
+- **Claim:** `tests/qemu/profiles/ipc.toml` and `tests/qemu/profiles/
+  semantic.toml` are fail-closed, permanent regression coverage —
+  `test-all`'s own framing for every profile in `NEG_CATEGORIES`.
+- **Shipped:** both reproducibly fail after RFC-0.26-001 unified the
+  scheduler priority (`cargo xtask qemu-run --profile ipc` /
+  `--profile semantic`, deterministic across repeated runs — QEMU TCG is
+  fully deterministic given the same binary and inputs, so this is not
+  flakiness).
+
+  - **`ipc`:** `fjell-neg-test` reaches `NEG:SVC:FAULT_DETECTED:PASS` (the
+    scenario immediately before the IPC block) and then never reaches any
+    of `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE`,
+    `NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE`, or `NEG:IPC:LATE_REPLY_REJECTED`.
+    `test_ipc_blocked_recv` (`crates/services/fjell-neg-test/src/main.rs:435-439`)
+    documents its own assumption in a comment: *"By the cooperative-
+    scheduling contract, sample-service immediately calls
+    `sys_ipc_recv(SLOT_LEASED_EP)` and blocks before the scheduler returns
+    to neg-test. One defensive yield is included for safety."* That
+    contract no longer holds exactly as assumed once every task shares one
+    priority bucket rather than `init`-adjacent tasks preempting freely.
+  - **`semantic`:** `sample-service`'s `emit_sample_intent()`
+    (`crates/services/fjell-sample-service/src/main.rs:141-144`) is called
+    once at startup on the documented assumption that *"semantic-stream and
+    proxy-text are already spawned and ready by this point"* — asserted,
+    not synchronised on. `M5: semantic-stream started` / `M5: proxy-text
+    started` / `M5: semantic policy loaded` each now print **twice** (two
+    services' boot lines happening to share identical text, not a double
+    spawn — the same coincidence RFC-0.26-001's investigation document
+    records for `storaged`'s and `init`'s identical "M6: storaged ready"
+    lines), and `sample-service demo intent` /
+    `proxy-text: action DENIED (capability not held)` never appear.
+
+  Both are the same root cause as the M6 hang this RFC investigated and
+  fixed (docs/rfcs/RFC-0.26-001-scheduler-priority-unification-
+  investigation.md) — code that assumes a specific relative scheduling
+  order between concurrently-running tasks rather than synchronising on it
+  explicitly — surfacing in a different shape (a silently-skipped assertion
+  rather than a total hang) because the assumption here is about *relative
+  arrival order* between two already-running peers, not about one bucket
+  permanently starving another.
+- **Resolution:** **ACCEPTED** (implementer, pending review, RFC-0.26-001).
+  Per the governing RFC's explicit instruction (§2, "Expect collateral, and
+  do not absorb it... do not chase it"): reproduced and characterised, not
+  fixed. Fixing either requires the affected service to synchronise
+  explicitly (a real `READY`/rendezvous exchange) rather than assuming
+  ordering — that is out of RFC-0.26-001's scope (it unifies the scheduler
+  constant; it does not audit every service for ordering assumptions) and
+  is real design work for its own line. `cargo xtask test-all` is 19/21
+  with these two tiers failing; every other tier, including the two new
+  RFC-0.25-001 uart-rx profiles, passes. See `docs/release/v1-limitations.md`.
+
+## E-020 — RFC-v0.23-001: the ABDD live path no longer runs
+
+- **Claim:** RFC-v0.23-001 (shipped `0.23.0`) made this project's
+  distinguishing architectural bet actually execute — `sample-service` emits an
+  intent, `semantic-stream` routes it, and a *separate* `proxy-text` task
+  renders it, with the capability-checked refusal demonstrated alongside the
+  accept. `tests/qemu/profiles/semantic.toml` was created **in that same RFC as
+  a fail-closed guard so the path could not rot.**
+- **Shipped (from RFC-0.26-001 onward):** the path does not run at all.
+  `crates/services/fjell-sample-service/src/main.rs` calls
+  `emit_sample_intent()` once from `service_main()` under the comment
+  *"semantic-stream and proxy-text are already spawned and ready by this point
+  (Slice 1)"* — an **assertion about scheduling order, not a synchronisation**.
+  RFC-0.26-001 removed the priority asymmetry that assertion silently depended
+  on. Measured on the current tree: **zero occurrences** of
+  `sample-service demo intent` or `proxy-text: action` in the profile's serial
+  log. The guard is now permanently red and therefore detects nothing.
+- **Why this is OPEN and not ACCEPTED.** It was first filed as part of E-019,
+  ACCEPTED, on the reading that both failing profiles were *"negative-test
+  coverage gaps, not production-path defects — only two coordination-timing
+  assertions in test harnesses."* That holds for `ipc`, whose assertion lives in
+  `fjell-neg-test`, a harness. It does **not** hold here:
+  `fjell-sample-service` is a service under `crates/services/`, the race is in
+  its `service_main()`, and the consequence is not lost coverage but **a shipped
+  feature that no longer executes**. ACCEPTED means a documented, deliberate
+  limitation; this is live drift in a released capability, which is the
+  register's own definition of OPEN.
+- **Consequence, deliberately.** Gate 7 (`ERRATA register (0 OPEN)`) now fails,
+  so `release-rehearsal` is red and **no release can be cut until this is
+  fixed.** That is the gate doing its job. Classifying it ACCEPTED was the
+  choice that would have kept the gate green while the ABDD path was dead.
+- **Resolution:** **OPEN** (architect, 2026-08-27, reviewing RFC-0.26-001). Not
+  fixed in RFC-0.26-001 — its handoff correctly forbade chasing collateral, and
+  the fix is real design work: `sample-service` must *wait* for its downstream
+  peers rather than assert them, and it already sends `SERVICE_READY` to
+  service-manager, so the protocol to build on exists. Its own line, next. See
+  `docs/release/v1-limitations.md`.
 
 ---
 
@@ -404,10 +510,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-015 hand-enumerated instrument scopes drifted from reality | 0.25 candidate (recorded, not fixed) | ACCEPTED |
 | E-016 no link, index, or count integrity instrument | 0.25 candidate (recorded, not fixed) | ACCEPTED |
 | E-017 audit `sound` verdicts not all demonstration-backed | 0.25 candidate (re-derivation incomplete) | ACCEPTED |
-| E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC after 0.25 (recorded, not fixed) | ACCEPTED |
+| E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
+| E-019 `ipc` negative profile assumes an unsynchronised scheduling order | 0.27 candidate (recorded, not fixed) | ACCEPTED |
+| E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | next line (live regression) | OPEN |
 
-E-018 was filed during RFC-0.25-001, after the 0.24.0 cut. At the 0.24.0 cut
-(2026-08-03): **0 OPEN, 9 CLOSED, 8 ACCEPTED.** E-014,
+E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
+closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
+newly-surfaced collateral its own investigation document names. At the
+0.24.0 cut (2026-08-03): **0 OPEN, 9 CLOSED, 8
+ACCEPTED.** E-014,
 E-015 and E-016 were filed together as the instrument audit's
 disposition — grouped by root cause rather than one per finding, so the register
 records four families instead of thirty-three individually-true rows. Each names

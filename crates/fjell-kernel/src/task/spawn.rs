@@ -8,22 +8,18 @@ use crate::mm::frame_alloc::{FrameAllocator, FrameOwner};
 use crate::mm::region::VmRegionKind;
 use crate::mm::vspace::{AddressSpace, AddressSpaceId, VmPerms};
 use crate::task::image::{SERVICE_BASE_VA, SERVICE_STACK_TOP, image_bytes};
+use crate::task::scheduler::PRIORITY_USER;
 use crate::task::tcb::{Task, TaskState};
 use fjell_abi::error::SysError;
 use fjell_abi::service::ImageId;
 use fjell_abi::task::TaskId;
 
-// Errata E-018 (docs/rfcs/ERRATA.md), ACCEPTED: this local constant shadows
-// `task::scheduler::PRIORITY_USER` (32) with a different value (2). They map
-// to different ready-queue buckets (`priority_to_bucket`: 2 → bucket 0, 32 →
-// bucket 1), so every service spawned through this function runs in a
-// strictly lower-priority bucket than init (constructed by a separate
-// hand-rolled path in main.rs using the real constant 32) — init preempts
-// every other task whenever both are ready. Changing this constant to fix it
-// was tried and reverted: it made the M6 boot sequence hang (a different,
-// already-shipped code path apparently depends on today's ordering), so the
-// fix needs its own RFC, not an in-line correction here.
-const PRIORITY_USER: u8 = 2;
+// RFC-0.26-001 (closes Errata E-018): this used to be a local `const
+// PRIORITY_USER: u8 = 2`, shadowing `task::scheduler::PRIORITY_USER` (32)
+// with a different value. See docs/rfcs/RFC-0.26-001-scheduler-priority-
+// unification-investigation.md for why unifying just this constant alone
+// (without also fixing `sys_task_start`'s own separate hardcoded literal)
+// hung the M6 boot sequence, and why the two sites had to be fixed together.
 
 /// Spawn a new task from `image_id`.
 ///
@@ -171,26 +167,10 @@ pub fn spawn(
         .alloc_frame(FrameOwner::KernelStack)
         .map_err(|_| SysError::NoMemory)?;
 
-    // STOPGAP (Errata E-018, docs/rfcs/ERRATA.md), not a considered priority
-    // decision: driver-uart alone is bumped to init's own priority bucket so
-    // it can actually run while init's non-blocking uart-rx poll loop is
-    // yielding (init blocking here instead would hang every OTHER QEMU
-    // profile that never types anything — see fjell-init/src/main.rs). Every
-    // other spawned service is left at the existing (broken) `PRIORITY_USER`
-    // — see E-018 and the note on that constant above. This is a narrow,
-    // identity-keyed (`image_id`, not table position) patch for the one
-    // interaction this RFC needed fair, not a fix for the underlying
-    // three-copies-two-values defect, which needs its own RFC.
-    let priority = if image_id == fjell_abi::service::ImageId::DRIVER_UART {
-        crate::task::scheduler::PRIORITY_USER
-    } else {
-        PRIORITY_USER
-    };
-
     // Build TCB.
     let mut t = Task::new(
         tid,
-        priority,
+        PRIORITY_USER,
         asp_id,
         kstack_f.pa() + 4096,
         SERVICE_STACK_TOP,

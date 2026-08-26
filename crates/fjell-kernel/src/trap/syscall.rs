@@ -416,20 +416,14 @@ pub fn sys_task_start(
                 task.trap_frame.gpr[2] = stack;
             }
             task.state = TaskState::Runnable;
-            // STOPGAP (Errata E-018, docs/rfcs/ERRATA.md), not a considered
-            // priority decision: this "2" is a third disconnected copy of
-            // the same stale priority value as `task/spawn.rs`'s local
-            // `PRIORITY_USER` — it ignores `task.priority` entirely. Not
-            // fixed generally here (confirmed live via an M6 hang when
-            // tried; needs its own RFC). driver-uart alone is bumped to
-            // init's own priority bucket, identity-keyed (`image_id`, not
-            // table position), so it can actually run while init's
-            // non-blocking uart-rx poll loop is yielding — see E-018.
-            let priority = if task.image_id == fjell_abi::service::ImageId::DRIVER_UART {
-                crate::task::scheduler::PRIORITY_USER
-            } else {
-                2 /* PRIORITY_USER */
-            };
+            // RFC-0.26-001 (closes E-018): the initial enqueue now uses the
+            // task's own stored priority — the same source `schedule_next`'s
+            // yield path already uses for every later re-enqueue — instead
+            // of a disconnected hardcoded literal. See docs/rfcs/
+            // RFC-0.26-001-scheduler-priority-unification-investigation.md
+            // for why the previous literal happening to disagree with
+            // `task/spawn.rs`'s own (also-wrong) constant was load-bearing.
+            let priority = task.priority;
             sched.enqueue_runnable(tid, priority);
             tf.gpr[REG_A0] = 0;
         }

@@ -114,18 +114,39 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   22 `sound` verdicts are provisional.** This is why RFC-0.24-001 ships
   `Implemented-with-Errata`. Recorded, not fixed; 0.25 candidate.
 
-- **The scheduler's `PRIORITY_USER` constant exists as three disconnected
-  copies with two different values** (Errata **E-018**, ACCEPTED).
-  `task::scheduler::PRIORITY_USER = 32` is the real constant; `task/
-  spawn.rs`'s local `PRIORITY_USER = 2` (used for every spawned service
-  except `init`) and a third hardcoded `2` in `sys_task_start` disagree with
-  it. `init` — the only task built with the real `32` — therefore preempts
-  every other task whenever both are ready, invisible until RFC-0.25-001
-  because every existing `init` wait path blocks rather than yield-loops.
-  RFC-0.25-001 ships a narrow, `image_id`-keyed stopgap for the one task that
-  needed fairness (`crates/drivers/fjell-driver-uart`); the general fix was
-  attempted, hung the M6 boot sequence, and was reverted rather than chased.
-  Recorded, not fixed; needs its own RFC.
+- **Two QEMU negative profiles (`ipc`, `semantic`) assume an unsynchronised
+  scheduling order and fail after RFC-0.26-001's scheduler fix** (Errata
+  **E-019**, ACCEPTED). `fjell-neg-test`'s IPC blocked-recv/blocked-call
+  scenarios documented, in their own source comments, an assumption about
+  *relative* task-scheduling order that RFC-0.26-001's fairness fix no longer
+  guarantees. **`fjell-sample-service`'s startup intent emission was
+  originally recorded here too; it is a service rather than a harness and has
+  been split out as E-020, OPEN** — see below. Same root cause as the M6 hang RFC-0.26-001 investigated and
+  fixed — code assuming ordering instead of synchronising on it — in a
+  silently-skipped-assertion shape rather than a hang. Fixing either needs
+  the affected service to synchronise explicitly; out of RFC-0.26-001's
+  scope. Recorded, not fixed; needs its own line.
+
+- **The ABDD live path no longer runs** (Errata **E-020**, **OPEN**).
+  RFC-v0.23-001 shipped this project's distinguishing architectural bet in
+  `0.23.0` — `sample-service` emits an intent, `semantic-stream` routes it, and
+  a *separate* `proxy-text` task renders it, with the capability-checked
+  refusal demonstrated — and created `tests/qemu/profiles/semantic.toml` in the
+  same RFC as a fail-closed guard so the path could not rot. Since RFC-0.26-001
+  removed the scheduler priority asymmetry, **the path does not execute at
+  all**: measured zero occurrences of `sample-service demo intent` or
+  `proxy-text: action` in the profile's serial log.
+  `crates/services/fjell-sample-service` calls `emit_sample_intent()` once from
+  `service_main()` under a comment asserting its downstream peers are *"already
+  spawned and ready by this point"* — an assertion about scheduling order
+  rather than a synchronisation, which the priority asymmetry had been silently
+  satisfying. **This is a service, not a test harness, and the consequence is a
+  shipped feature that no longer runs**, which is why it is OPEN rather than
+  ACCEPTED. Gate 7 (`ERRATA register (0 OPEN)`) therefore fails and no release
+  can be cut until it is fixed — deliberately. The fix is `sample-service`
+  waiting for its peers rather than asserting them; it already sends
+  `SERVICE_READY` to service-manager, so the protocol exists. Its own line,
+  next.
 
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
