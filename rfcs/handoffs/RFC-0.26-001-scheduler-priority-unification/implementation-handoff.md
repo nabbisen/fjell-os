@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.26-001
 
-**Governing RFC:** [RFC-0.26-001](../../proposed/RFC-0.26-001-scheduler-priority-unification.md)
+**Governing RFC:** [RFC-0.26-001](../../accepted/RFC-0.26-001-scheduler-priority-unification.md)
 **Milestone:** 0.26
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-08-16)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

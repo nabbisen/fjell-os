@@ -336,9 +336,15 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-No RFC is signed off and awaiting implementation.
+Signed off by the owner; implementation may begin; not yet shipped.
+
+### 0.26 — the scheduler priority defect (owner direction, 2026-08-16)
+
+| RFC | Title |
+|-----|-------|
+| 0.26-001 | [The scheduler priority defect — and what depends on it](./accepted/RFC-0.26-001-scheduler-priority-unification.md) — accepted 2026-08-16; closes **E-018**; handoff: [`handoffs/`](./handoffs/RFC-0.26-001-scheduler-priority-unification/implementation-handoff.md) |
 
 ### 0.25 — Functional advancement (owner direction, 2026-08-03)
 
@@ -360,13 +366,9 @@ functional lines. Errata E-013 through E-017 remain open and disclosed.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-### 0.26 — the scheduler priority defect (owner direction, 2026-08-16)
-
-| RFC | Title |
-|-----|-------|
-| 0.26-001 | [The scheduler priority defect — and what depends on it](./proposed/RFC-0.26-001-scheduler-priority-unification.md) — proposed 2026-08-16; closes **E-018**; handoff: [`handoffs/`](./handoffs/RFC-0.26-001-scheduler-priority-unification/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — none
 
