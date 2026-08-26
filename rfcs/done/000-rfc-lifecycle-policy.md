@@ -143,6 +143,77 @@ because there was nowhere else to put a signed-off RFC — that tolerance
 would now be a hole (an `Accepted` RFC left behind in `proposed/` would pass
 unnoticed), so it was removed in the same change that created the folder.
 
+## The Status field inside each RFC
+
+*Restored 2026-08-27. This section exists in the source policy and was dropped
+during the RFC-0.25-002 merge by oversight, not by decision. Its absence was
+found by diffing the two documents — and its central rule is the one the
+architect then violated at `d5edf31`, moving an RFC between folders without
+updating its Status in the same commit. The rule that would have named the
+error was the section that had gone missing.*
+
+> **Editing this section: do not write the field marker literally.**
+> `extract_status_keyword` takes the **first** line in a file containing a
+> bolded `Status` followed by a colon or period, wherever it appears — code
+> block, table, or prose. Writing one here gives *this document* a lifecycle
+> state, and since it lives in `done/`, any example value other than an
+> implemented one turns Gate 12 red.
+>
+> That is not hypothetical twice over: the RFC-0.25-002 implementer hit it in
+> an early draft and rephrased around it, and the architect hit it again
+> restoring this very section. Examples below therefore show **values only**.
+
+Every RFC carries the field in its header block: a bolded `Status`, a colon,
+then the value. Alongside it sit `Milestone`, `Tracks`, and `Touches`.
+
+**The value mirrors the folder, and both change in the same commit.** The
+folder is authoritative if they ever disagree (§ Folder layout), but a Status
+that contradicts its folder is a defect in its own right — see § Anti-patterns,
+*Status fields that lie*.
+
+Value forms this project uses, which `extract_status_keyword` parses:
+
+| State | Value |
+|---|---|
+| Proposed | `Proposed — awaiting owner acceptance` |
+| Accepted | `Accepted — by the owner (name), YYYY-MM-DD` |
+| Implemented | `Implemented (0.25.0) — accepted YYYY-MM-DD` |
+| Implemented-with-Errata | `Implemented-with-Errata (0.24.0) — see ERRATA E-017` |
+| Superseded | `Superseded by RFC-0.26-003` |
+| Withdrawn | `Withdrawn — one-line reason` |
+
+**Implemented values carry the release they shipped in.** That is what makes
+the field useful without the index: `Implemented (0.25.0)` says *when*, not
+merely *that*.
+
+A period instead of a colon is also parsed, and appears in older files. New
+RFCs use the colon.
+
+**Why keep this redundant with the folder at all:**
+
+1. **Self-contained files.** A reader who opens an RFC by URL, in a diff, or in
+   a review tool sees no folder context. The field is the only state visible.
+2. **Version-control history.** `git log -p` on an RFC shows its transitions
+   inline even across a rename, which the folder alone cannot.
+
+**Companion handoffs inherit, and move with it.** A handoff's value reads
+`inherited from the governing RFC (<state>)` and is updated in the same commit
+as its RFC — `handoff-status` checks exactly that agreement.
+
+**This document is the documented exception.** It carries no Status field of its
+own, by design, and `rfc_status_folder.rs` skips files that have none. That is
+why the warning above matters: adding one here, even as an example, silently
+opts this file into a check it was deliberately outside.
+
+### Silent withdrawal
+
+An RFC abandoned but never formally withdrawn sits in `proposed/` indefinitely.
+Reviewers waste effort on it; the maintainer's unspoken *"I am not going to do
+this"* is invisible to everyone else.
+
+When you decide not to pursue an RFC, move it and say why in one line. Even
+*"priorities shifted"* is enough. **Silence is worse than a terse reason.**
+
 ## Naming and numbering
 
 This project uses two coexisting schemes, and departs from the source
