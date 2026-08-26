@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.26-004
 
-**Governing RFC:** [RFC-0.26-004](../../proposed/RFC-0.26-004-readiness-channel.md)
+**Governing RFC:** [RFC-0.26-004](../../accepted/RFC-0.26-004-readiness-channel.md)
 **Milestone:** 0.26 — **blocks every release**
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-08-27)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

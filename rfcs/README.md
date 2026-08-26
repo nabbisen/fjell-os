@@ -336,7 +336,7 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 3 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -352,6 +352,7 @@ to build one.
 |-----|-------|
 | 0.26-001 | [The scheduler priority defect — and what depends on it](./accepted/RFC-0.26-001-scheduler-priority-unification.md) — accepted 2026-08-16; closes **E-018**; implemented and reviewed; handoff: [`handoffs/`](./handoffs/RFC-0.26-001-scheduler-priority-unification/implementation-handoff.md) |
 | 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — accepted 2026-08-27; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
+| 0.26-004 | [Readiness needs a channel of its own](./accepted/RFC-0.26-004-readiness-channel.md) — accepted 2026-08-27; supersedes **0.26-002**; closes **E-020** (OPEN), expected to close **E-021**; **blocks every release**; handoff: [`handoffs/`](./handoffs/RFC-0.26-004-readiness-channel/implementation-handoff.md) |
 
 ### 0.25 — Functional advancement (owner direction, 2026-08-03)
 
@@ -373,11 +374,9 @@ functional lines. Errata E-013 through E-017 remain open and disclosed.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.26-004 | [Readiness needs a channel of its own](./proposed/RFC-0.26-004-readiness-channel.md) — supersedes **0.26-002**; closes **E-020** (OPEN), expected to close **E-021**; **blocks every release**; handoff: [`handoffs/`](./handoffs/RFC-0.26-004-readiness-channel/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 1 RFC
 
