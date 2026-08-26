@@ -366,9 +366,20 @@ functional lines. Errata E-013 through E-017 remain open and disclosed.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 2 RFCs
 
-No RFC is currently under review.
+### 0.26 — the collateral of the scheduler fix
+
+RFC-0.26-001 removed a scheduler priority asymmetry that two services had been
+silently relying on. Both consequences are recorded and scoped; they are
+**separate lines because the fixes are not the same problem** — one has a
+readiness signal already in the tree, the other has no signal and no obvious way
+to build one.
+
+| RFC | Title |
+|-----|-------|
+| 0.26-002 | [The ABDD path must synchronise, not assume](./proposed/RFC-0.26-002-abdd-path-synchronisation.md) — closes **E-020** (OPEN); **blocks every release**; handoff: [`handoffs/`](./handoffs/RFC-0.26-002-abdd-path-synchronisation/implementation-handoff.md) |
+| 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./proposed/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — closes **E-019** (ACCEPTED); handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
 
 ## Archive (archive/) — none
 
