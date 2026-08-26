@@ -148,6 +148,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `SERVICE_READY` to service-manager, so the protocol exists. Its own line,
   next.
 
+- **`init` can silently consume and drop another task's IPC** (Errata
+  **E-021**, ACCEPTED). `fjell-init`'s `wait_ready_exact` loops on a blocking
+  receive and discards any message whose tag does not match the one it wants —
+  no reply, no re-queue, no log. `init` holds receive-capable capabilities to
+  endpoint objects 7 and 8, which are also `semantic-stream`'s and
+  `proxy-text`'s own endpoints and carry ordinary protocol traffic, so **two
+  tasks receive on one queue with nothing arbitrating between them**. A blocking
+  `sys_ipc_call` consumed by `init` leaves its caller blocked forever. Observed
+  live during RFC-0.26-002: `init` swallowed `semantic_stream::PUBLISH_BEGIN`.
+  Unsafe on any endpoint another task can call into; RFC-0.26-001's scheduling
+  change only altered where it lands. Recorded, not fixed — the missing `else`
+  and the shared-channel arrangement should be decided together, in
+  **RFC-0.26-004**.
+
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes

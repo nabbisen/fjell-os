@@ -487,6 +487,41 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   service-manager, so the protocol to build on exists. Its own line, next. See
   `docs/release/v1-limitations.md`.
 
+## E-021 — `init::wait_ready_exact` silently consumes and drops other tasks' IPC
+
+- **Claim:** RFC 058's readiness protocol, and `fjell-init`'s use of it, treat a
+  service's dedicated endpoint as the channel on which that service announces
+  itself ready. `wait_ready_exact(ep, expected)` is documented as waiting *"for
+  exactly one expected READY tag"*.
+- **Shipped:** `crates/services/fjell-init/src/main.rs:147` loops on a blocking
+  `IpcRecv` and, when the tag does not match, **discards the message with no
+  `else` branch** — not replied to, not re-queued, not logged.
+
+  `init` holds receive-capable capabilities to endpoint objects **7** and **8**
+  (slots 6 and 7), which are also `semantic-stream`'s and `proxy-text`'s *own*
+  endpoints, and which `sample-service` and `semantic-stream` hold send-capable
+  capabilities to for ordinary protocol traffic. **Two tasks receive on one
+  queue with nothing arbitrating between them.**
+
+  A blocking `sys_ipc_call` consumed by `init` therefore **leaves its caller
+  blocked forever**, because the task that received the message does not know it
+  owed a reply. Observed live during RFC-0.26-002: `init` consumed
+  `semantic_stream::PUBLISH_BEGIN` (`0x501`), the first word of
+  `sample-service`'s `chunked::send`, and looped back to `recv`.
+
+  Not a probabilistic race that used to get luckier: it is unsafe on any
+  endpoint another task can call into. RFC-0.26-001's scheduling change only
+  altered where it lands.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-27, reviewing RFC-0.26-002).
+  Recorded independently of whichever design **RFC-0.26-004** chooses, because
+  the missing `else` is a defect on its own merits and would remain one even if
+  readiness moved to a different channel entirely. Not fixed here: patching the
+  `else` alone would stop the lost reply without making the channel arrangement
+  correct, and the two should be decided together. Classified ACCEPTED rather
+  than OPEN on the same grounds as E-019 — it is a latent hazard with a tracking
+  line, not a shipped feature that has stopped working. See
+  `docs/release/v1-limitations.md`.
+
 ---
 
 ## Summary
@@ -513,6 +548,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
 | E-019 `ipc` negative profile assumes an unsynchronised scheduling order | 0.27 candidate (recorded, not fixed) | ACCEPTED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | next line (live regression) | OPEN |
+| E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 (recorded, not fixed) | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
