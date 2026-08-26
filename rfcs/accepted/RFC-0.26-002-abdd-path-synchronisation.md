@@ -1,6 +1,6 @@
 # RFC-0.26-002: The ABDD path must synchronise, not assume
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-08-27; implementation may begin (RFC 000)
 **Milestone:** 0.26 — **blocks every release** (Gate 7 is red until this lands)
 **Tracks.** Service startup synchronisation on the ABDD live path.
 **Touches.** `crates/services/fjell-sample-service`. No kernel, ABI, capability,
