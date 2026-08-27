@@ -577,29 +577,48 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   already waiting, hitting `SendResult::Delivered` rather than `Queued`, and
   the sender never blocked. Removing that accidental, unsynchronised
   co-receiver (correctly, per E-021) removed the cover along with it.
-- **Resolution:** **ACCEPTED** (implementer, pending review, RFC-0.26-004).
-  Recorded independently of RFC-0.26-004's own scope: this is a kernel IPC
-  syscall defect, not a readiness-channel design question, and fixing
-  `sys_ipc_send` itself is a kernel-level change outside this RFC's
-  authorised `Touches` (the RFC's own Risk R4 anticipates exactly this
-  shape of finding — *"the answer needs a kernel capability change...
-  escalate before writing it"*). **Worked around, not fixed**: the two call
-  sites that currently trigger it (`fjell-semantic-stream`'s and
-  `fjell-proxy-text`'s `send_ready()` calls) are removed as dead code under
-  RFC-0.26-004's own invariant — nothing has held a receive capability to
-  either endpoint's `READY` tag since `init`'s co-receipt was removed, so
-  the announcement had no reader regardless of this defect. No other
-  one-way `sys_ipc_send`/`sys_ipc_try_send` call site in the current tree is
-  known to send into an endpoint the sender itself exclusively receives on,
-  so no other live occurrence is known — but the kernel defect itself
-  remains: any future one-way send with that shape will hit it. Classified
-  ACCEPTED rather than OPEN on the same grounds as E-019/E-021 — a latent
-  hazard with a tracking line, not a shipped feature that has stopped
-  working, since the two instances found are already worked around. May be
-  relevant to **E-019 / RFC-0.26-003**'s `ipc` investigation, which is
-  building similar send/recv synchronisation — flagged, not absorbed, per
-  that RFC's own scope boundary. Its own line, next. See
-  `docs/release/v1-limitations.md`.
+- **Resolution:** **CLOSED** by RFC-0.27-002. The prior recording
+  classified this as a kernel defect outside RFC-0.26-004's authorised
+  `Touches`; RFC-0.27-002 investigated further and found **the kernel is
+  correct** — `sendq`/`recvq` are waiter queues implementing coherent
+  rendezvous IPC deliberately and symmetrically with `RecvResult`, not a
+  message buffer with a bug. The defect was entirely in the userspace
+  wrapper: `sys_ipc_try_send` was named as though it tries and documented
+  as though it queues and returns, when the kernel has never offered a
+  non-blocking one-way send. **Fixed by renaming** `sys_ipc_try_send` →
+  `sys_ipc_send` and rewriting its doc-comment
+  (`crates/fjell-syscall/src/lib.rs`) to state the actual contract: it
+  blocks the caller until a receiver takes the message, and `WouldBlock`
+  means the *waiter* queue is full, not a message buffer. The three
+  normative docs describing the old, incorrect contract
+  (`docs/src/abi/ipc-register-layout.md`, `docs/src/api/syscalls.md`,
+  `docs/src/external-design/ipc.md`) are corrected in the same commit.
+
+  **Correction to this entry's own prior claim.** It previously stated *"no
+  other one-way `sys_ipc_send`/`sys_ipc_try_send` call site in the current
+  tree is known to send into an endpoint the sender itself exclusively
+  receives on."* RFC-0.27-002's audit (required by its R2) found this
+  incomplete: **five more services** — `fjell-measuredd`, `fjell-attestd`,
+  `fjell-recoveryd`, `fjell-storaged` (via raw `core::arch::asm!("li a7,
+  20", ...)`, bypassing the wrapper entirely, not caught by a search for
+  the wrapper's name alone) — share the identical self-targeting shape
+  (`send_ready()` and `recv_call()` both using one fixed `EP_SLOT`). None
+  currently self-deadlocks: `init`'s `wait_service_ready` /
+  `wait_storaged_ready` still hold full receive rights on each of these
+  services' own endpoints and reach the corresponding wait before or
+  exactly when it matters, because `init`'s boot sequence deterministically
+  visits every wait and a queued one-way send is drained whenever the
+  receiver gets there, not dropped. This is the exact masking arrangement
+  RFC-0.26-004 removed for `semantic-stream`/`proxy-text` — intact here
+  only because `init` was never asked to stop receiving on these four
+  objects. `wait_service_ready`/`wait_storaged_ready` retain the identical
+  missing-`else` defect `wait_ready_exact` had (disclosed, not fixed, since
+  RFC-0.26-004; reworking RFC 058's readiness protocol is a non-goal of
+  both that RFC and this one). Full audit and the design-answer document
+  naming this a real, six-instance, unmet primitive need — not decided
+  here — in `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md`. May
+  be relevant to **E-019 / RFC-0.26-003**'s `ipc` investigation — flagged,
+  not absorbed. See `docs/release/v1-limitations.md`.
 
 ## E-023 — RFC-v0.7.1-001: the release tool's `RELEASE.md` and consistency checks were never built
 
@@ -669,7 +688,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.26-003 | ACCEPTED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
-| E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | ACCEPTED |
+| E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and

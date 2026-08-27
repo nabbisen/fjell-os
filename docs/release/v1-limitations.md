@@ -179,28 +179,35 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   receiver — the service itself.** See
   `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
 
-- **`sys_ipc_send`'s one-way path blocks the sender against its own
-  documented contract** (Errata **E-022**, ACCEPTED). `sys_ipc_try_send`'s
-  doc-comment describes a non-blocking, fire-and-forget contract — the call
-  returns, the message queues if unread. The shipped kernel instead blocks
-  the *sender* whenever the message queues with no receiver yet waiting
-  (`crates/fjell-kernel/src/cap/syscall.rs`'s `sys_ipc_send`,
-  `SendResult::Queued` arm), which self-deadlocks any task that announces a
-  one-way message into an endpoint only it will ever receive on. Found live
-  while implementing RFC-0.26-004: once E-021's fix removed `init` as an
-  accidental co-receiver of `semantic-stream`'s and `proxy-text`'s endpoints,
-  each service's pre-existing `send_ready()` call (a one-way send into its
-  *own* endpoint, before it first reaches its own receive loop) queued
-  against a queue only that same task could ever drain, blocking it
-  permanently — previously masked because `init` was already waiting there
-  by the time the send ran. Worked around, not fixed: both `send_ready()`
-  calls were dead code under RFC-0.26-004's own invariant (nothing has
-  consumed either endpoint's `READY` tag since `wait_ready_exact` was
-  removed) and are deleted; the kernel defect in `sys_ipc_send` itself
-  remains and could affect any future one-way send with the same shape,
-  including possibly **E-019 / RFC-0.26-003**'s `ipc` investigation
-  (flagged, not absorbed). Recorded, not fixed; its own line. See
-  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
+- **The one-way send wrapper's name and doc-comment described a primitive
+  the kernel never implemented** (Errata **E-022**, **CLOSED** by
+  RFC-0.27-002). `sys_ipc_try_send` was named as though it tries and
+  documented as a non-blocking, fire-and-forget contract; the kernel
+  implements one-way send as coherent **rendezvous** IPC, symmetric with
+  two-way call/reply — `sendq`/`recvq` are waiter queues, not message
+  buffers, and the kernel correctly blocks the caller when no receiver is
+  waiting. **The kernel was correct; the wrapper's name and documentation
+  were not**, which RFC-0.27-002 fixed by renaming it to `sys_ipc_send` and
+  rewriting its doc-comment, plus the three normative docs describing the
+  old contract. First found live while implementing RFC-0.26-004: once
+  `init` was correctly removed as `semantic-stream`'s/`proxy-text`'s
+  accidental co-receiver (E-021), each service's pre-existing
+  `send_ready()` call (announcing into its own endpoint, before reaching
+  its own receive loop) blocked itself permanently under the corrected
+  understanding of the contract — those two calls were dead code under the
+  new invariant regardless, and were deleted. **RFC-0.27-002's required
+  audit found this shape recurs in five more services**
+  (`fjell-measuredd`, `fjell-attestd`, `fjell-recoveryd`, `fjell-storaged`,
+  each via raw inline `asm!`, not the wrapper), none currently
+  self-deadlocking because `init` still holds full receive rights on each
+  of their endpoints — the exact masking arrangement already removed for
+  `semantic-stream`/`proxy-text`, intact here only because nothing has
+  asked `init` to stop. Whether a genuinely non-blocking one-way send
+  should exist is answered as **a real, recurring need, not decided by
+  this line** — an ABI addition requires escalation this RFC's scope does
+  not authorise. See
+  `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md` for the full
+  audit and reasoning.
 
 - **The release tool's `RELEASE.md` generation and consistency checks were never
   built** (Errata **E-023**, **CLOSED** by RFC-0.27-001). RFC-v0.7.1-001,

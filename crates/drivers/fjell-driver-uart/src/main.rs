@@ -10,7 +10,7 @@ mod rt;
 
 use fjell_cap::CapHandle;
 use fjell_syscall::{
-    sys_debug_writeln, sys_exit, sys_ipc_try_send, sys_irq_ack, sys_irq_bind, sys_irq_wait,
+    sys_debug_writeln, sys_exit, sys_ipc_send, sys_irq_ack, sys_irq_bind, sys_irq_wait,
     sys_mmio_map,
 };
 
@@ -86,7 +86,7 @@ pub extern "C" fn service_main() -> ! {
                     // The endpoint carries exactly one message shape (a
                     // received byte), so the raw label IS the byte value —
                     // no separate tag namespace needed.
-                    let _ = sys_ipc_try_send(CAP_INIT_EP.0, byte as usize);
+                    let _ = sys_ipc_send(CAP_INIT_EP.0, byte as usize);
                 }
                 sys_irq_ack(CAP_IRQ).unwrap_or_default();
             }

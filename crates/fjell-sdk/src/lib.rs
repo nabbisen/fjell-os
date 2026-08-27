@@ -88,7 +88,7 @@ pub mod ipc {
 pub mod syscall {
     pub use fjell_syscall::{
         sys_cap_copy, sys_cap_drop, sys_cap_mint, sys_ipc_call, sys_ipc_recv, sys_ipc_recv_msg,
-        sys_ipc_reply, sys_ipc_try_recv, sys_ipc_try_send, sys_yield,
+        sys_ipc_reply, sys_ipc_send, sys_ipc_try_recv, sys_yield,
     };
 }
 

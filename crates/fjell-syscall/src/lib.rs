@@ -275,9 +275,22 @@ pub fn sys_lease_create(cap_handle: u32, flags: u32) -> Result<LeaseId, SysError
     to_result(r0).map(|_| LeaseId(r1 as u32))
 }
 
-/// One-way IPC send (no reply expected).  If no receiver is waiting the
-/// message is queued.  Returns `WouldBlock` if the endpoint sendq is full.
-pub fn sys_ipc_try_send(ep_slot: u32, label: usize) -> Result<(), SysError> {
+/// One-way IPC send (no reply expected). This is **rendezvous** send, not a
+/// buffered post: `sendq`/`recvq` are waiter queues, not message buffers.
+/// If a receiver is already waiting, the message is delivered immediately
+/// and this call returns. **If no receiver is waiting, this call blocks the
+/// caller** until one arrives and takes the message — the kernel's own
+/// `SendResult::Queued` states this directly ("must block"), symmetric with
+/// `RecvResult::Queued`. `WouldBlock` means the endpoint's **waiter** queue
+/// (blocked senders, not buffered messages) is full — too many senders
+/// already queued, not a full buffer. RFC-0.27-002 (closes E-022): renamed
+/// from `sys_ipc_try_send`, which described a fire-and-forget primitive
+/// this kernel does not implement — a caller announcing into an endpoint
+/// only it will ever receive on deadlocks here, permanently, with this
+/// same blocking behaviour. See `crates/fjell-kernel/src/cap/syscall.rs`'s
+/// `sys_ipc_send` for the kernel side, and RFC-0.27-002's `§4` answer
+/// document for why a non-blocking variant is not added instead.
+pub fn sys_ipc_send(ep_slot: u32, label: usize) -> Result<(), SysError> {
     to_result(
         ecall2(
             SyscallNumber::IpcSend as usize,

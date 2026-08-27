@@ -135,7 +135,7 @@ fn debug_err(e: fjell_abi::error::SysError) {
 pub extern "C" fn service_main() -> ! {
     // RFC 058: signal service-manager we are ready.
     // RFC 058: signal READY to service-manager (best-effort; no reply expected).
-    let _ = fjell_syscall::sys_ipc_try_send(SLOT_SHARED_EP, fjell_service_api::tags::SERVICE_READY);
+    let _ = fjell_syscall::sys_ipc_send(SLOT_SHARED_EP, fjell_service_api::tags::SERVICE_READY);
     let ep: u32 = 0; // slot 0 = own endpoint (object 6, dedicated)
 
     // RFC-v0.23-001: emit a demonstration intent to semantic-stream. Done

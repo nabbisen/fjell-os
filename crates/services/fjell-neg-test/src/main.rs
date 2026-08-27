@@ -817,7 +817,7 @@ pub extern "C" fn service_main() -> ! {
 
     // RFC 058: signal service-manager we are ready.
     // RFC 058: signal READY to service-manager (best-effort; no reply expected).
-    let _ = fjell_syscall::sys_ipc_try_send(0, fjell_service_api::tags::SERVICE_READY);
+    let _ = fjell_syscall::sys_ipc_send(0, fjell_service_api::tags::SERVICE_READY);
 
     // ── RFC 050: CSpace layout self-check (must run first) ────────────────────
     harness_cspace_check();

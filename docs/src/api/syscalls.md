@@ -21,7 +21,7 @@ full list and disposition. This page lists only the 26 that are live.
 | 14 | `CapInspect` | `sys_cap_inspect` | Capability |
 | 15 | `CapDrop` | `sys_cap_drop` | Capability |
 | 16 | `CapBindLease` | `sys_cap_bind_lease` | Capability |
-| 20 | `IpcSend` | `sys_ipc_try_send` | IPC |
+| 20 | `IpcSend` | `sys_ipc_send` | IPC |
 | 21 | `IpcRecv` | `sys_ipc_recv` (also reached via `sys_ipc_recv_msg`) | IPC |
 | 22 | `IpcCall` | `sys_ipc_call` (also reached via `sys_ipc_call_words`) | IPC |
 | 23 | `IpcReply` | `sys_ipc_reply` | IPC |
@@ -43,8 +43,10 @@ Notes:
 - `CapDelete` (12) is a live dispatch arm in `trap/syscall.rs` (routed through
   `dispatch_m3`), but `fjell-syscall` does not currently expose a
   `sys_cap_delete` wrapper; a caller would need to issue the raw `ecall`.
-- `IpcSend` (20) has no distinct "try" number — `sys_ipc_try_send` and any
-  future blocking send wrapper both issue `IpcSend`.
+- `IpcSend` (20) is one-way **rendezvous** send: it blocks the caller until
+  a receiver takes the message (RFC-0.27-002, closes E-022 — `sys_ipc_send`
+  was named `sys_ipc_try_send` and documented as non-blocking until then,
+  which the kernel never implemented).
 - Every syscall except `DebugWrite` is capability-gated; the result is
   returned in `a0` as a typed `SysError` (or `Ok`). See
   [IPC Register Layout](../abi/ipc-register-layout.md) for the full

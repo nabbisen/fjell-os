@@ -144,20 +144,24 @@ pub extern "C" fn service_main() -> ! {
     // semantic-stream itself, so a self-addressed announcement has no
     // reader.
     //
-    // It is also actively harmful, not merely dead: `sys_ipc_send`'s
-    // one-way path blocks the caller when the message queues with no
-    // receiver waiting (`crates/fjell-kernel/src/cap/syscall.rs` —
-    // `sys_ipc_send`'s `SendResult::Queued` arm calls `block()`, though its
-    // own doc comment on `sys_ipc_try_send` describes a non-blocking
-    // contract). Calling `send_ready()` here — before this task has reached
-    // its own `recv_call()` — queues the message against the very endpoint
-    // only this task can ever drain, self-deadlocking permanently (confirmed
-    // live: this task never reached its own "M5: semantic-stream started"
-    // print with the old call in place). This was previously masked by
-    // `init` also holding a receive capability here and reaching
-    // `wait_ready_exact` first, giving the send an immediate receiver;
-    // removing `init` as a receiver (this RFC) removes that accidental
-    // cover. Filed as a new erratum — see review request.
+    // It was also actively harmful, not merely dead: one-way `sys_ipc_send`
+    // (`crates/fjell-kernel/src/cap/syscall.rs`) blocks the caller when the
+    // message queues with no receiver waiting — correct kernel behaviour
+    // (rendezvous IPC), but at the time this was written the wrapper was
+    // named `sys_ipc_try_send` and documented a non-blocking, fire-and-
+    // forget contract the kernel never implemented. Calling `send_ready()`
+    // here — before this task has reached its own `recv_call()` — queued
+    // the message against the very endpoint only this task could ever
+    // drain, self-deadlocking permanently (confirmed live: this task never
+    // reached its own "M5: semantic-stream started" print with the old
+    // call in place). This was previously masked by `init` also holding a
+    // receive capability here and reaching `wait_ready_exact` first, giving
+    // the send an immediate receiver; removing `init` as a receiver
+    // (RFC-0.26-004) removed that accidental cover. Filed as E-022; closed
+    // by RFC-0.27-002, which renamed the wrapper to `sys_ipc_send` and
+    // corrected its doc comment to describe the blocking contract the
+    // kernel actually has — see `crates/fjell-syscall/src/lib.rs` and
+    // `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md`.
     sys_debug_writeln("M5: semantic-stream started");
     sys_debug_writeln("M5: semantic policy loaded");
 

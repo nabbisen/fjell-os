@@ -15,8 +15,12 @@ user-space services and is the substrate for the entire service plane.
 
 Synchronous rendezvous. A caller blocks in `sys_ipc_call`; a server blocks in
 `sys_ipc_recv` / `sys_ipc_recv_msg`; the kernel delivers the message; the server
-replies via `sys_ipc_reply`. Non-blocking variants exist (`sys_ipc_try_send`,
-`sys_ipc_try_recv`).
+replies via `sys_ipc_reply`. One-way `sys_ipc_send` is the same rendezvous
+primitive without a reply: it blocks the caller until a receiver takes the
+message, not a buffered post (RFC-0.27-002, closes E-022 — this call was
+named `sys_ipc_try_send` and documented as non-blocking until then, which
+the kernel never implemented). A genuinely non-blocking receive exists
+(`sys_ipc_try_recv`, a distinct syscall number); no non-blocking send does.
 
 ### Register ABI (normative)
 

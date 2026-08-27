@@ -93,11 +93,18 @@ recv:  a0 = status
        LeaseRevoked → defense-in-depth check: edge's lease was revoked
 ```
 
-### `sys_ipc_try_send(ep_handle, tag) → Result<(), SysError>`
+### `sys_ipc_send(ep_handle, tag) → Result<(), SysError>`
 
-Non-blocking send. Returns `WouldBlock` if no receiver is waiting. There is
-no distinct `IpcTrySend` syscall number — this wrapper issues `IpcSend` (20),
-the same number a future blocking send wrapper would use.
+One-way **rendezvous** send (no reply expected) — not a buffered post.
+`sendq`/`recvq` are waiter queues, not message buffers: if a receiver is
+already waiting, the message delivers immediately and this call returns;
+**if no receiver is waiting, this call blocks the caller** until one
+arrives and takes the message. `WouldBlock` means the endpoint's *waiter*
+queue (blocked senders) is full, not that a message buffer is full. RFC-
+0.27-002 (closes E-022) renamed this from `sys_ipc_try_send`, which
+documented a non-blocking contract the kernel never implemented — a caller
+announcing into an endpoint only it will ever receive on deadlocks here,
+permanently.
 
 ```
 send:  a0 = ep_handle, a1 = tag, a7 = IpcSend
