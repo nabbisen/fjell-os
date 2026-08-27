@@ -6,6 +6,7 @@ members = [
     "crates/fjell-kernel",
     "crates/arch/fjell-arch",
     "crates/fjell-abi",
+    "crates/fjell-os",
     "crates/fjell-syscall",
     "crates/fjell-cap",
     "crates/fjell-ipc",

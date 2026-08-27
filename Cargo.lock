@@ -811,6 +811,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-os"
+version = "0.26.0"
+dependencies = [
+ "fjell-abi",
+]
+
+[[package]]
 name = "fjell-platform-format"
 version = "0.26.0"
 dependencies = [

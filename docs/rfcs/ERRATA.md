@@ -255,7 +255,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   and its negative categories.
 - **Shipped:** both enumerate their subjects by hand, and the lists have drifted.
   Found by RFC-0.24-001 Passes 2 and 4:
-  - **19 of 89 workspace crates are never named in any `ci.yml` job.** Six are
+  - **21 of 91 workspace crates are never named in any `ci.yml` job.** *(Measured 2026-08-27. This figure read **19 of 89** until today: it went stale when `fjell-driver-uart` was added in `0.25.0` and again when `fjell-os` was added, both times unnoticed. RFC-0.27-001's S5 exists for exactly this.)* Six are
     the gate tools (see E-013); three back Gate 8's validation drills
     (`fjell-sig-ed25519`, `fjell-fleet-sync`, `fjell-config-sync`), whose five
     markers therefore run only at `release-rehearsal` time and never on a push

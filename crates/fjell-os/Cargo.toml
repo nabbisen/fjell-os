@@ -1,0 +1,14 @@
+[package]
+name = "fjell-os"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Fjell OS — a capability-based microkernel for high-assurance edge and fleet nodes. Entry point to the project: links, status, and a re-export of the stable ABI surface."
+readme = "README.md"
+keywords = ["microkernel", "capability", "riscv", "operating-system", "no-std"]
+categories = ["no-std", "os"]
+
+[dependencies]
+fjell-abi = { path = "../fjell-abi", version = "0.26.0" }

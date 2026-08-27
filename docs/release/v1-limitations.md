@@ -71,7 +71,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   design answer instead. Recorded, not fixed; 0.25 candidate.
 
 - **Instrument scopes are hand-enumerated and have drifted from reality**
-  (Errata **E-015**, ACCEPTED). **19 of 89 workspace crates are never named in
+  (Errata **E-015**, ACCEPTED). **21 of 91 workspace crates are never named in
   any `ci.yml` job** — six are the gate tools above, and three back Gate 8's
   validation drills (`fjell-sig-ed25519`, `fjell-fleet-sync`,
   `fjell-config-sync`), whose markers therefore run only at
