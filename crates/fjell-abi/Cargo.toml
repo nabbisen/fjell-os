@@ -4,6 +4,8 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
-publish = false
-
-[dependencies]
+repository.workspace = true
+description = "Stable ABI surface for Fjell OS: syscall numbers, capability kinds and rights, service image identifiers, and boot-control types. no_std, zero dependencies."
+readme = "README.md"
+keywords = ["microkernel", "capability", "riscv", "no-std", "abi"]
+categories = ["no-std", "os", "embedded"]
