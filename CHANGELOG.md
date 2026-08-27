@@ -5,6 +5,98 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.26.0] — 2026-08-27 — One scheduler bug, and the three assumptions it was holding up
+
+No new capability. This release fixes a scheduler defect and then deals with
+what that defect had been silently propping up — which turned out to be more
+than anyone expected, including two shipped features and one kernel contract.
+
+### Fixed — the scheduler priority defect (RFC-0.26-001)
+
+`PRIORITY_USER` existed **three times with two values**: `scheduler.rs`'s real
+`32`, a *local* `const` shadowing it at `2` in `spawn.rs`, and a third
+hardcoded `2` in `sys_task_start`. Bucket 0 and bucket 1, and `dequeue_next`
+always drains the higher first — so `init` preempted every other spawned task.
+
+Invisible until now because every prior `init` wait used a **blocking** recv,
+which removed it from ready-queue contention entirely. RFC-0.25-001 needed a
+non-blocking poll and it starved `driver-uart` completely.
+
+**The investigation is the deliverable, not the two-line fix.** Correcting the
+constant alone hung the M6 boot sequence, and the cause is `svc-timeout` —
+RFC 042's negative-test service, an infinite `sys_yield()` loop *by design*,
+spawned in the M4 era. Its first enqueue went through `sys_task_start`'s
+literal, every enqueue after its first yield through `spawn.rs`'s constant. Fix
+one and not the other and it occupies bucket 1 permanently, and bucket 0 is
+never reached again. Recorded at
+`docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md`.
+
+Both enqueue paths now read the one surviving constant. No `PRIORITY_INIT` —
+the investigation found no reason `init` needs privilege; its former advantage
+*was* the bug.
+
+### Fixed — the ABDD path, which the scheduler bug had been holding up (RFC-0.26-004)
+
+Removing the priority asymmetry stopped the ABDD live path running at all —
+zero occurrences of `sample-service demo intent`. `sample-service` emitted its
+intent under a comment asserting its peers were *"already spawned and ready by
+this point"*: an assertion about scheduling order, not a synchronisation.
+
+The first attempt at a fix could not be built, and **that escalation is what
+found the real defect.** `semantic-stream` and `proxy-text` each announced
+readiness *into their own endpoint*, and `init` held **receive-capable**
+capabilities to those same objects — so two tasks received on one queue with
+nothing arbitrating, and readiness shared that queue with real protocol
+traffic.
+
+- **The invariant, now established:** *a service's endpoint has exactly one
+  receiver.* `init` no longer receives on either; its remaining capability to
+  object 7 is narrowed to `CALL`, so a future `sys_ipc_recv` fails at the
+  kernel boundary rather than silently reintroducing the hazard.
+- `init::wait_ready_exact` is **deleted**, not patched — it looped on a
+  blocking recv and discarded non-matching messages **without replying**,
+  leaving callers blocked forever. Observed live swallowing
+  `semantic_stream::PUBLISH_BEGIN`.
+- `sample-service` now waits because its transport is a blocking call into a
+  single-receiver endpoint. Evidence is causal ordering, not markers:
+  `semantic-stream` forwards the intent *before* `sample-service`'s own
+  completion print.
+
+### Changed
+
+- `syscall-surface` unchanged at **35 / 29 / 6**.
+- `test-all` is **21/21**. The `ipc` profile passes again as a side effect of
+  the above — `sample-service` now reaches its main loop — which is recorded
+  rather than treated as a fix. See E-019.
+
+### Known limitations carried into this release
+
+- **E-022** *(new)* — `sys_ipc_send` **blocks the sender** when a one-way
+  message queues, contradicting `sys_ipc_try_send`'s own doc-comment and its
+  name. Self-deadlocks any task announcing into an endpoint only it receives
+  on. Previously masked by the very co-receiver arrangement E-021 removed.
+  Worked around by deleting the two call sites; the kernel defect remains.
+  ACCEPTED.
+- **E-019** — `fjell-neg-test`'s blocked-recv scenario still *asserts* that a
+  peer has blocked rather than establishing it. The profile is green again,
+  **and nothing guarantees it stays that way** — which makes this more
+  dangerous than when it was red, not less. RFC-0.26-003 re-framed
+  accordingly. ACCEPTED.
+- **E-013 / E-014 / E-015 / E-016 / E-017** — carried unchanged. The 0.24
+  instrument audit's findings remain open and its `sound` verdicts remain
+  provisional.
+
+**0 OPEN, 11 CLOSED, 11 ACCEPTED.** E-018, E-020 and E-021 closed in this line.
+
+### The pattern this release is really about
+
+E-019, E-020 and E-021 are one defect at three depths: a test assuming a peer
+has blocked, a service assuming its peers are ready, and the mechanism those
+were to be fixed *with* assuming exclusive use of a shared channel. Each was
+invisible while a scheduler bug happened to make it true.
+
+---
+
 ## [0.25.0] — 2026-08-16 — The external interrupt plane; the project accepts input
 
 The first release in which a person can put something into this system and a

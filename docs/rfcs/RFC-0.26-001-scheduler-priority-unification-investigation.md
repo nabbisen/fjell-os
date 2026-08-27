@@ -1,6 +1,6 @@
 # RFC-0.26-001 R2 — The M6 hang, explained
 
-**Governing RFC:** [rfcs/accepted/RFC-0.26-001-scheduler-priority-unification.md](../../rfcs/accepted/RFC-0.26-001-scheduler-priority-unification.md)
+**Governing RFC:** [rfcs/done/RFC-0.26-001-scheduler-priority-unification.md](../../rfcs/done/RFC-0.26-001-scheduler-priority-unification.md)
 **Deliverable:** D1 — this document is the explanation the RFC requires before
 any unification lands. Written from direct observation (QEMU serial logs),
 not inference; every claim below names the log line or source line it comes

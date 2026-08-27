@@ -283,13 +283,50 @@ contention. Correcting the constant hung the M6 boot sequence and was reverted.
 
 Records: `docs/release/records/0.25.0.md`.
 
-### 0.26 — the scheduler priority defect (owner direction, 2026-08-16)
+### 0.26 — the scheduler priority defect, and what it was holding up (**shipped 2026-08-27**)
 
 **E-018 becomes its own RFC.** Three copies of one constant with two values, a
 narrow `image_id`-keyed stopgap shipped in 0.25.0, and a proper fix that hangs
 the M6 boot sequence — meaning something already shipped depends on the broken
 ordering in a way nobody yet understands. That investigation, not the cleanup,
 is the line.
+
+**Outcome.** Shipped as `0.26.0`. `RFC-0.26-001` unified the constant, but the
+deliverable was the investigation: correcting it alone hung M6 boot, and the
+cause was `svc-timeout` — RFC 042's negative-test service, an infinite
+`sys_yield()` loop *by design*, occupying the top ready-queue bucket
+permanently once its two enqueue paths disagreed.
+
+Removing the asymmetry then stopped the **ABDD live path** running at all, and
+the first attempt to fix that **could not be built** — which is how the real
+defect surfaced. `semantic-stream` and `proxy-text` announced readiness *into
+their own endpoints* while `init` held receive-capable capabilities to the same
+objects: two receivers on one queue, readiness sharing a channel with protocol
+traffic, and `wait_ready_exact` discarding what it did not recognise **without
+replying**. `RFC-0.26-004` established the invariant — *a service's endpoint has
+exactly one receiver* — and `RFC-0.26-002` was superseded, its premise having
+been false.
+
+**The pattern is the result.** E-019, E-020 and E-021 are one defect at three
+depths: a test assuming a peer has blocked, a service assuming its peers are
+ready, and the mechanism those were to be fixed *with* assuming exclusive use of
+a shared channel. Each was invisible while a scheduler bug happened to make it
+true.
+
+**Still open.** **E-022** — `sys_ipc_send` blocks the sender on a queued one-way
+send, against its own documented contract; found because removing the accidental
+co-receiver removed its cover. **E-019** — the `ipc` profile is green again and
+**nothing guarantees it**, which makes `RFC-0.26-003` more necessary than when
+it was red, not less.
+
+Records: `docs/release/records/0.26.0.md`.
+
+### 0.27 — undecided
+
+Candidates carried in: **E-022** (kernel IPC contract), **E-019** /
+`RFC-0.26-003` (the green-by-accident test), the capability rights-narrowing
+follow-up from RFC-0.26-004's review, and the 0.24 audit's still-open families
+(E-013 through E-017).
 
 ### Beyond 0.26 — under discussion, not yet decided
 

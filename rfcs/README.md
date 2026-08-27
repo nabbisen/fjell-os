@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 162 files
+## Implemented (done/) — 166 files
 
-161 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+165 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -334,43 +334,39 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
----
-
-## Accepted (accepted/) — 3 RFCs
-
-Signed off by the owner; implementation may begin; not yet shipped.
-
-### 0.26 — the scheduler priority defect, and the two assumptions it exposed
-
-`0.26-001` is implemented and reviewed; it moves to `done/` at the 0.26 cut,
-as `0.25-001` did. `0.26-002` and `0.26-003` close the collateral it surfaced —
-**separate lines because the fixes are not the same problem**: one has a
-readiness signal already in the tree, the other has no signal and no obvious way
-to build one.
-
-| RFC | Title |
-|-----|-------|
-| 0.26-001 | [The scheduler priority defect — and what depends on it](./accepted/RFC-0.26-001-scheduler-priority-unification.md) — accepted 2026-08-16; closes **E-018**; implemented and reviewed; handoff: [`handoffs/`](./handoffs/RFC-0.26-001-scheduler-priority-unification/implementation-handoff.md) |
-| 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — accepted 2026-08-27; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
-| 0.26-004 | [Readiness needs a channel of its own](./accepted/RFC-0.26-004-readiness-channel.md) — accepted 2026-08-27; supersedes **0.26-002**; closes **E-020** (OPEN), expected to close **E-021**; **blocks every release**; handoff: [`handoffs/`](./handoffs/RFC-0.26-004-readiness-channel/implementation-handoff.md) |
-
-### 0.25 — Functional advancement (owner direction, 2026-08-03)
-
-Release-stability work is **deprioritised**; the audit's 0.25 candidates
-(`docs/verification/instrument-audit-closeout.md` §6) are deferred behind
-functional lines. Errata E-013 through E-017 remain open and disclosed.
-
-| RFC | Title |
-|-----|-------|
-
----
-
 ### 0.25 — governance
 
 | RFC | Title | Shipped |
 |-----|-------|---------|
 | 0.25-001 | [The External Interrupt Plane — and the first console input path](./done/RFC-0.25-001-external-interrupt-plane.md) — R1–R7 complete, 7 QEMU demonstrations; handoff: [`handoffs/`](./handoffs/RFC-0.25-001-external-interrupt-plane/implementation-handoff.md) | 0.25.0 |
 | 0.25-002 | [Adopt the 5-folder RFC lifecycle policy, and make RFC 000 say what the project actually does](./done/RFC-0.25-002-rfc-lifecycle-policy-adoption.md) — R1–R5 complete; handoff: [`handoffs/`](./handoffs/RFC-0.25-002-rfc-lifecycle-policy-adoption/implementation-handoff.md) | 0.25.0 |
+
+### 0.26 — the scheduler priority defect, and the assumptions it was holding up
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.26-001 | [The scheduler priority defect — and what depends on it](./done/RFC-0.26-001-scheduler-priority-unification.md) — closed **E-018**; investigation at [`docs/rfcs/`](../docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md) | 0.26.0 |
+| 0.26-004 | [Readiness needs a channel of its own](./done/RFC-0.26-004-readiness-channel.md) — supersedes **0.26-002**; closed **E-020** and **E-021**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.26-004-readiness-channel-answer.md) | 0.26.0 |
+
+---
+
+## Accepted (accepted/) — 1 RFC
+
+Signed off by the owner; implementation may begin; not yet shipped.
+
+### 0.26 — the remaining assumption
+
+`0.26-001` and `0.26-004` shipped in `0.26.0`; `0.26-002` was superseded.
+`0.26-003` remains: its profile is **green again** since RFC-0.26-004, and
+nothing guarantees it stays that way — which is why it is still open.
+
+| RFC | Title |
+|-----|-------|
+| 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — accepted 2026-08-27; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
+
+
+---
+
 
 ---
 

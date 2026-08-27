@@ -1,6 +1,6 @@
 # RFC-0.26-004 — The readiness channel, decided
 
-**Governing RFC:** [rfcs/accepted/RFC-0.26-004-readiness-channel.md](../../rfcs/accepted/RFC-0.26-004-readiness-channel.md)
+**Governing RFC:** [rfcs/done/RFC-0.26-004-readiness-channel.md](../../rfcs/done/RFC-0.26-004-readiness-channel.md)
 **Deliverable:** R1 — the open question answered in writing, committed, naming
 the invariant established, before the code that implements it. Written from
 direct observation (QEMU serial logs, kernel source), not inference; every

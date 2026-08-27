@@ -1,6 +1,6 @@
 # RFC-0.26-001: The scheduler priority defect — and what depends on it
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-16; implementation may begin (RFC 000)
+**Status:** Implemented (0.26.0) — accepted 2026-08-16
 **Milestone:** 0.26
 **Tracks.** `task::scheduler` priority assignment; the boot-ordering dependency
 that a correct fix exposes.

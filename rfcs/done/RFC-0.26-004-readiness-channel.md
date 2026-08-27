@@ -1,6 +1,6 @@
 # RFC-0.26-004: Readiness needs a channel of its own
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-27; implementation may begin (RFC 000)
+**Status:** Implemented (0.26.0) — accepted 2026-08-27
 **Milestone:** 0.26 — **blocks every release** (Gate 7 red on E-020 until this lands)
 **Tracks.** How a service learns another service is ready, and who may receive
 on a service's endpoint.
