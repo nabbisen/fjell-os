@@ -1073,28 +1073,31 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     lease: None,
                 },
             );
-            // Slots 6-7: RFC-v0.23-001 ABDD live path private endpoints.
+            // Slot 6: RFC-v0.23-001 ABDD live path — semantic-stream (ep id=7).
+            //
+            // RFC-0.26-004 (closes E-020/E-021): rights narrowed from
+            // `ALL_NON_META` to `CALL` only. `init`'s only remaining use of
+            // this capability is `emit_envelope`'s blocking `ipc_call`
+            // (checked against `CapRights::CALL`, not `SEND`/`RECV`) — it
+            // no longer receives on this endpoint at all (the
+            // `wait_ready_exact` call that used to is removed; see
+            // `fjell-init/src/main.rs`'s M5 section). This is what makes
+            // "a service's endpoint has exactly one receiver" a structural
+            // fact rather than a currently-true accident of what the
+            // source happens to call: even a future `sys_ipc_recv` added
+            // here would fail the rights check, not silently reintroduce
+            // the hazard.
+            //
+            // Slot 7 (proxy-text, ep id=8) is removed entirely rather than
+            // narrowed: `init` never sent to proxy-text directly (only
+            // `wait_ready_exact` used it), so no residual capability is
+            // needed at all now that that call is gone.
             let _ = cs.install_raw(
                 6,
                 Capability {
-                    // semantic-stream (ep id=7)
                     kind: CapKind::Endpoint,
                     object_id: 7,
-                    rights: CapRights::ALL_NON_META,
-                    badge: 0,
-                    scope: ObjectScope::Any,
-                    state: CapState::Active,
-                    parent: None,
-                    lease: None,
-                },
-            );
-            let _ = cs.install_raw(
-                7,
-                Capability {
-                    // proxy-text (ep id=8)
-                    kind: CapKind::Endpoint,
-                    object_id: 8,
-                    rights: CapRights::ALL_NON_META,
+                    rights: CapRights::CALL,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,

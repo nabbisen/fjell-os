@@ -25,13 +25,6 @@ const DEMO_CAP_SLOT: u32 = 2;
 const ENV_SIZE: usize = core::mem::size_of::<SemanticEnvelope>();
 const ENV_BUF_SIZE: usize = ENV_SIZE.div_ceil(32) * 32;
 
-fn send_ready() {
-    // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
-    unsafe {
-        core::arch::asm!("li a7, 20","ecall", in("a0") EP_SLOT as usize, in("a1") proto::READY, lateout("a0") _, lateout("a7") _, options(nostack));
-    }
-}
-
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     let (mut t, mut w0, mut w1, mut w2, mut w3) = (0usize, 0usize, 0usize, 0usize, 0usize);
     // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
@@ -109,7 +102,25 @@ fn ipc_call_action(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize) ->
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
-    send_ready();
+    // RFC-0.26-004 (closes E-020/E-021): this used to announce readiness by
+    // sending `proto::READY` into this task's own endpoint (object 8) — a
+    // message nothing has consumed since `init`'s `wait_ready_exact` was
+    // removed (see `fjell-init/src/main.rs`'s M5 section): under the
+    // established invariant, this endpoint's only receiver is proxy-text
+    // itself, so a self-addressed announcement has no reader.
+    //
+    // It is also actively harmful, not merely dead: `sys_ipc_send`'s
+    // one-way path blocks the caller when the message queues with no
+    // receiver waiting (`crates/fjell-kernel/src/cap/syscall.rs` —
+    // `sys_ipc_send`'s `SendResult::Queued` arm calls `block()`, though its
+    // own doc comment on `sys_ipc_try_send` describes a non-blocking
+    // contract). Calling `send_ready()` here — before this task has reached
+    // its own `recv_call()` — queues the message against the very endpoint
+    // only this task can ever drain, self-deadlocking permanently. This was
+    // previously masked by `init` also holding a receive capability here
+    // and reaching `wait_ready_exact` first, giving the send an immediate
+    // receiver; removing `init` as a receiver (this RFC) removes that
+    // accidental cover. Filed as a new erratum — see review request.
     sys_debug_writeln("M5: proxy-text started");
 
     let mut buf = [0u8; ENV_BUF_SIZE];

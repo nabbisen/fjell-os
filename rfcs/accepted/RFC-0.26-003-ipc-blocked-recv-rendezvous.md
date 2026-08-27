@@ -11,7 +11,23 @@ the accident it relied on), RFC-0.26-002 (the sibling with an easier answer).
 
 ## Summary
 
-`tests/qemu/profiles/ipc.toml` is red and covers nothing.
+> **Re-framed 2026-08-27, after RFC-0.26-004.** This RFC was written when
+> `ipc.toml` was **red**. It is now **green** — RFC-0.26-004 fixed a defect
+> upstream (`sample-service` never reached its main loop, so it never served
+> `BIND_LEASE_FOR_IPC_TEST`), and the profile passes without `fjell-neg-test`
+> being touched.
+>
+> **That makes this RFC more necessary, not less.** The assumption it exists to
+> remove is still written at `fjell-neg-test:435-439`, still unsynchronised, and
+> is now **satisfied by accident**. A red test that is red for a known reason is
+> honest; a green test that is green for a reason nobody guarantees is the thing
+> this project has spent five milestones removing.
+>
+> Everything below still holds — the mechanism, the missing signal, the three
+> shapes. Only the symptom has changed, and its disappearance is not evidence
+> the cause was addressed.
+
+`tests/qemu/profiles/ipc.toml` passes, and nothing holds it there.
 
 `fjell-neg-test::test_ipc_blocked_recv` needs `sample-service` to be **blocked
 in `sys_ipc_recv`** before it revokes the lease — that is the entire point of
@@ -56,7 +72,9 @@ So this coverage has already been useless once, for nineteen releases, without
 anyone noticing. It is now useless again, loudly this time.
 
 **A permanently red guard and a permanently green useless one detect exactly the
-same amount.** The difference is only that this one is honest about it.
+same amount.** The difference is only that a red one is honest about it — and
+since 2026-08-27 this guard is the green kind again, for the second time in its
+history, by a mechanism nobody designed.
 
 ## Why E-019 stays ACCEPTED while its sibling E-020 is OPEN
 

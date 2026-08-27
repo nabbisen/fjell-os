@@ -139,30 +139,23 @@ fn wait_service_ready(ep: usize) {
     }
 }
 
-/// Wait for exactly one expected READY tag on `ep` (a CSpace slot index in
-/// init's own CSpace). Unlike `wait_service_ready`, which tolerates any of
-/// three known READY values, this checks a single expected tag — used where
-/// there is exactly one dedicated endpoint slot per service and ambiguity
-/// would hide a slot/service mismatch rather than tolerate one.
-fn wait_ready_exact(ep: usize, expected: usize) {
-    loop {
-        let tag: usize;
-        // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-        unsafe {
-            core::arch::asm!(
-                "li a7, 21", "ecall",
-                in("a0")        ep,
-                lateout("a1")   tag,
-                lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
-                lateout("a7") _,
-                options(nostack),
-            );
-        }
-        if (tag & 0xFFFF) == expected {
-            break;
-        }
-    }
-}
+// `wait_ready_exact` (RFC-v0.23-001) removed by RFC-0.26-004 (closes E-021):
+// it received on the same endpoint object (`semantic-stream`'s / `proxy-
+// text`'s own, object 7 / 8) that each service itself receives real
+// protocol traffic on, with nothing arbitrating between the two receivers.
+// A mismatched blocking `ipc_call` (as opposed to the one-way `send` this
+// function expected) was silently consumed and never replied to, blocking
+// its caller forever — confirmed live via a diagnostic instrumenting this
+// function, during the RFC-0.26-002 escalation this RFC's investigation
+// grew out of. See the M5 section below for what replaced it and why
+// nothing needed to replace the wait itself.
+//
+// `wait_service_ready`/`wait_storaged_ready` below have the same shape
+// (each target service also receives on its own dedicated endpoint) and
+// are NOT touched here — reworking RFC 058's readiness protocol for
+// services that are otherwise working today is this RFC's explicit
+// non-goal. Flagged for whoever eventually takes that on: this is the
+// same hazard, not yet observed to bite in practice.
 
 // ── RFC-v0.23-001 Slice 2(b): emit semantic nodes instead of rendering them ────
 //
@@ -456,12 +449,29 @@ pub extern "C" fn service_main() -> ! {
     // ── M5 ───────────────────────────────────────────────────────────────────
     spawn(ImageId::SEMANTIC_STREAM, "M5: semantic-stream started");
     spawn(ImageId::PROXY_TEXT, "M5: proxy-text started");
-    // RFC-v0.23-001: slots 6=semantic-stream (ep id=7), 7=proxy-text (ep id=8).
-    // Wait for both before init (or, from Slice 2 on, sample-service) emits
-    // anything — established here, in Slice 1, while the only observable is
-    // "they start and stay alive."
-    wait_ready_exact(6, fjell_service_api::semantic_stream::READY);
-    wait_ready_exact(7, fjell_service_api::proxy_text::READY);
+    // RFC-0.26-004 (closes E-020/E-021): this used to block here on
+    // `wait_ready_exact(6/7, ...)`, receiving on the same endpoint objects
+    // (7, 8) that `semantic-stream`/`proxy-text` themselves receive real
+    // protocol traffic on. Two receivers on one queue, arbitrated by
+    // nothing: whichever task called `recv` first took the next message,
+    // and a mismatched *call* (as opposed to a one-way send) was silently
+    // dropped without a reply, blocking its caller forever — confirmed
+    // live, this is what made `sample-service`'s own emission hang.
+    //
+    // Removed rather than patched: `init`'s own `emit_envelope` (used
+    // throughout M7/M8) is already a blocking `ipc_call` to slot 6 — if
+    // `semantic-stream` is not yet in its receive loop, the call simply
+    // queues and blocks until it is (`SendResult::Queued`), which is a
+    // real wait, not an assumption. The two prints below no longer gate on
+    // anything; they never needed to — nothing downstream depends on their
+    // exact timing relative to `semantic-stream`/`proxy-text` starting.
+    //
+    // Invariant established: a service's endpoint has exactly one
+    // receiver. `init` retains slot 6 (object 7) only for `CALL` — it no
+    // longer holds any right to receive there — and no longer holds any
+    // capability to object 8 (proxy-text) at all, having never needed one
+    // beyond this removed wait. See `crates/fjell-kernel/src/main.rs`'s
+    // init-CSpace bootstrap section.
     sys_debug_writeln("M5: semantic policy loaded");
     sys_debug_writeln("M5: semantic operations ready");
 

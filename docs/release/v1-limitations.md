@@ -127,40 +127,65 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   the affected service to synchronise explicitly; out of RFC-0.26-001's
   scope. Recorded, not fixed; needs its own line.
 
-- **The ABDD live path no longer runs** (Errata **E-020**, **OPEN**).
-  RFC-v0.23-001 shipped this project's distinguishing architectural bet in
-  `0.23.0` — `sample-service` emits an intent, `semantic-stream` routes it, and
-  a *separate* `proxy-text` task renders it, with the capability-checked
-  refusal demonstrated — and created `tests/qemu/profiles/semantic.toml` in the
-  same RFC as a fail-closed guard so the path could not rot. Since RFC-0.26-001
-  removed the scheduler priority asymmetry, **the path does not execute at
-  all**: measured zero occurrences of `sample-service demo intent` or
-  `proxy-text: action` in the profile's serial log.
-  `crates/services/fjell-sample-service` calls `emit_sample_intent()` once from
-  `service_main()` under a comment asserting its downstream peers are *"already
-  spawned and ready by this point"* — an assertion about scheduling order
-  rather than a synchronisation, which the priority asymmetry had been silently
-  satisfying. **This is a service, not a test harness, and the consequence is a
-  shipped feature that no longer runs**, which is why it is OPEN rather than
-  ACCEPTED. Gate 7 (`ERRATA register (0 OPEN)`) therefore fails and no release
-  can be cut until it is fixed — deliberately. The fix is `sample-service`
-  waiting for its peers rather than asserting them; it already sends
-  `SERVICE_READY` to service-manager, so the protocol exists. Its own line,
-  next.
+- **The ABDD live path runs again** (Errata **E-020**, **CLOSED** by
+  RFC-0.26-004). RFC-v0.23-001 shipped this project's distinguishing
+  architectural bet in `0.23.0` — `sample-service` emits an intent,
+  `semantic-stream` routes it, and a *separate* `proxy-text` task renders it,
+  with the capability-checked refusal demonstrated — and created
+  `tests/qemu/profiles/semantic.toml` in the same RFC as a fail-closed guard.
+  RFC-0.26-001's scheduler fix removed the priority asymmetry the path had
+  been silently relying on, and `sample-service` called `emit_sample_intent()`
+  on the bare assertion that its peers were *"already spawned and ready by
+  this point"* rather than synchronising on it.
+  RFC-0.26-004 replaced the assertion with a real wait —
+  `emit_sample_intent()`'s transport is a blocking `sys_ipc_call`, which
+  queues and blocks the caller until `semantic-stream` actually reaches its
+  receive loop and replies — made safe by establishing that
+  `semantic-stream`'s and `proxy-text`'s endpoints each have exactly one
+  receiver (see E-021 below), so the call can never be delivered to, and
+  dropped by, anyone else. All four `semantic.toml` markers pass, with a
+  causal ordering in the serial log (not just marker presence) confirming the
+  wait actually executed. See
+  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
 
-- **`init` can silently consume and drop another task's IPC** (Errata
-  **E-021**, ACCEPTED). `fjell-init`'s `wait_ready_exact` loops on a blocking
-  receive and discards any message whose tag does not match the one it wants —
-  no reply, no re-queue, no log. `init` holds receive-capable capabilities to
-  endpoint objects 7 and 8, which are also `semantic-stream`'s and
-  `proxy-text`'s own endpoints and carry ordinary protocol traffic, so **two
-  tasks receive on one queue with nothing arbitrating between them**. A blocking
-  `sys_ipc_call` consumed by `init` leaves its caller blocked forever. Observed
-  live during RFC-0.26-002: `init` swallowed `semantic_stream::PUBLISH_BEGIN`.
-  Unsafe on any endpoint another task can call into; RFC-0.26-001's scheduling
-  change only altered where it lands. Recorded, not fixed — the missing `else`
-  and the shared-channel arrangement should be decided together, in
-  **RFC-0.26-004**.
+- **`init` no longer receives on another task's endpoint** (Errata **E-021**,
+  **CLOSED** by RFC-0.26-004, cleanly, no residual hazard). `fjell-init`'s
+  `wait_ready_exact` used to loop on a blocking receive and discard any
+  message whose tag did not match the one it wanted — no reply, no re-queue,
+  no log — while holding receive-capable capabilities to endpoint objects 7
+  and 8, which are also `semantic-stream`'s and `proxy-text`'s own endpoints
+  and carry ordinary protocol traffic: two tasks received on one queue with
+  nothing arbitrating between them. RFC-0.26-004 removed `wait_ready_exact`
+  entirely rather than patching its missing `else` — there is no code path
+  left in `init` that can receive on either endpoint. `init`'s capability to
+  object 7 is narrowed to `CALL` only (kernel-enforced: a future `sys_ipc_recv`
+  there would fail the rights check); its capability to object 8 is removed
+  outright. **Invariant established: a service's endpoint has exactly one
+  receiver — the service itself.** See
+  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
+
+- **`sys_ipc_send`'s one-way path blocks the sender against its own
+  documented contract** (Errata **E-022**, ACCEPTED). `sys_ipc_try_send`'s
+  doc-comment describes a non-blocking, fire-and-forget contract — the call
+  returns, the message queues if unread. The shipped kernel instead blocks
+  the *sender* whenever the message queues with no receiver yet waiting
+  (`crates/fjell-kernel/src/cap/syscall.rs`'s `sys_ipc_send`,
+  `SendResult::Queued` arm), which self-deadlocks any task that announces a
+  one-way message into an endpoint only it will ever receive on. Found live
+  while implementing RFC-0.26-004: once E-021's fix removed `init` as an
+  accidental co-receiver of `semantic-stream`'s and `proxy-text`'s endpoints,
+  each service's pre-existing `send_ready()` call (a one-way send into its
+  *own* endpoint, before it first reaches its own receive loop) queued
+  against a queue only that same task could ever drain, blocking it
+  permanently — previously masked because `init` was already waiting there
+  by the time the send ran. Worked around, not fixed: both `send_ready()`
+  calls were dead code under RFC-0.26-004's own invariant (nothing has
+  consumed either endpoint's `READY` tag since `wait_ready_exact` was
+  removed) and are deleted; the kernel defect in `sys_ipc_send` itself
+  remains and could affect any future one-way send with the same shape,
+  including possibly **E-019 / RFC-0.26-003**'s `ipc` investigation
+  (flagged, not absorbed). Recorded, not fixed; its own line. See
+  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
 
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs

@@ -139,8 +139,23 @@ pub extern "C" fn service_main() -> ! {
     let ep: u32 = 0; // slot 0 = own endpoint (object 6, dedicated)
 
     // RFC-v0.23-001: emit a demonstration intent to semantic-stream. Done
-    // once at startup, before the request loop — semantic-stream and
-    // proxy-text are already spawned and ready by this point (Slice 1).
+    // once at startup, before the request loop.
+    //
+    // RFC-0.26-004 (closes E-020): this call does not assume semantic-
+    // stream is ready — it doesn't need to. `emit_sample_intent`'s
+    // underlying transport (`fjell_service_api::chunked::send`) is a
+    // blocking `sys_ipc_call`: if semantic-stream has not yet reached its
+    // receive loop, the call queues (`SendResult::Queued`) and this task
+    // blocks until semantic-stream actually processes it — a real wait,
+    // not a timing assumption. The previous comment here ("already spawned
+    // and ready by this point") *was* an assumption, and it was false as
+    // soon as a scheduler fix (RFC-0.26-001) removed the ordering it
+    // silently depended on. What makes the call safe now is not timing —
+    // it's that semantic-stream's endpoint has exactly one receiver
+    // (semantic-stream itself; `init` no longer holds a receive-capable
+    // capability to it — see `crates/fjell-kernel/src/main.rs`'s
+    // init-CSpace bootstrap section), so this call can never be delivered
+    // to, and silently dropped by, anyone else.
     emit_sample_intent();
 
     loop {
