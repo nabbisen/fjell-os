@@ -1,0 +1,18 @@
+# RFC-0.27-001 S4 (`doc-links`): links found broken and deliberately left
+# that way, because fixing them needs a decision this line does not make —
+# "fix what is mechanical, record what is not" (implementation handoff §3).
+#
+# Format: one entry per line, `<file> -> <link as written>`. Blank lines and
+# `#` comments are ignored. Any broken relative link not listed here fails
+# the check.
+
+# ADR-0003 ("Capability-Based Security") and ADR-0004 ("Semantic Stream")
+# were renumbered by RFC 045: the superseded files record that their
+# content moved, but not to a single successor these two references could
+# be mechanically repointed to (0003-capability-security.md's own header
+# says its content is now split across ADR-0002 *and* the current ADR-0003,
+# a different topic — lease-epoch-revocation). Determining the correct
+# current target needs reading RFC 045's renumbering in full; that is real
+# investigative work, not a typo fix, and is out of this line's scope.
+docs/src/reference/capability-model.md -> ../adr/0003-capability-security.md
+docs/src/reference/intent-stream-schema.md -> ../adr/0004-semantic-stream.md

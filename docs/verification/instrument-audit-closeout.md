@@ -252,22 +252,27 @@ edit**. Splitting them is what produced the live divergence the audit found;
 `errata-limitations` matches only the ID and would not have caught it a second
 time either.
 
-## 6. 0.25 candidates
+## 6. What was 0.25 candidates
 
-In the order I would sequence them:
+**Superseded as a list, 2026-08-27 (RFC-0.27-001).** This section originally
+sequenced six candidates under the heading "0.25 candidates" — a heading
+that was already two releases stale by the time RFC-0.27-001 found it
+(0.25 and 0.26 had both shipped with this list unchanged), the same defect
+`docs/rfcs/ERRATA.md`'s own tracking column had. Restating a backlog in two
+places is how it drifted in the first place.
 
-1. **A `release-rehearsal` proptest gate** (§3.5) — most release-relevant.
-2. **The literal-predicate answer** (§3.1, E-014) — the largest family, and
-   design work rather than patching.
-3. **A link-and-count integrity instrument** (§3.3, E-016) — closes three
-   findings including the index's zero coverage.
-4. **CI list and matrix reconciliation** (§3.2, E-015) — mechanical once
-   someone decides whether CI should enumerate or derive.
-5. **E-013's fix** — nine host binaries are trivial; `fjell-kernel` is
-   architectural and its own RFC.
-6. **Completing §4.1's re-derivation of all 18 `sound` rows.**
-
-Not a plan. The 0.25 direction is the owner's.
+**Current status lives in exactly one place now: `docs/rfcs/ERRATA.md`'s
+Summary table tracking column**, enforced by `fjell-consistency-check
+errata-tracking` so it cannot silently point at a shipped milestone again.
+Of the six originally listed here: item 3 (a link-and-count integrity
+instrument, E-016) shipped as RFC-0.27-001's `doc-links`/`doc-counts`
+subchecks and E-016 is `CLOSED`; the release tool's own missing
+version-currency check (E-023, found separately) shipped alongside it as
+the `version-currency` subcheck. Items 1, 2, 4, and 5 (the proptest gate,
+E-014's literal-predicate answer, E-015's CI reconciliation, and E-013's
+fix) remain `unscheduled` per ERRATA — see that file, not this list, for
+whether that has changed. Item 6 (the `sound`-row re-derivation, E-017) is
+also `unscheduled` there.
 
 ## 7. What this milestone should say when it is cut
 

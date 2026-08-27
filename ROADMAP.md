@@ -93,7 +93,7 @@ and RFCs 024–030, 044–047 (`rfcs/`).
 The first post-v0.1.x hardening milestone. Turns Fjell OS from a
 local verified prototype into a system whose core security
 boundaries are uniformly enforced. See the v0.2 RFC set (RFCs
-031–043) and [`docs/src/security/v0.1.0-threat-model.md`](docs/src/security/v0.1.0-threat-model.md) §14.
+031–043) and [`docs/src/security/threat-model-v0.1.md`](docs/src/security/threat-model-v0.1.md) §14.
 
 | Phase | Name                                        | RFC      | Status |
 |-------|---------------------------------------------|----------|--------|
@@ -321,12 +321,30 @@ it was red, not less.
 
 Records: `docs/release/records/0.26.0.md`.
 
-### 0.27 — undecided
+### 0.27 — document self-verification (RFC-0.27-001)
 
-Candidates carried in: **E-022** (kernel IPC contract), **E-019** /
-`RFC-0.26-003` (the green-by-accident test), the capability rights-narrowing
-follow-up from RFC-0.26-004's review, and the 0.24 audit's still-open families
-(E-013 through E-017).
+Three documents made the same claim about themselves and were wrong: the
+errata backlog's tracking column pointed at milestones that had already
+shipped, `README.md` sat five releases stale, and the RFC index's file counts
+had drifted. `RFC-0.27-001` makes the backlog derivable and enforced —
+`fjell-consistency-check` gains `errata-tracking`, `version-currency`,
+`doc-links`, and `doc-counts` — and closes **E-016** and **E-023**.
+
+**The backlog of what else is candidate or unscheduled work now lives in
+exactly one place: `docs/rfcs/ERRATA.md`'s Summary table tracking column**,
+enforced by `errata-tracking` so it cannot go stale silently again. This
+section is a pointer to it, not a second copy — see that file for current
+status, including **E-019** / `RFC-0.26-003` (accepted, not yet implemented),
+**E-022** (the kernel IPC contract, unscheduled), and the 0.24 audit's
+`unscheduled` families (E-014, E-015, E-017; E-013 similarly unscheduled).
+
+One item outside that backlog by design, recorded at RFC-0.26-004's review
+rather than filed as a new erratum because nothing is currently misbehaving:
+**the capability rights-narrowing follow-up** — `sample-service` and
+`proxy-text` hold `RECV`-including rights on endpoints they only ever call
+into, a latent over-grant the same narrowing `init` received would close. See
+`docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`'s "Follow-up recorded at
+review" section.
 
 ### Beyond 0.27 — under discussion, not yet decided
 

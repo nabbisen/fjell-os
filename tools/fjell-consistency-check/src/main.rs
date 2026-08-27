@@ -24,11 +24,15 @@
 use std::fs;
 use std::process::ExitCode;
 
+mod doc_counts;
+mod doc_links;
 mod errata_limitations;
+mod errata_tracking;
 mod handoff_status;
 mod rfc_status_folder;
 mod status;
 mod syscall_surface;
+mod version_currency;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -39,11 +43,16 @@ fn main() -> ExitCode {
         "errata-limitations" => run_named("errata-limitations", errata_limitations::check),
         "rfc-status-folder" => run_named("rfc-status-folder", rfc_status_folder::check),
         "handoff-status" => run_named("handoff-status", handoff_status::check),
+        "errata-tracking" => run_named("errata-tracking", errata_tracking::check),
+        "version-currency" => run_named("version-currency", version_currency::check),
+        "doc-links" => run_named("doc-links", doc_links::check),
+        "doc-counts" => run_named("doc-counts", doc_counts::check),
         "--all" => run_all(),
         _ => {
             eprintln!(
                 "Usage: fjell-consistency-check \
-                 <syscall-surface|errata-limitations|rfc-status-folder|handoff-status|--all>"
+                 <syscall-surface|errata-limitations|rfc-status-folder|handoff-status|\
+                 errata-tracking|version-currency|doc-links|doc-counts|--all>"
             );
             ExitCode::FAILURE
         }
@@ -58,6 +67,10 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("errata-limitations", errata_limitations::check),
     ("rfc-status-folder", rfc_status_folder::check),
     ("handoff-status", handoff_status::check),
+    ("errata-tracking", errata_tracking::check),
+    ("version-currency", version_currency::check),
+    ("doc-links", doc_links::check),
+    ("doc-counts", doc_counts::check),
 ];
 
 fn run_all() -> ExitCode {

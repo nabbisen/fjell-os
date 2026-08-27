@@ -41,9 +41,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   The follow-up RFC has two separable halves: the **nine host binaries**,
   ordinary `std` crates where the gap is the bare `--lib` flag and the fix is
   trivial; and **`fjell-kernel`**, where it is architectural (a `[lib]`
-  target, or a host-testable subset split out). Deferred to its own RFC after
-  `0.23.0`. Found during RFC-v0.23-002 Slice 1; scope widened by
-  RFC-0.24-001 Pass 1.
+  target, or a host-testable subset split out). Found during RFC-v0.23-002
+  Slice 1; scope widened by RFC-0.24-001 Pass 1. Tracking: **unscheduled**
+  (re-dispositioned from *"RFC after 0.23.0"* by RFC-0.27-001 — three
+  releases have shipped since without one being written).
 
   **Second confirmation (RFC-0.24-001 Pass 4).** The six gate-tool crates —
   `fjell-abi-snapshot`, `fjell-consistency-check`, `fjell-mmio-audit`,
@@ -68,7 +69,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   The shared TOML array parser closes an array at a `]` inside a string
   literal, loading 2 of 4 markers silently. None is a live false-green today;
   each individual patch would be a better string, and the family needs one
-  design answer instead. Recorded, not fixed; 0.25 candidate.
+  design answer instead. Recorded, not fixed; **unscheduled** — carried
+  through the 0.25 and 0.26 lines with no line taken up, per RFC-0.27-001's
+  re-disposition rather than writing a milestone nobody intends to keep.
 
 - **Instrument scopes are hand-enumerated and have drifted from reality**
   (Errata **E-015**, ACCEPTED). **21 of 91 workspace crates are never named in
@@ -82,24 +85,28 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   profiles on disk, and `smoke.rs`'s `v0.6-verification` milestone is defined
   in code and invoked by nothing anywhere. These are checks that **do not
   run**, or run over an incomplete set — distinct from E-014's checks that
-  report success without checking. Recorded, not fixed; 0.25 candidate.
+  report success without checking. Recorded, not fixed; **unscheduled** — same
+  re-disposition as E-014, for the same reason.
 
 - **No instrument verifies any document link, index, or count** (Errata
-  **E-016**, ACCEPTED). `rfcs/README.md` — the repository's RFC index under
-  RFC 000 — has zero instrument coverage; the only trace of it in the entire
-  instrument set is a doc comment that mentions the file without opening it.
-  Thirteen relative links in tracked documentation are broken. The
-  instrument audit's own totals table stated a population of 56 while summing
-  to 54, unnoticed across four passes and three RFCs because nothing checks a
-  count. The index's
-  "Shipped" column names a release for roughly 150 rows as `v0.3.0`, `v0.22.0`
-  and so on — tags that do not exist under those names, since release tags
-  have never carried a `v` prefix. The 0.24 series was renamed to match on
-  2026-08-03; historical rows were left, because renaming ~150 files to apply
-  a convention retroactively would break the links that commits and release
-  records point at. One link-and-count instrument closes all three, and adding
-  an instrument was RFC-0.24-001's explicit non-goal. Recorded, not fixed;
-  0.25 candidate.
+  **E-016**, **CLOSED** by RFC-0.27-001). `rfcs/README.md` — the repository's
+  RFC index under RFC 000 — had zero instrument coverage; thirteen (measured
+  again for this RFC: fourteen) relative links in tracked documentation were
+  broken; the instrument audit's own totals table had stated a population of
+  56 while summing to 54 (already corrected under RFC-0.24-003); and the
+  index's "Shipped" column names a release for roughly 150 historical rows as
+  `v0.3.0`, `v0.22.0` and so on — tags that never carried a `v` prefix,
+  left as historical rows rather than retroactively renamed. RFC-0.27-001
+  built the missing coverage as three new `fjell-consistency-check`
+  subchecks: `errata-tracking` (the tracking-column defect this same RFC
+  found, below), `doc-links` (every relative link in a tracked `.md` file
+  must resolve; 12 of 14 broken links fixed mechanically, 2 recorded in
+  `tests/doc-links/known-broken.txt` pending an ADR-renumbering decision
+  outside this line's scope), and `doc-counts` (`rfcs/README.md`'s five
+  folder-count assertions checked against the tree). The index's stale
+  release-tag rows are unchanged — renaming ~150 historical files was out of
+  scope here as it was in 2026-08-03, for the same reason (it would break the
+  links commits and release records point at).
 
 - **The instrument audit's `sound` verdicts are not all demonstration-backed**
   (Errata **E-017**, ACCEPTED). RFC-0.24-001 requires every instrument claimed
@@ -112,7 +119,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   against the same question is **incomplete**, and Gate 4 — the first
   re-derived — fell immediately, so the base rate is not known to be low. **The
   22 `sound` verdicts are provisional.** This is why RFC-0.24-001 ships
-  `Implemented-with-Errata`. Recorded, not fixed; 0.25 candidate.
+  `Implemented-with-Errata`. Recorded, not fixed; **unscheduled** — the
+  re-derivation of the remaining rows has not been picked up by any line
+  since 0.24; RFC-0.27-001 re-dispositions rather than performs it.
 
 - **Two QEMU negative profiles (`ipc`, `semantic`) assume an unsynchronised
   scheduling order and fail after RFC-0.26-001's scheduler fix** (Errata
@@ -125,7 +134,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   fixed — code assuming ordering instead of synchronising on it — in a
   silently-skipped-assertion shape rather than a hang. Fixing either needs
   the affected service to synchronise explicitly; out of RFC-0.26-001's
-  scope. Recorded, not fixed; needs its own line.
+  scope. Recorded, not fixed. Its own line now exists and is accepted:
+  **RFC-0.26-003** (*"The blocked-recv test needs a rendezvous it cannot
+  currently have"*), which found that `ipc` has since gone green again by
+  the same accident this entry describes — RFC-0.26-004 fixed a defect
+  upstream that let `sample-service` reach its main loop, and `neg-test`'s
+  own scheduling assumption is unchanged and unsynchronised underneath the
+  now-passing profile. Not yet implemented.
 
 - **The ABDD live path runs again** (Errata **E-020**, **CLOSED** by
   RFC-0.26-004). RFC-v0.23-001 shipped this project's distinguishing
@@ -188,17 +203,26 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
 
 - **The release tool's `RELEASE.md` generation and consistency checks were never
-  built** (Errata **E-023**, ACCEPTED). RFC-v0.7.1-001, marked
-  `Implemented (v0.7.1)`, specifies five behaviours for the release tool; one
-  shipped. `package_release.rs` reads the workspace version and tars the
-  repository root — it does not generate a `RELEASE.md`, does not produce a
-  digest manifest of `crates/fjell-kernel/prebuilt/`, does not exit non-zero on
-  inconsistency, and **does not grep for stale version mentions outside
-  `CHANGELOG.md`**. That last one is what would have caught `README.md` sitting
-  at `0.21.3` with five wrong counts through five releases, found only when the
-  owner asked. The root `RELEASE.md` — a ten-line signpost carrying none of the
-  specified contents — was removed 2026-08-27. Recorded, not fixed; a concrete
-  starting point for E-016's link-and-count instrument rather than a blank page.
+  built** (Errata **E-023**, **CLOSED** by RFC-0.27-001). RFC-v0.7.1-001,
+  marked `Implemented (v0.7.1)`, specified five behaviours for the release
+  tool; one shipped. `package_release.rs` read the workspace version and
+  tarred the repository root — it did not generate a `RELEASE.md`, did not
+  produce a digest manifest of `crates/fjell-kernel/prebuilt/`, did not exit
+  non-zero on inconsistency, and **did not grep for stale version mentions
+  outside `CHANGELOG.md`** — the second row, and the one that mattered: it is
+  exactly what would have caught `README.md` sitting at `0.21.3` with five
+  wrong counts through five releases, found only when the owner asked. The
+  root `RELEASE.md` — a ten-line signpost carrying none of the specified
+  contents — was removed 2026-08-27. RFC-0.27-001 built the specified
+  check, scoped as `version-currency` (a new `fjell-consistency-check`
+  subcheck, not a `package-release` change): `README.md` — the one document
+  whose purpose is "what is Fjell OS right now" — must not assert a version
+  other than the current workspace version. A tree-wide sweep was tried and
+  rejected as unbuildable (over 800 legitimate historical version mentions
+  across RFC files and `ROADMAP.md`); see the subcheck's own design note for
+  why `README.md` is the right scope. `RELEASE.md`-file generation and a
+  prebuilt-artefact digest manifest remain unbuilt — out of this line's
+  scope, and not what caused the incident this erratum records.
 
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs

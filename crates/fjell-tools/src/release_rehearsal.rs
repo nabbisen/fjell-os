@@ -311,7 +311,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
         all_pass = false;
     }
     println!(
-        "  [{}] Gate 12 Consistency check                syscall-surface, errata-limitations, rfc-status-folder, handoff-status",
+        "  [{}] Gate 12 Consistency check                8 subchecks: syscall-surface, errata-limitations, rfc-status-folder, handoff-status, errata-tracking, version-currency, doc-links, doc-counts",
         g12_mark
     );
 

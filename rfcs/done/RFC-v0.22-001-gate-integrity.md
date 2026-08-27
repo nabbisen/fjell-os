@@ -100,6 +100,11 @@ fail is therefore a required deliverable per item — not optional coverage.
 | 4 | Bind documented rules to gates | Medium | At minimum: ACCEPTED errata must appear in the limitations document; RFC folder must agree with its `Status` field; a handoff's status must match its governing RFC. |
 | 5 | Record the v1.0 checklist Step 9 finding in ERRATA | Trivial | `target/release-bundles/*.bundle` appears nowhere in `crates/` or `tools/`; Steps 9–10 are the signing steps. Record only — do not investigate or fix. |
 
+> **Errata cross-reference (2026-08-27, RFC-0.27-001).** Item 5's finding is
+> tracked as **E-012** in `docs/rfcs/ERRATA.md`, filed after this RFC was
+> written and recorded per this §Scope item, not fixed here — see the entry
+> for current status.
+
 Sequencing: 1 → 2 → 3 → 4, with 5 foldable anywhere. Item 1 first because it is
 small and independent and proves the governing principle cheaply. Item 2 before
 any future whole-tree `fmt`. Item 3 last of the substantive three because it is

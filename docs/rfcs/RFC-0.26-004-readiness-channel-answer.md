@@ -170,7 +170,34 @@ All four `semantic.toml` markers pass: `"M5: semantic operations ready"`,
   change.
 - `wait_ready_exact`'s missing `else` was not patched in isolation — the
   function is removed, closing E-021 with no residual receiver hazard.
-- E-019 / RFC-0.26-003 (`ipc` profile) is untouched; still failing, as
-  expected, under its own tracking line.
+- E-019 / RFC-0.26-003 (`ipc` profile) is untouched. **Correction, added at
+  review:** the profile itself started passing again as a side effect of
+  this RFC (`sample-service` reaching its main loop for the first time lets
+  it serve `BIND_LEASE_FOR_IPC_TEST`) — `fjell-neg-test` was not touched,
+  and the unsynchronised assumption E-019 records is unchanged underneath
+  it. A green test that is green for a reason nobody guaranteed is not a
+  smaller problem than a red one; RFC-0.26-003 remains warranted, re-framed
+  to describe that.
 - No kernel scheduler change; RFC-0.26-001 is unmodified by this RFC.
 - Syscall surface unchanged — no new syscall proposed.
+
+## Follow-up recorded at review, not fixed here
+
+The review that accepted this RFC found the invariant enforced by rights on
+only one of its four holders. `sample-service` (`spawn.rs:528`) and
+`proxy-text` (`spawn.rs:582`) both hold `CapRights::ALL_NON_META` — which
+includes `RECV` — on `semantic-stream`'s endpoint (object 7), and
+`semantic-stream` (`spawn.rs:546`) holds the same on `proxy-text`'s endpoint
+(object 8). None of the three ever calls `sys_ipc_recv` against these
+capabilities — each only ever calls into the endpoint it holds — so this is
+a **latent over-grant, not a live hazard**: nothing is currently misbehaving.
+
+The fix `init`'s own capability received in this RFC — narrow to `CapRights::
+CALL` — is exactly the fix these three need too, and would make "a service's
+endpoint has exactly one receiver" hold **by rights**, not merely by every
+current caller's behaviour, everywhere the invariant is claimed rather than
+on one of four holders. Ruled at review as a follow-up, not a reason to
+reopen this line: narrowing three more capabilities touches `spawn.rs` and
+needs its own QEMU evidence that nothing depended on the wider rights — small,
+but not free. Not filed as a new erratum, since nothing is currently
+misbehaving; recorded here per the review's own instruction.

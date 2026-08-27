@@ -36,5 +36,5 @@ Improvements exceeding the band log a notice but do not fail;
 updating the baseline requires a deliberate PR.
 
 See `benches/` for the criterion harness and
-[RFC-v0.10-004](../../rfcs/proposed/v0.10/RFC-v0.10-004-benchmark-baseline-and-regression-tracking.md)
+[RFC-v0.10-004](../../../rfcs/done/RFC-v0.10-004-benchmark-baseline-and-regression-tracking.md)
 for the full specification.

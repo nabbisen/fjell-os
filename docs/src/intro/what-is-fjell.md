@@ -15,7 +15,7 @@ explicit, typed, and traceable to the signed authority that issued it.
 and recovery steps each emit a signed, machine-readable semantic record. An
 auditor can reconstruct what a node did, and why, from the records alone —
 this is what "explainable" means here, and it is verified at release time as
-the [Trust Report](../release/trust-report.md).
+the [Trust Report](../../release/trust-report.txt).
 
 **The security core is small and checked three ways.** The kernel runs on
 RISC-V (Sv39, single-hart at v1.0) with services isolated in user mode.

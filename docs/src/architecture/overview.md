@@ -33,7 +33,7 @@ formally proved in Verus and machine-checked as a release gate:
   (retire-before-wrap at `u32::MAX`).
 
 See `verification/verus/` and the
-[proof gate policy](../../verification/verus/README.md) for the proof layer.
+[proof gate policy](../../verification/verus/proof-gate-policy.md) for the proof layer.
 
 ## Boot and updates
 

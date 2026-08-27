@@ -648,29 +648,29 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 | Errata | Tracking RFC | Status |
 |--------|--------------|--------|
-| E-001 Ed25519 vectors | v0.16-001 | CLOSED |
-| E-002 key encryption | v0.16-006 | CLOSED |
-| E-003 wire length | (v0.15.x) | CLOSED |
-| E-004 hardware boot | v0.16-005 | ACCEPTED (v1.0 limitation) |
-| E-005 recovery drill | v0.16-003 | CLOSED |
-| E-006 catalog tags | v0.16-007 | CLOSED |
-| E-007 threat review | v0.16-005 | CLOSED |
-| E-008 recovery follow-test | v0.16-003 | CLOSED |
-| E-009 non-goals review | v0.16-005 | CLOSED |
-| E-010 IPC words delivery | v0.20.0 fix | CLOSED |
-| E-011 cap_install rights validation | v0.21.3-001 (v0.22 disposition) | ACCEPTED |
-| E-012 release checklist Step 9 bundle path | v0.22-001 (recorded, not fixed) | ACCEPTED |
-| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC after v0.23.0 (recorded, not fixed) | ACCEPTED |
-| E-014 instruments deciding by fixed-string match | 0.25 candidate (recorded, not fixed) | ACCEPTED |
-| E-015 hand-enumerated instrument scopes drifted from reality | 0.25 candidate (recorded, not fixed) | ACCEPTED |
-| E-016 no link, index, or count integrity instrument | 0.25 candidate (recorded, not fixed) | ACCEPTED |
-| E-017 audit `sound` verdicts not all demonstration-backed | 0.25 candidate (re-derivation incomplete) | ACCEPTED |
+| E-001 Ed25519 vectors | RFC-v0.16-001 | CLOSED |
+| E-002 key encryption | RFC-v0.16-006 | CLOSED |
+| E-003 wire length | 0.15 | CLOSED |
+| E-004 hardware boot | RFC-v0.16-005 | ACCEPTED (v1.0 limitation) |
+| E-005 recovery drill | RFC-v0.16-003 | CLOSED |
+| E-006 catalog tags | RFC-v0.16-007 | CLOSED |
+| E-007 threat review | RFC-v0.16-005 | CLOSED |
+| E-008 recovery follow-test | RFC-v0.16-003 | CLOSED |
+| E-009 non-goals review | RFC-v0.16-005 | CLOSED |
+| E-010 IPC words delivery | 0.20 | CLOSED |
+| E-011 cap_install rights validation | RFC-v0.21.3-001 | ACCEPTED |
+| E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
+| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | unscheduled | ACCEPTED |
+| E-014 instruments deciding by fixed-string match | unscheduled | ACCEPTED |
+| E-015 hand-enumerated instrument scopes drifted from reality | unscheduled | ACCEPTED |
+| E-016 no link, index, or count integrity instrument | RFC-0.27-001 | CLOSED |
+| E-017 audit `sound` verdicts not all demonstration-backed | unscheduled | ACCEPTED |
 | E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
-| E-019 `ipc` negative profile assumes an unsynchronised scheduling order | 0.27 candidate (recorded, not fixed) | ACCEPTED |
+| E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.26-003 | ACCEPTED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
-| E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | 0.27 candidate (worked around, not fixed) | ACCEPTED |
-| E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | 0.27 candidate, with E-016 (recorded, not fixed) | ACCEPTED |
+| E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | 0.27 | ACCEPTED |
+| E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
