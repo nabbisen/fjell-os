@@ -1,6 +1,6 @@
 # RFC-0.27-002: `try_send` does not try — the one-way send contract
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-08-28; implementation may begin (RFC 000)
 **Milestone:** 0.27
 **Tracks.** The userspace contract for one-way IPC send, and whether a genuinely
 non-blocking send should exist.
