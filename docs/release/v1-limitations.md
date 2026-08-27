@@ -240,6 +240,25 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   2026-07-30 — v1.0 is not in view); must be resolved before v1.0 preparation
   begins.
 
+- **`init` receives on four services' own endpoints, and RFC-0.26-004's
+  one-receiver invariant is narrower in the tree than in its text** (Errata
+  **E-024**, ACCEPTED). `storaged`, `measuredd`, `attestd` and `recoveryd` each
+  announce readiness into the same endpoint object they later receive protocol
+  traffic on; that announcement does not deadlock only because `init` still
+  holds receive rights on those four objects and reaches every wait in a fixed
+  boot sequence. `init`'s `wait_service_ready`/`wait_storaged_ready` also retain
+  the missing-`else` defect recorded as E-021 and closed only for the two
+  objects RFC-0.26-004 touched: a message with an unexpected tag is consumed and
+  discarded. Load-bearing as it stands; reworking RFC 058's readiness protocol
+  was a non-goal of both RFC-0.26-004 and RFC-0.27-002.
+
+- **`trust-report`'s capability inventory depends on the developer's untracked
+  working tree** (Errata **E-025**, ACCEPTED, scheduled 0.27). The cap-manifest
+  scan skips a hand-listed `["target", ".git", "tests/runs"]` and not
+  `.git-exclude/`, so any scratch checkout under `.git-exclude/tmp/` inflates
+  the reported manifest count. The committed report is correct; the tool that
+  produces it is not bounded by what git tracks.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

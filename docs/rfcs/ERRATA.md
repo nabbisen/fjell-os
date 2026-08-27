@@ -614,7 +614,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   objects. `wait_service_ready`/`wait_storaged_ready` retain the identical
   missing-`else` defect `wait_ready_exact` had (disclosed, not fixed, since
   RFC-0.26-004; reworking RFC 058's readiness protocol is a non-goal of
-  both that RFC and this one). Full audit and the design-answer document
+  both that RFC and this one); **now tracked as E-024**, filed in the
+  RFC-0.27-002 review because a live defect described only inside a CLOSED
+  erratum is tracked by nothing). Full audit and the design-answer document
   naming this a real, six-instance, unmet primitive need — not decided
   here — in `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md`. May
   be relevant to **E-019 / RFC-0.26-003**'s `ipc` investigation — flagged,
@@ -663,6 +665,70 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 ---
 
+## E-024 — `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower in the tree than in its text
+
+- **Claim:** RFC-0.26-004 established the invariant *a service's endpoint has
+  exactly one receiver*, and removed `init` as a co-receiver of
+  `semantic-stream`'s and `proxy-text`'s endpoints (objects 7 and 8) to satisfy
+  it.
+- **Tree:** the invariant holds for objects 7 and 8 and **is violated on
+  objects 1–4**. `crates/fjell-kernel/src/task/spawn.rs:204` gives `storaged`,
+  `measuredd`, `attestd` and `recoveryd` their own endpoint objects; each
+  service both announces into that object (raw `core::arch::asm!("li a7, 20")`,
+  bypassing the wrapper) and later receives protocol traffic on it, while
+  `init`'s `wait_service_ready` / `wait_storaged_ready`
+  (`crates/services/fjell-init/src/main.rs:118`) hold full receive rights on the
+  same four objects. That co-receive is not incidental — **it is what keeps the
+  announcement from deadlocking.** RFC-0.27-002's R2 audit found this; it was
+  not known when RFC-0.26-004 wrote the invariant.
+- **Second defect, same site.** `wait_service_ready` loops on a blocking recv
+  and `break`s only on `MREADY | AREADY | RREADY`; a message carrying any other
+  tag is **consumed and discarded**, and if it was a `call`, its sender is never
+  replied to. That is the identical missing-`else` defect `wait_ready_exact`
+  had, recorded as **E-021** and closed only for the two objects RFC-0.26-004
+  touched. It remains live on four more.
+- **Why this is filed separately.** RFC-0.27-002 disclosed all of the above,
+  accurately and in detail — **inside E-022's entry, which that RFC closes.**
+  A live defect described only in the text of a CLOSED erratum is tracked by
+  nothing: Gate 7 counts `OPEN`, and `errata-tracking` derives from the
+  erratum↔RFC link, so once E-022 closed, this would have left the register
+  with no row and become archaeology. The disclosure was right; the placement
+  made it invisible.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-28). Recorded, not fixed —
+  reworking RFC 058's readiness protocol is a non-goal of RFC-0.26-004 and
+  RFC-0.27-002 alike, and the arrangement is currently load-bearing. Two things
+  are required before it is closed: the readiness protocol reworked so services
+  do not announce into their own receive endpoint, **and RFC-0.26-004's
+  invariant text corrected** to state the scope it actually has. A stated
+  invariant the tree violates, with no instrument checking it, is precisely the
+  class RFC-0.27-001 was built to make derivable. Related: **E-019** /
+  RFC-0.26-003, whose `ipc` investigation touches the same objects.
+
+## E-025 — `trust-report`'s cap-manifest scan walks untracked scratch trees
+
+- **Claim:** `docs/release/trust-report.txt`'s capability inventory reports the
+  cap-manifests in this repository.
+- **Tree:** `crates/fjell-tools/src/trust_report.rs:122` skips exactly
+  `["target", ".git", "tests/runs"]` — a hand-maintained literal list that does
+  **not** include `.git-exclude/`, the directory this project uses for
+  scratch work and temporary checkouts by standing instruction. Any checkout
+  under `.git-exclude/tmp/` contributes its own
+  `examples/three-node-fleet/fjell-hello/cap-manifest.toml`, and the inventory
+  reports "2 cap-manifest(s) found" instead of 1. Found by the implementation
+  model during RFC-0.27-002 and correctly flagged rather than fixed inside an
+  unrelated RFC. The interfering checkout on that occasion was the architect's
+  own clean-clone verification of `0785c96`.
+- **Two defects, not one.** The inventory can be inflated by anything sitting in
+  a scratch directory — the report is a function of the developer's working
+  tree, not of the repository. And the skip list is an **explicit enumeration**
+  that drifts from reality, the same family as **E-015**; adding `.git-exclude`
+  to it fixes today's instance and leaves the family intact. The scan should be
+  bounded by what git tracks.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-28), scheduled **0.27**.
+  Small, but it is an instrument whose output depends on untracked state, so the
+  fix carries RFC-v0.22-001's demonstration requirement: show the inventory
+  wrong with a scratch checkout present, then right with the fix in place.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -690,6 +756,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
+| E-024 `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | unscheduled | ACCEPTED |
+| E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.27 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
