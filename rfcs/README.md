@@ -370,9 +370,13 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+### 0.27 — document self-verification
+
+| RFC | Title |
+|-----|-------|
+| 0.27-001 | [Nothing verifies what our documents say about themselves](./proposed/RFC-0.27-001-document-self-verification.md) — closes **E-016** and **E-023**, re-dispositions **E-014**/**E-015**/**E-017**; makes the errata backlog derivable and enforced; handoff: [`handoffs/`](./handoffs/RFC-0.27-001-document-self-verification/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 
