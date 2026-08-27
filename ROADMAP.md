@@ -71,7 +71,7 @@ of the next; scope discipline is a first-class constraint.
 
 ## Post v0.1.0
 
-### v0.1.x — Stabilization / Audit / CI Foundation (in progress)
+### v0.1.x — Stabilization / Audit / CI Foundation (**shipped** — v0.1.2 … v0.1.5)
 
 The v0.1.x release line freezes the v0.1.0 prototype, documents its
 limitations, and adds the audit + CI foundation needed before
@@ -88,7 +88,7 @@ and RFCs 024–030, 044–047 (`rfcs/`).
 | v0.1.4   | ADR sync + release checklist                | 045, 046          |
 | v0.1.5   | v0.2 preparation backlog                    | 047               |
 
-### v0.2.0 — Security Boundary Closure (in progress: v0.2.9 hardening, post-review)
+### v0.2.0 — Security Boundary Closure (**shipped** — v0.2.0)
 
 The first post-v0.1.x hardening milestone. Turns Fjell OS from a
 local verified prototype into a system whose core security
@@ -146,7 +146,7 @@ release). Each line delivered a coherent theme:
 | v0.21.x | Crate reorganization, audits, handoff + design docs | ✅ |
 | v0.21.3 | Build restoration, as-built reconciliation, v0 release cycle | ✅ released |
 
-### v0.22 — Gate Integrity (planned; owner-approved 2026-07-30)
+### 0.22 — Gate Integrity (**shipped 2026-07-31** as `0.22.0`)
 
 v0.21.3 found **four** separate instances of a mechanical gate reporting
 green while a documented rule went unmet. That is one class of defect, not
@@ -168,7 +168,7 @@ Governed by `RFC-v0.22-001`. Out of scope: negative-coverage completion, the
 9 undispatched syscalls, build determinism, DMA unmap, and anything touching
 kernel/ABI/crypto behaviour.
 
-### v0.23 — ABDD Live Path (planned; owner-approved 2026-07-31)
+### 0.23 — ABDD Live Path (**shipped 2026-08-01** as `0.23.0`)
 
 The first line in several to add runtime behaviour rather than documentation or
 tooling. Fjell's distinguishing claim — applications emit meaning, a proxy
@@ -328,7 +328,7 @@ Candidates carried in: **E-022** (kernel IPC contract), **E-019** /
 follow-up from RFC-0.26-004's review, and the 0.24 audit's still-open families
 (E-013 through E-017).
 
-### Beyond 0.26 — under discussion, not yet decided
+### Beyond 0.27 — under discussion, not yet decided
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
 continues. The owner has directed that functional advancement, not only

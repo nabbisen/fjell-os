@@ -601,6 +601,47 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that RFC's own scope boundary. Its own line, next. See
   `docs/release/v1-limitations.md`.
 
+## E-023 — RFC-v0.7.1-001: the release tool's `RELEASE.md` and consistency checks were never built
+
+- **Claim:** RFC-v0.7.1-001 (`Implemented (v0.7.1)`) specifies that each release
+  tarball carries a root `RELEASE.md` containing *"exact git commit (or
+  'unreleased') and tag, exact Rust channel and toolchain components used, the
+  precise cargo invocations that produced the headline counts, SHA-256 of every
+  prebuilt `.bin`… known-broken items quoted from CHANGELOG"*, and that the
+  release tool **generates** it. Its §Implementation lists five behaviours for
+  that tool.
+- **Shipped:** `crates/fjell-tools/src/package_release.rs` is 121 lines and
+  contains no digest, manifest, generation, or grep logic. Of the five specified
+  behaviours, **one shipped**:
+
+  | Specified | Shipped |
+  |---|---|
+  | reads `Cargo.toml` version | **yes** |
+  | greps for stale version mentions outside `CHANGELOG.md` | **no** |
+  | generates `RELEASE.md` with the headline command and counts | **no** |
+  | generates a file-digest manifest of `crates/fjell-kernel/prebuilt/` | **no** |
+  | exits non-zero on any inconsistency | **no** |
+
+  `package-release` tars the repository root with exclusions, so whatever
+  `RELEASE.md` sat at the root was what shipped. That file was a ten-line
+  signpost carrying three links and **none of the five specified contents**. It
+  was removed on 2026-08-27 as serving no purpose; its removal turns a
+  misleadingly-present artefact into a cleanly absent one, and does not change
+  whether the RFC's claim is met.
+
+  **The second row is the one that matters.** A check that grepped for stale
+  version mentions outside `CHANGELOG.md` is exactly what would have caught
+  `README.md` sitting at `0.21.3` — with five wrong counts — through five
+  releases, found only when the owner asked. The instrument that would have
+  caught it was specified, marked `Implemented`, and never written.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-27). Recorded, not fixed.
+  Same family as **E-016** (nothing verifies a document's claims) and the same
+  shape as **E-012** (a checklist step referencing a build output that does not
+  exist). Building it is a real instrument, which E-016's own disposition
+  already carries as a 0.27 candidate — this entry gives that candidate a
+  concrete, already-specified starting point rather than a blank page. See
+  `docs/release/v1-limitations.md`.
+
 ---
 
 ## Summary
@@ -629,6 +670,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | 0.27 candidate (worked around, not fixed) | ACCEPTED |
+| E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | 0.27 candidate, with E-016 (recorded, not fixed) | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

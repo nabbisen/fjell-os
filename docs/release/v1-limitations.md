@@ -187,6 +187,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   (flagged, not absorbed). Recorded, not fixed; its own line. See
   `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
 
+- **The release tool's `RELEASE.md` generation and consistency checks were never
+  built** (Errata **E-023**, ACCEPTED). RFC-v0.7.1-001, marked
+  `Implemented (v0.7.1)`, specifies five behaviours for the release tool; one
+  shipped. `package_release.rs` reads the workspace version and tars the
+  repository root — it does not generate a `RELEASE.md`, does not produce a
+  digest manifest of `crates/fjell-kernel/prebuilt/`, does not exit non-zero on
+  inconsistency, and **does not grep for stale version mentions outside
+  `CHANGELOG.md`**. That last one is what would have caught `README.md` sitting
+  at `0.21.3` with five wrong counts through five releases, found only when the
+  owner asked. The root `RELEASE.md` — a ten-line signpost carrying none of the
+  specified contents — was removed 2026-08-27. Recorded, not fixed; a concrete
+  starting point for E-016's link-and-count instrument rather than a blank page.
+
 - **v1.0 release-checklist Step 9 references a build output that does not
   exist** (Errata **E-012**, ACCEPTED). Step 9 signs
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes
