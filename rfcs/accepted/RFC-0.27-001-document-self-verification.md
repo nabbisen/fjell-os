@@ -1,6 +1,6 @@
 # RFC-0.27-001: Nothing verifies what our documents say about themselves
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-08-27; implementation may begin (RFC 000)
 **Milestone:** 0.27
 **Tracks.** Cross-document agreement: the errata backlog, version claims, links,
 and counts.

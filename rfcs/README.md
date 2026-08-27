@@ -350,11 +350,11 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Accepted (accepted/) — 1 RFC
+## Accepted (accepted/) — 2 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
-### 0.26 — the remaining assumption
+### 0.26–0.27 — the remaining assumption, and the documents that assert without checking
 
 `0.26-001` and `0.26-004` shipped in `0.26.0`; `0.26-002` was superseded.
 `0.26-003` remains: its profile is **green again** since RFC-0.26-004, and
@@ -363,6 +363,7 @@ nothing guarantees it stays that way — which is why it is still open.
 | RFC | Title |
 |-----|-------|
 | 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — accepted 2026-08-27; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
+| 0.27-001 | [Nothing verifies what our documents say about themselves](./accepted/RFC-0.27-001-document-self-verification.md) — closes **E-016** and **E-023**, re-dispositions **E-014**/**E-015**/**E-017**; makes the errata backlog derivable and enforced; handoff: [`handoffs/`](./handoffs/RFC-0.27-001-document-self-verification/implementation-handoff.md) |
 
 
 ---
@@ -370,13 +371,9 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-### 0.27 — document self-verification
-
-| RFC | Title |
-|-----|-------|
-| 0.27-001 | [Nothing verifies what our documents say about themselves](./proposed/RFC-0.27-001-document-self-verification.md) — closes **E-016** and **E-023**, re-dispositions **E-014**/**E-015**/**E-017**; makes the errata backlog derivable and enforced; handoff: [`handoffs/`](./handoffs/RFC-0.27-001-document-self-verification/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 1 RFC
 
