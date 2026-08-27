@@ -669,7 +669,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.26-003 | ACCEPTED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
-| E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | 0.27 | ACCEPTED |
+| E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | ACCEPTED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and

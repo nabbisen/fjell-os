@@ -371,9 +371,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.27-002 | [`try_send` does not try — the one-way send contract](./proposed/RFC-0.27-002-one-way-send-contract.md) — closes **E-022**; handoff: [`handoffs/`](./handoffs/RFC-0.27-002-one-way-send-contract/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 
