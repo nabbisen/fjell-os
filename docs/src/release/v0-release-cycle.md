@@ -79,6 +79,41 @@ no build can even run to tell you whether it would otherwise have passed.
 an abstention (RFC-v0.18-001). This is the criterion most likely to be
 softened under time pressure — it must not be.
 
+## After the tag — republish the crates.io front page
+
+Two crates are published: **`fjell-abi`** (the stable ABI surface) and
+**`fjell-os`** (the project's entry point — its README *is* the crates.io
+landing page, and it states the project's version and status).
+
+**Both go stale the moment a release ships without them.** `fjell-os`'s page
+asserts where the project is; if `0.27.0` is tagged and nothing republishes,
+crates.io shows `0.26.0` and `0.26`-era status text indefinitely — a document
+making a claim with nothing keeping it current, which is the exact defect this
+project has spent several milestones removing from its own tree.
+
+After the tag is applied, in this order:
+
+```
+cargo publish -p fjell-abi
+cargo publish -p fjell-os      # depends on the version just published
+```
+
+`fjell-os` cannot publish first: it depends on `fjell-abi` at the workspace
+version, so that version must already be on the index.
+
+**Before publishing, re-read `crates/fjell-os/README.md`.** It carries counts
+and status claims — errata totals, what has and has not booted on hardware,
+what is and is not a stable dependency. Those are the same kind of claims that
+went stale in `README.md`, `ROADMAP.md` and the errata register, and this copy
+is the one outsiders see first.
+
+**Publishing is irreversible.** A version can be yanked but never deleted, and
+the name cannot be released. This step is the owner's, like the tag.
+
+*Added 2026-08-27, when the two crates were first published. Written down
+immediately rather than after the first stale page, on the reasoning that the
+repro-baseline step cost a red tier before anyone recorded it.*
+
 ## Required artifacts per release
 
 1. **A git tag** — bare version, no `v` prefix (e.g. `0.21.3`, not `v0.21.3`;

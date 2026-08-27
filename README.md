@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml/badge.svg)](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.26.0-blue.svg)](CHANGELOG.md)
+[![crates.io](https://img.shields.io/crates/v/fjell-os.svg)](https://crates.io/crates/fjell-os)
 
 > **Every authority is explainable. Every update is verifiable. Every failure is recoverable.**
 
