@@ -198,11 +198,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   new invariant regardless, and were deleted. **RFC-0.27-002's required
   audit found this shape recurs in five more services**
   (`fjell-measuredd`, `fjell-attestd`, `fjell-recoveryd`, `fjell-storaged`,
-  each via raw inline `asm!`, not the wrapper), none currently
-  self-deadlocking because `init` still holds full receive rights on each
-  of their endpoints — the exact masking arrangement already removed for
+  each via raw inline `asm!`, not the wrapper). None **self-deadlocks**:
+  each sender genuinely **blocks** when it finds no receiver waiting (the
+  kernel's own audit ring confirms this live — `fjell-attestd`'s own
+  `send_ready()` recorded `Queued`, not `Delivered`) and is **woken** once
+  `init`'s `wait_service_ready`/`wait_storaged_ready` reaches that
+  endpoint — the exact masking arrangement already removed for
   `semantic-stream`/`proxy-text`, intact here only because nothing has
-  asked `init` to stop. Whether a genuinely non-blocking one-way send
+  asked `init` to stop. Filed as **E-024**, below. Whether a genuinely
+  non-blocking one-way send
   should exist is answered as **a real, recurring need, not decided by
   this line** — an ABI addition requires escalation this RFC's scope does
   not authorise. See

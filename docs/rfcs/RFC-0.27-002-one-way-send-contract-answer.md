@@ -54,17 +54,19 @@ six self-targeting call sites currently violates the corrected contract** —
 each is either delivered immediately or queued and later drained by a
 genuine other receiver:
 
-- `measuredd`, `attestd`, `recoveryd` (M8): `init`'s `wait_service_ready`
-  reaches each corresponding `recv` before or exactly when each service's
-  `send_ready()` runs, because `init`'s own boot sequence deterministically
-  visits all three waits in a fixed order and a one-way send that finds no
-  receiver **queues rather than drops** — so even the interleaving where a
-  later-spawned service's `send_ready()` fires before `init` has reached
-  that specific wait still resolves correctly once `init` gets there.
+- `measuredd`, `attestd`, `recoveryd` (M8): all three are spawned before
+  `init` reaches any of the three matching `wait_service_ready` calls, so
+  each one's `send_ready()` genuinely **blocks** the sender
+  (`SendResult::Queued`, confirmed live via the audit ring — see
+  "Evidence" below) rather than merely leaving a message parked
+  unclaimed. Each is later **woken** once `init`'s boot sequence
+  deterministically reaches the matching wait and dequeues it.
 - `storaged` (M6): `init` calls `wait_storaged_ready` immediately after
-  spawning it, before any other task can run — the same masking pattern
-  `semantic-stream`/`proxy-text` used to have, still intact here because
-  `init` was never asked to stop receiving on this object.
+  spawning it, before any other task can run, so `storaged`'s send finds
+  `init` already waiting and is delivered without blocking at all — the
+  same masking arrangement `semantic-stream`/`proxy-text` used to have,
+  still intact here because `init` was never asked to stop receiving on
+  this object.
 - `verifyd` (M7): its endpoint is the *shared* default object (`_ => 0` in
   `spawn.rs`'s `ep_obj` table, the same one `service-manager` collects
   ordinary `SERVICE_READY` broadcasts on) — a genuine, independent,
@@ -111,52 +113,130 @@ independently, not this conclusion.
 
 ## Evidence the corrected contract holds (R3's third requirement)
 
-Two halves, each demonstrated live rather than inferred, since a name and a
-doc-comment being wrong is exactly what asserting the mechanism without
-checking looks like.
+**Revised after review.** The first submission inferred blocking from
+log-interleaving timing (which tasks' prints appeared between a sender's
+own pre/post lines). That inference was invalid: `trap_dispatch`
+(`crates/fjell-kernel/src/trap/dispatch.rs:128`) calls `schedule_next` after
+*every* trap, not only blocking ones — a task whose syscall completed
+without blocking is still re-enqueued and `choose_next()` may pick a
+different task next (`dispatch.rs:255-334`, the "Timer preempt or spurious"
+arm re-enqueues *any* still-`Running` task). So other tasks running between
+a sender's own prints is consistent with *either* outcome and proves
+neither. Checked directly instead: the kernel's own audit ring records
+`arg1 == 0` for `Queued` and `arg1 == receiver_tid` for `Delivered`
+(`cap/syscall.rs:538,543`) — unambiguous, independent of scheduling
+timing. The run is `tests/runs/20260827-233602/`, run id
+`20260827-233602`. **One correction to the previous resubmission
+instruction, found while following it**: `test-all`'s own per-tier log
+(`04-qemu-smoke-m8.log`) captures only the build's own stdout (compiling,
+`objcopy`, `bss-pad` lines) — not the QEMU serial transcript at all, for
+either the smoke-test or negative-test tiers (checked both). `tests/runs/`
+is genuinely not overwritten, but it does not by itself contain the
+evidence a citation like this needs. The actual serial log
+(`tests/qemu/artifacts/smoke-m8/serial.log`, which *is* overwritten by the
+next run) was copied into the same run directory as
+`tests/runs/20260827-233602/04-qemu-smoke-m8-serial-raw.log` so it survives
+under the same run id — see "Persisting this evidence" below for why this
+is a manual step today, not a `test-all` feature.
 
-**A receive with no sender blocks, and is woken when one arrives.**
-Instrumented `init`'s `wait_storaged_ready(2)` call and `storaged`'s
-`send_ready()` with paired pre/post `sys_debug_writeln`s (added for this
-investigation, removed before this submission — `git status --porcelain`
-is clean of them). `tests/qemu/artifacts/smoke-m8/serial.log`:
+**A send with no receiver blocks (`Queued`), and is woken once a receiver
+arrives.** `fjell-attestd`, `fjell-measuredd` and `fjell-recoveryd` are all
+spawned before `init` reaches any of the three matching
+`wait_service_ready` calls, so all three found no receiver yet. Temporarily
+instrumented each to drain the kernel audit ring (via a temporary
+`AuditDrain` capability grant, `spawn.rs`; removed before this submission)
+and report its own `ipc.send` record. `attestd`'s own task index, printed
+independently, is `27`:
 
 ```
-DIAG:init:wait_storaged:pre
-devmgr: profiles verified
-NEG:MMIO:RIGHTS_CHECK:PASS
-DIAG:storaged:send_ready:pre
-devmgr: registered UART
-DIAG:init:wait_storaged:post
-DIAG:storaged:send_ready:post
+DIAG:attestd:task_index:27
+DIAG:attestd:ipc_send:arg0=26 arg1=0 (Queued: blocked)
+DIAG:attestd:ipc_send:arg0=28 arg1=0 (Queued: blocked)
+DIAG:attestd:ipc_send:arg0=27 arg1=0 (Queued: blocked)
+...
+attestd ready
 ```
 
-Single-hart, cooperative: the only way `devmgr` and the `NEG:MMIO` marker
-can execute *between* `init`'s own two prints is if `init` relinquished the
-CPU in between — and the only thing `init` does between them is the
-blocking `recv` inside `wait_storaged_ready`. `storaged` had not even
-reached its own `send_ready:pre` yet, so `init`'s `recv` found nothing
-queued and blocked, exactly as the corrected contract for the *receive*
-side requires; `devmgr` (and whatever emits `NEG:MMIO:RIGHTS_CHECK`) ran
-in the gap, and `init`'s `post` line proves it was later woken once
-`storaged` did send.
+`arg0=27` (this task) shows `arg1=0` — `Queued`, genuinely blocked, per
+`block(tasks, sched, cur_id)` at `cap/syscall.rs:540`. `arg0=26` and
+`arg0=28` (`measuredd` and `recoveryd`, spawned immediately before and
+after) show the same. `"attestd ready"` printing afterward confirms each
+was later woken and continued — the wake fires at `cap/syscall.rs:605`,
+inside `sys_ipc_recv`'s handling of a message that was sitting in `sendq`,
+which calls `wake(tasks, sched, msg.sender_tid)` for a one-way message
+specifically once `init`'s `wait_service_ready` dequeues it.
 
-**A send with no receiver blocks, and is woken when one arrives.** Already
-demonstrated live, prior to this RFC, for the same underlying mechanism:
-`semantic-stream`'s and `proxy-text`'s pre-RFC-0.26-004 `send_ready()`
-calls — one-way sends into an endpoint with no waiting receiver — never
-returned at all once `init` stopped being an accidental co-receiver
-(`docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`, "confirmed live:
-this task never reached its own... print with the old call in place").
-That is the negative case: blocks, and stays blocked with nothing to wake
-it. The `init`/`storaged` trace above is the positive case: blocks, and
-*is* woken once a sender arrives. Together they cover both halves of "a
-send with no receiver blocks, and is woken when one arrives" — one from
-each side of the rendezvous.
+**A send with a receiver already waiting returns immediately
+(`Delivered`), without blocking.** The same technique applied to
+`storaged` (M6, where `init` calls `wait_storaged_ready` immediately after
+spawning it, before anything else can run) found the opposite outcome:
 
-Both are the same primitive; instrumenting the send side directly for this
-RFC (attestd/init, `EP_SLOT`-based `send_ready()`) was also tried and
-produced a less legible trace — M8's higher concurrent task count made it
-harder to attribute each intervening log line to a specific cause with
-confidence, which is why the M6 (`storaged`) pair is the one cited above.
+```
+DIAG:storaged:own_ipc_send:arg0=7 arg1=2 (Delivered: not blocked)
+```
+
+`arg1=2` (a real receiver task index, not `0`) means `init` was already
+waiting when `storaged` sent — the interleaving observed in the withdrawn
+first submission's trace was ordinary per-trap rescheduling, exactly as the
+corrected understanding above predicts, not evidence of blocking. This is
+reported as a correction, not hidden: the original citation was wrong, not
+merely imprecise, and the mechanism it was offered as proof of is instead
+established by the `attestd`/`measuredd`/`recoveryd` trace above.
+
+**What this confirms about the receive side, reasoned rather than
+re-inferred from timing.** `SendResult::Delivered` (`cap/syscall.rs:531`)
+is only returned when `ep.send()` finds a receiver already parked in the
+endpoint's `recvq` — mechanically, that receiver must have already called
+`sys_ipc_recv`, found nothing queued (`storaged` had not sent yet), and
+taken `RecvResult::Queued`'s blocking path (`cap/syscall.rs:610`,
+`block(tasks, sched, cur_id)`) *before* `storaged`'s send executed. So
+`storaged`'s own confirmed `Delivered` outcome is not just evidence about
+the send side — it is a direct logical witness that `init`'s
+`wait_storaged_ready` call had already blocked and was woken by
+`storaged`'s `wake(tasks, sched, receiver_tid)` (`cap/syscall.rs:536`).
+This replaces the withdrawn interleaving-based receive-side claim with one
+derived from the same verified `arg1` fact, not from a second, equally
+timing-dependent inference.
+
+**Together**: a send blocks when it finds no receiver and is woken when one
+arrives (positive case, `attestd`/`measuredd`/`recoveryd`, audit-confirmed
+directly); a send with a receiver already present returns immediately
+without blocking, and that outcome is only possible because the receiver
+had already blocked waiting for it (`storaged`, audit-confirmed directly,
+receive-side blocking derived from it). The negative case — blocks and is
+*never* woken — remains the pre-RFC-0.26-004 `semantic-stream`/`proxy-text`
+trace already on record
+(`docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`), cited as history,
+not re-claimed as this RFC's own live demonstration.
+
+## Persisting this evidence — a shape to decide, not invent silently
+
+`tests/qemu/artifacts/` is overwritten by the next run and gitignored
+(`.gitignore:28`, `*.log`). `tests/runs/<timestamp>/` is not overwritten —
+but, checked directly rather than assumed, `test-all`'s own per-tier logs
+under it capture only build stdout, never the QEMU serial transcript
+(above), *and* everything under `tests/runs/` is also `*.log` and
+therefore also gitignored. So neither the "not overwritten" property nor
+the directory itself currently gets a citation like this to a committed,
+resolvable artefact — no QEMU evidence this project has ever cited has
+been committed alongside the document that cites it (a wider problem than
+this RFC, per review). For *this* submission, the raw serial log was
+copied by hand into `tests/runs/20260827-233602/
+04-qemu-smoke-m8-serial-raw.log`, resolvable on this machine now under that
+run id, but this is a one-off manual step, not something `test-all`
+does or that survives a `git clone`. Two shapes for making a citation like
+this resolvable from the commit itself, for whoever decides the general
+question:
+
+1. **A narrow `.gitignore` exception** for a specific evidence directory
+   (e.g. `!tests/evidence/**/*.log`), with a convention that only a log
+   explicitly copied there (never `tests/runs/` or `tests/qemu/artifacts/`
+   wholesale) is committed — keeps routine run noise out of the tree.
+2. **A checked-in transcript, not the raw log** — extract just the cited
+   lines into a `.txt` alongside the document that cites them (this
+   document already does this via fenced excerpts; the gap is that the
+   *source* log behind the excerpt is not verifiable from the commit).
+
+Not decided here — this RFC's own citation is resolvable per the run id
+above, which is what was required.
 

@@ -597,30 +597,23 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   **Correction to this entry's own prior claim.** It previously stated *"no
   other one-way `sys_ipc_send`/`sys_ipc_try_send` call site in the current
   tree is known to send into an endpoint the sender itself exclusively
-  receives on."* RFC-0.27-002's audit (required by its R2) found this
-  incomplete: **five more services** — `fjell-measuredd`, `fjell-attestd`,
-  `fjell-recoveryd`, `fjell-storaged` (via raw `core::arch::asm!("li a7,
-  20", ...)`, bypassing the wrapper entirely, not caught by a search for
-  the wrapper's name alone) — share the identical self-targeting shape
-  (`send_ready()` and `recv_call()` both using one fixed `EP_SLOT`). None
-  currently self-deadlocks: `init`'s `wait_service_ready` /
-  `wait_storaged_ready` still hold full receive rights on each of these
-  services' own endpoints and reach the corresponding wait before or
-  exactly when it matters, because `init`'s boot sequence deterministically
-  visits every wait and a queued one-way send is drained whenever the
-  receiver gets there, not dropped. This is the exact masking arrangement
-  RFC-0.26-004 removed for `semantic-stream`/`proxy-text` — intact here
-  only because `init` was never asked to stop receiving on these four
-  objects. `wait_service_ready`/`wait_storaged_ready` retain the identical
-  missing-`else` defect `wait_ready_exact` had (disclosed, not fixed, since
-  RFC-0.26-004; reworking RFC 058's readiness protocol is a non-goal of
-  both that RFC and this one); **now tracked as E-024**, filed in the
-  RFC-0.27-002 review because a live defect described only inside a CLOSED
-  erratum is tracked by nothing). Full audit and the design-answer document
-  naming this a real, six-instance, unmet primitive need — not decided
-  here — in `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md`. May
-  be relevant to **E-019 / RFC-0.26-003**'s `ipc` investigation — flagged,
-  not absorbed. See `docs/release/v1-limitations.md`.
+  receives on."* RFC-0.27-002's R2 audit found this incomplete: five more
+  services share the identical self-targeting shape, each currently
+  surviving it because the sender genuinely **blocks** — `block(tasks,
+  sched, cur_id)` at `cap/syscall.rs:540` — and is later woken by the
+  matching `wake()` at the receive side (`cap/syscall.rs:605`) once `init`'s
+  own wait reaches that endpoint; confirmed live via the kernel's own audit
+  ring, not inferred from timing (`fjell-attestd`'s `send_ready()`: `arg1 ==
+  0`, i.e. `Queued`, immediately before `init`'s matching wait resolves it).
+  **Filed as its own erratum, E-024**, rather than restated here: describing
+  a live defect only inside the text of an erratum this RFC closes would
+  leave it tracked by nothing once E-022 closes. See E-024 for the full
+  finding, and
+  `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md` for the audit and
+  the design-answer document naming this a real, six-instance, unmet
+  primitive need — not decided here. May be relevant to **E-019 /
+  RFC-0.26-003**'s `ipc` investigation — flagged, not absorbed. See
+  `docs/release/v1-limitations.md`.
 
 ## E-023 — RFC-v0.7.1-001: the release tool's `RELEASE.md` and consistency checks were never built
 
