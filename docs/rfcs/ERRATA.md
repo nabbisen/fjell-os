@@ -711,6 +711,26 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   model during RFC-0.27-002 and correctly flagged rather than fixed inside an
   unrelated RFC. The interfering checkout on that occasion was the architect's
   own clean-clone verification of `0785c96`.
+- **Demonstrated live, and it is larger than the manifest count** (architect,
+  2026-08-28). Regenerating the report with a clean-clone checkout present under
+  `.git-exclude/tmp/` produced, against the committed report:
+
+  ```
+  -  1 cap-manifest(s) found:
+  +  2 cap-manifest(s) found:
+  +  ┌ ./.git-exclude/tmp/verify-clean-0785/examples/.../cap-manifest.toml
+  -  total unsafe sites : 311
+  -  with SAFETY comment: 311
+  +  total unsafe sites : 622
+  +  with SAFETY comment: 622
+  ```
+
+  **The unsafe-site inventory doubles**: every `unsafe` site in the repository is
+  counted twice, once from the tree and once from the checkout. The manifest
+  count was the visible symptom; the trust report's principal safety number is
+  the one that actually moves. `311/311` and `622/622` are both internally
+  consistent, so nothing in the report signals that it is wrong — it simply
+  reports a different repository than the one it is committed to.
 - **Two defects, not one.** The inventory can be inflated by anything sitting in
   a scratch directory — the report is a function of the developer's working
   tree, not of the repository. And the skip list is an **explicit enumeration**

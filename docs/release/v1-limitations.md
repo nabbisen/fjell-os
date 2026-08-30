@@ -260,8 +260,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   working tree** (Errata **E-025**, ACCEPTED, scheduled 0.27). The cap-manifest
   scan skips a hand-listed `["target", ".git", "tests/runs"]` and not
   `.git-exclude/`, so any scratch checkout under `.git-exclude/tmp/` inflates
-  the reported manifest count. The committed report is correct; the tool that
-  produces it is not bounded by what git tracks.
+  the reported manifest count — and doubles the reported unsafe-site inventory
+  (`311/311` becomes `622/622`, internally consistent and wrong). The committed
+  report is correct; the tool that produces it is not bounded by what git
+  tracks, and nothing in its output signals when it has strayed.
 
 - **No QEMU serial log has ever been committed alongside the document that
   cites it** (Errata **E-026**, ACCEPTED). E-013 leaves nothing kernel-side
