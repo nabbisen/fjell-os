@@ -110,6 +110,56 @@ is the one outsiders see first.
 **Publishing is irreversible.** A version can be yanked but never deleted, and
 the name cannot be released. This step is the owner's, like the tag.
 
+### Before the tag — pin the crates.io logo URLs to this release's tag
+
+`assets/` sits at the repository root and is therefore **not in either crate's
+published tarball**, so the logo has to be fetched over the network. Three URLs
+do that:
+
+```
+crates/fjell-os/README.md:2      the crates.io landing-page banner
+crates/fjell-os/src/lib.rs:5     html_logo_url      (rustdoc sidebar)
+crates/fjell-os/src/lib.rs:6     html_favicon_url
+```
+
+Between releases they point at `main`, which is correct for the repository and
+**wrong for a published page**: crates.io renders a version's README forever,
+but re-fetches the image every time someone loads it, so a `main`-pinned URL
+means an old release's page silently changes appearance whenever the logo is
+touched — and breaks outright if the file is ever moved. A published page is a
+point-in-time artifact and its images should be too.
+
+So, **in the version-bump commit, before the tag is applied**, rewrite
+`/main/` to `/<version>/` in all three:
+
+```
+https://raw.githubusercontent.com/nabbisen/fjell-os/0.27.0/assets/logo.png
+```
+
+**The tag has no `v` prefix** (see *Required artifacts*, item 1). `/v0.27.0/`
+would 404 — the same broken-reference class the `Shipped` column carried for
+~150 rows before RFC-0.27-001.
+
+The URL is deliberately committed pointing at a tag that does not exist yet;
+it starts resolving the moment the owner applies it. **After tagging, verify
+rather than assume:**
+
+```
+curl -s -o /dev/null -w "%{http_code}
+" \
+  https://raw.githubusercontent.com/nabbisen/fjell-os/<version>/assets/logo.png
+```
+
+`200` before `cargo publish`, not after — publishing is irreversible, and a
+404 baked into a published page cannot be corrected without a new version.
+
+*Added 2026-08-31 (owner-approved). The `main`-pinned form shipped in the logo
+commit and was briefly a live 404, because `main` was 116 commits behind the
+branch carrying `assets/`; fast-forwarding `main` fixed that instance and left
+the moving-target problem, which this step closes. Nothing mechanical checks
+these three URLs — a candidate for whichever line takes E-026 and the E-014
+literal-predicate family.*
+
 *Added 2026-08-27, when the two crates were first published. Written down
 immediately rather than after the first stale page, on the reasoning that the
 repro-baseline step cost a red tier before anyone recorded it.*
