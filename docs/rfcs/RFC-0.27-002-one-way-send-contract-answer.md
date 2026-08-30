@@ -166,6 +166,16 @@ inside `sys_ipc_recv`'s handling of a message that was sitting in `sendq`,
 which calls `wake(tasks, sched, msg.sender_tid)` for a one-way message
 specifically once `init`'s `wait_service_ready` dequeues it.
 
+**The predicate's one limit, recorded so the next user of this technique
+knows it.** `arg1 == 0` means `Queued` only because no task at index 0
+receives on these endpoints: the `Delivered` arm records `receiver_tid`
+(`cap/syscall.rs:538`), so a delivery to task index 0 would be
+indistinguishable from a block. What rules that out here is the
+`storaged` record below — `arg1=2`, in the same boot (the log carries a
+single `Fjell OS kernel started`), placing `init` at index 2, not 0. The
+two halves of this evidence disambiguate each other; neither would be
+airtight alone. (Architect, added in review.)
+
 **A send with a receiver already waiting returns immediately
 (`Delivered`), without blocking.** The same technique applied to
 `storaged` (M6, where `init` calls `wait_storaged_ready` immediately after

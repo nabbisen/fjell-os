@@ -263,6 +263,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   the reported manifest count. The committed report is correct; the tool that
   produces it is not bounded by what git tracks.
 
+- **No QEMU serial log has ever been committed alongside the document that
+  cites it** (Errata **E-026**, ACCEPTED). E-013 leaves nothing kernel-side
+  host-testable, so QEMU logs are the only evidence for kernel behaviour, and
+  `.gitignore:28` (`*.log`) keeps all of them out of the tree.
+  `tests/qemu/artifacts/` is additionally overwritten by the next run, and
+  `test-all`'s per-tier logs under `tests/runs/` capture build stdout rather
+  than the serial transcript. Every QEMU-evidenced claim in this project is
+  therefore **unverifiable from a clone** — not shown to be wrong, but not
+  checkable either. Evidence cited by RFC-0.27-002 is resolvable by run id on
+  the machine that produced it only.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

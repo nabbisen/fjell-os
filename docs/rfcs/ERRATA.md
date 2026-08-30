@@ -722,6 +722,46 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   fix carries RFC-v0.22-001's demonstration requirement: show the inventory
   wrong with a scratch checkout present, then right with the fix in place.
 
+## E-026 — no QEMU evidence this project cites has ever been committed with the document citing it
+
+- **Claim:** kernel-side behaviour in this repository is evidenced by QEMU serial
+  logs. **E-013** makes that the *only* available evidence — `fjell-kernel` has
+  no `[lib]`, so nothing kernel-side is host-testable — and every architect
+  handoff since 0.24 has instructed "cite the QEMU log" on those grounds.
+- **Tree:** `.gitignore:28` is `*.log`. **No QEMU serial log has ever been
+  committed**, and the two places one can live are each insufficient on their
+  own:
+
+  | Location | Overwritten? | Committed? |
+  |---|---|---|
+  | `tests/qemu/artifacts/<profile>/serial.log` | **yes**, by the next run | no |
+  | `tests/runs/<timestamp>/` | no | **no** — also `*.log` |
+
+  And `tests/runs/<id>/04-qemu-smoke-*.log` does not contain a serial
+  transcript at all: `test-all`'s per-tier logs capture the xtask/build stdout
+  only (`grep -c "Fjell OS kernel started"` → `0`). Found by the implementation
+  model during RFC-0.27-002's resubmission, after the architect's review
+  proposed `tests/runs/` as the fix — it solves the overwriting half and not the
+  committed half, which the implementer checked rather than accepted.
+- **How it surfaced.** RFC-0.27-002's first submission cited
+  `tests/qemu/artifacts/smoke-m8/serial.log` for a trace that file no longer
+  contained; the only surviving copy of the quoted lines was the citing document
+  itself. That is not a mistake peculiar to that submission — it is the
+  guaranteed end state of the instruction, for every kernel claim this project
+  has made.
+- **Scope.** Every QEMU-evidenced claim in `docs/`, `rfcs/` and the release
+  records. The claims are not thereby wrong; they are **unverifiable from the
+  tree**, which is a different and lesser thing, and is the thing this register
+  exists to say out loud.
+- **Shapes offered, not decided** (RFC-0.27-002's answer document,
+  §"Persisting this evidence"): a narrow `.gitignore` exception for an evidence
+  directory that only hand-copied logs enter; or a committed transcript of the
+  cited lines alongside the document, with the raw log referenced by run id.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-28), `unscheduled` pending an
+  owner decision on the next line's theme. Recorded, not fixed. Whatever is
+  built carries RFC-v0.22-001's demonstration requirement: show a citation
+  failing to resolve before the mechanism exists, and resolving after.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -751,6 +791,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 | E-024 `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | unscheduled | ACCEPTED |
 | E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.27 | ACCEPTED |
+| E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
