@@ -3,7 +3,7 @@
 // root, so the sidebar logo has to be an absolute URL.
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/nabbisen/fjell-os/main/assets/logo-256.png",
-    html_favicon_url = "https://raw.githubusercontent.com/nabbisen/fjell-os/main/assets/logo-256.png"
+    html_favicon_url = "https://raw.githubusercontent.com/nabbisen/fjell-os/main/assets/favicon.svg"
 )]
 #![doc = include_str!("../README.md")]
 

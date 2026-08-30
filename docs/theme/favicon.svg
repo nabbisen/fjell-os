@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Fjell OS">
+  <title>Fjell OS</title>
+  <defs>
+    <clipPath id="r"><rect width="64" height="64" rx="13" ry="13"/></clipPath>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="64" height="64" fill="#FDEDD7"/>
+    <circle cx="47" cy="17" r="8" fill="#DF8557"/>
+    <path d="M30 45c4-9 9-15 14-15s11 6 15 15v19H30Z" fill="#B3AB91"/>
+    <path d="M-3 46c6-14 13-22 21-22s16 8 22 22v18H-3Z" fill="#6E6952"/>
+    <path d="M0 45h64v19H0Z" fill="#FBDCC0"/>
+    <path d="M0 55h64v9H0Z" fill="#CCAF89"/>
+    <path d="M30 64c8-10 21-13 34-9v9Z" fill="#D9875A"/>
+  </g>
+</svg>
