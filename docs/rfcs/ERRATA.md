@@ -782,6 +782,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   built carries RFC-v0.22-001's demonstration requirement: show a citation
   failing to resolve before the mechanism exists, and resolving after.
 
+## E-027 — the "threat-model gate" named in the v0.9–v0.15 handoff was never built
+
+- **Claim:** `docs/src/releases/handoff-v0.9-v0.15.md` §4.2 stated that each of
+  the threat model's 20 in-scope threats *"references an existing merged RFC
+  (the threat-model gate fails otherwise)"* — asserting an instrument that
+  enforces the property.
+- **Tree:** there is no such gate, and there never was. `grep -rani threat`
+  across every tracked `.rs`, `.yml`, `.toml` and `.sh` returns nothing outside
+  documentation, and `git log -S "threat" --all` over those file types returns
+  no commit on any branch. It is not a gate that was built and later removed;
+  it was never written.
+- **The property itself holds**, checked by hand on 2026-08-31:
+  `docs/security/threat-model-v1.md` carries 20 `### Tn` sections, every one
+  citing an RFC, and 8 `OSn` rows — matching the handoff's counts exactly. So
+  the sentence was wrong about the mechanism while being right about the
+  outcome, which is the shape this project keeps finding: **a claim that reads
+  as enforcement, standing in for a check nobody wrote.** Compare **E-023**,
+  where four of five specified release-tool behaviours were never built while
+  the RFC read `Implemented`.
+- **What is actually at risk:** nothing today, and nothing detectable tomorrow.
+  If a threat's RFC reference were deleted, or a 21st threat added without one,
+  no instrument would report it — and the handoff told a reader one would.
+- **Found:** while fixing an unrelated mdBook render warning
+  (`T<n>` parsed as an unclosed HTML tag) raised in passing during the logo
+  work, and pursued rather than noted because a wrong statement is to be
+  corrected, not flagged.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-31), `unscheduled`. The
+  handoff paragraph is corrected in place with a dated note rather than
+  silently rewritten — it is a published record, and erasing the false sentence
+  would leave no trace that it had been believed. Building the gate is a
+  natural fit for whatever line takes **E-026** and the **E-014** literal-
+  predicate family; if built, it carries RFC-v0.22-001's demonstration
+  requirement.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -812,6 +846,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-024 `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | unscheduled | ACCEPTED |
 | E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.27 | ACCEPTED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | unscheduled | ACCEPTED |
+| E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

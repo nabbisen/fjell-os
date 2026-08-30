@@ -276,6 +276,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   checkable either. Evidence cited by RFC-0.27-002 is resolvable by run id on
   the machine that produced it only.
 
+- **Nothing checks that the threat model's threats cite RFCs** (Errata
+  **E-027**, ACCEPTED). The v0.9–v0.15 handoff asserted a "threat-model gate"
+  enforcing it; no such gate exists in any commit on any branch. The property
+  holds as of 2026-08-31 — all 20 `Tn` sections in
+  `docs/security/threat-model-v1.md` cite an RFC, and the 20 in-scope / 8
+  out-of-scope counts are correct — but it is held by hand, and a regression
+  would be reported by nothing.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

@@ -406,8 +406,18 @@ architect's view on each would be welcome:
 
 `docs/security/threat-model-v1.md` enumerates **20 in-scope threats**
 (T1–T20) and **8 out-of-scope threats** (OS1–OS8) with rationale. Each
-T<n> references an existing merged RFC (the threat-model gate fails
-otherwise).
+`Tn` references an existing merged RFC.
+
+> **Correction (architect, 2026-08-31).** This paragraph originally ended
+> *"(the threat-model gate fails otherwise)"*. **No such gate has ever
+> existed**: `git log -S threat` over every tracked `.rs`, `.yml` and `.sh`
+> on all branches returns nothing, and no threat-model check appears in
+> `crates/fjell-tools`, `tools/`, or any CI workflow. The property it claimed
+> to enforce does hold — checked by hand at this date, all 20 `Tn` sections
+> cite an RFC, and the 20/8 counts are correct — but **nothing enforces it**,
+> so nothing would notice if it stopped holding. The unbracketed `T<n>` was
+> also parsed as an HTML tag and rendered as an unclosed element in the book.
+> Recorded as **E-027**.
 
 The architect should examine in particular:
 
