@@ -372,9 +372,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.27-003 | [The standards mapping — a claims document, in a project whose claims keep turning out to be unchecked](./proposed/RFC-0.27-003-standards-mapping.md) — BIZ-06; adds a 9th Gate 12 subcheck; handoff: [`handoffs/`](./handoffs/RFC-0.27-003-standards-mapping/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 
