@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Fjell OS" width="180">
+</p>
+
 # Fjell OS
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)

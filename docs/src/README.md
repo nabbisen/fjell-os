@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/logo.png" alt="Fjell OS" width="160">
+</p>
+
 # Fjell OS Documentation
 
 Welcome to the Fjell OS documentation.

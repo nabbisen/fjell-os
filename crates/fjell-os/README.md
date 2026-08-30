@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nabbisen/fjell-os/main/assets/logo.png" alt="Fjell OS" width="180">
+</p>
+
 # Fjell OS
 
 > **Every authority is explainable. Every update is verifiable. Every failure is
