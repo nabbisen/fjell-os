@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.27-003
 
-**Governing RFC:** [RFC-0.27-003](../../proposed/RFC-0.27-003-standards-mapping.md)
+**Governing RFC:** [RFC-0.27-003](../../accepted/RFC-0.27-003-standards-mapping.md)
 **Milestone:** 0.27
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-08-31)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

@@ -1,6 +1,6 @@
 # RFC-0.27-003: The standards mapping — a claims document, in a project whose claims keep turning out to be unchecked
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-08-31; implementation may begin (RFC 000)
 **Milestone:** 0.27
 **Tracks.** BIZ-06 from the system proposal: a maintained mapping from CRA
 Annex I and IEC 62443-4-1/4-2 to Fjell mechanisms and evidence artifacts, with
