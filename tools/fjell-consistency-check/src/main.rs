@@ -16,6 +16,9 @@
 //!     (Slice 4)
 //!   - `handoff-status` — each handoff's inherited Status matches its
 //!     governing RFC (Slice 4)
+//!   - `standards-mapping` — the CRA/IEC standards mapping's row-level
+//!     contract: closed status vocabulary, `met`/`partial` rows cite a
+//!     path, every cited path exists (RFC-0.27-003 R3)
 //!
 //! Usage:
 //!   `fjell-consistency-check <subcheck>`
@@ -30,6 +33,7 @@ mod errata_limitations;
 mod errata_tracking;
 mod handoff_status;
 mod rfc_status_folder;
+mod standards_mapping;
 mod status;
 mod syscall_surface;
 mod version_currency;
@@ -47,12 +51,13 @@ fn main() -> ExitCode {
         "version-currency" => run_named("version-currency", version_currency::check),
         "doc-links" => run_named("doc-links", doc_links::check),
         "doc-counts" => run_named("doc-counts", doc_counts::check),
+        "standards-mapping" => run_named("standards-mapping", standards_mapping::check),
         "--all" => run_all(),
         _ => {
             eprintln!(
                 "Usage: fjell-consistency-check \
                  <syscall-surface|errata-limitations|rfc-status-folder|handoff-status|\
-                 errata-tracking|version-currency|doc-links|doc-counts|--all>"
+                 errata-tracking|version-currency|doc-links|doc-counts|standards-mapping|--all>"
             );
             ExitCode::FAILURE
         }
@@ -71,6 +76,7 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("version-currency", version_currency::check),
     ("doc-links", doc_links::check),
     ("doc-counts", doc_counts::check),
+    ("standards-mapping", standards_mapping::check),
 ];
 
 fn run_all() -> ExitCode {

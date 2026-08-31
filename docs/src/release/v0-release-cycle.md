@@ -43,6 +43,16 @@ All four must hold before beginning:
 | 7 | CHANGELOG entry | present, version and date correct |
 | 8 | Docs match reality | no doc asserts behaviour the tree does not have |
 
+**Criterion 8 includes re-opening two documents by hand, not just running a
+gate.** [`docs/release/v1-limitations.md`](../../release/v1-limitations.md)
+and [`docs/compliance/standards-mapping.md`](../../compliance/standards-mapping.md)
+each assert, row by row, that a specific mechanism exists and works a
+specific way. Gate 12's `standards-mapping` subcheck confirms every cited
+path in the mapping still exists — it does **not** confirm the cited
+artifact still supports the row's claim (RFC-0.27-003 R3's own disclosure).
+A path that resolves is not the same thing as a row that is still true;
+re-read both documents against the release's actual changes before the tag.
+
 ### Before criterion 4 — re-record the repro baseline after a version bump
 
 **The workspace version is an input to the built binaries.** Cargo's `-C

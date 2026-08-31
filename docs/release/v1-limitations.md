@@ -284,6 +284,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   out-of-scope counts are correct — but it is held by hand, and a regression
   would be reported by nothing.
 
+- **`fjell-sxt-crypto`'s doc-comment cites two documentation files that do
+  not exist** (Errata **E-028**, ACCEPTED). RFC-v0.7.3-002 (Implemented,
+  v0.7.1) specified `docs/src/security/crypto-profile.md` and
+  `docs/src/security/crypto-roadmap.md` as deliverables — the latter is
+  named in that RFC's own acceptance criteria — but neither exists anywhere
+  in the tree, while the crate's live doc-comment still points at both.
+  The underlying disclosure (development-only crypto, not for production
+  use, documented cache-timing leak) is not lost — it is in the
+  doc-comment itself — but the dedicated write-up is missing. Found while
+  building the CRA/IEC standards mapping (RFC-0.27-003) and tracing its
+  confidentiality-clause evidence into this crate.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

@@ -816,6 +816,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   predicate family; if built, it carries RFC-v0.22-001's demonstration
   requirement.
 
+## E-028 — `RFC-v0.7.3-002`'s specified deliverable docs do not exist in the tree
+
+- **Claim:** `rfcs/done/RFC-v0.7.3-002-crypto-profile-documentation.md`
+  (Status: Implemented, v0.7.1) specifies creating
+  `docs/src/security/crypto-profile.md` (current state, risks, threat
+  model of the development crypto profile) and
+  `docs/src/security/crypto-roadmap.md` (migration plan to v0.9), and lists
+  `docs/src/security/crypto-roadmap.md exists` among its own acceptance
+  criteria.
+- **Tree:** neither file exists anywhere under `docs/`; `docs/src/security/`
+  contains only `threat-model-v0.1.md` and `v0.1.0-known-non-goals.md`, both
+  superseded. `crates/fjell-sxt-crypto/src/lib.rs`'s live doc-comment still
+  points a reader at both nonexistent paths, twice, as the place to read
+  about the crate's non-production status and migration plan.
+- **Found:** building the CRA/IEC standards mapping (RFC-0.27-003), tracing
+  the confidentiality clauses' evidence into `fjell-sxt-crypto` per the
+  handoff's instruction to open every artifact before citing it.
+- **What is actually at risk:** a reader following the crate's own pointer
+  for the crypto profile's risk description and migration plan finds
+  nothing at either path. The underlying disclosure — this crate is
+  development-only, must not be used in production, and has a documented
+  cache-timing leak — is not lost; it is stated directly in the crate's own
+  doc-comment. What is missing is the dedicated write-up RFC-v0.7.3-002
+  promised and marked done.
+- **Same shape as E-023**: an RFC marked `Implemented` while a named,
+  checkable piece of its own specified deliverable was never built (or was
+  later deleted; `git log` was not searched to distinguish the two, and the
+  distinction does not change the resolution).
+- **Resolution:** **ACCEPTED**, `unscheduled`. Not fixed here — building
+  documentation content is outside RFC-0.27-003's non-goals (no mechanism
+  gets built inside a documentation RFC), and the standards mapping's own
+  row (CRA-I-2e, IEC-4-2-FR4) already discloses the underlying gap this
+  missing documentation would have described.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -847,6 +881,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.27 | ACCEPTED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | unscheduled | ACCEPTED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
+| E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
