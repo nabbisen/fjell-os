@@ -373,9 +373,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.27-004 | [Evidence that survives the run that produced it](./proposed/RFC-0.27-004-evidence-that-survives.md) — closes **E-026**; Gate 12 would go 9 → 10; handoff: [`handoffs/`](./handoffs/RFC-0.27-004-evidence-that-survives/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 
