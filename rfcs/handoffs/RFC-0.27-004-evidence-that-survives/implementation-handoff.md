@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.27-004
 
-**Governing RFC:** [RFC-0.27-004](../../proposed/RFC-0.27-004-evidence-that-survives.md)
+**Governing RFC:** [RFC-0.27-004](../../accepted/RFC-0.27-004-evidence-that-survives.md)
 **Milestone:** 0.27
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-08-31)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

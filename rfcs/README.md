@@ -350,7 +350,7 @@ carry no `v` prefix, matching the release tags, which never did.
 
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — 5 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -366,6 +366,7 @@ nothing guarantees it stays that way — which is why it is still open.
 | 0.27-001 | [Nothing verifies what our documents say about themselves](./accepted/RFC-0.27-001-document-self-verification.md) — closes **E-016** and **E-023**, re-dispositions **E-014**/**E-015**/**E-017**; makes the errata backlog derivable and enforced; handoff: [`handoffs/`](./handoffs/RFC-0.27-001-document-self-verification/implementation-handoff.md) |
 | 0.27-002 | [`try_send` does not try — the one-way send contract](./accepted/RFC-0.27-002-one-way-send-contract.md) — accepted 2026-08-28; closes **E-022**; handoff: [`handoffs/`](./handoffs/RFC-0.27-002-one-way-send-contract/implementation-handoff.md) |
 | 0.27-003 | [The standards mapping — a claims document, in a project whose claims keep turning out to be unchecked](./accepted/RFC-0.27-003-standards-mapping.md) — accepted 2026-08-31; BIZ-06; adds a 9th Gate 12 subcheck; handoff: [`handoffs/`](./handoffs/RFC-0.27-003-standards-mapping/implementation-handoff.md) |
+| 0.27-004 | [Evidence that survives the run that produced it](./accepted/RFC-0.27-004-evidence-that-survives.md) — accepted 2026-08-31; closes **E-026**; Gate 12 goes 9 → 10; handoff: [`handoffs/`](./handoffs/RFC-0.27-004-evidence-that-survives/implementation-handoff.md) |
 
 
 ---
@@ -373,11 +374,9 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.27-004 | [Evidence that survives the run that produced it](./proposed/RFC-0.27-004-evidence-that-survives.md) — closes **E-026**; Gate 12 would go 9 → 10; handoff: [`handoffs/`](./handoffs/RFC-0.27-004-evidence-that-survives/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 1 RFC
 
