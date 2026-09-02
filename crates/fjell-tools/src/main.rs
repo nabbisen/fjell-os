@@ -19,11 +19,15 @@
 //!                                        checks  (RFC-v0.22-001, Gate 12)
 //!   test-all [--no-qemu]              — run every test tier; write
 //!                                        dated log bundle to tests/runs/
+//!   evidence promote ...               — promote a QEMU serial log into
+//!                                        tests/evidence/ with provenance
+//!                                        (RFC-0.27-004)
 
 mod bench;
 mod callsite_audit;
 mod dev; // RFC v0.9-005 developer workflow
 mod dev_modes;
+mod evidence; // RFC-0.27-004 evidence promotion
 mod fleet_demo;
 mod key_crypto; // RFC-v0.16-006 encrypted key storage
 mod negative;
@@ -189,6 +193,7 @@ fn main() -> ExitCode {
         Some("verus-check") => verus_check::cmd_verus_check(&args[1..]),
         Some("release-rehearsal") => release_rehearsal::cmd_release_rehearsal(&args[1..]),
         Some("test-all") => test_all::cmd_test_all(&args[1..]),
+        Some("evidence") => evidence::cmd_evidence(&args[1..]),
         Some(other) => {
             eprintln!("fjell-tools: unknown subcommand `{other}`");
             usage();
@@ -220,6 +225,7 @@ Subcommands:
   release-rehearsal              run v1.0 tag gates (RFC-v0.16-008)
   consistency-check [<subcheck>|--all]  declared vs. actual state (RFC-v0.22-001)
   test-all [--no-qemu]           run every tier, save logs to tests/runs/
-  trust-report [--dry-run]       RFC 061 §6 six-section trust report"
+  trust-report [--dry-run]       RFC 061 §6 six-section trust report
+  evidence promote ...           promote a QEMU log into tests/evidence/ (RFC-0.27-004)"
     );
 }

@@ -19,6 +19,9 @@
 //!   - `standards-mapping` — the CRA/IEC standards mapping's row-level
 //!     contract: closed status vocabulary, `met`/`partial` rows cite a
 //!     path, every cited path exists (RFC-0.27-003 R3)
+//!   - `evidence` — every `tests/evidence/` citation resolves with valid
+//!     provenance (direction A) and every promoted file is cited by
+//!     something (direction B) (RFC-0.27-004 R4)
 //!
 //! Usage:
 //!   `fjell-consistency-check <subcheck>`
@@ -31,6 +34,7 @@ mod doc_counts;
 mod doc_links;
 mod errata_limitations;
 mod errata_tracking;
+mod evidence;
 mod handoff_status;
 mod rfc_status_folder;
 mod standards_mapping;
@@ -52,12 +56,14 @@ fn main() -> ExitCode {
         "doc-links" => run_named("doc-links", doc_links::check),
         "doc-counts" => run_named("doc-counts", doc_counts::check),
         "standards-mapping" => run_named("standards-mapping", standards_mapping::check),
+        "evidence" => run_named("evidence", evidence::check),
         "--all" => run_all(),
         _ => {
             eprintln!(
                 "Usage: fjell-consistency-check \
                  <syscall-surface|errata-limitations|rfc-status-folder|handoff-status|\
-                 errata-tracking|version-currency|doc-links|doc-counts|standards-mapping|--all>"
+                 errata-tracking|version-currency|doc-links|doc-counts|standards-mapping|\
+                 evidence|--all>"
             );
             ExitCode::FAILURE
         }
@@ -77,6 +83,7 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("doc-links", doc_links::check),
     ("doc-counts", doc_counts::check),
     ("standards-mapping", standards_mapping::check),
+    ("evidence", evidence::check),
 ];
 
 fn run_all() -> ExitCode {

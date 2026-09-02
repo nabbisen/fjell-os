@@ -1,0 +1,316 @@
+Fjell OS kernel started.
+mode: S
+platform: qemu-virt
+memory: detected (128 MiB)
+mm: boot allocator ready
+mm: frame allocator ready  (32152 free frames)
+vm: sv39 enabled
+trap: stvec installed
+M3: capability table initialized
+M3: endpoint table initialized
+M3: endpoint created (id=0)
+[diag] spawn slot=1 page0 PA=0x802b1000
+M4: init task ready
+sched: started
+irq: external interrupt plane enabled (PLIC ctx 1, UART0=irq10)
+M4: configd started
+M4: cap-broker started
+RFC040: cap-broker Bootstrap
+RFC040: cap-broker Enforcing
+M4: cap-broker Enforcing
+auditd: started
+M4: auditd started
+M4: service-manager started
+service-manager: started (RFC 058)
+{"seq":0,"kind":"boot","arg0":0,"arg1":0,"result":0}
+M4: sample service started
+v0.2: neg-test service started
+{"seq":1,"kind":"task.create","arg0":1,"arg1":0,"result":0}
+neg-test: starting v0.2 negative test scenarios
+M4: core.target ready
+M5: semantic-stream started
+M5: semantic-stream started
+NEG:HARNESS:CSpace_LAYOUT_VALID:PASS
+{"seq":2,"kind":"ipc.recv","arg0":2,"arg1":0,"result":0}
+M5: proxy-text started
+M5: proxy-text started
+M5: semantic policy loaded
+NEG:CAP:RIGHTS_DENIED:PASS
+M5: semantic policy loaded
+NEG:CAP:LEASE_REVOKED:PASS
+M5: semantic operations ready
+{"seq":3,"kind":"task.switch","arg0":1,"arg1":0,"result":0}
+NEG:CAP:DROP_ON_REVOKED:PASS
+M6: virtio-mmio blk discovered
+devmgr: starting (v0.5 profile-driven)
+NEG:CAP:WRONG_KIND_REJECTED:PASS
+{"seq":4,"kind":"task.switch","arg0":1,"arg1":0,"result":0}
+devmgr: profiles verified
+M6: storaged ready
+NEG:MMIO:RIGHTS_CHECK:PASS
+devmgr: registered UART
+{"seq":5,"kind":"ipc.call","arg0":1,"arg1":0,"result":0}
+devmgr: registered virtio-net
+NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED:PASS
+êêêêêêêíDIAG:storaged:own_ipc_send:arg0=7 arg1=2 (Delivered: not blocked)
+M6: storaged ready
+devmgr: registered virtio-blk
+NEG:CAP:COPY_WITHOUT_RIGHT_REJECTED:PASS
+devmgr: registered PLIC
+{"seq":6,"kind":"ipc.recv","arg0":3,"arg1":1,"result":0}
+devmgr: registered CLINT
+M6: block write ok
+NEG:CAP:MINT_WITHOUT_RIGHT_REJECTED:PASS
+devmgr: devices registered
+{"seq":7,"kind":"ipc.reply","arg0":3,"arg1":1,"result":0}
+NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS
+devmgr: PLATFORM.PROFILES_READY
+TEST:V0.5-PLATFORM:PASS
+{"seq":8,"kind":"ipc.recv","arg0":3,"arg1":0,"result":0}
+NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS
+NEG:MMIO:RAM_GUARD_REJECTS:PASS
+M6: store formatted or recovered
+NEG:MMIO:BOUNDS_REJECTED:PASS
+NEG:DMA:RIGHTS_CHECK:PASS
+NEG:DMA:REVOKE_EXPLICIT:PASS
+NEG:DMA:ZEROIZE_ON_EXIT:PASS
+M6: store append ok
+NEG:USER_COPY:NULL_REJECTED:PASS
+NEG:USER_COPY:KERNEL_ADDR_REJECTED:PASS
+NEG:POLICY:DEFAULT_DENY:PASS
+M6: checkpoint created
+NEG:POLICY:BOOTSTRAP_GUARD:PASS
+[INTENT][Normal] sample-service demo intent
+bootctl: started (RFC 057)
+Description:
+NEG:POLICY:DENY_PRIORITY:PASS
+  RFC-v0.23-001 ABDD live path demonstration
+NEG:POLICY:IDENTITY_SPOOFING_REJECTED:PASS
+Actions:
+  [1] acknowledge
+  [2] remap-device
+
+sample-service: intent emitted
+proxy-text: action accepted
+proxy-text: action DENIED (capability not held)
+M6: boot-control mirror valid
+upgraded: starting
+M6: inactive slot staged
+M6: candidate slot set
+upgraded: anti-rollback confirmed; min_counter advanced
+M6: boot confirmation simulated
+M6: powerd started
+TEST:V0.5-PLATFORM:PASS
+upgraded: release 1 confirmed (min_counter=1)
+M6: persistent store and upgrade foundation ready
+M7: verifyd started
+TEST:V0.5-PLATFORM:PASS
+M7: rootfsd started
+upgraded: anti-rollback confirmed; min_counter advanced
+TEST:V0.5-PLATFORM:PASS
+M7: snapshotd started
+verifyd: keyring wired (dev, ReleaseVerification + AttestationSigning)
+upgraded: release 2 confirmed (min_counter=2)
+M7: boot evidence loaded
+M7: release manifest verified
+upgraded: anti-rollback REJECTED ‚Äî counter below floor
+M7: rootfs manifest verified
+M7: policy bundle verified
+upgraded: rollback correctly rejected
+M7: immutable rootfs ready
+upgraded: boot confirmation simulated
+TEST:V0.5-PLATFORM:PASS
+TEST:M8:PASS
+verifyd: WARNING unprovisioned dev trust anchor (legacy all-zero dev key); run `cargo xtask provision-dev --allow-tofu-provision` (dev/QEMU profile only)
+M7: pre-upgrade snapshot created
+verifyd ready
+M7: inactive slot staged
+NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS
+M7: slot marked verified
+M7: candidate slot set
+NEG:SVC:START_TIMEOUT_DETECTED:PASS
+M7: candidate boot simulated
+[task#20 task]: fault(LoadPageFault) sepc=0x4001e stval=0x0
+TEST:V0.5-PLATFORM:PASS
+TEST:M8:PASS
+M7: health target passed
+NEG:SVC:FAULT_DETECTED:PASS
+M7: slot confirmed after health
+NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS
+M7: post-confirmation snapshot created
+NEG:IPC:LATE_REPLY_REJECTED:PASS
+NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS
+neg-test: all scenarios complete
+TEST:V0.5-PLATFORM:PASS
+TEST:M8:PASS
+[STATE][Ok] Verified boot status
+Summary:
+  all manifests verified
+Facts:
+  release_verified = true
+  rootfs_verified = true
+  policy_verified = true
+  active_slot = B
+
+[STATE][Ok] Immutable rootfs
+Summary:
+  rootfs verified and read-only
+Facts:
+  status = verified
+  read_only = true
+
+[STATE][Ok] System snapshot
+Summary:
+  pre-upgrade and post-confirmation snapshots created
+Facts:
+  snapshot_count = 2
+  last_reason = post-confirmation
+
+[EVENT][Normal][Ok] Slot confirmed after health
+Description:
+  Slot B confirmed after health target success
+
+M7: invalid signature rejected
+M7: health failure rollback simulated
+M7: rollback selected as expected
+TEST:M7:PASS
+v0.7: syncd started
+syncd: started (v0.7 snapshot sync)
+driver-virtio-net: starting
+v0.4: virtio-net driver started
+syncd: envelope self-check passed
+netd: starting
+v0.4: netd started
+driver-virtio-net: device descriptor loaded
+netd: session table initialised
+secure-transportd: starting
+syncd: digest_full_capacity_no_panic
+v0.4: secure-transportd started
+netd ready
+TEST:V0.5-PLATFORM:PASS
+TEST:V0.4-NET:PASS
+TEST:M8:PASS
+secure-transportd: ready
+diagnosticsd: starting
+v0.4: diagnosticsd started
+syncd: body_len_over_64_rejected
+driver-virtio-net: legacy mode (no VIRTIO_F_VERSION_1)
+diagnosticsd: ready
+M8: measuredd started
+syncd: V1_default_is_foreign_authoritative
+measuredd: trust-provider registered (dev)
+M8: attestd started
+driver-virtio-net: features negotiated
+DIAG:attestd:task_index:27
+syncd: merge_rule_property_tests=6/6
+driver-virtio-net: rx queue initialised
+attestd: trust-provider + keyring wired; v2 signing active
+M8: recoveryd started
+measuredd ready
+M8: recoveryd started
+syncd: signature_profile_separator_verified
+driver-virtio-net: IRQ bind failed
+TEST:V0.5-PLATFORM:PASS
+TEST:V0.4-NET:PASS
+TEST:M8:PASS
+M8: boot evidence imported
+DIAG:attestd:ipc_send:arg0=26 arg1=0 (Queued: blocked)
+syncd: replay_cache=ready capacity=256
+M8: verification results appended
+syncd: import endpoint ready
+syncd: ready
+TEST:V0.5-PLATFORM:PASS
+TEST:V0.7-SYNC:PASS
+TEST:V0.4-NET:PASS
+TEST:M8:PASS
+DIAG:attestd:ipc_send:arg0=28 arg1=0 (Queued: blocked)
+M8: verification freshness ok
+M8: expired bundle rejected as expected
+DIAG:attestd:ipc_send:arg0=27 arg1=0 (Queued: blocked)
+attestd ready
+M8: stale bundle rejected as expected
+M8: measurement chain ready
+[STATE][Ok] Measurement status
+Summary:
+  measurement chain active
+Facts:
+  measurement.seq = 4
+  measurement.dropped = 0
+
+attestd: record generated (v2)
+M8: attestation record generated
+M8: attestation verified
+[STATE][Ok] Attestation status
+Summary:
+  local attestation record generated
+Facts:
+  profile = fjell.local.v1
+  signature = development-ed25519
+
+M8: recovery target available
+[STATE][Ok] Recovery status
+Summary:
+  recovery target available
+Facts:
+  recovery_target = true
+  snapshots_available = 1
+
+[INTENT][Important] Recovery action available
+Description:
+  Manual rollback or diagnostics available
+Consequences:
+  - Rollback boots the last confirmed slot
+Actions:
+  [1] Inspect snapshots
+  [2] Select rollback
+
+proxy-text: action accepted
+M8: unconfirmed rollback rejected as expected
+proxy-text: action accepted
+M8: verification freshness failed
+M8: candidate bundle rejected as stale
+[EVENT][Important][Failed] Bundle freshness rejected
+Description:
+  candidate bundle rejected as stale
+
+[STATE][Failed] Bundle freshness
+Summary:
+  bundle rejected
+Facts:
+  generation = 3
+  key_epoch = 3
+  status = rejected
+
+M8: recovery target entered
+M8: last confirmed slot A preserved
+[STATE][Ok] Recovery status
+Summary:
+  recovery target available
+Facts:
+  recovery_target = true
+  snapshots_available = 1
+
+[INTENT][Important] Recovery action available
+Description:
+  Manual rollback or diagnostics available
+Consequences:
+  - Rollback boots the last confirmed slot
+Actions:
+  [1] Inspect snapshots
+  [2] Select rollback
+
+TEST:M8:PASS
+proxy-text: action accepted
+driver-uart: starting
+v0.25: uart driver started
+driver-uart: mmio mapped
+proxy-text: action accepted
+driver-uart: IRQ bound
+driver-uart: ready
+v0.25: no uart byte received (informational; nothing typed)
+TEST:M7:PASS
+TEST:V0.5-PLATFORM:PASS
+TEST:V0.7-SYNC:PASS
+TEST:V0.4-NET:PASS
+TEST:M8:PASS
+qemu-system-riscv64: terminating on signal 15 from pid 1005060 (timeout)

@@ -1,0 +1,5 @@
+run_id = 20260827-233602
+profile = smoke-m8
+commit_sha = 40ea59b9c511eecabc55f28ede0db743c0d00325
+command = cargo xtask qemu-test m8 (exact underlying qemu-system-riscv64 argv not separately captured at run time — this log predates run-info.txt tooling)
+instrumented = yes: temporary audit-ring diagnostic prints (report_own_send_result, drain_ring_to_empty) added to fjell-storaged, fjell-attestd, fjell-init, plus a temporary AuditDrain capability grant in crates/fjell-kernel/src/task/spawn.rs. Added post-40ea59b to investigate send-side blocking directly via the kernel audit ring; never committed; fully reverted before commit 1818ae1 (git diff 40ea59b 1818ae1 -- crates/ is empty, confirmed in the review record). This log cannot be reproduced by checking out commit_sha alone.

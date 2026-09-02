@@ -123,6 +123,21 @@ resolving a finding of this shape unilaterally.
 
 ## Evidence the wait executed, not merely markers
 
+> **Unresolvable historical citation (RFC-0.27-004 R6, 2026-09-03).** The
+> path below is overwritten by every later run of the `semantic` profile —
+> the exact failure mode RFC-0.27-004 exists to close — and the specific
+> run quoted here no longer exists to promote: `tests/qemu/artifacts/`
+> carries none of this project's history before this RFC's own R3 change,
+> and by the time RFC-0.27-004 was implemented this profile had been rerun
+> many times over (including as a QEMU negative-test category with the
+> same name). **Not re-run to stand in for the original** (D4) — the
+> quoted lines below are the citing document's own record of what a real
+> run once showed, not something that can be checked against the tree
+> today. The underlying architectural claim (semantic-stream validates
+> before forwarding; the capability-checked refusal fires) rests on code
+> paths unchanged since this RFC shipped; tracked for a fresh, properly
+> -provenanced re-run and promotion under **Errata E-026** (`0.28`).
+
 `tests/qemu/artifacts/semantic/serial.log`, current run:
 
 ```

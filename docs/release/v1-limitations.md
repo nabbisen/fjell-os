@@ -265,16 +265,22 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   report is correct; the tool that produces it is not bounded by what git
   tracks, and nothing in its output signals when it has strayed.
 
-- **No QEMU serial log has ever been committed alongside the document that
-  cites it** (Errata **E-026**, ACCEPTED). E-013 leaves nothing kernel-side
-  host-testable, so QEMU logs are the only evidence for kernel behaviour, and
-  `.gitignore:28` (`*.log`) keeps all of them out of the tree.
-  `tests/qemu/artifacts/` is additionally overwritten by the next run, and
+- **No QEMU serial log had ever been committed alongside the document that
+  cites it** (Errata **E-026**, **CLOSED** by RFC-0.27-004). E-013 leaves
+  nothing kernel-side host-testable, so QEMU logs are the only evidence for
+  kernel behaviour, and `.gitignore:28` (`*.log`) kept all of them out of the
+  tree; `tests/qemu/artifacts/` was overwritten by the next run, and
   `test-all`'s per-tier logs under `tests/runs/` capture build stdout rather
-  than the serial transcript. Every QEMU-evidenced claim in this project is
-  therefore **unverifiable from a clone** — not shown to be wrong, but not
-  checkable either. Evidence cited by RFC-0.27-002 is resolvable by run id on
-  the machine that produced it only.
+  than the serial transcript. `tests/evidence/` (a narrow, deliberate
+  `.gitignore` exception) plus `cargo xtask evidence promote` now let a
+  citation be committed with mandatory provenance — including whether the
+  build was instrumented, since a provenance block naming only a commit sha
+  would let a reader assume a reproducibility the log may not have. Gate 12's
+  `evidence` subcheck holds this both ways: every citation must resolve with
+  valid, ancestor-checked provenance, and every promoted file must be cited
+  by something. **Of the citations this project had already made, 1 of 3 was
+  resolvable** and was promoted (RFC-0.27-002's); the other 2 were not — see
+  **E-029**, below.
 
 - **Nothing checks that the threat model's threats cite RFCs** (Errata
   **E-027**, ACCEPTED). The v0.9–v0.15 handoff asserted a "threat-model gate"
@@ -295,6 +301,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   doc-comment itself — but the dedicated write-up is missing. Found while
   building the CRA/IEC standards mapping (RFC-0.27-003) and tracing its
   confidentiality-clause evidence into this crate.
+
+- **Two historical QEMU-log citations remain unresolvable** (Errata
+  **E-029**, ACCEPTED, tracked to **0.28**). RFC-0.27-004's R6
+  reconciliation found the `tests/qemu/artifacts/semantic/serial.log`
+  content cited by `RFC-0.26-004-readiness-channel-answer.md` and by the
+  archived `RFC-0.26-002-abdd-path-synchronisation.md` no longer exists —
+  overwritten by later runs before this RFC's per-run retention existed.
+  Not re-run to stand in for the originals (D4); the first is annotated in
+  place, the second (already `Superseded`) was left as the point-in-time
+  record it already was. By 0.28: re-run the `semantic` profile fresh and
+  promote it properly, superseding the annotation rather than deleting it.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker

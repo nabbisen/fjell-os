@@ -73,6 +73,81 @@ impl ArtifactDir {
     pub fn join(&self, p: &str) -> PathBuf {
         self.0.join(p)
     }
+    /// `tests/qemu/artifacts/<profile>/runs/<run-id>/` — RFC-0.27-004 R3.
+    /// Unlike the flat `serial.log` above (still written, still overwritten
+    /// by the next run of this profile — that stays true, unchanged), this
+    /// path is unique per invocation, so a promotable copy survives the
+    /// next tier running the same profile.
+    pub fn run_dir(&self, run_id: &str) -> PathBuf {
+        let dir = self.0.join("runs").join(run_id);
+        let _ = fs::create_dir_all(&dir);
+        dir
+    }
+}
+
+/// `YYYYMMDD-HHMMSS`, same construction as `test_all::timestamp_str` —
+/// duplicated rather than shared (small, self-contained, and the two
+/// modules stay independent by this project's own convention; see
+/// `standards_mapping::normalise`'s doc-comment for the same call made
+/// elsewhere in this codebase).
+fn run_id_now() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or(std::time::Duration::ZERO)
+        .as_secs();
+    let s = secs % 86400;
+    let d = secs / 86400;
+    let hh = s / 3600;
+    let mm = (s % 3600) / 60;
+    let ss = s % 60;
+    let days = d + 719_468;
+    let era = days / 146_097;
+    let doe = days - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if month <= 2 { y + 1 } else { y };
+    format!(
+        "{:04}{:02}{:02}-{:02}{:02}{:02}",
+        year, month, day, hh, mm, ss
+    )
+}
+
+/// The commit `HEAD` resolved to at run time, full 40-hex sha — a short sha
+/// would be ambiguous for the ancestry check `evidence promote` and the
+/// `evidence` subcheck both perform on it later. `"unknown"` if `git` is
+/// unavailable or the tree is not a git checkout; provenance carries this
+/// literally rather than silently omitting the field.
+fn git_head_sha() -> String {
+    Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+/// Whether any tracked file differs from `HEAD` at run time — the
+/// mechanical proxy for "was this build instrumented" (D3). Not proof by
+/// itself (a dirty tree can be unrelated to the binary that produced this
+/// log, and a clean tree does not rule out instrumentation from an already
+/// -committed-then-amended state), so `evidence promote` still requires a
+/// human `--instrumented` answer rather than trusting this alone — but a
+/// mismatch between the two is worth a promoter's attention, which is why
+/// this is recorded at all. Fails safe: if `git status` cannot be run,
+/// reports dirty rather than silently claiming a clean tree.
+fn git_tree_dirty() -> bool {
+    Command::new("git")
+        .args(["status", "--porcelain", "--untracked-files=no"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| !o.stdout.is_empty())
+        .unwrap_or(true)
 }
 
 /// Entry point: `cargo xtask qemu-run --profile <name>`.
@@ -177,6 +252,26 @@ pub fn run_profile(p: &Profile) -> ExitCode {
 
     let log_path = art.join("serial.log");
     let _ = fs::write(&log_path, &combined);
+
+    // RFC-0.27-004 R3: also retain this run under a run-id-keyed directory,
+    // so the flat path above being overwritten by the *next* run of this
+    // profile no longer destroys the only copy — `evidence promote` reads
+    // from here, not from the flat path. Provenance captured now, at run
+    // time, because the commit sha and dirty-tree state are true facts only
+    // at this moment; asking for them later at promotion time would be
+    // asking the wrong point in history (D2/D3).
+    let run_id = run_id_now();
+    let run_dir = art.run_dir(&run_id);
+    let _ = fs::write(run_dir.join("serial.log"), &combined);
+    let _ = fs::write(run_dir.join("qemu-command.txt"), argv.join(" ").as_bytes());
+    let run_info = format!(
+        "run_id = {run_id}\nprofile = {}\ncommit_sha = {}\ntree_dirty_at_run_time = {}\ncommand = {}\n",
+        p.name,
+        git_head_sha(),
+        git_tree_dirty(),
+        argv.join(" "),
+    );
+    let _ = fs::write(run_dir.join("run-info.txt"), run_info.as_bytes());
 
     // Empty marker list = placeholder profile (no cases registered).
     if p.expected_markers.is_empty() {

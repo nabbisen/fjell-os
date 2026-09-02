@@ -137,7 +137,12 @@ evidence a citation like this needs. The actual serial log
 next run) was copied into the same run directory as
 `tests/runs/20260827-233602/04-qemu-smoke-m8-serial-raw.log` so it survives
 under the same run id — see "Persisting this evidence" below for why this
-is a manual step today, not a `test-all` feature.
+is a manual step today, not a `test-all` feature. **Reconciled by
+RFC-0.27-004 (2026-09-03):** promoted to
+[`tests/evidence/RFC-0.27-002/m8-attestd-storaged-audit-ring.log`](../../tests/evidence/RFC-0.27-002/m8-attestd-storaged-audit-ring.log),
+with committed provenance recording that the build was instrumented and
+cannot be reproduced from its commit sha alone — this is the same log,
+given a permanent, resolvable home rather than a new one.
 
 **A send with no receiver blocks (`Queued`), and is woken once a receiver
 arrives.** `fjell-attestd`, `fjell-measuredd` and `fjell-recoveryd` are all
@@ -249,4 +254,10 @@ question:
 
 Not decided here — this RFC's own citation is resolvable per the run id
 above, which is what was required.
+
+**Decided by RFC-0.27-004 (2026-09-03): option 1**, with a promotion
+command and mandatory D2/D3 provenance rather than a bare `.gitignore`
+exception alone — see
+[`tests/evidence/README.md`](../../tests/evidence/README.md). This RFC's
+own citation, above, has been promoted under that mechanism.
 

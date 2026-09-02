@@ -27,6 +27,12 @@ target
 
 *.log
 
+# RFC-0.27-004: a QEMU serial log promoted into tests/evidence/ by
+# `cargo xtask evidence promote` is the one kind of log this project commits
+# — deliberately, never as a side effect of a routine run (D1). Narrow on
+# purpose: this must not accidentally catch any other *.log anywhere else.
+!tests/evidence/**
+
 # Verus proof compilation output (rlib written to CWD by the verus binary)
 **/lib*.rlib
 

@@ -777,10 +777,31 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   §"Persisting this evidence"): a narrow `.gitignore` exception for an evidence
   directory that only hand-copied logs enter; or a committed transcript of the
   cited lines alongside the document, with the raw log referenced by run id.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-28), `unscheduled` pending an
-  owner decision on the next line's theme. Recorded, not fixed. Whatever is
-  built carries RFC-v0.22-001's demonstration requirement: show a citation
-  failing to resolve before the mechanism exists, and resolving after.
+- **Resolution:** **CLOSED** by RFC-0.27-004. `tests/evidence/` plus a
+  narrow `!tests/evidence/**` `.gitignore` exception (shape 1 of the two
+  offered); `cargo xtask evidence promote` requires D2/D3 provenance
+  (run id, commit sha, command, and an explicit `instrumented` answer —
+  never defaulted) for every promoted log; `qemu_run` retains a per-run
+  copy so the next tier's run of the same profile no longer destroys the
+  only one worth promoting; a Gate 12 `evidence` subcheck verifies both
+  directions (every citation resolves with valid, ancestor-checked
+  provenance; every promoted file is cited by something), demonstrated
+  failing on all four required broken inputs against the real CLI.
+  **R6's reconciliation count:** of the citations this project had already
+  made, **1 of 3 was resolvable** — RFC-0.27-002's own citation, promoted
+  to `tests/evidence/RFC-0.27-002/m8-attestd-storaged-audit-ring.log` with
+  full provenance (the log was produced by an instrumented build; the
+  provenance says so explicitly rather than letting `commit_sha` imply a
+  reproducible build it is not). **2 of 3 were not** — the specific runs
+  `RFC-0.26-004-readiness-channel-answer.md` and the archived
+  `RFC-0.26-002-abdd-path-synchronisation.md` cited no longer exist to
+  promote, and were **not re-run to stand in for the original** (D4); the
+  first is annotated in place, the second (already `Superseded`, already
+  framing its citation as a past measurement rather than a live one) was
+  left as the point-in-time record it already was. That 2-of-3 figure —
+  not the RFC's own estimate of three tracked documents plus this one — is
+  the honest count after checking rather than assuming; see the review
+  request for the search method. Tracked to resolution as **E-029**, below.
 
 ## E-027 — the "threat-model gate" named in the v0.9–v0.15 handoff was never built
 
@@ -850,6 +871,38 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   row (CRA-I-2e, IEC-4-2-FR4) already discloses the underlying gap this
   missing documentation would have described.
 
+## E-029 — two historical QEMU-log citations remain unresolvable, with a sunset
+
+- **Claim:** `RFC-0.26-004-readiness-channel-answer.md`'s "Evidence the wait
+  executed" section, and the archived
+  `RFC-0.26-002-abdd-path-synchronisation.md`'s "zero occurrences" measurement,
+  each cite a specific `tests/qemu/artifacts/semantic/serial.log`.
+- **Tree:** that path has been overwritten many times since either was
+  written — including by later `test-all` runs of the same profile as a
+  QEMU negative-test category — and RFC-0.27-004's own R3 fix (retaining
+  per-run copies) postdates both citations, so no run-id-keyed copy exists
+  to promote. **Not re-run to stand in for the original** (D4): the
+  underlying architectural facts (the readiness wait blocks and is woken;
+  the capability-checked refusal fires) rest on code paths unchanged since
+  RFC-0.26-004 shipped, so a fresh run would demonstrate the same claim
+  truthfully — but presenting it as the 2026-era original would not be.
+- **Resolution:** **ACCEPTED**, tracked to **`0.28`** (not `unscheduled` —
+  see RFC-0.27-004's §7 answer document for why a real milestone was
+  chosen here rather than deferred indefinitely: reusing the
+  `errata-tracking` subcheck's own already-verified tracking column as the
+  sunset RFC-0.27-004 §7 argues for, rather than building a second,
+  purpose-specific instrument to track it). By `0.28`: re-run the
+  `semantic` QEMU profile fresh, promote the new log via
+  `cargo xtask evidence promote` with real provenance, and update both
+  citing documents to point at it, superseding rather than replacing the
+  historical annotation (the annotation in
+  `RFC-0.26-004-readiness-channel-answer.md` stays as the honest record of
+  what happened between 0.26 and 0.27; it is not deleted once superseded).
+  The archived `RFC-0.26-002` citation is left as-is: it is a `Superseded`
+  RFC's own point-in-time measurement, already framed as a past
+  observation rather than a live claim, consistent with this project's
+  practice of not rewriting archived records (RFC-0.27-002's precedent).
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -879,9 +932,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 | E-024 `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | unscheduled | ACCEPTED |
 | E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.27 | ACCEPTED |
-| E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | ACCEPTED |
+| E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
+| E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

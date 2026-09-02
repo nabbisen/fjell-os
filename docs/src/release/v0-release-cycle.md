@@ -53,6 +53,15 @@ artifact still supports the row's claim (RFC-0.27-003 R3's own disclosure).
 A path that resolves is not the same thing as a row that is still true;
 re-read both documents against the release's actual changes before the tag.
 
+**The same limit applies to [`tests/evidence/`](../../../tests/evidence/README.md)
+(RFC-0.27-004).** Gate 12's `evidence` subcheck confirms a citation resolves
+to a file with well-formed provenance whose commit is a real ancestor of
+`HEAD` — it does not and cannot confirm the provenance is *honest*, or that
+the citing document's reading of the log is correct (the same weak
+predicate, disclosed the same way, in the subcheck's own module doc and in
+`tests/evidence/README.md`). Re-check any newly-promoted log's citation by
+hand at each cut, the same as the two documents above.
+
 ### Before criterion 4 — re-record the repro baseline after a version bump
 
 **The workspace version is an input to the built binaries.** Cargo's `-C
