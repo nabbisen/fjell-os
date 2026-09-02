@@ -102,11 +102,24 @@ mapping honestly labelled is worth more than a clause-level one that cannot be
 sourced.**
 
 **D4 — The status vocabulary is closed, and absence is fail-closed.**
-`met` / `partial` / `not-met` / `not-applicable` / `roadmap`. A row with no
-cited artifact is **`not-met`**, never `partial`. A row whose evidence is "the
-architecture makes this true" with nothing to point at is `not-met`. Reading
-absence of evidence as presence is mode 3 of this project's own defect
-taxonomy, and it is the way a compliance document rots.
+`met` / `partial` / `not-met` / `not-applicable` / `roadmap` / `unassessed`.
+A row with no cited artifact is **`not-met`**, never `partial`. A row whose
+evidence is "the architecture makes this true" with nothing to point at is
+`not-met`. Reading absence of evidence as presence is mode 3 of this
+project's own defect taxonomy, and it is the way a compliance document rots.
+
+> **Amended in review of commit `fb05a1a`, 2026-08-31.** The vocabulary as
+> originally accepted had five values and no way to say "the criterion for
+> this row is in a source I have not read." Ten of the first submission's
+> fifteen IEC rows (structural-only per D3, meaning their real criteria are
+> in paywalled text) were nonetheless marked `met`, and none of the fifteen
+> fell below `partial` — a verdict against unread text, which D3 already
+> forbade sourcing and this vocabulary had no honest value for. **`unassessed`**
+> is added: the criterion lives in a source not read; the mechanism cell may
+> record candidate evidence but asserts no verdict; a row may not leave
+> `unassessed` until the criterion has actually been read. The gap was in
+> this RFC's own vocabulary, not in the discipline of whoever filled the
+> rows in.
 
 **D5 — A first draft that is mostly `met` is evidence of a bad mapping.** Many
 clauses will be `not-applicable` (Fjell is a component, not a product with a

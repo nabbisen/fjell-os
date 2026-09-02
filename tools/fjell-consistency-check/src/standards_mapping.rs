@@ -4,8 +4,10 @@
 //! `docs/compliance/standards-mapping.md`:
 //!
 //!   1. every status cell is from D4's closed vocabulary: `met`, `partial`,
-//!      `not-met`, `not-applicable`, `roadmap`;
-//!   2. every `met` or `partial` row cites at least one evidence path;
+//!      `not-met`, `not-applicable`, `roadmap`, `unassessed`;
+//!   2. every `met`, `partial`, or `unassessed` row cites at least one
+//!      evidence path (an `unassessed` row's cited path is candidate
+//!      evidence only, per D4, but it must still exist);
 //!   3. every cited path (any row, any status) exists in the tree;
 //!   4. **direction B** — a row this parser cannot read as a well-formed
 //!      five-column row (wrong column count, or a status cell present but
@@ -13,7 +15,15 @@
 //!      the parser could not make sense of it — a row-parser that skips
 //!      malformed rows reports `PASS` on a document it did not read (RFC
 //!      §4 / handoff §4), the same mode `doc-links` and `errata-tracking`
-//!      avoid.
+//!      avoid;
+//!   5. **a structural (IEC) row cannot carry a verdict.** Review of commit
+//!      `fb05a1a` found ten of fifteen IEC rows marked `met` against clause
+//!      text D3 forbids reading — a verdict against unread criteria is not
+//!      a status. Any row whose ID starts with `IEC-` must be `unassessed`;
+//!      any other status on an `IEC-` row FAILs by name. This is the
+//!      mechanical form of that ruling: it does not need document prose to
+//!      hold, because the ID prefix already distinguishes clause-level (CRA)
+//!      rows from structural-only (IEC) ones.
 //!
 //! **What this does not verify, stated here and in the mapping document
 //! itself:** that a cited artifact still supports the claim in its row —
@@ -31,7 +41,17 @@ use std::process::ExitCode;
 
 const MAPPING_PATH: &str = "docs/compliance/standards-mapping.md";
 const MAPPING_DIR: &str = "docs/compliance";
-const STATUS_VALUES: &[&str] = &["met", "partial", "not-met", "not-applicable", "roadmap"];
+const STATUS_VALUES: &[&str] = &[
+    "met",
+    "partial",
+    "not-met",
+    "not-applicable",
+    "roadmap",
+    "unassessed",
+];
+/// A row whose ID carries this prefix maps to a standard whose clause text
+/// has not been read (D3) — it may only ever be `unassessed` (rule 5).
+const STRUCTURAL_ID_PREFIX: &str = "IEC-";
 
 /// One row as read from the table. `Malformed` carries whatever the parser
 /// could still identify (a line number and, where available, a first-cell
@@ -188,9 +208,15 @@ pub fn run_check(src: &str, mapping_dir: &str) -> ExitCode {
                     ));
                     continue;
                 }
+                if id.starts_with(STRUCTURAL_ID_PREFIX) && status != "unassessed" {
+                    problems.push(format!(
+                        "{id} (line {line}): structural row (prefix {STRUCTURAL_ID_PREFIX:?}) carries status {status:?} — a row whose criterion has not been read may only be `unassessed`"
+                    ));
+                    continue;
+                }
                 checked += 1;
                 let paths = extract_evidence_paths(evidence);
-                if (status == "met" || status == "partial") && paths.is_empty() {
+                if matches!(status.as_str(), "met" | "partial" | "unassessed") && paths.is_empty() {
                     problems.push(format!(
                         "{id} (line {line}): status {status:?} requires at least one cited evidence path, found none"
                     ));
@@ -322,6 +348,36 @@ mod tests {
             ExitCode::FAILURE,
             "direction B: any cited path must exist, regardless of status"
         );
+    }
+
+    /// Required demonstration 5 (added on review of `fb05a1a`): a
+    /// structural (IEC) row set to `met` must FAIL — a row whose criterion
+    /// has not been read may only ever be `unassessed`.
+    #[test]
+    fn iec_row_carrying_a_verdict_fails() {
+        let src = "| IEC-4-1-SR | thing | met | m | [x](../security/threat-model-v1.md) |";
+        assert_eq!(run_check(src, DIR), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn iec_row_at_unassessed_with_a_path_passes() {
+        // `cargo test` runs with cwd = this crate's own directory, not the
+        // workspace root — `Cargo.toml` here is guaranteed to exist under
+        // that cwd, unlike a path into `docs/`.
+        let src = "| IEC-4-1-SR | thing | unassessed | m | [x](Cargo.toml) |";
+        assert_eq!(run_check(src, "."), ExitCode::SUCCESS);
+    }
+
+    #[test]
+    fn unassessed_row_requires_a_path_same_as_met_and_partial() {
+        let src = "| IEC-4-1-SR | thing | unassessed | m | — |";
+        assert_eq!(run_check(src, DIR), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn non_iec_row_may_carry_any_closed_vocabulary_status() {
+        let src = "| CRA-I-1 | thing | not-applicable | m | — |";
+        assert_eq!(run_check(src, DIR), ExitCode::SUCCESS);
     }
 
     #[test]

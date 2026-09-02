@@ -48,9 +48,21 @@ that until the owner decides to purchase the standards.**
 
 ## Status vocabulary (D4)
 
-`met` / `partial` / `not-met` / `not-applicable` / `roadmap`. A row with no
-cited artifact is `not-met`, never `partial`. A row whose evidence is "the
-architecture makes this true" with nothing to point at is `not-met`.
+`met` / `partial` / `not-met` / `not-applicable` / `roadmap` / `unassessed`.
+A row with no cited artifact is `not-met`, never `partial`. A row whose
+evidence is "the architecture makes this true" with nothing to point at is
+`not-met`.
+
+**`unassessed`** — the criterion for this row lives in a source the project
+has not read. The mechanism cell records **candidate evidence only** and
+asserts no verdict. A row may not leave `unassessed` until the criterion
+has actually been read. (Added in review of commit `fb05a1a`, 2026-08-31 —
+see the amendment note in RFC-0.27-003 §D4. Every IEC 62443 row in this
+document is `unassessed`: neither 62443-4-1 nor 62443-4-2 has been
+purchased, so the criterion each row would be checked against has never
+been read, and D3 forbids reading it from any other source. A `met` or
+`partial` verdict against unread text is a guess wearing a status column's
+authority, not a status.)
 
 ## §4 — Does a `not-met` row block a release?
 
@@ -249,34 +261,44 @@ replaces.
 ## IEC 62443-4-1 — structural mapping (secure product development lifecycle practices)
 
 **Structural only (D3): identifier and title, not clause text.** IEC
-62443-4-1 organises its requirements into eight named practices.
+62443-4-1 organises its requirements into eight named practices. **Every row
+below is `unassessed` (D4): the criterion each practice actually requires
+lives in the paywalled text, which has not been read.** The Mechanism
+column names candidate Fjell evidence that *corresponds by topic* to the
+practice's name — it does not assert that Fjell satisfies the practice, and
+must not be read as doing so until the standard is purchased and each
+practice's real requirement is checked against it.
 
 | ID | Requirement (practice, public structure only) | Status | Mechanism | Evidence |
 |----|------------------------------------------------|--------|-----------|----------|
-| IEC-4-1-SM | Security Management | partial | RFC-governed change process and a 27-entry errata register form a security-relevant governance structure; there is no named security-management role or policy distinct from the general RFC process | [000-rfc-lifecycle-policy.md](../../rfcs/done/000-rfc-lifecycle-policy.md); [ERRATA.md](../rfcs/ERRATA.md) |
-| IEC-4-1-SR | Specification of Security Requirements | met | The threat model and the non-goals register are exactly a security-requirements specification, RFC-governed and versioned | [threat-model-v1.md](../security/threat-model-v1.md); [v1-non-goals.md](../release/v1-non-goals.md) |
-| IEC-4-1-SD | Secure by Design | met | Capability-based authority is the project's stated architectural invariant (I1-I6): least privilege by construction, not by policy overlay | [capability-system.md](../src/architecture/capability-system.md) |
-| IEC-4-1-SI | Secure Implementation | met | `forbid(unsafe_code)` except at an audited boundary, enforced by the unsafe-audit and MMIO-audit release gates | [release_rehearsal.rs](../../crates/fjell-tools/src/release_rehearsal.rs) (Gates 2-3) |
-| IEC-4-1-SVV | Security Verification and Validation Testing | met | 21-tier `test-all`, 12-gate `release-rehearsal`, fail-closed QEMU negative-test categories, and Verus proofs for release-required targets | [test_all.rs](../../crates/fjell-tools/src/test_all.rs); [release_rehearsal.rs](../../crates/fjell-tools/src/release_rehearsal.rs) |
-| IEC-4-1-DM | Management of security-related issues (defect management) | partial | The errata register tracks every known defect with a disposition (OPEN/CLOSED/ACCEPTED); it is project-internal and not yet unified with SECURITY.md's externally-facing advisory intake | [ERRATA.md](../rfcs/ERRATA.md); [SECURITY.md](../../.github/SECURITY.md) |
-| IEC-4-1-SUM | Security Update Management | partial | Signed bundle distribution with anti-rollback exists; there is no separate update-management policy document (support window, patch cadence) beyond SECURITY.md's pre-1.0 disclaimer | [RFC-v0.9-004](../../rfcs/done/RFC-v0.9-004-bundle-builder-and-signed-service-package.md); [SECURITY.md](../../.github/SECURITY.md) |
-| IEC-4-1-SG | Security Guidelines | met | The threat model's Operator Obligations section and SECURITY.md's pointer to known limitations constitute documented operator-facing security guidance | [threat-model-v1.md](../security/threat-model-v1.md); [SECURITY.md](../../.github/SECURITY.md) |
+| IEC-4-1-SM | Security Management | unassessed | Candidate evidence: an RFC-governed change process and a 28-entry errata register, as a security-relevant governance structure. Whether this is what SM requires is unknown | [000-rfc-lifecycle-policy.md](../../rfcs/done/000-rfc-lifecycle-policy.md); [ERRATA.md](../rfcs/ERRATA.md) |
+| IEC-4-1-SR | Specification of Security Requirements | unassessed | Candidate evidence: the threat model and the non-goals register, as a security-requirements specification, RFC-governed and versioned. Whether this is what SR requires is unknown | [threat-model-v1.md](../security/threat-model-v1.md); [v1-non-goals.md](../release/v1-non-goals.md) |
+| IEC-4-1-SD | Secure by Design | unassessed | Candidate evidence: capability-based authority as the project's stated architectural invariant (I1-I6). Whether this is what SD requires is unknown | [capability-system.md](../src/architecture/capability-system.md) |
+| IEC-4-1-SI | Secure Implementation | unassessed | Candidate evidence: `forbid(unsafe_code)` except at an audited boundary, enforced by the unsafe-audit and MMIO-audit release gates. Whether this is what SI requires is unknown | [release_rehearsal.rs](../../crates/fjell-tools/src/release_rehearsal.rs) (Gates 2-3) |
+| IEC-4-1-SVV | Security Verification and Validation Testing | unassessed | Candidate evidence: 21-tier `test-all`, 12-gate `release-rehearsal`, fail-closed QEMU negative-test categories, and Verus proofs. Whether this is what SVV requires is unknown | [test_all.rs](../../crates/fjell-tools/src/test_all.rs); [release_rehearsal.rs](../../crates/fjell-tools/src/release_rehearsal.rs) |
+| IEC-4-1-DM | Management of security-related issues (defect management) | unassessed | Candidate evidence: the errata register tracks every known defect with a disposition (OPEN/CLOSED/ACCEPTED); project-internal, not unified with SECURITY.md's advisory intake. Whether this is what DM requires is unknown | [ERRATA.md](../rfcs/ERRATA.md); [SECURITY.md](../../.github/SECURITY.md) |
+| IEC-4-1-SUM | Security Update Management | unassessed | Candidate evidence: signed bundle distribution with anti-rollback; no separate update-management policy document beyond SECURITY.md's pre-1.0 disclaimer. Whether this is what SUM requires is unknown | [RFC-v0.9-004](../../rfcs/done/RFC-v0.9-004-bundle-builder-and-signed-service-package.md); [SECURITY.md](../../.github/SECURITY.md) |
+| IEC-4-1-SG | Security Guidelines | unassessed | Candidate evidence: the threat model's Operator Obligations section and SECURITY.md's pointer to known limitations, as operator-facing security guidance. Whether this is what SG requires is unknown | [threat-model-v1.md](../security/threat-model-v1.md); [SECURITY.md](../../.github/SECURITY.md) |
 
 ## IEC 62443-4-2 — structural mapping (foundational requirements, component level)
 
 **Structural only (D3): identifier and title, not clause text.** IEC
 62443-4-2 organises component-level technical requirements under the same
 seven Foundational Requirements (FR1-FR7) used across the 62443 series.
+**Every row below is `unassessed` (D4)** for the same reason as the 4-1
+table above: the criterion each FR actually requires is in the paywalled
+text. The Mechanism column names candidate Fjell evidence by topic
+correspondence only.
 
 | ID | Requirement (foundational requirement, public structure only) | Status | Mechanism | Evidence |
 |----|------------------------------------------------------------------|--------|-----------|----------|
-| IEC-4-2-FR1 | FR1 — Identification and Authentication Control | met | Capability handles are the sole means of identifying authorised access; `require_cap` enforces kind and rights matching on every syscall | [capability-system.md](../src/architecture/capability-system.md); [threat-model-v1.md](../security/threat-model-v1.md) (T1) |
-| IEC-4-2-FR2 | FR2 — Use Control | met | Cap-broker enforces manifests with operator approval for grants; rights are checked on every capability use | [threat-model-v1.md](../security/threat-model-v1.md) (T2) |
-| IEC-4-2-FR3 | FR3 — System Integrity | met | Trap frames are kernel-only memory; bundles are signed and content-addressed; persistent-store integrity is epoch-bound | [threat-model-v1.md](../security/threat-model-v1.md) (T7, T9, T15) |
-| IEC-4-2-FR4 | FR4 — Data Confidentiality | partial | Same finding as CRA-I-2e: key-at-rest encryption is real; the only bulk-confidentiality crate is explicitly non-production | [RFC-v0.16-006](../../rfcs/done/RFC-v0.16-006-key-handling-encryption-patch.md); [fjell-sxt-crypto/src/lib.rs](../../crates/fjell-sxt-crypto/src/lib.rs) |
-| IEC-4-2-FR5 | FR5 — Restricted Data Flow | met | IPC is capability-gated with no ambient channel; default-on networking for arbitrary services is explicitly rejected | [capability-system.md](../src/architecture/capability-system.md); [v1-non-goals.md](../release/v1-non-goals.md) (N2) |
-| IEC-4-2-FR6 | FR6 — Timely Response to Events | met | The kernel audit ring records security-relevant events, drained via a capability-gated syscall | [ring.rs](../../crates/fjell-kernel/src/audit/ring.rs); [threat-model-v1.md](../security/threat-model-v1.md) (T16) |
-| IEC-4-2-FR7 | FR7 — Resource Availability | partial | Same finding as CRA-I-2h: graceful fleet-partition degradation exists; no verified in-kernel DoS/resource-exhaustion mitigation was found | [threat-model-v1.md](../security/threat-model-v1.md) (T13) |
+| IEC-4-2-FR1 | FR1 — Identification and Authentication Control | unassessed | Candidate evidence: capability handles as the sole means of identifying authorised access; `require_cap` enforces kind and rights matching. Whether this is what FR1 requires is unknown | [capability-system.md](../src/architecture/capability-system.md); [threat-model-v1.md](../security/threat-model-v1.md) (T1) |
+| IEC-4-2-FR2 | FR2 — Use Control | unassessed | Candidate evidence: cap-broker enforces manifests with operator approval for grants; rights checked on every capability use. Whether this is what FR2 requires is unknown | [threat-model-v1.md](../security/threat-model-v1.md) (T2) |
+| IEC-4-2-FR3 | FR3 — System Integrity | unassessed | Candidate evidence: kernel-only trap frames; signed, content-addressed bundles; epoch-bound persistent-store integrity. Whether this is what FR3 requires is unknown | [threat-model-v1.md](../security/threat-model-v1.md) (T7, T9, T15) |
+| IEC-4-2-FR4 | FR4 — Data Confidentiality | unassessed | Candidate evidence, same finding as CRA-I-2e: key-at-rest encryption is real; the only bulk-confidentiality crate is explicitly non-production. Whether this is what FR4 requires is unknown | [RFC-v0.16-006](../../rfcs/done/RFC-v0.16-006-key-handling-encryption-patch.md); [fjell-sxt-crypto/src/lib.rs](../../crates/fjell-sxt-crypto/src/lib.rs) |
+| IEC-4-2-FR5 | FR5 — Restricted Data Flow | unassessed | Candidate evidence: capability-gated IPC with no ambient channel; default-on networking for arbitrary services explicitly rejected. Whether this is what FR5 requires is unknown | [capability-system.md](../src/architecture/capability-system.md); [v1-non-goals.md](../release/v1-non-goals.md) (N2) |
+| IEC-4-2-FR6 | FR6 — Timely Response to Events | unassessed | Candidate evidence: the kernel audit ring records security-relevant events, drained via a capability-gated syscall. Whether this is what FR6 requires is unknown | [ring.rs](../../crates/fjell-kernel/src/audit/ring.rs); [threat-model-v1.md](../security/threat-model-v1.md) (T16) |
+| IEC-4-2-FR7 | FR7 — Resource Availability | unassessed | Candidate evidence, same finding as CRA-I-2h: graceful fleet-partition degradation exists; no verified in-kernel DoS/resource-exhaustion mitigation found. Whether this is what FR7 requires is unknown | [threat-model-v1.md](../security/threat-model-v1.md) (T13) |
 
 ---
 
