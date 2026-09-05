@@ -12,7 +12,7 @@ require updating the governing record first, then this page.*
 | 4 | **Kernel-IPC for the SDK reference service** — the SDK reference service does not operate over live kernel-mediated IPC | Non-goal **N21** |
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
 | 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
-| 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other 8 declared-but-undispatched syscalls deferred to v0.22. | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
+| 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other **5** declared-but-undispatched syscalls (`PlatformReboot`, `TaskKill`, `MmioUnmap`, `DmaShare`, `Reboot`) was deferred to v0.22 and **did not happen**; it remains open. *Corrected at the 0.27.0 cut: this read "the other 8 … deferred to v0.22", a count that had moved (35 declared / 29 dispatched / 6 undispatched) and a deferral to a milestone that shipped without it. The current figure is printed by `syscall-surface` at every release rehearsal.* | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
@@ -312,6 +312,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   place, the second (already `Superseded`) was left as the point-in-time
   record it already was. By 0.28: re-run the `semantic` profile fresh and
   promote it properly, superseding the annotation rather than deleting it.
+
+- **Nothing checks that the project's two version strings agree** (Errata
+  **E-030**, ACCEPTED, tracked to **0.28**). `[workspace.package] version` and
+  `crates/fjell-os/Cargo.toml`'s `fjell-abi` version pin must match at every
+  release and are maintained by hand; `version-currency` checks `README.md`, not
+  this pair. A mismatch stops the workspace resolving, so it fails loudly rather
+  than silently — it costs a cut's time, not correctness.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker

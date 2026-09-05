@@ -5,6 +5,144 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.27.0] — 2026-09-05 — The documents start being checked
+
+No kernel behaviour change, one ABI-surface rename, and a milestone spent on a
+single question: **which of this project's documents assert something nothing
+verifies?**
+
+The answer was: most of them. Gate 12 entered this release running **4**
+consistency subchecks and leaves running **10**. The errata register entered at
+23 entries and leaves at 30 — not because the project got worse, but because
+seven divergences that already existed became visible.
+
+### Added — five subchecks, and an errata backlog that is now derivable (RFC-0.27-001)
+
+`errata-tracking`, `version-currency`, `doc-links`, `doc-counts` and the
+`rfcs/README.md` coverage that had none. Before this line the repository's own
+RFC index had **zero instrument coverage**, and the only trace of it anywhere in
+the instrument set was a doc comment in `rfc_status_folder.rs` that mentioned
+the file without opening it — a search for coverage that found a sentence
+claiming coverage.
+
+Closes **E-016** and **E-023**.
+
+`errata-tracking` earned itself within the hour: it failed on the architect's
+next RFC, which claimed to close E-022 while E-022's tracking field still read
+`0.27`. Direction B, first live use, against the person who commissioned it.
+
+### Fixed — `try_send` did not try (RFC-0.27-002)
+
+`sys_ipc_try_send` was named as though it tried, documented *"the message is
+queued"* when it is the **sender** that is queued and suspended, and documented
+`WouldBlock` as a full send buffer when it means too many blocked senders.
+Renamed to `sys_ipc_send`, doc-comment rewritten to describe rendezvous
+blocking, `WouldBlock`'s real meaning, and the kernel site.
+
+**The kernel was correct and was not changed.** `SendResult::Queued` says *"No
+receiver; sender enqueued — must block"*, symmetric with `RecvResult::Queued`.
+Nobody hit the deadlock for nineteen releases only because an unrelated bug kept
+`init` accidentally waiting as a co-receiver.
+
+Closes **E-022**. The caller audit searched the **raw syscall** (`li a7, 20`)
+rather than the wrapper name and found five self-announcing services a
+name-search misses — filed as **E-024**, because `init` still co-receives on
+four service endpoints and RFC-0.26-004's one-receiver invariant is narrower in
+the tree than in its own text.
+
+**A correction to how this project reads QEMU logs.** `trap_dispatch` calls
+`schedule_next` after *every* trap, not only blocking ones, so "task B ran in
+between, therefore task A blocked" proves nothing. Blocking is now demonstrated
+from the kernel's own audit ring — `arg1 == 0` on the `Queued` arm — which is
+independent of scheduling entirely.
+
+### Added — a standards mapping, and the instrument that keeps it honest (RFC-0.27-003)
+
+`docs/compliance/standards-mapping.md`: 37 rows against CRA Annex I
+(clause-level, transcribed from Regulation (EU) 2024/2847 with retrieval date)
+and IEC 62443-4-1/4-2 (**structural only** — both are paywalled and neither is
+transcribed or paraphrased).
+
+**It claims no conformity**, and the words *compliant*, *certified* and
+*conformant* appear nowhere applied to Fjell. Only a conformity assessment can
+establish conformity; this is evidence of preparation.
+
+Gate 12's 9th subcheck enforces a closed status vocabulary, an evidence path on
+every asserting row, and that every cited path exists.
+
+Review added a sixth status, **`unassessed`**, after the first draft marked ten
+of fifteen IEC rows `met` — verdicts against clause text the project is not
+permitted to read. All fifteen are now `unassessed`, enforced by rule: a row
+whose ID begins `IEC-` may carry no other status. **The cost of not holding
+IEC 62443-4-1 and 4-2 is now exactly fifteen unassessable rows.**
+
+Filed **E-028**: `RFC-v0.7.3-002` specifies two crypto documents that do not
+exist, while `fjell-sxt-crypto`'s live doc-comment still points readers at them.
+
+### Added — evidence that survives the run that produced it (RFC-0.27-004)
+
+**No QEMU serial log this project cited had ever been committed alongside the
+document citing it.** `.gitignore` excludes `*.log`; `tests/qemu/artifacts/` is
+destroyed by the next run of the same profile; `test-all`'s per-tier logs
+contain build stdout, not a serial transcript. Since **E-013** leaves nothing
+kernel-side host-testable, every kernel claim this project has ever made rested
+on a file that no longer existed.
+
+`tests/evidence/` now holds deliberately promoted logs with committed
+provenance: run id, commit sha, command, and — the field that matters —
+**whether the build was instrumented and therefore cannot be reproduced from
+that sha alone**. Gate 12's 10th subcheck verifies citations resolve, provenance
+is well-formed, its commit is a real ancestor of `HEAD`, and no evidence file is
+orphaned.
+
+Closes **E-026**. Two historical citations could not be resolved and were
+annotated rather than re-manufactured — **E-029**, tracked to 0.28. A
+regenerated log presented as an original is undetectable afterwards, which makes
+it worse than the gap it would hide.
+
+### Fixed — documents that were simply wrong
+
+- **`.github/SECURITY.md`** opened by claiming Fjell OS *"handles
+  authentication"* (it is a microkernel), carried two sentences truncated
+  mid-clause, and scoped itself in generic web-application terms while
+  `threat-model-v1.md` already enumerated T1–T20 and OS1–OS8. Rewritten against
+  the threat model; supported-versions section added, because saying nothing
+  read as an implied commitment.
+- **The v0.9–v0.15 handoff** asserted a *"threat-model gate"* that has never
+  existed in any commit on any branch. The property it claimed to enforce does
+  hold — checked by hand — but nothing enforces it. **E-027**.
+- **`crates/fjell-tools`'s trust-report scan** walks untracked scratch
+  directories: a checkout under `.git-exclude/tmp/` doubles the reported unsafe
+  inventory from 311/311 to 622/622, both internally consistent. **E-025**.
+
+### Added — the project has a front door
+
+Published to crates.io at 0.26.0 (`fjell-abi`, then `fjell-os`) and now a logo:
+`README.md`, the mdBook landing page, the crates.io page and the rustdoc
+sidebar, plus a separate simplified SVG mark and favicons — the illustration
+holds at 64px and becomes an unreadable blur at 32, which is what a browser tab
+uses.
+
+### Procedure
+
+Two steps written into the release cycle **because this cut found them by
+breaking**: bump `crates/fjell-os`'s `fjell-abi` version pin alongside the
+workspace version (they must agree or the workspace does not resolve —
+**E-030**), and rebuild before re-recording the repro baseline (recording first
+produces an empty diff, which looks clean and is actually the baseline absorbing
+the previous version's digests).
+
+### Errata
+
+**30 entries: 0 OPEN, 16 CLOSED, 14 ACCEPTED.** Closed this release: E-016,
+E-022, E-023, E-026. Filed: E-024, E-025, E-027, E-028, E-029, E-030.
+
+**E-025 slipped.** It was scheduled for 0.27 and 0.27 shipped without it;
+`errata-tracking` blocked the cut until it was honestly rescheduled to 0.28
+rather than re-dated.
+
+---
+
 ## [0.26.0] — 2026-08-27 — One scheduler bug, and the three assumptions it was holding up
 
 No new capability. This release fixes a scheduler defect and then deals with

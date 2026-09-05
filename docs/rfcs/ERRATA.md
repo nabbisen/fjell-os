@@ -737,7 +737,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that drifts from reality, the same family as **E-015**; adding `.git-exclude`
   to it fixes today's instance and leaves the family intact. The scan should be
   bounded by what git tracks.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-28), scheduled **0.27**.
+- **Resolution:** **ACCEPTED** (architect, 2026-08-28), ~~scheduled **0.27**~~ → **rescheduled 0.28** (architect, 2026-09-05).
+- **Slipped, and recorded rather than quietly re-dated.** It was scheduled for
+  0.27 and 0.27 shipped without it. `errata-tracking` — RFC-0.27-001's own
+  subcheck — refused the cut: *"tracking names milestone 0.27, which has
+  already shipped, but status is ACCEPTED (not CLOSED)"*. That is the
+  subcheck doing precisely what it was built for, against the architect who
+  made the commitment. The fix was not attempted during the cut because
+  extending an instrument carries RFC-v0.22-001's demonstration requirement
+  and a release cut is the wrong place for it — the same reasoning applied to
+  **E-030** in the same cut.
   Small, but it is an instrument whose output depends on untracked state, so the
   fix carries RFC-v0.22-001's demonstration requirement: show the inventory
   wrong with a scratch checkout present, then right with the fix in place.
@@ -903,6 +912,41 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   observation rather than a live claim, consistent with this project's
   practice of not rewriting archived records (RFC-0.27-002's precedent).
 
+## E-030 — nothing checks that the two version strings agree
+
+- **Claim:** `version-currency` (RFC-0.27-001 S4) exists to stop the project's
+  stated version drifting from the workspace version. It checks `README.md`.
+- **Tree:** the version is written in **two** places that must agree, and the
+  subcheck sees neither of them as a pair:
+
+  | Site | What it is |
+  |---|---|
+  | `Cargo.toml` `[workspace.package] version` | the release version |
+  | `crates/fjell-os/Cargo.toml` `fjell-abi = { path = "...", version = "..." }` | a publishability requirement that must match it |
+
+  A path dependency needs an explicit `version` to be publishable, and Cargo
+  cannot inherit the workspace *package* version into a dependency requirement,
+  so the second string is hand-maintained. **When the two disagree the workspace
+  does not resolve** — `cargo metadata` fails, and with it every gate, tier and
+  build, because none of them can run.
+- **How it surfaced:** the 0.27.0 cut. Bumping `[workspace.package]` to `0.27.0`
+  left `fjell-os` requiring `fjell-abi 0.26.0` from a workspace containing
+  `0.27.0`; the first command of the cycle after the bump failed. Recorded
+  rather than silently fixed because *the cut caught it by breaking* — which is
+  luck, not a check, and is the same discovery process RFC-0.24-001 was written
+  to replace.
+- **Why it is ACCEPTED and not fixed here:** extending `version-currency` is an
+  instrument change and carries RFC-v0.22-001's demonstration requirement —
+  show it failing on a deliberately mismatched pair before trusting it. That
+  does not belong inside a release cut. The procedure step is written down now
+  (`docs/src/release/v0-release-cycle.md`, "Before criterion 1"), which is the
+  same interim treatment the repro-baseline step got at 0.24.0 before anything
+  enforced it.
+- **Fail-closed, at least.** This defect cannot produce a silent wrong result:
+  a mismatch stops the workspace resolving. It costs time, not correctness —
+  which is why it is `0.28` rather than urgent.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-05), tracked **0.28**.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -931,11 +975,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 | E-024 `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | unscheduled | ACCEPTED |
-| E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.27 | ACCEPTED |
+| E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.28 | ACCEPTED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
+| E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

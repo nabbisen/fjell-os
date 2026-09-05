@@ -1,6 +1,6 @@
 # RFC-0.27-004 §7 — Does an unresolvable historical citation block a release?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.27-004-evidence-that-survives.md](../../rfcs/accepted/RFC-0.27-004-evidence-that-survives.md)
+**Governing RFC:** [rfcs/done/RFC-0.27-004-evidence-that-survives.md](../../rfcs/done/RFC-0.27-004-evidence-that-survives.md)
 
 The handoff states no inclination this time and asks for an argued answer.
 This document gives one, states the two rejected shapes, and — because the

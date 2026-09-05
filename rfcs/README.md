@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 166 files
+## Implemented (done/) — 170 files
 
-165 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+169 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -348,9 +348,22 @@ carry no `v` prefix, matching the release tags, which never did.
 | 0.26-001 | [The scheduler priority defect — and what depends on it](./done/RFC-0.26-001-scheduler-priority-unification.md) — closed **E-018**; investigation at [`docs/rfcs/`](../docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md) | 0.26.0 |
 | 0.26-004 | [Readiness needs a channel of its own](./done/RFC-0.26-004-readiness-channel.md) — supersedes **0.26-002**; closed **E-020** and **E-021**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.26-004-readiness-channel-answer.md) | 0.26.0 |
 
+### 0.27 — the documents start being checked
+
+Gate 12 entered this milestone running 4 consistency subchecks and left running
+**10**. The errata register went from 23 entries to 30 — seven divergences that
+already existed, made visible.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.27-001 | [Nothing verifies what our documents say about themselves](./done/RFC-0.27-001-document-self-verification.md) — closed **E-016** and **E-023**; four new subchecks | 0.27.0 |
+| 0.27-002 | [`try_send` does not try — the one-way send contract](./done/RFC-0.27-002-one-way-send-contract.md) — closed **E-022**, filed **E-024**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md) | 0.27.0 |
+| 0.27-003 | [The standards mapping](./done/RFC-0.27-003-standards-mapping.md) — CRA Annex I clause-level, IEC 62443 structural; filed **E-028**; [`docs/compliance/`](../docs/compliance/standards-mapping.md) | 0.27.0 |
+| 0.27-004 | [Evidence that survives the run that produced it](./done/RFC-0.27-004-evidence-that-survives.md) — closed **E-026**, filed **E-029**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.27-004-evidence-that-survives-answer.md) | 0.27.0 |
+
 ---
 
-## Accepted (accepted/) — 5 RFCs
+## Accepted (accepted/) — 1 RFC
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -363,10 +376,6 @@ nothing guarantees it stays that way — which is why it is still open.
 | RFC | Title |
 |-----|-------|
 | 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — accepted 2026-08-27; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
-| 0.27-001 | [Nothing verifies what our documents say about themselves](./accepted/RFC-0.27-001-document-self-verification.md) — closes **E-016** and **E-023**, re-dispositions **E-014**/**E-015**/**E-017**; makes the errata backlog derivable and enforced; handoff: [`handoffs/`](./handoffs/RFC-0.27-001-document-self-verification/implementation-handoff.md) |
-| 0.27-002 | [`try_send` does not try — the one-way send contract](./accepted/RFC-0.27-002-one-way-send-contract.md) — accepted 2026-08-28; closes **E-022**; handoff: [`handoffs/`](./handoffs/RFC-0.27-002-one-way-send-contract/implementation-handoff.md) |
-| 0.27-003 | [The standards mapping — a claims document, in a project whose claims keep turning out to be unchecked](./accepted/RFC-0.27-003-standards-mapping.md) — accepted 2026-08-31; BIZ-06; adds a 9th Gate 12 subcheck; handoff: [`handoffs/`](./handoffs/RFC-0.27-003-standards-mapping/implementation-handoff.md) |
-| 0.27-004 | [Evidence that survives the run that produced it](./accepted/RFC-0.27-004-evidence-that-survives.md) — accepted 2026-08-31; closes **E-026**; Gate 12 goes 9 → 10; handoff: [`handoffs/`](./handoffs/RFC-0.27-004-evidence-that-survives/implementation-handoff.md) |
 
 
 ---

@@ -1,6 +1,6 @@
 # RFC-0.27-004: Evidence that survives the run that produced it
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-31; implementation may begin (RFC 000)
+**Status:** Implemented (0.27.0) — accepted 2026-08-31
 **Milestone:** 0.27 — *the number presumes 0.27; if the owner would rather this
 land in 0.28 it renumbers, and nothing else changes.*
 **Tracks.** **E-026**: no QEMU serial log this project cites has ever been

@@ -11,4 +11,4 @@ keywords = ["microkernel", "capability", "riscv", "operating-system", "no-std"]
 categories = ["no-std", "os"]
 
 [dependencies]
-fjell-abi = { path = "../fjell-abi", version = "0.26.0" }
+fjell-abi = { path = "../fjell-abi", version = "0.27.0" }

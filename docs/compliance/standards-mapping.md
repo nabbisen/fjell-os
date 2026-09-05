@@ -1,6 +1,6 @@
 # Fjell OS — Standards Mapping (CRA Annex I / IEC 62443-4-1 / IEC 62443-4-2)
 
-**Governed by:** [RFC-0.27-003](../../rfcs/accepted/RFC-0.27-003-standards-mapping.md)
+**Governed by:** [RFC-0.27-003](../../rfcs/done/RFC-0.27-003-standards-mapping.md)
 **Milestone:** 0.27
 **Re-verified at:** every release cut, per
 [the v0 release cycle](../src/release/v0-release-cycle.md) (R5).
@@ -22,7 +22,7 @@ market. The Cyber Resilience Act's obligations bind manufacturers placing
 products on the market; none of them currently bind this project. This
 mapping exists so that a manufacturer evaluating Fjell as a component can see
 what is and is not already true, not to assert a legal status Fjell does not
-have. See [RFC-0.27-003](../../rfcs/accepted/RFC-0.27-003-standards-mapping.md)'s
+have. See [RFC-0.27-003](../../rfcs/done/RFC-0.27-003-standards-mapping.md)'s
 Motivation section for the full reasoning, including why 11 September 2026 is
 not a deadline that binds this project.
 

@@ -1,6 +1,6 @@
 # RFC-0.27-002 — Should a genuinely non-blocking one-way send exist?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.27-002-one-way-send-contract.md](../../rfcs/accepted/RFC-0.27-002-one-way-send-contract.md)
+**Governing RFC:** [rfcs/done/RFC-0.27-002-one-way-send-contract.md](../../rfcs/done/RFC-0.27-002-one-way-send-contract.md)
 **Deliverable:** §4/R3 — the open question answered in writing, committed,
 before any implementation beyond the rename. Written from direct reading of
 every one-way-send call site in the tree, not inference.

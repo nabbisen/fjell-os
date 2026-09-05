@@ -129,6 +129,43 @@ is the one outsiders see first.
 **Publishing is irreversible.** A version can be yanked but never deleted, and
 the name cannot be released. This step is the owner's, like the tag.
 
+### Before criterion 1 — bump the two version strings, not one
+
+`[workspace.package] version` in the root `Cargo.toml` is the version being
+released. It is **not the only place the version is written**:
+
+```
+Cargo.toml:153                 [workspace.package] version
+crates/fjell-os/Cargo.toml:14  fjell-abi = { path = "...", version = "<same>" }
+```
+
+A path dependency needs an explicit `version` to be publishable, and Cargo
+offers no way to inherit the workspace *package* version into a dependency
+requirement — so this string must be bumped by hand at every release, and the
+two must agree. **If they disagree the workspace does not resolve at all**,
+which fails exit criterion 1 and makes every other criterion unevaluable.
+
+*Added 2026-09-05, during the 0.27.0 cut, which is where it was found: bumping
+only the workspace version left `fjell-os` requiring `fjell-abi 0.26.0` from a
+workspace that now contained `0.27.0`, and `cargo metadata` failed. Nothing
+checks the two agree — recorded as **E-030**.*
+
+### Before criterion 4 — rebuild before re-recording the repro baseline
+
+The repro-baseline step below records digests of the **committed prebuilt
+binaries** (`crates/fjell-kernel/prebuilt/*.bin`). `--skip-build` does not
+rebuild them, so recording a baseline before `cargo xtask build` has run at the
+new version captures the **previous** version's binaries and locks in a digest
+that a later real build will not reproduce.
+
+Order: **bump the versions → `cargo xtask build` → delete and re-record the
+baseline → verify the diff.**
+
+*Added 2026-09-05, during the 0.27.0 cut. Recording first produced an empty
+`git diff` — which looks like a clean result and is actually the failure: the
+baseline had absorbed 0.26.0-era digests unchanged. After the build, the diff
+was one line, for the one binary the version bump moved.*
+
 ### Before the tag — pin the crates.io logo URLs to this release's tag
 
 `assets/` sits at the repository root and is therefore **not in either crate's

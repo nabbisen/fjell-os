@@ -33,6 +33,15 @@ target
 # purpose: this must not accidentally catch any other *.log anywhere else.
 !tests/evidence/**
 
+# RFC-0.27-004 R3 writes a per-run copy of each QEMU run's output to
+# tests/qemu/artifacts/<profile>/runs/<run-id>/. serial.log was already covered
+# by *.log above, but run-info.txt and qemu-command.txt are not, so every run
+# left two untracked files behind and the release cycle's entry criterion 1
+# ("git status --short is empty") could never hold again. Ignore the per-run
+# directory only: the per-profile expected-markers.txt, qemu-command.txt and
+# result-summary.txt one level up are tracked and must stay tracked.
+tests/qemu/artifacts/*/runs/
+
 # Verus proof compilation output (rlib written to CWD by the verus binary)
 **/lib*.rlib
 
