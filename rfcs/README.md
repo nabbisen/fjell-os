@@ -383,9 +383,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.28-001 | [The readiness protocol is split in two, and its completion signal cannot fire](./proposed/RFC-0.28-001-readiness-topology.md) — closes **E-024**; handoff: [`handoffs/`](./handoffs/RFC-0.28-001-readiness-topology/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 

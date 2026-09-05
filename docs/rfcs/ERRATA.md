@@ -687,6 +687,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   erratum↔RFC link, so once E-022 closed, this would have left the register
   with no row and become archaeology. The disclosure was right; the placement
   made it invisible.
+- **Root cause found 2026-09-06, while scoping RFC-0.28-001** — and it is one
+  line, in a table nobody associated with readiness. Every service announces to
+  capability **slot 0**; `crates/fjell-kernel/src/task/spawn.rs:204` decides what
+  slot 0 *means*, giving **9 of 14** images a dedicated endpoint object and
+  leaving 5 at object 0. `fjell-service-manager` receives `SERVICE_READY` on
+  object 0. So the nine announce into their own endpoint and the five reach the
+  tracker. **The slot number never changed; its meaning changed underneath the
+  services** when each was given a dedicated object, for reasons the table
+  records as being about test routing and ABDD paths, with no mention of
+  readiness. The scope in this entry (four services) understates it: it is nine.
 - **Resolution:** **ACCEPTED** (architect, 2026-08-28). Recorded, not fixed —
   reworking RFC 058's readiness protocol is a non-goal of RFC-0.26-004 and
   RFC-0.27-002 alike, and the arrangement is currently load-bearing. Two things
@@ -947,6 +957,33 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   which is why it is `0.28` rather than urgent.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-05), tracked **0.28**.
 
+## E-031 — RFC 058's readiness tracking has never completed, and the test was narrowed to match
+
+- **Claim:** RFC 058 (`Implemented`, v0.2.12) specifies that service-manager
+  receives `SERVICE_READY` from every service, records ready state, and emits
+  `NEG:SVC:READY_ACCEPTED:PASS` once the startup set has reported.
+- **Tree:** `crates/fjell-service-manager/src/main.rs:85` emits that marker at
+  `n_ready >= 10`. Per **E-024**'s root cause, **at most 5 of the 14 images can
+  ever report** — the other nine announce into their own endpoint. **The
+  threshold is unreachable by construction**, and the marker appears in no log
+  this project has produced.
+- **The test was narrowed to fit.** `fjell-service-api` defines **four** SVC
+  markers (`SVC_START_TIMEOUT`, `SVC_READY_ACCEPTED`, `SVC_UNAUTHORIZED_READY`,
+  `SVC_FAULT`); `tests/qemu/artifacts/svc/expected-markers.txt` expects **two**.
+  The absent pair is exactly the two requiring service-manager to receive a READY
+  message. A profile that expects only what already passes detects nothing about
+  the rest.
+- **And the recorded cause was wrong.** `docs/release/v1-limitations.md` read
+  *"svc 2/4 — READY pair pending a startup-timing fix."* It is not timing; it is
+  topology. **A wrong diagnosis on the record is why nobody looked again** —
+  corrected 2026-09-06.
+- **Family.** This is **E-023**'s shape (an RFC reading `Implemented` with
+  specified behaviour never built) compounded by **E-014**'s (an expectation
+  reduced until the instrument agreed with the defect).
+- **Resolution:** **ACCEPTED** (architect, 2026-09-06), tracked **RFC-0.28-001**,
+  which restores all four markers as a required deliverable and forbids lowering
+  the threshold to make one fire.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -974,13 +1011,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
-| E-024 `init` co-receives on four services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | unscheduled | ACCEPTED |
+| E-024 `init` co-receives on nine services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | RFC-0.28-001 | ACCEPTED |
 | E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.28 | ACCEPTED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
+| E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

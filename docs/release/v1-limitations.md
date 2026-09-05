@@ -320,13 +320,24 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   this pair. A mismatch stops the workspace resolving, so it fails loudly rather
   than silently — it costs a cut's time, not correctness.
 
+- **RFC 058's readiness tracking has never completed** (Errata **E-031**,
+  ACCEPTED, tracked to **RFC-0.28-001**). `service-manager` emits
+  `NEG:SVC:READY_ACCEPTED:PASS` once 10 services report ready; at most 5 can,
+  because 9 of 14 images announce into their own endpoint instead. The marker
+  has never been emitted, and the svc profile expects 2 of the 4 specified SVC
+  markers — the absent pair being exactly the two that need a READY message to
+  arrive.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial
   log fails the run). Seven categories have all markers confirmed
   (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1);
-  one is partially confirmed (svc 2/4 — READY pair pending a startup-timing
-  fix); the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC
+  one is partially confirmed (svc 2/4 — the READY pair cannot fire; **not a
+  startup-timing problem, as this document previously said, but topology**:
+  9 of 14 images announce readiness into their own endpoint rather than to
+  service-manager, so its `n_ready >= 10` threshold is unreachable. Errata
+  **E-024**/**E-031**, corrected 2026-09-06); the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC
   words ABI and the reply-edge cancellation path. The `store` and
   `upgrade` negative profiles exist as marker specifications but have **no
   emitting scenarios yet** and are explicitly **not v1 release-gated**;
