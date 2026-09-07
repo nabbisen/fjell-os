@@ -40,6 +40,36 @@ step 3 says so:
 
 RFC-0.26-001 removed the priority asymmetry that made the "contract" true.
 
+> **Premise correction — architect, 2026-09-07.** The paragraph below is
+> **false**, and it is the paragraph this whole RFC is built on. It reasons only
+> about *in-band announcement by the blocking task*, and concludes from that
+> that no signal exists. **An observer does not need the task to announce; it
+> can ask the kernel.**
+>
+> `sys_task_status` is implemented, dispatched (`SyscallNumber::TaskStatus =
+> 42`), and maps `TaskState::Blocked(_) → TaskLifecycle::Blocked`
+> (`crates/fjell-kernel/src/trap/syscall.rs:474`). It has a wrapper
+> (`fjell-syscall:249`). **And `fjell-neg-test` already imports it and already
+> calls it twice** — `src/main.rs:683` and `:719` — using the `TaskControl`
+> capability it already holds at slot 6.
+>
+> So the rendezvous this RFC says cannot be built is: poll
+> `sys_task_status(SLOT_TASK_CONTROL, sample_service)` until it reads `Blocked`,
+> then revoke. The kernel is the authority on that state because the kernel is
+> what sets it — this is stronger evidence than any announcement protocol, not
+> weaker.
+>
+> **One nuance to check rather than assume:** `TaskLifecycle::Blocked` collapses
+> every `TaskState::Blocked(_)` reason into one value, so a poller cannot
+> distinguish "blocked in `recv` on my endpoint" from "blocked on something
+> else". For `sample-service` in this test that is likely immaterial; it is not
+> automatically immaterial.
+>
+> The **problem** this RFC identifies is real and unfixed: the guard is green by
+> accident, for the second time in its history. Only the "and nothing can be
+> done" half is wrong. This RFC's three shapes are all built on the false
+> premise and should be superseded rather than implemented.
+
 **Unlike its sibling RFC-0.26-002, there is no signal to wait on, and none can
 be trivially built.** A task cannot atomically announce "I am about to block"
 and then block — anything it sends before blocking can be observed before it has
