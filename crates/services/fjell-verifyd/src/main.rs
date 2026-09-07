@@ -57,40 +57,26 @@ fn send_ready() {
     // collision is unrelated to readiness and is not addressed here (out
     // of this RFC's scope); readiness itself no longer goes anywhere near
     // it.
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
-            in("a1") fjell_service_api::tags::SERVICE_READY,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
 }
 
 fn recv_call() -> (usize, usize, usize) {
-    let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") EP_SLOT as usize,
-            lateout("a1") t, lateout("a2") w0, lateout("a3") w1,
-            lateout("a4") _, lateout("a5") _, lateout("a7") _, options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block missing the `a6`
+    // clobber (the exact bug RFC-0.28-001 hit); `sys_ipc_recv_msg` is a
+    // correct superset — `w2`/`w3`/sender discarded, not needed here.
+    match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
+        Ok((t, w0, w1, _w2, _w3, _sender)) => (t, w0, w1),
+        Err(_) => (0, 0, 0),
     }
-    (t, w0, w1)
 }
 
 fn reply(tag: usize) {
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 23", "ecall",
-            in("a0") 0usize, in("a1") tag,
-            lateout("a7") _, options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_reply(tag);
 }
 
 // ── Trust-provider / keyring init ────────────────────────────────────────────
