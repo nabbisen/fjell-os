@@ -773,7 +773,9 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // above already give: skip this step and every IPC to the object fails
     // with `InvalidCap`. Confirmed live: this step was missing on first
     // implementation and reproduced exactly that failure.
-    let service_manager_ep_id = et.alloc().expect("alloc service-manager readiness endpoint");
+    let service_manager_ep_id = et
+        .alloc()
+        .expect("alloc service-manager readiness endpoint");
     let _ = service_manager_ep_id; // id=10
     let init_relay_ep_id = et.alloc().expect("alloc init-relay endpoint");
     let _ = init_relay_ep_id; // id=11

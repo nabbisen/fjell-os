@@ -1017,6 +1017,45 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `crates/services/fjell-service-manager/src/main.rs`'s
   `READY_ACCEPTED_THRESHOLD`).
 
+## E-032 — 12 of 15 raw `IpcRecv` asm blocks omit the `a6` clobber
+
+- **Claim:** userspace inline-asm syscall blocks declare every register the
+  kernel may write, so the compiler does not keep live values in them across an
+  `ecall`.
+- **Tree:** `crates/fjell-kernel/src/cap/syscall.rs:497` writes the
+  kernel-attested sender identity into **`a6`** (`tf.gpr[16]`) on **every**
+  successful IPC delivery, one-way sends included (RFC 055). Of the 15 raw
+  `core::arch::asm!` blocks issuing `li a7, 21` in `crates/`, **12 do not
+  declare `a6`**:
+
+  | Crate | Sites |
+  |---|---|
+  | `fjell-attestd` | 2 |
+  | `fjell-diagnosticsd`, `fjell-measuredd`, `fjell-netd`, `fjell-proxy-text`, `fjell-recoveryd`, `fjell-secure-transportd`, `fjell-semantic-stream`, `fjell-storaged`, `fjell-upgraded`, `fjell-verifyd` | 1 each |
+
+  `fjell-syscall`'s `sys_ipc_recv_msg` wrapper declares it correctly, and
+  RFC-0.28-001 corrected the two blocks it had itself introduced.
+- **How it surfaced:** RFC-0.28-001's bring-up. Two newly-written blocks omitted
+  `a6`; the compiler kept loop-carried state there, the kernel overwrote it, and
+  a three-way relay wait exited after two of three arrivals — a permanent hang,
+  reproducible across 6 consecutive builds and **made to disappear by adding
+  debug prints**, which the implementer correctly identified as a timing-shaped
+  mask rather than a fix. Root cause found by reading the kernel's `deliver()`.
+- **Why the other 12 have never been seen:** the bug fires only when the
+  compiler happens to allocate a live value to `a6` across the `ecall`. It is
+  latent, non-deterministic, and its symptom is a hang rather than an error —
+  the worst combination this project has for a defect to have.
+- **Not fixed in RFC-0.28-001**, correctly: repairing eleven unrelated services
+  is outside that line's scope, and the same judgement was applied to **E-025**.
+  The extent was recorded in that RFC's answer document during review, because
+  the submission scoped the finding to the two blocks it had repaired.
+- **A fix should be mechanical, not manual.** Twelve hand-edits invite a
+  thirteenth omission. The candidates are a shared `recv` wrapper the raw sites
+  call instead, or a callsite-conformance check in the Gate 11 family asserting
+  that any block containing `li a7, 21` names `a6`. Whichever is chosen carries
+  RFC-v0.22-001's demonstration requirement.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-07), `unscheduled`.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -1052,6 +1091,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
+| E-032 12 of 15 raw `IpcRecv` asm blocks omit the `a6` clobber the kernel writes on every delivery | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

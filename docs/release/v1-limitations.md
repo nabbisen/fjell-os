@@ -335,6 +335,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   that actually send `tags::SERVICE_READY` today, confirmed live and
   reproducible over repeated runs, not lowered to force the marker.
 
+- **12 of 15 raw `IpcRecv` inline-asm blocks omit the `a6` clobber** (Errata
+  **E-032**, ACCEPTED). The kernel writes the attested sender identity into `a6`
+  on every IPC delivery; a block that does not declare it lets the compiler keep
+  a live value there across the `ecall`. RFC-0.28-001 hit this in two blocks it
+  wrote — a non-deterministic permanent hang that debug prints made disappear —
+  and fixed those two. The other twelve are the same latent defect, unfired
+  because it depends on what the compiler happens to allocate.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

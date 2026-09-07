@@ -246,6 +246,21 @@ defect. Fixed by adding `lateout("a6") _` to both blocks; confirmed by
 with every temporary diagnostic removed, plus a clean 21/21
 `test-all` and all 12 `release-rehearsal` gates.
 
+> **Extent, added in review (architect, 2026-09-07).** The two blocks fixed here
+> were the two this RFC wrote, and the fix is right. **The defect class is
+> wider than this section states.** Of the 15 raw `li a7, 21` (`IpcRecv`) asm
+> blocks in `crates/`, **12 still omit `a6`** — in `fjell-attestd` (×2),
+> `fjell-diagnosticsd`, `fjell-measuredd`, `fjell-netd`, `fjell-proxy-text`,
+> `fjell-recoveryd`, `fjell-secure-transportd`, `fjell-semantic-stream`,
+> `fjell-storaged`, `fjell-upgraded` and `fjell-verifyd`. Only
+> `fjell-syscall`'s wrapper and this RFC's two corrected blocks declare it.
+> Every one of those 12 is the same latent bug, firing only when the compiler
+> happens to keep a live value in `a6` across the `ecall` — which is why it has
+> never been seen. Recorded as **E-032**; not fixed here, because repairing
+> eleven unrelated services is not this RFC's scope. The fix in this section
+> stands; the sentence bounding it to "written for this RFC, not pre-existing"
+> describes what was repaired, not how far the defect reaches.
+
 **Separately, an independent and lower-severity fix found and applied
 during the same debugging pass:** two new functions written for this
 RFC used `in("a0") ep => _` for the endpoint-slot argument instead of
