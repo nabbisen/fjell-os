@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.28-003
 
-**Governing RFC:** [RFC-0.28-003](../../proposed/RFC-0.28-003-blocked-recv-rendezvous.md)
+**Governing RFC:** [RFC-0.28-003](../../accepted/RFC-0.28-003-blocked-recv-rendezvous.md)
 **Milestone:** 0.28
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-09-07)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
