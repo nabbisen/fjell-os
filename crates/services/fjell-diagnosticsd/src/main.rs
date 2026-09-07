@@ -41,32 +41,29 @@ const MEASUREDD_HEAD_REPLY: usize = 0x321;
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
+/// RFC-0.28-002 audit finding (documented, not fixed here — out of this
+/// RFC's scope, a pre-existing functional gap, not a register-clobber
+/// bug): `w0` has never actually reached the receiver. `IpcSend`'s
+/// `build_msg` (`crates/fjell-kernel/src/cap/syscall.rs`) only copies
+/// `tag.words` words, taken from bits 16-23 of the packed tag; this call
+/// never set them, so `tag.words == 0` and the kernel's copy loop runs
+/// zero times regardless of what is in `a2` — including the
+/// `MAX_QUERY_RECORDS`/channel-id/max-count values this file's call sites
+/// document as meaningful. `w0` is therefore inert today on every call
+/// site below, independent of whether this is a hand-rolled asm block or
+/// the wrapper — the swap is bit-for-bit behaviour-preserving.
 fn send_tag(ep: CapHandle, tag: usize, w0: usize) {
-    // SAFETY: category=kernel-global-mutable ring buffer read is serialised by the audit drain capability.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") ep.0 as usize, in("a1") tag, in("a2") w0,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    let _ = w0;
+    let _ = fjell_syscall::sys_ipc_send(ep.0, tag);
 }
 
 fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
-    // The initial 0 is required: Rust requires lateout operands to be
-    // initialized; the asm overwrites them before return via `lateout("a1")` etc.
-    #[allow(unused_assignments)]
-    let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
-    // SAFETY: category=kernel-global-mutable ring buffer read is serialised by the audit drain capability.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") ep.0 as usize,
-            lateout("a1") t, lateout("a2") w0, lateout("a3") w1,
-            lateout("a4") _, lateout("a5") _, lateout("a7") _, options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
+    match fjell_syscall::sys_ipc_recv_msg(ep.0) {
+        Ok((t, w0, w1, _w2, _w3, _sender)) => (t, w0, w1),
+        Err(_) => (0, 0, 0),
     }
-    (t, w0, w1)
 }
 
 // ── Measurement head query ────────────────────────────────────────────────────
