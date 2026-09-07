@@ -39,38 +39,37 @@ fn send_ready() {
     // (narrowed to `CALL`); readiness now goes through the generic
     // `tags::SERVICE_READY` protocol to service-manager's dedicated
     // endpoint, which relays it on to `init`.
-    // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
-            in("a1") fjell_service_api::tags::SERVICE_READY,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
 }
 
 fn recv_call() -> (usize, usize, usize, usize, usize) {
-    let (mut t, mut w0, mut w1, mut w2, mut w3) = (0usize, 0usize, 0usize, 0usize, 0usize);
-    // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") EP_SLOT as usize,
-            lateout("a1") t, lateout("a2") w0, lateout("a3") w1,
-            lateout("a4") w2, lateout("a5") w3,
-            lateout("a7") _, options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (also returns the sender identity, unused here).
+    match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
+        Ok((t, w0, w1, w2, w3, _sender)) => (t, w0, w1, w2, w3),
+        Err(_) => (0, 0, 0, 0, 0),
     }
-    (t, w0, w1, w2, w3)
 }
 
+/// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted): `IpcReply`
+/// with a 3-word payload has no wrapper in `fjell-syscall` —
+/// `sys_ipc_reply` only carries the tag; the kernel's `sys_ipc_reply`
+/// (`crates/fjell-kernel/src/cap/syscall.rs`) unconditionally copies the
+/// replier's `a2..a5` into the caller's frame, so a real word payload can
+/// only be sent by declaring those registers here directly. See the
+/// governing RFC's answer document (§ "Finding 1") for why this is kept
+/// rather than deleted, and for the allowlisted-guard rule this site must
+/// satisfy.
 fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
     // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
     unsafe {
         core::arch::asm!(
             "li a7, 23", "ecall",
-            in("a0") 0usize, in("a1") tag,
+            inlateout("a0") 0usize => _, in("a1") tag,
             in("a2") w0, in("a3") w1, in("a4") w2,
             lateout("a7") _, options(nostack)
         );
