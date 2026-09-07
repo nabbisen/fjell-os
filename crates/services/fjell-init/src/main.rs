@@ -40,6 +40,15 @@ use fjell_service_api::storaged as storaged_proto;
 
 /// IpcCall: send label+words, block until reply; return reply label.
 /// `nwords` = number of data words (w0..w3) to send (max 4 here).
+///
+/// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted; see the
+/// governing RFC's answer document): 4-word `IpcCall` has no
+/// `fjell-syscall` wrapper (`sys_ipc_call_words` covers only 3). `a2`-`a5`
+/// are declared `inlateout` because `sys_ipc_reply` copies all four of the
+/// replier's words into this caller's frame unconditionally on completion
+/// — the same register-contract defect as Bug B, on the call side.
+/// Previously declared plain `in`, which told the compiler these registers
+/// kept their *input* values after the call.
 fn ipc_call(ep: usize, label: usize, w0: usize, w1: usize, w2: usize, w3: usize) -> usize {
     // Pack word count into label bits 16-23 so the kernel can copy them.
     let packed_label = (label & 0xFFFF) | (4usize << 16); // always 4 data words
@@ -50,7 +59,8 @@ fn ipc_call(ep: usize, label: usize, w0: usize, w1: usize, w2: usize, w3: usize)
             "li a7, 22", "ecall",
             inlateout("a0") ep           => _,
             inlateout("a1") packed_label => reply,
-            in("a2") w0, in("a3") w1, in("a4") w2, in("a5") w3,
+            inlateout("a2") w0 => _, inlateout("a3") w1 => _,
+            inlateout("a4") w2 => _, inlateout("a5") w3 => _,
             // a7 is written by "li a7, 22". Declare as clobber so the compiler
             // does not allocate a7 for a live variable across this ecall.
             lateout("a7") _,
@@ -108,37 +118,21 @@ fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool 
 /// (`INIT_RELAY_RECV_SLOT`). Used for the single, specific dependency M6
 /// needs (storaged) before it can proceed.
 ///
-/// RFC-0.28-001: this hand-rolled `IpcRecv` asm block (and the one in
-/// `wait_relay_all_m8_ready` below) originally omitted `a6` from the
-/// clobber list. `deliver()` (`crates/fjell-kernel/src/cap/syscall.rs`)
-/// unconditionally writes the kernel-attested sender identity into `a6`
-/// on every successful delivery, one-way sends included (RFC 055) — the
-/// established pattern (`fjell_syscall::sys_ipc_recv_msg`) already
-/// declares `lateout("a6") sender` for exactly this reason. Without it,
-/// the compiler is told `a6` survives the `ecall` unclobbered and may
-/// keep loop-carried state there; the kernel then silently overwrites it
-/// on every M8 relay delivery. Found live: `wait_relay_all_m8_ready`'s
-/// three-way `m`/`a`/`r` loop exited after only two relays landed
-/// (non-deterministically — timing-dependent on what the compiler chose
-/// to keep in `a6` across the loop), leaving `service-manager`'s third,
-/// already-queued relay send permanently undelivered and its sender
-/// permanently blocked, since `init` never issued the receive that would
-/// have drained and woken it. Confirmed by adding `lateout("a6") _` here.
+/// RFC-0.28-001 found the `a6`-clobber bug here (and in
+/// `wait_relay_all_m8_ready` below) live, in a hand-rolled `IpcRecv` block
+/// each function wrote for this RFC — a permanent, non-deterministic hang,
+/// full mechanism in `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md`.
+/// RFC-0.28-002 (E-032, closing it structurally rather than case-by-case)
+/// deletes both hand-rolled blocks entirely: `sys_ipc_recv_msg` already
+/// declares every register the kernel writes, including `a6`.
 fn wait_relay_exact(expected_tag: usize) {
     loop {
-        let tag: usize;
-        // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-        unsafe {
-            core::arch::asm!(
-                "li a7, 21", "ecall",
-                inlateout("a0") fjell_service_api::ready::INIT_RELAY_RECV_SLOT as usize => _,
-                lateout("a1") tag,
-                lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
-                lateout("a6") _, lateout("a7") _,
-                options(nostack),
-            );
-        }
-        if (tag & 0xFFFF) == expected_tag {
+        let Ok((tag, ..)) =
+            fjell_syscall::sys_ipc_recv_msg(fjell_service_api::ready::INIT_RELAY_RECV_SLOT)
+        else {
+            continue;
+        };
+        if tag == expected_tag {
             break;
         }
     }
@@ -155,19 +149,12 @@ fn wait_relay_all_m8_ready() {
     use fjell_service_api::recoveryd::READY as RREADY;
     let (mut m, mut a, mut r) = (false, false, false);
     while !(m && a && r) {
-        let tag: usize;
-        // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-        unsafe {
-            core::arch::asm!(
-                "li a7, 21", "ecall",
-                inlateout("a0") fjell_service_api::ready::INIT_RELAY_RECV_SLOT as usize => _,
-                lateout("a1") tag,
-                lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
-                lateout("a6") _, lateout("a7") _,
-                options(nostack),
-            );
-        }
-        match tag & 0xFFFF {
+        let Ok((tag, ..)) =
+            fjell_syscall::sys_ipc_recv_msg(fjell_service_api::ready::INIT_RELAY_RECV_SLOT)
+        else {
+            continue;
+        };
+        match tag {
             t if t == MREADY => m = true,
             t if t == AREADY => a = true,
             t if t == RREADY => r = true,
