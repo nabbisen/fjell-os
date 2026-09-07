@@ -340,8 +340,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   checking (a wrong error, an unexpected success, or a panic in the serial
   log fails the run). All nine now have every specified marker confirmed
   (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1,
-  **svc 4/4 — Errata E-024/E-031, closed by RFC-0.28-001**); the ipc profile
-  is restored to 3/3 in v0.20.0 after fixing the IPC words ABI and the
+  **svc 4/4 — Errata E-024/E-031, closed by RFC-0.28-001**, evidence:
+  [`tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log`](../../tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log));
+  the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC words ABI and the
   reply-edge cancellation path. The `store` and `upgrade` negative profiles
   exist as marker specifications but have **no emitting scenarios yet** and
   are explicitly **not v1 release-gated**; running them manually fails
