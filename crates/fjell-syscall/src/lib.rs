@@ -188,10 +188,43 @@ pub fn sys_ipc_call(ep_handle: u32, tag: usize) -> Result<usize, SysError> {
 }
 
 /// Block waiting to receive on `ep_handle`; returns `(status, sender_tag)`.
-#[inline]
+///
+/// RFC-0.28-004 (closes E-033, widened): this used to route through `ecall2`,
+/// which declares only `a0`/`a1`. On delivery the kernel also writes `a2`-`a5`
+/// (payload words, discarded here by design — see `sys_ipc_recv_msg` for the
+/// variant that keeps them) and `a6` (RFC-055 attested sender identity,
+/// `cap/syscall.rs`'s `deliver()`) — both undeclared, `E-032`'s Bug A and Bug
+/// B in the crate that consolidates services *away* from exactly this
+/// defect. Signature and discarded values are unchanged: this call still
+/// returns only the tag, on purpose (see the governing RFC's answer document
+/// §5(c) for whether that discard is still worth a dedicated wrapper — an
+/// open escalation, not resolved by this fix).
 pub fn sys_ipc_recv(ep_handle: u32) -> Result<usize, SysError> {
-    let (r0, r1) = ecall2(SyscallNumber::IpcRecv as usize, ep_handle as usize, 0, 0, 0);
-    to_result(r0).map(|_| r1)
+    let status: usize;
+    let label: usize;
+    #[cfg(target_arch = "riscv64")]
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7") SyscallNumber::IpcRecv as usize,
+            inlateout("a0") ep_handle as usize => status,
+            lateout("a1") label,
+            lateout("a2") _,
+            lateout("a3") _,
+            lateout("a4") _,
+            lateout("a5") _,
+            lateout("a6") _,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        let _ = ep_handle;
+        status = 0;
+        label = 0;
+    }
+    to_result(status).map(|_| label)
 }
 
 /// Reply to the pending reply edge with the given tag.
@@ -668,30 +701,50 @@ pub fn sys_cap_install_with_rights(
 /// `sys_cap_inspect(cap) → Ok((kind, rights, badge))` — RFC 049: requires INSPECT right.
 ///
 /// Fails with `PermissionDenied` if the source cap lacks `CapRights::INSPECT`.
+///
+/// RFC-0.28-004 (closes E-033, widened): this used to issue `ecall2` (which
+/// only declares `a0`/`a1`) for the real call, then a second raw `ecall` to
+/// pick up `rights`/`badge` from `a2`/`a3`. That second block was hardcoded
+/// to `"li a7, 13"` with a comment claiming `SyscallNumber::CapInspect` —
+/// `CapInspect` is **14**; `13` is `CapRevoke`. The stale literal drifted
+/// from the enum at some point and nothing caught it. It "worked" only
+/// because the inspected capability correctly lacks `REVOKE`, so the
+/// mis-numbered call fails closed (`PermissionDenied`, which touches only
+/// `a0`) without disturbing `a2`/`a3` — leaving the *first* call's real
+/// `rights`/`badge` (already written into those physical registers by
+/// `cap/syscall.rs`'s success path, `ecall2` just never declared them)
+/// sitting there to be read back by coincidence. A capability that *does*
+/// hold `REVOKE` would not get this coincidence: it would be revoked, as a
+/// side effect of being inspected. Confirmed no such caller exists today.
+/// One syscall now, correctly numbered via the `SyscallNumber` constant
+/// rather than a literal, declaring every register the kernel writes.
 pub fn sys_cap_inspect(cap: CapHandle) -> Result<(usize, u64, u64), SysError> {
-    let (r0, kind) = ecall2(SyscallNumber::CapInspect as usize, cap.0 as usize, 0, 0, 0);
-    to_result(r0)?;
-    // rights and badge returned in a2/a3; ecall2 only returns a0/a1.
-    // Use inline asm to read them.
+    let status: usize;
+    let kind: usize;
+    let rights: usize;
+    let badge: usize;
     #[cfg(target_arch = "riscv64")]
     // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
-    let (rights, badge): (usize, usize) = unsafe {
-        let r: usize;
-        let b: usize;
+    unsafe {
         core::arch::asm!(
-            "li a7, 13", "ecall",  // SyscallNumber::CapInspect
-            inlateout("a0") cap.0 as usize => _,
-            lateout("a1") _,
-            lateout("a2") r,
-            lateout("a3") b,
-            lateout("a7") _,
+            "ecall",
+            in("a7") SyscallNumber::CapInspect as usize,
+            inlateout("a0") cap.0 as usize => status,
+            lateout("a1") kind,
+            lateout("a2") rights,
+            lateout("a3") badge,
             options(nostack),
         );
-        (r, b)
-    };
+    }
     #[cfg(not(target_arch = "riscv64"))]
-    let (rights, badge) = (0usize, 0usize);
-    let _ = kind;
+    {
+        let _ = cap;
+        status = 0;
+        kind = 0;
+        rights = 0;
+        badge = 0;
+    }
+    to_result(status)?;
     Ok((kind, rights as u64, badge as u64))
 }
 
