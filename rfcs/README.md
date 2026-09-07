@@ -384,9 +384,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./proposed/RFC-0.28-002-syscall-asm-consolidation.md) — closes **E-032**; handoff: [`handoffs/`](./handoffs/RFC-0.28-002-syscall-asm-consolidation/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 

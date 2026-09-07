@@ -1054,7 +1054,31 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   call instead, or a callsite-conformance check in the Gate 11 family asserting
   that any block containing `li a7, 21` names `a6`. Whichever is chosen carries
   RFC-v0.22-001's demonstration requirement.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-07), `unscheduled`.
+- **Widened 2026-09-07, while scoping RFC-0.28-002.** The `a6` omission is one
+  of **two** register-contract violations in this code, and the surface is
+  larger than twelve sites:
+
+  | | Count |
+  |---|---|
+  | Raw syscall `asm!` blocks in `crates/` | **37** |
+  | …in `fjell-syscall`, where they belong | 2 |
+  | …hand-rolled inside services | **35** |
+  | **Bug A** — `a6` omitted (`IpcRecv`) | 12 |
+  | **Bug B** — `a0` declared a plain `in` where the kernel writes status (`IpcRecv`, `IpcReply`) | **18** |
+
+  **Bug B was found independently by the implementation model during
+  RFC-0.28-001**, in its own new code, fixed there, and correctly reported as
+  real-but-not-the-cause of that line's hang. It was recorded nowhere else and is
+  live in eighteen places. A and B overlap; neither contains the other.
+
+  All five syscalls issued from raw asm (13, 20, 21, 22, 23) **already have a
+  wrapper in `fjell-syscall`**, so every one of the 35 duplicates something
+  audited and correct. That makes the root cause plainer than "a missing
+  register": **thirty-five places are each independently responsible for knowing
+  what the kernel writes.**
+- **Resolution:** **ACCEPTED** (architect, 2026-09-07), tracked
+  **RFC-0.28-002**, which deletes the blocks rather than annotating them and
+  adds a Gate 11-family guard so a thirty-sixth cannot appear.
 
 ## Summary
 
@@ -1091,7 +1115,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
-| E-032 12 of 15 raw `IpcRecv` asm blocks omit the `a6` clobber the kernel writes on every delivery | unscheduled | ACCEPTED |
+| E-032 35 hand-rolled syscall `asm!` blocks in services carry two register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18) | RFC-0.28-002 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

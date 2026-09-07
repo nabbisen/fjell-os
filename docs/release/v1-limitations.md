@@ -335,8 +335,11 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   that actually send `tags::SERVICE_READY` today, confirmed live and
   reproducible over repeated runs, not lowered to force the marker.
 
-- **12 of 15 raw `IpcRecv` inline-asm blocks omit the `a6` clobber** (Errata
-  **E-032**, ACCEPTED). The kernel writes the attested sender identity into `a6`
+- **35 hand-rolled syscall `asm!` blocks in services carry two register-contract
+  bugs** (Errata **E-032**, ACCEPTED, tracked to **RFC-0.28-002**). Twelve omit
+  the `a6` clobber; eighteen declare `a0` as a plain input where the kernel
+  writes status. Every syscall they issue already has an audited wrapper in
+  `fjell-syscall`. The kernel writes the attested sender identity into `a6`
   on every IPC delivery; a block that does not declare it lets the compiler keep
   a live value there across the `ecall`. RFC-0.28-001 hit this in two blocks it
   wrote — a non-deterministic permanent hang that debug prints made disappear —
