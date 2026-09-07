@@ -79,6 +79,22 @@ pub fn cmd_callsite_audit() -> ExitCode {
         }
     }
 
+    // ── Check 4 (RFC-0.28-002, E-032): SYSCALL-CALLSITE-001 ────────────────
+    {
+        let violations = check_syscall_asm_callsite(std::path::Path::new("."));
+        if violations.is_empty() {
+            println!(
+                "  [PASS] SYSCALL-CALLSITE-001  every raw syscall asm! block outside \
+                fjell-syscall is on the allowlist, with correct clobbers"
+            );
+        } else {
+            for v in &violations {
+                eprintln!("  [FAIL] SYSCALL-CALLSITE-001: {v}");
+            }
+            pass = false;
+        }
+    }
+
     // ── Check 3: BCB-CALLSITE-001 ──────────────────────────────────────────
     {
         let authoritative = "crates/fjell-upgrade-format/src/lib.rs";
@@ -196,6 +212,266 @@ fn check_cap_callsite(src: &str) -> CheckResult {
 fn bcb_pattern_present(src: &str) -> bool {
     let stripped = strip_comments_and_strings(src);
     stripped.contains(".generation") && stripped.contains(".valid")
+}
+
+// ── Check 4: SYSCALL-CALLSITE-001 (RFC-0.28-002, E-032) ─────────────────────
+//
+// Shape 3 with a guard-owned allowlist (see the governing RFC's answer
+// document): any raw syscall-issuing `asm!` block outside `fjell-syscall`
+// is refused unless its `(file, enclosing function)` is named here, and an
+// allowlisted site must still declare every register the kernel writes for
+// that syscall as a correct clobber. Adding a 36th hand-rolled block, or
+// weakening one of the seven kept here, means editing this list — a
+// reviewed, two-line diff, not a comment convention anyone could add next
+// to their own new block.
+//
+// A syscall number's presence here does NOT mean "no wrapper exists" — it
+// means the *word count this exact site needs* isn't what the wrapper
+// covers (`IpcCall`/22 has a 3-word wrapper; all three kept 22-sites need
+// 4). Per-syscall-number refusal was the wrong axis; see the answer
+// document for why.
+const ALLOWED_RAW_SYSCALL_SITES: &[(&str, &str)] = &[
+    // 4-word IpcCall (22): sys_ipc_call_words only covers 3 words.
+    ("crates/fjell-service-api/src/lib.rs", "ipc_call4"),
+    ("crates/services/fjell-init/src/main.rs", "ipc_call"),
+    (
+        "crates/services/fjell-proxy-text/src/main.rs",
+        "ipc_call_action",
+    ),
+    // Worded IpcReply (23): sys_ipc_reply carries the tag only, no payload.
+    ("crates/services/fjell-measuredd/src/main.rs", "reply"),
+    ("crates/services/fjell-proxy-text/src/main.rs", "reply"),
+    ("crates/services/fjell-recoveryd/src/main.rs", "reply"),
+    ("crates/services/fjell-semantic-stream/src/main.rs", "reply"),
+];
+
+/// Directories this check does not scan: `fjell-syscall` is where raw
+/// syscall asm belongs; `fjell-kernel` and `fjell-abi` are the RFC's own
+/// non-goals (the kernel is the receiving side of a syscall, never the
+/// issuing side, and `crates/fjell-kernel/src/task/user_image.rs` contains
+/// literal encoded instruction bytes for synthetic test images, not a real
+/// `asm!` block — excluding the directory makes that exclusion structural
+/// rather than relying on the byte-encoding happening not to match).
+/// `fjell-tools` is excluded too: this check's own test fixtures below are
+/// string literals containing `"li a7, N"` as *sample source text*, not
+/// real syscall sites, and the module is host-side dev tooling that never
+/// runs as a service in the first place — confirmed live: before this
+/// exclusion, this check found itself as ten violations.
+const SYSCALL_CALLSITE_EXCLUDED_DIRS: &[&str] = &[
+    "crates/fjell-syscall/",
+    "crates/fjell-kernel/",
+    "crates/fjell-abi/",
+    "crates/fjell-tools/",
+];
+
+/// Registers the kernel writes for a given syscall number, beyond `a0`/`a1`
+/// (both already conventionally declared `inlateout` everywhere in this
+/// tree; a future syscall violating that convention is a new finding, not
+/// one this check's narrow scope claims to catch).
+fn registers_requiring_inlateout(syscall_nr: u32) -> &'static [&'static str] {
+    match syscall_nr {
+        23 => &["a0"], // IpcReply: kernel writes the replier's own status into a0.
+        22 => &["a2", "a3", "a4", "a5"], // IpcCall: sys_ipc_reply overwrites these on completion.
+        _ => &[],
+    }
+}
+
+/// `workspace_root` is `.` for the real invocation (`cargo run`/`cargo
+/// xtask` always run from the workspace root); tests pass an absolute path
+/// computed from `CARGO_MANIFEST_DIR` instead, since `cargo test` runs test
+/// binaries with the *crate's* directory as the working directory, not the
+/// workspace's.
+fn check_syscall_asm_callsite(workspace_root: &std::path::Path) -> Vec<String> {
+    let mut violations = Vec::new();
+    let Ok(files) = walk_rs(&workspace_root.join("crates")) else {
+        return vec!["could not walk crates/ — cannot verify".to_string()];
+    };
+
+    // Pre-compute each allowlisted site's brace-matched body span, keyed by
+    // (file, fn_name), scoped to *that file's* stripped source.
+    let mut allowed_spans: Vec<(&str, &str, usize, usize)> = Vec::new();
+    for (path, fn_name) in ALLOWED_RAW_SYSCALL_SITES {
+        let Ok(src) = fs::read_to_string(workspace_root.join(path)) else {
+            violations.push(format!(
+                "allowlist names {path}::{fn_name}, but the file could not be read"
+            ));
+            continue;
+        };
+        let stripped = strip_comments_only(&src);
+        match find_function_body_span(&stripped, fn_name) {
+            Some((start, end)) => allowed_spans.push((path, fn_name, start, end)),
+            None => violations.push(format!(
+                "allowlist names {path}::{fn_name}, but that function could not be found \
+                 — update this list if it was renamed or removed"
+            )),
+        }
+    }
+
+    for path in &files {
+        let path_s = path
+            .strip_prefix(workspace_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if SYSCALL_CALLSITE_EXCLUDED_DIRS
+            .iter()
+            .any(|d| path_s.starts_with(d))
+        {
+            continue;
+        }
+        let Ok(src) = fs::read_to_string(path) else {
+            continue;
+        };
+        // Comments only — NOT strings: the pattern being searched for
+        // (`"li a7, N"`) lives inside an asm! template string literal by
+        // construction, so stripping string contents (as the other three
+        // checks correctly do for *their* token searches) would erase the
+        // very thing this check exists to find. Comments still must be
+        // stripped: fjell-init's and fjell-proxy-text's own explanatory
+        // comments quote `"li a7, 22"` verbatim, which would otherwise be a
+        // false positive — confirmed live during this RFC's audit.
+        let stripped = strip_comments_only(&src);
+        for (offset, syscall_nr) in find_raw_syscall_sites(&stripped) {
+            let line = 1 + stripped[..offset].matches('\n').count();
+            let in_allowed_span = allowed_spans
+                .iter()
+                .find(|(f, _, start, end)| *f == path_s && offset >= *start && offset < *end);
+            let Some((_, fn_name, span_start, span_end)) = in_allowed_span else {
+                violations.push(format!(
+                    "{path_s}:{line}: raw syscall {syscall_nr} asm! block not on the \
+                     allowlist — call the fjell-syscall wrapper, or add an entry here \
+                     if none covers this shape"
+                ));
+                continue;
+            };
+            let body = &stripped[*span_start..*span_end];
+            for reg in registers_requiring_inlateout(syscall_nr) {
+                let plain_in = format!("in(\"{reg}\")");
+                if body.contains(&plain_in) {
+                    violations.push(format!(
+                        "{path_s}:{line}: allowlisted site {fn_name} declares `{reg}` as a \
+                         plain `in` — syscall {syscall_nr} requires `inlateout(\"{reg}\")` \
+                         (the kernel overwrites it on completion)"
+                    ));
+                }
+            }
+        }
+    }
+
+    violations
+}
+
+/// Find every raw syscall-issuing site in already comment-stripped source:
+/// the literal `"li a7, N"` asm template fragment this codebase's
+/// hand-rolled blocks use exclusively (confirmed during this RFC's audit —
+/// `fjell-syscall`'s own wrapper crate is the only place a syscall number
+/// is set via a register instead). Returns `(byte_offset, syscall_number)`
+/// pairs, offset pointing at the opening `"`.
+fn find_raw_syscall_sites(stripped_src: &str) -> Vec<(usize, u32)> {
+    const NEEDLE: &str = "\"li a7, ";
+    let mut out = Vec::new();
+    let mut search_from = 0usize;
+    while let Some(rel) = stripped_src[search_from..].find(NEEDLE) {
+        let abs = search_from + rel;
+        let digits_start = abs + NEEDLE.len();
+        let digits_end = stripped_src[digits_start..]
+            .find(|c: char| !c.is_ascii_digit())
+            .map(|i| digits_start + i)
+            .unwrap_or(stripped_src.len());
+        if let Ok(nr) = stripped_src[digits_start..digits_end].parse::<u32>() {
+            out.push((abs, nr));
+        }
+        search_from = digits_end.max(abs + NEEDLE.len());
+    }
+    out
+}
+
+/// Like `find_function_body`, but returns the body's `[start, end)` byte
+/// span in the (already stripped) source rather than a copied substring —
+/// needed here to test whether a *different* found offset falls inside it.
+fn find_function_body_span(stripped_src: &str, fn_name: &str) -> Option<(usize, usize)> {
+    let needle = format!("fn {fn_name}");
+    let bytes = stripped_src.as_bytes();
+    let mut search_from = 0usize;
+    loop {
+        let rel = stripped_src.get(search_from..)?.find(&needle)?;
+        let abs = search_from + rel;
+        let before_ok = abs == 0 || !is_ident_byte(bytes[abs - 1]);
+        let after_idx = abs + needle.len();
+        let after_ok = bytes.get(after_idx).is_none_or(|b| !is_ident_byte(*b));
+        if before_ok && after_ok {
+            let open_rel = stripped_src.get(after_idx..)?.find('{')?;
+            let open_abs = after_idx + open_rel;
+            let body = extract_braced_body(stripped_src, open_abs)?;
+            let body_start = open_abs + 1;
+            return Some((body_start, body_start + body.len()));
+        }
+        search_from = abs + needle.len();
+        if search_from >= stripped_src.len() {
+            return None;
+        }
+    }
+}
+
+/// Strip `//` line comments and `/* */` block comments only — string
+/// literal contents are left intact. See `check_syscall_asm_callsite`'s
+/// comment for why this check needs that (unlike the other three, which
+/// use `strip_comments_and_strings` below).
+fn strip_comments_only(src: &str) -> String {
+    let bytes = src.as_bytes();
+    let n = bytes.len();
+    let mut out = String::with_capacity(n);
+    let mut i = 0;
+    let mut in_string = false;
+    while i < n {
+        let c = bytes[i];
+        if in_string {
+            out.push(c as char);
+            if c == b'\\' && i + 1 < n {
+                out.push(bytes[i + 1] as char);
+                i += 2;
+                continue;
+            }
+            if c == b'"' {
+                in_string = false;
+            }
+            i += 1;
+            continue;
+        }
+        if c == b'"' {
+            in_string = true;
+            out.push(c as char);
+            i += 1;
+            continue;
+        }
+        if c == b'/' && i + 1 < n && bytes[i + 1] == b'/' {
+            while i < n && bytes[i] != b'\n' {
+                out.push(' ');
+                i += 1;
+            }
+            continue;
+        }
+        if c == b'/' && i + 1 < n && bytes[i + 1] == b'*' {
+            out.push(' ');
+            out.push(' ');
+            i += 2;
+            while i + 1 < n && !(bytes[i] == b'*' && bytes[i + 1] == b'/') {
+                out.push(if bytes[i] == b'\n' { '\n' } else { ' ' });
+                i += 1;
+            }
+            if i + 1 < n {
+                out.push(' ');
+                out.push(' ');
+                i += 2;
+            } else {
+                i = n;
+            }
+            continue;
+        }
+        out.push(c as char);
+        i += 1;
+    }
+    out
 }
 
 /// Strip `//` line comments, `/* */` block comments, and the contents of
@@ -333,7 +609,7 @@ fn extract_braced_body(src: &str, open_idx: usize) -> Option<String> {
     None
 }
 
-fn walk_rs(root: &str) -> std::io::Result<Vec<std::path::PathBuf>> {
+fn walk_rs(root: impl AsRef<std::path::Path>) -> std::io::Result<Vec<std::path::PathBuf>> {
     let mut out = Vec::new();
     fn inner(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
         for entry in fs::read_dir(dir)? {
@@ -347,7 +623,7 @@ fn walk_rs(root: &str) -> std::io::Result<Vec<std::path::PathBuf>> {
         }
         Ok(())
     }
-    inner(std::path::Path::new(root), &mut out)?;
+    inner(root.as_ref(), &mut out)?;
     Ok(out)
 }
 
@@ -507,5 +783,126 @@ mod tests {
     fn bcb_pattern_ignored_when_only_in_comment() {
         let src = "// compares .generation and .valid like the real selector\nfn f() {}";
         assert!(!bcb_pattern_present(src));
+    }
+
+    // ── strip_comments_only ──────────────────────────────────────────────
+
+    #[test]
+    fn strip_comments_only_keeps_string_contents() {
+        let src = "let x = \"li a7, 21\"; // \"li a7, 22\" mentioned here too";
+        let stripped = strip_comments_only(src);
+        assert!(stripped.contains("\"li a7, 21\""));
+        assert!(!stripped.contains("mentioned here too"));
+    }
+
+    // ── find_raw_syscall_sites ─────────────────────────────────────────────
+
+    #[test]
+    fn finds_a_real_syscall_site() {
+        let src = "core::arch::asm!(\"li a7, 21\", \"ecall\", options(nostack));";
+        let sites = find_raw_syscall_sites(src);
+        assert_eq!(sites.len(), 1);
+        assert_eq!(sites[0].1, 21);
+        assert_eq!(sites[0].0, src.find("\"li a7, 21\"").unwrap());
+    }
+
+    #[test]
+    fn ignores_a_syscall_number_mentioned_only_in_a_comment() {
+        // Comments must be stripped by the caller first; this exercises
+        // that find_raw_syscall_sites itself has no special comment logic
+        // (the false positive fjell-init/fjell-proxy-text's real comments
+        // hit is a stripping-order bug, not a parsing one).
+        let raw = "// a7 is written by \"li a7, 22\". Declare as clobber.";
+        let stripped = strip_comments_only(raw);
+        assert!(find_raw_syscall_sites(&stripped).is_empty());
+    }
+
+    #[test]
+    fn finds_multiple_sites_in_one_file() {
+        let src = "\"li a7, 20\", \"ecall\" ... \"li a7, 21\", \"ecall\"";
+        let sites = find_raw_syscall_sites(src);
+        assert_eq!(sites.len(), 2);
+        assert_eq!(sites[1].1, 21);
+    }
+
+    // ── find_function_body_span ────────────────────────────────────────────
+
+    #[test]
+    fn body_span_matches_extracted_body_text() {
+        let src = "fn target() { let a = 1; let b = 2; }";
+        let (start, end) = find_function_body_span(src, "target").unwrap();
+        assert_eq!(&src[start..end], " let a = 1; let b = 2; ");
+    }
+
+    // ── check_syscall_asm_callsite (Demonstration 1/2/3, RFC-v0.22-001) ────
+
+    #[test]
+    fn demonstration_2_flags_a0_as_plain_in_on_an_allowlisted_ipcreply_site() {
+        // Reconstructs the exact shape fjell-measuredd::reply had before
+        // this RFC fixed it — not a synthetic example.
+        let src = "fn reply(tag: usize, w0: usize) { unsafe { core::arch::asm!(\"li a7, 23\", \"ecall\", in(\"a0\") 0usize, in(\"a1\") tag, in(\"a2\") w0); } }";
+        let stripped = strip_comments_only(src);
+        let (start, end) = find_function_body_span(&stripped, "reply").unwrap();
+        let body = &stripped[start..end];
+        let regs = registers_requiring_inlateout(23);
+        assert!(regs.contains(&"a0"));
+        assert!(body.contains("in(\"a0\")"));
+    }
+
+    #[test]
+    fn demonstration_2_passes_once_a0_is_inlateout() {
+        let src = "fn reply(tag: usize) { unsafe { core::arch::asm!(\"li a7, 23\", \"ecall\", inlateout(\"a0\") 0usize => _, in(\"a1\") tag); } }";
+        let stripped = strip_comments_only(src);
+        let (start, end) = find_function_body_span(&stripped, "reply").unwrap();
+        let body = &stripped[start..end];
+        assert!(!body.contains("in(\"a0\")"));
+        assert!(body.contains("inlateout(\"a0\")"));
+    }
+
+    #[test]
+    fn registers_requiring_inlateout_covers_ipccall_reply_words_not_ipcsend() {
+        assert_eq!(registers_requiring_inlateout(22), &["a2", "a3", "a4", "a5"]);
+        assert_eq!(registers_requiring_inlateout(23), &["a0"]);
+        assert!(registers_requiring_inlateout(20).is_empty());
+        assert!(registers_requiring_inlateout(21).is_empty());
+    }
+
+    /// `cargo test` runs test binaries with the crate's own directory as
+    /// the working directory, not the workspace root that the real
+    /// `cargo run -p fjell-tools -- callsite-audit` invocation always uses
+    /// — so the two filesystem-touching tests below need an explicit,
+    /// CWD-independent root instead of `check_syscall_asm_callsite`'s own
+    /// production default (`.`).
+    fn test_workspace_root() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    #[test]
+    fn allowlist_entries_are_all_currently_resolvable() {
+        // Demonstration 3 (the shipped tree passes): every named function
+        // must actually exist where the allowlist says it does, or the
+        // check fails closed with a specific reason rather than silently
+        // matching nothing (the RFC-0.24-002 ci-proptest defect this
+        // project has already been bitten by once).
+        let root = test_workspace_root();
+        for (path, fn_name) in ALLOWED_RAW_SYSCALL_SITES {
+            let src = fs::read_to_string(root.join(path))
+                .unwrap_or_else(|e| panic!("allowlist names {path}, unreadable: {e}"));
+            let stripped = strip_comments_only(&src);
+            assert!(
+                find_function_body_span(&stripped, fn_name).is_some(),
+                "allowlist names {path}::{fn_name}, not found in the current tree"
+            );
+        }
+    }
+
+    #[test]
+    fn shipped_tree_has_no_syscall_callsite_violations() {
+        // Demonstration 3: the tree as shipped by this RFC passes.
+        let violations = check_syscall_asm_callsite(&test_workspace_root());
+        assert!(
+            violations.is_empty(),
+            "unexpected SYSCALL-CALLSITE-001 violations on the shipped tree: {violations:#?}"
+        );
     }
 }

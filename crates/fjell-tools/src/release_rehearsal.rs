@@ -289,7 +289,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
         all_pass = false;
     }
     println!(
-        "  [{}] Gate 11 Callsite conformance           LEASE/CAP/BCB-CALLSITE checks (static heuristic guard)",
+        "  [{}] Gate 11 Callsite conformance           LEASE/CAP/SYSCALL/BCB-CALLSITE checks (static heuristic guard)",
         g11_mark
     );
 
