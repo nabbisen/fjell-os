@@ -58,40 +58,25 @@ fn send_ready() {
     // (narrowed to `CALL`); readiness now goes through the generic
     // `tags::SERVICE_READY` protocol to service-manager's dedicated
     // endpoint, which relays it on to `init`.
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
-            in("a1") fjell_service_api::tags::SERVICE_READY,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
 }
 
 fn recv_call() -> (usize, usize, usize) {
-    let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") EP_SLOT as usize,
-            lateout("a1") t, lateout("a2") w0, lateout("a3") w1,
-            lateout("a4") _, lateout("a5") _, lateout("a7") _, options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
+    match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
+        Ok((t, w0, w1, _w2, _w3, _sender)) => (t, w0, w1),
+        Err(_) => (0, 0, 0),
     }
-    (t, w0, w1)
 }
 
 fn reply(tag: usize) {
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 23", "ecall",
-            in("a0") 0usize, in("a1") tag,
-            lateout("a7") _, options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_reply(tag);
 }
 
 // ── Trust-provider / keyring init ────────────────────────────────────────────
@@ -311,30 +296,28 @@ const SXT_FAULTED: u16 = 0x010b;
 /// Stored in-process (alpha.1); migrates to storaged IPC in alpha.2.
 static mut CACHED_NONCE: [u8; 16] = [0u8; 16];
 
+/// RFC-0.28-002 audit finding (documented, not fixed here — out of this
+/// RFC's scope, a pre-existing functional gap, not a register-clobber
+/// bug): `w0` has never actually reached the receiver. `IpcSend`'s
+/// `build_msg` (`crates/fjell-kernel/src/cap/syscall.rs`) only copies
+/// `tag.words` words, taken from bits 16-23 of the packed tag; this call
+/// never set them, so `tag.words == 0` and the kernel's copy loop runs
+/// zero times regardless of what is in `a2`. `w0` is therefore inert today
+/// on every call site below, independent of whether this is a hand-rolled
+/// asm block or the wrapper — the swap below is bit-for-bit behaviour-
+/// preserving, not a regression.
 fn sxt_send(tag: u16, w0: usize) {
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") CAP_SXT_EP.0 as usize, in("a1") tag as usize, in("a2") w0,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    let _ = w0;
+    let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
 }
 
 fn sxt_recv() -> (u16, usize) {
-    let (mut t, mut w0) = (0usize, 0usize);
-    // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") CAP_SXT_EP.0 as usize,
-            lateout("a1") t, lateout("a2") w0,
-            lateout("a3") _, lateout("a4") _, lateout("a5") _, lateout("a7") _,
-            options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (`w1`-`w3`/sender discarded, not needed here).
+    match fjell_syscall::sys_ipc_recv_msg(CAP_SXT_EP.0) {
+        Ok((t, w0, _w1, _w2, _w3, _sender)) => ((t & 0xFFFF) as u16, w0),
+        Err(_) => (0, 0),
     }
-    ((t & 0xFFFF) as u16, w0)
 }
 
 /// Push the current attestation record to the remote endpoint via
