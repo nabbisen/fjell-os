@@ -6,6 +6,14 @@ Per the handoff's required order, this is written before any swap, informed
 by the per-site audit below (the audit had to happen first to know whether
 shape 1 is even survivable — it isn't, and that is itself the answer).
 
+**Evidence (D5):** post-consolidation, clean (`tree_dirty_at_run_time =
+false`) `qemu-negative svc` run, all four markers present including
+`READY_ACCEPTED` and `UNAUTHORIZED_READY_REJECTED`:
+[`tests/evidence/RFC-0.28-002/svc-post-consolidation.log`](../../tests/evidence/RFC-0.28-002/svc-post-consolidation.log).
+This is one of 16 consecutive clean runs against the final tree (8×
+`qemu-test m8`, 8× `qemu-negative svc`), on top of a clean 21/21
+`test-all` and every per-crate swap's own verification run along the way.
+
 ---
 
 ## The counts, re-derived

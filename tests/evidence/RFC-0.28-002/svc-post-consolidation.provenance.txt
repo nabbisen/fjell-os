@@ -1,0 +1,5 @@
+run_id = 20260907-062456
+profile = svc
+commit_sha = e7051ce1bc6cab7b964231ee72b1a11e8d3904ba
+command = 90 qemu-system-riscv64 -machine virt -bios none -nographic -kernel target/riscv64gc-unknown-none-elf/release/fjell-kernel -drive file=fjell-disk.img,format=raw,if=none,id=hd0 -device virtio-blk-device,drive=hd0
+instrumented = none
