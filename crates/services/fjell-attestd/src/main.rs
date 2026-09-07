@@ -307,6 +307,10 @@ static mut CACHED_NONCE: [u8; 16] = [0u8; 16];
 /// asm block or the wrapper — the swap below is bit-for-bit behaviour-
 /// preserving, not a regression.
 fn sxt_send(tag: u16, w0: usize) {
+    // E-034: this word is discarded, and always has been. The tag carries no
+    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
+    // kernel has never copied it. The discard is what the compiler would
+    // otherwise report; the erratum is the record.
     let _ = w0;
     let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
 }

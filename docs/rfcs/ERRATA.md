@@ -1146,6 +1146,42 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   call sites to `sys_ipc_recv_msg` and remove it — the same "delete rather
   than annotate" choice E-032 already argued for, applied one level down.
 
+## E-034 — four `send` helpers take a payload word the kernel has never carried
+
+- **Claim:** `fjell-attestd::sxt_send(tag, w0)`,
+  `fjell-diagnosticsd::send_tag(ep, tag, w0)`,
+  `fjell-secure-transportd::send_tag(ep, tag, w0)` and
+  `fjell-upgraded::send_sxt(tag, w0)` each take a data word and, by their
+  signatures, send it.
+- **Tree:** none of them ever has. The kernel's `build_msg`
+  (`cap/syscall.rs:321`) reads the word count from `(raw >> 16) & 0xFF` of the
+  tag; all four pass a bare tag with no count packed, so **zero words are
+  copied** and the payload never reaches the receiver. The parameter is
+  accepted, named, and dropped.
+- **Not caused by RFC-0.28-002.** The defect predates it. What that line changed
+  is that the word used to be placed in `a2` — where the kernel ignored it —
+  and now is discarded explicitly, because the wrapper it swapped to cannot
+  carry a word either. **The swap is bit-for-bit behaviour-preserving**, which
+  the submission stated accurately and demonstrated over 16 clean runs.
+- **What made this an erratum rather than a note.** The swap left `w0`
+  genuinely unused, and `let _ = w0;` was added to each site to silence the
+  compiler. That is defensible — a build carrying four permanent warnings is
+  not a better record — but it removed **the only mechanical signal** that
+  these four functions promise something they do not deliver, and
+  `cargo xtask build` reports 0 warnings. The finding was documented honestly
+  in RFC-0.28-002's answer document; an answer document is not derivable, and
+  the same reasoning produced **E-024** when a live defect was disclosed only
+  inside a closing erratum's text.
+- **Nothing is broken today.** No reachable receiver reads these words. The
+  hazard is the next person who writes one, reads the signature, and is
+  silently given nothing.
+- **Family:** **E-011** — a declaration describing behaviour that does not
+  execute.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`. Each
+  discard now carries a comment naming this erratum, added in review. The real
+  fix is to pack a word count and give these flows a receiver, or to delete the
+  parameter — whichever, it is a behaviour decision, not a cleanup.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -1183,6 +1219,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `fjell-syscall::sys_ipc_recv` (distinct from `sys_ipc_recv_msg`) has E-032's Bug A shape, live in five services | unscheduled | ACCEPTED |
+| E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

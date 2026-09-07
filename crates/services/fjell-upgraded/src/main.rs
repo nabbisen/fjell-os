@@ -157,6 +157,10 @@ const SXT_FAULTED: u16 = 0x010b;
 /// `build_msg` copies zero words regardless of what is in `a2`. Swap is
 /// bit-for-bit behaviour-preserving.
 fn send_sxt(tag: u16, w0: usize) {
+    // E-034: this word is discarded, and always has been. The tag carries no
+    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
+    // kernel has never copied it. The discard is what the compiler would
+    // otherwise report; the erratum is the record.
     let _ = w0;
     let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
 }

@@ -356,6 +356,12 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   contract is a decision about that public contract, not the mechanical
   per-site swap this line made.
 
+- **Four `send` helpers accept a payload word that is never transmitted**
+  (Errata **E-034**, ACCEPTED). `sxt_send`, two `send_tag`s and `send_sxt` take
+  a data word; none packs a word count into the tag, so the kernel copies zero
+  words and the payload has never reached a receiver. Nothing reads these words
+  today; the hazard is the next caller who trusts the signature.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

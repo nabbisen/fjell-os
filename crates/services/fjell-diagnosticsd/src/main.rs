@@ -53,6 +53,10 @@ const MEASUREDD_HEAD_REPLY: usize = 0x321;
 /// site below, independent of whether this is a hand-rolled asm block or
 /// the wrapper — the swap is bit-for-bit behaviour-preserving.
 fn send_tag(ep: CapHandle, tag: usize, w0: usize) {
+    // E-034: this word is discarded, and always has been. The tag carries no
+    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
+    // kernel has never copied it. The discard is what the compiler would
+    // otherwise report; the erratum is the record.
     let _ = w0;
     let _ = fjell_syscall::sys_ipc_send(ep.0, tag);
 }
