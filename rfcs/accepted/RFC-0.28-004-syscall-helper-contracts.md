@@ -1,6 +1,6 @@
 # RFC-0.28-004: The wrapper crate worked around its own helpers instead of fixing them
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-09-08; implementation may begin (RFC 000)
 **Milestone:** 0.28
 **Tracks.** **E-033**, widened. `fjell-syscall`'s generic `ecall` helpers
 declare contracts too narrow for two of their callers, and the crate has twice
