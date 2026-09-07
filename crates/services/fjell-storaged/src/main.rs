@@ -223,56 +223,27 @@ fn send_ready() {
     // generic `SERVICE_READY` to service-manager's dedicated endpoint
     // instead; service-manager relays it to `init` on `init`'s new relay
     // slot.
-    // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
-            in("a1") fjell_service_api::tags::SERVICE_READY,
-            lateout("a0") _, lateout("a7") _,
-            options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
 }
 
 /// Block until a call arrives on our endpoint.
 /// Returns (tag, w0, w1, w2, w3).
 fn recv_call() -> (usize, usize, usize, usize, usize) {
-    let tag: usize;
-    let w0: usize;
-    let w1: usize;
-    let w2: usize;
-    let w3: usize;
-    // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            inlateout("a0") EP_SLOT as usize => _,
-            lateout("a1") tag,
-            lateout("a2") w0,
-            lateout("a3") w1,
-            lateout("a4") w2,
-            lateout("a5") w3,
-            lateout("a7") _,
-            options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (also returns the sender identity, unused here).
+    match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
+        Ok((tag, w0, w1, w2, w3, _sender)) => (tag, w0, w1, w2, w3),
+        Err(_) => (0, 0, 0, 0, 0),
     }
-    (tag, w0, w1, w2, w3)
 }
 
 fn reply(tag: usize) {
-    // IpcReply (syscall 23): kernel reads reply_label from a1, not a0.
-    // a0 = ep handle (ignored), a1 = reply label/tag.
-    // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 23", "ecall",
-            in("a0") 0usize,
-            in("a1") tag,
-            lateout("a7") _,
-            options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
+    let _ = fjell_syscall::sys_ipc_reply(tag);
 }
 
 // ── service_main ──────────────────────────────────────────────────────────────
