@@ -16,3 +16,4 @@ fjell-syscall        = { path = "../../fjell-syscall" }
 fjell-measure-format = { path = "../../formats/fjell-measure-format" }
 fjell-keyring        = { path = "../../fjell-keyring" }
 fjell-trust-provider = { path = "../../fjell-trust-provider" }
+fjell-service-api    = { path = "../../fjell-service-api" }

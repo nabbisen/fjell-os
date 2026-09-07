@@ -181,6 +181,18 @@ pub mod ready {
 
     /// Service start timeout notification.
     pub const TIMEOUT_LABEL: usize = 0x051;
+
+    // RFC-0.28-001: readiness topology constants (dedicated endpoint
+    // objects and CSpace slots) are defined in `fjell_abi::service` rather
+    // than here, because kernel-side `spawn.rs` must install these
+    // capabilities and the kernel does not depend on this crate.
+    // Re-exported here so service-side code has one place to look
+    // (`fjell_service_api::ready::*`, matching every other constant in
+    // this module) without needing to know that split.
+    pub use fjell_abi::service::{
+        INIT_RELAY_EP_OBJECT, INIT_RELAY_RECV_SLOT, INIT_RELAY_SEND_SLOT,
+        SERVICE_MANAGER_EP_OBJECT, SERVICE_READY_SEND_SLOT,
+    };
 }
 
 /// Service lifecycle tracked by `fjell-service-manager` (RFC 038).

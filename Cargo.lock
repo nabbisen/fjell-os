@@ -807,6 +807,7 @@ version = "0.27.0"
 dependencies = [
  "fjell-cap",
  "fjell-net-format",
+ "fjell-service-api",
  "fjell-syscall",
 ]
 
@@ -1176,6 +1177,7 @@ dependencies = [
  "fjell-abi",
  "fjell-keyring",
  "fjell-measure-format",
+ "fjell-service-api",
  "fjell-syscall",
  "fjell-trust-provider",
 ]

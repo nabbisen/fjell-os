@@ -35,7 +35,9 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // ── IPC tags ─────────────────────────────────────────────────────────────────
 
 mod proto {
-    pub const READY: usize = 0x0001;
+    // RFC-0.28-001: the old READY tag (0x0001, which happened to already
+    // equal `tags::SERVICE_READY`) is gone — `send_ready` below now sends
+    // the shared `tags::SERVICE_READY` constant directly.
     pub const VERIFY: usize = 0x0010;
     pub const VERIFY_OK: usize = 0x0011;
     pub const VERIFY_FAIL: usize = 0x0012;
@@ -47,11 +49,20 @@ mod proto {
 const EP_SLOT: u32 = 0;
 
 fn send_ready() {
+    // RFC-0.28-001: sends to the dedicated, unconditionally-installed
+    // readiness slot (service-manager's own object), not `EP_SLOT` — slot
+    // 0 is this service's own identity endpoint (`recv_call` below), which
+    // happens to default to the same "shared" object 0 that auditd and
+    // bootctl also default to for their own, unrelated protocols. That
+    // collision is unrelated to readiness and is not addressed here (out
+    // of this RFC's scope); readiness itself no longer goes anywhere near
+    // it.
     // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
-            in("a0") EP_SLOT as usize, in("a1") proto::READY,
+            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
+            in("a1") fjell_service_api::tags::SERVICE_READY,
             lateout("a0") _, lateout("a7") _, options(nostack)
         );
     }

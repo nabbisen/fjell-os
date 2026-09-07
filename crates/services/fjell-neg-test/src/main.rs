@@ -815,9 +815,21 @@ pub extern "C" fn service_main() -> ! {
 
     sys_debug_writeln("neg-test: starting v0.2 negative test scenarios");
 
-    // RFC 058: signal service-manager we are ready.
-    // RFC 058: signal READY to service-manager (best-effort; no reply expected).
-    let _ = fjell_syscall::sys_ipc_send(0, fjell_service_api::tags::SERVICE_READY);
+    // RFC 058: signal service-manager we are ready. Also NEG:SVC:
+    // UNAUTHORIZED_READY_REJECTED's own trigger — service-manager records
+    // this send with the kernel-attested sender identity (NEG_TEST=20),
+    // which is what the marker checks.
+    //
+    // RFC-0.28-001: was slot 0 (this task's own identity endpoint,
+    // defaulting to the contested shared object 0 — also defaulted-to by
+    // auditd and bootctl, see docs/rfcs/
+    // RFC-0.28-001-readiness-topology-answer.md §3). Every service now
+    // gets an unconditional slot dedicated to reaching service-manager
+    // instead.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
 
     // ── RFC 050: CSpace layout self-check (must run first) ────────────────────
     harness_cspace_check();

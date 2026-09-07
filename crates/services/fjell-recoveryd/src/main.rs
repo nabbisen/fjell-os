@@ -16,9 +16,15 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 }
 const EP_SLOT: u32 = 0;
 fn send_ready() {
+    // RFC-0.28-001: previously sent `proto::READY` to this service's own
+    // endpoint (`EP_SLOT`), which only `init`'s direct `wait_service_ready`
+    // ever received. `init` no longer holds a receive capability there
+    // (narrowed to `CALL`); readiness now goes through the generic
+    // `tags::SERVICE_READY` protocol to service-manager's dedicated
+    // endpoint, which relays it on to `init`.
     // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
     unsafe {
-        core::arch::asm!("li a7, 20","ecall", in("a0") EP_SLOT as usize, in("a1") proto::READY, lateout("a0") _, lateout("a7") _, options(nostack));
+        core::arch::asm!("li a7, 20","ecall", in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize, in("a1") fjell_service_api::tags::SERVICE_READY, lateout("a0") _, lateout("a7") _, options(nostack));
     }
 }
 fn recv_call() -> (usize, usize, usize, usize, usize) {

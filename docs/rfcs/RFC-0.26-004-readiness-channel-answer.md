@@ -15,6 +15,19 @@ claim below names the log line or source line it comes from.
 **Invariant established: a service's endpoint has exactly one receiver — the
 service itself.**
 
+> **Correction (RFC-0.28-001, 2026-09-07).** As written here, this invariant
+> was true only for the two objects this RFC touched (7, 8) — not yet
+> general. `init` still held receive-capable capabilities to four more
+> objects (storaged, measuredd, attestd, recoveryd — CSpace slots 2-5),
+> narrowed only after this RFC shipped. Filed as **E-024** during
+> RFC-0.27-002's review; closed by RFC-0.28-001, which applied the exact
+> narrowing this document describes (`ALL_NON_META` → `CALL`) to all four
+> remaining objects. The invariant is now true generally, not merely
+> restated — see
+> `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md`. Recorded here
+> rather than silently rewritten: this document's own claim was the thing
+> that was too broad, and erasing that would lose the record of it.
+
 `init` no longer holds any receive-capable capability to `semantic-stream`'s
 endpoint (object 7) or `proxy-text`'s endpoint (object 8):
 

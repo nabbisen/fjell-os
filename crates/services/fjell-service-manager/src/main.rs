@@ -11,16 +11,62 @@
 #![no_main]
 mod rt;
 
-use fjell_abi::service::TaskLifecycle;
+use fjell_abi::service::{ImageId, TaskLifecycle};
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    ipc_sender_image_id, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_task_status, sys_yield,
+    ipc_sender_image_id, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_send,
+    sys_task_status, sys_yield,
 };
 
+// Slot 0 is service-manager's own identity endpoint — RFC-0.28-001 gives
+// it a dedicated object (`ImageId::SERVICE_MANAGER` in `spawn.rs`'s
+// `ep_obj` table) instead of the previous accidental default to the
+// shared object 0, which auditd and bootctl also defaulted to and raced
+// this service for (see
+// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3). The slot
+// *number* is unchanged; only what it now points at is.
 const SLOT_EP: u32 = 0;
 const SLOT_TASK_CONTROL: u32 = 29;
 const READY_DEADLINE_YIELDS: u32 = 100;
 const MAX_TRACKED: usize = 32;
+
+// RFC-0.28-001 (D3): re-derived, not assumed. The original `10` was never
+// checked against how many images actually send `SERVICE_READY` — under
+// the old topology, at most 3 messages could ever arrive here regardless
+// (see docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3), so `10`
+// was unreachable by construction and had been since RFC 058 shipped.
+// With every announcer now addressing this endpoint correctly (the fix
+// this RFC makes), the real count is exactly **8**:
+// sample-service, verifyd, neg-test, storaged, measuredd, attestd,
+// recoveryd, netd — every image in this project that currently sends
+// `tags::SERVICE_READY` at all, confirmed live (`cargo xtask qemu-negative
+// svc`, `cargo xtask qemu-test m8`). Not lowered to make the marker fire;
+// raised to the number of services actually capable of firing it, which
+// happens to be smaller than the original guess.
+const READY_ACCEPTED_THRESHOLD: u32 = 8;
+
+/// RFC-0.28-001: relay a required service's own readiness tag to `init`
+/// once it reports `SERVICE_READY` here. `init` no longer holds a receive
+/// capability on any of these four services' own endpoints (narrowed to
+/// `CALL` — see `crates/fjell-kernel/src/main.rs`'s init-CSpace bootstrap
+/// section), so this relay is the only way it learns any of them are
+/// ready. Reuses each service's own pre-existing tag constant rather than
+/// inventing a new vocabulary — `init`'s wait functions already expect
+/// exactly these values.
+fn relay_tag_for(sender_img: u16) -> Option<usize> {
+    use fjell_service_api::{attestd, measuredd, recoveryd, storaged};
+    if sender_img == ImageId::STORAGED.0 {
+        Some(storaged::READY)
+    } else if sender_img == ImageId::MEASUREDD.0 {
+        Some(measuredd::READY)
+    } else if sender_img == ImageId::ATTESTD.0 {
+        Some(attestd::READY)
+    } else if sender_img == ImageId::RECOVERYD.0 {
+        Some(recoveryd::READY)
+    } else {
+        None
+    }
+}
 
 struct ServiceEntry {
     image_id: u16,
@@ -52,6 +98,16 @@ pub extern "C" fn service_main() -> ! {
                 let sender_img = ipc_sender_image_id(sender);
 
                 if tag == (tags::SERVICE_READY & 0xFFFF) {
+                    // RFC-0.28-001: relay to init, if init is waiting on
+                    // this specific service. One-way send, best-effort —
+                    // if init is not yet at its own receive for this
+                    // relay, the send queues and this task blocks until
+                    // init reaches it, exactly the rendezvous every other
+                    // one-way send in this project already relies on
+                    // (RFC-0.27-002 D1).
+                    if let Some(relay_tag) = relay_tag_for(sender_img) {
+                        let _ = sys_ipc_send(fjell_abi::service::INIT_RELAY_SEND_SLOT, relay_tag);
+                    }
                     // Record READY from this service.
                     let mut found = false;
                     for slot in services.iter_mut() {
@@ -81,8 +137,10 @@ pub extern "C" fn service_main() -> ! {
                         }
                     }
 
-                    // RFC 058: emit READY_ACCEPTED after first 10 services report ready.
-                    if !ready_emitted && n_ready >= 10 {
+                    // RFC 058: emit READY_ACCEPTED once every service that
+                    // can report has reported (RFC-0.28-001: threshold
+                    // re-derived, see `READY_ACCEPTED_THRESHOLD`).
+                    if !ready_emitted && n_ready >= READY_ACCEPTED_THRESHOLD {
                         ready_emitted = true;
                         sys_debug_writeln(M::SVC_READY_ACCEPTED);
                     }

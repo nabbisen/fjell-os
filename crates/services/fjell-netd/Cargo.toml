@@ -13,6 +13,7 @@ name = "fjell-netd"
 path = "src/main.rs"
 
 [dependencies]
-fjell-syscall    = { path = "../../fjell-syscall" }
-fjell-cap        = { path = "../../fjell-cap" }
-fjell-net-format = { path = "../../formats/fjell-net-format" }
+fjell-syscall     = { path = "../../fjell-syscall" }
+fjell-cap         = { path = "../../fjell-cap" }
+fjell-net-format  = { path = "../../formats/fjell-net-format" }
+fjell-service-api = { path = "../../fjell-service-api" }

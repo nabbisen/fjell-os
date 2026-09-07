@@ -140,6 +140,48 @@ impl ImageId {
     pub const DRIVER_UART: ImageId = ImageId(0x1E); // 30
 }
 
+// ── RFC-0.28-001: readiness topology ──────────────────────────────────────────
+//
+// Readiness has its own dedicated endpoint objects and CSpace slots,
+// distinct from object 0 ("shared, all non-special services"). Object 0
+// turned out to have at least two other uncoordinated receivers (auditd's
+// audit-drain trigger, bootctl's own protocol) racing service-manager for
+// the same messages — see
+// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3. Defined here
+// (not in `fjell-service-api`) because `spawn.rs` — kernel-side — must
+// install these capabilities, and the kernel does not depend on the
+// user-space service SDK crate.
+
+/// The endpoint object service-manager receives `SERVICE_READY` on.
+/// Installed as service-manager's own identity endpoint (`ep_obj` table,
+/// `spawn.rs`) — replacing its previous accidental default to object 0.
+pub const SERVICE_MANAGER_EP_OBJECT: u32 = 10;
+
+/// The CSpace slot installed, unconditionally, in every spawned service's
+/// own CSpace, pointing at `SERVICE_MANAGER_EP_OBJECT` with SEND rights
+/// only. Every announcer sends readiness through this slot — never
+/// through slot 0, whose meaning is each service's own identity endpoint
+/// and is unrelated to readiness.
+pub const SERVICE_READY_SEND_SLOT: u32 = 20;
+
+/// The endpoint object service-manager relays per-service readiness onto,
+/// for `init` alone. `init` holds the only receive capability here;
+/// service-manager holds the only send capability. Nothing else ever
+/// touches this object, so a receive here can never collide with
+/// unrelated traffic the way object 0 did.
+pub const INIT_RELAY_EP_OBJECT: u32 = 11;
+
+/// The CSpace slot installed only in service-manager's own CSpace,
+/// pointing at `INIT_RELAY_EP_OBJECT` with SEND rights, used to relay
+/// each of storaged/measuredd/attestd/recoveryd's readiness to `init`.
+pub const INIT_RELAY_SEND_SLOT: u32 = 21;
+
+/// The CSpace slot installed only in `init`'s own CSpace, pointing at
+/// `INIT_RELAY_EP_OBJECT` with RECEIVE rights — reusing the slot
+/// RFC-0.26-004 vacated when it removed `init`'s capability to proxy-text
+/// (object 8) entirely.
+pub const INIT_RELAY_RECV_SLOT: u32 = 7;
+
 #[cfg(test)]
 mod image_id_v07_tests {
     use super::ImageId;

@@ -63,7 +63,8 @@ const OFF_STATUS: usize = 784; // status byte (1 byte)
 
 // ── IPC message tags (from fjell-service-api) ─────────────────────────────────
 // Protocol constants from fjell-service-api::storaged (RFC 019)
-const READY: usize = 0x200;
+// (RFC-0.28-001: the old private READY tag, 0x200, is gone — readiness now
+// goes through the generic `tags::SERVICE_READY` protocol; see `send_ready`.)
 const WRITE_BEGIN: usize = 0x201;
 const WRITE_CHUNK: usize = 0x202;
 const WRITE_COMMIT: usize = 0x203;
@@ -211,13 +212,23 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
 }
 
 fn send_ready() {
-    // Send the storaged READY tag (0x210) on endpoint slot 0.
+    // RFC-0.28-001: previously sent the storaged READY tag (0x200) to this
+    // service's own endpoint (`EP_SLOT`), where `init`'s `wait_storaged_ready`
+    // used to receive it directly. `init` no longer holds a receive
+    // capability there (narrowed to `CALL` — see
+    // `crates/fjell-kernel/src/main.rs`'s init-CSpace bootstrap section),
+    // so that send would now block forever with no receiver — reproduced
+    // live as a total boot hang before this fix (see
+    // docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §0.1). Sends the
+    // generic `SERVICE_READY` to service-manager's dedicated endpoint
+    // instead; service-manager relays it to `init` on `init`'s new relay
+    // slot.
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
-            in("a0") EP_SLOT as usize,
-            in("a1") READY,
+            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
+            in("a1") fjell_service_api::tags::SERVICE_READY,
             lateout("a0") _, lateout("a7") _,
             options(nostack)
         );

@@ -195,12 +195,17 @@ pub fn spawn(
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             // Slot 0: IPC endpoint.
             // Private endpoint assignments (init holds caps to these):
-            //   0 = shared (all non-special services)
-            //   1 = storaged (RFC 019)
-            //   2 = measuredd (M8)
-            //   3 = attestd   (M8)
-            //   4 = recoveryd (M8)
-            //   9 = uart-rx (RFC-0.25-001 — driver-uart posts received bytes here)
+            //   0  = shared (all non-special services)
+            //   1  = storaged (RFC 019)
+            //   2  = measuredd (M8)
+            //   3  = attestd   (M8)
+            //   4  = recoveryd (M8)
+            //   9  = uart-rx (RFC-0.25-001 — driver-uart posts received bytes here)
+            //   10 = service-manager's readiness endpoint (RFC-0.28-001) —
+            //        previously fell to the shared default (0), which is
+            //        also auditd's and bootctl's own default and raced
+            //        against both; see docs/rfcs/
+            //        RFC-0.28-001-readiness-topology-answer.md §3.
             let ep_obj: u32 = match image_id {
                 fjell_abi::service::ImageId::STORAGED => 1,
                 fjell_abi::service::ImageId::MEASUREDD => 2,
@@ -217,6 +222,12 @@ pub fn spawn(
                 fjell_abi::service::ImageId::PROXY_TEXT => 8,
                 // RFC-0.25-001: driver-uart's send end of the uart-rx endpoint.
                 fjell_abi::service::ImageId::DRIVER_UART => 9,
+                // RFC-0.28-001: service-manager's own dedicated, named
+                // readiness-receiving endpoint — see
+                // `fjell_abi::service::SERVICE_MANAGER_EP_OBJECT`.
+                fjell_abi::service::ImageId::SERVICE_MANAGER => {
+                    fjell_abi::service::SERVICE_MANAGER_EP_OBJECT
+                }
                 _ => 0,
             };
             let _ = cs.install_raw(
@@ -232,6 +243,47 @@ pub fn spawn(
                     lease: None,
                 },
             );
+            // Slot `SERVICE_READY_SEND_SLOT` (RFC-0.28-001): every service,
+            // unconditionally, gets a SEND-only capability to
+            // service-manager's dedicated readiness endpoint — never slot
+            // 0, whose meaning is each service's own identity endpoint and
+            // has nothing to do with readiness. This is a fixed slot
+            // installed the same way for every image, not a per-image
+            // table entry, so a future dedicated endpoint for an unrelated
+            // reason cannot silently redirect it again (D2).
+            let _ = cs.install_raw(
+                fjell_abi::service::SERVICE_READY_SEND_SLOT as usize,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: fjell_abi::service::SERVICE_MANAGER_EP_OBJECT,
+                    rights: CapRights::SEND,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            // Slot `INIT_RELAY_SEND_SLOT` (RFC-0.28-001): service-manager
+            // alone gets a SEND-only capability to the dedicated object it
+            // relays storaged/measuredd/attestd/recoveryd's readiness to
+            // `init` over. Nothing else ever sends or receives on this
+            // object.
+            if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
+                let _ = cs.install_raw(
+                    fjell_abi::service::INIT_RELAY_SEND_SLOT as usize,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::INIT_RELAY_EP_OBJECT,
+                        rights: CapRights::SEND,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slots 31-35: MmioRegion caps.
             // RFC-v0.7.4-003 (closes C-RB-03): MMIO caps now granted ONLY to the driver
             // that owns the specific device, not to all services.
@@ -417,24 +469,13 @@ pub fn spawn(
                     },
                 );
             }
-            // Slot 2: shared-endpoint (object 0) cap for SAMPLE_SERVICE so its
-            // SERVICE_READY signal still reaches service-manager after the
-            // move to the dedicated endpoint.
-            if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
-                let _ = cs.install_raw(
-                    2,
-                    Capability {
-                        kind: CapKind::Endpoint,
-                        object_id: 0,
-                        rights: CapRights::ALL_NON_META,
-                        badge: 0,
-                        scope: ObjectScope::Any,
-                        state: CapState::Active,
-                        parent: None,
-                        lease: None,
-                    },
-                );
-            }
+            // RFC-0.28-001: SAMPLE_SERVICE's old slot-2 patch ("shared-endpoint
+            // cap so its SERVICE_READY signal still reaches service-manager")
+            // is removed — every service now gets the unconditional
+            // `SERVICE_READY_SEND_SLOT` install above, which subsumes it, and
+            // which routes to service-manager's own dedicated object instead
+            // of the contested shared object 0.
+            //
             // Slot 1: LeaseAdmin for SAMPLE_SERVICE (RFC 042 IPC blocked-recv test).
             // sample-service binds a lease to a copied endpoint cap and blocks
             // in ipc_recv to allow the lease-revoked wakeup scenario to be tested.

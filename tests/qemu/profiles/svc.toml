@@ -1,17 +1,20 @@
 # RFC 038/058 (v0.2): service lifecycle — READY tracking, timeout, fault detection.
+#
+# RFC-0.28-001: all four markers now reachable. READY_ACCEPTED and
+# UNAUTHORIZED_READY_REJECTED were pending because service-manager listened
+# on the "shared" object 0 — which auditd and bootctl also defaulted to and
+# raced it for — and most senders addressed the wrong object or the wrong
+# tag entirely (see docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3).
+# Both now fire reliably (confirmed over repeated runs): service-manager has
+# its own dedicated, uncontested endpoint, and every image that sends
+# `tags::SERVICE_READY` reaches it.
 
 name             = "svc"
 timeout_secs     = 90
 expected_markers = [
   "NEG:SVC:START_TIMEOUT_DETECTED:PASS",
   "NEG:SVC:FAULT_DETECTED:PASS",
+  "NEG:SVC:READY_ACCEPTED:PASS",
+  "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS",
 ]
-# NEG:SVC:READY_ACCEPTED:PASS — pending.
-# Emitted by service-manager after n_ready >= 10. Depends on enough
-# services reporting SERVICE_READY; with stub services exiting without
-# a READY signal the threshold may not be reached in test runs.
-# NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS — pending.
-# Emitted when neg-test's try_send(SERVICE_READY) reaches svc-manager;
-# timing-dependent (svc-manager may not be blocking on ep0 yet when
-# neg-test sends at startup).
 extra_args       = []

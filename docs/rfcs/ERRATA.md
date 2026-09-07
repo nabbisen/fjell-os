@@ -697,14 +697,32 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   services** when each was given a dedicated object, for reasons the table
   records as being about test routing and ABDD paths, with no mention of
   readiness. The scope in this entry (four services) understates it: it is nine.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-28). Recorded, not fixed —
-  reworking RFC 058's readiness protocol is a non-goal of RFC-0.26-004 and
-  RFC-0.27-002 alike, and the arrangement is currently load-bearing. Two things
-  are required before it is closed: the readiness protocol reworked so services
-  do not announce into their own receive endpoint, **and RFC-0.26-004's
-  invariant text corrected** to state the scope it actually has. A stated
-  invariant the tree violates, with no instrument checking it, is precisely the
-  class RFC-0.27-001 was built to make derivable. Related: **E-019** /
+- **Correction to this entry's own count (RFC-0.28-001, 2026-09-07).** "Nine"
+  overstated it, in the direction opposite the usual pattern this project has
+  found — not four services worse than claimed, but five better. Of the nine
+  `ep_obj` table entries, only **four** (`storaged`, `measuredd`, `attestd`,
+  `recoveryd`) both send readiness *and* would deadlock without `init`'s
+  co-receive: `semantic-stream` and `proxy-text`'s sends were already deleted
+  as dead code by RFC-0.26-004 itself (the exact self-deadlock this entry
+  describes, found and removed for those two first); `cap-broker` and
+  `driver-uart` never send a readiness signal at all; `sample-service` has a
+  dedicated endpoint but was separately patched around it. A deeper,
+  previously unrecorded problem was found checking this: those four also send
+  a **different tag** (their own private `0x2xx`/`0x3xx` value, not
+  `tags::SERVICE_READY`) to their own object — fixing routing alone would not
+  have made service-manager recognise them either. And `service-manager`'s own
+  receiving object (0) was not exclusively its own: `auditd` and `bootctl`
+  independently default to the same object for their own protocols, and
+  live-verified, silently won two of the three `SERVICE_READY` messages that
+  should have reached service-manager under the old topology. See
+  `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md` §3 for the full
+  re-derivation and how each was checked.
+- **Resolution:** **CLOSED** by RFC-0.28-001. `init` no longer holds any
+  receive-capable capability on objects 1-4 (narrowed to `CALL`, the same
+  narrowing RFC-0.26-004 applied to objects 7-8); the invariant "a service's
+  endpoint has exactly one receiver" now holds structurally on all six
+  objects, not merely two. **RFC-0.26-004's invariant text corrected** with a
+  dated note rather than silently rewritten. Related: **E-019** /
   RFC-0.26-003, whose `ipc` investigation touches the same objects.
 
 ## E-025 — `trust-report`'s cap-manifest scan walks untracked scratch trees
@@ -980,9 +998,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Family.** This is **E-023**'s shape (an RFC reading `Implemented` with
   specified behaviour never built) compounded by **E-014**'s (an expectation
   reduced until the instrument agreed with the defect).
-- **Resolution:** **ACCEPTED** (architect, 2026-09-06), tracked **RFC-0.28-001**,
-  which restores all four markers as a required deliverable and forbids lowering
-  the threshold to make one fire.
+- **Correction to "at most 5" (RFC-0.28-001, 2026-09-07).** Re-derived per the
+  handoff's instruction, not trusted: under the old topology the real number
+  able to reach service-manager reliably was **3** (`sample-service`,
+  `verifyd`, `neg-test`) — worse than claimed, not better, because
+  `service-manager`'s own receiving object (0) was also `auditd`'s and
+  `bootctl`'s default and raced them for the same messages (found live;
+  see **E-024**'s correction and
+  `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md` §3). `10` was
+  unreachable by an even wider margin than this entry stated.
+- **Resolution:** **CLOSED** by RFC-0.28-001. All four SVC markers restored to
+  `tests/qemu/profiles/svc.toml` and confirmed firing over repeated runs.
+  `service-manager` now has its own dedicated, uncontested endpoint; every
+  image that sends `tags::SERVICE_READY` reaches it (8 of them, confirmed
+  live), and the threshold is re-derived to **8** — not lowered to make the
+  marker fire, raised to the number of services actually capable of firing
+  it, per D3's requirement to state the reason in writing (see
+  `crates/services/fjell-service-manager/src/main.rs`'s
+  `READY_ACCEPTED_THRESHOLD`).
 
 ## Summary
 
@@ -1011,14 +1044,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
-| E-024 `init` co-receives on nine services' own endpoints; RFC-0.26-004's one-receiver invariant is narrower than its text | RFC-0.28-001 | ACCEPTED |
+| E-024 `init` co-receives on four services' own endpoints (corrected from "nine"); RFC-0.26-004's one-receiver invariant is narrower than its text | RFC-0.28-001 | CLOSED |
 | E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.28 | ACCEPTED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
-| E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | ACCEPTED |
+| E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

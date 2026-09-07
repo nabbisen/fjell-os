@@ -90,51 +90,88 @@ fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool 
     reply == WRITE_OK
 }
 
-/// Wait for storaged READY signal (blocking IpcRecv on endpoint slot 0).
-fn wait_storaged_ready(ep: usize) {
+// RFC-0.28-001: `wait_storaged_ready`/`wait_service_ready` used to receive
+// directly on each target service's own dedicated endpoint — the same
+// co-receiver hazard `wait_ready_exact` had (below), just not yet
+// triggered, because nothing besides `init`'s own wait ever sent to those
+// objects out of order. Reproduced live as a total boot hang by removing
+// just the storaged wait, before this fix (see
+// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §0.1). Both
+// functions are replaced by a single relay-receive: `init` now holds no
+// receive capability on any of storaged/measuredd/attestd/recoveryd's own
+// endpoints (narrowed to `CALL` — see `crates/fjell-kernel/src/main.rs`'s
+// init-CSpace bootstrap section); service-manager is the one receiver of
+// each, and relays each one's readiness to `init` on a dedicated object
+// nothing else ever touches.
+
+/// Block until `expected_tag` arrives on `init`'s relay-receive slot
+/// (`INIT_RELAY_RECV_SLOT`). Used for the single, specific dependency M6
+/// needs (storaged) before it can proceed.
+///
+/// RFC-0.28-001: this hand-rolled `IpcRecv` asm block (and the one in
+/// `wait_relay_all_m8_ready` below) originally omitted `a6` from the
+/// clobber list. `deliver()` (`crates/fjell-kernel/src/cap/syscall.rs`)
+/// unconditionally writes the kernel-attested sender identity into `a6`
+/// on every successful delivery, one-way sends included (RFC 055) — the
+/// established pattern (`fjell_syscall::sys_ipc_recv_msg`) already
+/// declares `lateout("a6") sender` for exactly this reason. Without it,
+/// the compiler is told `a6` survives the `ecall` unclobbered and may
+/// keep loop-carried state there; the kernel then silently overwrites it
+/// on every M8 relay delivery. Found live: `wait_relay_all_m8_ready`'s
+/// three-way `m`/`a`/`r` loop exited after only two relays landed
+/// (non-deterministically — timing-dependent on what the compiler chose
+/// to keep in `a6` across the loop), leaving `service-manager`'s third,
+/// already-queued relay send permanently undelivered and its sender
+/// permanently blocked, since `init` never issued the receive that would
+/// have drained and woken it. Confirmed by adding `lateout("a6") _` here.
+fn wait_relay_exact(expected_tag: usize) {
     loop {
         let tag: usize;
         // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
         unsafe {
-            // deliver() always writes a2=sender_badge (and a3..a5 for words).
-            // Declare them as clobbers so the compiler does not cache the READY
-            // constant in a2 across the ecall, which would corrupt the comparison.
             core::arch::asm!(
                 "li a7, 21", "ecall",
-                inlateout("a0") ep => _,
+                inlateout("a0") fjell_service_api::ready::INIT_RELAY_RECV_SLOT as usize => _,
                 lateout("a1") tag,
                 lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
-                lateout("a7") _,
+                lateout("a6") _, lateout("a7") _,
                 options(nostack),
             );
         }
-        if (tag & 0xFFFF) == storaged_proto::READY {
+        if (tag & 0xFFFF) == expected_tag {
             break;
         }
     }
 }
 
-/// Generic wait: blocks until any message with tag & 0xFFFF == READY arrives on `ep`.
-fn wait_service_ready(ep: usize) {
+/// Block until relay messages for all three M8 dependencies
+/// (measuredd/attestd/recoveryd) have each arrived at least once, in any
+/// order — the same order-tolerant matching `wait_service_ready` already
+/// had, preserved exactly: nothing about which of the three becomes ready
+/// first was ever guaranteed, and still isn't.
+fn wait_relay_all_m8_ready() {
     use fjell_service_api::attestd::READY as AREADY;
     use fjell_service_api::measuredd::READY as MREADY;
     use fjell_service_api::recoveryd::READY as RREADY;
-    loop {
+    let (mut m, mut a, mut r) = (false, false, false);
+    while !(m && a && r) {
         let tag: usize;
         // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
         unsafe {
             core::arch::asm!(
                 "li a7, 21", "ecall",
-                in("a0")        ep,
-                lateout("a1")   tag,
+                inlateout("a0") fjell_service_api::ready::INIT_RELAY_RECV_SLOT as usize => _,
+                lateout("a1") tag,
                 lateout("a2") _, lateout("a3") _, lateout("a4") _, lateout("a5") _,
-                lateout("a7") _,
+                lateout("a6") _, lateout("a7") _,
                 options(nostack),
             );
         }
-        let t = tag & 0xFFFF;
-        if t == MREADY || t == AREADY || t == RREADY {
-            break;
+        match tag & 0xFFFF {
+            t if t == MREADY => m = true,
+            t if t == AREADY => a = true,
+            t if t == RREADY => r = true,
+            _ => {}
         }
     }
 }
@@ -149,13 +186,6 @@ fn wait_service_ready(ep: usize) {
 // function, during the RFC-0.26-002 escalation this RFC's investigation
 // grew out of. See the M5 section below for what replaced it and why
 // nothing needed to replace the wait itself.
-//
-// `wait_service_ready`/`wait_storaged_ready` below have the same shape
-// (each target service also receives on its own dedicated endpoint) and
-// are NOT touched here — reworking RFC 058's readiness protocol for
-// services that are otherwise working today is this RFC's explicit
-// non-goal. Flagged for whoever eventually takes that on: this is the
-// same hazard, not yet observed to bite in practice.
 
 // ── RFC-v0.23-001 Slice 2(b): emit semantic nodes instead of rendering them ────
 //
@@ -485,7 +515,9 @@ pub extern "C" fn service_main() -> ! {
     // RFC 019: storaged is now a real IPC service owning virtio-blk.
     spawn(ImageId::DRIVER_VIRTIO_BLK, "");
     spawn(ImageId::STORAGED, "");
-    wait_storaged_ready(2); // slot 2 = storaged private endpoint
+    // RFC-0.28-001: relayed via service-manager, not received directly on
+    // storaged's own endpoint (slot 2) any more.
+    wait_relay_exact(storaged_proto::READY);
     sys_debug_writeln("M6: storaged ready");
     use fjell_cap::CapHandle;
     let storaged_ep = CapHandle::new(2, 0); // slot 2 = storaged private endpoint (ep id=1)
@@ -780,10 +812,12 @@ pub extern "C" fn service_main() -> ! {
     let attestd_ep = 4usize;
     let recoveryd_ep = 5usize;
 
-    // Wait for each M8 service to signal READY on its private endpoint.
-    wait_service_ready(measuredd_ep);
-    wait_service_ready(attestd_ep);
-    wait_service_ready(recoveryd_ep);
+    // RFC-0.28-001: relayed via service-manager, not received directly on
+    // each service's own private endpoint any more — this single call
+    // blocks until all three have reported, in whatever order they
+    // arrive (unchanged from before: nothing here ever depended on a
+    // specific order among the three).
+    wait_relay_all_m8_ready();
 
     // 1. Import boot evidence into measurement chain.
     {

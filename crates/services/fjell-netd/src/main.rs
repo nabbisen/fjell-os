@@ -39,22 +39,28 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //
 //   slot 0 — NetDevice capability (from cap-broker)
 //   slot 1 — Endpoint to driver (for query/control)
-//   slot 2 — Endpoint to service-manager (ready signal)
 //
+// RFC-0.28-001: the readiness signal no longer goes through a per-image
+// CSpace slot at all. It used to declare "slot 2 — Endpoint to
+// service-manager (ready signal)" here, but nothing in `spawn.rs` ever
+// installed a capability there — the send silently failed every time
+// (confirmed live: `sys_ipc_send` returned `InvalidCap`, discarded by the
+// raw `asm!` call, so nothing ever printed). Every service now gets an
+// unconditional, always-installed slot for this
+// (`fjell_service_api::ready::SERVICE_READY_SEND_SLOT`) instead of a
+// per-image declaration that has to be remembered to wire up.
 const CAP_NETDEV: CapHandle = CapHandle(0);
 const CAP_DRV_EP: CapHandle = CapHandle(1);
-const CAP_SMGR_EP: CapHandle = CapHandle(2);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
-const READY_TAG: usize = 0x0001;
-
-fn send_ready(ep: CapHandle) {
+fn send_ready() {
     // SAFETY: category=mmio-access virtio MMIO region is mapped and exclusive to this driver context.
     unsafe {
         core::arch::asm!(
             "li a7, 20", "ecall",
-            in("a0") ep.0 as usize, in("a1") READY_TAG,
+            in("a0") fjell_service_api::ready::SERVICE_READY_SEND_SLOT as usize,
+            in("a1") fjell_service_api::tags::SERVICE_READY,
             lateout("a0") _, lateout("a7") _, options(nostack)
         );
     }
@@ -135,7 +141,7 @@ pub extern "C" fn service_main() -> ! {
     let mut link_up = false;
 
     sys_debug_writeln("netd: session table initialised");
-    send_ready(CAP_SMGR_EP);
+    send_ready();
     sys_debug_writeln("netd ready");
     // Smoke test: exit cleanly so kernel can emit TEST:V0.4-NET:PASS.
     sys_exit(0);

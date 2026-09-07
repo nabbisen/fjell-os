@@ -244,17 +244,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   2026-07-30 — v1.0 is not in view); must be resolved before v1.0 preparation
   begins.
 
-- **`init` receives on four services' own endpoints, and RFC-0.26-004's
-  one-receiver invariant is narrower in the tree than in its text** (Errata
-  **E-024**, ACCEPTED). `storaged`, `measuredd`, `attestd` and `recoveryd` each
-  announce readiness into the same endpoint object they later receive protocol
-  traffic on; that announcement does not deadlock only because `init` still
-  holds receive rights on those four objects and reaches every wait in a fixed
-  boot sequence. `init`'s `wait_service_ready`/`wait_storaged_ready` also retain
-  the missing-`else` defect recorded as E-021 and closed only for the two
-  objects RFC-0.26-004 touched: a message with an unexpected tag is consumed and
-  discarded. Load-bearing as it stands; reworking RFC 058's readiness protocol
-  was a non-goal of both RFC-0.26-004 and RFC-0.27-002.
+- **`init` no longer receives on any service's own endpoint** (Errata
+  **E-024**, **CLOSED** by RFC-0.28-001). `storaged`, `measuredd`, `attestd`
+  and `recoveryd` used to announce readiness into the same endpoint object
+  they later receive protocol traffic on, rescued from self-deadlock only by
+  `init` also holding receive rights there and reaching each wait in a fixed
+  boot sequence — the same missing-`else`-shaped hazard as E-021, on four
+  more objects. RFC-0.28-001 gave service-manager its own dedicated
+  readiness endpoint (distinct from the "shared" object 0, which `auditd`
+  and `bootctl` independently default to and were found, live, to be racing
+  service-manager for the same messages), narrowed `init`'s capability on
+  all four remaining objects to `CALL` only, and replaced the direct
+  per-service waits with a relay through service-manager. The invariant "a
+  service's endpoint has exactly one receiver" now holds structurally, not
+  by convention, on every object it names.
 
 - **`trust-report`'s capability inventory depends on the developer's untracked
   working tree** (Errata **E-025**, ACCEPTED, scheduled 0.27). The cap-manifest
@@ -320,28 +323,29 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   this pair. A mismatch stops the workspace resolving, so it fails loudly rather
   than silently — it costs a cut's time, not correctness.
 
-- **RFC 058's readiness tracking has never completed** (Errata **E-031**,
-  ACCEPTED, tracked to **RFC-0.28-001**). `service-manager` emits
-  `NEG:SVC:READY_ACCEPTED:PASS` once 10 services report ready; at most 5 can,
-  because 9 of 14 images announce into their own endpoint instead. The marker
-  has never been emitted, and the svc profile expects 2 of the 4 specified SVC
-  markers — the absent pair being exactly the two that need a READY message to
-  arrive.
+- **RFC 058's readiness tracking now completes** (Errata **E-031**,
+  **CLOSED** by RFC-0.28-001). `service-manager` used to emit
+  `NEG:SVC:READY_ACCEPTED:PASS` only once 10 services reported ready — a
+  threshold re-derivation found unreachable by an even wider margin than
+  first thought (3 of 14 images could reliably reach service-manager under
+  the old topology, not "at most 5": its own receiving object was also
+  `auditd`'s and `bootctl`'s default, and live-verified to lose messages to
+  both). RFC-0.28-001 gave service-manager a dedicated, uncontested
+  endpoint and re-derived the threshold to **8** — the number of images
+  that actually send `tags::SERVICE_READY` today, confirmed live and
+  reproducible over repeated runs, not lowered to force the marker.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial
-  log fails the run). Seven categories have all markers confirmed
-  (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1);
-  one is partially confirmed (svc 2/4 — the READY pair cannot fire; **not a
-  startup-timing problem, as this document previously said, but topology**:
-  9 of 14 images announce readiness into their own endpoint rather than to
-  service-manager, so its `n_ready >= 10` threshold is unreachable. Errata
-  **E-024**/**E-031**, corrected 2026-09-06); the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC
-  words ABI and the reply-edge cancellation path. The `store` and
-  `upgrade` negative profiles exist as marker specifications but have **no
-  emitting scenarios yet** and are explicitly **not v1 release-gated**;
-  running them manually fails honestly rather than placeholder-passing.
+  log fails the run). All nine now have every specified marker confirmed
+  (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1,
+  **svc 4/4 — Errata E-024/E-031, closed by RFC-0.28-001**); the ipc profile
+  is restored to 3/3 in v0.20.0 after fixing the IPC words ABI and the
+  reply-edge cancellation path. The `store` and `upgrade` negative profiles
+  exist as marker specifications but have **no emitting scenarios yet** and
+  are explicitly **not v1 release-gated**; running them manually fails
+  honestly rather than placeholder-passing.
 
 - Several services in the QEMU image are **smoke-test stubs** that signal
   ready and exit by design (`fjell-netd`, `fjell-secure-transportd`,

@@ -763,6 +763,20 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // what happens when this allocation step is skipped.
     let uart_rx_ep_id = et.alloc().expect("alloc uart-rx endpoint");
     let _ = uart_rx_ep_id; // id=9
+    // RFC-0.28-001: service-manager's dedicated readiness endpoint, and the
+    // object it relays storaged/measuredd/attestd/recoveryd's readiness to
+    // `init` over. Referenced by `spawn.rs`'s `ep_obj` table and by every
+    // service's unconditional `SERVICE_READY_SEND_SLOT` install
+    // (`fjell_abi::service::SERVICE_MANAGER_EP_OBJECT`/`INIT_RELAY_EP_OBJECT`)
+    // — allocated here alongside their object IDs, not just referenced, for
+    // the same reason the cap-broker/sample-service/ABDD/uart-rx comments
+    // above already give: skip this step and every IPC to the object fails
+    // with `InvalidCap`. Confirmed live: this step was missing on first
+    // implementation and reproduced exactly that failure.
+    let service_manager_ep_id = et.alloc().expect("alloc service-manager readiness endpoint");
+    let _ = service_manager_ep_id; // id=10
+    let init_relay_ep_id = et.alloc().expect("alloc init-relay endpoint");
+    let _ = init_relay_ep_id; // id=11
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
@@ -1017,12 +1031,23 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 },
             );
             // Slot 2: storaged private endpoint (endpoint id=1).
+            //
+            // RFC-0.28-001 (closes E-024 for this object): rights narrowed
+            // from `ALL_NON_META` to `CALL` only, the same narrowing
+            // RFC-0.26-004 already applied to slot 6 (semantic-stream)
+            // below. `init`'s only remaining use of this capability is
+            // `storaged_write`'s blocking `ipc_call` — it no longer
+            // receives readiness here (see `INIT_RELAY_RECV_SLOT` below
+            // and `fjell-init/src/main.rs`'s M6 section). `storaged`'s own
+            // endpoint now has exactly one receiver — `storaged` itself —
+            // as a structural fact: even a future `sys_ipc_recv` added
+            // here would fail the rights check.
             let _ = cs.install_raw(
                 2,
                 Capability {
                     kind: CapKind::Endpoint,
                     object_id: 1,
-                    rights: CapRights::ALL_NON_META,
+                    rights: CapRights::CALL,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,
@@ -1030,14 +1055,15 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     lease: None,
                 },
             );
-            // Slots 3-5: M8 service private endpoints.
+            // Slots 3-5: M8 service private endpoints — narrowed to `CALL`
+            // for the same reason and by the same RFC as slot 2 above.
             let _ = cs.install_raw(
                 3,
                 Capability {
                     // measuredd (ep id=2)
                     kind: CapKind::Endpoint,
                     object_id: 2,
-                    rights: CapRights::ALL_NON_META,
+                    rights: CapRights::CALL,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,
@@ -1051,7 +1077,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     // attestd (ep id=3)
                     kind: CapKind::Endpoint,
                     object_id: 3,
-                    rights: CapRights::ALL_NON_META,
+                    rights: CapRights::CALL,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,
@@ -1065,7 +1091,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     // recoveryd (ep id=4)
                     kind: CapKind::Endpoint,
                     object_id: 4,
-                    rights: CapRights::ALL_NON_META,
+                    rights: CapRights::CALL,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,
@@ -1088,16 +1114,39 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // here would fail the rights check, not silently reintroduce
             // the hazard.
             //
-            // Slot 7 (proxy-text, ep id=8) is removed entirely rather than
+            // Slot 7 (proxy-text, ep id=8) was removed entirely rather than
             // narrowed: `init` never sent to proxy-text directly (only
-            // `wait_ready_exact` used it), so no residual capability is
-            // needed at all now that that call is gone.
+            // `wait_ready_exact` used it), so no residual capability was
+            // needed once that call was gone.
             let _ = cs.install_raw(
                 6,
                 Capability {
                     kind: CapKind::Endpoint,
                     object_id: 7,
                     rights: CapRights::CALL,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            // Slot 7 (RFC-0.28-001): reuses the slot vacated above.
+            // RECEIVE-only capability to `INIT_RELAY_EP_OBJECT` —
+            // service-manager relays storaged/measuredd/attestd/recoveryd's
+            // readiness here, one message per service, once each has sent
+            // `SERVICE_READY` to service-manager's own dedicated endpoint.
+            // Nothing else ever sends on this object, so `init`'s wait here
+            // can never collide with unrelated traffic (contrast object 0,
+            // which auditd and bootctl also default to and race
+            // service-manager for — see
+            // docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3).
+            let _ = cs.install_raw(
+                fjell_abi::service::INIT_RELAY_RECV_SLOT as usize,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: fjell_abi::service::INIT_RELAY_EP_OBJECT,
+                    rights: CapRights::RECV,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,

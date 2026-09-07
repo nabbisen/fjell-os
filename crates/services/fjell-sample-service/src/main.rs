@@ -28,8 +28,13 @@ const SLOT_LEASED_EP: u32 = 5; // blocked-recv test (BIND_LEASE_FOR_IPC_TEST)
 const SLOT_CALL_EP: u32 = 6; // blocked-call test (BIND_LEASE_AND_CALL_BACK)
 // Own endpoint slot (pre-installed; object 6 — dedicated, RFC 042).
 const SLOT_OWN_EP: u32 = 0;
-// Shared endpoint (object 0) — used only for the SERVICE_READY signal.
-const SLOT_SHARED_EP: u32 = 2;
+// RFC-0.28-001: the old dedicated "shared endpoint (object 0)" patch for
+// the SERVICE_READY signal is gone — every service now gets an
+// unconditional slot for this instead
+// (`fjell_service_api::ready::SERVICE_READY_SEND_SLOT`), routed to
+// service-manager's own dedicated object rather than the contested
+// shared object 0 (also defaulted-to by auditd and bootctl — see
+// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3).
 // semantic-stream endpoint cap (object 7), pre-installed by spawn.rs
 // (RFC-v0.23-001) so the SDK reference service can emit an intent node.
 const SEM_STREAM_EP: u32 = 3;
@@ -135,7 +140,10 @@ fn debug_err(e: fjell_abi::error::SysError) {
 pub extern "C" fn service_main() -> ! {
     // RFC 058: signal service-manager we are ready.
     // RFC 058: signal READY to service-manager (best-effort; no reply expected).
-    let _ = fjell_syscall::sys_ipc_send(SLOT_SHARED_EP, fjell_service_api::tags::SERVICE_READY);
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
     let ep: u32 = 0; // slot 0 = own endpoint (object 6, dedicated)
 
     // RFC-v0.23-001: emit a demonstration intent to semantic-stream. Done
