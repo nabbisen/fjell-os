@@ -386,9 +386,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.28-004 | [The wrapper crate worked around its own helpers instead of fixing them](./proposed/RFC-0.28-004-syscall-helper-contracts.md) — closes **E-033**; handoff: [`handoffs/`](./handoffs/RFC-0.28-004-syscall-helper-contracts/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 

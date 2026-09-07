@@ -1141,10 +1141,28 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   wrapper crate, not about auditing the wrapper crate's own correctness),
   and fixing a public wrapper's contract is a decision about that contract,
   not a mechanical swap — recorded here rather than resolved unilaterally.
-- **Resolution:** **ACCEPTED**, `unscheduled`. A follow-up line should
-  either fix `sys_ipc_recv`'s clobber list directly or migrate its five
-  call sites to `sys_ipc_recv_msg` and remove it — the same "delete rather
-  than annotate" choice E-032 already argued for, applied one level down.
+- **Widened 2026-09-08, while scoping RFC-0.28-004.** `ecall2` is worse than
+  "Bug A's shape": it declares `a2`/`a3` as **plain inputs** as well as omitting
+  `a4`–`a6`, so `sys_ipc_recv` carries **both** E-032 bug classes. And it is not
+  the only casualty. **`sys_cap_inspect` (`lib.rs:671-695`) issues its syscall
+  twice** — once through `ecall2`, then again in raw `asm!` to read the
+  `rights`/`badge` the helper could not return — **and never checks the second
+  call's status.** Since `schedule_next` runs after every trap (RFC-0.28-001),
+  another task runs between the two `ecall`s as a matter of course; a revocation
+  in that window leaves the function returning `Ok((kind, garbage, garbage))` to
+  a caller asking a security question. Live at `fjell-proxy-text:53`.
+- **Bounded scope, verified:** 27 call sites use `ecall2`; **exactly two** issue
+  a syscall the kernel writes past `a1` for. The other 25 are correct today.
+- **The shape of it.** Not two bugs — a helper layer whose contract is narrower
+  than the ABI it fronts, which the crate routed around twice instead of
+  widening. The comment at `lib.rs:674` is the tell: the author knew `ecall2`
+  was insufficient and reached for a second `ecall`.
+- **Why RFC-0.28-002 did not catch it:** `SYSCALL-CALLSITE-001` exempts
+  `fjell-syscall` entirely, so the one place the register contract must be right
+  is the one place nothing checks it.
+- **Resolution:** **ACCEPTED**, tracked **RFC-0.28-004**, which also decides
+  whether `sys_ipc_recv` should survive at all — removing it is an ABI removal
+  and escalates.
 
 ## E-034 — four `send` helpers take a payload word the kernel has never carried
 

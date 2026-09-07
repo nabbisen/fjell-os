@@ -352,7 +352,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   checked for correct clobbers. A related, narrower gap found during the
   same audit — `fjell-syscall::sys_ipc_recv` (not `sys_ipc_recv_msg`) has
   the same Bug A shape internally, live in five services — is tracked
-  separately as **E-033** (ACCEPTED, unscheduled): fixing a wrapper's own
+  separately as **E-033** (ACCEPTED, **tracked to RFC-0.28-004**; on scoping it
+  proved wider than Bug A, see the entry below): fixing a wrapper's own
   contract is a decision about that public contract, not the mechanical
   per-site swap this line made.
 
@@ -361,6 +362,11 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   a data word; none packs a word count into the tag, so the kernel copies zero
   words and the payload has never reached a receiver. Nothing reads these words
   today; the hazard is the next caller who trusts the signature.
+
+- **`fjell-syscall`'s generic `ecall2` helper has a contract narrower than the
+  ABI it fronts** (Errata **E-033**, ACCEPTED, tracked to **RFC-0.28-004**).
+  `sys_ipc_recv` loses the delivery's words and attested sender identity, and
+  `sys_cap_inspect` issues its syscall twice without checking the second call.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
