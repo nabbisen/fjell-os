@@ -1,6 +1,6 @@
 # RFC-0.28-002: Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-09-07; implementation may begin (RFC 000)
 **Milestone:** 0.28
 **Tracks.** **E-032**, widened: the defect is not twelve missing `a6`
 declarations but **35 hand-rolled syscall `asm!` blocks in services**, each

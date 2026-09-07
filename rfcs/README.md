@@ -363,7 +363,7 @@ already existed, made visible.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 3 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -376,6 +376,7 @@ nothing guarantees it stays that way — which is why it is still open.
 | RFC | Title |
 |-----|-------|
 | 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — accepted 2026-08-27; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.26-003-ipc-blocked-recv-rendezvous/implementation-handoff.md) |
+| 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./accepted/RFC-0.28-002-syscall-asm-consolidation.md) — accepted 2026-09-07; closes **E-032**; handoff: [`handoffs/`](./handoffs/RFC-0.28-002-syscall-asm-consolidation/implementation-handoff.md) |
 | 0.28-001 | [The readiness protocol is split in two, and its completion signal cannot fire](./accepted/RFC-0.28-001-readiness-topology.md) — accepted 2026-09-06; closes **E-024**; **E-031**; handoff: [`handoffs/`](./handoffs/RFC-0.28-001-readiness-topology/implementation-handoff.md) |
 
 
@@ -384,11 +385,9 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./proposed/RFC-0.28-002-syscall-asm-consolidation.md) — closes **E-032**; handoff: [`handoffs/`](./handoffs/RFC-0.28-002-syscall-asm-consolidation/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 1 RFC
 
