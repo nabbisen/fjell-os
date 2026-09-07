@@ -443,6 +443,15 @@ pub mod chunked {
     /// `fjell-syscall::sys_ipc_call_words` only exposes 3 data words;
     /// chunked transfer needs the full 4 the kernel's `build_msg` supports
     /// (`.min(4)` in `crates/fjell-kernel/src/cap/syscall.rs`).
+    ///
+    /// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted; see the
+    /// governing RFC's answer document): `a2`-`a5` are declared `inlateout`
+    /// because `sys_ipc_reply` copies all four of the replier's words into
+    /// this caller's frame unconditionally on completion, regardless of
+    /// this call's own word count — the same register-contract defect as
+    /// Bug B, on the call side. Previously declared plain `in`, which told
+    /// the compiler these registers kept their *input* values after the
+    /// call.
     fn ipc_call4(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) -> usize {
         let reply: usize;
         #[cfg(target_arch = "riscv64")]
@@ -452,7 +461,8 @@ pub mod chunked {
                 "li a7, 22", "ecall",
                 inlateout("a0") ep_slot as usize => _,
                 inlateout("a1") tag | (4usize << 16) => reply,
-                in("a2") w0, in("a3") w1, in("a4") w2, in("a5") w3,
+                inlateout("a2") w0 => _, inlateout("a3") w1 => _,
+                inlateout("a4") w2 => _, inlateout("a5") w3 => _,
                 lateout("a7") _,
                 options(nostack),
             );
