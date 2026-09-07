@@ -151,30 +151,23 @@ const SXT_UPDATE_METADATA_REPLY: u16 = 0x0103;
 #[allow(dead_code)] // v0.7: SXT channel fault state tracking
 const SXT_FAULTED: u16 = 0x010b;
 
+/// RFC-0.28-002 audit finding (documented, not fixed here — see
+/// `fjell-diagnosticsd::send_tag`'s identical note): `w0` never reaches the
+/// receiver — this call never packs a word count into the tag, so
+/// `build_msg` copies zero words regardless of what is in `a2`. Swap is
+/// bit-for-bit behaviour-preserving.
 fn send_sxt(tag: u16, w0: usize) {
-    // SAFETY: category=raw-pointer-deref slot pointer is valid within the BCB; access serialised by the upgrade-lock capability.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") CAP_SXT_EP.0 as usize, in("a1") tag as usize, in("a2") w0,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    let _ = w0;
+    let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
 }
 
 fn recv_sxt() -> (u16, usize) {
-    let (mut t, mut w0) = (0usize, 0usize);
-    // SAFETY: category=raw-pointer-deref slot pointer is valid within the BCB; access serialised by the upgrade-lock capability.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") CAP_SXT_EP.0 as usize,
-            lateout("a1") t, lateout("a2") w0,
-            lateout("a3") _, lateout("a4") _, lateout("a5") _, lateout("a7") _,
-            options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (`w1`-`w3`/sender discarded, not needed here).
+    match fjell_syscall::sys_ipc_recv_msg(CAP_SXT_EP.0) {
+        Ok((t, w0, _w1, _w2, _w3, _sender)) => ((t & 0xFFFF) as u16, w0),
+        Err(_) => (0, 0),
     }
-    ((t & 0xFFFF) as u16, w0)
 }
 
 /// Fetch the remote update index over a `secure-transportd` channel.
