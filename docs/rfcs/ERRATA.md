@@ -1076,9 +1076,75 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   audited and correct. That makes the root cause plainer than "a missing
   register": **thirty-five places are each independently responsible for knowing
   what the kernel writes.**
-- **Resolution:** **ACCEPTED** (architect, 2026-09-07), tracked
-  **RFC-0.28-002**, which deletes the blocks rather than annotating them and
-  adds a Gate 11-family guard so a thirty-sixth cannot appear.
+- **Correction to the counts, and to "eleven services" (RFC-0.28-002,
+  2026-09-07).** Re-derived rather than trusted:
+
+  | | Widening claimed | Actual |
+  |---|---|---|
+  | Raw syscall `asm!` blocks in `crates/` | 37 | **41** |
+  | …in `fjell-syscall` | 2 | **6** — four set `a7` via a register (`in("a7") nr`) rather than the literal `"li a7, N"` the earlier count searched for |
+  | …hand-rolled elsewhere | 35 | 35 (same total) |
+  | Crates containing the 35 | 11 named | **14** — `fjell-init` (3), `fjell-service-api` (1), and `fjell-driver-virtio-net` (1) also had hand-rolled blocks, exactly the "sibling the audit turns up" RFC-0.28-002's own scope text anticipated |
+  | Distinct syscalls issued by the 35 | 13, 20, 21, 22, 23 | **20, 21, 22, 23 only** — 13 (`CapInspect`) appears solely inside `fjell-syscall`'s own wrapper, never in a service |
+
+  **A third register-contract bug, found auditing the two originally
+  claimed:** `IpcCall`'s reply path (`sys_ipc_reply` copies the replier's
+  `a2`-`a5` into the caller's frame unconditionally on completion) has the
+  same shape as Bug B, on the call side. Three sites needed it
+  (`fjell-init::ipc_call`, `fjell-service-api::chunked::ipc_call4`,
+  `fjell-proxy-text::ipc_call_action` — the last already documented a live
+  incident from exactly this bug, in its own `a2`, fixed there but not in
+  `a3`-`a5`). Fixed in all three as part of RFC-0.28-002's per-site pass,
+  since these three sites are kept (no wrapper covers 4-word `IpcCall`),
+  not deleted.
+- **Resolution:** **CLOSED** by **RFC-0.28-002**, which deleted 28 of the 35
+  hand-rolled blocks (calling the audited `fjell-syscall` wrapper instead)
+  and fixed the register contract of the 7 kept — three 4-word `IpcCall`
+  sites and four worded `IpcReply` sites, neither shape covered by an
+  existing wrapper. Closed structurally, not case-by-case: `SYSCALL-
+  CALLSITE-001` (Gate 11's fourth check) refuses any raw syscall-issuing
+  `asm!` block outside `fjell-syscall` unless it is on an explicit,
+  guard-owned allowlist naming exactly those 7 sites, and an allowlisted
+  site must still declare every register the kernel writes as a correct
+  clobber — a 36th block, or a weakened one of the 7, requires editing the
+  guard's own source, not adding a comment next to new code.
+
+## E-033 — `fjell-syscall::sys_ipc_recv` has Bug A's shape, live, in five services
+
+- **Claim:** a syscall wrapper in `fjell-syscall` declares every register
+  the kernel writes for that syscall, so no caller can be exposed to E-032's
+  Bug A (an undeclared clobber silently corrupting compiler-assumed-live
+  state).
+- **Tree:** `sys_ipc_recv(ep) -> Result<usize, SysError>`
+  (`crates/fjell-syscall/src/lib.rs`) is implemented via the generic
+  `ecall2(nr, a0, a1, a2, a3)` helper, passing `0, 0` for `a2`/`a3` as
+  though they were real inputs. For `IpcRecv` they are not inputs at all —
+  the kernel writes `w0`/`w1` into them on delivery — and `ecall2` never
+  mentions `a4`, `a5`, or `a6` in its asm operand list, so none of `w2`,
+  `w3`, or the RFC-055 sender identity are declared as clobbered, despite
+  the kernel writing all three on every successful delivery
+  (`crates/fjell-kernel/src/cap/syscall.rs`'s `deliver()`). This is the
+  *distinct* wrapper from `sys_ipc_recv_msg`, which declares all of these
+  correctly and is what E-032's fix routes every service through instead.
+- **Who is exposed:** `sys_ipc_recv` is called live today by `fjell-auditd`,
+  `fjell-bootctl`, `fjell-configd`, and three sites across
+  `fjell-neg-test`/`fjell-sample-service` — not a theoretical risk; the
+  exact shape of bug that produced RFC-0.28-001's permanent hang, inside
+  code this project calls a "wrapper" and therefore trusts without the
+  per-site audit E-032's services just received.
+- **How it surfaced:** RFC-0.28-002's own per-site audit of `fjell-syscall`,
+  done to confirm the wrapper being routed to was actually correct rather
+  than assumed so — one verified `IpcRecv` shape (`sys_ipc_recv_msg`) and
+  one read of `ecall2`'s signature surfaced the gap in the other.
+- **Not fixed here.** `fjell-syscall` is RFC-0.28-002's own explicit
+  non-goal (D1/D2 are about *service*-side blocks calling *into* the
+  wrapper crate, not about auditing the wrapper crate's own correctness),
+  and fixing a public wrapper's contract is a decision about that contract,
+  not a mechanical swap — recorded here rather than resolved unilaterally.
+- **Resolution:** **ACCEPTED**, `unscheduled`. A follow-up line should
+  either fix `sys_ipc_recv`'s clobber list directly or migrate its five
+  call sites to `sys_ipc_recv_msg` and remove it — the same "delete rather
+  than annotate" choice E-032 already argued for, applied one level down.
 
 ## Summary
 
@@ -1115,7 +1181,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
-| E-032 35 hand-rolled syscall `asm!` blocks in services carry two register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18) | RFC-0.28-002 | ACCEPTED |
+| E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
+| E-033 `fjell-syscall::sys_ipc_recv` (distinct from `sys_ipc_recv_msg`) has E-032's Bug A shape, live in five services | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

@@ -335,16 +335,26 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   that actually send `tags::SERVICE_READY` today, confirmed live and
   reproducible over repeated runs, not lowered to force the marker.
 
-- **35 hand-rolled syscall `asm!` blocks in services carry two register-contract
-  bugs** (Errata **E-032**, ACCEPTED, tracked to **RFC-0.28-002**). Twelve omit
-  the `a6` clobber; eighteen declare `a0` as a plain input where the kernel
-  writes status. Every syscall they issue already has an audited wrapper in
-  `fjell-syscall`. The kernel writes the attested sender identity into `a6`
-  on every IPC delivery; a block that does not declare it lets the compiler keep
-  a live value there across the `ecall`. RFC-0.28-001 hit this in two blocks it
-  wrote — a non-deterministic permanent hang that debug prints made disappear —
-  and fixed those two. The other twelve are the same latent defect, unfired
-  because it depends on what the compiler happens to allocate.
+- **35 hand-rolled syscall `asm!` blocks across 14 crates carried three
+  register-contract bugs** (Errata **E-032**, **CLOSED** by **RFC-0.28-002**).
+  Twelve omitted the `a6` clobber (`IpcRecv`); eighteen declared `a0` as a
+  plain input where the kernel writes status (`IpcRecv`/`IpcReply`); three
+  `IpcCall` sites didn't declare the reply-word registers `sys_ipc_reply`
+  overwrites unconditionally on completion. RFC-0.28-001 hit the first bug
+  in two blocks it wrote — a non-deterministic permanent hang that debug
+  prints made disappear — and fixed those two; RFC-0.28-002 deleted the
+  other 28 hand-rolled blocks (every syscall they issued already had an
+  audited wrapper) and fixed the register contract of the 7 kept, where no
+  existing wrapper covers the shape needed (4-word `IpcCall`, worded
+  `IpcReply`). Closed structurally: Gate 11's `SYSCALL-CALLSITE-001` refuses
+  any raw syscall-issuing block outside `fjell-syscall` unless it is on an
+  explicit, guard-owned allowlist naming exactly those 7 sites, each still
+  checked for correct clobbers. A related, narrower gap found during the
+  same audit — `fjell-syscall::sys_ipc_recv` (not `sys_ipc_recv_msg`) has
+  the same Bug A shape internally, live in five services — is tracked
+  separately as **E-033** (ACCEPTED, unscheduled): fixing a wrapper's own
+  contract is a decision about that public contract, not the mechanical
+  per-site swap this line made.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
