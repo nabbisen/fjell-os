@@ -55,29 +55,23 @@ const CAP_ATTEST_EP: CapHandle = CapHandle(4);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
+/// RFC-0.28-002 audit finding (documented, not fixed here — see
+/// `fjell-diagnosticsd::send_tag`'s identical note): `w0` never reaches the
+/// receiver — this call never packs a word count into the tag, so
+/// `build_msg` copies zero words regardless of what is in `a2`. Swap is
+/// bit-for-bit behaviour-preserving.
 fn send_tag(ep: CapHandle, tag: u16, w0: usize) {
-    // SAFETY: category=mmio-access virtio MMIO region is mapped and exclusive to this driver context.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") ep.0 as usize, in("a1") tag as usize, in("a2") w0,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    let _ = w0;
+    let _ = fjell_syscall::sys_ipc_send(ep.0, tag as usize);
 }
 
 fn recv_msg(ep: CapHandle) -> (u16, usize, usize) {
-    let (mut t, mut w0, mut w1) = (0usize, 0usize, 0usize);
-    // SAFETY: category=mmio-access virtio MMIO region is mapped and exclusive to this driver context.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 21", "ecall",
-            in("a0") ep.0 as usize,
-            lateout("a1") t, lateout("a2") w0, lateout("a3") w1,
-            lateout("a4") _, lateout("a5") _, lateout("a7") _, options(nostack)
-        );
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
+    match fjell_syscall::sys_ipc_recv_msg(ep.0) {
+        Ok((t, w0, w1, _w2, _w3, _sender)) => ((t & 0xFFFF) as u16, w0, w1),
+        Err(_) => (0, 0, 0),
     }
-    ((t & 0xFFFF) as u16, w0, w1)
 }
 
 // ── TLS handshake (RFC-v0.7.3-001) ───────────────────────────────────────────
