@@ -59,14 +59,9 @@ const CAP_SMGR_EP: CapHandle = CapHandle(5);
 // ── IPC helpers ─────────────────────────────────────────────────────────────
 
 fn ipc_send_tag(ep: CapHandle, tag: u16) {
-    // SAFETY: category=csr-asm DMA buffer is pinned and exclusively owned by the descriptor ring entry.
-    unsafe {
-        core::arch::asm!(
-            "li a7, 20", "ecall",
-            in("a0") ep.0 as usize, in("a1") tag as usize,
-            lateout("a0") _, lateout("a7") _, options(nostack)
-        );
-    }
+    // RFC-0.28-002: was a hand-rolled `IpcSend` asm block; `fjell_syscall`'s
+    // wrapper is a correct, audited superset of this shape.
+    let _ = fjell_syscall::sys_ipc_send(ep.0 as u32, tag as usize);
 }
 
 // ── Driver entry ─────────────────────────────────────────────────────────────
