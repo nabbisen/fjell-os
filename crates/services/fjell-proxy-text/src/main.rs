@@ -26,18 +26,21 @@ const ENV_SIZE: usize = core::mem::size_of::<SemanticEnvelope>();
 const ENV_BUF_SIZE: usize = ENV_SIZE.div_ceil(32) * 32;
 
 fn recv_call() -> (usize, usize, usize, usize, usize) {
-    let (mut t, mut w0, mut w1, mut w2, mut w3) = (0usize, 0usize, 0usize, 0usize, 0usize);
-    // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
-    unsafe {
-        core::arch::asm!("li a7, 21","ecall", in("a0") EP_SLOT as usize, lateout("a1") t, lateout("a2") w0, lateout("a3") w1, lateout("a4") w2, lateout("a5") w3, lateout("a7") _, options(nostack));
+    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
+    // is a correct superset (also returns the sender identity, unused here).
+    match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
+        Ok((t, w0, w1, w2, w3, _sender)) => (t, w0, w1, w2, w3),
+        Err(_) => (0, 0, 0, 0, 0),
     }
-    (t, w0, w1, w2, w3)
 }
 
+/// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted): see
+/// `fjell-measuredd::reply`'s identical note — 3-word `IpcReply` has no
+/// `fjell-syscall` wrapper.
 fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
     // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
     unsafe {
-        core::arch::asm!("li a7, 23","ecall", in("a0") 0usize, in("a1") tag, in("a2") w0, in("a3") w1, in("a4") w2, lateout("a7") _, options(nostack));
+        core::arch::asm!("li a7, 23","ecall", inlateout("a0") 0usize => _, in("a1") tag, in("a2") w0, in("a3") w1, in("a4") w2, lateout("a7") _, options(nostack));
     }
 }
 
@@ -73,6 +76,13 @@ fn dispatch_action(correlation_id: u64, action_id: ActionId) {
 /// Single (non-chunked) 4-word blocking IPC call — used for DISPATCH_ACTION,
 /// which fits entirely in one message (correlation_id, action_id,
 /// granted_rights).
+///
+/// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted): 4-word
+/// `IpcCall` has no `fjell-syscall` wrapper (`sys_ipc_call_words` covers
+/// only 3) — see the governing RFC's answer document. `a3`/`a4`/`a5` are
+/// now declared `inlateout` alongside `a2`: this file's own history already
+/// records the `a2` half of this exact bug (see the comment below), and the
+/// same defect was live, unfixed, in the other three reply-word registers.
 fn ipc_call_action(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize) -> usize {
     let reply_tag: usize;
     let result_word: usize;
@@ -91,7 +101,7 @@ fn ipc_call_action(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize) ->
             inlateout("a0") ep_slot as usize => _,
             inlateout("a1") tag | (4usize << 16) => reply_tag,
             inlateout("a2") w0 => result_word,
-            in("a3") w1, in("a4") w2, in("a5") 0usize,
+            inlateout("a3") w1 => _, inlateout("a4") w2 => _, inlateout("a5") 0usize => _,
             lateout("a7") _,
             options(nostack),
         );
