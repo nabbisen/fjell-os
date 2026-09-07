@@ -385,9 +385,11 @@ nothing guarantees it stays that way — which is why it is still open.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.28-003 | [The blocked-recv rendezvous exists — the test just cannot name the task](./proposed/RFC-0.28-003-blocked-recv-rendezvous.md) — supersedes **0.26-003**; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.28-003-blocked-recv-rendezvous/implementation-handoff.md) |
 
 ## Archive (archive/) — 1 RFC
 
