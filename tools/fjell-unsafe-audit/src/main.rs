@@ -11,6 +11,7 @@ use std::{
     env, fs, io,
     path::{Path, PathBuf},
     process,
+    process::Command,
 };
 
 /// Known unsafe site categories (RFC-v0.7.5-001 / W-H-05).
@@ -268,24 +269,52 @@ fn extract_category(safety_text: &str) -> UnsafeCategory {
     UnsafeCategory::Missing
 }
 
-// ── Directory walk ────────────────────────────────────────────────────────────
+// ── Scope discovery (RFC-0.28-005 D1) ──────────────────────────────────────────
 
-fn walk(dir: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_dir() {
-            // Skip target/, .git/, node_modules/.
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
-            if matches!(name, "target" | ".git" | "node_modules") {
-                continue;
-            }
-            walk(&path, records)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            scan_file(&path, records)?;
-        }
+/// This tool audits code, committed or not — uncommitted work is exactly
+/// when an unsafe-site audit should speak up (RFC-0.28-005 §6), so the
+/// walk cannot be "tracked files only." But the boundary still must not be
+/// a hand-maintained name list (E-015's family; that was E-025): a scratch
+/// checkout under `.git-exclude/tmp/` doubled this tool's own count before
+/// this fix, because `.git-exclude` was not one of the three literal names
+/// the old walk skipped.
+///
+/// The derived answer: everything git considers part of this working
+/// copy — tracked files, plus untracked files `.gitignore` does not
+/// exclude (`git ls-files --cached --others --exclude-standard`). A new,
+/// uncommitted `.rs` file is still audited; a scratch checkout under
+/// `.git-exclude/` (ignored via `.gitignore`'s `/.git-exclude/` entry) or
+/// `target/` (ignored via the same file) is not — with zero enumerated
+/// name anywhere in this tool.
+fn discover_rs_files(root: &Path) -> io::Result<Vec<PathBuf>> {
+    let root_str = root.to_string_lossy().into_owned();
+    let out = Command::new("git")
+        .args([
+            "-C",
+            &root_str,
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
+        .output()?;
+    if !out.status.success() {
+        return Err(io::Error::other(format!(
+            "git ls-files failed under {} (not a git repository?): {}",
+            root.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
     }
-    Ok(())
+    let mut files: Vec<PathBuf> = out
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|rel| root.join(String::from_utf8_lossy(rel).as_ref()))
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("rs"))
+        .collect();
+    files.sort();
+    Ok(files)
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -312,10 +341,19 @@ fn main() {
         i += 1;
     }
 
+    let files = match discover_rs_files(&root) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("fjell-unsafe-audit: {e}");
+            process::exit(2);
+        }
+    };
     let mut records = Vec::new();
-    if let Err(e) = walk(&root, &mut records) {
-        eprintln!("fjell-unsafe-audit: walk error: {e}");
-        process::exit(2);
+    for f in &files {
+        if let Err(e) = scan_file(f, &mut records) {
+            eprintln!("fjell-unsafe-audit: scan error on {}: {e}", f.display());
+            process::exit(2);
+        }
     }
 
     let total = records.len();

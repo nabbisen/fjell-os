@@ -38,6 +38,7 @@ use std::process::ExitCode;
 
 const README_PATH: &str = "README.md";
 const CARGO_TOML_PATH: &str = "Cargo.toml";
+const FJELL_OS_CARGO_TOML_PATH: &str = "crates/fjell-os/Cargo.toml";
 
 pub fn check() -> ExitCode {
     let Some(readme_src) = read_file(README_PATH) else {
@@ -50,22 +51,71 @@ pub fn check() -> ExitCode {
         eprintln!("consistency-check: cannot find workspace version in {CARGO_TOML_PATH}");
         return ExitCode::FAILURE;
     };
-    run_check(&readme_src, &current)
+    let Some(fjell_os_src) = read_file(FJELL_OS_CARGO_TOML_PATH) else {
+        return ExitCode::FAILURE;
+    };
+    let Some(pin) = parse_fjell_abi_pin(&fjell_os_src) else {
+        eprintln!(
+            "consistency-check: cannot find fjell-abi version pin in {FJELL_OS_CARGO_TOML_PATH}"
+        );
+        return ExitCode::FAILURE;
+    };
+    run_check(&readme_src, &current, &pin)
 }
 
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
-pub fn run_check(readme_src: &str, current: &str) -> ExitCode {
+///
+/// RFC-0.28-005 R2 (E-030): `fjell_abi_pin` is
+/// `crates/fjell-os/Cargo.toml`'s `fjell-abi = { path = "...", version =
+/// "..." }` pin — a publishability requirement Cargo cannot inherit from
+/// `[workspace.package] version` automatically, so it is hand-maintained
+/// and can drift from it. **This check is fail-closed already**: when the
+/// two disagree, `cargo metadata` cannot resolve the workspace, so every
+/// gate, tier, and build fails with it regardless of this check. Catching
+/// it here buys the time of discovering that the hard way at a release
+/// cut — it does not add correctness a passing run didn't already have.
+pub fn run_check(readme_src: &str, current: &str, fjell_abi_pin: &str) -> ExitCode {
     let stale = find_stale_versions(readme_src, current);
-    if stale.is_empty() {
-        println!("version-currency: PASS ({README_PATH} matches workspace version {current})");
+    let pin_agrees = fjell_abi_pin == current;
+    if stale.is_empty() && pin_agrees {
+        println!(
+            "version-currency: PASS ({README_PATH} matches workspace version {current}; \
+             {FJELL_OS_CARGO_TOML_PATH}'s fjell-abi pin {fjell_abi_pin} agrees)"
+        );
         ExitCode::SUCCESS
     } else {
         eprintln!("version-currency: FAIL");
         for v in &stale {
             eprintln!("  {README_PATH} mentions {v}, but the workspace version is {current}");
         }
+        if !pin_agrees {
+            eprintln!(
+                "  {FJELL_OS_CARGO_TOML_PATH}'s fjell-abi version pin is {fjell_abi_pin}, but \
+                 the workspace version is {current} -- this is fail-closed already (a mismatch \
+                 stops `cargo metadata` from resolving, so every gate, tier, and build fails \
+                 with it too); this check only saves the time of discovering that the hard way"
+            );
+        }
         ExitCode::FAILURE
     }
+}
+
+/// Read `fjell-abi = { path = "...", version = "X.Y.Z" }` from
+/// `crates/fjell-os/Cargo.toml`'s `[dependencies]` section.
+fn parse_fjell_abi_pin(src: &str) -> Option<String> {
+    for line in src.lines() {
+        let trimmed = line.trim();
+        if !trimmed.starts_with("fjell-abi") {
+            continue;
+        }
+        let pos = trimmed.find("version")?;
+        let rest = trimmed[pos + "version".len()..].trim_start();
+        let rest = rest.strip_prefix('=')?.trim_start();
+        let rest = rest.strip_prefix('"')?;
+        let end = rest.find('"')?;
+        return Some(rest[..end].to_string());
+    }
+    None
 }
 
 /// Every `X.Y.Z` (optionally `v`-prefixed) token in `src` that is not
@@ -176,7 +226,7 @@ mod tests {
     fn current_version_only_passes() {
         let readme =
             "[![Version](https://img.shields.io/badge/version-0.26.0-blue.svg)](CHANGELOG.md)\n";
-        assert_eq!(run_check(readme, "0.26.0"), ExitCode::SUCCESS);
+        assert_eq!(run_check(readme, "0.26.0", "0.26.0"), ExitCode::SUCCESS);
     }
 
     /// Required failure demonstration: the recorded incident — README stuck
@@ -185,7 +235,7 @@ mod tests {
     fn stale_version_badge_fails() {
         let readme =
             "[![Version](https://img.shields.io/badge/version-0.21.3-blue.svg)](CHANGELOG.md)\n";
-        assert_eq!(run_check(readme, "0.26.0"), ExitCode::FAILURE);
+        assert_eq!(run_check(readme, "0.26.0", "0.26.0"), ExitCode::FAILURE);
     }
 
     #[test]
@@ -193,19 +243,43 @@ mod tests {
         // "0.21.3" is a substring of "RFC-v0.21.3-001" but is not itself a
         // version claim — must not be flagged.
         let readme = "See RFC-v0.21.3-001 for the build restoration record.\n";
-        assert_eq!(run_check(readme, "0.26.0"), ExitCode::SUCCESS);
+        assert_eq!(run_check(readme, "0.26.0", "0.26.0"), ExitCode::SUCCESS);
     }
 
     #[test]
     fn plain_v_prefixed_stale_version_is_caught() {
         let readme = "Current release: v0.21.3.\n";
-        assert_eq!(run_check(readme, "0.26.0"), ExitCode::FAILURE);
+        assert_eq!(run_check(readme, "0.26.0", "0.26.0"), ExitCode::FAILURE);
     }
 
     #[test]
     fn two_component_version_is_not_a_semver_claim() {
         // "0.27" (a milestone, not a full version) must not be flagged.
         let readme = "Targeting 0.27 next.\n";
-        assert_eq!(run_check(readme, "0.26.0"), ExitCode::SUCCESS);
+        assert_eq!(run_check(readme, "0.26.0", "0.26.0"), ExitCode::SUCCESS);
+    }
+
+    /// RFC-0.28-005 R2 (E-030) required failure demonstration: the recorded
+    /// incident — the 0.27.0 cut bumped `[workspace.package]` without
+    /// updating `fjell-os`'s `fjell-abi` pin, and the first command of the
+    /// cycle failed because the workspace could not resolve.
+    #[test]
+    fn mismatched_fjell_abi_pin_fails() {
+        let readme =
+            "[![Version](https://img.shields.io/badge/version-0.27.0-blue.svg)](CHANGELOG.md)\n";
+        assert_eq!(run_check(readme, "0.27.0", "0.26.0"), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn agreeing_fjell_abi_pin_passes() {
+        let readme =
+            "[![Version](https://img.shields.io/badge/version-0.27.0-blue.svg)](CHANGELOG.md)\n";
+        assert_eq!(run_check(readme, "0.27.0", "0.27.0"), ExitCode::SUCCESS);
+    }
+
+    #[test]
+    fn parses_fjell_abi_pin() {
+        let src = "[dependencies]\nfjell-abi = { path = \"../fjell-abi\", version = \"0.27.0\" }\n";
+        assert_eq!(parse_fjell_abi_pin(src), Some("0.27.0".to_string()));
     }
 }

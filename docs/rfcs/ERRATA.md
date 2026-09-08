@@ -798,9 +798,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that drifts from reality, the same family as **E-015**; adding `.git-exclude`
   to it fixes today's instance and leaves the family intact. The scan should be
   bounded by what git tracks.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-28), ~~scheduled **0.27**~~ → **rescheduled 0.28** (architect, 2026-09-05).
-- **Slipped, and recorded rather than quietly re-dated.** It was scheduled for
-  0.27 and 0.27 shipped without it. `errata-tracking` — RFC-0.27-001's own
+- **Resolution:** **CLOSED** by RFC-0.28-005. ~~ACCEPTED (architect, 2026-08-28), scheduled **0.27**~~ → rescheduled 0.28 (architect, 2026-09-05) → fixed.
+- **Slipped once, and recorded rather than quietly re-dated.** It was scheduled
+  for 0.27 and 0.27 shipped without it. `errata-tracking` — RFC-0.27-001's own
   subcheck — refused the cut: *"tracking names milestone 0.27, which has
   already shipped, but status is ACCEPTED (not CLOSED)"*. That is the
   subcheck doing precisely what it was built for, against the architect who
@@ -808,9 +808,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   extending an instrument carries RFC-v0.22-001's demonstration requirement
   and a release cut is the wrong place for it — the same reasoning applied to
   **E-030** in the same cut.
-  Small, but it is an instrument whose output depends on untracked state, so the
-  fix carries RFC-v0.22-001's demonstration requirement: show the inventory
-  wrong with a scratch checkout present, then right with the fix in place.
+- **Fixed, per §6 of RFC-0.28-005's answer document:** both walkers now derive
+  their scope from `git` instead of an enumerated skip list. `fjell-unsafe-audit`
+  (which must still see a developer's uncommitted work) uses
+  `git ls-files --cached --others --exclude-standard`; `trust_report`'s
+  cap-manifest scan (which reports on the repository as shipped) uses
+  `git ls-files` alone, tracked-only. Neither hand-lists `.git-exclude` or
+  any other scratch-directory name — a scratch checkout is excluded because
+  `.gitignore` already says so.
+- **Demonstrated against a live checkout (2026-09-08), not the original
+  numbers.** The cited `622/622` → `311/311` had already drifted: the
+  unmodified tool, re-run on today's clean tree, reports `284/284` (most
+  plausibly RFC-0.28-002's syscall-asm consolidation reduced real unsafe
+  sites since 2026-08-28) — an unrelated finding, checked and reported
+  rather than carried forward silently. Against a fresh `git clone --depth
+  1` checkout under `.git-exclude/tmp/`: cap-manifest count **2 → 1**,
+  unsafe inventory **568/568 → 284/284**. Against the clean tree with the
+  checkout removed: **284/284 before and after** — the required invariant
+  that the fix does not exclude anything real.
 
 ## E-026 — no QEMU evidence this project cites has ever been committed with the document citing it
 
@@ -996,17 +1011,29 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   rather than silently fixed because *the cut caught it by breaking* — which is
   luck, not a check, and is the same discovery process RFC-0.24-001 was written
   to replace.
-- **Why it is ACCEPTED and not fixed here:** extending `version-currency` is an
-  instrument change and carries RFC-v0.22-001's demonstration requirement —
-  show it failing on a deliberately mismatched pair before trusting it. That
-  does not belong inside a release cut. The procedure step is written down now
-  (`docs/src/release/v0-release-cycle.md`, "Before criterion 1"), which is the
-  same interim treatment the repro-baseline step got at 0.24.0 before anything
+- **Why it was ACCEPTED rather than fixed at the cut:** extending
+  `version-currency` is an instrument change and carries RFC-v0.22-001's
+  demonstration requirement — show it failing on a deliberately mismatched
+  pair before trusting it. That did not belong inside a release cut. The
+  procedure step was written down at the time
+  (`docs/src/release/v0-release-cycle.md`, "Before criterion 1"), the same
+  interim treatment the repro-baseline step got at 0.24.0 before anything
   enforced it.
 - **Fail-closed, at least.** This defect cannot produce a silent wrong result:
-  a mismatch stops the workspace resolving. It costs time, not correctness —
-  which is why it is `0.28` rather than urgent.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-05), tracked **0.28**.
+  a mismatch stops the workspace resolving. It cost time, not correctness —
+  which is why it was `0.28` rather than urgent.
+- **Fixed by RFC-0.28-005 R2.** `version-currency` now also parses
+  `crates/fjell-os/Cargo.toml`'s `fjell-abi` version pin and compares it
+  against `[workspace.package] version`, demonstrated failing on the real
+  CLI against the exact mismatch the 0.27.0 cut hit (`0.26.0` pin vs.
+  `0.27.0` workspace version — necessarily run via the already-built binary
+  directly, since the mismatch itself stops `cargo run` from resolving the
+  workspace to reach the check at all). The check's own failure message
+  states the fail-closed caveat: catching this here buys the time of a
+  named failure instead of a `cargo metadata` stack trace at a cut — it
+  does not add correctness a passing run didn't already have.
+- **Resolution:** **CLOSED** by RFC-0.28-005. ~~ACCEPTED (architect,
+  2026-09-05), tracked 0.28~~ → fixed.
 
 ## E-031 — RFC 058's readiness tracking has never completed, and the test was narrowed to match
 
@@ -1342,12 +1369,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 | E-024 `init` co-receives on four services' own endpoints (corrected from "nine"); RFC-0.26-004's one-receiver invariant is narrower than its text | RFC-0.28-001 | CLOSED |
-| E-025 `trust-report` and `unsafe-audit` walk untracked scratch trees; three tools carry three disagreeing exclusion lists | RFC-0.28-005 | ACCEPTED |
+| E-025 `trust-report` and `unsafe-audit` walk untracked scratch trees; three tools carry three disagreeing exclusion lists | RFC-0.28-005 | CLOSED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | RFC-0.28-005 | ACCEPTED |
-| E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | RFC-0.28-005 | ACCEPTED |
+| E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | RFC-0.28-005 | CLOSED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |

@@ -265,15 +265,25 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   service's endpoint has exactly one receiver" now holds structurally, not
   by convention, on every object it names.
 
-- **Two tools walk untracked scratch trees, with disagreeing exclusion lists**
-  (Errata **E-025**, ACCEPTED, tracked to **RFC-0.28-005**). `trust-report`'s
-  cap-manifest scan and `fjell-unsafe-audit`'s walk each hand-maintain a
-  different set of skipped directories, and neither excludes `.git-exclude/`
-  — the directory this project's own conventions use for scratch work. A
-  checkout there takes the cap-manifest count from 1 to 2 and **doubles the
-  reported unsafe-site inventory, 311/311 to 622/622**, both readings
-  internally consistent. A third tool has a third list, and it is the only
-  correct one.
+- **Two tools walked untracked scratch trees, with disagreeing exclusion
+  lists** (Errata **E-025**, **CLOSED** by RFC-0.28-005). `trust-report`'s
+  cap-manifest scan and `fjell-unsafe-audit`'s walk each hand-maintained a
+  different set of skipped directories, and neither excluded
+  `.git-exclude/` — the directory this project's own conventions use for
+  scratch work. A checkout there took the cap-manifest count from 1 to 2
+  and doubled the reported unsafe-site inventory (demonstrated live against
+  a fresh clean-clone checkout: 284/284 to 568/568 — the RFC's own cited
+  311/622 had already gone stale relative to `HEAD` by the time this was
+  fixed, an unrelated drift checked and reported rather than assumed). Both
+  readings were internally consistent, so nothing in the output said which
+  repository it described. Fixed by deriving each tool's scope from `git`
+  itself rather than an enumerated name list: `fjell-unsafe-audit` (which
+  must still see a developer's uncommitted work) now uses
+  `git ls-files --cached --others --exclude-standard`; `trust-report`'s
+  cap-manifest scan (which reports on the repository as shipped) now uses
+  `git ls-files` alone. Neither hand-lists `.git-exclude` or any other
+  scratch-directory name; a scratch checkout is excluded because
+  `.gitignore` already says so, not because a person remembered to add it.
 
 
 - **No QEMU serial log had ever been committed alongside the document that
@@ -324,12 +334,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   record it already was. By 0.28: re-run the `semantic` profile fresh and
   promote it properly, superseding the annotation rather than deleting it.
 
-- **Nothing checks that the project's two version strings agree** (Errata
-  **E-030**, ACCEPTED, tracked to **0.28**). `[workspace.package] version` and
+- **Nothing checked that the project's two version strings agree** (Errata
+  **E-030**, **CLOSED** by RFC-0.28-005). `[workspace.package] version` and
   `crates/fjell-os/Cargo.toml`'s `fjell-abi` version pin must match at every
-  release and are maintained by hand; `version-currency` checks `README.md`, not
-  this pair. A mismatch stops the workspace resolving, so it fails loudly rather
-  than silently — it costs a cut's time, not correctness.
+  release and are maintained by hand; `version-currency` checked `README.md`
+  only, not this pair — the gap that cost the 0.27.0 cut its first command.
+  `version-currency` now also compares the pair directly, demonstrated
+  failing on the exact mismatch the 0.27.0 cut hit (`0.26.0` pin against a
+  `0.27.0` workspace version). The check states its own limit in its
+  failure message: the mismatch was already fail-closed (`cargo metadata`
+  cannot resolve, so every gate, tier, and build fails with it regardless),
+  so this buys the time of a named failure rather than adding correctness a
+  passing run didn't already have.
 
 - **RFC 058's readiness tracking now completes** (Errata **E-031**,
   **CLOSED** by RFC-0.28-001). `service-manager` used to emit

@@ -117,22 +117,34 @@ fn section_1_capability_inventory() -> String {
     s
 }
 
+/// RFC-0.28-005 D1/§6: this report describes the repository as committed,
+/// so its scan is bounded by what `git` actually tracks — not a
+/// hand-maintained skip list (that was E-025: a scratch checkout under
+/// `.git-exclude/tmp/` was invisible to the list's three literal names,
+/// and contributed its own `cap-manifest.toml`). `git ls-files` (tracked
+/// only, no `--others`) is the right half of the `git` authority for this
+/// job specifically: unlike `fjell-unsafe-audit` (which must still see a
+/// developer's uncommitted work), this report is a claim about what is
+/// *shipped*, so a scratch checkout is out of scope regardless of whether
+/// anything ignores it.
 fn find_cap_manifests(root: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let skip = ["target", ".git", "tests/runs"];
-    if let Ok(entries) = fs::read_dir(root) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if skip.iter().any(|s| path.ends_with(s)) {
-                continue;
-            }
-            if path.is_dir() {
-                found.extend(find_cap_manifests(&path));
-            } else if path.file_name().and_then(|n| n.to_str()) == Some("cap-manifest.toml") {
-                found.push(path);
-            }
-        }
+    let root_str = root.to_string_lossy().into_owned();
+    let out = Command::new("git")
+        .args(["-C", &root_str, "ls-files", "-z"])
+        .output();
+    let Ok(out) = out else {
+        return Vec::new();
+    };
+    if !out.status.success() {
+        return Vec::new();
     }
+    let mut found: Vec<PathBuf> = out
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|rel| root.join(String::from_utf8_lossy(rel).as_ref()))
+        .filter(|p| p.file_name().and_then(|n| n.to_str()) == Some("cap-manifest.toml"))
+        .collect();
     found.sort();
     found
 }
