@@ -1504,8 +1504,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   extension use the toolchain's own server instead of its shipped one. Untested
   here — the architect cannot exercise the extension — and offered as the option
   that would have kept both properties, not as a correction to the owner's call.
+- **Restored 2026-09-09**, at the owner's direction, after the removal was found
+  to have silently moved local builds from **1.91.1 to 1.98.1** — seven minor
+  versions — changing all 24 committed prebuilt binaries and turning
+  `repro-check` red. Discovered only because the architect happened to rebuild
+  while checking the removal was safe. **This is the erratum's own predicted
+  failure mode, realised within a day.**
+- **`rust-version = "1.91"` added** to `[workspace.package]` — the field the
+  removal was believed to rely on, which had **never existed**. It is recorded
+  as a *verified floor*, not a bisected minimum: the project is known to build on
+  1.91 and on 1.98.1, and the true minimum has never been determined.
+- **The version is declared in five places, not two.** Bumping it is a scoped
+  piece of work, not an edit:
+
+  | Site | What it says |
+  |---|---|
+  | `rust-toolchain.toml` | `channel = "1.91"` |
+  | `.github/workflows/ci.yml` | `apt-get install rustc-1.91 cargo-1.91`, in several jobs |
+  | `docs/release/release-checklist.md:25` | `rustc --version \| grep "1.91"` — **a verification step** |
+  | `docs/src/internals/local-development.md:7,21` | documented prerequisite, `rustup toolchain install 1.91` |
+  | `Cargo.toml` | `rust-version = "1.91"` (added today) |
+
+  Two of those are checks that would go on asserting 1.91 after a bump. And CI
+  installs from **apt on ubuntu-24.04**, which does not carry a current rustc —
+  so bumping CI means changing its install method to rustup, not editing a
+  number. **E-015's family, in the project's own toolchain declaration.**
+- **The channel still floats within `1.91.x`.** Restoring verbatim kept that
+  deliberately: pinning an exact patch is a behaviour change, and it belongs
+  with the bump rather than smuggled into a restore.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-08; updated 2026-09-09),
-  `unscheduled`. Whatever closes it must state where `rust-src` and the target
+  `unscheduled`. Closing it means one declaration, an exact pin, and a record of
+  which toolchain produced each artefact. Whatever closes it must state where `rust-src` and the target
   come from for a fresh clone, and record the toolchain with the artefacts.
 
 ## E-038 — three subchecks fail silently when an RFC folder is absent

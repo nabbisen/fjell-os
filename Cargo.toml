@@ -150,6 +150,12 @@ default-members = [
 ]
 
 [workspace.package]
+# Verified floor, not a bisected minimum: this project is known to build on
+# 1.91 (the pinned toolchain) and on 1.98.1. The true minimum has never been
+# determined — see E-037. `rust-version` is a floor and does NOT select a
+# toolchain, install `rust-src`, or make builds reproducible; `rust-toolchain.toml`
+# does those, and removing it on 2026-09-09 silently moved local builds to 1.98.1.
+rust-version = "1.91"
 version = "0.28.0"
 edition         = "2024"
 authors         = ["nabbisen"]
