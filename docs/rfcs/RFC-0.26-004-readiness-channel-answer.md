@@ -191,6 +191,50 @@ All four `semantic.toml` markers pass: `"M5: semantic operations ready"`,
 `"sample-service demo intent"`, `"proxy-text: action accepted"`,
 `"proxy-text: action DENIED (capability not held)"`.
 
+## A fresh, promoted run (RFC-0.28-005 R3, 2026-09-08)
+
+Per **E-029**'s disposition: the historical citation above is superseded,
+not deleted — it is the honest record of what was true between 0.26 and
+0.28, when no run-id-keyed evidence retention existed to promote it
+properly. A fresh `semantic` run, on the tree at commit `6582d04`
+(`tree_dirty_at_run_time = false`), is promoted at
+[`tests/evidence/RFC-0.28-005/semantic-fresh-2026-09-08.log`](../../tests/evidence/RFC-0.28-005/semantic-fresh-2026-09-08.log)
+(provenance:
+[`.provenance.txt`](../../tests/evidence/RFC-0.28-005/semantic-fresh-2026-09-08.provenance.txt),
+`instrumented = none`).
+
+The same causal argument reproduces, at different (but checked, not
+assumed) line numbers:
+
+```
+31:M5: semantic-stream started
+32:M5: semantic-stream started
+36:M5: proxy-text started
+37:M5: proxy-text started
+38:M5: semantic policy loaded
+40:M5: semantic policy loaded
+42:M5: semantic operations ready
+84:[INTENT][Normal] sample-service demo intent   (semantic-stream validating the forwarded envelope)
+94:proxy-text: action accepted
+95:sample-service: intent emitted                (sample-service's blocking call returns, AFTER 84)
+99:proxy-text: action DENIED (capability not held)
+```
+
+Line 84 (`semantic-stream` validating inside the `PUBLISH_COMMIT` handler,
+before it replies `PUBLISH_OK`) still precedes line 95 (`sample-service`'s
+"intent emitted", which only fires after `chunked::send` receives that
+reply) — the same ordering the original citation argued from, reproduced
+on a different run. (`proxy-text`'s own "action accepted" at line 94 sits
+between them; its position relative to `sample-service`'s completion was
+never part of the causal claim — the two are independent chains, and nothing
+here asserts a fixed relative order between them.) All four `semantic.toml`
+markers pass in this run as well.
+
+This does not newly establish the architectural claim — the code paths
+this rests on are unchanged since RFC-0.26-004 shipped, per D4's own
+reasoning for not re-running to stand in for a different original claim —
+it gives the same claim a citation that survives the next `semantic` run.
+
 ## Non-goals held
 
 - No re-timing: no spawn in `init`'s M4/M5 section was reordered.

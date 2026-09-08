@@ -323,16 +323,21 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   building the CRA/IEC standards mapping (RFC-0.27-003) and tracing its
   confidentiality-clause evidence into this crate.
 
-- **Two historical QEMU-log citations remain unresolvable** (Errata
-  **E-029**, ACCEPTED, tracked to **0.28**). RFC-0.27-004's R6
+- **Two historical QEMU-log citations were unresolvable** (Errata
+  **E-029**, **CLOSED** by RFC-0.28-005 R3). RFC-0.27-004's R6
   reconciliation found the `tests/qemu/artifacts/semantic/serial.log`
   content cited by `RFC-0.26-004-readiness-channel-answer.md` and by the
-  archived `RFC-0.26-002-abdd-path-synchronisation.md` no longer exists —
+  archived `RFC-0.26-002-abdd-path-synchronisation.md` no longer existed —
   overwritten by later runs before this RFC's per-run retention existed.
-  Not re-run to stand in for the originals (D4); the first is annotated in
-  place, the second (already `Superseded`) was left as the point-in-time
-  record it already was. By 0.28: re-run the `semantic` profile fresh and
-  promote it properly, superseding the annotation rather than deleting it.
+  Not re-run to stand in for the originals (D4); the first was annotated
+  in place, the second (already `Superseded`) was left as the point-in-time
+  record it already was. Fixed by re-running the `semantic` profile fresh
+  (commit `6582d04`, clean tree) and promoting it with real provenance
+  (`tests/evidence/RFC-0.28-005/semantic-fresh-2026-09-08.log`); the
+  readiness-channel answer document now cites the fresh run **alongside**
+  the historical annotation, which stays rather than being deleted once
+  superseded. The archived RFC-0.26-002 citation is left as-is, per this
+  project's practice of not rewriting archived records.
 
 - **Nothing checked that the project's two version strings agree** (Errata
   **E-030**, **CLOSED** by RFC-0.28-005). `[workspace.package] version` and

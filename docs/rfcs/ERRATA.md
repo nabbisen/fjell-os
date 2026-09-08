@@ -971,18 +971,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the capability-checked refusal fires) rest on code paths unchanged since
   RFC-0.26-004 shipped, so a fresh run would demonstrate the same claim
   truthfully — but presenting it as the 2026-era original would not be.
-- **Resolution:** **ACCEPTED**, tracked to **`0.28`** (not `unscheduled` —
-  see RFC-0.27-004's §7 answer document for why a real milestone was
-  chosen here rather than deferred indefinitely: reusing the
-  `errata-tracking` subcheck's own already-verified tracking column as the
-  sunset RFC-0.27-004 §7 argues for, rather than building a second,
-  purpose-specific instrument to track it). By `0.28`: re-run the
-  `semantic` QEMU profile fresh, promote the new log via
-  `cargo xtask evidence promote` with real provenance, and update both
-  citing documents to point at it, superseding rather than replacing the
-  historical annotation (the annotation in
-  `RFC-0.26-004-readiness-channel-answer.md` stays as the honest record of
-  what happened between 0.26 and 0.27; it is not deleted once superseded).
+- **Resolution:** **CLOSED** by RFC-0.28-005 R3. ~~ACCEPTED, tracked to
+  `0.28`~~ (not `unscheduled` — see RFC-0.27-004's §7 answer document for
+  why a real milestone was chosen here rather than deferred indefinitely:
+  reusing the `errata-tracking` subcheck's own already-verified tracking
+  column as the sunset RFC-0.27-004 §7 argues for, rather than building a
+  second, purpose-specific instrument to track it) → fixed. The `semantic`
+  QEMU profile was re-run fresh (commit `6582d04`,
+  `tree_dirty_at_run_time = false`) and promoted via
+  `cargo xtask evidence promote` with real provenance
+  (`tests/evidence/RFC-0.28-005/semantic-fresh-2026-09-08.log`,
+  `instrumented = none`); `RFC-0.26-004-readiness-channel-answer.md` now
+  cites it **alongside** the historical annotation, which stays as the
+  honest record of what happened between 0.26 and 0.28 rather than being
+  deleted once superseded. The same causal argument (the readiness wait
+  blocks and is genuinely woken, not merely scheduled-lucky) reproduces at
+  different line numbers in the fresh run, checked rather than assumed.
   The archived `RFC-0.26-002` citation is left as-is: it is a `Superseded`
   RFC's own point-in-time measurement, already framed as a past
   observation rather than a live claim, consistent with this project's
@@ -1373,7 +1377,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
-| E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | RFC-0.28-005 | ACCEPTED |
+| E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | RFC-0.28-005 | CLOSED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | RFC-0.28-005 | CLOSED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
