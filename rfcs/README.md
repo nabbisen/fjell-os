@@ -363,7 +363,7 @@ already existed, made visible.
 
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — 5 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -376,6 +376,7 @@ both superseded (the latter by `0.28-003`, below) and moved to `archive/`.
 |-----|-------|
 | 0.28-003 | [The blocked-recv rendezvous exists — the test just cannot name the task](./accepted/RFC-0.28-003-blocked-recv-rendezvous.md) — accepted 2026-09-07; supersedes **0.26-003**; closes **E-019**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.28-003-blocked-recv-rendezvous-answer.md); handoff: [`handoffs/`](./handoffs/RFC-0.28-003-blocked-recv-rendezvous/implementation-handoff.md) |
 | 0.28-004 | [The wrapper crate worked around its own helpers instead of fixing them](./accepted/RFC-0.28-004-syscall-helper-contracts.md) — accepted 2026-09-08; closes **E-033**; handoff: [`handoffs/`](./handoffs/RFC-0.28-004-syscall-helper-contracts/implementation-handoff.md) |
+| 0.28-005 | [Three tools, three different answers to "what is this repository?"](./accepted/RFC-0.28-005-scan-scope-and-sweep.md) — accepted 2026-09-08; closes **E-025**, **E-029**, **E-030**; handoff: [`handoffs/`](./handoffs/RFC-0.28-005-scan-scope-and-sweep/implementation-handoff.md) |
 | 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./accepted/RFC-0.28-002-syscall-asm-consolidation.md) — accepted 2026-09-07; closes **E-032**; handoff: [`handoffs/`](./handoffs/RFC-0.28-002-syscall-asm-consolidation/implementation-handoff.md) |
 | 0.28-001 | [The readiness protocol is split in two, and its completion signal cannot fire](./accepted/RFC-0.28-001-readiness-topology.md) — accepted 2026-09-06; closes **E-024**; **E-031**; handoff: [`handoffs/`](./handoffs/RFC-0.28-001-readiness-topology/implementation-handoff.md) |
 
@@ -385,11 +386,9 @@ both superseded (the latter by `0.28-003`, below) and moved to `archive/`.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.28-005 | [Three tools, three different answers to "what is this repository?"](./proposed/RFC-0.28-005-scan-scope-and-sweep.md) — closes **E-025**, **E-029**, **E-030**; handoff: [`handoffs/`](./handoffs/RFC-0.28-005-scan-scope-and-sweep/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 

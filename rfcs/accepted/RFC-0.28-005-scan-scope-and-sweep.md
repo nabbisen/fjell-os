@@ -1,6 +1,6 @@
 # RFC-0.28-005: Three tools, three different answers to "what is this repository?"
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-09-08; implementation may begin (RFC 000)
 **Milestone:** 0.28
 **Tracks.** The three errata dated `0.28` with no RFC behind them: **E-025**,
 **E-029**, **E-030**. E-025 and E-030 share a root; E-029 is small, dated to
