@@ -1345,6 +1345,74 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   instrument change and carries RFC-v0.22-001's demonstration requirement.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
 
+## E-036 — T20's two-build reproducibility check has never been run
+
+- **Claim:** `docs/security/threat-model-v1.md` §T20
+  (*Reproducibility-failure-as-substitution*) states its defence as
+  *"RFC-v0.10-003 (reproducible build gate). **Two-build SHA-256 digest
+  comparison** (hardened from FNV-1a in RFC-v0.16-005, H-04)."*
+- **Tree:** `tools/fjell-repro-check` has exactly two modes.
+  `two_build_check` builds twice and compares — **it is invoked nowhere**
+  (`git grep two_build_check` returns only its definition and its one internal
+  call site inside `main`, reached only when `--skip-build` is absent).
+  Every invocation in the repository passes `--skip-build`:
+
+  | Caller | Mode |
+  |---|---|
+  | `crates/fjell-tools/src/main.rs:125` | `--skip-build` |
+  | `crates/fjell-tools/src/test_all.rs:151` (tier 3b) | `--skip-build` |
+  | release records `0.23.0`, `0.25.0`, `0.26.0`, `0.27.0` | `--skip-build` |
+  | CI | **no repro job at all** — `grep repro .github/workflows/` is empty |
+
+- **What `--skip-build` actually verifies**, and it is not nothing: the
+  committed `prebuilt/*.bin` still hash to `tests/repro/baseline-digests.txt`.
+  That catches a corrupted or stale committed binary. **It does not build
+  anything**, so it cannot detect a build that fails to reproduce — which is
+  the property T20 names and the word "reproducible" means.
+- **The tier's label is honest** — `"Reproducible build (skip-build)"` — and the
+  threat model's is not. The gap is in T20's defence line, not in the tier.
+- **How it surfaced:** the owner asked whether `rust-toolchain.toml` was stale.
+  It is not; checking what depends on it led here.
+- **Family:** **E-023**/**E-027** — a specified mechanism that exists in code
+  and is never invoked, with documentation asserting it runs.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`. Either
+  run the two-build check somewhere real (it is slow, which is presumably why it
+  never was) or correct T20's defence line to describe what is actually done.
+  **Correcting the claim is a legitimate outcome** — a weaker defence honestly
+  stated beats a stronger one nothing performs.
+
+## E-037 — the toolchain is declared twice and recorded nowhere
+
+- **Claim:** builds are reproducible from the pinned toolchain.
+- **Tree:** the toolchain is declared in **two** places that cannot see each
+  other, and neither is recorded alongside the artefacts it produced:
+
+  | Where | What |
+  |---|---|
+  | `rust-toolchain.toml` | `channel = "1.91"`, `rust-src`, `riscv64gc-unknown-none-elf` |
+  | `.github/workflows/ci.yml:33-55` | `apt-get install rustc-1.91 cargo-1.91`, symlinked into `PATH`, with `rust-src` hand-added in one job |
+
+  **CI never reads `rust-toolchain.toml`** — it bypasses rustup entirely — so
+  the file governs local builds only, and CI hand-maintains the same intent
+  separately. E-015's family.
+- **`channel = "1.91"` floats.** It matches any `1.91.x`; the machine that
+  produced the current baseline ran `1.91.1`. A patch bump changes codegen and
+  therefore digests, exactly as the workspace version does through `-C metadata`
+  (0.24.0's release record).
+- **Nothing records which toolchain produced the baseline.**
+  `tests/repro/baseline-digests.txt` is digests and a header line; the trust
+  report does not carry a toolchain either. So a digest mismatch on another
+  machine is indistinguishable from a real reproducibility failure.
+- **Why this has never bitten:** **E-036** — the two-build check never runs, and
+  `--skip-build` compares committed files to a baseline recorded from those same
+  files on the same machine. The two errata insulate each other.
+- **`rust-toolchain.toml` is not the defect and must not be removed.** It is
+  load-bearing: `-Z build-std=core,compiler_builtins`
+  (`crates/fjell-tools/src/qemu.rs:63,107`) requires `rust-src`, and the RISC-V
+  target comes from it. The defect is that it is one of two declarations and
+  that neither is captured with the output.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -1384,6 +1452,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.29 | ACCEPTED |
+| E-036 T20's stated two-build reproducibility check is invoked nowhere; every call is `--skip-build` | unscheduled | ACCEPTED |
+| E-037 the toolchain is declared in both `rust-toolchain.toml` and `ci.yml`, floats within `1.91.x`, and is recorded with no artefact | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

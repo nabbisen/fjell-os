@@ -413,6 +413,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   shipped release, and a future regeneration would absorb every accumulated
   addition in one unreviewed step.
 
+- **The two-build reproducibility check has never been run** (Errata **E-036**,
+  ACCEPTED). `tools/fjell-repro-check`'s `two_build_check` is invoked nowhere;
+  every call in the tree and in every release record passes `--skip-build`,
+  which re-hashes the committed binaries against a stored baseline and builds
+  nothing. That catches a corrupted or stale committed artefact — it cannot
+  detect a build that fails to reproduce, which is what the threat model's T20
+  names as its defence.
+
+- **The toolchain is declared twice and recorded nowhere** (Errata **E-037**,
+  ACCEPTED). `rust-toolchain.toml` pins `1.91` for local builds; CI installs
+  `rustc-1.91` from apt and never reads that file. `1.91` floats across patch
+  releases, a patch bump changes codegen and therefore digests, and nothing
+  records which toolchain produced the repro baseline.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial
