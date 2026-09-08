@@ -167,8 +167,23 @@ promoted at
 [`tests/evidence/RFC-0.28-003/blocked-recv-poll-real.log`](../../tests/evidence/RFC-0.28-003/blocked-recv-poll-real.log)
 (provenance:
 [`tests/evidence/RFC-0.28-003/blocked-recv-poll-real.provenance.txt`](../../tests/evidence/RFC-0.28-003/blocked-recv-poll-real.provenance.txt)).
-The zero-yield inverse demonstration was captured against temporarily
-modified code that was reverted before commit, per D4's own point — it is
-described above rather than promoted, since promoting a log from code that
-no longer exists in the tree would be evidence of nothing checkable
-against `HEAD`.
+
+**Correction (review record, 2026-09-08):** the zero-yield inverse
+demonstration above was not promoted, on the reasoning that a log from
+reverted code would be "evidence of nothing checkable against `HEAD`."
+That reasoning was refuted: RFC-0.27-004's own D3, and
+`tests/evidence/RFC-0.27-002/`'s own precedent, exist exactly so a log
+from modified-then-reverted code can be promoted honestly, with
+`instrumented` provenance saying what changed and that it cannot be
+reproduced from the commit alone. The positive log (the poll working) is
+the less important half — the profile was already green before this line;
+the only run that shows the wait is load-bearing is the one where its
+absence fails. That run is now promoted at
+[`tests/evidence/RFC-0.28-003/blocked-recv-poll-zero-yield-inverse.log`](../../tests/evidence/RFC-0.28-003/blocked-recv-poll-zero-yield-inverse.log)
+(provenance:
+[`tests/evidence/RFC-0.28-003/blocked-recv-poll-zero-yield-inverse.provenance.txt`](../../tests/evidence/RFC-0.28-003/blocked-recv-poll-zero-yield-inverse.provenance.txt)),
+captured by temporarily replacing the poll with a single immediate check,
+re-run, and reverted (confirmed empty diff against `7ef4b44` before
+continuing). `sys_task_status` read `Runnable`, the new
+`NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED` marker fired, and the profile's
+own `result-summary.txt` recorded `FAIL`.
