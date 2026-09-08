@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.29-001
 
-**Governing RFC:** [RFC-0.29-001](../../proposed/RFC-0.29-001-tests-that-run-and-lists-that-derive.md)
+**Governing RFC:** [RFC-0.29-001](../../accepted/RFC-0.29-001-tests-that-run-and-lists-that-derive.md)
 **Milestone:** 0.29 — the first line of the audit-backlog theme
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-09-08)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

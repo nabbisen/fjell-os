@@ -376,20 +376,24 @@ one level beneath where it was being looked for.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-No RFC is currently accepted and awaiting implementation.
+Signed off by the owner; implementation may begin; not yet shipped.
 
----
-
-
----
-
-## Proposed (proposed/) — 1 RFC
+### 0.29 — the audit backlog
 
 | RFC | Title |
 |-----|-------|
-| 0.29-001 | [305 tests nothing runs, and five lists that disagree about one thing](./proposed/RFC-0.29-001-tests-that-run-and-lists-that-derive.md) — closes **E-013**, **E-015**; handoff: [`handoffs/`](./handoffs/RFC-0.29-001-tests-that-run-and-lists-that-derive/implementation-handoff.md) |
+| 0.29-001 | [305 tests nothing runs, and five lists that disagree about one thing](./accepted/RFC-0.29-001-tests-that-run-and-lists-that-derive.md) — accepted 2026-09-08; closes **E-013**, **E-015**; handoff: [`handoffs/`](./handoffs/RFC-0.29-001-tests-that-run-and-lists-that-derive/implementation-handoff.md) |
+
+---
+
+
+---
+
+## Proposed (proposed/) — none
+
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 

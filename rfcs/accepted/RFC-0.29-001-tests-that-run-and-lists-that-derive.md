@@ -1,6 +1,6 @@
 # RFC-0.29-001: 305 tests nothing runs, and five lists that disagree about one thing
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-09-08; implementation may begin (RFC 000)
 **Milestone:** 0.29
 **Tracks.** **E-013** and **E-015**, the 0.24 audit's two longest-deferred
 findings — unscheduled for six milestones, and named as the cited root of seven
