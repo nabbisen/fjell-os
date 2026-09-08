@@ -576,6 +576,18 @@ pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
 /// Returns `Ok(reply_label)` on success.
 /// Passes w0→a2, w1→a3, w2→a4 in the ECALL so the kernel copies them into
 /// the `PendingMessage.words` array for the server to read.
+///
+/// RFC-0.28-004 (found extending `SYSCALL-CALLSITE-001` into this crate,
+/// beyond the RFC's own named two): `a2`-`a4` were declared plain `in`,
+/// but `sys_ipc_reply`'s kernel handler copies the replier's `a2`-`a5`
+/// into this caller's frame unconditionally on completion — the identical
+/// defect RFC-0.28-002's "Finding 1" fixed in three *service*-side 4-word
+/// `IpcCall` sites, undiscovered until now in the wrapper those sites exist
+/// to call instead. `sys_ipc_call` (the tag-only variant, routed through
+/// the generic `ecall2`) is structurally exempt: it does not expose `a1`-`a5`
+/// through its own return type at all, so nothing can observe the
+/// corruption through it — the distinction that keeps this fix from
+/// widening into `ecall2` itself.
 pub fn sys_ipc_call_words(
     ep: u32,
     tag: usize,
@@ -596,9 +608,9 @@ pub fn sys_ipc_call_words(
             // build_msg only copies `tag.words` words from a2..; sending the
             // raw label silently dropped every payload word — ABI fix v0.20).
             inlateout("a1")   tag | (3usize << 16) => r1,
-            in("a2")          w0,
-            in("a3")          w1,
-            in("a4")          w2,
+            inlateout("a2")   w0 => _,
+            inlateout("a3")   w1 => _,
+            inlateout("a4")   w2 => _,
             options(nostack),
         );
     }
