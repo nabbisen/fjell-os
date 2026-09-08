@@ -611,6 +611,14 @@ pub fn sys_ipc_call_words(
             inlateout("a2")   w0 => _,
             inlateout("a3")   w1 => _,
             inlateout("a4")   w2 => _,
+            // No fourth data word is sent (this call is 3-word by design —
+            // see `fjell_service_api::chunked::ipc_call4` for the 4-word
+            // shape), but `sys_ipc_reply`'s kernel handler copies all four
+            // of `a2`-`a5` unconditionally regardless of the call's own
+            // word count, so `a5` is clobbered on every reply too. Caught
+            // live by `SYSCALL-CALLSITE-002`, not reasoned about: this
+            // register was entirely undeclared before, not merely `in`.
+            lateout("a5")     _,
             options(nostack),
         );
     }

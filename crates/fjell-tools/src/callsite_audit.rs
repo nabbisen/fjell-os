@@ -95,6 +95,22 @@ pub fn cmd_callsite_audit() -> ExitCode {
         }
     }
 
+    // ── Check 5 (RFC-0.28-004, E-033 widened): SYSCALL-CALLSITE-002 ────────
+    {
+        let violations = check_fjell_syscall_internal_registers(std::path::Path::new("."));
+        if violations.is_empty() {
+            println!(
+                "  [PASS] SYSCALL-CALLSITE-002  every IpcRecv/IpcCall/CapInspect \
+                block inside fjell-syscall declares the registers that syscall writes"
+            );
+        } else {
+            for v in &violations {
+                eprintln!("  [FAIL] SYSCALL-CALLSITE-002: {v}");
+            }
+            pass = false;
+        }
+    }
+
     // ── Check 3: BCB-CALLSITE-001 ──────────────────────────────────────────
     {
         let authoritative = "crates/fjell-upgrade-format/src/lib.rs";
@@ -384,6 +400,160 @@ fn find_raw_syscall_sites(stripped_src: &str) -> Vec<(usize, u32)> {
         search_from = digits_end.max(abs + NEEDLE.len());
     }
     out
+}
+
+// ── Check 5: SYSCALL-CALLSITE-002 (RFC-0.28-004, D3) ────────────────────────
+//
+// SYSCALL-CALLSITE-001 (above) exempts `fjell-syscall` entirely — the crate
+// raw syscall asm legitimately belongs in. That total exemption is why
+// RFC-0.28-002's own guard, built specifically to catch this defect class,
+// never looked at the two broken helpers RFC-0.28-004 found living inside
+// the crate it routes everyone else to. This check does not lift the
+// exemption (`fjell-syscall`'s generic `ecall0`-`ecall3` helpers correctly
+// stay unaudited per-syscall — see the governing RFC's answer document
+// §5(b) for why "every block declares a0-a6" is shape 1's cost paid a
+// second time). It adds one narrow, additional rule: a **bespoke**,
+// syscall-specific raw block inside `fjell-syscall` — one that names its
+// syscall either by the literal `"li a7, N"` template fragment or by
+// `SyscallNumber::<Variant>` as its `a7` operand — must declare every
+// register that specific syscall's kernel handler writes, for exactly the
+// three syscalls known to write past `a1`: `IpcRecv`(21), `IpcCall`(22, via
+// the reply path — RFC-0.28-002's Finding 1), `CapInspect`(14).
+
+/// Registers a bespoke, syscall-specific block issuing this syscall must
+/// declare as `inlateout`/`lateout` (not a plain `in`, and not omitted)
+/// because the kernel writes each of them. Only the three syscalls
+/// RFC-0.28-004 verified write past `a1` are listed; every other syscall
+/// number returns an empty slice and is not checked by this rule (the
+/// crate's generic helpers issue many others, correctly, with no per-
+/// syscall register knowledge — that is `ecall0`-`ecall3`'s whole point).
+fn fjell_syscall_internal_required_registers(syscall_nr: u32) -> &'static [&'static str] {
+    match syscall_nr {
+        21 => &["a2", "a3", "a4", "a5", "a6"], // IpcRecv: words + RFC-055 sender identity.
+        22 => &["a2", "a3", "a4", "a5"], // IpcCall: sys_ipc_reply overwrites these on completion.
+        14 => &["a1", "a2", "a3"],       // CapInspect: kind, rights, badge.
+        _ => &[],
+    }
+}
+
+/// `SyscallNumber` variants this check recognises when a block names its
+/// syscall symbolically rather than with a literal `"li a7, N"`.
+const SYSCALL_VARIANT_NUMBERS: &[(&str, u32)] =
+    &[("IpcRecv", 21), ("IpcCall", 22), ("CapInspect", 14)];
+
+/// `workspace_root` is `.` for the real invocation; tests pass an absolute
+/// path computed from `CARGO_MANIFEST_DIR` (see `check_syscall_asm_callsite`
+/// for why `cargo test`'s working directory differs from `cargo run`'s).
+fn check_fjell_syscall_internal_registers(workspace_root: &std::path::Path) -> Vec<String> {
+    let path = "crates/fjell-syscall/src/lib.rs";
+    let Ok(src) = fs::read_to_string(workspace_root.join(path)) else {
+        return vec![format!("{path}: could not read — cannot verify")];
+    };
+    let stripped = strip_comments_only(&src);
+    let mut violations = Vec::new();
+    for (start, end) in find_asm_block_spans(&stripped) {
+        let block = &stripped[start..end];
+        let Some(nr) = syscall_number_in_block(block) else {
+            continue;
+        };
+        let required = fjell_syscall_internal_required_registers(nr);
+        if required.is_empty() {
+            continue;
+        }
+        let line = 1 + stripped[..start].matches('\n').count();
+        for reg in required {
+            let declared_output = block.contains(&format!("inlateout(\"{reg}\")"))
+                || block.contains(&format!("lateout(\"{reg}\")"));
+            if declared_output {
+                continue;
+            }
+            if block.contains(&format!("in(\"{reg}\")")) {
+                violations.push(format!(
+                    "{path}:{line}: block issuing syscall {nr} declares `{reg}` as a \
+                     plain `in` — the kernel overwrites it on completion"
+                ));
+            } else {
+                violations.push(format!(
+                    "{path}:{line}: block issuing syscall {nr} does not declare `{reg}` \
+                     at all — the kernel overwrites it on completion"
+                ));
+            }
+        }
+    }
+    violations
+}
+
+/// Determine which syscall a raw asm block's text issues, if any: the
+/// literal `"li a7, N"` template fragment, or `SyscallNumber::<Variant>` as
+/// text (this crate's own register-based `in("a7") ...` convention — see
+/// `ecall2`/`ecall3`/`sys_dma_alloc`/`sys_ipc_call_words`). Returns `None`
+/// for a block whose syscall number comes from a runtime parameter (the
+/// generic `ecall0`-`ecall3` helpers themselves) — deliberately: those stay
+/// unaudited per-syscall by this check, per the governing RFC's settled
+/// scope.
+fn syscall_number_in_block(block: &str) -> Option<u32> {
+    const NEEDLE: &str = "\"li a7, ";
+    if let Some(rel) = block.find(NEEDLE) {
+        let digits_start = rel + NEEDLE.len();
+        let digits_end = block[digits_start..]
+            .find(|c: char| !c.is_ascii_digit())
+            .map(|i| digits_start + i)
+            .unwrap_or(block.len());
+        if let Ok(nr) = block[digits_start..digits_end].parse::<u32>() {
+            return Some(nr);
+        }
+    }
+    for (name, nr) in SYSCALL_VARIANT_NUMBERS {
+        if block.contains(&format!("SyscallNumber::{name}")) {
+            return Some(*nr);
+        }
+    }
+    None
+}
+
+/// Find every `core::arch::asm!( ... )` call's `[start, end)` byte span
+/// (start at `core`, end just past the matching close-paren). Safe over
+/// already comment-stripped source with parens counted naively (no string-
+/// literal awareness needed): none of this crate's asm template strings
+/// contain a paren character, confirmed by inspection.
+fn find_asm_block_spans(stripped_src: &str) -> Vec<(usize, usize)> {
+    const NEEDLE: &str = "core::arch::asm!(";
+    let mut out = Vec::new();
+    let mut search_from = 0usize;
+    while let Some(rel) = stripped_src[search_from..].find(NEEDLE) {
+        let abs = search_from + rel;
+        let open_paren = abs + NEEDLE.len() - 1;
+        match find_matching_paren(stripped_src, open_paren) {
+            Some(close) => {
+                out.push((abs, close + 1));
+                search_from = close + 1;
+            }
+            None => search_from = abs + NEEDLE.len(),
+        }
+    }
+    out
+}
+
+/// Given the byte index of an opening `(`, return the index of its
+/// depth-matched closing `)`.
+fn find_matching_paren(src: &str, open_idx: usize) -> Option<usize> {
+    let bytes = src.as_bytes();
+    let mut depth = 0i32;
+    let mut i = open_idx;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
 }
 
 /// Like `find_function_body`, but returns the body's `[start, end)` byte
@@ -903,6 +1073,90 @@ mod tests {
         assert!(
             violations.is_empty(),
             "unexpected SYSCALL-CALLSITE-001 violations on the shipped tree: {violations:#?}"
+        );
+    }
+
+    // ── SYSCALL-CALLSITE-002 (RFC-0.28-004, D3) ────────────────────────────
+
+    #[test]
+    fn find_matching_paren_handles_nested_parens() {
+        let src = "asm!(\"ecall\", in(\"a7\") f(x, y), options(nostack))";
+        let open = src.find('(').unwrap();
+        let close = find_matching_paren(src, open).unwrap();
+        assert_eq!(close, src.len() - 1);
+        assert_eq!(&src[open..=close], &src[open..]);
+    }
+
+    #[test]
+    fn find_asm_block_spans_finds_one_block() {
+        let src = "fn f() { unsafe { core::arch::asm!(\"ecall\", options(nostack)); } }";
+        let spans = find_asm_block_spans(src);
+        assert_eq!(spans.len(), 1);
+        let (s, e) = spans[0];
+        assert!(src[s..e].starts_with("core::arch::asm!("));
+        assert!(src[s..e].ends_with(')'));
+    }
+
+    #[test]
+    fn syscall_number_in_block_reads_literal_form() {
+        let block = "core::arch::asm!(\"li a7, 21\", \"ecall\")";
+        assert_eq!(syscall_number_in_block(block), Some(21));
+    }
+
+    #[test]
+    fn syscall_number_in_block_reads_symbolic_form() {
+        let block = "core::arch::asm!(\"ecall\", in(\"a7\") SyscallNumber::CapInspect as usize)";
+        assert_eq!(syscall_number_in_block(block), Some(14));
+    }
+
+    #[test]
+    fn syscall_number_in_block_none_for_generic_runtime_number() {
+        // ecall2's own shape: the syscall number is a runtime parameter,
+        // not a literal or a named SyscallNumber variant — deliberately
+        // invisible to this check (the generic helpers stay unaudited
+        // per-syscall; see the governing RFC's answer document §5(b)).
+        let block = "core::arch::asm!(\"ecall\", in(\"a7\") nr, inlateout(\"a0\") a0 => r0)";
+        assert_eq!(syscall_number_in_block(block), None);
+    }
+
+    #[test]
+    fn demonstration_1_flags_a_new_undeclared_register() {
+        // Reconstructs sys_ipc_call_words's real, live bug found by this
+        // exact check: a5 entirely undeclared on an IpcCall block.
+        let src = "fn f() { unsafe { core::arch::asm!(\"ecall\", in(\"a7\") SyscallNumber::IpcCall as usize, inlateout(\"a2\") w0 => _, inlateout(\"a3\") w1 => _, inlateout(\"a4\") w2 => _); } }";
+        let stripped = strip_comments_only(src);
+        let spans = find_asm_block_spans(&stripped);
+        assert_eq!(spans.len(), 1);
+        let (s, e) = spans[0];
+        let block = &stripped[s..e];
+        let nr = syscall_number_in_block(block).unwrap();
+        assert_eq!(nr, 22);
+        let required = fjell_syscall_internal_required_registers(nr);
+        assert!(
+            !block.contains("\"a5\""),
+            "a5 must be entirely absent for this fixture"
+        );
+        assert!(required.contains(&"a5"));
+    }
+
+    #[test]
+    fn demonstration_2_flags_a_plain_in_register() {
+        let src = "fn f() { unsafe { core::arch::asm!(\"li a7, 14\", \"ecall\", inlateout(\"a0\") c => s, lateout(\"a1\") k, in(\"a2\") 0usize, lateout(\"a3\") b); } }";
+        let stripped = strip_comments_only(src);
+        let (s, e) = find_asm_block_spans(&stripped)[0];
+        let block = &stripped[s..e];
+        assert_eq!(syscall_number_in_block(block), Some(14));
+        assert!(block.contains("in(\"a2\")"));
+        assert!(!block.contains("inlateout(\"a2\")"));
+    }
+
+    #[test]
+    fn shipped_tree_has_no_fjell_syscall_internal_violations() {
+        // Demonstration 3: the tree as shipped by this RFC passes.
+        let violations = check_fjell_syscall_internal_registers(&test_workspace_root());
+        assert!(
+            violations.is_empty(),
+            "unexpected SYSCALL-CALLSITE-002 violations on the shipped tree: {violations:#?}"
         );
     }
 }
