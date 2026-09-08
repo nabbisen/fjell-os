@@ -431,11 +431,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   detect a build that fails to reproduce, which is what the threat model's T20
   names as its defence.
 
-- **The toolchain is declared twice and recorded nowhere** (Errata **E-037**,
-  ACCEPTED). `rust-toolchain.toml` pins `1.91` for local builds; CI installs
-  `rustc-1.91` from apt and never reads that file. `1.91` floats across patch
-  releases, a patch bump changes codegen and therefore digests, and nothing
-  records which toolchain produced the repro baseline.
+- **The toolchain is declared for CI only, and recorded nowhere** (Errata
+  **E-037**, ACCEPTED). `rust-toolchain.toml` was removed on 2026-09-09; CI
+  installs `rustc-1.91` and `rust-src` from apt and is unaffected, but a fresh
+  clone has nothing declaring the channel, nothing installing the `rust-src`
+  that `-Z build-std` requires, and **no `rust-version` field anywhere** to
+  refuse an unsuitable toolchain. Nothing records which toolchain produced the
+  repro baseline.
 
 - **Three subchecks emit no diagnostic when an RFC folder is absent** (Errata
   **E-038**, ACCEPTED, tracked to **0.29**). `rfc-status-folder`,

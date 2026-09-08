@@ -1476,7 +1476,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (`crates/fjell-tools/src/qemu.rs:63,107`) requires `rust-src`, and the RISC-V
   target comes from it. The defect is that it is one of two declarations and
   that neither is captured with the output.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`.
+- **Changed 2026-09-09: the file was removed** (`4cebbc4`), to clear a VS Code
+  warning that the pinned toolchain was *"too old for the extension shipped
+  rust-analyzer."* The stated reason for it being safe — *"`Cargo.toml` had
+  already pointed MSRV to 1.91"* — **does not hold: there is no `rust-version`
+  field anywhere in the workspace.** `git grep rust-version -- '*.toml'` returns
+  nothing.
+- **What that changed, precisely.** The erratum's "declared twice" is now
+  "declared once, in CI only":
+
+  | | Before | After |
+  |---|---|---|
+  | CI | `apt-get install rustc-1.91 cargo-1.91 rust-src` | unchanged — **CI is unaffected** |
+  | Local | `rust-toolchain.toml`: channel, `rust-src`, target | **nothing** |
+  | MSRV | none | none |
+
+  `crates/fjell-tools/src/qemu.rs` builds with `-Z build-std=core,compiler_builtins`
+  under `RUSTC_BOOTSTRAP=1`, which **requires the `rust-src` component**. This
+  machine still builds because `rust-src` was installed while the file existed;
+  a fresh clone has nothing that installs it and nothing that says it is needed.
+- **So the defect moved rather than closed.** It is no longer two declarations
+  that can drift; it is one declaration that covers CI and a local setup with no
+  declaration at all, and still no record of which toolchain produced any
+  artefact.
+- **The narrower fix for the warning that prompted this** is adding
+  `rust-analyzer` to the toolchain file's `components`, which makes the
+  extension use the toolchain's own server instead of its shipped one. Untested
+  here — the architect cannot exercise the extension — and offered as the option
+  that would have kept both properties, not as a correction to the owner's call.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08; updated 2026-09-09),
+  `unscheduled`. Whatever closes it must state where `rust-src` and the target
+  come from for a fresh clone, and record the toolchain with the artefacts.
 
 ## E-038 — three subchecks fail silently when an RFC folder is absent
 
@@ -1549,7 +1579,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.29 | ACCEPTED |
 | E-036 T20's stated two-build reproducibility check is invoked nowhere; every call is `--skip-build` | unscheduled | ACCEPTED |
-| E-037 the toolchain is declared in both `rust-toolchain.toml` and `ci.yml`, floats within `1.91.x`, and is recorded with no artefact | unscheduled | ACCEPTED |
+| E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
 | E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.29 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
