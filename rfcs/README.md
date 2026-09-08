@@ -363,20 +363,18 @@ already existed, made visible.
 
 ---
 
-## Accepted (accepted/) — 5 RFCs
+## Accepted (accepted/) — 4 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
 ### 0.26–0.27 — the remaining assumption, and the documents that assert without checking
 
-`0.26-001` and `0.26-004` shipped in `0.26.0`; `0.26-002` was superseded.
-`0.26-003` remains: its profile is **green again** since RFC-0.26-004, and
-nothing guarantees it stays that way — which is why it is still open.
+`0.26-001` and `0.26-004` shipped in `0.26.0`; `0.26-002` and `0.26-003` were
+both superseded (the latter by `0.28-003`, below) and moved to `archive/`.
 
 | RFC | Title |
 |-----|-------|
-| 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./accepted/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) — **superseded by 0.28-003**; its central premise is false (correction recorded on the RFC, 2026-09-07); moves to `archive/` when 0.28-003 lands |
-| 0.28-003 | [The blocked-recv rendezvous exists — the test just cannot name the task](./accepted/RFC-0.28-003-blocked-recv-rendezvous.md) — accepted 2026-09-07; supersedes **0.26-003**; closes **E-019**; handoff: [`handoffs/`](./handoffs/RFC-0.28-003-blocked-recv-rendezvous/implementation-handoff.md) |
+| 0.28-003 | [The blocked-recv rendezvous exists — the test just cannot name the task](./accepted/RFC-0.28-003-blocked-recv-rendezvous.md) — accepted 2026-09-07; supersedes **0.26-003**; closes **E-019**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.28-003-blocked-recv-rendezvous-answer.md); handoff: [`handoffs/`](./handoffs/RFC-0.28-003-blocked-recv-rendezvous/implementation-handoff.md) |
 | 0.28-004 | [The wrapper crate worked around its own helpers instead of fixing them](./accepted/RFC-0.28-004-syscall-helper-contracts.md) — accepted 2026-09-08; closes **E-033**; handoff: [`handoffs/`](./handoffs/RFC-0.28-004-syscall-helper-contracts/implementation-handoff.md) |
 | 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./accepted/RFC-0.28-002-syscall-asm-consolidation.md) — accepted 2026-09-07; closes **E-032**; handoff: [`handoffs/`](./handoffs/RFC-0.28-002-syscall-asm-consolidation/implementation-handoff.md) |
 | 0.28-001 | [The readiness protocol is split in two, and its completion signal cannot fire](./accepted/RFC-0.28-001-readiness-topology.md) — accepted 2026-09-06; closes **E-024**; **E-031**; handoff: [`handoffs/`](./handoffs/RFC-0.28-001-readiness-topology/implementation-handoff.md) |
@@ -391,11 +389,12 @@ nothing guarantees it stays that way — which is why it is still open.
 
 No RFC is currently under review.
 
-## Archive (archive/) — 1 RFC
+## Archive (archive/) — 2 RFCs
 
 | RFC | Title | Reason |
 |-----|-------|--------|
 | 0.26-002 | [The ABDD path must synchronise, not assume](./archive/RFC-0.26-002-abdd-path-synchronisation.md) | Superseded by **0.26-004** — its premise, that a usable readiness signal already existed, was false |
+| 0.26-003 | [The blocked-recv test needs a rendezvous it cannot currently have](./archive/RFC-0.26-003-ipc-blocked-recv-rendezvous.md) | Superseded by **0.28-003** — its premise, that no signal existed and none could be built, was false: the kernel is the authority on a task's blocked state and can be polled |
 
 ---
 

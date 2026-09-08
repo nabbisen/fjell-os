@@ -1,6 +1,8 @@
 # RFC-0.26-003: The blocked-recv test needs a rendezvous it cannot currently have
 
-**Status:** Accepted — by the owner (nabbisen), 2026-08-27; implementation may begin (RFC 000)
+**Status:** Superseded by RFC-0.28-003 — its central premise ("there is no
+signal to wait on, and none can be trivially built") was false; see the
+premise correction below and RFC-0.28-003's own review record.
 **Milestone:** 0.26
 **Tracks.** The `ipc` negative profile's dependency on an unobservable task state.
 **Touches.** `crates/services/fjell-neg-test`, `crates/services/fjell-sample-service`.

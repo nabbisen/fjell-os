@@ -448,6 +448,29 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   is real design work for its own line. `cargo xtask test-all` is 19/21
   with these two tiers failing; every other tier, including the two new
   RFC-0.25-001 uart-rx profiles, passes. See `docs/release/v1-limitations.md`.
+- **Correction and closure (RFC-0.28-003, 2026-09-08).** This entry's scope
+  narrowed to the `ipc` profile only once E-020 was filed separately for the
+  `semantic` profile's distinct consequence (a shipped feature not
+  executing, vs. this entry's lost test coverage). **The tracking field was
+  left pointing at RFC-0.26-003 while this RFC's own predecessor
+  (RFC-0.26-003, since superseded) held it, and while the superseding RFC
+  was `proposed/` — two live RFCs cannot claim one erratum, and
+  `errata-tracking` correctly refuses that; the field was retracked to
+  RFC-0.28-003 deliberately, once accepted, not by watching a gate that
+  could not have caught the wrong pointer anyway** (its "claims to close"
+  predicate is a literal string match, blind to the phrasing difference —
+  the same E-014 instrument-fragility family, in the field that tracks it).
+  RFC-0.26-003's own conclusion — "there is no signal to wait on, and none
+  can be trivially built" — was itself false; it reasoned only about a
+  blocking task announcing its own state and never considered polling the
+  kernel, which is the authority on the state in question. **CLOSED** by
+  RFC-0.28-003: `fjell-neg-test::test_ipc_blocked_recv` now polls
+  `sys_task_status` on `fjell-sample-service`'s kernel-attested `TaskId`
+  (learned via a one-way identity exchange on their already-dedicated,
+  uncontested endpoint — RFC 042's object 6 — not the shared object 0),
+  bounded, failing closed on exhaustion rather than falling through to the
+  revoke. Demonstrated live: with the wait removed, `sys_task_status` reads
+  `Runnable`, not `Blocked`, and the profile now correctly reports FAIL.
 
 ## E-020 — RFC-v0.23-001: the ABDD live path no longer runs
 
@@ -1303,7 +1326,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-016 no link, index, or count integrity instrument | RFC-0.27-001 | CLOSED |
 | E-017 audit `sound` verdicts not all demonstration-backed | unscheduled | ACCEPTED |
 | E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
-| E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.26-003 | ACCEPTED |
+| E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.28-003 | CLOSED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
 | E-021 `init::wait_ready_exact` consumes and drops other tasks' IPC, blocking callers forever | RFC-0.26-004 | CLOSED |
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |

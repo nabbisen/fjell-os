@@ -123,24 +123,30 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   re-derivation of the remaining rows has not been picked up by any line
   since 0.24; RFC-0.27-001 re-dispositions rather than performs it.
 
-- **Two QEMU negative profiles (`ipc`, `semantic`) assume an unsynchronised
-  scheduling order and fail after RFC-0.26-001's scheduler fix** (Errata
-  **E-019**, ACCEPTED). `fjell-neg-test`'s IPC blocked-recv/blocked-call
-  scenarios documented, in their own source comments, an assumption about
-  *relative* task-scheduling order that RFC-0.26-001's fairness fix no longer
-  guarantees. **`fjell-sample-service`'s startup intent emission was
-  originally recorded here too; it is a service rather than a harness and has
-  been split out as E-020, OPEN** — see below. Same root cause as the M6 hang RFC-0.26-001 investigated and
-  fixed — code assuming ordering instead of synchronising on it — in a
-  silently-skipped-assertion shape rather than a hang. Fixing either needs
-  the affected service to synchronise explicitly; out of RFC-0.26-001's
-  scope. Recorded, not fixed. Its own line now exists and is accepted:
-  **RFC-0.26-003** (*"The blocked-recv test needs a rendezvous it cannot
-  currently have"*), which found that `ipc` has since gone green again by
-  the same accident this entry describes — RFC-0.26-004 fixed a defect
-  upstream that let `sample-service` reach its main loop, and `neg-test`'s
-  own scheduling assumption is unchanged and unsynchronised underneath the
-  now-passing profile. Not yet implemented.
+- **The `ipc` negative profile's blocked-recv scenario assumed an
+  unsynchronised scheduling order** (Errata **E-019**, **CLOSED** by
+  **RFC-0.28-003**). `fjell-neg-test`'s `test_ipc_blocked_recv` documented,
+  in its own source comment, an assumption about *relative* task-scheduling
+  order — "sample-service immediately calls `sys_ipc_recv` and blocks before
+  the scheduler returns to neg-test" — that RFC-0.26-001's fairness fix no
+  longer guarantees. (`fjell-sample-service`'s startup intent emission was
+  originally recorded here too; it is a service rather than a harness and
+  was split out as **E-020**, closed separately by RFC-0.26-004 — see
+  below.) A predecessor line, RFC-0.26-003, concluded no signal existed to
+  wait on and none could be built — **false**: the kernel is the authority
+  on a task's blocked state (`sys_task_status` already dispatched, already
+  imported by `fjell-neg-test`) and can be polled; the real gap was
+  *addressing* (`sample-service` isn't a task `neg-test` spawned itself, so
+  it had no `TaskId` to poll). RFC-0.28-003 closed the addressing gap with
+  a one-way, kernel-attested identity exchange on their already-dedicated
+  endpoint (RFC 042's object 6, not the contested shared object 0) and
+  replaced the single defensive `sys_yield()` with a bounded poll, failing
+  closed with a new marker on exhaustion. Demonstrated live, both
+  directions: with the wait removed, `sys_task_status` reads `Runnable`,
+  not `Blocked`, and the profile now correctly reports FAIL; with the real
+  poll, `sample-service` reaches `Blocked` after exactly 2 iterations,
+  measured repeatedly — precisely characterising what the old single-yield
+  comment was, in fact if not by contract, relying on.
 
 - **The ABDD live path runs again** (Errata **E-020**, **CLOSED** by
   RFC-0.26-004). RFC-v0.23-001 shipped this project's distinguishing
