@@ -309,6 +309,15 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     const FORBIDDEN: &[&str] = &[
         "NEG:HARNESS:WRONG_ERROR",
         "NEG:HARNESS:UNEXPECTED_OK",
+        // RFC-0.28-003: test_ipc_blocked_recv's own D3-required exhaustion
+        // markers. This list is a closed, hand-maintained set (E-014's own
+        // "instruments deciding by fixed-string match" family) — a new
+        // NEG:HARNESS:* marker has no effect on this gate until it is added
+        // here explicitly, which is why these two are, rather than a
+        // rename or a generic prefix match (the latter would also catch
+        // NEG:HARNESS:CSpace_LAYOUT_VALID:PASS, a real passing marker).
+        "NEG:HARNESS:BLOCKED_RECV_IDENTITY_EXCHANGE_FAILED",
+        "NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED",
         "TEST:FAIL",
         "kernel panic",
         "panicked at",

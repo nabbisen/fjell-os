@@ -27,10 +27,11 @@ use fjell_abi::service::{ImageId, TaskLifecycle};
 use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    sys_audit_drain, sys_cap_bind_lease, sys_cap_copy, sys_cap_drop as _sys_cap_drop,
-    sys_cap_inspect, sys_cap_mint, sys_cap_revoke, sys_debug_writeln, sys_dma_alloc,
-    sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv, sys_lease_create, sys_lease_revoke,
-    sys_mmio_map, sys_task_spawn, sys_task_start, sys_task_status, sys_yield,
+    ipc_sender_tid, sys_audit_drain, sys_cap_bind_lease, sys_cap_copy,
+    sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_mint, sys_cap_revoke,
+    sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv,
+    sys_ipc_recv_msg, sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_task_spawn,
+    sys_task_start, sys_task_status, sys_yield,
 };
 
 // ── CSpace slot constants for this service ────────────────────────────────────
@@ -396,11 +397,24 @@ fn test_user_copy_kernel_addr() {
     );
 }
 
+/// Bound on the `sys_task_status` poll in `test_ipc_blocked_recv` (D3: the
+/// poll must be bounded, and must fail with a marker on exhaustion rather
+/// than falling through to the revoke).
+const BLOCKED_RECV_POLL_BOUND: u32 = 500;
+
 /// IPC: send BIND_LEASE_FOR_IPC_TEST to sample-service; it blocks in ipc_recv
 /// with a lease-bound cap; neg-test revokes the lease → sample-service woken.
 ///
 /// RFC 034 §2: `cancel_blocked_ipc_for_lease` removes RecvWaiter entries
 /// whose `LeaseBinding` matches the revoked (lease_id, epoch).
+///
+/// RFC-0.28-003: the revoke used to be issued after one defensive
+/// `sys_yield()`, on the assumption that sample-service would already be
+/// blocked in `sys_ipc_recv` by then — a "cooperative-scheduling contract"
+/// RFC-0.26-001 removed the priority asymmetry that made true (see the
+/// governing RFC's summary). The wait is now a bounded poll of
+/// `sys_task_status`, addressed via a kernel-attested identity exchange
+/// (§4 of the answer document) rather than assumed timing.
 ///
 /// The marker `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS` is emitted by
 /// sample-service when it observes `LeaseRevoked` from `sys_ipc_recv`.
@@ -432,13 +446,49 @@ fn test_ipc_blocked_recv() {
         }
     }
 
-    // 3. At this point sample-service has replied and is running.
-    //    By the cooperative-scheduling contract, sample-service immediately
-    //    calls sys_ipc_recv(SLOT_LEASED_EP) and blocks before the scheduler
-    //    returns to neg-test.  One defensive yield is included for safety.
-    sys_yield();
+    // 3. sample-service has replied and is about to send us a one-way
+    //    IPC_TEST_ABOUT_TO_BLOCK announcement on this same dedicated object
+    //    (6) before it blocks on the leased cap. Receive it — this is the
+    //    only way we learn sample-service's real TaskId (the attested
+    //    sender identity, not anything self-reported — §4 of the answer
+    //    document). A sender-mismatch or wrong-tag reply here is a harness
+    //    failure, not the thing under test: fail closed rather than
+    //    guessing a TaskId and polling garbage.
+    let sample_tid = match sys_ipc_recv_msg(SLOT_SAMPLE_EP) {
+        Ok((label, _w0, _w1, _w2, _w3, sender)) if label == tags::IPC_TEST_ABOUT_TO_BLOCK => {
+            ipc_sender_tid(sender)
+        }
+        _ => {
+            sys_debug_writeln("NEG:HARNESS:BLOCKED_RECV_IDENTITY_EXCHANGE_FAILED");
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+            return;
+        }
+    };
 
-    // 4. Revoke the lease — this triggers cancel_blocked_ipc_for_lease in
+    // 4. Poll sys_task_status until sample-service reads Blocked, bounded
+    //    (D3): an unbounded poll turns a failing test into a hang, the
+    //    failure mode this project diagnoses worst. sample-service's own
+    //    generation is 0 for the run's duration (checked, not assumed —
+    //    §4 of the answer document): it is spawned once at boot and never
+    //    removed, faulted, or respawned by anything this profile runs.
+    let sample_task_handle = sample_tid as usize;
+    let mut blocked = false;
+    for _ in 0..BLOCKED_RECV_POLL_BOUND {
+        if let Ok(lc) = sys_task_status(SLOT_TASK_CONTROL, sample_task_handle) {
+            if lc == TaskLifecycle::Blocked as u8 {
+                blocked = true;
+                break;
+            }
+        }
+        sys_yield();
+    }
+    if !blocked {
+        sys_debug_writeln("NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED");
+        let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+        return;
+    }
+
+    // 5. Revoke the lease — this triggers cancel_blocked_ipc_for_lease in
     //    the kernel which wakes sample-service with LeaseRevoked.
     let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
     // (marker emitted by sample-service asynchronously)

@@ -40,6 +40,18 @@ pub mod tags {
     pub const BIND_LEASE_AND_CALL_BACK: usize = 0x061;
     /// Callback message sent by sample-service back to neg-test.
     pub const CALL_BACK_MSG: usize = 0x062;
+    /// RFC-0.28-003: one-way announcement sent by `sample-service` to
+    /// `neg-test` (on the same dedicated object 6, via `SLOT_SAMPLE_EP`'s
+    /// `RECV` right) immediately before `sample-service` blocks in
+    /// `sys_ipc_recv` on the leased cap. Carries no meaningful payload —
+    /// the point is the delivery's kernel-attested sender identity
+    /// (`sys_ipc_recv_msg`'s 6th return element), which is how `neg-test`
+    /// learns `sample-service`'s real `TaskId` well enough to poll
+    /// `sys_task_status` on it, per §4 of the governing RFC's answer
+    /// document. Not an announcement of *blocked-ness* (D1 forbids that) —
+    /// only of *identity*; the wait itself is still the `sys_task_status`
+    /// poll, which starts only after this message is drained.
+    pub const IPC_TEST_ABOUT_TO_BLOCK: usize = 0x063;
 }
 
 // ── RFC 019: storaged IPC protocol ────────────────────────────────────────────

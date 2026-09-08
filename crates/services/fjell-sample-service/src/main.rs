@@ -222,8 +222,23 @@ pub extern "C" fn service_main() -> ! {
                     let _ = sys_ipc_reply(usize::MAX); // setup failed
                     continue;
                 };
-                // Reply OK — neg-test will now yield and then revoke the lease.
+                // Reply OK — neg-test is now unblocked.
                 let _ = sys_ipc_reply(0);
+
+                // RFC-0.28-003 (§4, shape 3): announce our identity to
+                // neg-test before blocking, so it can poll sys_task_status
+                // instead of assuming a cooperative-scheduling ordering
+                // that no longer holds (RFC-0.26-001 removed the priority
+                // asymmetry the old comment here relied on). One-way send
+                // on our own dedicated object (6) — neg-test already holds
+                // RECV rights on it via SLOT_SAMPLE_EP (the same object its
+                // existing BIND_LEASE_AND_CALL_BACK test already receives
+                // on), so this cannot be stolen by auditd/bootctl's shared-
+                // object-0 receive loops the way a send to our own SLOT_OWN_EP
+                // sender's *own* endpoint would be if it aliased object 0.
+                // Carries no payload; the point is the delivery's kernel-
+                // attested sender identity, not anything self-reported.
+                let _ = fjell_syscall::sys_ipc_send(SLOT_OWN_EP, tags::IPC_TEST_ABOUT_TO_BLOCK);
 
                 // Block in ipc_recv with the leased cap.
                 // Woken by cancel_blocked_ipc_for_lease when neg-test revokes.
