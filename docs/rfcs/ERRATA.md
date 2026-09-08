@@ -214,6 +214,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > their tests exist and are reachable, and CI simply never invokes them. That is
 > **E-015**, and filing it here would blur an erratum that is currently precise.
 
+> **Re-derived 2026-09-08, scoping RFC-0.29-001.** The figure has grown from
+> **166** to **305** unreachable `#[test]` functions: **285** in crates with no
+> lib target, plus **20** in integration `tests/` directories (excluding
+> `fjell-proptest`'s 24, which tier 2 runs). The two largest are now
+> `fjell-consistency-check` (**98** — Gate 12's ten subchecks) and `fjell-tools`
+> (**86** — Gate 11's five callsite checks, including the 36 behind
+> `SYSCALL-CALLSITE-001`/`-002` that 0.28 added). **Every instrument this
+> project adds lands inside this erratum**, which is why it is the one of the
+> four that has been actively worsening. `--bins` reaches the 285; `--tests`
+> reaches the 20.
+
 ## E-014 — Verification instruments that decide by matching a fixed string
 
 - **Claim:** several instruments assert a semantic property —
@@ -275,6 +286,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (RFC-0.24-002). Fixing them is mechanical once someone decides whether CI
   should enumerate or derive its package list; 0.25 candidate. See
   `docs/verification/instrument-audit-closeout.md` §3.2.
+
+> **Re-derived 2026-09-08, scoping RFC-0.29-001.** The negative-test categories
+> are enumerated in **five** places and no two agree: `test_all.rs`'s
+> doc-comment says *"× 9 categories"*; `NEG_CATEGORIES` three lines below holds
+> **12**; `ci.yml`'s matrix lists **9**; there are **15** profiles on disk; and
+> `KNOWN_V01X_CATEGORIES` + `KNOWN_V02_CATEGORIES` hold 13 entries including an
+> alias. Concretely: **`semantic`, `uart-rx` and `uart-rx-unbound` run in
+> `test-all` and have never run in ordinary CI.** The crate figure is now
+> **23 of 93** never named in `ci.yml` — it read 21 of 91 and went stale exactly
+> as this entry describes.
 
 ## E-016 — No instrument verifies any document link, index, or count
 
@@ -1460,9 +1481,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-010 IPC words delivery | 0.20 | CLOSED |
 | E-011 cap_install rights validation | RFC-v0.21.3-001 | ACCEPTED |
 | E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
-| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | unscheduled | ACCEPTED |
+| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | ACCEPTED |
 | E-014 instruments deciding by fixed-string match | unscheduled | ACCEPTED |
-| E-015 hand-enumerated instrument scopes drifted from reality | unscheduled | ACCEPTED |
+| E-015 hand-enumerated instrument scopes drifted from reality | RFC-0.29-001 | ACCEPTED |
 | E-016 no link, index, or count integrity instrument | RFC-0.27-001 | CLOSED |
 | E-017 audit `sound` verdicts not all demonstration-backed | unscheduled | ACCEPTED |
 | E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
