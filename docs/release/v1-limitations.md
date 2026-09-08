@@ -377,6 +377,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it inside `fjell-syscall` going forward. `sys_ipc_recv`'s long-term future
   (repair vs. remove) remains an open escalation, not resolved by this fix.
 
+- **The ABI baseline is never re-recorded** (Errata **E-035**, ACCEPTED, tracked
+  to **0.29**). `tests/abi/snapshot.json` holds 413 items against a tree of 418;
+  Gate 4 reports `Added: 5 (additive — OK)` and passes, correctly. Removals and
+  signature changes are still caught — but the baseline no longer describes any
+  shipped release, and a future regeneration would absorb every accumulated
+  addition in one unreviewed step.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

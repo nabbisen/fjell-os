@@ -1251,6 +1251,36 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   fix is to pack a word count and give these flows a receiver, or to delete the
   parameter — whichever, it is a behaviour decision, not a cleanup.
 
+## E-035 — the ABI baseline is never re-recorded, so additive drift accumulates silently
+
+- **Claim:** `tests/abi/snapshot.json` is the record of the surface this project
+  promises not to break, and Gate 4 verifies the tree against it.
+- **Tree:** the baseline holds **413** items; the tree has **418**. Gate 4
+  reports `Added: 5 (additive — OK)` and **PASSes**, correctly — additions do
+  not break anyone. The five are `fjell-abi::service` consts added by
+  RFC-0.28-001 and never baselined.
+- **Nothing ever re-records it.** `docs/src/release/v0-release-cycle.md` does not
+  mention the ABI snapshot at any point; the `0.27.0` cut did not touch it; the
+  last regeneration was `40ea59b` (RFC-0.27-002), and that was a
+  removal-plus-addition reconciliation, not a release step.
+- **Why this matters even though the gate is green.** Removals and signature
+  changes are still caught, so nothing is currently at risk. But the baseline
+  stops describing any shipped release, `Added: N` grows monotonically into
+  noise nobody reads, and **whenever someone finally regenerates, every
+  accumulated addition is absorbed in a single unreviewed step** — which is
+  exactly the hazard RFC-0.24-003 exists to prevent, arriving by patience
+  instead of by mistake.
+- **Found:** during the RFC-0.28-004 review. The implementation model reported
+  the `Added: 5` while verifying its own ABI diff was clean, and correctly left
+  it alone as out of scope.
+- **Interim fix applied:** the release cycle now carries a step to re-record the
+  baseline at each cut with the additions enumerated and justified before
+  regeneration (`docs/src/release/v0-release-cycle.md`). **Nothing enforces
+  that step** — which is why this is an erratum and not just a procedure edit.
+  A `Gate 4`-adjacent check could assert `Added == 0` at a cut; that is an
+  instrument change and carries RFC-v0.22-001's demonstration requirement.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -1289,6 +1319,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
+| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.29 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

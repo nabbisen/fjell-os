@@ -166,6 +166,34 @@ baseline → verify the diff.**
 baseline had absorbed 0.26.0-era digests unchanged. After the build, the diff
 was one line, for the one binary the version bump moved.*
 
+### Before criterion 6 — re-record the ABI baseline, with the additions enumerated
+
+`tests/abi/snapshot.json` is the record of the surface this project promises not
+to break. Gate 4 verifies the tree against it and treats additions as
+non-breaking, so a release can ship with `Added: N` and a green gate — which
+means **nothing forces the baseline forward, and it drifts.**
+
+At each cut:
+
+```
+cargo run -p fjell-abi-snapshot --release -- --verify
+```
+
+**`Removed` and `Changed sig` must be 0**, or the release stops until each is
+reconciled (RFC-0.24-003). If `Added` is non-zero, **enumerate the additions and
+name the RFC that introduced each one** before regenerating. Then re-record, and
+check the diff contains only those items.
+
+The enumeration is the point. A baseline regenerated without it absorbs
+everything that accumulated since the last one, unreviewed, in a single commit —
+the exact hazard RFC-0.24-003 was written about, reached by patience rather than
+by mistake.
+
+*Added 2026-09-08, during the RFC-0.28-004 review. The cycle had no ABI step at
+all: the `0.27.0` cut did not touch the snapshot, the baseline had not moved
+since `40ea59b`, and the tree had drifted five items ahead of it. Recorded as
+**E-035** — this step is written down but nothing enforces it.*
+
 ### Before the tag — pin the crates.io logo URLs to this release's tag
 
 `assets/` sits at the repository root and is therefore **not in either crate's
