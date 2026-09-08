@@ -156,3 +156,19 @@ continues immediately — but its *own* subsequent one-way identity-send
 the reply, gets a turn; the exact interleaving from there on is a
 property of instruction counts, not a documented invariant, which is
 D1's whole argument for polling instead of continuing to assume it.
+
+---
+
+## Evidence (D4)
+
+A post-commit, clean-tree serial log of the final implementation (real
+bounded poll, `sample-service` reaching `Blocked` at iteration 2) is
+promoted at
+[`tests/evidence/RFC-0.28-003/blocked-recv-poll-real.log`](../../tests/evidence/RFC-0.28-003/blocked-recv-poll-real.log)
+(provenance:
+[`tests/evidence/RFC-0.28-003/blocked-recv-poll-real.provenance.txt`](../../tests/evidence/RFC-0.28-003/blocked-recv-poll-real.provenance.txt)).
+The zero-yield inverse demonstration was captured against temporarily
+modified code that was reverted before commit, per D4's own point — it is
+described above rather than promoted, since promoting a log from code that
+no longer exists in the tree would be evidence of nothing checkable
+against `HEAD`.
