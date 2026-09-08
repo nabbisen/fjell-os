@@ -5,6 +5,17 @@
 Per the handoff's required order, this is written before any repair. §5(c) is
 answered as an escalation, not a ruling, per the handoff's explicit instruction.
 
+**Evidence (D4):** post-commit, clean (`tree_dirty_at_run_time = false`)
+`qemu-test m8` run against the fully repaired tree:
+[`tests/evidence/RFC-0.28-004/m8-cap-inspect-repaired.log`](../../tests/evidence/RFC-0.28-004/m8-cap-inspect-repaired.log)
+— `proxy-text`'s ABDD demonstration shows both `action accepted` and
+`action DENIED (capability not held)` outcomes, driven by `sys_cap_inspect`
+now issuing one correctly-numbered syscall rather than a coincidence
+between a correct first call and a mis-numbered, silently-failing second
+one. One of 21/21 clean `test-all` tiers plus 16 additional targeted runs
+(6× `qemu-test m8`, 5× `qemu-negative capability`, 5× `qemu-negative
+audit`) against the final tree, all clean.
+
 ---
 
 ## The counts, re-derived
