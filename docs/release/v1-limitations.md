@@ -427,6 +427,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   releases, a patch bump changes codegen and therefore digests, and nothing
   records which toolchain produced the repro baseline.
 
+- **Three subchecks emit no diagnostic when an RFC folder is absent** (Errata
+  **E-038**, ACCEPTED, tracked to **0.29**). `rfc-status-folder`,
+  `errata-tracking` and `doc-counts` vanish from the results list entirely,
+  leaving a bare `consistency-check: FAIL` with no name, path or reason. Found
+  at the 0.28.0 cut when `rfcs/accepted/` emptied and git dropped the directory
+  from fresh clones — the third time one folder or another has done this. Keeper
+  files exist in all four folders now; the silence does not.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

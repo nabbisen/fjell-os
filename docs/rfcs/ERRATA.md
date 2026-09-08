@@ -1413,6 +1413,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that neither is captured with the output.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`.
 
+## E-038 — three subchecks fail silently when an RFC folder is absent
+
+- **Claim:** `consistency-check` reports which subcheck failed and why.
+- **Tree:** when `rfcs/accepted/` does not exist, **`rfc-status-folder`,
+  `errata-tracking` and `doc-counts` produce no output at all** — not a failure
+  line, not an error, nothing. They vanish from the results list, and the run
+  ends on a bare `consistency-check: FAIL` with no indication of which of the
+  ten subchecks failed or what was wrong.
+- **How it surfaced:** the `0.28.0` cut. All five 0.28 RFCs moved to `done/`
+  together, emptying `rfcs/accepted/` for the first time; git does not track
+  empty directories, so the folder vanished from a fresh clone. The clean-clone
+  verification step caught it **before the tag** — the working tree was green
+  throughout.
+- **Fail-closed on the aggregate, silent on the diagnosis.** The overall result
+  is `FAIL`, so nothing ships broken. But a reader gets no name, no path and no
+  reason, and the three checks that would have said "`rfcs/accepted/` is
+  missing" are exactly the three that cannot speak.
+- **This is the third discovery of one property of git.** `proposed/` emptied at
+  `d5edf31` and turned Gate 12 red for every clone; `archive/` was given a stub
+  by RFC-0.25-002 R1 for the same reason; `accepted/` has now done it a third
+  time. Each was fixed with a keeper file and none of the three fixes prevented
+  the next.
+- **Interim fix applied:** `rfcs/accepted/README.md`, matching the existing
+  keepers, added during this cut. **The silence is not fixed** — that is what
+  this erratum tracks.
+- **Two candidates.** A subcheck that cannot read a required directory should
+  say so by name. And a keeper-file check would close the family rather than its
+  third instance — the same "close the class, not the case" argument
+  RFC-0.28-002 made for `a6`.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -1454,6 +1485,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.29 | ACCEPTED |
 | E-036 T20's stated two-build reproducibility check is invoked nowhere; every call is `--skip-build` | unscheduled | ACCEPTED |
 | E-037 the toolchain is declared in both `rust-toolchain.toml` and `ci.yml`, floats within `1.91.x`, and is recorded with no artefact | unscheduled | ACCEPTED |
+| E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.29 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

@@ -101,6 +101,13 @@ threat model's two-build reproducibility check is invoked nowhere) and E-037
 **Nothing slipped.** E-025, E-029 and E-030 were all dated 0.28 and all closed
 in it.
 
+**Caught at the cut, before the tag.** All five RFCs moving to `done/` emptied
+`rfcs/accepted/`, and git does not track empty directories — so the folder
+vanished from a fresh clone and `consistency-check` failed there while the
+working tree stayed green. A keeper file was added, as `proposed/` and
+`archive/` already have. The three subchecks that failed produced **no output
+at all**, which is **E-038**.
+
 ---
 
 ## [0.27.0] — 2026-09-05 — The documents start being checked
