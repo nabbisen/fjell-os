@@ -188,15 +188,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   neither has executed. The real target, `riscv64gc-unknown-none-elf`, is
   bare-metal with no OS and no libtest harness, so no alternate `cargo
   test` invocation reaches them either.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-01). Found during
-  RFC-v0.23-002 Slice 1 while writing the two-demonstration unit tests that
-  RFC requires — they could not be proven to run under tier 1 or any other
-  `cargo test` invocation. The fix is architectural (add a `[lib]` target,
-  or split a host-testable subset out of the kernel crate) and is real
-  design work deserving its own RFC rather than an in-line exception during
-  a marker-emission fix. Pre-existing; makes nothing worse; does not block
-  `0.23.0`. RFC to follow after the release. See
-  `docs/release/v1-limitations.md`.
+- **Resolution:** **CLOSED** by RFC-0.29-001. ~~ACCEPTED (architect,
+  2026-08-01)~~ → fixed for the host-binary half (see the 2026-09-09
+  addendum above); `fjell-kernel`'s host-testability remains a distinct,
+  unaddressed architectural question — explicitly this line's non-goal,
+  and, per this entry's own words, never its core claim ("this is not
+  'kernel unit tests do not run'") — tracked separately rather than
+  reopening this entry. Originally found during RFC-v0.23-002 Slice 1
+  while writing the two-demonstration unit tests that RFC requires — they
+  could not be proven to run under tier 1 or any other `cargo test`
+  invocation. See `docs/release/v1-limitations.md`.
 
 > **Second confirmation 2026-08-03 (RFC-0.24-001 Pass 4).** The six gate-tool
 > crates — `fjell-abi-snapshot`, `fjell-consistency-check`, `fjell-mmio-audit`,
@@ -224,6 +225,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > project adds lands inside this erratum**, which is why it is the one of the
 > four that has been actively worsening. `--bins` reaches the 285; `--tests`
 > reaches the 20.
+
+> **Fixed by RFC-0.29-001 R1, 2026-09-09 — and both figures above had
+> already moved by the time they were used.** Re-derived rather than
+> reproduced: **41** no-lib crates (not 40), **288** unit tests in them
+> (258 host + 30 `fjell-kernel`, not 285 — `fjell-tools`'s own share grew
+> to 89 while this line was being built), **27** integration-test-dir
+> tests excluding proptest (not 20 — `fjell-cap` 16, `fjell-upgrade-format`
+> 7, `fjell-config-sync` 2, `fjell-fleet-sync` 2). `--bins`/`--tests`
+> cannot be added `--workspace`-wide as this entry's own phrasing implied:
+> `crates/fjell-kernel`, every `crates/services/*`, and every
+> `crates/drivers/*` crate are `#![no_std]` binaries with their own
+> `panic_impl`, and either flag tries to build all 31 of them for the host
+> — a compile error, not a test failure, demonstrated live. Fixed by
+> deriving the exclude set from `cargo metadata` (`crates/fjell-tools/src/
+> cargo_metadata.rs`, new) rather than reaching for the flag without
+> checking what it broke — the same mistake this erratum was filed to
+> correct in `--lib`. **`fjell-kernel`'s 30 remain unreachable** —
+> unchanged, and, per the RFC's own text above, never this erratum's core
+> claim ("this is not 'kernel unit tests do not run'"). See the answer
+> document for the full count reconciliation and the `ci-host-bins` CI job
+> that now runs the same command in ordinary CI, not only `test-all`.
 
 ## E-014 — Verification instruments that decide by matching a fixed string
 
@@ -279,13 +301,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   - **`smoke.rs`'s `v0.6-verification` milestone** appears in neither CI matrix
     nor `SMOKE_PROFILES` — defined in code, invoked by nothing, anywhere.
     Vestigial from a naming transition.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-03). Recorded, not fixed.
-  Distinct in kind from E-014: these are checks that **do not run**, or run over
-  an incomplete set — not checks that report success without checking. That
-  distinction is why they were held out of the pre-cut repair line
-  (RFC-0.24-002). Fixing them is mechanical once someone decides whether CI
-  should enumerate or derive its package list; 0.25 candidate. See
-  `docs/verification/instrument-audit-closeout.md` §3.2.
+- **Resolution:** **ACCEPTED**, tracked **RFC-0.29-001** — not `CLOSED`.
+  ~~ACCEPTED (architect, 2026-08-03), 0.25 candidate~~ → three of the four
+  bullets above fixed by RFC-0.29-001 (2026-09-09); `smoke.rs`'s vestigial
+  `v0.6-verification` milestone bullet survives and is named in the
+  2026-09-09 addendum below rather than quietly closed around, per that
+  RFC's own instruction for a surviving instance. Distinct in kind from
+  E-014: these are checks that **did not run**, or ran over an incomplete
+  set — not checks that report success without checking.
 
 > **Re-derived 2026-09-08, scoping RFC-0.29-001.** The negative-test categories
 > are enumerated in **five** places and no two agree: `test_all.rs`'s
@@ -296,6 +319,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > `test-all` and have never run in ordinary CI.** The crate figure is now
 > **23 of 93** never named in `ci.yml` — it read 21 of 91 and went stale exactly
 > as this entry describes.
+
+> **Partially fixed by RFC-0.29-001, 2026-09-09 — three of four bullets
+> above, not all.** The crate figure was re-derived again rather than
+> trusted: **21 of 91** today, not 23 of 93 — the same number the
+> 2026-08-27 measurement found, reported as measured rather than
+> reconciled against either prior figure. `NEG_CATEGORIES`, `ci.yml`'s
+> hardcoded matrix, and `KNOWN_V01X_CATEGORIES`/`KNOWN_V02_CATEGORIES` are
+> all **removed** — `qemu_run::discover_negative_categories` (derived from
+> `tests/qemu/profiles/*.toml`) is the one answer all three call sites
+> use now, including `ci.yml` via a new `ci-negative-matrix` job and
+> `cargo xtask list-negative-categories`. `fjell-sig-ed25519`,
+> `fjell-fleet-sync`, `fjell-config-sync`'s tests now also run in ordinary
+> CI (`ci-host-bins`, R1's own fix) — closing this bullet's "possibly
+> intentional; nothing in the workflow says so" ambiguity: it was not
+> intentional, and now it runs. **`smoke.rs`'s `v0.6-verification`
+> milestone bullet is untouched** — `smoke.rs` is outside this line's
+> `Touches`, and the same defect shape recurring there is a finding to
+> report, not a scope to fold in. Full reconciliation and the
+> `fjell-driver-uart`/`fjell-svc-fault`/`fjell-svc-timeout` cross-check
+> gap (a `cargo check` gap, not a test gap — all three have zero
+> `#[test]`s) are in the answer document.
 
 ## E-016 — No instrument verifies any document link, index, or count
 
@@ -1481,7 +1525,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-010 IPC words delivery | 0.20 | CLOSED |
 | E-011 cap_install rights validation | RFC-v0.21.3-001 | ACCEPTED |
 | E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
-| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | ACCEPTED |
+| E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | CLOSED |
 | E-014 instruments deciding by fixed-string match | unscheduled | ACCEPTED |
 | E-015 hand-enumerated instrument scopes drifted from reality | RFC-0.29-001 | ACCEPTED |
 | E-016 no link, index, or count integrity instrument | RFC-0.27-001 | CLOSED |

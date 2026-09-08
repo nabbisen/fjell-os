@@ -16,44 +16,46 @@ require updating the governing record first, then this page.*
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
-- **`test-all` tier 1 never runs the tests of any package without a library
-  target — including the verification tooling's own** (Errata **E-013**,
-  ACCEPTED). Tier 1 ("Host library tests") runs
-  `cargo test --workspace --lib`, which silently skips any package with no
-  library target. Measured across the workspace: **40 of 89 manifests have no
-  lib target, and 10 of those carry 166 `#[test]` functions that `--lib` never
-  reaches.**
+- **`test-all` tier 1 used to never run the tests of any package without a
+  library target — including the verification tooling's own** (Errata
+  **E-013**, **CLOSED** by RFC-0.29-001). Tier 1 ("Host library tests") ran
+  `cargo test --workspace --lib`, which silently skipped any package with no
+  library target. Measured at the time: **40 of 89 manifests had no lib
+  target, and 10 of those carried 166 `#[test]` functions `--lib` never
+  reached** — the count grew steadily every release after (RFC-0.29-001's
+  own re-derivation found 41/288 before its fix, and the two prior figures
+  it corrected — 305 and 285/20 — had themselves already gone stale by the
+  time they were used, since every instrument this project adds lands
+  inside this count).
 
-  **Eight of those ten are the gate tools themselves** — `fjell-tools` (68,
-  including `callsite_audit`'s, which are Gate 11's own demonstrations),
-  `fjell-consistency-check` (26 — Gate 12's), `fjell-unsafe-audit` (10 —
-  Gate 2's), `fjell-abi-snapshot` (8 — Gate 4's), `fjell-mmio-audit` (7 —
-  Gate 3's), `fjell-readiness-check` (5 — Gate 5's), plus `fjell-repro-check`
-  (6), `fjell-ci-coverage` (4), `fjell-summary-check` (2), and `fjell-kernel`
-  (30). So the demonstrations that establish several gates as sound are
-  themselves never run by the tier that claims to run the test suite.
+  **Fixed by a new tier**, not by widening `--lib`: `cargo test --workspace
+  --bins --tests` reaches every crate above except `fjell-kernel`, but
+  cannot be added blindly — `fjell-kernel` and every crate under
+  `crates/services/`/`crates/drivers/` are `#![no_std]` binaries with their
+  own `panic_impl`, and either flag tries to build all of them for the host,
+  a compile error rather than a test failure. `crates/fjell-tools/src/
+  cargo_metadata.rs` derives the exclude set from `cargo metadata` instead
+  of a name list. Demonstrated failing first (RFC-v0.22-001): a register
+  deliberately removed from a real `SYSCALL-CALLSITE-002`-guarded `asm!`
+  block in `fjell-syscall` was caught by the new tier, reverted, and shown
+  passing again.
 
-  For `fjell-kernel` specifically, the real target is bare-metal with no
-  libtest harness, so no alternate invocation reaches its modules either —
-  including the kernel-side lease table (`lease/mod.rs`, one half of a Verus
-  release-required target) and the RFC-v0.23-002 milestone-marker tests.
+  **`fjell-kernel`'s tests remain unreachable** — the real target is
+  bare-metal with no libtest harness, so no host invocation reaches
+  `lease/mod.rs` (one half of a Verus release-required target),
+  `mm/frame_alloc.rs`, `mm/user_ptr.rs`, `task/scheduler.rs`, or
+  `trap/dispatch.rs`'s tests (including the RFC-v0.23-002 milestone
+  markers) either. Making the kernel host-testable was this line's
+  explicit non-goal and, per this entry's own original framing, was never
+  this erratum's core claim ("this is not 'kernel unit tests do not run'
+  but 'the verification tooling's own tests do not run'") — tracked
+  separately as a distinct, still-open architectural question.
 
-  The follow-up RFC has two separable halves: the **nine host binaries**,
-  ordinary `std` crates where the gap is the bare `--lib` flag and the fix is
-  trivial; and **`fjell-kernel`**, where it is architectural (a `[lib]`
-  target, or a host-testable subset split out). Found during RFC-v0.23-002
-  Slice 1; scope widened by RFC-0.24-001 Pass 1. Tracking: **unscheduled**
-  (re-dispositioned from *"RFC after 0.23.0"* by RFC-0.27-001 — three
-  releases have shipped since without one being written).
-
-  **Second confirmation (RFC-0.24-001 Pass 4).** The six gate-tool crates —
-  `fjell-abi-snapshot`, `fjell-consistency-check`, `fjell-mmio-audit`,
-  `fjell-readiness-check`, `fjell-repro-check`, `fjell-summary-check` — are
-  **also never named in any job in `.github/workflows/ci.yml`**, which lists
-  its packages explicitly by name. So nothing runs their tests anywhere, by
-  any mechanism, in ordinary operation: not tier 1, and not CI. The three
-  crates backing Gate 8's validation drills are a separate matter and are
-  recorded under E-015, not here.
+  **The CI half is fixed too**, not just `test-all`'s: a new `ci-host-bins`
+  job runs the identical derived command (`cargo xtask host-bin-tests`), so
+  the gate tools' own tests — previously never named in any
+  `.github/workflows/ci.yml` job at all — now run on every push and PR, not
+  only locally.
 
 - **Several verification instruments decide by matching a fixed string**
   (Errata **E-014**, ACCEPTED). Gate 5 counts rows containing `**OPEN**`, so a
@@ -74,19 +76,27 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   re-disposition rather than writing a milestone nobody intends to keep.
 
 - **Instrument scopes are hand-enumerated and have drifted from reality**
-  (Errata **E-015**, ACCEPTED). **21 of 91 workspace crates are never named in
-  any `ci.yml` job** — six are the gate tools above, and three back Gate 8's
+  (Errata **E-015**, ACCEPTED, tracked **RFC-0.29-001** — three of four
+  historical instances fixed, one survives). **21 of 91 workspace crates
+  are never named in any `ci.yml` job** (re-measured 2026-09-09: still 21
+  of 91 — the RFC's own re-derivation had read 23 of 93). Fixed: the six
+  gate-tool crates (E-013, above) and the three crates backing Gate 8's
   validation drills (`fjell-sig-ed25519`, `fjell-fleet-sync`,
-  `fjell-config-sync`), whose markers therefore run only at
-  `release-rehearsal` time and never on a push or PR. `ci-qemu-negative`'s
-  matrix lists nine categories while `test-all` runs ten: the `semantic`
-  category added by RFC-v0.23-001 has never run in ordinary CI. The
-  `KNOWN_V01X_CATEGORIES` / `KNOWN_V02_CATEGORIES` lists no longer describe the
-  profiles on disk, and `smoke.rs`'s `v0.6-verification` milestone is defined
-  in code and invoked by nothing anywhere. These are checks that **do not
-  run**, or run over an incomplete set — distinct from E-014's checks that
-  report success without checking. Recorded, not fixed; **unscheduled** — same
-  re-disposition as E-014, for the same reason.
+  `fjell-config-sync`) now all run via the new `ci-host-bins` job, closing
+  this entry's own "possibly intentional; nothing in the workflow says so"
+  — it was not intentional, and their tests run in ordinary CI now (Gate
+  8's drill *markers* stay rehearsal-only by design; that mechanism is
+  separate and untouched). `ci-qemu-negative`'s matrix, `NEG_CATEGORIES`,
+  and the `KNOWN_V01X_CATEGORIES`/`KNOWN_V02_CATEGORIES` lists are all
+  **removed** — `qemu_run::discover_negative_categories`, derived from
+  `tests/qemu/profiles/*.toml`, is the one answer every call site uses.
+  **`smoke.rs`'s `v0.6-verification` milestone is still defined in code and
+  invoked by nothing anywhere** — the identical defect shape, in a file
+  RFC-0.29-001 does not touch; named rather than folded in, per that RFC's
+  own scope discipline. `fjell-driver-uart`, `fjell-svc-fault`, and
+  `fjell-svc-timeout` remain absent from `ci-cross-check`'s crate list — a
+  `cargo check` coverage gap, not a test gap (all three have zero
+  `#[test]`s today), outside this erratum's own test-execution framing.
 
 - **No instrument verifies any document link, index, or count** (Errata
   **E-016**, **CLOSED** by RFC-0.27-001). `rfcs/README.md` — the repository's
