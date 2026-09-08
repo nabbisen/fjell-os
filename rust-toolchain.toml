@@ -1,5 +1,0 @@
-[toolchain]
-channel = "1.91"
-profile = "minimal"
-components = ["rustfmt", "clippy", "rust-src"]
-targets   = ["riscv64gc-unknown-none-elf"]
