@@ -12,3 +12,10 @@ expected_markers = [
     "NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS",
 ]
 extra_args       = []
+
+# RFC-0.29-001 D5: this profile has a marker specification but no emitting
+# scenario yet (v1-limitations.md) — running it fails honestly rather than
+# placeholder-passing. It is still derived into scope (D1) and runs like
+# any other category; only its result is excluded from release gating.
+release_gated    = false
+not_gated_reason = "no emitting scenario yet; markers are specified but nothing produces them (v1-limitations.md)"

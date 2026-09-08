@@ -7,7 +7,12 @@
 #   ci-test-host       — host unit tests
 #   ci-docs            — mdbook build
 #   ci-qemu-smoke      — qemu-test m1..m8
-#   ci-qemu-negative   — qemu-negative <cat> per category
+#   ci-negative-matrix — derives the category list ci-qemu-negative's
+#                        matrix runs (RFC-0.29-001 D1: tests/qemu/profiles/
+#                        *.toml is the authority, not a list here)
+#   ci-qemu-negative   — qemu-negative <cat>, once per derived category
+#   ci-host-bins       — cargo test --bins/--tests, the crates ci-test-host's
+#                        --lib cannot reach (RFC-0.29-001 R1, E-013)
 
 name: ci
 
@@ -238,15 +243,41 @@ jobs:
           path: tests/qemu/artifacts/smoke-${{ matrix.milestone }}/
           if-no-files-found: warn
 
+  ci-negative-matrix:
+    name: negative-matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      categories: ${{ steps.derive.outputs.categories }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      # RFC-0.29-001 D1/R3/R4: the matrix below used to be a fifth
+      # hand-typed copy of "the negative-test categories" (nine names,
+      # missing semantic/uart-rx/uart-rx-unbound, which test-all already
+      # ran and this workflow never had). `tests/qemu/profiles/*.toml` is
+      # the one authority now; this job's only purpose is to hand that
+      # list to ci-qemu-negative's matrix as JSON, since a workflow
+      # `strategy.matrix` cannot itself run a program to compute its own
+      # entries.
+      - name: Derive negative-test categories
+        id: derive
+        run: echo "categories=$(cargo xtask list-negative-categories)" >> "$GITHUB_OUTPUT"
+
   ci-qemu-negative:
     name: qemu-negative
     runs-on: ubuntu-24.04
-    needs: [ci-check]
+    needs: [ci-check, ci-negative-matrix]
     strategy:
       fail-fast: false
       matrix:
-        # v0.2.23: full matrix including harness (RFC 050) added at v0.2.12.
-        category: [capability, ipc, mmio, dma, user-copy, audit, policy, svc, harness]
+        include: ${{ fromJson(needs.ci-negative-matrix.outputs.categories) }}
     steps:
       - uses: actions/checkout@v7
       - name: Install Rust 1.91 + QEMU + LLVM
@@ -258,7 +289,13 @@ jobs:
           ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
           ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
           echo "$HOME/.local/bin" >> $GITHUB_PATH
+      # RFC-0.29-001 D5: store/upgrade are derived into this matrix like
+      # any other category (they have real profiles) but are not
+      # release-gated — continue-on-error reports their real result
+      # without turning the whole workflow red over a disclosed,
+      # already-tracked gap (v1-limitations.md).
       - name: cargo xtask qemu-negative ${{ matrix.category }}
+        continue-on-error: ${{ matrix.release_gated == false }}
         run: cargo xtask qemu-negative ${{ matrix.category }}
       - name: Upload artefacts
         if: always()
@@ -339,6 +376,28 @@ jobs:
           echo "$HOME/.local/bin" >> $GITHUB_PATH
       - name: Unsafe audit (category= check)
         run: cargo run -p fjell-unsafe-audit -- --workspace . --check
+
+  ci-host-bins:
+    name: host-bins
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.91
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      # RFC-0.29-001 R1 (E-013): the gate tools' own tests -- Gate 12's ten
+      # subchecks, Gate 11's five callsite checks, and the rest of the
+      # crates `--lib` alone cannot reach -- run nowhere in CI today. Same
+      # command as test-all's tier 1b (cargo_metadata::host_bin_test_argv),
+      # so the two never drift apart.
+      - name: cargo xtask host-bin-tests
+        run: cargo xtask host-bin-tests
 
   ci-arm64-check:
     name: arm64-check

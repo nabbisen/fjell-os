@@ -7,13 +7,22 @@
 //! ## Tier order
 //!
 //! 1. **host-lib**   — `cargo test --workspace --lib --exclude fjell-proptest`
+//! 1b. **host-bins** — `cargo test --workspace --bins --tests --exclude
+//!     fjell-proptest --exclude <bare-metal crates>` (RFC-0.29-001 R1:
+//!     `--lib` alone leaves every crate with no lib target — the gate
+//!     tools among them — untested by this runner)
 //! 2. **proptest**   — `cargo test -p fjell-proptest --release`
 //! 3. **unsafe-audit**— `cargo run -p fjell-unsafe-audit -- --workspace . --check`
 //! 4. **qemu-smoke** — `cargo xtask qemu-test <profile>` × 4 profiles
-//! 5. **qemu-neg**   — `cargo xtask qemu-negative <category>` × 9 categories
+//! 5. **qemu-neg**   — `cargo xtask qemu-negative <category>`, once per
+//!     category `qemu_run::discover_negative_categories` derives from
+//!     `tests/qemu/profiles/*.toml` (RFC-0.29-001 R3) — not a count fixed
+//!     here, so this comment has nothing left to go stale against.
 //!
 //! Tiers 4 and 5 are skipped when `--no-qemu` is passed or when
-//! `qemu-system-riscv64` is not on `PATH`.
+//! `qemu-system-riscv64` is not on `PATH`. A category not release-gated
+//! (`store`, `upgrade` today — RFC-0.29-001 D5) still runs in tier 5; its
+//! result is reported but excluded from the tier's pass/fail count.
 //!
 //! ## Output layout
 //!
@@ -40,30 +49,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::cargo_metadata;
+use crate::qemu_run;
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /// Smoke test profiles run in tier 4.
 const SMOKE_PROFILES: &[&str] = &["m8", "v0.4-net", "v0.5-platform", "v0.7-sync"];
-
-/// Negative test categories run in tier 5.
-const NEG_CATEGORIES: &[&str] = &[
-    "capability",
-    "mmio",
-    "dma",
-    "user-copy",
-    "audit",
-    "policy",
-    "ipc",
-    "svc",
-    "harness",
-    "semantic",
-    // RFC-0.25-001: Demonstration 6 (a typed byte reaches driver-uart and is
-    // delivered over IPC) and Demonstration 3 (an unbound interrupt is
-    // claimed and completed, not livelocked) — fail-closed, folded in here
-    // so neither can rot.
-    "uart-rx",
-    "uart-rx-unbound",
-];
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -96,6 +88,35 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
             "fjell-proptest",
         ],
     ));
+
+    // ── Tier 1b: host bin/integration tests (RFC-0.29-001 R1, E-013) ────────
+    // D3, said explicitly: `--bins` reaches unit tests in the crates
+    // `--lib` cannot (no lib target — the gate tools among them);
+    // `--tests` additionally reaches the integration-test-dir tests
+    // (excluding `fjell-proptest`'s, which tier 2 already runs with
+    // `--release`). Neither flag can be added `--workspace`-wide on its
+    // own — see `cargo_metadata::host_bin_test_argv`'s own doc-comment for
+    // why, and CI's `ci-host-bins` job runs the identical, shared
+    // invocation via `cargo xtask host-bin-tests`.
+    match cargo_metadata::host_bin_test_argv() {
+        Ok(argv) => {
+            results.push(run_tier_owned(
+                &run_dir,
+                "01b-host-bins",
+                "Host bin/integration tests",
+                &argv,
+            ));
+        }
+        Err(e) => {
+            eprintln!("[test-all] 01b-host-bins: cargo_metadata failed: {e}");
+            fs::write(run_dir.join("01b-host-bins.log"), &e).ok();
+            results.push(TierResult::failed(
+                "01b-host-bins",
+                "Host bin/integration tests",
+                run_dir.join("01b-host-bins.log"),
+            ));
+        }
+    }
 
     // ── Tier 2: proptest ─────────────────────────────────────────────────────
     results.push(run_tier(
@@ -154,6 +175,24 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
         ],
     ));
 
+    // RFC-0.29-001 R3/§6: the negative categories are derived from
+    // `tests/qemu/profiles/*.toml`, not enumerated here — see
+    // `qemu_run::discover_negative_categories`'s own doc-comment for why
+    // `fleet-demo` is excluded and `store`/`upgrade` are not.
+    let neg_categories = match qemu_run::discover_negative_categories() {
+        Ok(cats) => cats,
+        Err(e) => {
+            eprintln!("[test-all] cannot derive negative-test categories: {e}");
+            fs::write(run_dir.join("05-qemu-neg-derive.log"), &e).ok();
+            results.push(TierResult::failed(
+                "05-qemu-neg-derive",
+                "QEMU negative: category derivation",
+                run_dir.join("05-qemu-neg-derive.log"),
+            ));
+            Vec::new()
+        }
+    };
+
     // ── Tier 4: QEMU smoke ───────────────────────────────────────────────────
     if qemu_available {
         // Build once before running any QEMU test.
@@ -166,7 +205,8 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
                 passed: false,
                 duration: Duration::ZERO,
                 log_path: run_dir.join("04-qemu-build.log"),
-                note: Some("build failed; QEMU tiers skipped".into()),
+                skip_note: None,
+                not_gated_reason: None,
             });
         } else {
             for profile in SMOKE_PROFILES {
@@ -181,15 +221,16 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
             }
 
             // ── Tier 5: QEMU negative ─────────────────────────────────────
-            for cat in NEG_CATEGORIES {
-                let id = format!("05-qemu-neg-{}", cat);
-                let label = format!("QEMU negative: {}", cat);
-                results.push(run_tier(
-                    &run_dir,
-                    &id,
-                    &label,
-                    &["cargo", "xtask", "qemu-negative", cat],
-                ));
+            for cat in &neg_categories {
+                let id = format!("05-qemu-neg-{}", cat.name);
+                let label = format!("QEMU negative: {}", cat.name);
+                let argv = ["cargo", "xtask", "qemu-negative", &cat.name];
+                match &cat.not_gated_reason {
+                    None => results.push(run_tier(&run_dir, &id, &label, &argv)),
+                    Some(reason) => {
+                        results.push(run_tier_not_gated(&run_dir, &id, &label, &argv, reason))
+                    }
+                }
             }
         }
     } else {
@@ -203,9 +244,9 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
             .iter()
             .map(|p| format!("QEMU smoke: {}", p))
             .chain(
-                NEG_CATEGORIES
+                neg_categories
                     .iter()
-                    .map(|c| format!("QEMU negative: {}", c)),
+                    .map(|c| format!("QEMU negative: {}", c.name)),
             )
         {
             results.push(TierResult::skipped(label, note));
@@ -213,22 +254,28 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     }
 
     // ── Write summary ────────────────────────────────────────────────────────
-    // A tier is SKIP iff it carries one of the skip notes; everything not
-    // passed and not skipped is a real FAIL. (Previously the FAIL filter only
-    // excluded notes starting with "skipped", so the "qemu-system-riscv64 not
-    // found on PATH" skips were double-counted as failures and a skip-only
-    // run exited FAILURE.)
-    fn is_skip(r: &TierResult) -> bool {
-        matches!(
-            r.note.as_deref(),
-            Some("skipped via --no-qemu") | Some("qemu-system-riscv64 not found on PATH")
-        )
+    // A tier counts toward PASS/FAIL only if it neither skipped (never ran)
+    // nor opted out of release gating (RFC-0.29-001 D5: ran for real, but
+    // its outcome — store/upgrade today — is a known, disclosed gap, not a
+    // regression to block a release on).
+    fn counts_toward_gate(r: &TierResult) -> bool {
+        r.skip_note.is_none() && r.not_gated_reason.is_none()
     }
-    let passed = results.iter().filter(|r| r.passed).count();
-    let skipped = results.iter().filter(|r| is_skip(r)).count();
-    let failed = results.iter().filter(|r| !r.passed && !is_skip(r)).count();
+    let passed = results
+        .iter()
+        .filter(|r| counts_toward_gate(r) && r.passed)
+        .count();
+    let skipped = results.iter().filter(|r| r.skip_note.is_some()).count();
+    let not_gated = results
+        .iter()
+        .filter(|r| r.not_gated_reason.is_some())
+        .count();
+    let failed = results
+        .iter()
+        .filter(|r| counts_toward_gate(r) && !r.passed)
+        .count();
 
-    let txt = format_summary(&results, passed, skipped, failed);
+    let txt = format_summary(&results, passed, skipped, not_gated, failed);
     let json = format_summary_json(&results);
 
     let txt_path = run_dir.join("summary.txt");
@@ -255,7 +302,14 @@ struct TierResult {
     passed: bool,
     duration: Duration,
     log_path: PathBuf,
-    note: Option<String>,
+    /// Set when the tier did not run at all (`--no-qemu`, a prior build
+    /// failure, `qemu-system-riscv64` missing). `passed` is meaningless
+    /// when this is set.
+    skip_note: Option<String>,
+    /// Set when the tier ran for real and `passed` reflects its actual
+    /// outcome, but that outcome is excluded from the release-gating
+    /// PASS/FAIL determination (RFC-0.29-001 D5).
+    not_gated_reason: Option<String>,
 }
 
 impl TierResult {
@@ -266,12 +320,71 @@ impl TierResult {
             passed: false,
             duration: Duration::ZERO,
             log_path: PathBuf::new(),
-            note: Some(note.into()),
+            skip_note: Some(note.into()),
+            not_gated_reason: None,
+        }
+    }
+
+    /// A tier that could not even be attempted (a mechanical error, not a
+    /// test outcome) — counts as a real failure, distinct from `skipped`.
+    fn failed(id: &str, label: &str, log_path: PathBuf) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            passed: false,
+            duration: Duration::ZERO,
+            log_path,
+            skip_note: None,
+            not_gated_reason: None,
         }
     }
 }
 
 fn run_tier(run_dir: &Path, id: &str, label: &str, argv: &[&str]) -> TierResult {
+    let (passed, duration, log_path) = execute_tier(run_dir, id, label, argv);
+    TierResult {
+        id: id.into(),
+        label: label.into(),
+        passed,
+        duration,
+        log_path,
+        skip_note: None,
+        not_gated_reason: None,
+    }
+}
+
+/// Same execution as `run_tier`, for a category whose result is derived
+/// (not release-gated — RFC-0.29-001 D5): it still runs for real and
+/// `passed` reflects the actual outcome, but the tier is excluded from the
+/// PASS/FAIL count either way.
+fn run_tier_not_gated(
+    run_dir: &Path,
+    id: &str,
+    label: &str,
+    argv: &[&str],
+    reason: &str,
+) -> TierResult {
+    let (passed, duration, log_path) = execute_tier(run_dir, id, label, argv);
+    TierResult {
+        id: id.into(),
+        label: label.into(),
+        passed,
+        duration,
+        log_path,
+        skip_note: None,
+        not_gated_reason: Some(reason.to_string()),
+    }
+}
+
+/// `run_tier`'s owned-`String`-argv sibling, for a command line built at
+/// runtime (RFC-0.29-001 R1: the bare-metal exclude list is derived, not a
+/// fixed-length literal).
+fn run_tier_owned(run_dir: &Path, id: &str, label: &str, argv: &[String]) -> TierResult {
+    let refs: Vec<&str> = argv.iter().map(String::as_str).collect();
+    run_tier(run_dir, id, label, &refs)
+}
+
+fn execute_tier(run_dir: &Path, id: &str, label: &str, argv: &[&str]) -> (bool, Duration, PathBuf) {
     let log_path = run_dir.join(format!("{}.log", id));
     print!("[test-all] {:.<55} ", label);
     std::io::stdout().flush().ok();
@@ -292,14 +405,7 @@ fn run_tier(run_dir: &Path, id: &str, label: &str, argv: &[&str]) -> TierResult 
     let status = if passed { "PASS" } else { "FAIL" };
     println!("{} ({:.1}s)", status, duration.as_secs_f32());
 
-    TierResult {
-        id: id.into(),
-        label: label.into(),
-        passed,
-        duration,
-        log_path,
-        note: None,
-    }
+    (passed, duration, log_path)
 }
 
 fn capture_command(argv: &[&str]) -> (bool, String) {
@@ -399,7 +505,13 @@ fn format_duration(d: Duration) -> String {
 
 // ── Summary formatters ────────────────────────────────────────────────────────
 
-fn format_summary(results: &[TierResult], passed: usize, skipped: usize, failed: usize) -> String {
+fn format_summary(
+    results: &[TierResult],
+    passed: usize,
+    skipped: usize,
+    not_gated: usize,
+    failed: usize,
+) -> String {
     let total = results.len();
     let mut s = String::new();
 
@@ -416,8 +528,11 @@ fn format_summary(results: &[TierResult], passed: usize, skipped: usize, failed:
     s.push_str(&format!("{}\n", "─".repeat(75)));
 
     for (i, r) in results.iter().enumerate() {
-        let result = if let Some(note) = &r.note {
+        let result = if let Some(note) = &r.skip_note {
             format!("SKIP ({})", note)
+        } else if let Some(reason) = &r.not_gated_reason {
+            let outcome = if r.passed { "PASS" } else { "FAIL" };
+            format!("{outcome} (not release-gated: {reason})")
         } else if r.passed {
             "PASS".into()
         } else {
@@ -439,8 +554,8 @@ fn format_summary(results: &[TierResult], passed: usize, skipped: usize, failed:
 
     s.push_str(&format!("{}\n", "─".repeat(75)));
     s.push_str(&format!(
-        "Total: {}  |  PASS: {}  |  FAIL: {}  |  SKIP: {}\n",
-        total, passed, failed, skipped
+        "Total: {}  |  PASS: {}  |  FAIL: {}  |  SKIP: {}  |  NOT-GATED: {}\n",
+        total, passed, failed, skipped, not_gated
     ));
     s.push('\n');
 
@@ -455,6 +570,13 @@ fn format_summary(results: &[TierResult], passed: usize, skipped: usize, failed:
 fn format_summary_json(results: &[TierResult]) -> String {
     let mut entries = Vec::new();
     for r in results {
+        let mut extra = String::new();
+        if let Some(n) = &r.skip_note {
+            extra.push_str(&format!(",\"skip_note\":{:?}", n));
+        }
+        if let Some(n) = &r.not_gated_reason {
+            extra.push_str(&format!(",\"not_gated_reason\":{:?}", n));
+        }
         entries.push(format!(
             "  {{\"id\":{:?},\"label\":{:?},\"passed\":{},\"duration_ms\":{},\"log\":{:?}{}}}",
             r.id,
@@ -462,10 +584,7 @@ fn format_summary_json(results: &[TierResult]) -> String {
             r.passed,
             r.duration.as_millis(),
             r.log_path.display().to_string(),
-            r.note
-                .as_ref()
-                .map(|n| format!(",\"note\":{:?}", n))
-                .unwrap_or_default(),
+            extra,
         ));
     }
     format!("[\n{}\n]\n", entries.join(",\n"))
@@ -502,9 +621,10 @@ mod tests {
             passed: true,
             duration: Duration::from_secs(3),
             log_path: PathBuf::from("01.log"),
-            note: None,
+            skip_note: None,
+            not_gated_reason: None,
         }];
-        let txt = format_summary(&r, 1, 0, 0);
+        let txt = format_summary(&r, 1, 0, 0, 0);
         assert!(txt.contains("PASS"));
         assert!(txt.contains("host tests"));
         assert!(txt.contains("ALL REQUIRED TIERS PASSED"));
@@ -518,11 +638,35 @@ mod tests {
             passed: false,
             duration: Duration::from_secs(1),
             log_path: PathBuf::from("01.log"),
-            note: None,
+            skip_note: None,
+            not_gated_reason: None,
         }];
-        let txt = format_summary(&r, 0, 0, 1);
+        let txt = format_summary(&r, 0, 0, 0, 1);
         assert!(txt.contains("FAIL"));
         assert!(txt.contains("FAILURES DETECTED"));
+    }
+
+    /// RFC-0.29-001 D5: a not-release-gated tier's own failure must not be
+    /// reported as blocking, and must be visually distinct from both a
+    /// plain FAIL and a SKIP (it did run).
+    #[test]
+    fn format_summary_shows_not_gated_failure_without_blocking() {
+        let r = vec![TierResult {
+            id: "05-qemu-neg-store".into(),
+            label: "QEMU negative: store".into(),
+            passed: false,
+            duration: Duration::from_secs(1),
+            log_path: PathBuf::from("store.log"),
+            skip_note: None,
+            not_gated_reason: Some("no emitting scenario yet".into()),
+        }];
+        let txt = format_summary(&r, 0, 0, 1, 0);
+        assert!(txt.contains("not release-gated"));
+        assert!(txt.contains("ALL REQUIRED TIERS PASSED"));
+        assert!(
+            !txt.contains("SKIP ("),
+            "the row itself must not render as a skip"
+        );
     }
 
     #[test]
@@ -533,7 +677,8 @@ mod tests {
             passed: true,
             duration: Duration::ZERO,
             log_path: PathBuf::new(),
-            note: None,
+            skip_note: None,
+            not_gated_reason: None,
         }];
         let j = format_summary_json(&r);
         assert!(j.starts_with('['));
@@ -542,8 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_and_neg_constants_non_empty() {
+    fn smoke_profiles_non_empty() {
         assert!(!SMOKE_PROFILES.is_empty());
-        assert!(!NEG_CATEGORIES.is_empty());
     }
 }

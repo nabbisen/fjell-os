@@ -43,6 +43,26 @@ pub struct Profile {
     /// other profile: they keep the plain `Command::output()` path
     /// unchanged (no piped stdin, no reader threads).
     pub inject_after_marker: Option<(String, Vec<u8>)>,
+    /// RFC-0.29-001 D1: the structural signal that separates a negative
+    /// (or smoke) profile, runnable by this module's single-QEMU
+    /// `run_profile`, from a profile like `fleet-demo` that requires
+    /// several simultaneous QEMU instances and a dedicated runner
+    /// (`cargo xtask fleet-demo`). Anything deriving "the negative-test
+    /// categories" from `tests/qemu/profiles/*.toml` must exclude these —
+    /// see `discover_negative_categories`.
+    pub multi_node: bool,
+    /// RFC-0.29-001 D5: `true` unless the profile's own `.toml` says
+    /// otherwise. A category can be swept into derived scope (D1) while
+    /// still being explicitly excluded from what a release blocks on —
+    /// `store` and `upgrade` have marker specifications but no emitting
+    /// scenario yet (`v1-limitations.md`), and are expected to run and
+    /// fail honestly rather than being silently skipped. The loader
+    /// requires `not_gated_reason` whenever this is `false` — there is no
+    /// way to opt out without also saying why, in the one file a reader
+    /// checking this category will already have open.
+    pub release_gated: bool,
+    /// Required, non-empty, whenever `release_gated` is `false`.
+    pub not_gated_reason: Option<String>,
 }
 
 impl Profile {
@@ -56,6 +76,9 @@ impl Profile {
             expected_markers: vec![marker.to_string()],
             extra_args: vec![],
             inject_after_marker: None,
+            multi_node: false,
+            release_gated: true,
+            not_gated_reason: None,
         }
     }
 }
@@ -159,7 +182,7 @@ pub fn cmd_qemu_run(profile_name: Option<&str>) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    let profile = match load_profile(name) {
+    let profile = match load_profile(Path::new("."), name) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("[xtask] qemu-run: {e}");
@@ -452,8 +475,13 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
 ///   timeout_secs     = integer
 ///   expected_markers = ["a", "b", "c"]
 ///   extra_args       = ["-d", "trace:..."]
-fn load_profile(name: &str) -> Result<Profile, String> {
-    let path = PathBuf::from(format!("tests/qemu/profiles/{name}.toml"));
+///   multi_node       = true|false   (RFC-0.29-001)
+///   release_gated    = true|false   (RFC-0.29-001; requires not_gated_reason when false)
+///   not_gated_reason = "string"     (RFC-0.29-001)
+fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
+    let path = root
+        .join("tests/qemu/profiles")
+        .join(format!("{name}.toml"));
     let src =
         fs::read_to_string(&path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
 
@@ -465,6 +493,9 @@ fn load_profile(name: &str) -> Result<Profile, String> {
     let mut extra: Vec<String> = Vec::new();
     let mut inject_after_marker_v: Option<String> = None;
     let mut inject_bytes_v: Option<String> = None;
+    let mut multi_node_v = false;
+    let mut release_gated_v = true;
+    let mut not_gated_reason_v: Option<String> = None;
 
     let mut lines = src.lines().peekable();
     while let Some(raw) = lines.next() {
@@ -513,8 +544,24 @@ fn load_profile(name: &str) -> Result<Profile, String> {
             // both keys must be present or injection is disabled.
             "inject_after_marker" => inject_after_marker_v = Some(unquote(v)),
             "inject_bytes" => inject_bytes_v = Some(unquote(v)),
+            "multi_node" => {
+                multi_node_v = parse_bool(v).map_err(|e| format!("bad multi_node: {e}"))?
+            }
+            "release_gated" => {
+                release_gated_v = parse_bool(v).map_err(|e| format!("bad release_gated: {e}"))?
+            }
+            "not_gated_reason" => not_gated_reason_v = Some(unquote(v)),
             _ => {} // forward-compatibility: ignore unknown keys
         }
+    }
+
+    if !release_gated_v && not_gated_reason_v.as_deref().unwrap_or("").is_empty() {
+        return Err(format!(
+            "{}: release_gated = false requires a non-empty not_gated_reason (RFC-0.29-001 D5) \
+             — say why this category isn't release-gated, in the file a reader checking it will \
+             already have open",
+            path.display()
+        ));
     }
 
     let inject_after_marker = match (inject_after_marker_v, inject_bytes_v) {
@@ -530,7 +577,80 @@ fn load_profile(name: &str) -> Result<Profile, String> {
         expected_markers: markers,
         extra_args: extra,
         inject_after_marker,
+        multi_node: multi_node_v,
+        release_gated: release_gated_v,
+        not_gated_reason: not_gated_reason_v,
     })
+}
+
+fn parse_bool(v: &str) -> Result<bool, String> {
+    match v.trim() {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        other => Err(format!("expected true or false, got {other:?}")),
+    }
+}
+
+/// One entry of `discover_negative_categories`'s derived list.
+pub struct CategoryInfo {
+    pub name: String,
+    pub release_gated: bool,
+    pub not_gated_reason: Option<String>,
+}
+
+/// RFC-0.29-001 D1/§6: the authority for "the negative-test categories" is
+/// `tests/qemu/profiles/*.toml` itself, not any of the five lists the RFC
+/// found disagreeing (this project's own `NEG_CATEGORIES`, `ci.yml`'s
+/// matrix, two `KNOWN_*` constants, and a stale doc-comment). A profile is
+/// a negative-test category unless its own `multi_node = true` says it
+/// needs a different runner entirely (`fleet-demo`, which requires three
+/// simultaneous QEMU instances and is invoked through `cargo xtask
+/// fleet-demo`, never through this module's single-QEMU `run_profile`) —
+/// a structural exclusion that does not grow as new single-QEMU profiles
+/// are added, unlike a name a person must remember to list.
+///
+/// Every remaining profile is included, gated or not (D5): `store` and
+/// `upgrade` are swept in like any other category, distinguished only by
+/// their own `release_gated = false` — the derivation does not special-
+/// case them by name.
+pub fn discover_negative_categories() -> Result<Vec<CategoryInfo>, String> {
+    discover_negative_categories_at(Path::new("."))
+}
+
+/// `root` is `.` for the real invocation (`cargo xtask` always runs from
+/// the workspace root); tests pass an absolute path computed from
+/// `CARGO_MANIFEST_DIR` instead, since `cargo test` runs test binaries
+/// with the crate's own directory as the working directory, not the
+/// workspace's (same reasoning as `callsite_audit`'s `test_workspace_root`).
+pub fn discover_negative_categories_at(root: &Path) -> Result<Vec<CategoryInfo>, String> {
+    let dir = root.join("tests/qemu/profiles");
+    let entries = fs::read_dir(&dir).map_err(|e| format!("cannot read {}: {e}", dir.display()))?;
+
+    let mut names: Vec<String> = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("cannot read {}: {e}", dir.display()))?;
+        let path = entry.path();
+        if path.extension().and_then(|e| e.to_str()) == Some("toml") {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                names.push(stem.to_string());
+            }
+        }
+    }
+    names.sort();
+
+    let mut out = Vec::new();
+    for name in names {
+        let p = load_profile(root, &name)?;
+        if p.multi_node {
+            continue;
+        }
+        out.push(CategoryInfo {
+            name,
+            release_gated: p.release_gated,
+            not_gated_reason: p.not_gated_reason,
+        });
+    }
+    Ok(out)
 }
 
 fn unquote(s: &str) -> String {
@@ -552,4 +672,61 @@ fn parse_list(v: &str) -> Vec<String> {
         .map(|item| unquote(item.trim()))
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+#[cfg(test)]
+mod discover_tests {
+    use super::*;
+
+    /// `cargo test` runs test binaries with the crate's own directory as
+    /// the working directory, not the workspace root the real `cargo
+    /// xtask` invocation always uses.
+    fn test_workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    #[test]
+    fn discover_negative_categories_excludes_fleet_demo_includes_store_upgrade() {
+        let cats = discover_negative_categories_at(&test_workspace_root())
+            .expect("discover should succeed against the real tree");
+        let names: Vec<&str> = cats.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            !names.contains(&"fleet-demo"),
+            "fleet-demo is multi_node, must be excluded"
+        );
+        assert!(names.contains(&"store"));
+        assert!(names.contains(&"upgrade"));
+        let store = cats.iter().find(|c| c.name == "store").unwrap();
+        assert!(!store.release_gated);
+        assert!(store.not_gated_reason.is_some());
+    }
+
+    #[test]
+    fn multi_node_profile_without_release_gated_still_loads() {
+        // fleet-demo has no release_gated key at all — confirms the
+        // default (true) applies and the loader does not require the key
+        // on every profile, only on ones that opt out.
+        let p = load_profile(&test_workspace_root(), "fleet-demo")
+            .expect("fleet-demo.toml should still parse on its own");
+        assert!(p.multi_node);
+        assert!(p.release_gated);
+        assert!(p.not_gated_reason.is_none());
+    }
+
+    #[test]
+    fn release_gated_false_without_reason_is_rejected() {
+        let dir = std::env::temp_dir().join(format!("qemu_run_test_{}", std::process::id()));
+        let profiles_dir = dir.join("tests/qemu/profiles");
+        fs::create_dir_all(&profiles_dir).unwrap();
+        fs::write(
+            profiles_dir.join("bad.toml"),
+            "name = \"bad\"\nexpected_markers = []\nrelease_gated = false\n",
+        )
+        .unwrap();
+        match load_profile(&dir, "bad") {
+            Err(e) => assert!(e.contains("not_gated_reason")),
+            Ok(_) => panic!("release_gated=false with no reason must fail closed"),
+        }
+        fs::remove_dir_all(&dir).ok();
+    }
 }

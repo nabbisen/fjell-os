@@ -25,6 +25,7 @@
 
 mod bench;
 mod callsite_audit;
+mod cargo_metadata; // RFC-0.29-001: derived bare-metal crate set for test-all/CI
 mod dev; // RFC v0.9-005 developer workflow
 mod dev_modes;
 mod evidence; // RFC-0.27-004 evidence promotion
@@ -64,6 +65,8 @@ fn main() -> ExitCode {
         Some("qemu") => qemu::cmd_qemu(),
         Some("qemu-test") => smoke::cmd_qemu_test(args.get(1).map(String::as_str)),
         Some("qemu-negative") => negative::cmd_qemu_negative(args.get(1).map(String::as_str)),
+        Some("list-negative-categories") => negative::cmd_list_negative_categories(),
+        Some("host-bin-tests") => cargo_metadata::cmd_host_bin_tests(),
         Some("qemu-log-check") => qemu_log_check::cmd_qemu_log_check(
             args.get(1).map(String::as_str),
             args.get(2).map(String::as_str),
