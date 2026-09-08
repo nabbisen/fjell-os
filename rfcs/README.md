@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 170 files
+## Implemented (done/) — 175 files
 
-169 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+174 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -361,25 +361,24 @@ already existed, made visible.
 | 0.27-003 | [The standards mapping](./done/RFC-0.27-003-standards-mapping.md) — CRA Annex I clause-level, IEC 62443 structural; filed **E-028**; [`docs/compliance/`](../docs/compliance/standards-mapping.md) | 0.27.0 |
 | 0.27-004 | [Evidence that survives the run that produced it](./done/RFC-0.27-004-evidence-that-survives.md) — closed **E-026**, filed **E-029**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.27-004-evidence-that-survives-answer.md) | 0.27.0 |
 
+### 0.28 — five lines, each finding something below its own subject
+
+Every line's scoping was wrong in the same direction: the defect was larger, and
+one level beneath where it was being looked for.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.28-001 | [The readiness protocol is split in two, and its completion signal cannot fire](./done/RFC-0.28-001-readiness-topology.md) — closed **E-024**, **E-031**; all four SVC markers fire for the first time | 0.28.0 |
+| 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./done/RFC-0.28-002-syscall-asm-consolidation.md) — closed **E-032**; 28 blocks deleted, `SYSCALL-CALLSITE-001` added | 0.28.0 |
+| 0.28-003 | [The blocked-recv rendezvous exists — the test just cannot name the task](./done/RFC-0.28-003-blocked-recv-rendezvous.md) — closed **E-019**; supersedes **0.26-003** | 0.28.0 |
+| 0.28-004 | [The wrapper crate worked around its own helpers instead of fixing them](./done/RFC-0.28-004-syscall-helper-contracts.md) — closed **E-033**; the second `sys_cap_inspect` call was `CapRevoke` | 0.28.0 |
+| 0.28-005 | [Three tools, three different answers to "what is this repository?"](./done/RFC-0.28-005-scan-scope-and-sweep.md) — closed **E-025**, **E-029**, **E-030** | 0.28.0 |
+
 ---
 
-## Accepted (accepted/) — 5 RFCs
+## Accepted (accepted/) — none
 
-Signed off by the owner; implementation may begin; not yet shipped.
-
-### 0.26–0.27 — the remaining assumption, and the documents that assert without checking
-
-`0.26-001` and `0.26-004` shipped in `0.26.0`; `0.26-002` and `0.26-003` were
-both superseded (the latter by `0.28-003`, below) and moved to `archive/`.
-
-| RFC | Title |
-|-----|-------|
-| 0.28-003 | [The blocked-recv rendezvous exists — the test just cannot name the task](./accepted/RFC-0.28-003-blocked-recv-rendezvous.md) — accepted 2026-09-07; supersedes **0.26-003**; closes **E-019**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.28-003-blocked-recv-rendezvous-answer.md); handoff: [`handoffs/`](./handoffs/RFC-0.28-003-blocked-recv-rendezvous/implementation-handoff.md) |
-| 0.28-004 | [The wrapper crate worked around its own helpers instead of fixing them](./accepted/RFC-0.28-004-syscall-helper-contracts.md) — accepted 2026-09-08; closes **E-033**; handoff: [`handoffs/`](./handoffs/RFC-0.28-004-syscall-helper-contracts/implementation-handoff.md) |
-| 0.28-005 | [Three tools, three different answers to "what is this repository?"](./accepted/RFC-0.28-005-scan-scope-and-sweep.md) — accepted 2026-09-08; closes **E-025**, **E-029**, **E-030**; handoff: [`handoffs/`](./handoffs/RFC-0.28-005-scan-scope-and-sweep/implementation-handoff.md) |
-| 0.28-002 | [Thirty-five hand-rolled syscall blocks, two register-contract bugs, and one wrapper that was already correct](./accepted/RFC-0.28-002-syscall-asm-consolidation.md) — accepted 2026-09-07; closes **E-032**; handoff: [`handoffs/`](./handoffs/RFC-0.28-002-syscall-asm-consolidation/implementation-handoff.md) |
-| 0.28-001 | [The readiness protocol is split in two, and its completion signal cannot fire](./accepted/RFC-0.28-001-readiness-topology.md) — accepted 2026-09-06; closes **E-024**; **E-031**; handoff: [`handoffs/`](./handoffs/RFC-0.28-001-readiness-topology/implementation-handoff.md) |
-
+No RFC is currently accepted and awaiting implementation.
 
 ---
 

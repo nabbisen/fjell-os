@@ -1,6 +1,6 @@
 # RFC-0.28-002 §6 — What exactly should the guard forbid?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.28-002-syscall-asm-consolidation.md](../../rfcs/accepted/RFC-0.28-002-syscall-asm-consolidation.md)
+**Governing RFC:** [rfcs/done/RFC-0.28-002-syscall-asm-consolidation.md](../../rfcs/done/RFC-0.28-002-syscall-asm-consolidation.md)
 
 Per the handoff's required order, this is written before any swap, informed
 by the per-site audit below (the audit had to happen first to know whether

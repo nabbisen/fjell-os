@@ -1,6 +1,6 @@
 # RFC-0.28-001 §5 — Should `init` wait for readiness at all?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.28-001-readiness-topology.md](../../rfcs/accepted/RFC-0.28-001-readiness-topology.md)
+**Governing RFC:** [rfcs/done/RFC-0.28-001-readiness-topology.md](../../rfcs/done/RFC-0.28-001-readiness-topology.md)
 
 Per the handoff's required order, this is written before any topology code
 changed. §3's arithmetic is re-derived first, because it changes what "wait

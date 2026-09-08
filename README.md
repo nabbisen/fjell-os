@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml/badge.svg)](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.27.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.28.0-blue.svg)](CHANGELOG.md)
 [![crates.io](https://img.shields.io/crates/v/fjell-os.svg)](https://crates.io/crates/fjell-os)
 
 > **Every authority is explainable. Every update is verifiable. Every failure is recoverable.**
@@ -16,10 +16,10 @@
 ## Overview
 
 Fjell OS is a capability-based microkernel for high-assurance edge and fleet nodes.
-Written in Rust 2024 edition — `forbid(unsafe_code)` except at 311 audited,
+Written in Rust 2024 edition — `forbid(unsafe_code)` except at 284 audited,
 classified boundaries (`cargo run -p fjell-unsafe-audit`).
 
-Current version: **0.27.0**. Release tags carry no `v` prefix.
+Current version: **0.28.0**. Release tags carry no `v` prefix.
 
 **v1.0 is explicitly not in view** (owner decision, 2026-07-30); v0 development
 continues, and functional advancement precedes any v1.0 consideration. The
@@ -72,7 +72,7 @@ cargo xtask trust-report --dry-run
 | Trust spine | Ed25519 (RFC 8032), key rotation, replay cache (v0.11) |
 | Attestation | `AttestationRecordV2` — hash chain, signed, nonce-protected |
 | Fleet partition | Reconcile manifests, coordinator-required promotion (v0.13) |
-| Unsafe discipline | 311 classified sites, zero missing SAFETY comments, all with a valid category tag |
+| Unsafe discipline | 284 classified sites, zero missing SAFETY comments, all with a valid category tag |
 | MMIO discipline | 32 sites, all classified and annotated |
 
 ---

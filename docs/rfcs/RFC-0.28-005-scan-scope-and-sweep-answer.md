@@ -1,6 +1,6 @@
 # RFC-0.28-005 §6 — Should the tools scan what `git` tracks, or the filesystem minus exclusions?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.28-005-scan-scope-and-sweep.md](../../rfcs/accepted/RFC-0.28-005-scan-scope-and-sweep.md)
+**Governing RFC:** [rfcs/done/RFC-0.28-005-scan-scope-and-sweep.md](../../rfcs/done/RFC-0.28-005-scan-scope-and-sweep.md)
 
 Written before R1 was built, per the handoff's required order — R1 is only
 real once it survives contact with both walkers named below.

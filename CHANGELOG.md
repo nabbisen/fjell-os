@@ -5,6 +5,104 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.28.0] — 2026-09-08 — Five lines, and every one found something bigger than its own subject
+
+Five RFCs, **eight errata closed**, and no kernel behaviour change that was not
+a repair. The pattern of the milestone is that each line's scoping was wrong in
+the same direction: the defect was always larger, and always one level below
+where it was being looked for.
+
+### Fixed — readiness was split in two by a table nobody associated with it (RFC-0.28-001)
+
+Every service announced readiness to capability **slot 0**. `spawn.rs`'s
+`ep_obj` table decided what slot 0 *meant*: nine of fourteen images had a
+dedicated endpoint object, five fell through to object 0 — and `service-manager`
+listens on object 0. **The slot number never changed; its meaning changed
+underneath the services** when each was given a dedicated object, for reasons
+that table records as being about test routing, with no mention of readiness.
+
+So nine services announced into their own endpoint and reached nobody, surviving
+only because `init` was a second receiver — the arrangement RFC-0.26-004 removed
+for two objects without knowing it existed on the rest. And
+`READY_ACCEPTED` required 10 services to report when **at most 5 could**: the
+threshold was unreachable by arithmetic and the marker had never once been
+emitted. The svc profile had been narrowed to expect 2 of its 4 markers, and
+`v1-limitations.md` recorded the cause as *"a startup-timing fix"*, which was
+wrong — it was topology.
+
+**All four SVC markers now fire.** Closes **E-024**, **E-031**.
+
+### Fixed — 35 hand-rolled syscall blocks, and the wrapper they should have called (RFC-0.28-002)
+
+Thirty-five `asm!` blocks across fourteen crates each independently responsible
+for knowing which registers the kernel writes. Twelve omitted `a6` — the
+attested sender identity, written on **every** delivery — which had already
+produced a permanent, non-deterministic hang that *adding debug prints made
+disappear*. Eighteen declared `a0` as a plain input where the kernel writes
+status.
+
+**Twenty-eight deleted** in favour of the existing audited wrapper; seven kept,
+escalated, and their contracts fixed. `SYSCALL-CALLSITE-001` stops a
+thirty-sixth appearing. Unsafe sites: **311 → 283**. Closes **E-032**.
+
+### Fixed — a test that could not fail (RFC-0.28-003)
+
+`test_ipc_blocked_recv` needed `sample-service` blocked in `recv` before revoking
+a lease, and relied on a *"cooperative-scheduling contract"* that RFC-0.26-001
+had removed. It passed anyway, by a mechanism nobody designed, for the second
+time in its history.
+
+The claim that no signal existed was false: `sys_task_status` reports
+`TaskLifecycle::Blocked`, and `neg-test` already imported and called it. What
+was missing was **addressing** — it had no way to name a task it did not spawn.
+
+Measured: `sample-service` reaches `Blocked` after **exactly 2 iterations**, so
+the old single `sys_yield()` was sufficient with zero margin. And one fewer
+yield and the old test would still have passed, because the lease check rejects
+before the syscall queues — **it could pass without ever exercising the wake
+path it exists to verify.** Closes **E-019**; supersedes RFC-0.26-003.
+
+### Fixed — the wrapper crate had worked around its own helpers (RFC-0.28-004)
+
+`ecall2` declared `a2`/`a3` as plain inputs and omitted `a4`–`a6`, so
+`sys_ipc_recv` — a *public wrapper* — carried both of the bugs the previous line
+had just removed from every service.
+
+And `sys_cap_inspect` issued its syscall twice, the second time to read registers
+the helper could not return. **That second call was `CapRevoke`**: `CapInspect`
+is 14, the literal read `li a7, 13`, and the comment beside it went on asserting
+the old meaning. A capability holding `REVOKE` would have been revoked as a side
+effect of being inspected; it survives today only because the one live caller's
+slot lacks that right. Closes **E-033**.
+
+### Fixed — three tools, three answers to "what is this repository?" (RFC-0.28-005)
+
+`trust-report`, `fjell-unsafe-audit` and `consistency-check` each hand-maintained
+a different set of skipped directories, pairwise disagreeing, and only the newest
+was right. A scratch checkout under `.git-exclude/` — which this project's own
+conventions put there — **doubled the reported unsafe inventory**, both readings
+internally consistent.
+
+Both scans now derive scope from `git`, with **different queries answering
+different questions**: `unsafe-audit` includes untracked work, because that is
+when an audit should speak up; `trust-report` does not, because it reports on
+the repository as shipped. `version-currency` also gained the second version
+string. Closes **E-025**, **E-029**, **E-030**.
+
+### Errata
+
+**37 entries: 0 OPEN, 24 CLOSED, 13 ACCEPTED.** Closed this release: E-019,
+E-024, E-025, E-029, E-030, E-031, E-032, E-033. Filed: E-031 through **E-037**,
+of which E-034 (four `send` helpers carrying a word the kernel has never
+transmitted), E-035 (the ABI baseline was never re-recorded), E-036 (the
+threat model's two-build reproducibility check is invoked nowhere) and E-037
+(the toolchain is declared twice and recorded with no artefact) remain open.
+
+**Nothing slipped.** E-025, E-029 and E-030 were all dated 0.28 and all closed
+in it.
+
+---
+
 ## [0.27.0] — 2026-09-05 — The documents start being checked
 
 No kernel behaviour change, one ABI-surface rename, and a milestone spent on a

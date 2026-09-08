@@ -1,6 +1,6 @@
 # RFC-0.28-003: The blocked-recv rendezvous exists — the test just cannot name the task
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-07; implementation may begin (RFC 000)
+**Status:** Implemented (0.28.0) — accepted 2026-09-07
 **Milestone:** 0.28
 **Supersedes:** **RFC-0.26-003**, whose central premise is false (premise
 correction recorded on that RFC, 2026-09-07).

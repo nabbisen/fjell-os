@@ -1,6 +1,6 @@
 # RFC-0.28-003 §4 — How does `neg-test` learn `sample-service`'s `TaskId`?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.28-003-blocked-recv-rendezvous.md](../../rfcs/accepted/RFC-0.28-003-blocked-recv-rendezvous.md)
+**Governing RFC:** [rfcs/done/RFC-0.28-003-blocked-recv-rendezvous.md](../../rfcs/done/RFC-0.28-003-blocked-recv-rendezvous.md)
 
 Per the handoff's required order, this is written before any poll is built,
 and before capturing what makes the test pass today — building the

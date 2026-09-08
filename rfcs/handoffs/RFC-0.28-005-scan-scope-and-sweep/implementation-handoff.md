@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.28-005
 
-**Governing RFC:** [RFC-0.28-005](../../accepted/RFC-0.28-005-scan-scope-and-sweep.md)
+**Governing RFC:** [RFC-0.28-005](../../done/RFC-0.28-005-scan-scope-and-sweep.md)
 **Milestone:** 0.28 — **this line is what stands between 0.28 and its cut**
-**Status:** inherited from the governing RFC (Accepted, 2026-09-08)
+**Status:** inherited from the governing RFC (Implemented, 0.28.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

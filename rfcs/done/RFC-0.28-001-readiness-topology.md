@@ -1,6 +1,6 @@
 # RFC-0.28-001: The readiness protocol is split in two, and its completion signal cannot fire
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-06; implementation may begin (RFC 000)
+**Status:** Implemented (0.28.0) — accepted 2026-09-06
 **Milestone:** 0.28
 **Tracks.** **E-024**, and the root cause underneath it: `SERVICE_READY` is
 delivered to two different destinations depending on an unrelated table, and

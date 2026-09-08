@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-09-05 10:32:30 UTC
-Version   : 0.27.0
+Generated : 2026-09-08 10:36:53 UTC
+Version   : 0.28.0
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -30,34 +30,34 @@ Mode      : full
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Service binaries in prebuilt/: 29
-    fjell-init.bin (16967 bytes)
-    fjell-configd.bin (472 bytes)
+    fjell-init.bin (16927 bytes)
+    fjell-configd.bin (464 bytes)
     fjell-cap-broker.bin (1728 bytes)
     fjell-auditd.bin (2720 bytes)
-    fjell-service-manager.bin (1272 bytes)
-    fjell-sample-service.bin (4464 bytes)
-    fjell-neg-test.bin (8808 bytes)
+    fjell-service-manager.bin (1416 bytes)
+    fjell-sample-service.bin (4480 bytes)
+    fjell-neg-test.bin (9000 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (50 bytes)
-    fjell-semantic-stream.bin (1593 bytes)
-    fjell-proxy-text.bin (5504 bytes)
+    fjell-semantic-stream.bin (1601 bytes)
+    fjell-proxy-text.bin (5416 bytes)
     fjell-devmgr.bin (4600 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
-    fjell-storaged.bin (1915 bytes)
-    fjell-bootctl.bin (481 bytes)
+    fjell-storaged.bin (1955 bytes)
+    fjell-bootctl.bin (473 bytes)
     fjell-upgraded.bin (3974 bytes)
     fjell-powerd.bin (134 bytes)
-    fjell-verifyd.bin (3792 bytes)
+    fjell-verifyd.bin (3816 bytes)
     fjell-rootfsd.bin (54 bytes)
     fjell-snapshotd.bin (54 bytes)
-    fjell-measuredd.bin (3760 bytes)
-    fjell-attestd.bin (6465 bytes)
+    fjell-measuredd.bin (3768 bytes)
+    fjell-attestd.bin (6489 bytes)
     fjell-recoveryd.bin (581 bytes)
     fjell-syncd.bin (3559 bytes)
-    fjell-driver-virtio-net.bin (1006 bytes)
-    fjell-netd.bin (795 bytes)
-    fjell-secure-transportd.bin (1455 bytes)
-    fjell-diagnosticsd.bin (3776 bytes)
+    fjell-driver-virtio-net.bin (1030 bytes)
+    fjell-netd.bin (811 bytes)
+    fjell-secure-transportd.bin (1463 bytes)
+    fjell-diagnosticsd.bin (3856 bytes)
     fjell-driver-uart.bin (686 bytes)
   Bundle signatures: (available after v0.11 signing pipeline)
 
@@ -74,8 +74,8 @@ Mode      : full
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 311
-  with SAFETY comment: 311
+  total unsafe sites : 284
+  with SAFETY comment: 284
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -83,7 +83,7 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260905-100535
+  Latest test-all run: 20260908-101622
   21    QEMU negative: uart-rx-unbound                      60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 21  |  PASS: 21  |  FAIL: 0  |  SKIP: 0

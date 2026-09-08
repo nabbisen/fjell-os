@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.28-002
 
-**Governing RFC:** [RFC-0.28-002](../../accepted/RFC-0.28-002-syscall-asm-consolidation.md)
+**Governing RFC:** [RFC-0.28-002](../../done/RFC-0.28-002-syscall-asm-consolidation.md)
 **Milestone:** 0.28
-**Status:** inherited from the governing RFC (Accepted, 2026-09-07)
+**Status:** inherited from the governing RFC (Implemented, 0.28.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

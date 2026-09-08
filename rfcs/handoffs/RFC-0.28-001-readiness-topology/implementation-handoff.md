@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.28-001
 
-**Governing RFC:** [RFC-0.28-001](../../accepted/RFC-0.28-001-readiness-topology.md)
+**Governing RFC:** [RFC-0.28-001](../../done/RFC-0.28-001-readiness-topology.md)
 **Milestone:** 0.28
-**Status:** inherited from the governing RFC (Accepted, 2026-09-06)
+**Status:** inherited from the governing RFC (Implemented, 0.28.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

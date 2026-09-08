@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.28-004
 
-**Governing RFC:** [RFC-0.28-004](../../accepted/RFC-0.28-004-syscall-helper-contracts.md)
+**Governing RFC:** [RFC-0.28-004](../../done/RFC-0.28-004-syscall-helper-contracts.md)
 **Milestone:** 0.28
-**Status:** inherited from the governing RFC (Accepted, 2026-09-08)
+**Status:** inherited from the governing RFC (Implemented, 0.28.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
