@@ -782,6 +782,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the one that actually moves. `311/311` and `622/622` are both internally
   consistent, so nothing in the report signals that it is wrong — it simply
   reports a different repository than the one it is committed to.
+- **A second walker, found while scoping RFC-0.28-005.** The doubled unsafe
+  count does not come from `trust_report` at all — §5 shells out to
+  `fjell-unsafe-audit --workspace .`, whose own `walk`
+  (`tools/fjell-unsafe-audit/src/main.rs:280`) skips `target`, `.git` and
+  `node_modules`, and not `.git-exclude`. **So two tools have the defect,
+  with two different hand-written lists**, and a third
+  (`consistency-check`'s `evidence`) has a third list that is the only
+  correct one — added unprompted by the implementation model after watching
+  this erratum happen. Three tools, three answers to what counts as this
+  repository, pairwise disagreeing: **E-015's family, caught live.**
 - **Two defects, not one.** The inventory can be inflated by anything sitting in
   a scratch directory — the report is a function of the developer's working
   tree, not of the repository. And the skip list is an **explicit enumeration**
@@ -1332,12 +1342,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-022 `sys_ipc_send`'s one-way path blocks the sender on `Queued`, against its own documented contract | RFC-0.27-002 | CLOSED |
 | E-023 release tool's `RELEASE.md` generation and consistency checks never built (4 of 5 behaviours) | RFC-0.27-001 | CLOSED |
 | E-024 `init` co-receives on four services' own endpoints (corrected from "nine"); RFC-0.26-004's one-receiver invariant is narrower than its text | RFC-0.28-001 | CLOSED |
-| E-025 `trust-report`'s cap-manifest scan walks untracked scratch trees (`.git-exclude/` not skipped) | 0.28 | ACCEPTED |
+| E-025 `trust-report` and `unsafe-audit` walk untracked scratch trees; three tools carry three disagreeing exclusion lists | RFC-0.28-005 | ACCEPTED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
 | E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
 | E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
-| E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | 0.28 | ACCEPTED |
-| E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
+| E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | RFC-0.28-005 | ACCEPTED |
+| E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | RFC-0.28-005 | ACCEPTED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |

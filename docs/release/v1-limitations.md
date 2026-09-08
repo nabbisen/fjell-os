@@ -265,14 +265,16 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   service's endpoint has exactly one receiver" now holds structurally, not
   by convention, on every object it names.
 
-- **`trust-report`'s capability inventory depends on the developer's untracked
-  working tree** (Errata **E-025**, ACCEPTED, scheduled 0.27). The cap-manifest
-  scan skips a hand-listed `["target", ".git", "tests/runs"]` and not
-  `.git-exclude/`, so any scratch checkout under `.git-exclude/tmp/` inflates
-  the reported manifest count — and doubles the reported unsafe-site inventory
-  (`311/311` becomes `622/622`, internally consistent and wrong). The committed
-  report is correct; the tool that produces it is not bounded by what git
-  tracks, and nothing in its output signals when it has strayed.
+- **Two tools walk untracked scratch trees, with disagreeing exclusion lists**
+  (Errata **E-025**, ACCEPTED, tracked to **RFC-0.28-005**). `trust-report`'s
+  cap-manifest scan and `fjell-unsafe-audit`'s walk each hand-maintain a
+  different set of skipped directories, and neither excludes `.git-exclude/`
+  — the directory this project's own conventions use for scratch work. A
+  checkout there takes the cap-manifest count from 1 to 2 and **doubles the
+  reported unsafe-site inventory, 311/311 to 622/622**, both readings
+  internally consistent. A third tool has a third list, and it is the only
+  correct one.
+
 
 - **No QEMU serial log had ever been committed alongside the document that
   cites it** (Errata **E-026**, **CLOSED** by RFC-0.27-004). E-013 leaves

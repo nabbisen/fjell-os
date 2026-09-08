@@ -385,9 +385,11 @@ both superseded (the latter by `0.28-003`, below) and moved to `archive/`.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.28-005 | [Three tools, three different answers to "what is this repository?"](./proposed/RFC-0.28-005-scan-scope-and-sweep.md) — closes **E-025**, **E-029**, **E-030**; handoff: [`handoffs/`](./handoffs/RFC-0.28-005-scan-scope-and-sweep/implementation-handoff.md) |
 
 ## Archive (archive/) — 2 RFCs
 
