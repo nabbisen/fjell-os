@@ -1,6 +1,6 @@
 # RFC-0.28-004 §5 — What should the helper layer be, what should the guard check, should `sys_ipc_recv` survive?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.28-004-syscall-helper-contracts.md](../../accepted/RFC-0.28-004-syscall-helper-contracts.md)
+**Governing RFC:** [rfcs/accepted/RFC-0.28-004-syscall-helper-contracts.md](../../rfcs/accepted/RFC-0.28-004-syscall-helper-contracts.md)
 
 Per the handoff's required order, this is written before any repair. §5(c) is
 answered as an escalation, not a ruling, per the handoff's explicit instruction.

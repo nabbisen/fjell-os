@@ -349,13 +349,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `IpcReply`). Closed structurally: Gate 11's `SYSCALL-CALLSITE-001` refuses
   any raw syscall-issuing block outside `fjell-syscall` unless it is on an
   explicit, guard-owned allowlist naming exactly those 7 sites, each still
-  checked for correct clobbers. A related, narrower gap found during the
-  same audit — `fjell-syscall::sys_ipc_recv` (not `sys_ipc_recv_msg`) has
-  the same Bug A shape internally, live in five services — is tracked
-  separately as **E-033** (ACCEPTED, **tracked to RFC-0.28-004**; on scoping it
-  proved wider than Bug A, see the entry below): fixing a wrapper's own
-  contract is a decision about that public contract, not the mechanical
-  per-site swap this line made.
+  checked for correct clobbers. A related gap found during the same audit —
+  `fjell-syscall`'s own `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words`
+  carried the identical defect class internally — is **E-033**, closed by
+  RFC-0.28-004 (below).
 
 - **Four `send` helpers accept a payload word that is never transmitted**
   (Errata **E-034**, ACCEPTED). `sxt_send`, two `send_tag`s and `send_sxt` take
@@ -363,10 +360,22 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   words and the payload has never reached a receiver. Nothing reads these words
   today; the hazard is the next caller who trusts the signature.
 
-- **`fjell-syscall`'s generic `ecall2` helper has a contract narrower than the
-  ABI it fronts** (Errata **E-033**, ACCEPTED, tracked to **RFC-0.28-004**).
-  `sys_ipc_recv` loses the delivery's words and attested sender identity, and
-  `sys_cap_inspect` issues its syscall twice without checking the second call.
+- **`fjell-syscall`'s own helpers carried the register-contract defect the
+  crate exists to protect everyone else from** (Errata **E-033**, **CLOSED**
+  by **RFC-0.28-004**). `sys_ipc_recv` lost the delivery's words and attested
+  sender identity; `sys_ipc_call_words` never declared `a5` at all (a third
+  instance, found extending the guard into this crate, not in the original
+  scoping). `sys_cap_inspect`'s actual defect was more precise than first
+  scoped: the second call it issued was `CapRevoke` (13), not `CapInspect`
+  (14) — a stale literal, not a scheduling race. Demonstrated live: the one
+  real caller (`fjell-proxy-text`) currently gets the *correct* rights value
+  only because the inspected capability correctly lacks `REVOKE`, so the
+  wrong-numbered call fails closed without touching the registers the first
+  (correct) call had already written — undefined behaviour appearing correct
+  by coincidence, not a guaranteed contract. All three now issue one
+  correctly-declared syscall each; `SYSCALL-CALLSITE-002` (Gate 11) enforces
+  it inside `fjell-syscall` going forward. `sys_ipc_recv`'s long-term future
+  (repair vs. remove) remains an open escalation, not resolved by this fix.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker

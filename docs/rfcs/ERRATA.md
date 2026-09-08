@@ -1160,9 +1160,60 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why RFC-0.28-002 did not catch it:** `SYSCALL-CALLSITE-001` exempts
   `fjell-syscall` entirely, so the one place the register contract must be right
   is the one place nothing checks it.
-- **Resolution:** **ACCEPTED**, tracked **RFC-0.28-004**, which also decides
-  whether `sys_ipc_recv` should survive at all — removing it is an ABI removal
-  and escalates.
+- **Correction to the mechanism (RFC-0.28-004, 2026-09-08): it is not a race
+  window, it is a wrong syscall number.** `SyscallNumber::CapInspect = 14`
+  (`crates/fjell-abi/src/syscall.rs:32`); the second raw block issued
+  `"li a7, 13"` — **`CapRevoke`**, not `CapInspect`, most likely a literal left
+  stale when `CapRevoke` was inserted ahead of `CapInspect`'s current slot.
+  **Demonstrated live, not reasoned about:** instrumented the one real caller
+  (`fjell-proxy-text`) and ran `cargo xtask qemu-test m8` — `granted_rights`
+  read `0x448` on every call, the *correct* `SEND|REPLY|INSPECT` value, with
+  both accept and deny outcomes observed in the same run. It "works" because
+  `DEMO_CAP_SLOT` correctly lacks `REVOKE`, so the mis-numbered call fails
+  closed (`PermissionDenied`, which touches only `a0`) without disturbing
+  `a2`/`a3` — leaving the *first* (correctly-numbered) call's real
+  `rights`/`badge`, already written into those physical registers by
+  `cap/syscall.rs:217-218`, sitting there to be read back by coincidence.
+  **The scheduling-race mechanism this entry originally proposed does not
+  apply as described:** a task's own register state is preserved in its own
+  saved trap frame across a context switch, so another task running between
+  the two `ecall`s does not, by itself, disturb this task's pending
+  `a2`/`a3`. The actual defect is simpler and does not depend on scheduling
+  at all — and worse in the direction that matters: a capability that *does*
+  hold `REVOKE` would not get today's coincidence; it would be revoked, as a
+  side effect of being inspected. No such caller exists today (checked
+  `fjell-neg-test`'s two other call sites: one only checks `Ok`/`Err` on
+  empty slots, the other deliberately tests a cap missing `INSPECT`, so the
+  *first* call fails and the second's identity never matters).
+- **The counts, re-derived once more:** "27 call sites" is a literal
+  `grep -c "ecall2("` count that includes `ecall2`'s own definition (26 real
+  calls) and does not separate `ecall0`/`ecall1`'s internal delegation (2,
+  independently verified safe — the four syscalls reaching `ecall2` this way,
+  `Yield`/`Exit`/`DebugWrite`/`CapDrop`, each write only `a0`) from the 24
+  named `sys_*` functions. Of those 24, **2** write past `a1` — the same
+  total, more precisely derived. A **third** instance of E-032's exact
+  register-contract defect was found extending `SYSCALL-CALLSITE-001` into
+  this crate (D3): `sys_ipc_call_words` never declared `a5` at all (not
+  merely as a plain `in`), since `sys_ipc_reply` copies all four of `a2`-`a5`
+  regardless of the original call's declared word count. Its one caller
+  (`fjell-init`'s `BOOTSTRAP_COMPLETE`) discards the result entirely, so this
+  was latent, not confirmed-firing. Fixed alongside the other two.
+- **The audit-record count does not move — contrary to this entry's own
+  prediction.** `CapInspect` has no `AuditKindInternal` variant and is never
+  audited at all; the phantom second call's only audit line
+  (`AuditKindInternal::CapRevoke`, `cap/syscall.rs:182`) sits *after* the
+  `PermissionDenied` early return the mis-numbered call always took, so it
+  was never reached either. Zero audit records before this fix, zero after —
+  checked, not assumed, per the governing RFC's own explicit instruction not
+  to adjust a moved count without reporting it as a finding.
+- **Resolution:** **CLOSED** by **RFC-0.28-004**. `sys_cap_inspect` now
+  issues one syscall, correctly numbered via the `SyscallNumber` constant
+  rather than a literal; `sys_ipc_recv` now declares `a2`-`a6`; `SYSCALL-
+  CALLSITE-002` (Gate 11's fifth check) enforces both inside `fjell-syscall`
+  going forward. `sys_ipc_recv`'s long-term future (fix vs. remove) is
+  escalated, not decided — see the governing RFC's answer document §5(c):
+  a recommendation to migrate its three callers to `sys_ipc_recv_msg` and
+  remove it, not a ruling.
 
 ## E-034 — four `send` helpers take a payload word the kernel has never carried
 
@@ -1236,7 +1287,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | 0.28 | ACCEPTED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
-| E-033 `fjell-syscall::sys_ipc_recv` (distinct from `sys_ipc_recv_msg`) has E-032's Bug A shape, live in five services | unscheduled | ACCEPTED |
+| E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
