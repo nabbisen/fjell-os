@@ -386,7 +386,7 @@ survives with two named instances rather than a tidy count.
 
 ---
 
-## Accepted (accepted/) — 1 RFC
+## Accepted (accepted/) — 2 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -395,17 +395,16 @@ Signed off by the owner; implementation may begin; not yet shipped.
 | RFC | Title |
 |-----|-------|
 | 0.30-001 | [The reproducibility check compares a file to itself, and the kernel is not in the baseline](./accepted/RFC-0.30-001-reproducibility-that-reproduces.md) — accepted 2026-09-09; closes **E-036**; handoff: [`handoffs/`](./handoffs/RFC-0.30-001-reproducibility-that-reproduces/implementation-handoff.md) |
+| 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./accepted/RFC-0.30-002-checks-that-name-themselves.md) — accepted 2026-09-09; closes **E-035**, **E-038**; handoff: [`handoffs/`](./handoffs/RFC-0.30-002-checks-that-name-themselves/implementation-handoff.md) |
 
 ---
 
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./proposed/RFC-0.30-002-checks-that-name-themselves.md) — closes **E-035**, **E-038**; handoff: [`handoffs/`](./handoffs/RFC-0.30-002-checks-that-name-themselves/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 

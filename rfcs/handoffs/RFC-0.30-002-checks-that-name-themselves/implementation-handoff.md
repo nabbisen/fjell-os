@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.30-002
 
-**Governing RFC:** [RFC-0.30-002](../../proposed/RFC-0.30-002-checks-that-name-themselves.md)
+**Governing RFC:** [RFC-0.30-002](../../accepted/RFC-0.30-002-checks-that-name-themselves.md)
 **Milestone:** 0.30
-**Status:** inherited from the governing RFC (Proposed — awaiting owner acceptance)
+**Status:** inherited from the governing RFC (Accepted, 2026-09-09)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

@@ -1,6 +1,6 @@
 # RFC-0.30-002: Four subchecks that fail without saying which, and a baseline step nothing enforces
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-09-09; implementation may begin (RFC 000)
 **Milestone:** 0.30
 **Tracks.** **E-038** and **E-035** — the two errata dated `0.30`, both of which
 slipped out of 0.29 and were refused by `errata-tracking` at that cut. Doing them
