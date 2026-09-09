@@ -465,6 +465,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   from fresh clones — the third time one folder or another has done this. Keeper
   files exist in all four folders now; the silence does not.
 
+- **The release cut is the only work in this project nobody reviews** (Errata
+  **E-039**, ACCEPTED). The cycle's Roles table makes the implementer
+  Responsible for verifying exit criteria and producing the release record, with
+  the architect Accountable and Consulted. In practice the architect has done
+  all of it for five consecutive releases, so those changes land unreviewed —
+  and they have included a four-commit staging failure, a `rfcs/accepted/`
+  directory that vanished from fresh clones, and document corrections nobody
+  checked.
+
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker
   checking (a wrong error, an unexpected success, or a panic in the serial

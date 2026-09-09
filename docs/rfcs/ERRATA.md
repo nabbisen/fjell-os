@@ -1726,6 +1726,56 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   something forces it.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
 
+## E-039 — the architect has performed the implementer's role at every cut for five releases
+
+- **Claim:** `docs/src/release/v0-release-cycle.md`'s Roles table assigns the
+  release cycle's work:
+
+  | Step | Owner | Architect | Implementer |
+  |---|---|---|---|
+  | Verify exit criteria | I | **A** | **R** |
+  | Produce the release record | I | **C** | **R** |
+  | Apply the tag | A | C | **R** |
+
+  Read as RACI, the **implementer is Responsible** for verifying exit criteria
+  and producing the release record; the architect is *Accountable* and
+  *Consulted* respectively.
+- **Practice:** the architect has been Responsible for all of it. Every release
+  record from `0.25.0` to `0.29.0` reads **"Prepared by: architect"** — five
+  consecutive releases. The architect has bumped the versions, rebuilt, deleted
+  and re-recorded the repro baseline, run the tiers and gates, written the
+  CHANGELOG entry, corrected documents under criterion 8, moved RFCs to `done/`,
+  rescheduled slipped errata, and staged and committed the cut.
+- **The cost is not tidiness. It is that the cut is the only work in this
+  project nobody reviews.** Every change the implementation model makes is
+  reviewed by the architect before it lands. Changes the architect makes at a
+  cut land unreviewed, and they have not been defect-free:
+  - `0.27.0` — a `git add` naming a path `git mv` had already moved aborted on
+    the pathspec and staged nothing; the acceptance took four commits and was
+    pushed broken twice before being noticed.
+  - `0.28.0` — moving all five RFCs to `done/` emptied `rfcs/accepted/`, which
+    git then dropped from every fresh clone, turning `consistency-check` red for
+    anyone cloning. Caught only because the architect chose to run a clean-clone
+    check that no procedure requires.
+  - `0.29.0` — two documents corrected under criterion 8 with nobody checking
+    the corrections.
+- **Why it drifted:** **there is no handoff for the release cycle.** Every RFC
+  has one, written by the architect and handed to the implementer. The cut has
+  none, so it has been done by whoever was holding it.
+- **A contributing gap:** the Roles table uses `A`/`R`/`C`/`I` and **the legend
+  is defined nowhere** in the cycle document or in RFC-v0.21.3-002. The
+  conventional reading is unambiguous, but a table whose key is absent is easy
+  to read past.
+- **Found:** the owner asked, at the `0.29.0` cut, whether it was right for the
+  architect to do the preparation rather than hand part of it over. It is not
+  what the cycle says.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-09), `unscheduled` pending an
+  owner decision, because two fixes are available and the choice is the owner's:
+  write a release-cycle handoff and hand the cut to the implementer, or amend the
+  Roles table to describe what is actually done. **What must not happen is the
+  table continuing to say one thing while practice does another** — that is the
+  E-023 family, in the document governing releases.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -1768,6 +1818,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-036 T20's stated two-build reproducibility check is invoked nowhere; every call is `--skip-build` | unscheduled | ACCEPTED |
 | E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
 | E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.30 | ACCEPTED |
+| E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
