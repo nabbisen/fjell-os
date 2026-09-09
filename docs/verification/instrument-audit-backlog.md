@@ -93,10 +93,18 @@ count predates 0.28 and is now larger.
 - **E-014 — the largest and the least mechanical.** "Decide by parsing, not by
   matching" has to be answered per instrument, and some of the literals are load
   bearing. This is a milestone, not a slice.
-- **E-017 — probably already closed and never recorded as such.** RFC-v0.22-001
-  made "demonstrated failing" a standing requirement, and every line since has
-  met it. **The honest action may be to verify that and close it**, rather than
-  to schedule work.
+- **E-017 — counted 2026-09-09, and my guess below was wrong.** ~~probably
+  already closed~~ It is **not** satisfied by RFC-v0.22-001: that made
+  "demonstrated failing" a standing requirement *going forward*, which does not
+  retroactively demonstrate the 0.24 audit's rows. But it is much smaller than
+  "twenty assumed": of 21 `sound` rows, **8 have a first-hand demonstration**,
+  **4 cite the tool's own unit suite** (the exact mode-2 defect this erratum
+  names, uncorrected for Gate 2, Gate 11 and Gate 12 while Gate 4 was
+  re-derived), **2 inherit another row's**, and **4 have none at all**. Real
+  demonstrations now exist for most of the middle group — from RFC-0.24-002/003,
+  0.27-001/003/004 and 0.28-002/004 — so much of the work is **correcting the
+  register to cite evidence that already exists**, not producing new evidence.
+  Full count in E-017's own entry. **A slice, not a milestone.**
 
 ## Recommendation
 

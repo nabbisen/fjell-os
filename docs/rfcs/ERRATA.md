@@ -404,6 +404,50 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `docs/verification/instrument-audit-closeout.md` §4.1 and
   `docs/release/v1-limitations.md`.
 
+> **Counted 2026-09-09, at the owner's request, before scheduling.** E-017 was
+> read as *"two rows verified, twenty assumed."* Going through the register row
+> by row, the remainder is **smaller than that and differently shaped**, and a
+> large part of closing it is updating the register rather than producing new
+> demonstrations.
+>
+> **The register holds 21 `sound` rows. Its own summary table (line 1418) says
+> 22.** The per-pass cells sum to 22; the `###` headings number 21. One of the
+> two is wrong, and this is the same table whose arithmetic was corrected once
+> before, in the RFC-0.24-002 review.
+>
+> Classified by the *basis* each row actually states — not by whether the word
+> "demonstration" appears, which would be E-014's predicate applied to E-014's
+> own audit:
+>
+> | Basis | Rows | Which |
+> |---|---|---|
+> | **First-hand demonstration** — broke an input, ran the instrument, saw it fail | **8** | Gate 1, Gate 8, Tier 2, Tier 3b, `abi/snapshot.json`, `ci-format`, `ci-unsafe-audit`, `ci-schema-gate` |
+> | **The tool's own unit suite**, cited as the demonstration | **4** | Gate 2, Gate 11, Gate 12, `syscall/expected.toml` (inherits Gate 12's) |
+> | **Inherited** — "covered by another row's demonstration; not repeated" | **2** | Tier 3 (from Gate 2), Tier 3c (from Gate 3) |
+> | **No demonstration at all** | **4** | `fjell-abi-snapshot` ×2 (repaired inside RFC-0.24-003), `repro/baseline-digests.txt` (sound by citing Tier 3b), `ci-arm64-check` (reasoned: *"narrowly scoped by design… No finding"*) |
+> | Cited to a prior RFC / repaired since | 3 | Gate 3, Gate 4, `ci-proptest` |
+>
+> **The four in row 2 are the exact defect this erratum names.** E-017 records
+> that Gate 4 was certified `sound` because *"the tool's own unit suite
+> passed"*, and calls that **mode 2, proxy attestation**. Gate 2, Gate 11 and
+> Gate 12 cite `cargo test -p <tool>` in precisely the same way. **Gate 4 was
+> re-derived by RFC-0.24-003; the other three never were.**
+>
+> **But the conclusion mostly holds anyway, and that is the useful part.** Real
+> demonstrations for those instruments exist now — Gate 2 on a live category
+> violation (0.24.0 release record), Gate 11's `SYSCALL-CALLSITE-001`/`-002`
+> (RFC-0.28-002, RFC-0.28-004), Gate 12's ten subchecks (RFC-0.27-001,
+> RFC-0.27-003, RFC-0.27-004). **The register's stated basis is weaker than the
+> evidence that now exists, and the register cannot tell you which rows those
+> are.**
+>
+> **So E-017 is roughly: 4 rows needing a demonstration produced, 4 rows needing
+> their basis corrected to cite work already done, 2 inheritances to accept or
+> re-derive, and one summary-table count to reconcile.** That is a slice, not a
+> milestone — and it is smaller than the architect's own 2026-09-08 brief
+> implied when it guessed E-017 "may already be satisfied by RFC-v0.22-001." It
+> is not satisfied; it is just less work than "twenty assumed" suggests.
+
 ## E-018 — `task::scheduler::PRIORITY_USER` has three disconnected copies, two values
 
 - **Claim:** every spawned user task, including `init`, runs at the same
