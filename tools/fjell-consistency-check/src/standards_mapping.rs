@@ -247,7 +247,7 @@ pub fn run_check(src: &str, mapping_dir: &str) -> ExitCode {
 }
 
 pub fn check() -> ExitCode {
-    let Some(src) = read_file(MAPPING_PATH) else {
+    let Some(src) = read_file("standards-mapping", MAPPING_PATH) else {
         return ExitCode::FAILURE;
     };
     run_check(&src, MAPPING_DIR)

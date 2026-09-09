@@ -240,11 +240,22 @@ fn verify(snapshot_path: &str) -> ExitCode {
     println!("fjell-abi-snapshot verify:");
     println!("  Baseline items : {}", baseline.len());
     println!("  Current items  : {}", current.len());
-    println!("  Added          : {} (additive — OK)", added_count);
+    println!(
+        "  Added          : {} (not breaking, but not free — see below)",
+        added_count
+    );
     println!("  Removed        : {}", removed.len());
     println!("  Changed sig    : {}", changed.len());
 
-    if removed.is_empty() && changed.is_empty() {
+    // RFC-0.30-002 R3/E-035: an addition used to be free — `Added != 0`
+    // never affected the result, so the enumerate-and-regenerate step this
+    // project's release cycle documents had nothing enforcing it and could
+    // be deferred indefinitely. Every accumulated addition would then land
+    // in one unreviewed commit whenever someone finally ran --generate.
+    // §5 (shape 1): the gate fails the moment an addition is unrecorded,
+    // in the same line that made it — where the knowledge of *why* still
+    // is — rather than staying silently green until a cut.
+    if removed.is_empty() && changed.is_empty() && added_count == 0 {
         println!("  Result         : PASS");
         ExitCode::SUCCESS
     } else {
@@ -263,6 +274,20 @@ fn verify(snapshot_path: &str) -> ExitCode {
                     &b.sig_hash[..8],
                     &c.sig_hash[..8]
                 );
+            }
+        }
+        if added_count > 0 {
+            eprintln!(
+                "\n{added_count} item(s) added to the stable surface since the last \
+                 snapshot — additive, not breaking, but the enumerate-and-regenerate \
+                 step is owed now, in this line, not deferred to a cut (RFC-0.30-002 §5):"
+            );
+            for key in current_map.keys() {
+                if !baseline_map.contains_key(key) {
+                    if let Some(item) = current_map.get(key) {
+                        eprintln!("  + {}", item_label(item));
+                    }
+                }
             }
         }
         eprintln!("\nResult: FAIL — update tests/abi/snapshot.json with --generate");

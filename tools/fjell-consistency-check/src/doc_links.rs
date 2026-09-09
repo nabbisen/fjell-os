@@ -28,10 +28,12 @@ use std::process::ExitCode;
 const KNOWN_BROKEN_PATH: &str = "tests/doc-links/known-broken.txt";
 const EXCLUDE_DIRS: &[&str] = &["target", ".git", ".git-exclude"];
 
+const NAME: &str = "doc-links";
+
 pub fn check() -> ExitCode {
     let mut files: Vec<(PathBuf, String)> = Vec::new();
     if let Err(e) = walk_markdown(Path::new("."), &mut files) {
-        eprintln!("consistency-check: cannot walk repository tree: {e}");
+        eprintln!("{NAME}: FAIL — cannot walk repository tree: {e}");
         return ExitCode::FAILURE;
     }
     let refs: Vec<(&Path, &str)> = files
@@ -39,12 +41,8 @@ pub fn check() -> ExitCode {
         .map(|(p, c)| (p.as_path(), c.as_str()))
         .collect();
 
-    let known_broken_src = match fs::read_to_string(KNOWN_BROKEN_PATH) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("consistency-check: cannot read {KNOWN_BROKEN_PATH}: {e}");
-            return ExitCode::FAILURE;
-        }
+    let Some(known_broken_src) = crate::read_file(NAME, KNOWN_BROKEN_PATH) else {
+        return ExitCode::FAILURE;
     };
     let known_broken = parse_known_broken(&known_broken_src);
 

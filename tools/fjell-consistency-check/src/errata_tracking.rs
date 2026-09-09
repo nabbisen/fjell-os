@@ -238,13 +238,14 @@ fn find_rfc_id_in(text: &str) -> Option<String> {
     Some(format!("RFC-{}", &rest[..end]))
 }
 
+const NAME: &str = "errata-tracking";
+
 pub fn check() -> ExitCode {
-    let Some(errata_src) = read_file(ERRATA_PATH) else {
+    let Some(errata_src) = read_file(NAME, ERRATA_PATH) else {
         return ExitCode::FAILURE;
     };
 
-    let Ok(record_entries) = fs::read_dir(RECORDS_DIR) else {
-        eprintln!("consistency-check: cannot read {RECORDS_DIR}");
+    let Some(record_entries) = crate::read_dir_named(NAME, RECORDS_DIR) else {
         return ExitCode::FAILURE;
     };
     let mut record_srcs = Vec::new();
@@ -259,8 +260,7 @@ pub fn check() -> ExitCode {
 
     let mut rfc_files: Vec<(String, String)> = Vec::new();
     for dir in RFC_DIRS {
-        let Ok(entries) = fs::read_dir(dir) else {
-            eprintln!("consistency-check: cannot read {dir}");
+        let Some(entries) = crate::read_dir_named(NAME, dir) else {
             return ExitCode::FAILURE;
         };
         for entry in entries.filter_map(|e| e.ok()) {

@@ -166,33 +166,39 @@ baseline → verify the diff.**
 baseline had absorbed 0.26.0-era digests unchanged. After the build, the diff
 was one line, for the one binary the version bump moved.*
 
-### Before criterion 6 — re-record the ABI baseline, with the additions enumerated
+### Before criterion 6 — confirm the ABI baseline is current (it should already be)
 
 `tests/abi/snapshot.json` is the record of the surface this project promises not
-to break. Gate 4 verifies the tree against it and treats additions as
-non-breaking, so a release can ship with `Added: N` and a green gate — which
-means **nothing forces the baseline forward, and it drifts.**
-
-At each cut:
+to break.
 
 ```
 cargo run -p fjell-abi-snapshot --release -- --verify
 ```
 
-**`Removed` and `Changed sig` must be 0**, or the release stops until each is
-reconciled (RFC-0.24-003). If `Added` is non-zero, **enumerate the additions and
-name the RFC that introduced each one** before regenerating. Then re-record, and
-check the diff contains only those items.
+**`Removed`, `Changed sig`, and — since RFC-0.30-002 — `Added` must all be 0.**
+Gate 4 now fails the moment any of the three is non-zero (`Added` used to be
+treated as free; it no longer is), so an ABI-adding line cannot merge without
+having already enumerated the additions, named the RFC behind each, and
+re-recorded the baseline itself — the enumeration happens **where the
+knowledge is**, not deferred to whoever happens to run the cut.
 
-The enumeration is the point. A baseline regenerated without it absorbs
-everything that accumulated since the last one, unreviewed, in a single commit —
-the exact hazard RFC-0.24-003 was written about, reached by patience rather than
-by mistake.
+This step is therefore a **confirmation, not a task**: if it finds `Added: N`
+here, an ABI-touching line merged without regenerating, which Gate 4 should
+have already refused. Treat a non-zero reading at the cut as its own finding
+— the enforcement failed somewhere upstream — not as routine cut-time work to
+do now.
 
 *Added 2026-09-08, during the RFC-0.28-004 review. The cycle had no ABI step at
 all: the `0.27.0` cut did not touch the snapshot, the baseline had not moved
 since `40ea59b`, and the tree had drifted five items ahead of it. Recorded as
 **E-035** — this step is written down but nothing enforces it.*
+
+*Rewritten 2026-09-10, RFC-0.30-002 §5/R3 (E-035 closed). The cut-time
+"enumerate here" step above is what let the drift happen — a hazard that is
+free to defer is a hazard that gets deferred, exactly as this project's own
+five-item drift (recorded just above) demonstrated. Moved the enumeration to
+the moment of addition, where nothing about it has to be reconstructed
+later.*
 
 ### Before the tag — pin the crates.io logo URLs to this release's tag
 

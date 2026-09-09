@@ -1559,7 +1559,31 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   because nothing had drifted. **What has not happened is the enforcement**, and
   that is what this erratum tracks: the step is still a paragraph in a document,
   not a check.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-08), tracked **0.29**.~~ →
+  **CLOSED** by **RFC-0.30-002**.
+
+  > **Closed by RFC-0.30-002, 2026-09-10.** §5 answered shape 1: `Gate
+  > 4`/`fjell-abi-snapshot --verify` now fails whenever `Added != 0`, not
+  > only on `Removed`/`Changed sig`. Cost argued, not assumed:
+  > `tests/abi/snapshot.json` has been touched in 8 commits across this
+  > project's entire 177-RFC history — the stable surface changes rarely,
+  > so the gate is red only on the line that made the addition, closed by
+  > the one command (`--generate`) that same line already needed. Full
+  > argument, including why shapes 2 (cut-only) and 3 (version-stamped
+  > baseline) were not built, in
+  > `docs/rfcs/RFC-0.30-002-checks-that-name-themselves-answer.md`.
+  >
+  > **Demonstrated failing** (D5/R4) on a deliberately un-regenerated
+  > baseline — a temp copy of the real, current `snapshot.json` with 3 real
+  > current items removed, fed via `--snapshot`, no tracked file touched:
+  > `Added: 3`, previously `Result: PASS`, now `Result: FAIL` naming all
+  > three added items. Confirmed the old code passes the identical input
+  > (`git stash` comparison).
+  >
+  > `docs/src/release/v0-release-cycle.md`'s "before criterion 6" step
+  > rewritten from a cut-time task to a cut-time confirmation — the
+  > enumeration now happens where an addition is made, not deferred to
+  > whoever runs the cut.
 
 ## E-036 — T20's two-build reproducibility check has never been run
 
@@ -1794,8 +1818,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   line. What none of them prints is a **result line naming itself**, which is the
   format every passing subcheck uses and the thing a reader scans for. The
   aggregate ends `consistency-check: FAIL` with no `<name>: FAIL` anywhere.
-  `handoff-status` is the one that really is silent — header and nothing else —
-  and this entry never named it.
+  `handoff-status` is the one this entry never named.
+
+  > **Correction, RFC-0.30-002 R2, 2026-09-10.** The paragraph above (and the
+  > RFC's own §0.1 reproduction) says `handoff-status` "really is silent —
+  > header and nothing else." **Reproduced directly against two real
+  > commits — the one that filed E-038 and the one immediately before this
+  > RFC — and that is not what happens either time.** At the E-038 filing
+  > commit it **passes** (`handoff-status: PASS (23 handoffs checked)`) with
+  > `rfcs/accepted/` missing entirely, because no live handoff's Governing
+  > RFC link happened to resolve into that folder at that moment. At the
+  > commit immediately before this RFC, it **fails with a real, if unnamed,
+  > message** (`... links to governing RFC ... which could not be read`),
+  > because by then one did (RFC-0.30-001's). Neither is silence. The first
+  > is worse: unlike the other three, which enumerate
+  > `rfcs/{proposed,accepted,done}` directly and so notice a missing one
+  > unconditionally, `handoff-status` only ever touched them incidentally —
+  > through whichever RFC a handoff happened to cite — so right after a cut,
+  > the exact moment `rfcs/accepted/` is emptiest, it could pass while blind
+  > to the very thing it was supposed to notice. Fixed by making it check
+  > all three lifecycle folders directly, same as the others, independent of
+  > which RFCs currently have handoffs.
 - **Interim fix applied:** `rfcs/accepted/README.md`, matching the existing
   keepers, added during this cut. **The silence is not fixed** — that is what
   this erratum tracks.
@@ -1810,7 +1853,38 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   The keeper files added at 0.28.0 mean the condition is unlikely to recur, which
   is precisely why it stayed unfixed — and why it will stay unfixed until
   something forces it.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-08), tracked **0.29**.~~ →
+  **CLOSED** by **RFC-0.30-002**. Text corrected in place above: it is
+  **four** subchecks, not three, and none of the four fails to speak — what
+  none of them does is name itself.
+
+  > **Closed by RFC-0.30-002, 2026-09-10.** `read_file`/`read_dir_named`
+  > (`tools/fjell-consistency-check/src/main.rs`) now take the calling
+  > subcheck's own name and print `<name>: FAIL — <reason>` on any I/O
+  > failure, replacing the generic `consistency-check: cannot read ...`
+  > shape. Applied everywhere that shape appeared in this crate — not only
+  > the four named here, but three more instances found by the same sweep
+  > (`doc-links`, `version-currency`, `syscall-surface`, `evidence` each had
+  > at least one unnamed early-failure message of their own, undemonstrated
+  > only because their specific inputs were not the ones this reproduction
+  > happened to break). D2's "fix the class" reached all of them, since the
+  > mechanism already did once built.
+  >
+  > **`handoff-status` fixed on its actual defect** (see the correction
+  > above, not the one originally filed): it now enumerates
+  > `rfcs/{proposed,accepted,done}` directly before touching any handoff, so
+  > a missing lifecycle folder fails unconditionally rather than only when
+  > some handoff's link happens to route through it.
+  >
+  > **Demonstrated** (D5/R4): `mv rfcs/accepted /tmp/... && cargo run -p
+  > fjell-consistency-check -- --all` now shows all four —
+  > `rfc-status-folder`, `handoff-status`, `errata-tracking`, `doc-counts` —
+  > reporting `<name>: FAIL — cannot read rfcs/accepted: ...`. Isolated
+  > further: with the two live handoffs that reference `rfcs/accepted/`
+  > *also* moved aside (simulating the true post-cut state, no live handoff
+  > routing through it at all), `handoff-status` still correctly fails —
+  > confirming the blind-pass defect, not just the naming defect, is fixed.
+  > Folder and handoffs restored; `git status` empty both times.
 
 ## E-039 — the architect has performed the implementer's role at every cut for five releases
 
@@ -1900,10 +1974,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
-| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | ACCEPTED |
+| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
 | E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
-| E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent (`handoff-status` silently) | RFC-0.30-002 | ACCEPTED |
+| E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and

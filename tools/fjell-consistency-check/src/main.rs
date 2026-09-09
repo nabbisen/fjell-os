@@ -111,13 +111,31 @@ fn run_named(name: &str, check: fn() -> ExitCode) -> ExitCode {
     check()
 }
 
-/// Read a file to a `String`, printing a consistent error and returning
-/// `None` on failure so callers can report FAIL rather than panic.
-pub(crate) fn read_file(path: &str) -> Option<String> {
+/// Read a file to a `String`, printing a **named** error (RFC-0.30-002 D1)
+/// and returning `None` on failure so callers can report FAIL rather than
+/// panic. `name` is the calling subcheck's own name — the message this
+/// prints is a result line in its own right (it may be the only one a
+/// failing subcheck ever produces), not a generic diagnostic a reader has
+/// to positionally correlate with a `--- consistency-check: <name> ---`
+/// header on a different output stream.
+pub(crate) fn read_file(name: &str, path: &str) -> Option<String> {
     match fs::read_to_string(path) {
         Ok(s) => Some(s),
         Err(e) => {
-            eprintln!("consistency-check: cannot read {path}: {e}");
+            eprintln!("{name}: FAIL — cannot read {path}: {e}");
+            None
+        }
+    }
+}
+
+/// `read_file`'s counterpart for a directory listing — same reasoning,
+/// same guarantee: any subcheck that cannot enumerate a required directory
+/// reports that failure under its own name, not a bare `cannot read`.
+pub(crate) fn read_dir_named(name: &str, path: &str) -> Option<fs::ReadDir> {
+    match fs::read_dir(path) {
+        Ok(entries) => Some(entries),
+        Err(e) => {
+            eprintln!("{name}: FAIL — cannot read {path}: {e}");
             None
         }
     }

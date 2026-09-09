@@ -47,10 +47,12 @@ const EXCLUDE_DIRS: &[&str] = &["target", ".git", ".git-exclude"];
 const REQUIRED_PROVENANCE_FIELDS: &[&str] =
     &["run_id", "profile", "commit_sha", "command", "instrumented"];
 
+const NAME: &str = "evidence";
+
 pub fn check() -> ExitCode {
     let mut files: Vec<(PathBuf, String)> = Vec::new();
     if let Err(e) = walk_markdown(Path::new("."), &mut files) {
-        eprintln!("consistency-check: cannot walk repository tree: {e}");
+        eprintln!("{NAME}: FAIL — cannot walk repository tree: {e}");
         return ExitCode::FAILURE;
     }
     let docs: Vec<(&Path, &str)> = files
@@ -60,7 +62,7 @@ pub fn check() -> ExitCode {
 
     let mut evidence_logs = Vec::new();
     if let Err(e) = walk_evidence_logs(Path::new(EVIDENCE_DIR), &mut evidence_logs) {
-        eprintln!("consistency-check: cannot walk {EVIDENCE_DIR}: {e}");
+        eprintln!("{NAME}: FAIL — cannot walk {EVIDENCE_DIR}: {e}");
         return ExitCode::FAILURE;
     }
 

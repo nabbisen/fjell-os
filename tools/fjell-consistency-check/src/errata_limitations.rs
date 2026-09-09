@@ -15,11 +15,13 @@ use std::process::ExitCode;
 const ERRATA_PATH: &str = "docs/rfcs/ERRATA.md";
 const LIMITATIONS_PATH: &str = "docs/release/v1-limitations.md";
 
+const NAME: &str = "errata-limitations";
+
 pub fn check() -> ExitCode {
-    let Some(errata_src) = read_file(ERRATA_PATH) else {
+    let Some(errata_src) = read_file(NAME, ERRATA_PATH) else {
         return ExitCode::FAILURE;
     };
-    let Some(limitations_src) = read_file(LIMITATIONS_PATH) else {
+    let Some(limitations_src) = read_file(NAME, LIMITATIONS_PATH) else {
         return ExitCode::FAILURE;
     };
     run_check(&errata_src, &limitations_src)

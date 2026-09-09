@@ -51,8 +51,7 @@ pub fn check() -> ExitCode {
         (ACCEPTED_DIR, ACCEPTED_STATUSES),
         (DONE_DIR, DONE_STATUSES),
     ] {
-        let Ok(entries) = fs::read_dir(dir) else {
-            eprintln!("consistency-check: cannot read {dir}");
+        let Some(entries) = crate::read_dir_named("rfc-status-folder", dir) else {
             return ExitCode::FAILURE;
         };
         let mut paths: Vec<_> = entries

@@ -29,21 +29,23 @@ pub struct Expected {
     pub undispatched: Vec<String>,
 }
 
+const NAME: &str = "syscall-surface";
+
 pub fn check() -> ExitCode {
-    let Some(abi_src) = read_file(ABI_SYSCALL_PATH) else {
+    let Some(abi_src) = read_file(NAME, ABI_SYSCALL_PATH) else {
         return ExitCode::FAILURE;
     };
-    let Some(dispatch_src) = read_file(DISPATCH_PATH) else {
+    let Some(dispatch_src) = read_file(NAME, DISPATCH_PATH) else {
         return ExitCode::FAILURE;
     };
-    let Some(expected_src) = read_file(EXPECTED_PATH) else {
+    let Some(expected_src) = read_file(NAME, EXPECTED_PATH) else {
         return ExitCode::FAILURE;
     };
 
     let expected = match parse_expected(&expected_src) {
         Ok(e) => e,
         Err(e) => {
-            eprintln!("consistency-check: cannot parse {EXPECTED_PATH}: {e}");
+            eprintln!("{NAME}: FAIL — cannot parse {EXPECTED_PATH}: {e}");
             return ExitCode::FAILURE;
         }
     };

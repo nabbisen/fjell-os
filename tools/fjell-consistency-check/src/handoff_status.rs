@@ -6,16 +6,49 @@
 //! its governing RFC's current Status keyword. This is exactly RFC-v0.22-001
 //! Motivation instance 4 — a handoff stayed `Proposed` after its governing
 //! RFC moved to `Implemented`.
+//!
+//! RFC-0.30-002 R2 diagnosis: E-038's own repro table describes this
+//! subcheck as printing "nothing" when `rfcs/accepted/` is moved aside.
+//! Reproduced directly, twice, against the exact commits involved, and
+//! that is not what happens: it either (a) prints a real, if unnamed,
+//! `... links to governing RFC ... which could not be read` message, if
+//! some live handoff's Governing RFC link currently resolves into the
+//! missing folder, or (b) **passes** — incorrectly — if none currently
+//! does. (b) is the real defect, and it is worse than silence: unlike
+//! `rfc-status-folder`/`errata-tracking`/`doc-counts`, which enumerate
+//! `rfcs/{proposed,accepted,done}` directly and so notice a missing one
+//! unconditionally, this subcheck only ever touched those folders
+//! incidentally, through whichever RFC a handoff happened to cite. Right
+//! after a release cut — the exact moment `rfcs/accepted/` is emptiest and
+//! likeliest to vanish from a fresh clone, per E-038's own history — no
+//! handoff yet cites anything in it, and this subcheck would pass on a
+//! clone missing the folder entirely. Fixed below by checking all three
+//! lifecycle folders directly, matching the others, rather than waiting to
+//! notice one by accident.
 
 use crate::status::extract_status_keyword;
 use std::fs;
 use std::process::ExitCode;
 
+const PROPOSED_DIR: &str = "rfcs/proposed";
+const ACCEPTED_DIR: &str = "rfcs/accepted";
+const DONE_DIR: &str = "rfcs/done";
 const HANDOFFS_DIR: &str = "rfcs/handoffs";
+const NAME: &str = "handoff-status";
 
 pub fn check() -> ExitCode {
-    let Ok(entries) = fs::read_dir(HANDOFFS_DIR) else {
-        eprintln!("consistency-check: cannot read {HANDOFFS_DIR}");
+    // A Governing RFC link can resolve into any of the three lifecycle
+    // folders depending on where that RFC currently lives. Verify all
+    // three are readable unconditionally, the same way the other three
+    // E-038 subchecks do — not only when a handoff's link happens to touch
+    // one of them.
+    for dir in [PROPOSED_DIR, ACCEPTED_DIR, DONE_DIR] {
+        if crate::read_dir_named(NAME, dir).is_none() {
+            return ExitCode::FAILURE;
+        }
+    }
+
+    let Some(entries) = crate::read_dir_named(NAME, HANDOFFS_DIR) else {
         return ExitCode::FAILURE;
     };
     let mut dirs: Vec<_> = entries
@@ -28,13 +61,12 @@ pub fn check() -> ExitCode {
     let mut pairs: Vec<(String, String, String)> = Vec::new();
     for dir in dirs {
         let handoff_path = dir.join("implementation-handoff.md");
-        let Ok(handoff_src) = fs::read_to_string(&handoff_path) else {
-            eprintln!("consistency-check: cannot read {}", handoff_path.display());
+        let Some(handoff_src) = crate::read_file(NAME, &handoff_path.to_string_lossy()) else {
             return ExitCode::FAILURE;
         };
         let Some(rel_link) = extract_governing_rfc_link(&handoff_src) else {
             eprintln!(
-                "consistency-check: {} has no '**Governing RFC:**' link",
+                "{NAME}: FAIL — {} has no '**Governing RFC:**' link",
                 handoff_path.display()
             );
             return ExitCode::FAILURE;
@@ -42,7 +74,7 @@ pub fn check() -> ExitCode {
         let governing_path = dir.join(&rel_link);
         let Ok(governing_src) = fs::read_to_string(&governing_path) else {
             eprintln!(
-                "consistency-check: {} links to governing RFC {} which could not be read",
+                "{NAME}: FAIL — {} links to governing RFC {} which could not be read",
                 handoff_path.display(),
                 governing_path.display()
             );

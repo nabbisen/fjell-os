@@ -54,26 +54,30 @@ const ARCHIVE_DIR: &str = "rfcs/archive";
 /// count the same way `v0.7.x-index.md` is excluded from `done/`'s.
 const NON_RFC_FILES: &[&str] = &["README.md", "v0.7.x-index.md"];
 
+const NAME: &str = "doc-counts";
+
 pub fn check() -> ExitCode {
-    let Some(readme_src) = read_file(README_PATH) else {
+    let Some(readme_src) = read_file(NAME, README_PATH) else {
         return ExitCode::FAILURE;
     };
-    let counts = match (
-        count_md_files(DONE_DIR),
-        count_md_files(ACCEPTED_DIR),
-        count_md_files(PROPOSED_DIR),
-        count_md_files(ARCHIVE_DIR),
-    ) {
-        (Ok(d), Ok(a), Ok(p), Ok(ar)) => ActualCounts {
-            done_total: d,
-            accepted_rfcs: a.saturating_sub(non_rfc_present(ACCEPTED_DIR)),
-            proposed_rfcs: p.saturating_sub(non_rfc_present(PROPOSED_DIR)),
-            archive_rfcs: ar.saturating_sub(non_rfc_present(ARCHIVE_DIR)),
-        },
-        _ => {
-            eprintln!("consistency-check: cannot read one or more rfcs/ lifecycle folders");
-            return ExitCode::FAILURE;
+    // RFC-0.30-002 R1: named individually, not folded into one "one or more"
+    // message — the previous shape couldn't say which of the four failed.
+    let mut counted: Vec<usize> = Vec::new();
+    for dir in [DONE_DIR, ACCEPTED_DIR, PROPOSED_DIR, ARCHIVE_DIR] {
+        match count_md_files(dir) {
+            Ok(n) => counted.push(n),
+            Err(e) => {
+                eprintln!("{NAME}: FAIL — cannot read {dir}: {e}");
+                return ExitCode::FAILURE;
+            }
         }
+    }
+    let [d, a, p, ar] = <[usize; 4]>::try_from(counted).unwrap();
+    let counts = ActualCounts {
+        done_total: d,
+        accepted_rfcs: a.saturating_sub(non_rfc_present(ACCEPTED_DIR)),
+        proposed_rfcs: p.saturating_sub(non_rfc_present(PROPOSED_DIR)),
+        archive_rfcs: ar.saturating_sub(non_rfc_present(ARCHIVE_DIR)),
     };
     run_check(&readme_src, &counts)
 }

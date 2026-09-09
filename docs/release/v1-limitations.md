@@ -434,12 +434,24 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it inside `fjell-syscall` going forward. `sys_ipc_recv`'s long-term future
   (repair vs. remove) remains an open escalation, not resolved by this fix.
 
-- **The ABI baseline is never re-recorded** (Errata **E-035**, ACCEPTED, tracked
-  to **0.29**). `tests/abi/snapshot.json` holds 413 items against a tree of 418;
-  Gate 4 reports `Added: 5 (additive — OK)` and passes, correctly. Removals and
-  signature changes are still caught — but the baseline no longer describes any
-  shipped release, and a future regeneration would absorb every accumulated
-  addition in one unreviewed step.
+- **The ABI baseline used to never be enforced current** (Errata **E-035**,
+  **CLOSED** by **RFC-0.30-002**). `tests/abi/snapshot.json` used to hold 413
+  items against a tree of 418; Gate 4 reported `Added: 5 (additive — OK)` and
+  passed, correctly under the old rule. Removals and signature changes were
+  still caught — but the baseline no longer described any shipped release, and
+  a future regeneration would have absorbed every accumulated addition in one
+  unreviewed step.
+
+  **Fixed:** `fjell-abi-snapshot --verify` now fails whenever `Added != 0`, not
+  only on `Removed`/`Changed sig` — the same gate, a stricter pass condition.
+  Argued on measured cost, not assumed: `tests/abi/snapshot.json` has been
+  touched in 8 commits across this project's entire 177-RFC history, so the
+  gate is red only on the rare line that actually touches the stable surface,
+  and only until that same line runs `--generate`. Demonstrated failing on a
+  deliberately un-regenerated baseline (3 real current items held back via a
+  scratch `--snapshot` copy, no tracked file touched): `Added: 3`, `Result:
+  FAIL`, naming all three. `docs/src/release/v0-release-cycle.md`'s cut-time
+  step is now a confirmation that the per-line discipline held, not a task.
 
 - **The two-build reproducibility check used to never run, and could not fail
   if it were** (Errata **E-036**, **CLOSED** by **RFC-0.30-001**).
@@ -493,14 +505,27 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   refuse an unsuitable toolchain. Nothing records which toolchain produced the
   repro baseline.
 
-- **Four subchecks fail without a result line naming themselves** (Errata
-  **E-038**, ACCEPTED, tracked to **RFC-0.30-002**). With an RFC lifecycle
+- **Four subchecks used to fail without a result line naming themselves**
+  (Errata **E-038**, **CLOSED** by **RFC-0.30-002**). With an RFC lifecycle
   folder absent, `rfc-status-folder`, `handoff-status`, `errata-tracking` and
-  `doc-counts` all fail; three print a bare `cannot read …` line and
-  `handoff-status` prints nothing at all. None emits the `<name>: FAIL` line
-  every passing subcheck uses, so the run ends `consistency-check: FAIL` with no
-  subject. Keeper files exist in all four lifecycle folders, so the condition is
-  unlikely to recur — which is why it has stayed unfixed.
+  `doc-counts` all used to fail with a bare `consistency-check: cannot read …`
+  line — no subject, so the run ended `consistency-check: FAIL` with no way to
+  tell which of ten checks broke. (`handoff-status` was not actually silent, a
+  correction from this line's own diagnosis: depending on which RFCs currently
+  had handoffs, it either produced the same unnamed message or — worse —
+  **passed incorrectly**, blind to the missing folder because it only ever
+  touched lifecycle folders incidentally, through whichever RFC a handoff
+  happened to cite.)
+
+  **Fixed:** `read_file`/`read_dir_named` (`tools/fjell-consistency-check`) now
+  take the calling subcheck's own name and print `<name>: FAIL — <reason>` on
+  any I/O failure — applied everywhere that shape appeared in the crate, not
+  only these four (3 more instances found and fixed by the same sweep:
+  `doc-links`, `version-currency`, `syscall-surface`, `evidence`).
+  `handoff-status` additionally now enumerates `rfcs/{proposed,accepted,done}`
+  directly before touching any handoff, closing the blind-pass gap. Keeper
+  files still exist in all four lifecycle folders, unrelated and unchanged —
+  this fix is for when one goes missing anyway.
 
 
 - **The release cut is the only work in this project nobody reviews** (Errata

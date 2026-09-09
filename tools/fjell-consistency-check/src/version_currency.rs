@@ -40,24 +40,24 @@ const README_PATH: &str = "README.md";
 const CARGO_TOML_PATH: &str = "Cargo.toml";
 const FJELL_OS_CARGO_TOML_PATH: &str = "crates/fjell-os/Cargo.toml";
 
+const NAME: &str = "version-currency";
+
 pub fn check() -> ExitCode {
-    let Some(readme_src) = read_file(README_PATH) else {
+    let Some(readme_src) = read_file(NAME, README_PATH) else {
         return ExitCode::FAILURE;
     };
-    let Some(cargo_src) = read_file(CARGO_TOML_PATH) else {
+    let Some(cargo_src) = read_file(NAME, CARGO_TOML_PATH) else {
         return ExitCode::FAILURE;
     };
     let Some(current) = parse_workspace_version(&cargo_src) else {
-        eprintln!("consistency-check: cannot find workspace version in {CARGO_TOML_PATH}");
+        eprintln!("{NAME}: FAIL — cannot find workspace version in {CARGO_TOML_PATH}");
         return ExitCode::FAILURE;
     };
-    let Some(fjell_os_src) = read_file(FJELL_OS_CARGO_TOML_PATH) else {
+    let Some(fjell_os_src) = read_file(NAME, FJELL_OS_CARGO_TOML_PATH) else {
         return ExitCode::FAILURE;
     };
     let Some(pin) = parse_fjell_abi_pin(&fjell_os_src) else {
-        eprintln!(
-            "consistency-check: cannot find fjell-abi version pin in {FJELL_OS_CARGO_TOML_PATH}"
-        );
+        eprintln!("{NAME}: FAIL — cannot find fjell-abi version pin in {FJELL_OS_CARGO_TOML_PATH}");
         return ExitCode::FAILURE;
     };
     run_check(&readme_src, &current, &pin)
