@@ -24,9 +24,16 @@ pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
 
         // v0.4-v0.7 smoke categories (RFC-v0.7.1-003, W-M-04)
         // These verify the service markers emitted by v0.4+ services.
+        //
+        // RFC-0.29-002 R5 (E-015): "v0.6-verification" used to be accepted
+        // here, mapped to a marker — "TEST:V0.6-VERIFY:PASS" — that no
+        // kernel or service code has ever emitted, and to a profile name
+        // ("v0.6-verify") neither `SMOKE_PROFILES` nor any `ci.yml` job
+        // ever ran. Vestigial from a naming transition, not a milestone
+        // this project tests; deleted rather than wired up, since there is
+        // no v0.6 functionality behind it to test.
         Some("v0.4-net") => ("v0.4-net", "TEST:V0.4-NET:PASS"),
         Some("v0.5-platform") => ("v0.5-platform", "TEST:V0.5-PLATFORM:PASS"),
-        Some("v0.6-verification") => ("v0.6-verify", "TEST:V0.6-VERIFY:PASS"),
         Some("v0.7-sync") => ("v0.7-sync", "TEST:V0.7-SYNC:PASS"),
 
         // No milestone given at all: default to the current milestone.
@@ -40,7 +47,7 @@ pub fn cmd_qemu_test(milestone: Option<&str>) -> ExitCode {
             eprintln!("[xtask] qemu-test: unknown milestone `{unknown}`");
             eprintln!(
                 "[xtask] known: m1, m2, m3, m4, m5, m6, m7, m8, v0.4-net, \
-                 v0.5-platform, v0.6-verification, v0.7-sync"
+                 v0.5-platform, v0.7-sync"
             );
             return ExitCode::FAILURE;
         }

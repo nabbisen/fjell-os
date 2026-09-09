@@ -14,9 +14,13 @@ name = "fjell-tools"
 path = "src/main.rs"
 
 [dependencies]
-fjell-dev-harness   = { path = "../fjell-dev-harness" }
-fjell-cap-manifest  = { path = "../fjell-cap-manifest" }
-fjell-sig-ed25519   = { path = "../fjell-sig-ed25519" }
+fjell-dev-harness       = { path = "../fjell-dev-harness" }
+fjell-cap-manifest      = { path = "../fjell-cap-manifest" }
+fjell-sig-ed25519       = { path = "../fjell-sig-ed25519" }
+# RFC-0.29-002 §7: the one shared ERRATA.md table parser, so Gate 7 reads
+# the same structure `errata-tracking`/`errata-limitations` do instead of
+# carrying its own copy (or, worse, its own `grep`).
+fjell-consistency-check = { path = "../../tools/fjell-consistency-check" }
 getrandom           = { version = "0.2", features = ["std"] }
 argon2              = "0.5"
 aes-gcm             = "0.10"

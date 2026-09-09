@@ -68,6 +68,7 @@
 //! reason — see the exclusion at its call site.
 
 use crate::read_file;
+use fjell_consistency_check::errata::{Tracking, classify_tracking, is_closed, parse_summary_rows};
 use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
@@ -80,101 +81,6 @@ const RFC_DIRS: &[&str] = &[
     "rfcs/done",
     "rfcs/archive",
 ];
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Tracking {
-    RfcId(String),
-    Milestone(String),
-    Unscheduled,
-    Invalid,
-}
-
-/// Classify one tracking-column value. Pure, no I/O.
-pub fn classify_tracking(raw: &str) -> Tracking {
-    let raw = raw.trim();
-    if raw == "unscheduled" {
-        return Tracking::Unscheduled;
-    }
-    if let Some(rest) = raw.strip_prefix("RFC-") {
-        if !rest.is_empty()
-            && rest
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
-        {
-            return Tracking::RfcId(raw.to_string());
-        }
-        return Tracking::Invalid;
-    }
-    // Bare milestone: exactly two dot-separated numeric components.
-    let parts: Vec<&str> = raw.split('.').collect();
-    if parts.len() == 2
-        && !parts[0].is_empty()
-        && !parts[1].is_empty()
-        && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit()))
-    {
-        return Tracking::Milestone(raw.to_string());
-    }
-    Tracking::Invalid
-}
-
-/// One row of the `## Summary` table: `(erratum id, raw tracking cell, raw
-/// status cell)`.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct SummaryRow {
-    pub id: String,
-    pub tracking: String,
-    pub status: String,
-}
-
-/// Parse the `## Summary` table's rows. Same table-walking shape as
-/// `errata_limitations::parse_accepted_errata`, extended to keep the
-/// tracking cell (index 1) as well as the status cell (index 2).
-pub fn parse_summary_rows(src: &str) -> Vec<SummaryRow> {
-    let mut in_summary = false;
-    let mut rows = Vec::new();
-    for line in src.lines() {
-        let trimmed = line.trim();
-        if trimmed == "## Summary" {
-            in_summary = true;
-            continue;
-        }
-        if !in_summary || !trimmed.starts_with('|') {
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if cells.len() < 3 {
-            continue;
-        }
-        if cells[0].eq_ignore_ascii_case("errata") || cells[0].starts_with("--") {
-            continue; // header or separator row
-        }
-        let Some(id) = extract_erratum_id(cells[0]) else {
-            continue;
-        };
-        rows.push(SummaryRow {
-            id,
-            tracking: cells[1].to_string(),
-            status: cells[2].to_string(),
-        });
-    }
-    rows
-}
-
-/// Extract a leading `E-NNN` token from a summary-table first cell such as
-/// `"E-004 hardware boot"`. Identical rule to `errata_limitations`.
-fn extract_erratum_id(cell: &str) -> Option<String> {
-    let cell = cell.trim();
-    let rest = cell.strip_prefix("E-")?;
-    let digit_len = rest.chars().take_while(char::is_ascii_digit).count();
-    if digit_len == 0 {
-        return None;
-    }
-    Some(format!("E-{}", &rest[..digit_len]))
-}
 
 /// Extract the `**Version:**` field from a release record and reduce it to
 /// `major.minor` (the shape errata tracking uses for a bare milestone).
@@ -236,7 +142,48 @@ fn erratum_ids_in(src: &str) -> Vec<(usize, String)> {
 ///   still credit this one paragraph's "closes it" to **E-010**, which the
 ///   sentence never claims to close; it is cited only as background for a
 ///   *different* erratum's clause.
-fn header_claims_close(header: &str, id: &str) -> bool {
+/// `path`'s own RFC id (the `RFC-...` filename prefix, before the slug),
+/// so `header_claims_close` can tell "this RFC closes X" from a clause
+/// whose real grammatical subject is a *different*, explicitly-cited RFC.
+fn own_rfc_id(path: &str) -> Option<String> {
+    let name = path.rsplit('/').next()?;
+    let rest = name.strip_prefix("RFC-")?;
+    // The id is `RFC-` + version chars (alnum/./-) up to the first `-`
+    // that starts a lowercase slug word (a version component is only
+    // digits, optionally `v`-prefixed, per `classify_tracking`'s own
+    // rule) — simplest robust cut: consume alnum/`.` greedily, plus `-`
+    // only when immediately followed by a digit or `v`+digit (another
+    // version segment), stopping at the slug's first word.
+    let mut end = 0usize;
+    let bytes = rest.as_bytes();
+    while end < bytes.len() {
+        let c = bytes[end] as char;
+        if c.is_ascii_alphanumeric() || c == '.' {
+            end += 1;
+            continue;
+        }
+        if c == '-' {
+            let next = rest[end + 1..].chars().next();
+            let starts_version = matches!(next, Some(d) if d.is_ascii_digit())
+                || (next == Some('v')
+                    && rest[end + 2..]
+                        .chars()
+                        .next()
+                        .is_some_and(|d| d.is_ascii_digit()));
+            if starts_version {
+                end += 1;
+                continue;
+            }
+        }
+        break;
+    }
+    if end == 0 {
+        return None;
+    }
+    Some(format!("RFC-{}", &rest[..end]))
+}
+
+fn header_claims_close(header: &str, id: &str, own_id: Option<&str>) -> bool {
     for (pos, found_id) in erratum_ids_in(header) {
         if found_id != id {
             continue;
@@ -257,11 +204,38 @@ fn header_claims_close(header: &str, id: &str) -> bool {
             .map(|p| pos_in_para + p)
             .unwrap_or(paragraph.len());
         let clause = &paragraph[lo..hi];
-        if clause.to_ascii_lowercase().contains("clos") {
-            return true;
+        if !clause.to_ascii_lowercase().contains("clos") {
+            continue;
         }
+        // The clause's real subject may be a *different*, explicitly
+        // cited RFC — e.g. a `**Relates to:**` item reading "RFC-0.28-005
+        // (which closed one E-015 instance and established the
+        // template)" is background about what RFC-0.28-005 did, not a
+        // first-person claim by the file being scanned. Found live:
+        // RFC-0.29-001's own header cites RFC-0.28-005 this way in the
+        // same clause as E-015.
+        if let Some(cited) = find_rfc_id_in(clause) {
+            if Some(cited.as_str()) != own_id {
+                continue;
+            }
+        }
+        return true;
     }
     false
+}
+
+/// The first `RFC-<id>` token in `text`, if any — same character-class
+/// rule as `classify_tracking`'s own RFC-id validation.
+fn find_rfc_id_in(text: &str) -> Option<String> {
+    let pos = text.find("RFC-")?;
+    let rest = &text[pos + "RFC-".len()..];
+    let end = rest
+        .find(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+        .unwrap_or(rest.len());
+    if end == 0 {
+        return None;
+    }
+    Some(format!("RFC-{}", &rest[..end]))
 }
 
 pub fn check() -> ExitCode {
@@ -333,7 +307,7 @@ pub fn run_check(
                 continue;
             }
             Tracking::Milestone(m) => {
-                let closed = row.status.trim_start().starts_with("CLOSED");
+                let closed = is_closed(&row.status);
                 if !closed && shipped.contains(m) {
                     problems.push(format!(
                         "{}: tracking names milestone {m}, which has already shipped, but status is {:?} (not CLOSED)",
@@ -378,9 +352,10 @@ pub fn run_check(
             continue;
         }
         let header: String = content.lines().take(20).collect::<Vec<_>>().join("\n");
+        let own_id = own_rfc_id(path);
         let mut claimed: BTreeSet<String> = BTreeSet::new();
         for (_, id) in erratum_ids_in(&header) {
-            if header_claims_close(&header, &id) {
+            if header_claims_close(&header, &id, own_id.as_deref()) {
                 claimed.insert(id);
             }
         }
@@ -728,14 +703,80 @@ mod tests {
     #[test]
     fn header_claims_close_handles_id_before_the_word_closes() {
         let header = "**Relates to:** ERRATA **E-019** (this RFC closes it)";
-        assert!(header_claims_close(header, "E-019"));
+        assert!(header_claims_close(header, "E-019", None));
     }
 
     #[test]
     fn header_claims_close_handles_id_after_the_word_closes() {
         let header = "**Relates to:** closes **E-016** and **E-023**";
-        assert!(header_claims_close(header, "E-016"));
-        assert!(header_claims_close(header, "E-023"));
+        assert!(header_claims_close(header, "E-016", None));
+        assert!(header_claims_close(header, "E-023", None));
+    }
+
+    /// RFC-0.29-002 R3: `header_claims_close`'s "clos" stem search does
+    /// not recognise this project's own `**Tracks.**` field convention —
+    /// found live in RFC-0.28-003's committed header (`**Tracks.**
+    /// **E-019** — ...`, no "clos" stem anywhere nearby), and confirmed as
+    /// a real historical incident, not a hypothetical one: E-019's
+    /// tracking field sat stale at `RFC-0.26-003` after RFC-0.28-003 was
+    /// accepted, undetected by this check, and was only retracked because
+    /// it was manually noticed to be the right thing to do.
+    ///
+    /// **Deliberately not fixed here.** A `**Tracks.**`-based extension
+    /// was built and then reverted: this project tracks some errata
+    /// across a *sequence* of RFCs as work continues (E-015: tracked by
+    /// RFC-0.29-001, then handed to RFC-0.29-002 once one instance
+    /// survived it) — a later RFC's `**Tracks.**` field naming the same
+    /// erratum an *earlier*, already-`Implemented` RFC's header also
+    /// tracks is not a wrong claim, it is two true statements about two
+    /// different points in the erratum's history. Treating every
+    /// `**Tracks.**` mention as an exclusive, current claim broke on this
+    /// exact case in testing (`RFC-0.29-001`'s own header, once E-015 was
+    /// retracked to `RFC-0.29-002`). Recorded as E-014's second surviving
+    /// instance rather than shipped as a fix with a demonstrated
+    /// false-positive.
+    #[test]
+    fn header_claims_close_does_not_recognise_the_tracks_field_convention() {
+        let header = "**Tracks.** **E-019** — `tests/qemu/profiles/ipc.toml` passes and nothing holds it there.\n**Touches.** something else entirely.";
+        assert!(
+            !header_claims_close(header, "E-019", None),
+            "documents the known, disclosed gap -- not a claim this is fixed"
+        );
+    }
+
+    /// RFC-0.29-002 R3: a second, distinct `header_claims_close` defect,
+    /// found live while retracking E-015 to this RFC. RFC-0.29-001's own
+    /// `**Relates to:**` clause reads *"RFC-0.28-005 (which closed one
+    /// E-015 instance and established the template)"* — background about
+    /// what a *different* RFC did, not a first-person claim by
+    /// RFC-0.29-001 itself. Before this fix, the clause-scoped "clos" stem
+    /// search could not tell the difference and flagged RFC-0.29-001 as
+    /// claiming to close E-015 the moment E-015's tracking field moved to
+    /// RFC-0.29-002 — a real regression this exact check hit during this
+    /// RFC's own work, not a hypothetical.
+    #[test]
+    fn header_claims_close_attributes_a_cited_rfcs_own_action_correctly() {
+        let header = "**Relates to:** RFC-0.24-001 (which found both); RFC-0.28-005 (which closed one E-015 instance and established the template); RFC-v0.22-001 (a new tier is a new instrument and must be demonstrated failing).";
+        assert!(
+            !header_claims_close(header, "E-015", Some("RFC-0.29-001")),
+            "the clause credits RFC-0.28-005 with closing it, not RFC-0.29-001"
+        );
+        assert!(
+            header_claims_close(header, "E-015", Some("RFC-0.28-005")),
+            "RFC-0.28-005's own file should still recognise this as its own claim"
+        );
+    }
+
+    #[test]
+    fn own_rfc_id_extracts_version_stopping_at_the_slug() {
+        assert_eq!(
+            own_rfc_id("rfcs/accepted/RFC-0.28-003-blocked-recv-rendezvous.md"),
+            Some("RFC-0.28-003".to_string())
+        );
+        assert_eq!(
+            own_rfc_id("rfcs/done/RFC-v0.16-001-ed25519-interoperability-closure.md"),
+            Some("RFC-v0.16-001".to_string())
+        );
     }
 
     #[test]

@@ -1125,6 +1125,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "fjell-cap-manifest",
+ "fjell-consistency-check",
  "fjell-dev-harness",
  "fjell-sig-ed25519",
  "getrandom 0.2.17",

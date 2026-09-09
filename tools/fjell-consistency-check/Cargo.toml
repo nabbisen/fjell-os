@@ -7,6 +7,10 @@ license.workspace = true
 authors.workspace = true
 publish = false
 
+[lib]
+name = "fjell_consistency_check"
+path = "src/lib.rs"
+
 [[bin]]
 name = "fjell-consistency-check"
 path = "src/main.rs"

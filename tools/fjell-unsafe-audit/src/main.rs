@@ -256,12 +256,21 @@ fn find_safety_comment(preceding: &[&str]) -> (bool, String) {
 }
 
 /// Extract category from a SAFETY comment (RFC-v0.7.5-001).
+///
+/// RFC-0.29-002 R3/D1: the delimiter set used to be whitespace/comma only,
+/// so `category=csr-asm; <explanation>` split at the space *after* the
+/// semicolon, yielding `"csr-asm;"` (semicolon attached) — not a name
+/// `UnsafeCategory::from_str` recognises, so a validly-tagged site silently
+/// read as `Unknown`. Semicolon is a legitimate clause separator in prose
+/// following the tag (see the many real `// SAFETY: category=X; ...`
+/// comments in this workspace); it belongs in the delimiter set with
+/// whitespace and comma, not excluded from it.
 fn extract_category(safety_text: &str) -> UnsafeCategory {
     // Look for "category=<name>" anywhere in the text
     if let Some(pos) = safety_text.find("category=") {
         let rest = &safety_text[pos + "category=".len()..];
         let name = rest
-            .split(|c: char| c.is_whitespace() || c == ',')
+            .split(|c: char| c.is_whitespace() || c == ',' || c == ';')
             .next()
             .unwrap_or("");
         return UnsafeCategory::from_str(name);
@@ -505,6 +514,34 @@ mod tests {
         assert!(
             recs[0].has_safety,
             "SAFETY 5 lines above should be found (12-line window)"
+        );
+    }
+
+    /// RFC-0.29-002 R3 required demonstration: the input the old
+    /// whitespace/comma-only delimiter set missed. `rest.split(|c|
+    /// c.is_whitespace() || c == ',')` on `"csr-asm; the AES
+    /// implementation..."` split at the space *after* the semicolon,
+    /// yielding `"csr-asm;"` (semicolon attached) — not a name
+    /// `UnsafeCategory::from_str` recognises, so this silently read as
+    /// `Unknown`. Confirmed against the real category text this project
+    /// already carries (`fjell-sxt-crypto`'s AES implementation).
+    #[test]
+    fn category_with_semicolon_clause_is_recognised() {
+        assert_eq!(
+            extract_category("category=csr-asm; the AES implementation uses a lookup table"),
+            UnsafeCategory::CsrAsm
+        );
+    }
+
+    #[test]
+    fn category_extraction_still_splits_on_comma_and_whitespace() {
+        assert_eq!(
+            extract_category("category=mmio-access, ordering verified"),
+            UnsafeCategory::MmioAccess
+        );
+        assert_eq!(
+            extract_category("category=user-copy checked at the boundary"),
+            UnsafeCategory::UserCopy
         );
     }
 

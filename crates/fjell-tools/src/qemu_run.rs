@@ -341,7 +341,6 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         // NEG:HARNESS:CSpace_LAYOUT_VALID:PASS, a real passing marker).
         "NEG:HARNESS:BLOCKED_RECV_IDENTITY_EXCHANGE_FAILED",
         "NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED",
-        "TEST:FAIL",
         "kernel panic",
         "panicked at",
     ];
@@ -354,6 +353,21 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             );
             all_ok = false;
         }
+    }
+    // RFC-0.29-002 R3/D1: the literal "TEST:FAIL" used to live in
+    // FORBIDDEN above, but it is not a substring of the real message
+    // this project actually emits — `fjell-kernel`'s
+    // `trap/dispatch.rs:486` prints `TEST:M7:FAIL (init did not exit
+    // cleanly)`, and "TEST:" immediately followed by "FAIL" never
+    // occurs; the milestone token always sits between them. Structural
+    // check instead: `TEST:<token>:FAIL` for any token, not one literal
+    // shape.
+    if contains_test_fail_marker(&combined) {
+        eprintln!(
+            "[xtask] FORBIDDEN marker `TEST:<milestone>:FAIL` present in {}",
+            log_path.display()
+        );
+        all_ok = false;
     }
     let summary = if all_ok { "PASS\n" } else { "FAIL\n" };
     let _ = fs::write(art.join("result-summary.txt"), summary);
@@ -653,6 +667,28 @@ pub fn discover_negative_categories_at(root: &Path) -> Result<Vec<CategoryInfo>,
     Ok(out)
 }
 
+/// Does `combined` contain a `TEST:<token>:FAIL` marker, for any milestone
+/// token (`M7`, `V0.4-NET`, ...) — not just the literal `"TEST:FAIL"`,
+/// which is not a substring of the real message this project emits
+/// (`TEST:M7:FAIL (init did not exit cleanly)`, `trap/dispatch.rs:486`).
+/// A milestone token never itself contains `:`, so scanning for the next
+/// `:` after each `TEST:` occurrence and checking whether it starts
+/// `:FAIL` is exact, not a heuristic.
+fn contains_test_fail_marker(combined: &[u8]) -> bool {
+    let s = String::from_utf8_lossy(combined);
+    let mut rest: &str = &s;
+    while let Some(pos) = rest.find("TEST:") {
+        let after = &rest[pos + "TEST:".len()..];
+        if let Some(colon) = after.find(':') {
+            if after[colon..].starts_with(":FAIL") {
+                return true;
+            }
+        }
+        rest = after;
+    }
+    false
+}
+
 fn unquote(s: &str) -> String {
     let t = s.trim();
     if (t.starts_with('"') && t.ends_with('"') && t.len() >= 2)
@@ -672,6 +708,61 @@ fn parse_list(v: &str) -> Vec<String> {
         .map(|item| unquote(item.trim()))
         .filter(|s| !s.is_empty())
         .collect()
+}
+
+#[cfg(test)]
+mod forbidden_tests {
+    use super::*;
+
+    /// RFC-0.29-002 R3 required demonstration: the real message this
+    /// project emits (`trap/dispatch.rs:486`) — the old literal
+    /// `"TEST:FAIL"` is not a substring of it.
+    #[test]
+    fn catches_the_real_test_m7_fail_message() {
+        assert!(!"TEST:M7:FAIL (init did not exit cleanly)".contains("TEST:FAIL"));
+        assert!(contains_test_fail_marker(
+            b"TEST:M7:FAIL (init did not exit cleanly)"
+        ));
+    }
+
+    #[test]
+    fn does_not_match_a_passing_marker() {
+        assert!(!contains_test_fail_marker(b"TEST:M7:PASS"));
+        assert!(!contains_test_fail_marker(b"TEST:V0.4-NET:PASS"));
+    }
+
+    #[test]
+    fn matches_any_milestone_token() {
+        assert!(contains_test_fail_marker(b"TEST:V0.5-PLATFORM:FAIL"));
+    }
+
+    /// E-014's own originally-filed instance, checked rather than assumed
+    /// fixed: `load_profile`'s multi-line-array joiner closes the array at
+    /// the first line *containing* `]`, not the first unquoted `]` — a
+    /// marker string with a literal `]` in it (e.g. `"[INTENT] ..."`)
+    /// truncates the array early and silently drops every later marker.
+    /// **Still live** — not this RFC's R3 (which names five specific
+    /// instruments, not this one) to fix; recorded as E-014's surviving
+    /// instance instead.
+    #[test]
+    fn multiline_array_still_closes_early_on_a_bracket_inside_a_marker_string() {
+        let dir = std::env::temp_dir().join(format!("qemu_run_toml_demo_{}", std::process::id()));
+        let profiles_dir = dir.join("tests/qemu/profiles");
+        fs::create_dir_all(&profiles_dir).unwrap();
+        fs::write(
+            profiles_dir.join("demo.toml"),
+            "name = \"demo\"\nexpected_markers = [\n    \"[INTENT] marker one\",\n    \"marker two\",\n    \"marker three\",\n]\n",
+        )
+        .unwrap();
+        let profile = load_profile(&dir, "demo").expect("should still parse, just wrong");
+        assert_eq!(
+            profile.expected_markers.len(),
+            1,
+            "the array closed at the `]` inside the first marker string, dropping the other two -- \
+             still the live E-014 instance, not fixed by this line"
+        );
+        fs::remove_dir_all(&dir).ok();
+    }
 }
 
 #[cfg(test)]

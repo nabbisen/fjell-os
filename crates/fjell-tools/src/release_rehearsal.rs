@@ -95,8 +95,19 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     }));
 
     // Gate 5 — readiness matrix: 0 OPEN
+    //
+    // RFC-0.29-002 R3/D1: `out.contains("PASS") && out.contains("OPEN     :
+    // 0")` is coupled to `fjell-readiness-check`'s own print formatting,
+    // not to the verdict it already computes correctly — that tool exits
+    // `ExitCode::SUCCESS` on zero OPEN cells and non-zero otherwise
+    // (`tools/fjell-readiness-check/src/main.rs`). Demonstrated: a purely
+    // cosmetic reformat of that tool's output (`"OPEN: {}"` instead of
+    // `"OPEN     : {}"`) makes the old literal-matching gate report FAIL
+    // on a genuinely passing matrix. Fixed the same way Gates 1/2 already
+    // are — real exit status, not the text a downstream tool happens to
+    // print today.
     gates.push(run_gate("5", "Readiness matrix (0 OPEN)", || {
-        let out = sh(&[
+        let (ok, _out) = sh_status(&[
             "cargo",
             "run",
             "-q",
@@ -105,15 +116,21 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
             "--",
             "readiness-check",
         ]);
-        (
-            out.contains("PASS") && out.contains("OPEN     : 0"),
-            "via readiness-check".into(),
-        )
+        (ok, "via readiness-check".into())
     }));
 
     // Gate 6 — trust report populates
+    //
+    // RFC-0.29-002 R2/D1: `let _ = sh(...)` discarded the regeneration's
+    // exit status and then counted section markers in whatever file was
+    // already on disk. A failed regeneration leaves the *previous*
+    // report there, still holding six markers from a prior, unrelated
+    // run — the gate passed on a stale artefact it never actually
+    // verified was regenerated. Fixed by checking the real exit status
+    // first (`sh_status`, the same mechanism Gates 1/2 already use) and
+    // failing closed before counting anything.
     gates.push(run_gate("6", "Trust report (6 sections)", || {
-        let _ = sh(&[
+        let (regen_ok, regen_out) = sh_status(&[
             "cargo",
             "run",
             "-q",
@@ -122,6 +139,15 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
             "--",
             "trust-report",
         ]);
+        if !regen_ok {
+            return (
+                false,
+                format!(
+                    "regeneration failed (exit non-zero): {}",
+                    regen_out.lines().last().unwrap_or("").trim()
+                ),
+            );
+        }
         let report = sh(&["cat", "docs/release/trust-report.txt"]);
         let sections = ["§1", "§2", "§3", "§4", "§5", "§6"]
             .iter()
@@ -131,11 +157,31 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     }));
 
     // Gate 7 — ERRATA: 0 OPEN
-    gates.push(run_gate("7", "ERRATA register (0 OPEN)", || {
-        let out = sh(&["grep", "-c", "| OPEN |", "docs/rfcs/ERRATA.md"]);
-        let n: usize = out.trim().parse().unwrap_or(99);
-        (n == 0, format!("{} OPEN errata", n))
-    }));
+    //
+    // RFC-0.29-002 R1/D1: this used to be `grep -c "| OPEN |"` — an exact
+    // literal that does not match the register's own established shape
+    // for an annotated status (`E-004`'s reads `ACCEPTED (v1.0
+    // limitation)`), so `| OPEN (blocked on X) |` counted as zero and this
+    // gate — the one whose entire job is to stop a release shipping with
+    // an open erratum — would have reported PASS regardless. Fixed by
+    // reading the actual table structure via the one shared parser
+    // (`fjell_consistency_check::errata`, RFC-0.29-002 §7) instead of
+    // grepping the rendered line.
+    gates.push(run_gate(
+        "7",
+        "ERRATA register (0 OPEN)",
+        || match std::fs::read_to_string("docs/rfcs/ERRATA.md") {
+            Ok(src) => {
+                let rows = fjell_consistency_check::errata::parse_summary_rows(&src);
+                let n = rows
+                    .iter()
+                    .filter(|r| fjell_consistency_check::errata::is_open(&r.status))
+                    .count();
+                (n == 0, format!("{} OPEN errata", n))
+            }
+            Err(e) => (false, format!("cannot read docs/rfcs/ERRATA.md: {e}")),
+        },
+    ));
 
     // Gate 8 — validation drills
     gates.push(run_gate("8", "Validation drills (markers)", || {

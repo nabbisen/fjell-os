@@ -9,6 +9,7 @@
 //! carry it, and Gate 7 (0 OPEN) reported green regardless.
 
 use crate::read_file;
+use fjell_consistency_check::errata::{is_accepted, parse_summary_rows};
 use std::process::ExitCode;
 
 const ERRATA_PATH: &str = "docs/rfcs/ERRATA.md";
@@ -25,11 +26,22 @@ pub fn check() -> ExitCode {
 }
 
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
+///
+/// RFC-0.29-002 R3/D1: this used to be `!limitations_src.contains(id)` — a
+/// bare substring search that anything in the file could satisfy, not
+/// only a genuine disclosure entry. Every real entry in
+/// `v1-limitations.md` writes the id in the file's own established
+/// convention, `**E-NNN**` (bold), so an id appearing only as an
+/// incidental, unformatted mention elsewhere (a cross-reference in
+/// unrelated prose, a quoted log line) would previously satisfy `contains`
+/// without the erratum actually being disclosed there. Checking for the
+/// bold form specifically is structural, not a wider literal: it is the
+/// one shape every passing entry already has.
 pub fn run_check(errata_src: &str, limitations_src: &str) -> ExitCode {
     let accepted = parse_accepted_errata(errata_src);
     let missing: Vec<&String> = accepted
         .iter()
-        .filter(|id| !limitations_src.contains(id.as_str()))
+        .filter(|id| !limitations_src.contains(&format!("**{id}**")))
         .collect();
 
     if missing.is_empty() {
@@ -49,51 +61,14 @@ pub fn run_check(errata_src: &str, limitations_src: &str) -> ExitCode {
     }
 }
 
-/// Parse the `## Summary` table's rows (`| E-XXX label | tracking | STATUS |`)
-/// and return the IDs whose status cell starts with `ACCEPTED`.
+/// The `## Summary` table's rows whose status cell is `ACCEPTED`
+/// (annotation or not — RFC-0.29-002 D1), via the one shared parser.
 fn parse_accepted_errata(src: &str) -> Vec<String> {
-    let mut in_summary = false;
-    let mut ids = Vec::new();
-    for line in src.lines() {
-        let trimmed = line.trim();
-        if trimmed == "## Summary" {
-            in_summary = true;
-            continue;
-        }
-        if !in_summary || !trimmed.starts_with('|') {
-            continue;
-        }
-        let cells: Vec<&str> = trimmed
-            .trim_matches('|')
-            .split('|')
-            .map(str::trim)
-            .collect();
-        if cells.len() < 3 {
-            continue;
-        }
-        if cells[0].eq_ignore_ascii_case("errata") || cells[0].starts_with("--") {
-            continue; // header or separator row
-        }
-        let Some(id) = extract_erratum_id(cells[0]) else {
-            continue;
-        };
-        if cells[2].starts_with("ACCEPTED") {
-            ids.push(id);
-        }
-    }
-    ids
-}
-
-/// Extract a leading `E-NNN` token from a summary-table first cell such as
-/// `"E-004 hardware boot"`.
-fn extract_erratum_id(cell: &str) -> Option<String> {
-    let cell = cell.trim();
-    let rest = cell.strip_prefix("E-")?;
-    let digit_len = rest.chars().take_while(char::is_ascii_digit).count();
-    if digit_len == 0 {
-        return None;
-    }
-    Some(format!("E-{}", &rest[..digit_len]))
+    parse_summary_rows(src)
+        .into_iter()
+        .filter(|row| is_accepted(&row.status))
+        .map(|row| row.id)
+        .collect()
 }
 
 #[cfg(test)]
@@ -143,12 +118,20 @@ mod tests {
         assert_eq!(run_check(ERRATA_FIXTURE, limitations), ExitCode::SUCCESS);
     }
 
+    /// RFC-0.29-002 R3 required demonstration: the input the old bare
+    /// `.contains(id)` check missed. `E-011` appears here only as an
+    /// unformatted, incidental mention (a commit-message-style aside) —
+    /// not the file's own established `**E-011**` disclosure convention —
+    /// so this is not a real disclosure entry and must fail.
     #[test]
-    fn extract_erratum_id_stops_at_first_non_digit() {
+    fn bare_unformatted_mention_is_not_a_real_disclosure() {
+        let limitations =
+            "Errata **E-004** (ACCEPTED); see the diff that mentioned E-011 in passing";
+        assert!(limitations.contains("E-011"), "fixture sanity check");
         assert_eq!(
-            extract_erratum_id("E-004 hardware boot"),
-            Some("E-004".to_string())
+            run_check(ERRATA_FIXTURE, limitations),
+            ExitCode::FAILURE,
+            "an unformatted, non-bold mention of an id must not count as disclosure"
         );
-        assert_eq!(extract_erratum_id("not an id"), None);
     }
 }
