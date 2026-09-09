@@ -1,6 +1,6 @@
 # RFC-0.29-002 §7 — Should the errata register have one parser?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.29-002-predicates-that-parse.md](../../rfcs/accepted/RFC-0.29-002-predicates-that-parse.md)
+**Governing RFC:** [rfcs/done/RFC-0.29-002-predicates-that-parse.md](../../rfcs/done/RFC-0.29-002-predicates-that-parse.md)
 
 Answered before R1, per the handoff's required order — doing R1 first
 would mean writing a parser that might then have to move.

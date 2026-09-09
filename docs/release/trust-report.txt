@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-09-08 10:36:53 UTC
-Version   : 0.28.0
+Generated : 2026-09-09 08:15:00 UTC
+Version   : 0.29.0
 Mode      : full
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -83,15 +83,15 @@ Mode      : full
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260908-101622
-  21    QEMU negative: uart-rx-unbound                      60.0s  PASS
+  Latest test-all run: 20260909-074929
+  24    QEMU negative: user-copy                            60.1s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 21  |  PASS: 21  |  FAIL: 0  |  SKIP: 0
+  Total: 24  |  PASS: 22  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 2
   
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 567 passed, 0 failed  [PASS]
+    Host tests   : 576 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 

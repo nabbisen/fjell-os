@@ -1552,6 +1552,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that step** — which is why this is an erratum and not just a procedure edit.
   A `Gate 4`-adjacent check could assert `Added == 0` at a cut; that is an
   instrument change and carries RFC-v0.22-001's demonstration requirement.
+- **Slipped 0.29 → 0.30** (architect, 2026-09-09), recorded rather than
+  re-dated. `errata-tracking` refused the 0.29.0 cut on it. The *procedure* step
+  was written at the 0.28.0 cut and has now been exercised twice — the 0.29.0
+  cut reported `Added: 0, Removed: 0, Changed sig: 0` and regenerated nothing,
+  because nothing had drifted. **What has not happened is the enforcement**, and
+  that is what this erratum tracks: the step is still a paragraph in a document,
+  not a check.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
 
 ## E-036 — T20's two-build reproducibility check has never been run
@@ -1710,6 +1717,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   say so by name. And a keeper-file check would close the family rather than its
   third instance — the same "close the class, not the case" argument
   RFC-0.28-002 made for `a6`.
+- **Slipped 0.29 → 0.30** (architect, 2026-09-09), recorded rather than
+  re-dated. `errata-tracking` refused the 0.29.0 cut on it. RFC-0.29-002
+  repaired seven literal-matching predicates and did not touch this one: three
+  subchecks still emit **no diagnostic at all** when an RFC folder is absent.
+  The keeper files added at 0.28.0 mean the condition is unlikely to recur, which
+  is precisely why it stayed unfixed — and why it will stay unfixed until
+  something forces it.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-08), tracked **0.29**.
 
 ## Summary
@@ -1750,10 +1764,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
-| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.29 | ACCEPTED |
+| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.30 | ACCEPTED |
 | E-036 T20's stated two-build reproducibility check is invoked nowhere; every call is `--skip-build` | unscheduled | ACCEPTED |
 | E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
-| E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.29 | ACCEPTED |
+| E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.30 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 175 files
+## Implemented (done/) — 177 files
 
-174 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+176 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -374,18 +374,21 @@ one level beneath where it was being looked for.
 | 0.28-004 | [The wrapper crate worked around its own helpers instead of fixing them](./done/RFC-0.28-004-syscall-helper-contracts.md) — closed **E-033**; the second `sys_cap_inspect` call was `CapRevoke` | 0.28.0 |
 | 0.28-005 | [Three tools, three different answers to "what is this repository?"](./done/RFC-0.28-005-scan-scope-and-sweep.md) — closed **E-025**, **E-029**, **E-030** | 0.28.0 |
 
+### 0.29 — the audit backlog, six milestones on
+
+The 0.24 instrument audit deferred four findings. Three closed here; the fourth
+survives with two named instances rather than a tidy count.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.29-001 | [305 tests nothing runs, and five lists that disagree about one thing](./done/RFC-0.29-001-tests-that-run-and-lists-that-derive.md) — closed **E-013**, reduced **E-015**; a new tier runs 800 tests | 0.29.0 |
+| 0.29-002 | [The gate that blocks releases on open errata cannot see one that has a comment](./done/RFC-0.29-002-predicates-that-parse.md) — closed **E-015**, **E-017**; **E-014** left open with two survivors | 0.29.0 |
+
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — none
 
-Signed off by the owner; implementation may begin; not yet shipped.
-
-### 0.29 — the audit backlog
-
-| RFC | Title |
-|-----|-------|
-| 0.29-001 | [305 tests nothing runs, and five lists that disagree about one thing](./accepted/RFC-0.29-001-tests-that-run-and-lists-that-derive.md) — accepted 2026-09-08; closes **E-013**, **E-015**; handoff: [`handoffs/`](./handoffs/RFC-0.29-001-tests-that-run-and-lists-that-derive/implementation-handoff.md) |
-| 0.29-002 | [The gate that blocks releases on open errata cannot see one that has a comment](./accepted/RFC-0.29-002-predicates-that-parse.md) — accepted 2026-09-09; closes **E-014**, **E-015**, **E-017**; handoff: [`handoffs/`](./handoffs/RFC-0.29-002-predicates-that-parse/implementation-handoff.md) |
+No RFC is currently accepted and awaiting implementation.
 
 ---
 

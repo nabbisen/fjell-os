@@ -1,6 +1,6 @@
 # RFC-0.29-001 §6 and R1–R4 — 305 tests, five lists, and what checking each one found
 
-**Governing RFC:** [rfcs/accepted/RFC-0.29-001-tests-that-run-and-lists-that-derive.md](../../rfcs/accepted/RFC-0.29-001-tests-that-run-and-lists-that-derive.md)
+**Governing RFC:** [rfcs/done/RFC-0.29-001-tests-that-run-and-lists-that-derive.md](../../rfcs/done/RFC-0.29-001-tests-that-run-and-lists-that-derive.md)
 
 Order followed per the handoff: **R1 → R2 → §6 → R3 → R4 → close.**
 

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.29-002
 
-**Governing RFC:** [RFC-0.29-002](../../accepted/RFC-0.29-002-predicates-that-parse.md)
+**Governing RFC:** [RFC-0.29-002](../../done/RFC-0.29-002-predicates-that-parse.md)
 **Milestone:** 0.29 — closes the audit backlog if it lands
-**Status:** inherited from the governing RFC (Accepted, 2026-09-09)
+**Status:** inherited from the governing RFC (Implemented, 0.29.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

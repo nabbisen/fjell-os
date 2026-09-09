@@ -5,6 +5,93 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.29.0] — 2026-09-09 — The checks start checking
+
+Two RFCs, **five errata closed**, and the end of a backlog that had been open
+for six milestones.
+
+The 0.24 instrument audit produced four findings it deferred: E-013, E-014,
+E-015, E-017. They sat `unscheduled` from 0.24 through 0.28 while **seven
+further errata were filed naming two of them as the cited root** — one in 0.26,
+two in 0.27, three in 0.28. Each was closed as a case; none closed the class.
+0.29 closed the class.
+
+### Fixed — 305 tests that nothing ran (RFC-0.29-001)
+
+`test-all` tier 1 was `cargo test --workspace --lib`. **`fjell-tools` and
+`fjell-consistency-check` have no lib target**, so none of their tests ran —
+including the 36 behind `SYSCALL-CALLSITE-001`/`-002`, added the week before to
+guard the syscall surface, and the tests behind all ten of Gate 12's subchecks.
+**A regression in a guard would have been caught by nothing**, because the only
+thing checking the guard was a suite no gate invoked.
+
+A new tier now runs **800 tests**. The exclude set is derived from
+`cargo metadata`, not guessed — 31 `#![no_std]` binaries cannot build for the
+host.
+
+**And excluding them surfaced the finding of the line:** the dependency edge
+that had been silently enabling `fjell-sxt-crypto`'s
+`crypto-profile-development` feature through Cargo's feature unification.
+A crate that refuses to compile without an explicit acknowledgement was
+compiling anyway, because something else in the graph happened to turn its
+feature on. Restored deliberately; the same masking in `ci-test-v07-formats`
+was named rather than quietly fixed.
+
+The negative-test categories now derive from the profiles on disk, with an
+opt-out recorded in the profile itself. **Five lists that disagreed became
+one**: a doc-comment saying nine, a constant holding twelve, a CI matrix listing
+nine, fifteen profiles on disk, and two `KNOWN_*` arrays. `semantic`, `uart-rx`
+and `uart-rx-unbound` had run in `test-all` and never in CI.
+
+Closes **E-013**; reduced **E-015** to one instance.
+
+### Fixed — the gate that blocks releases could not see what it blocks on (RFC-0.29-002)
+
+Gate 7 exists to stop a release shipping with an open erratum. It ran
+`grep -c "| OPEN |"`, and an erratum written `| OPEN (blocked on X) |` counted
+**zero** — while the register already writes one status cell exactly that way.
+Gate 7 has never had to work: nothing has been `OPEN` since the register was
+created.
+
+Six more instruments decided by a literal and were repaired, each demonstrated
+on the input it missed. **Gate 6 discarded the trust report's regeneration exit
+status** and counted section markers in whatever file was on disk, so a failed
+regeneration passed on the previous report — demonstrated with a real
+`Permission denied`.
+
+The errata register now has **one parser** rather than four.
+
+Closes **E-015** and **E-017**. **E-014 stays open with two named survivors** —
+a shared TOML array parser, and `errata-tracking`'s blindness to the
+`**Tracks.**` convention, where a fix was built, found to break a legitimate
+case in testing, and reverted.
+
+### The audit backlog, six milestones on
+
+| | Filed | Closed |
+|---|---|---|
+| E-013 | 0.24 | **0.29** |
+| E-015 | 0.24 | **0.29** |
+| E-017 | 0.24 | **0.29** |
+| E-014 | 0.24 | **still open**, two instances named |
+
+### Errata
+
+**38 entries: 0 OPEN, 27 CLOSED, 11 ACCEPTED.** Closed this release: E-013,
+E-015, E-017, and E-025/E-029/E-030 were closed in 0.28. Still open and
+unscheduled: **E-014** (two instances), **E-034**, **E-035**, **E-036**,
+**E-037**, **E-038**.
+
+**E-036 is the one to read.** The threat model's T20 names a two-build
+reproducibility check as its defence, and that check is invoked nowhere — every
+call in the tree and in every release record passes `--skip-build`.
+
+**E-035 and E-038 slipped from 0.29 to 0.30**, and `errata-tracking` blocked the
+cut until they were honestly rescheduled rather than re-dated — the second time
+that subcheck has caught a milestone commitment that was made and not kept.
+
+---
+
 ## [0.28.0] — 2026-09-08 — Five lines, and every one found something bigger than its own subject
 
 Five RFCs, **eight errata closed**, and no kernel behaviour change that was not
