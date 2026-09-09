@@ -1629,10 +1629,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-011 cap_install rights validation | RFC-v0.21.3-001 | ACCEPTED |
 | E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
 | E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | CLOSED |
-| E-014 instruments deciding by fixed-string match | unscheduled | ACCEPTED |
+| E-014 instruments deciding by fixed-string match | RFC-0.29-002 | ACCEPTED |
 | E-015 hand-enumerated instrument scopes drifted from reality | RFC-0.29-001 | ACCEPTED |
 | E-016 no link, index, or count integrity instrument | RFC-0.27-001 | CLOSED |
-| E-017 audit `sound` verdicts not all demonstration-backed | unscheduled | ACCEPTED |
+| E-017 audit `sound` verdicts not all demonstration-backed | RFC-0.29-002 | ACCEPTED |
 | E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
 | E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.28-003 | CLOSED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
