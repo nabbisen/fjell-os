@@ -13,6 +13,9 @@
 #   ci-qemu-negative   — qemu-negative <cat>, once per derived category
 #   ci-host-bins       — cargo test --bins/--tests, the crates ci-test-host's
 #                        --lib cannot reach (RFC-0.29-001 R1, E-013)
+#   ci-repro-check     — the real two-build reproducibility check: builds
+#                        the kernel + all services twice, independently, and
+#                        compares bit-for-bit (RFC-0.30-001 §5, E-036)
 
 name: ci
 
@@ -398,6 +401,29 @@ jobs:
       # so the two never drift apart.
       - name: cargo xtask host-bin-tests
         run: cargo xtask host-bin-tests
+
+  ci-repro-check:
+    name: repro-check
+    runs-on: ubuntu-24.04
+    needs: [ci-check]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Rust 1.91 + LLVM (lld)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src llvm
+          mkdir -p $HOME/.local/bin
+          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
+          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      # RFC-0.30-001 §5: the real two-build reproducibility check, on every
+      # push — measured cost is a few seconds (two independent builds of the
+      # kernel and all 29 services), not the "doubles CI build time" the RFC
+      # worried about before anyone had timed it. Distinct from tier 3b's
+      # `--skip-build` staleness check (test-all, unchanged): this one
+      # actually builds, twice, and compares.
+      - name: cargo xtask two-build-check
+        run: cargo xtask two-build-check
 
   ci-arm64-check:
     name: arm64-check

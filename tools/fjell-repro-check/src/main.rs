@@ -1,8 +1,19 @@
 //! # `fjell-repro-check`
 //!
 //! Verifies that Fjell release artefacts are bit-for-bit reproducible
-//! (RFC-v0.10-003). Runs two clean builds and asserts every targeted
+//! (RFC-v0.10-003). Runs two genuinely independent builds — a scoped
+//! `cargo clean` immediately precedes each one, so the second build cannot
+//! reuse the first build's incremental output — and asserts every targeted
 //! output file has an identical SHA-256 digest.
+//!
+//! RFC-0.30-001: before this line, there was no clean and no separate target
+//! directory between the two builds, so the second build was an incremental
+//! no-op and the "comparison" was a file against itself (0.4s per "build",
+//! measured on 2026-09-09). Re-measured after this fix, on the same machine:
+//! a genuinely independent build costs on the order of a few seconds (~2s at
+//! 8 parallel jobs, ~3.4s at 2 — see docs/rfcs/RFC-0.30-001-*-answer.md §5),
+//! and two of them were found to be bit-for-bit identical — this project's
+//! same-machine build is, as measured, actually reproducible.
 //!
 //! Usage:
 //!   `fjell-repro-check [--artefacts <dir>] [--build-cmd <cmd>] [--skip-build]`
@@ -16,6 +27,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
+use std::time::Instant;
 
 /// Default artefact glob patterns relative to workspace root.
 /// Extended as new services are added.
@@ -23,6 +35,11 @@ const DEFAULT_TARGETS: &[&str] = &[
     "target/riscv64gc-unknown-none-elf/release/fjell-kernel",
     "crates/fjell-kernel/prebuilt", // directory: all *.bin inside
 ];
+
+/// The one target triple `DEFAULT_TARGETS` is built for. Used to scope the
+/// clean between the two builds to exactly the artefacts under test, leaving
+/// the host build cache (this tool's own binary included) warm.
+const TARGET_TRIPLE: &str = "riscv64gc-unknown-none-elf";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -51,23 +68,59 @@ fn two_build_check(args: &[String]) -> ExitCode {
         .map(|w| vec![w[1].as_str()])
         .unwrap_or_default();
 
-    // Build #1
+    // Build #1 — a scoped clean immediately before, so this build cannot
+    // reuse anything left over from a previous invocation either.
+    if !clean_target() {
+        eprintln!("fjell-repro-check: clean before build 1 failed");
+        return ExitCode::FAILURE;
+    }
     eprintln!("fjell-repro-check: build 1 / 2 …");
+    let t0 = Instant::now();
     if !run_build(&extra) {
         eprintln!("fjell-repro-check: build 1 failed");
         return ExitCode::FAILURE;
     }
+    let build_1_elapsed = t0.elapsed();
     let digests_1 = collect_digests();
 
-    // Build #2
+    // Build #2 — cleaned again first. Without this, the second build is an
+    // incremental no-op against build 1's own output: the defect this line
+    // exists to fix (RFC-0.30-001).
+    if !clean_target() {
+        eprintln!("fjell-repro-check: clean before build 2 failed");
+        return ExitCode::FAILURE;
+    }
     eprintln!("fjell-repro-check: build 2 / 2 …");
+    let t1 = Instant::now();
     if !run_build(&extra) {
         eprintln!("fjell-repro-check: build 2 failed");
         return ExitCode::FAILURE;
     }
+    let build_2_elapsed = t1.elapsed();
     let digests_2 = collect_digests();
 
+    eprintln!(
+        "fjell-repro-check: build 1 took {:.2}s, build 2 took {:.2}s \
+         (each preceded by `cargo clean --release --target {}` — \
+         genuinely independent, not an incremental no-op)",
+        build_1_elapsed.as_secs_f64(),
+        build_2_elapsed.as_secs_f64(),
+        TARGET_TRIPLE,
+    );
+
     compare_and_report(digests_1, digests_2)
+}
+
+/// Removes this target triple's release artefacts only — not the whole
+/// `target/` tree, which would also evict this tool's own host build cache
+/// and every other crate's. Scoped so the two builds are independent of each
+/// other without being independent of everything else on the machine.
+fn clean_target() -> bool {
+    Command::new("cargo")
+        .args(["clean", "--release", "--target", TARGET_TRIPLE])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
 }
 
 fn run_build(extra: &[&str]) -> bool {

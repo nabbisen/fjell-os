@@ -180,8 +180,8 @@ Every threat is keyed to an adversary capability, not a named actor.
 ### T20 — Reproducibility-failure-as-substitution
 
 **Adversary:** C-SUPPLY  
-**Defence:** RFC-v0.10-003 (reproducible build gate). Two-build SHA-256 digest comparison (hardened from FNV-1a in RFC-v0.16-005, H-04).  
-**Residual:** Malicious toolchain that produces identical output for different inputs.
+**Defence:** RFC-v0.10-003 (reproducible build gate), corrected by RFC-0.30-001. Two *genuinely independent* builds — a scoped `cargo clean` precedes each one, so the second cannot reuse the first's incremental output — compared by SHA-256 digest (hardened from FNV-1a in RFC-v0.16-005, H-04). Runs in CI on every push (`ci-repro-check`). Covers the kernel ELF and all 29 service prebuilts (30 artefacts); verified bit-for-bit identical across two independent runs on 2026-09-09. This is **same-machine** reproducibility only — the toolchain is not yet recorded (E-037), so cross-machine reproducibility is not tested here and this line does not claim it. The separate, unrelated `--skip-build` tier (test-all, CI-cheap) checks only that the *committed* prebuilts have not gone stale against their recorded baseline; it does not build anything and is not this defence.  
+**Residual:** Malicious toolchain that produces identical output for different inputs; cross-machine reproducibility, unproven while the toolchain is unrecorded (E-037).
 
 ---
 

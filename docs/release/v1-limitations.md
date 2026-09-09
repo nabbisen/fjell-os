@@ -441,15 +441,48 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   shipped release, and a future regeneration would absorb every accumulated
   addition in one unreviewed step.
 
-- **The two-build reproducibility check has never been run, and could not fail
-  if it were** (Errata **E-036**, ACCEPTED, tracked to **RFC-0.30-001**).
-  `fjell-repro-check`'s two-build mode runs `cargo xtask build` twice with no
-  clean and no separate target directory, so the second build is an incremental
-  no-op and the comparison is between a file and itself — measured at 0.41s and
-  0.40s per "build". Every call in the tree passes `--skip-build`, which is a
-  staleness check on committed artefacts rather than a reproducibility check.
-  And neither mode covers the kernel binary: the two-build path collects 30
-  artefacts, the baseline holds 29, all of them services.
+- **The two-build reproducibility check used to never run, and could not fail
+  if it were** (Errata **E-036**, **CLOSED** by **RFC-0.30-001**).
+  `fjell-repro-check`'s two-build mode used to run `cargo xtask build` twice
+  with no clean and no separate target directory, so the second build was an
+  incremental no-op and the comparison was between a file and itself —
+  measured at 0.41s and 0.40s per "build". Every call in the tree passed
+  `--skip-build`, a staleness check on committed artefacts, not a
+  reproducibility check, and neither mode named the kernel binary anywhere
+  even though the two-build path already collected it.
+
+  **Fixed:** a scoped `cargo clean --release --target
+  riscv64gc-unknown-none-elf` now precedes each of the two builds, so the
+  second cannot reuse the first's output. Measured, not assumed: a genuine
+  two-build run costs **4–7 seconds total** (this project's crates are small
+  — one kernel, 29 services, `opt-level = "s"`), not the "doubles CI build
+  time" the RFC worried about before anyone had timed it. It now runs in CI
+  on every push (`ci-repro-check`, `cargo xtask two-build-check`), not
+  nowhere.
+
+  **The build is, as measured, reproducible.** Two independent runs (each
+  with its own clean) produced bit-for-bit identical output across all 30
+  artefacts — the kernel ELF plus all 29 service prebuilts, both counts
+  re-derived and confirmed — checked twice on 2026-09-09. Building the
+  identical commit from a different absolute checkout path also reproduced
+  identically, ruling out the classic embedded-build-path hazard for this
+  toolchain/profile. This is **same-machine** reproducibility only —
+  cross-machine remains untested and unclaimed while the toolchain is
+  unrecorded (**E-037**, open).
+
+  **The check's sensitivity was demonstrated, not assumed to exist:** forcing
+  a differing `-C metadata` value scoped to the `riscv64gc-unknown-none-elf`
+  target only (no kernel/service source touched) reproduced this project's
+  own prior incident — `-C metadata` moving digests on a version bump
+  (RFC-v0.16-005 H-04) — and the actual fixed comparison correctly reported
+  `FAIL` on 14 of 29 service prebuilts.
+
+  **Kernel coverage was already there, just unstated:** the two-build path's
+  `DEFAULT_TARGETS` always included the kernel ELF alongside `prebuilt/` (30
+  artefacts total); this is now said out loud (T20, `ERRATA.md`, here).
+  `--skip-build`'s committed baseline stays 29, services only, by design —
+  the kernel is not a committed artefact, so there is no baseline digest of
+  it to record. Two checks, two honestly different scopes.
 
 
 - **The toolchain is declared for CI only, and recorded nowhere** (Errata

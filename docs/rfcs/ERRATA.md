@@ -1620,14 +1620,53 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   prebuilt rebuilt without re-recording, which is a real incident this project
   has had. It is a **staleness check on committed artefacts**, and T20 claims a
   reproducibility check.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08; widened 2026-09-09),
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-08; widened 2026-09-09),
   tracked **RFC-0.30-001**. That RFC settles T20's text regardless of whether a
   real two-build check proves affordable — a threat model naming a defence that
   cannot fail is worse than one naming none. Either
   run the two-build check somewhere real (it is slow, which is presumably why it
   never was) or correct T20's defence line to describe what is actually done.
   **Correcting the claim is a legitimate outcome** — a weaker defence honestly
-  stated beats a stronger one nothing performs.
+  stated beats a stronger one nothing performs.~~ → **CLOSED** by
+  **RFC-0.30-001**.
+
+  > **Closed by RFC-0.30-001, 2026-09-09.** The "it is slow" guess above was
+  > never measured and was wrong: `fjell-repro-check`'s `two_build_check` now
+  > runs a scoped `cargo clean --release --target riscv64gc-unknown-none-elf`
+  > immediately before each build, and a genuine two-build run costs **on the
+  > order of 4–7 seconds total** (measured twice, 2026-09-09; see
+  > `RFC-0.30-001-reproducibility-that-reproduces-answer.md` §R1). It runs in
+  > CI on every push now (`ci-repro-check`), not nowhere.
+  >
+  > **The build is, as measured, reproducible.** Two independent runs — each
+  > preceded by its own clean — produced bit-for-bit identical output across
+  > all 30 artefacts (kernel ELF + 29 service prebuilts), confirmed twice.
+  > Also checked, out of caution: building the identical commit from a
+  > *different absolute checkout path* (the classic embedded-build-path
+  > hazard) — also identical, ruling out that specific cause for this
+  > toolchain/profile combination.
+  >
+  > **The check's sensitivity was demonstrated, not assumed:** forcing a
+  > differing `-C metadata` value for the `riscv64gc-unknown-none-elf` target
+  > only (`CARGO_TARGET_RISCV64GC_UNKNOWN_NONE_ELF_RUSTFLAGS`, no source
+  > touched — kernel/service source stayed off-limits per this line's
+  > Non-goals) reproduced the exact failure mode this project has already
+  > seen once (RFC-v0.16-005 H-04: `-C metadata` moving digests on a version
+  > bump). Run through the actual fixed comparison code (not a synthetic
+  > harness): 14 of 29 service prebuilts differed, correctly reported `FAIL`.
+  >
+  > **The kernel's coverage:** `DEFAULT_TARGETS` already included the kernel
+  > ELF alongside `prebuilt/`, so the real two-build check has always covered
+  > it (30 artefacts, re-derived and confirmed correct this time); this was
+  > never stated anywhere, which is now fixed (T20, this entry,
+  > `v1-limitations.md`). `--skip-build`'s committed baseline stays
+  > services-only, unchanged, and unable to include the kernel — it isn't a
+  > committed artefact, so there is nothing there to record a baseline
+  > digest of. Two checks, two different, now-honestly-scoped claims.
+  >
+  > **T20 corrected** to state exactly this: genuinely independent builds,
+  > same-machine only (E-037 still open for cross-machine), 30 artefacts, run
+  > in CI every push.
 
 ## E-037 — the toolchain is declared twice and recorded nowhere
 
@@ -1651,9 +1690,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `tests/repro/baseline-digests.txt` is digests and a header line; the trust
   report does not carry a toolchain either. So a digest mismatch on another
   machine is indistinguishable from a real reproducibility failure.
-- **Why this has never bitten:** **E-036** — the two-build check never runs, and
-  `--skip-build` compares committed files to a baseline recorded from those same
-  files on the same machine. The two errata insulate each other.
+- **Why this has never bitten:** **E-036** (now **CLOSED** by RFC-0.30-001) — at
+  filing time, the two-build check never ran, and `--skip-build` compares
+  committed files to a baseline recorded from those same files on the same
+  machine. The two errata insulated each other. **This is only partly fixed by
+  E-036's closure**: the real two-build check now runs in CI, but each CI run
+  is itself one machine building twice — nothing here yet compares digests
+  *across* two different machines/toolchains, so a toolchain-driven drift is
+  still exactly as invisible as before. E-037 remains open on its own merits.
 - **`rust-toolchain.toml` is not the defect and must not be removed.** It is
   load-bearing: `-Z build-std=core,compiler_builtins`
   (`crates/fjell-tools/src/qemu.rs:63,107`) requires `rust-src`, and the RISC-V
@@ -1847,7 +1891,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.30 | ACCEPTED |
-| E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | ACCEPTED |
+| E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
 | E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
 | E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.30 | ACCEPTED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |

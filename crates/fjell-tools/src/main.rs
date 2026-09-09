@@ -22,6 +22,12 @@
 //!   evidence promote ...               — promote a QEMU serial log into
 //!                                        tests/evidence/ with provenance
 //!                                        (RFC-0.27-004)
+//!   repro-check                        — fast staleness check: committed
+//!                                        prebuilts vs. recorded baseline
+//!                                        (--skip-build, no build)
+//!   two-build-check                    — the real reproducibility check:
+//!                                        two independent builds, compared
+//!                                        bit-for-bit  (RFC-0.30-001)
 
 mod bench;
 mod callsite_audit;
@@ -126,6 +132,26 @@ fn main() -> ExitCode {
             // had no way to reach the tool at all.
             let status = std::process::Command::new("cargo")
                 .args(["run", "-p", "fjell-repro-check", "--", "--skip-build"])
+                .args(&args[1..])
+                .status()
+                .map(|s| s.code().unwrap_or(1))
+                .unwrap_or(1);
+            if status == 0 {
+                ExitCode::SUCCESS
+            } else {
+                ExitCode::FAILURE
+            }
+        }
+        Some("two-build-check") => {
+            // RFC-0.30-001: the real reproducibility check — two genuinely
+            // independent builds (a scoped `cargo clean` precedes each one),
+            // compared bit-for-bit. Distinct from `repro-check`, which is a
+            // fast staleness check against the committed baseline and does
+            // not build anything. §5: placed in CI, every push — the
+            // measured cost (~2-4s per build) does not warrant deferring it
+            // to the release cut or a nightly job.
+            let status = std::process::Command::new("cargo")
+                .args(["run", "-p", "fjell-repro-check", "--"])
                 .args(&args[1..])
                 .status()
                 .map(|s| s.code().unwrap_or(1))
