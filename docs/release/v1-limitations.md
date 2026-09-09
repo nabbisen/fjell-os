@@ -493,13 +493,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   refuse an unsuitable toolchain. Nothing records which toolchain produced the
   repro baseline.
 
-- **Three subchecks emit no diagnostic when an RFC folder is absent** (Errata
-  **E-038**, ACCEPTED, tracked to **0.29**). `rfc-status-folder`,
-  `errata-tracking` and `doc-counts` vanish from the results list entirely,
-  leaving a bare `consistency-check: FAIL` with no name, path or reason. Found
-  at the 0.28.0 cut when `rfcs/accepted/` emptied and git dropped the directory
-  from fresh clones — the third time one folder or another has done this. Keeper
-  files exist in all four folders now; the silence does not.
+- **Four subchecks fail without a result line naming themselves** (Errata
+  **E-038**, ACCEPTED, tracked to **RFC-0.30-002**). With an RFC lifecycle
+  folder absent, `rfc-status-folder`, `handoff-status`, `errata-tracking` and
+  `doc-counts` all fail; three print a bare `cannot read …` line and
+  `handoff-status` prints nothing at all. None emits the `<name>: FAIL` line
+  every passing subcheck uses, so the run ends `consistency-check: FAIL` with no
+  subject. Keeper files exist in all four lifecycle folders, so the condition is
+  unlikely to recur — which is why it has stayed unfixed.
+
 
 - **The release cut is the only work in this project nobody reviews** (Errata
   **E-039**, ACCEPTED). The cycle's Roles table makes the implementer

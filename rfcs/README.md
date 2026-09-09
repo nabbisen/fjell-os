@@ -401,9 +401,11 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./proposed/RFC-0.30-002-checks-that-name-themselves.md) — closes **E-035**, **E-038**; handoff: [`handoffs/`](./handoffs/RFC-0.30-002-checks-that-name-themselves/implementation-handoff.md) |
 
 ## Archive (archive/) — 2 RFCs
 

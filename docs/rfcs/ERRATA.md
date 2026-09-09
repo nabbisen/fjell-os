@@ -1786,6 +1786,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   by RFC-0.25-002 R1 for the same reason; `accepted/` has now done it a third
   time. Each was fixed with a keeper file and none of the three fixes prevented
   the next.
+- **Corrected 2026-09-09, while scoping RFC-0.30-002, by reproducing it.** This
+  entry says *three* subchecks emit *no output at all*. **Both halves are
+  wrong.** Moving `rfcs/accepted/` aside and running the tool shows **four**
+  affected — `rfc-status-folder`, **`handoff-status`**, `errata-tracking`,
+  `doc-counts` — and three of them do print a `consistency-check: cannot read …`
+  line. What none of them prints is a **result line naming itself**, which is the
+  format every passing subcheck uses and the thing a reader scans for. The
+  aggregate ends `consistency-check: FAIL` with no `<name>: FAIL` anywhere.
+  `handoff-status` is the one that really is silent — header and nothing else —
+  and this entry never named it.
 - **Interim fix applied:** `rfcs/accepted/README.md`, matching the existing
   keepers, added during this cut. **The silence is not fixed** — that is what
   this erratum tracks.
@@ -1890,10 +1900,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
-| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.30 | ACCEPTED |
+| E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | ACCEPTED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
 | E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
-| E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.30 | ACCEPTED |
+| E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent (`handoff-status` silently) | RFC-0.30-002 | ACCEPTED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
