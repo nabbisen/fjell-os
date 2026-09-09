@@ -97,7 +97,13 @@ count predates 0.28 and is now larger.
   already closed~~ It is **not** satisfied by RFC-v0.22-001: that made
   "demonstrated failing" a standing requirement *going forward*, which does not
   retroactively demonstrate the 0.24 audit's rows. But it is much smaller than
-  "twenty assumed": of 21 `sound` rows, **8 have a first-hand demonstration**,
+  "twenty assumed": of **22** `sound` rows *(corrected 2026-09-09 — my recount
+  said 21 and was wrong: it missed `ci-verus`, whose heading reads
+  `**sound (by explicit design)**`, because my predicate required the literal
+  `**sound**`. A bolded parenthetical defeated the count, which is the same
+  shape as the `| OPEN (blocked on X) |` finding this backlog led with. The
+  summary table was right the whole time.)*, **8 have a first-hand
+  demonstration**,
   **4 cite the tool's own unit suite** (the exact mode-2 defect this erratum
   names, uncorrected for Gate 2, Gate 11 and Gate 12 while Gate 4 was
   re-derived), **2 inherit another row's**, and **4 have none at all**. Real
