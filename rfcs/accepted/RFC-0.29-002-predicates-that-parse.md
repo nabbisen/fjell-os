@@ -1,6 +1,6 @@
 # RFC-0.29-002: The gate that blocks releases on open errata cannot see one that has a comment
 
-**Status:** Proposed — awaiting owner acceptance
+**Status:** Accepted — by the owner (nabbisen), 2026-09-09; implementation may begin (RFC 000)
 **Milestone:** 0.29
 **Tracks.** **E-014** (instruments deciding by fixed-string match), **E-017**
 (`sound` verdicts not all demonstration-backed), and **E-015**'s two surviving

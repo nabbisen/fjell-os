@@ -376,7 +376,7 @@ one level beneath where it was being looked for.
 
 ---
 
-## Accepted (accepted/) — 1 RFC
+## Accepted (accepted/) — 2 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -385,17 +385,16 @@ Signed off by the owner; implementation may begin; not yet shipped.
 | RFC | Title |
 |-----|-------|
 | 0.29-001 | [305 tests nothing runs, and five lists that disagree about one thing](./accepted/RFC-0.29-001-tests-that-run-and-lists-that-derive.md) — accepted 2026-09-08; closes **E-013**, **E-015**; handoff: [`handoffs/`](./handoffs/RFC-0.29-001-tests-that-run-and-lists-that-derive/implementation-handoff.md) |
+| 0.29-002 | [The gate that blocks releases on open errata cannot see one that has a comment](./accepted/RFC-0.29-002-predicates-that-parse.md) — accepted 2026-09-09; closes **E-014**, **E-015**, **E-017**; handoff: [`handoffs/`](./handoffs/RFC-0.29-002-predicates-that-parse/implementation-handoff.md) |
 
 ---
 
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.29-002 | [The gate that blocks releases on open errata cannot see one that has a comment](./proposed/RFC-0.29-002-predicates-that-parse.md) — closes **E-014**, **E-015**, **E-017**; handoff: [`handoffs/`](./handoffs/RFC-0.29-002-predicates-that-parse/implementation-handoff.md) |
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 
