@@ -395,9 +395,11 @@ No RFC is currently accepted and awaiting implementation.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.30-001 | [The reproducibility check compares a file to itself, and the kernel is not in the baseline](./proposed/RFC-0.30-001-reproducibility-that-reproduces.md) — closes **E-036**; handoff: [`handoffs/`](./handoffs/RFC-0.30-001-reproducibility-that-reproduces/implementation-handoff.md) |
 
 ## Archive (archive/) — 2 RFCs
 

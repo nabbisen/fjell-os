@@ -1591,7 +1591,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   It is not; checking what depends on it led here.
 - **Family:** **E-023**/**E-027** — a specified mechanism that exists in code
   and is never invoked, with documentation asserting it runs.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`. Either
+- **Widened 2026-09-09, while scoping RFC-0.30-001, by running the check
+  instead of reading about it.** This entry said the two-build comparison is
+  never invoked. It is worse than that: **it could not fail if it were.**
+
+  `two_build_check` runs `cargo xtask build`, hashes, runs `cargo xtask build`
+  again, hashes, compares. **There is no clean between the builds and no
+  separate target directory**, so the second build is an incremental no-op, the
+  files are never rewritten, and the comparison is between a file and itself:
+
+  ```
+  fjell-repro-check: build 1 / 2 …
+      Finished `release` profile [optimized] target(s) in 0.41s
+  fjell-repro-check: build 2 / 2 …
+      Finished `release` profile [optimized] target(s) in 0.40s
+  fjell-repro-check: PASS (30 artefacts identical)
+  ```
+
+  Neither build compiled anything, and the tree was unchanged afterwards. This
+  is **`ci-proptest`'s shape** (RFC-0.24-002 Slice 6) — a gate named for a
+  comparison that compares nothing.
+- **And neither mode covers the kernel.** `DEFAULT_TARGETS` is the kernel ELF
+  plus `prebuilt/`, so the two-build path collects **30** artefacts.
+  `tests/repro/baseline-digests.txt` holds **29**, every one a `prebuilt/*.bin`.
+  **The kernel binary is in no baseline** — collected by one code path, absent
+  from the other, mentioned by neither.
+- **What `--skip-build` is worth, stated fairly:** it catches a committed
+  prebuilt rebuilt without re-recording, which is a real incident this project
+  has had. It is a **staleness check on committed artefacts**, and T20 claims a
+  reproducibility check.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-08; widened 2026-09-09),
+  tracked **RFC-0.30-001**. That RFC settles T20's text regardless of whether a
+  real two-build check proves affordable — a threat model naming a defence that
+  cannot fail is worse than one naming none. Either
   run the two-build check somewhere real (it is slow, which is presumably why it
   never was) or correct T20's defence line to describe what is actually done.
   **Correcting the claim is a legitimate outcome** — a weaker defence honestly
@@ -1815,7 +1847,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | 0.30 | ACCEPTED |
-| E-036 T20's stated two-build reproducibility check is invoked nowhere; every call is `--skip-build` | unscheduled | ACCEPTED |
+| E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | ACCEPTED |
 | E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
 | E-038 three subchecks emit no diagnostic at all when an RFC folder is absent; `rfcs/accepted/` emptied and vanished from clones | 0.30 | ACCEPTED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |

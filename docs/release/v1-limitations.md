@@ -441,13 +441,16 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   shipped release, and a future regeneration would absorb every accumulated
   addition in one unreviewed step.
 
-- **The two-build reproducibility check has never been run** (Errata **E-036**,
-  ACCEPTED). `tools/fjell-repro-check`'s `two_build_check` is invoked nowhere;
-  every call in the tree and in every release record passes `--skip-build`,
-  which re-hashes the committed binaries against a stored baseline and builds
-  nothing. That catches a corrupted or stale committed artefact — it cannot
-  detect a build that fails to reproduce, which is what the threat model's T20
-  names as its defence.
+- **The two-build reproducibility check has never been run, and could not fail
+  if it were** (Errata **E-036**, ACCEPTED, tracked to **RFC-0.30-001**).
+  `fjell-repro-check`'s two-build mode runs `cargo xtask build` twice with no
+  clean and no separate target directory, so the second build is an incremental
+  no-op and the comparison is between a file and itself — measured at 0.41s and
+  0.40s per "build". Every call in the tree passes `--skip-build`, which is a
+  staleness check on committed artefacts rather than a reproducibility check.
+  And neither mode covers the kernel binary: the two-build path collects 30
+  artefacts, the baseline holds 29, all of them services.
+
 
 - **The toolchain is declared for CI only, and recorded nowhere** (Errata
   **E-037**, ACCEPTED). `rust-toolchain.toml` was removed on 2026-09-09; CI
