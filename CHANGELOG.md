@@ -883,6 +883,11 @@ following the same discipline applied to the root directory in v0.20.2.
   in `docs/src/` (`{identity,release,...}` and `{intro,tutorials,...}`).
 - **`rfcs/archive/`** (empty) removed.
 - **`tests/runs/`** added to `.gitignore` (ephemeral test-run logs).
+  *Correction (2026-09-09): it was not. `git log -S "tests/runs" -- .gitignore`
+  returns nothing — the rule was never added, and its absence is why `git add -A`
+  later committed 22 run directories at `78d8ea3`. Added for real on 2026-09-09,
+  with those 44 files untracked in the same commit. Recorded rather than deleted,
+  because a claim that was believed for several releases is part of the record.*
 
 ---
 

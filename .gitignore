@@ -42,6 +42,20 @@ target
 # result-summary.txt one level up are tracked and must stay tracked.
 tests/qemu/artifacts/*/runs/
 
+# `cargo xtask test-all` writes one directory per run under tests/runs/, holding
+# 21 per-tier *.log files (already covered above) plus summary.txt and
+# summary.json, which are not. Those two are why every run leaves an untracked
+# directory behind, and why `git add -A` swept 22 of them into 78d8ea3.
+#
+# CHANGELOG.md's v0.2.x entry has claimed since that release that this rule was
+# added. It never was: `git log -S "tests/runs" -- .gitignore` returns nothing.
+# Added for real 2026-09-09, and the 44 accidentally-committed files untracked
+# in the same commit.
+#
+# tests/evidence/ is the place a run's output is kept deliberately
+# (RFC-0.27-004); tests/runs/ is not, and never was.
+tests/runs/
+
 # Verus proof compilation output (rlib written to CWD by the verus binary)
 **/lib*.rlib
 
