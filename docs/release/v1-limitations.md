@@ -57,46 +57,59 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `.github/workflows/ci.yml` job at all — now run on every push and PR, not
   only locally.
 
-- **Several verification instruments decide by matching a fixed string**
-  (Errata **E-014**, ACCEPTED). Gate 5 counts rows containing `**OPEN**`, so a
-  row marked `**BLOCKED**` is counted in none of its four buckets — absent, not
-  miscounted. Gate 6 counts the literals `§1`..`§6` and discards its
-  regeneration's exit status. Gate 7 counts `OPEN` in the errata register. The
-  negative harness's `FORBIDDEN` list matches `"TEST:FAIL"`, which is not a
-  substring of the real message `TEST:M7:FAIL (init did not exit cleanly)`.
-  `errata-limitations` requires only that an erratum's *ID* appear in this
-  file, and passed over a live case where the content diverged while the ID
-  matched. `fjell-unsafe-audit`'s category extractor splits on whitespace and
-  commas, so `category=csr-asm; <explanation>` silently reads as `Unknown`.
-  The shared TOML array parser closes an array at a `]` inside a string
-  literal, loading 2 of 4 markers silently. None is a live false-green today;
-  each individual patch would be a better string, and the family needs one
-  design answer instead. Recorded, not fixed; **unscheduled** — carried
-  through the 0.25 and 0.26 lines with no line taken up, per RFC-0.27-001's
-  re-disposition rather than writing a milestone nobody intends to keep.
+- **Several verification instruments used to decide by matching a fixed
+  string** (Errata **E-014**, ACCEPTED, tracked **RFC-0.29-002** — six of
+  seven instances fixed, one survives). Gate 5 used to count rows containing
+  `**OPEN**`, so a row marked `**BLOCKED**` was counted in none of its four
+  buckets — fixed by reading the underlying tool's real exit status
+  (`fjell-readiness-check` already computed the right answer; nothing
+  needed re-deriving from its text). Gate 6 used to count the literals
+  `§1`..`§6` and discard its regeneration's exit status — fixed, and
+  demonstrated on a regeneration that fails while a stale six-section
+  report remains on disk (it now fails, not passes). Gate 7 used to count
+  the literal `"| OPEN |"`, missing an annotated `"| OPEN (blocked on X) |"`
+  — the shape the register already uses for `ACCEPTED`; fixed by parsing
+  the table's actual status cells (RFC-0.29-002 §7's shared parser). The
+  negative harness's `FORBIDDEN` list used to match `"TEST:FAIL"`, not a
+  substring of the real message `TEST:M7:FAIL (init did not exit cleanly)`
+  — fixed with a structural `TEST:<token>:FAIL` scan. `errata-limitations`
+  used to require only that an erratum's bare *ID string* appear anywhere
+  in this file — fixed to require the file's own established `**E-NNN**`
+  bold-reference convention, so an incidental, unformatted mention no
+  longer counts as disclosure. `fjell-unsafe-audit`'s category extractor
+  used to split on whitespace and commas only, so `category=csr-asm;
+  <explanation>` silently read as `Unknown` — fixed by adding `;` to the
+  delimiter set. **The shared TOML array parser survives, unfixed**: it
+  still closes an array at the first line *containing* `]`, not the first
+  unquoted one, so a marker string with a literal `]` (e.g. an
+  `"[INTENT] ..."`-style marker) still truncates the array early —
+  confirmed still live, not this line's scope (five specific instruments
+  were named; this was not one of them).
 
-- **Instrument scopes are hand-enumerated and have drifted from reality**
-  (Errata **E-015**, ACCEPTED, tracked **RFC-0.29-001** — three of four
-  historical instances fixed, one survives). **21 of 91 workspace crates
-  are never named in any `ci.yml` job** (re-measured 2026-09-09: still 21
-  of 91 — the RFC's own re-derivation had read 23 of 93). Fixed: the six
-  gate-tool crates (E-013, above) and the three crates backing Gate 8's
-  validation drills (`fjell-sig-ed25519`, `fjell-fleet-sync`,
-  `fjell-config-sync`) now all run via the new `ci-host-bins` job, closing
-  this entry's own "possibly intentional; nothing in the workflow says so"
-  — it was not intentional, and their tests run in ordinary CI now (Gate
-  8's drill *markers* stay rehearsal-only by design; that mechanism is
-  separate and untouched). `ci-qemu-negative`'s matrix, `NEG_CATEGORIES`,
-  and the `KNOWN_V01X_CATEGORIES`/`KNOWN_V02_CATEGORIES` lists are all
-  **removed** — `qemu_run::discover_negative_categories`, derived from
+- **Instrument scopes were hand-enumerated and had drifted from reality**
+  (Errata **E-015**, **CLOSED** by **RFC-0.29-002**). Three of four
+  historical instances were fixed by RFC-0.29-001: **21 of 91 workspace
+  crates are never named in any `ci.yml` job** — the six gate-tool crates
+  (E-013, above) and the three crates backing Gate 8's validation drills
+  (`fjell-sig-ed25519`, `fjell-fleet-sync`, `fjell-config-sync`) now all run
+  via the `ci-host-bins` job, closing this entry's own "possibly
+  intentional; nothing in the workflow says so" — it was not intentional,
+  and their tests run in ordinary CI now (Gate 8's drill *markers* stay
+  rehearsal-only by design; that mechanism is separate and untouched).
+  `ci-qemu-negative`'s matrix, `NEG_CATEGORIES`, and the
+  `KNOWN_V01X_CATEGORIES`/`KNOWN_V02_CATEGORIES` lists were all **removed**
+  — `qemu_run::discover_negative_categories`, derived from
   `tests/qemu/profiles/*.toml`, is the one answer every call site uses.
-  **`smoke.rs`'s `v0.6-verification` milestone is still defined in code and
-  invoked by nothing anywhere** — the identical defect shape, in a file
-  RFC-0.29-001 does not touch; named rather than folded in, per that RFC's
-  own scope discipline. `fjell-driver-uart`, `fjell-svc-fault`, and
-  `fjell-svc-timeout` remain absent from `ci-cross-check`'s crate list — a
-  `cargo check` coverage gap, not a test gap (all three have zero
-  `#[test]`s today), outside this erratum's own test-execution framing.
+  **The fourth, surviving instance is now fixed too**: `smoke.rs`'s
+  `v0.6-verification` milestone — mapped to a marker
+  (`TEST:V0.6-VERIFY:PASS`) no kernel or service code has ever emitted, and
+  invoked by nothing, anywhere — is deleted rather than wired up (there is
+  no v0.6 functionality behind it to wire up to); `cargo xtask qemu-test
+  v0.6-verification` now correctly reports `unknown milestone`.
+  `fjell-driver-uart`, `fjell-svc-fault`, and `fjell-svc-timeout` remain
+  absent from `ci-cross-check`'s crate list — a `cargo check` coverage gap,
+  not a test gap (all three have zero `#[test]`s today), outside this
+  erratum's own test-execution framing; disclosed, not part of its closure.
 
 - **No instrument verifies any document link, index, or count** (Errata
   **E-016**, **CLOSED** by RFC-0.27-001). `rfcs/README.md` — the repository's
@@ -118,20 +131,25 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   scope here as it was in 2026-08-03, for the same reason (it would break the
   links commits and release records point at).
 
-- **The instrument audit's `sound` verdicts are not all demonstration-backed**
-  (Errata **E-017**, ACCEPTED). RFC-0.24-001 requires every instrument claimed
-  `sound` to carry a committed demonstration of it failing, and records
-  `UNAUDITED` otherwise. Two rows were found violating that in review —
-  `ci-proptest`, certified on the completeness of its crate list while running
-  zero tests, and `Gate 4`, certified by the architect because the tool's own
-  unit suite passed, which is proxy attestation rather than the gate observed
-  failing. Both were repaired. The re-derivation of the remaining `sound` rows
-  against the same question is **incomplete**, and Gate 4 — the first
-  re-derived — fell immediately, so the base rate is not known to be low. **The
-  22 `sound` verdicts are provisional.** This is why RFC-0.24-001 ships
-  `Implemented-with-Errata`. Recorded, not fixed; **unscheduled** — the
-  re-derivation of the remaining rows has not been picked up by any line
-  since 0.24; RFC-0.27-001 re-dispositions rather than performs it.
+- **The instrument audit's `sound` verdicts were not all demonstration-backed**
+  (Errata **E-017**, **CLOSED** by **RFC-0.29-002**). RFC-0.24-001 requires
+  every instrument claimed `sound` to carry a committed demonstration of it
+  failing, and records `UNAUDITED` otherwise. Two rows (`ci-proptest`, `Gate
+  4`) were found violating that in the 0.24 review and repaired then; the
+  re-derivation of the remaining rows was left incomplete, and the register's
+  own recount (2026-09-09) itself undercounted — 21, not 22 — by missing
+  `ci-verus`'s differently-bolded `**sound (by explicit design)**` heading.
+  All 22 rows are now re-derived or corrected: 4 rows that cited only a
+  tool's own unit suite (Gate 2, Gate 11, Gate 12, `syscall/expected.toml`)
+  had their citations corrected to the real, specific demonstrations that
+  already existed (a live category violation for Gate 2; the
+  `SYSCALL-CALLSITE-001`/`-002` regression tests for Gate 11; one named
+  failing-test per subcheck for Gate 12's now-ten subchecks); 4 rows with no
+  demonstration at all (`fjell-abi-snapshot` ×2, `repro/baseline-digests.txt`,
+  `ci-arm64-check`) each got one produced live against real committed data
+  (a reverted-and-restored scanner regression, a corrupted digest byte, a
+  broken cross-compile). **No instance survives.** This is why RFC-0.24-001
+  shipped `Implemented-with-Errata` rather than `Implemented`.
 
 - **The `ipc` negative profile's blocked-recv scenario assumed an
   unsynchronised scheduling order** (Errata **E-019**, **CLOSED** by

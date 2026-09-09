@@ -92,15 +92,20 @@ they still hold, not re-derived from scratch.
   suite includes `unsafe_inside_string_literal_not_counted` and
   `unsafe_inside_raw_string_not_counted`, ruling out the obvious
   string-content false-negative.
-- **Demonstration (RFC-v0.22-001, re-verified now):**
-  ```
-  $ cargo test -p fjell-unsafe-audit
-  test tests::detects_unsafe_block_missing_safety ... ok
-  test tests::detects_unsafe_fn ... ok
-  ... (10 passed)
-  ```
-  Re-run today, all 10 pass, including the two that directly assert
-  detection of a missing/absent safety comment.
+- **Citation corrected (RFC-0.29-002 R4, E-017 D5).** The demonstration below
+  used to cite `cargo test -p fjell-unsafe-audit` passing (10/10) — E-017's
+  own **mode 2, proxy attestation**: a tool's unit suite passing is not the
+  same claim as the gate having been observed failing on a broken
+  repository state. **This is a corrected citation, not a demonstration
+  produced by this line** — the real evidence already existed and was
+  simply mis-cited.
+- **Demonstration (0.24.0 release cut, `docs/release/records/0.24.0.md`):**
+  Gate 2 was run against a **live category violation already present in the
+  committed tree** and correctly failed on it — an actual broken repository
+  state, not a synthetic unit-test fixture. `unsafe-audit --check`'s own
+  category-verdict defect (computed, printed, and ignored) was found and
+  repaired in that same cut; Gate 2 is the instrument that caught the
+  regression once the repair made the check load-bearing.
 
 ### Gate 3 — MMIO audit (0 missing) — **sound**
 
@@ -282,6 +287,20 @@ they still hold, not re-derived from scratch.
   for `pub async fn` / `pub extern "C" fn` / `pub const unsafe fn` (none
   found in the eight stable crates today; the scanner is verified correct
   for them regardless, via synthetic-content tests).
+- **Demonstration produced (RFC-0.29-002 R4, E-017 D5) — this row had none
+  before.** `strip_fn_modifiers` was temporarily reverted to
+  `rest.strip_prefix("fn ")` (the old enumerated-prefix shape, in effect)
+  and `--generate` re-run against the real, committed `fjell-syscall`:
+  ```
+  $ cargo run -p fjell-abi-snapshot -- --generate   # strip_fn_modifiers reverted
+  fjell-abi-snapshot: wrote 417 items to tests/abi/snapshot.json
+  $ grep -c "sys_audit_drain_ptr\|sys_audit_drain_raw" tests/abi/snapshot.json
+  0
+  ```
+  417 items, not 419 — both real functions silently absent, on the actual
+  committed source this defect affected, not a synthetic fixture. Reverted
+  immediately after (`git diff` on both the source and the snapshot
+  confirmed empty); the fixed scanner reports 419 items with both present.
 
 ### fjell-abi-snapshot — identity lacked impl scope — **sound** (found and repaired within RFC-0.24-003, R6; new row per review)
 
@@ -317,6 +336,21 @@ they still hold, not re-derived from scratch.
   simple impl, a generic impl, a trait impl, a generic trait impl, impl
   scope not affecting module path, and the exact real collision shape (two
   types, one method name each, confirmed distinct post-repair).
+- **Demonstration produced (RFC-0.29-002 R4, E-017 D5) — this row cited
+  only its own unit suite before.** Checked against the real, current
+  committed snapshot (420 items today, not a synthetic fixture): grouping
+  by the five-field key `(crate, module, kind, name, impl_type)` yields
+  zero duplicates. The exact original collision pair is present and now
+  distinguished:
+  ```
+  fjell-audit-format::  fn kind  impl_type=AuditPersistRecord
+  fjell-audit-format::  fn kind  impl_type=AuditRecordBin
+  fjell-semantic-v1::catalog  fn new  impl_type=CatalogOwner
+  fjell-semantic-v1::catalog  fn new  impl_type=CatalogRangeOwner
+  ```
+  Four distinct items where the pre-repair identity collapsed to two —
+  live confirmation on the data the defect actually affected, not the
+  scanner's synthetic test fixtures.
 
 ### fjell-unsafe-audit category extractor — **finding** (new, RFC-0.24-002 review)
 
@@ -488,6 +522,18 @@ they still hold, not re-derived from scratch.
   fjell-tools callsite_audit` — 18/18 pass, including both comment-only
   false-positive regression tests and
   `lease_check_fails_on_real_wrapping_add_in_revoke` (real-code detection).
+- **Citation extended (RFC-0.29-002 R4, E-017 D5).** This row predates the
+  two `SYSCALL-CALLSITE` checks 0.28 added to this same gate
+  (`SYSCALL-CALLSITE-001`, RFC-0.28-002; `SYSCALL-CALLSITE-002`,
+  RFC-0.28-004) — their own real demonstrations exist and were never cited
+  here. **Corrected, not produced new:**
+  `ignores_a_syscall_number_mentioned_only_in_a_comment` and
+  `shipped_tree_has_no_syscall_callsite_violations` (SYSCALL-CALLSITE-001);
+  `demonstration_1_flags_a_new_undeclared_register`,
+  `demonstration_2_flags_a_plain_in_register`, and
+  `shipped_tree_has_no_fjell_syscall_internal_violations`
+  (SYSCALL-CALLSITE-002 — the latter two reconstruct the exact live
+  register-declaration bugs RFC-0.28-002/-004 found and fixed).
 
 ### Gate 12 — Consistency check — **sound**
 
@@ -499,12 +545,24 @@ they still hold, not re-derived from scratch.
   for their own historical defect (E-013's own filing exercised this gate
   directly, for instance — `errata_limitations.rs`'s tests assert an
   ACCEPTED erratum absent from `v1-limitations.md` fails).
-- **Demonstration (RFC-v0.22-001, re-verified now):** `cargo test -p
-  fjell-consistency-check` (26/26 pass) — includes
-  `new_declared_syscall_not_in_expected_fails` and
-  `stale_expected_entry_no_longer_in_source_fails` (syscall_surface),
-  errata/limitations binding failures, and RFC-status/handoff-status
-  mismatches, each with its own "fails on bad input" test.
+- **Citation corrected (RFC-0.29-002 R4, E-017 D5).** This row used to cite
+  `cargo test -p fjell-consistency-check` passing in aggregate (26/26) —
+  E-017's mode-2 proxy shape again, and stale besides: the gate now runs
+  **ten** subchecks (RFC-0.27-001, -003, -004 added six since this row was
+  written), not the four named below. **Corrected, not produced new** —
+  one real "fails on the input it exists to catch" test per subcheck,
+  all already committed:
+  `new_declared_syscall_not_in_expected_fails` (syscall-surface),
+  `fails_when_an_accepted_erratum_is_missing_from_limitations`
+  (errata-limitations), `proposed_rfc_placed_in_accepted_fails`
+  (rfc-status-folder), `stale_proposed_handoff_after_rfc_implemented_fails`
+  (handoff-status), `unnormalised_tracking_values_fail_rule_1`
+  (errata-tracking, RFC-0.27-001), `stale_version_badge_fails`
+  (version-currency, RFC-0.27-001), `broken_link_fails` (doc-links,
+  RFC-0.27-001), `drifted_done_count_fails` (doc-counts, RFC-0.27-001),
+  `invented_status_value_fails_naming_row_and_value` (standards-mapping,
+  RFC-0.27-003), `citation_to_missing_file_fails_naming_both` (evidence,
+  RFC-0.27-004).
 
 ### Pass 1 summary
 
@@ -870,6 +928,20 @@ comparison. See the ERRATA.md row above for the live instance and evidence.
   and the kernel ELF; confirmed by search that no other `prebuilt/`
   directory or committed `.bin` exists in the repository outside that scope,
   so the target list is not currently under-scoped.
+- **Demonstration produced (RFC-0.29-002 R4, E-017 D5) — Tier 3b's citation
+  covered the missing-baseline mode, not a digest mismatch, which is what
+  *this artefact's own* claim is actually about.** One hex character of a
+  real, committed digest was corrupted and `--skip-build` re-run:
+  ```
+  $ sed -i '2s/^b/c/' tests/repro/baseline-digests.txt
+  $ cargo run -q -p fjell-repro-check -- --skip-build
+  fjell-repro-check: FAIL — 1 mismatch(es):
+    DIGEST DIFFERS: crates/fjell-kernel/prebuilt/fjell-attestd.bin
+    build1=c13ff2ff
+    build2=b13ff2ff
+  ```
+  Reverted (`git diff --stat` confirmed empty); re-run reports
+  `PASS (29 artefacts identical)`.
 
 ### syscall/expected.toml — **sound** (cross-referenced from Pass 1, Gate 12)
 
@@ -881,6 +953,12 @@ comparison. See the ERRATA.md row above for the live instance and evidence.
   `stale_expected_entry_no_longer_in_source_fails`). Not re-demonstrated;
   same reasoning as Tier 1's cross-reference in Pass 2 — re-running an
   already-established fact isn't new evidence.
+- **Re-checked (RFC-0.29-002 R4, E-017 D5).** This row's own citation
+  already names the specific regression tests, not the tool's suite in
+  aggregate — it was grouped with Gate 12's proxy-attestation rows only by
+  association (Gate 12 is the gate that runs this subcheck), not because
+  its own basis is weak. No correction needed here; Gate 12's row above is
+  the one that was actually a proxy.
 
 ### rfcs/README.md — **finding** (new this pass; zero coverage found)
 
@@ -1197,6 +1275,21 @@ dispositions this.
 - **Actual:** narrowly scoped by design (one crate, one cross-compilation
   boundary) — not claiming workspace-wide coverage, so the narrowness isn't
   a gap the way the explicit-list jobs' is. No finding.
+- **Demonstration produced (RFC-0.29-002 R4, E-017 D5) — this row had none
+  before, only a scope argument.** Ran the exact CI command
+  (`RUSTC_BOOTSTRAP=1 cargo check -p fjell-arch-arm64 --target
+  aarch64-unknown-none -Z build-std=core,compiler_builtins`) against the
+  real crate: passes today. Then appended a genuinely broken function
+  (`fn f() -> u32 { "not a number" }`) to the real, committed
+  `crates/arch/fjell-arch-arm64/src/lib.rs`:
+  ```
+  error[E0308]: mismatched types
+    --> crates/arch/fjell-arch-arm64/src/lib.rs:30:39
+     expected `u32`, found `&str`
+  error: could not compile `fjell-arch-arm64` (lib) due to 1 previous error
+  ```
+  Reverted (`git diff --stat` confirmed empty); re-run passes. The check is
+  load-bearing, not merely narrowly-scoped-and-assumed-fine.
 
 ### ci-schema-gate — **sound** (RFC-0.24-002 Slice 7; naming and presence only — see repair note)
 

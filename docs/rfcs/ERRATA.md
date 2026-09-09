@@ -273,12 +273,49 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     that works; nothing enforces it.
   - **The shared TOML array parser** closes an array at a `]` inside a string
     literal, loading 2 of 4 markers silently.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-03). Recorded, not fixed.
-  Each individual patch would be a better string; the family needs one answer to
-  *how these instruments should decide*, which is design work and a 0.25
-  candidate. None is a live false-green today — Gate 5's is the closest, and
-  requires someone to use a status word outside the recognised four. See
-  `docs/verification/instrument-audit-closeout.md` §3.1 and
+- **Resolution:** **ACCEPTED**, tracked **RFC-0.29-002** — not `CLOSED`.
+  ~~ACCEPTED (architect, 2026-08-03), 0.25 candidate~~ → six of the seven
+  instances above are fixed by RFC-0.29-002 (2026-09-09), each demonstrated
+  on the exact input the old literal missed (D1: parse the structure,
+  don't match the surface — see that RFC's answer document). **The shared
+  TOML array parser survives, unfixed, and is named rather than swept
+  in**: `qemu_run.rs`'s multi-line-array joiner still closes an array at
+  the first line *containing* `]`, not the first unquoted one, so a
+  marker string with a literal `]` (e.g. `"[INTENT] ..."`) still truncates
+  the array early — confirmed still live
+  (`multiline_array_still_closes_early_on_a_bracket_inside_a_marker_string`).
+  Not this RFC's R3 to fix (five specific instruments were named; this was
+  not one of them) — left open rather than closed around, per R6's
+  instruction for a surviving instance.
+
+  **Two more instances found inside `errata-tracking` itself** while
+  retracking E-015 below, in the same instrument that guards the
+  register's tracking column:
+  - **Fixed:** `header_claims_close`'s clause-scoped "clos" stem search
+    misattributed a claim to the file being scanned when the clause's real
+    subject was a *different*, explicitly-cited RFC — live and not
+    hypothetical: RFC-0.29-001's own `**Relates to:**` clause reads *"RFC-
+    0.28-005 (which closed one E-015 instance and established the
+    template)"*, background about RFC-0.28-005's action, and the check
+    flagged RFC-0.29-001 as claiming to close E-015 the moment E-015's
+    tracking field moved to RFC-0.29-002 below. Fixed by comparing the
+    clause's own cited RFC id (`own_rfc_id`/`find_rfc_id_in`) against the
+    file actually being scanned.
+  - **Found, not fixed:** the same search still does not recognise this
+    project's own `**Tracks.**` field convention (RFC-0.28-003's header:
+    `**Tracks.** **E-019** — ...`, no "clos" stem nearby) — confirmed as a
+    real historical incident, not hypothetical: E-019's tracking field sat
+    stale at `RFC-0.26-003` after RFC-0.28-003 shipped, undetected, until
+    manually retracked. A fix was built (treating every `**Tracks.**`
+    mention as an exclusive current claim) and reverted after it broke on
+    a legitimate case in testing: this project tracks some errata across a
+    *sequence* of RFCs as work continues (E-015 itself: RFC-0.29-001, then
+    RFC-0.29-002), and an earlier, already-`Implemented` RFC's historical
+    `**Tracks.**` mention is not a wrong claim, just a true statement about
+    an earlier point in the erratum's life. Left open rather than shipped
+    with a demonstrated false-positive.
+
+  See `docs/verification/instrument-audit-closeout.md` §3.1 and
   `docs/release/v1-limitations.md`.
 
 ## E-015 — Hand-enumerated instrument scopes that no longer match reality
@@ -301,14 +338,21 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   - **`smoke.rs`'s `v0.6-verification` milestone** appears in neither CI matrix
     nor `SMOKE_PROFILES` — defined in code, invoked by nothing, anywhere.
     Vestigial from a naming transition.
-- **Resolution:** **ACCEPTED**, tracked **RFC-0.29-001** — not `CLOSED`.
-  ~~ACCEPTED (architect, 2026-08-03), 0.25 candidate~~ → three of the four
-  bullets above fixed by RFC-0.29-001 (2026-09-09); `smoke.rs`'s vestigial
-  `v0.6-verification` milestone bullet survives and is named in the
-  2026-09-09 addendum below rather than quietly closed around, per that
-  RFC's own instruction for a surviving instance. Distinct in kind from
-  E-014: these are checks that **did not run**, or ran over an incomplete
-  set — not checks that report success without checking.
+- **Resolution:** **CLOSED** by RFC-0.29-002. ~~ACCEPTED, tracked
+  RFC-0.29-001~~ — three of the four bullets above were fixed by
+  RFC-0.29-001 (2026-09-09), leaving `smoke.rs`'s vestigial
+  `v0.6-verification` milestone as the one named, surviving instance.
+  **Retracked from RFC-0.29-001 to RFC-0.29-002 deliberately**, not because
+  a gate prompted it: two live RFCs cannot both claim the same erratum,
+  and `errata-tracking` (this same subcheck) correctly refused the
+  alternative while RFC-0.29-002 was still being written to fix it.
+  RFC-0.29-002 R5 deletes the dead match arm and its usage-string mention
+  (no kernel/service code has ever emitted `TEST:V0.6-VERIFY:PASS`, so
+  "wire it up" was not an available choice) — `cargo xtask qemu-test
+  v0.6-verification` now correctly reports `unknown milestone` rather than
+  silently accepting a name nothing backs. Distinct in kind from E-014:
+  these were checks that **did not run**, or ran over an incomplete set —
+  not checks that report success without checking.
 
 > **Re-derived 2026-09-08, scoping RFC-0.29-001.** The negative-test categories
 > are enumerated in **five** places and no two agree: `test_all.rs`'s
@@ -340,6 +384,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > `fjell-driver-uart`/`fjell-svc-fault`/`fjell-svc-timeout` cross-check
 > gap (a `cargo check` gap, not a test gap — all three have zero
 > `#[test]`s) are in the answer document.
+
+> **Closed by RFC-0.29-002 R5, 2026-09-09.** The one surviving instance —
+> `smoke.rs`'s `v0.6-verification` match arm, mapping to a marker
+> (`TEST:V0.6-VERIFY:PASS`) no kernel or service code has ever emitted,
+> and to a profile (`v0.6-verify`) neither `SMOKE_PROFILES` nor any
+> `ci.yml` job has ever run — is deleted, along with its mention in the
+> usage string. Demonstrated: `cargo xtask qemu-test v0.6-verification`
+> now reports `unknown milestone` (the same fail-closed path RFC-0.24-002
+> Slice 2 already built for a typo), rather than accepting a name with
+> nothing behind it. No instance survives.
 
 ## E-016 — No instrument verifies any document link, index, or count
 
@@ -393,15 +447,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   produced, or was something else mistaken for one?* — is incomplete.** Gate 4
   was the first re-derived and it fell immediately, so the base rate is not
   known to be low.
-- **Resolution:** **ACCEPTED** (architect, 2026-08-03). The audit's stated
-  standard is right and is not being weakened; what is disclosed is that
-  compliance with it has been verified for two rows by counter-example and
-  assumed for the rest. **The 22 `sound` verdicts are provisional**, and the
-  count should be read that way until the re-derivation completes — listed as a
-  0.25 candidate in the close-out. This is why RFC-0.24-001 ships
-  `Implemented-with-Errata` rather than `Implemented`: its normative text claims
-  more than the merged work verifies. See
-  `docs/verification/instrument-audit-closeout.md` §4.1 and
+- **Resolution:** **CLOSED** by RFC-0.29-002. ~~ACCEPTED (architect,
+  2026-08-03), 0.25 candidate~~ — the 22 `sound` verdicts were provisional
+  pending re-derivation; all are now re-derived or corrected (see the
+  2026-09-09 addendum below), and no instance survives. This is why
+  RFC-0.24-001 shipped `Implemented-with-Errata` rather than `Implemented`:
+  its normative text claimed more than the merged work verified at the
+  time. See `docs/verification/instrument-audit-closeout.md` §4.1 and
   `docs/release/v1-limitations.md`.
 
 > **Counted 2026-09-09, at the owner's request, before scheduling.** E-017 was
@@ -447,6 +499,54 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > milestone — and it is smaller than the architect's own 2026-09-08 brief
 > implied when it guessed E-017 "may already be satisfied by RFC-v0.22-001." It
 > is not satisfied; it is just less work than "twenty assumed" suggests.
+
+> **Closed by RFC-0.29-002 R4, 2026-09-09 — and the "21 vs 22" reconciliation
+> above found the wrong number wrong.** Recounting `### ... — **sound**`
+> headings directly: **22**, not 21. The 2026-09-09 recount above missed
+> `ci-verus`, whose heading reads `**sound (by explicit design)**` — a
+> differently-bolded phrase a literal `"**sound**"` boundary check does not
+> match. **The summary table's 22 was correct the whole time; the recount
+> checking it was itself defeated by inconsistent formatting** — the exact
+> defect family E-014/this RFC exists to fix, found live inside the audit
+> record correcting for it. `ci-verus`'s row (Pass 4) verifies its own claim
+> directly against the real `ci.yml` config (`continue-on-error: true`,
+> matching the job's own comment) — a sixth basis, distinct from the five
+> above, needing no work:
+>
+> | Basis | Rows | Which |
+> |---|---|---|
+> | First-hand demonstration | 8 | (unchanged) |
+> | Tool's own unit suite (the defect) | 4 | (unchanged) |
+> | Inherited | 2 | (unchanged) |
+> | No demonstration at all | 4 | (unchanged) |
+> | Cited to a prior RFC / repaired since | 3 | (unchanged) |
+> | **Verified directly against real config ("sound by design")** | **1** | `ci-verus` |
+>
+> 8+4+2+4+3+1 = **22**, matching the summary table exactly. `docs/verification/
+> instrument-audit.md`'s totals table needed no edit; this erratum's own prior
+> addendum did, and does now.
+>
+> **All required actions complete:**
+> - **4 demonstrations produced** (not corrected citations — new, real runs):
+>   `fjell-abi-snapshot` ×2 (`strip_fn_modifiers` reverted to the pre-repair
+>   enumerated-prefix shape, `sys_audit_drain_ptr`/`_raw` confirmed absent
+>   from the real `fjell-syscall` scan; the five-field identity key checked
+>   for zero collisions across the real, current 420-item snapshot),
+>   `repro/baseline-digests.txt` (one real digest byte corrupted, caught as
+>   `DIGEST DIFFERS`), `ci-arm64-check` (a real type error appended to
+>   `fjell-arch-arm64`, caught by the exact CI command). All reverted;
+>   `git status` clean after each.
+> - **4 citations corrected** (not new demonstrations — pointed at evidence
+>   that already existed): Gate 2 → the 0.24.0 release record's live
+>   category-violation catch; Gate 11 → `SYSCALL-CALLSITE-001`/`-002`'s own
+>   regression tests (RFC-0.28-002/-004); Gate 12 → one named "fails on the
+>   input it exists to catch" test per subcheck, all ten, verified passing;
+>   `syscall/expected.toml` checked and found to already cite its own
+>   specific tests, not a proxy — no correction needed, only confirmation.
+> - **2 inheritances** (Tier 3 from Gate 2, Tier 3c from Gate 3) accepted:
+>   both source rows now carry real, non-proxy demonstrations, so the
+>   inheritance is no longer resting on anything weak.
+> - **Count reconciled**: 22, corrected above.
 
 ## E-018 — `task::scheduler::PRIORITY_USER` has three disconnected copies, two values
 
@@ -1630,9 +1730,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
 | E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | CLOSED |
 | E-014 instruments deciding by fixed-string match | RFC-0.29-002 | ACCEPTED |
-| E-015 hand-enumerated instrument scopes drifted from reality | RFC-0.29-001 | ACCEPTED |
+| E-015 hand-enumerated instrument scopes drifted from reality | RFC-0.29-002 | CLOSED |
 | E-016 no link, index, or count integrity instrument | RFC-0.27-001 | CLOSED |
-| E-017 audit `sound` verdicts not all demonstration-backed | RFC-0.29-002 | ACCEPTED |
+| E-017 audit `sound` verdicts not all demonstration-backed | RFC-0.29-002 | CLOSED |
 | E-018 `PRIORITY_USER` three copies, two values — init starves other tasks | RFC-0.26-001 | CLOSED |
 | E-019 `ipc` negative profile assumes an unsynchronised scheduling order | RFC-0.28-003 | CLOSED |
 | E-020 ABDD live path no longer runs — `sample-service` asserts peer readiness instead of synchronising | RFC-0.26-004 | CLOSED |
