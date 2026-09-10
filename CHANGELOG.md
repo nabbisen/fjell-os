@@ -98,6 +98,14 @@ written rather than from memory: criterion 4 required `Cargo.toml` to already
 hold the version being released *before* the cycle began, which no cut could
 ever satisfy, since the bump is the cycle's own first step.
 
+**`errata-tracking` refused this cut**, on `E-039` itself: the moment this
+release's own record was committed, milestone `0.30` counted as shipped, and
+`E-039` — tracked to `0.30`, still `ACCEPTED` — named a milestone that had
+already shipped without being `CLOSED`. The mechanism worked exactly as
+designed; it is reported in the release record rather than resolved by the
+cut, since `E-039`'s own proposed resolution is this cut's review, which is
+not this record's to grant itself.
+
 ### Errata
 
 **40 entries: 0 OPEN, 30 CLOSED, 10 ACCEPTED.** Closed this release: **E-035**,
