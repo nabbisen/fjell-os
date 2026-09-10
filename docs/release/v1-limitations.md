@@ -497,13 +497,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it to record. Two checks, two honestly different scopes.
 
 
-- **The toolchain is declared in five places, and recorded nowhere** (Errata
-  **E-037**, ACCEPTED). `rust-toolchain.toml` (channel, `rust-src`, the RISC-V
+- **The toolchain is declared in twenty-two places, and recorded nowhere**
+  (Errata **E-037**, ACCEPTED, tracked to **RFC-0.30-003**).
+  `rust-toolchain.toml` (channel, `rust-src`, the RISC-V
   target), `.github/workflows/ci.yml` (`apt-get install rustc-1.91`, in several
-  jobs), `docs/release/release-checklist.md`, `docs/src/internals/local-
-  development.md` and `Cargo.toml`'s `rust-version` all state `1.91`
-  independently; two of them are checks that would keep asserting `1.91` after
-  a bump. The channel still floats within `1.91.x`, and a patch bump moves
+  jobs — the same install block copied into **17 of the 19**),
+  `docs/release/release-checklist.md`, `docs/src/internals/local-development.md`,
+  `docs/src/tutorials/quick-start.md` and `Cargo.toml`'s `rust-version` all
+  state `1.91` independently; one of them is a check that would keep asserting
+  `1.91` after a bump. The channel still floats within `1.91.x`, and a patch bump moves
   codegen and therefore digests. Nothing records which toolchain produced the
   repro baseline, so a cross-machine digest mismatch is indistinguishable from
   a real reproducibility failure.

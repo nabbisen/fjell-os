@@ -386,7 +386,7 @@ survives with two named instances rather than a tidy count.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 3 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -396,6 +396,7 @@ Signed off by the owner; implementation may begin; not yet shipped.
 |-----|-------|
 | 0.30-001 | [The reproducibility check compares a file to itself, and the kernel is not in the baseline](./accepted/RFC-0.30-001-reproducibility-that-reproduces.md) — accepted 2026-09-09; closes **E-036**; handoff: [`handoffs/`](./handoffs/RFC-0.30-001-reproducibility-that-reproduces/implementation-handoff.md) |
 | 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./accepted/RFC-0.30-002-checks-that-name-themselves.md) — accepted 2026-09-09; closes **E-035**, **E-038**; handoff: [`handoffs/`](./handoffs/RFC-0.30-002-checks-that-name-themselves/implementation-handoff.md) |
+| 0.30-003 | [The toolchain is declared in twenty-two places, and no artefact records which one built it](./accepted/RFC-0.30-003-a-toolchain-that-records-itself.md) — accepted 2026-09-10; closes or narrows **E-037**; handoff: [`handoffs/`](./handoffs/RFC-0.30-003-a-toolchain-that-records-itself/implementation-handoff.md) |
 
 ---
 

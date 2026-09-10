@@ -41,6 +41,16 @@ consistency-check: cannot read one or more rfcs/ lifecycle folders
 `handoff-status` prints its header and **nothing else** — it is the only truly
 silent one, and the erratum does not name it.
 
+> **Correction, architect, 2026-09-10, at the implementation review.** The
+> paragraph above is wrong, and the error was mine: the transcript it rests on
+> was filtered on the literal string `cannot read`, while `handoff-status`'s
+> message reads `could not be read`. R2's diagnosis found the real defect —
+> `handoff-status` never enumerated the lifecycle folders at all, so with
+> `rfcs/accepted/` absent it either printed that unnamed message or **passed**,
+> a false PASS worse than the silence attributed to it here. Left on the record
+> rather than edited away; see `docs/rfcs/ERRATA.md` E-038 and
+> `docs/rfcs/RFC-0.30-002-checks-that-name-themselves-answer.md`.
+
 **Move the folder back afterwards** and confirm `git status` is clean. Do not
 delete it: it holds a tracked keeper and a tracked RFC.
 
