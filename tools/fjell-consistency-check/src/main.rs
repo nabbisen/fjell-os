@@ -30,6 +30,8 @@
 //!     recorded known-broken set
 //!   - `doc-counts` — `rfcs/README.md`'s lifecycle-folder counts match the
 //!     tree
+//!   - `toolchain-declarations` — every live Fjell-toolchain declaration
+//!     site agrees with `rust-toolchain.toml`'s `channel` (RFC-0.30-003 §7)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -54,6 +56,7 @@ mod rfc_status_folder;
 mod standards_mapping;
 mod status;
 mod syscall_surface;
+mod toolchain_declarations;
 mod version_currency;
 
 fn main() -> ExitCode {
@@ -90,6 +93,7 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("doc-counts", doc_counts::check),
     ("standards-mapping", standards_mapping::check),
     ("evidence", evidence::check),
+    ("toolchain-declarations", toolchain_declarations::check),
 ];
 
 fn run_all() -> ExitCode {

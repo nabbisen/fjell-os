@@ -1783,11 +1783,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **The channel still floats within `1.91.x`.** Restoring verbatim kept that
   deliberately: pinning an exact patch is a behaviour change, and it belongs
   with the bump rather than smuggled into a restore.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08; updated 2026-09-09),
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-08; updated 2026-09-09),
   tracked **RFC-0.30-003** (scoped 2026-09-10). Closing it means one
   declaration, an exact pin, and a record of which toolchain produced each
   artefact. Whatever closes it must state where `rust-src` and the target come
-  from for a fresh clone, and record the toolchain with the artefacts.
+  from for a fresh clone, and record the toolchain with the artefacts.~~ →
+  **ACCEPTED**, two survivors named, by **RFC-0.30-003**.
 
   > **Correction, architect, 2026-09-10, while scoping RFC-0.30-003.** Two of
   > this entry's own figures are wrong, both measured directly for the RFC.
@@ -1802,6 +1803,55 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > records** (release notes, handoffs, the changelog) that are correct as
   > written and must not move on a bump — which is why "one declaration" is
   > harder here than the entry implies. See RFC-0.30-003 Findings 1-3.
+
+  > **Dispositioned by RFC-0.30-003, 2026-09-10.** §7 chose shape 3 — a new
+  > `toolchain-declarations` subcheck comparing `rust-toolchain.toml`'s
+  > `channel` against the other 21 live sites — over shape 1 (rustup in
+  > CI), on a reason neither the RFC nor the handoff gave: **CI's
+  > independence from `rust-toolchain.toml` is what let the 1.91→1.98.1
+  > incident be measured at all.** Making CI read that file too would make
+  > the *next* accidental removal silently drift CI as well, not catch it —
+  > shape 1 would have reintroduced this erratum's own failure mode one
+  > layer up, not removed it. Full argument:
+  > `docs/rfcs/RFC-0.30-003-a-toolchain-that-records-itself-answer.md`.
+  >
+  > **D1/D2 built.** All three artefact-producing paths now record the
+  > *observed* toolchain (`rustc -vV`'s `release`/`commit-hash`/`host`/
+  > `LLVM version`, via one shared `fjell_consistency_check::toolchain`
+  > function) — never the declared one, per D2. `tests/repro/
+  > baseline-digests.txt`'s header, `tests/evidence/**/*.provenance.txt`'s
+  > new required `toolchain` field (7 pre-existing files backfilled with an
+  > honest `unknown (predates this field; not recoverable)`, per the
+  > handoff's explicit instruction not to guess), and `trust-report.txt`'s
+  > new `Toolchain :` line.
+  >
+  > **Demonstrated failing, both required inputs (D6):** a baseline
+  > hand-edited to record a different toolchain than the one currently
+  > running now prints an explicit "this mismatch may be toolchain drift"
+  > note on a digest mismatch, where before there was no attribution at
+  > all — the exact gap Finding 5 named. And bumping `rust-toolchain.toml`
+  > alone (leaving the other 21 sites at `1.91`) makes
+  > `toolchain-declarations` fail, naming every site that disagrees; both
+  > demonstrations reverted, `git status` empty.
+  >
+  > **Does not close, honestly.** E-037's own bar was "one declaration, an
+  > exact pin, and a record." Shape 3 delivers the record in full and turns
+  > the one-declaration problem into a checked invariant, but two survivors
+  > remain, named rather than smoothed over:
+  > 1. **Still 22 places to edit at a bump** — shape 3 makes a left-behind
+  >    site loud, it does not make one impossible. Consolidation (shape 1
+  >    or 2) is a named successor line, not this one.
+  > 2. **The channel still floats within `1.91.x`.** Argued in the answer
+  >    doc — probably worth pinning eventually, given this project has now
+  >    been bitten by a version move twice, but the cost (every upstream
+  >    patch becomes a deliberate edit) has not been weighed with the care
+  >    the decision deserves. D5's instruction stood: argue it, do not do
+  >    it here.
+  >
+  > `Cargo.toml`'s `rust-version` floor and the Verus/`nightly` toolchains
+  > are named (Finding 4) and explicitly not folded into the drift gate —
+  > a floor is not a mirror, and unifying either was never this line's
+  > Non-goal to take on.
 
 ## E-038 — four subchecks fail without naming themselves when an RFC folder is absent
 
@@ -1992,7 +2042,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
-| E-037 the toolchain version is declared in twenty-two places that cannot see each other (17 of them copies of one CI block), the channel floats within `1.91.x`, and no artefact records which toolchain produced it | RFC-0.30-003 | ACCEPTED |
+| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
 

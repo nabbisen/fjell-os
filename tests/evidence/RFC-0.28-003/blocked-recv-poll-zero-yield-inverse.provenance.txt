@@ -3,3 +3,4 @@ profile = ipc
 commit_sha = 7ef4b446577b9209972bbc5029ee08a6239d8e45
 command = 90 qemu-system-riscv64 -machine virt -bios none -nographic -kernel target/riscv64gc-unknown-none-elf/release/fjell-kernel -drive file=fjell-disk.img,format=raw,if=none,id=hd0 -device virtio-blk-device,drive=hd0
 instrumented = yes: the bounded sys_task_status poll in test_ipc_blocked_recv (crates/services/fjell-neg-test/src/main.rs) was temporarily replaced with a single immediate sys_task_status check -- no sys_yield, no bound, no retry -- to demonstrate D4: that the poll is load-bearing, not vestigial. Never committed; fully reverted before the next commit (git diff against 7ef4b44 -- crates/ is empty, confirmed before continuing). This log cannot be reproduced by checking out commit_sha alone.
+toolchain = unknown (predates this field; not recoverable)

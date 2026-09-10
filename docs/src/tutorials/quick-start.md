@@ -8,7 +8,7 @@ Ubuntu 24.04 (or compatible), x86_64 host.
 
 ```bash
 # Rust 1.91 (the pinned Fjell build toolchain) + sources + linker
-sudo apt install rustc-1.91 cargo-1.91 rust-1.91-src lld llvm
+sudo apt install rustc-1.91 cargo-1.91 rust-src lld llvm
 # QEMU with the riscv64 system emulator (package: qemu-system-misc)
 sudo apt install qemu-system-misc
 qemu-system-riscv64 --version   # expect 8.2.x

@@ -199,6 +199,21 @@ fn cmd_promote(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    // RFC-0.30-003 D1/D2: the toolchain observed at promotion time, not
+    // `rust-toolchain.toml`'s declared channel — see
+    // `fjell_consistency_check::toolchain`'s doc comment for why. Promotion
+    // is already a deliberate, rare, human-run action (D1 of RFC-0.27-004),
+    // so a failed observation refuses the promotion rather than recording
+    // a guess.
+    let Some(observed) = fjell_consistency_check::toolchain::observe() else {
+        eprintln!(
+            "[xtask] evidence promote: cannot observe the toolchain (`rustc -vV` failed) — \
+             refusing to promote without it"
+        );
+        return ExitCode::FAILURE;
+    };
+    let toolchain = observed.format_line();
+
     match check_ancestor(&commit_sha) {
         AncestorCheck::Ancestor => {}
         AncestorCheck::NotAncestor => {
@@ -235,7 +250,7 @@ fn cmd_promote(args: &[String]) -> ExitCode {
     }
 
     let provenance = format!(
-        "run_id = {run_id}\nprofile = {profile}\ncommit_sha = {commit_sha}\ncommand = {command}\ninstrumented = {instrumented}\n"
+        "run_id = {run_id}\nprofile = {profile}\ncommit_sha = {commit_sha}\ncommand = {command}\ninstrumented = {instrumented}\ntoolchain = {toolchain}\n"
     );
     if let Err(e) = fs::write(&dest_prov, provenance.as_bytes()) {
         eprintln!(

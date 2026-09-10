@@ -44,8 +44,20 @@ use std::process::{Command, ExitCode};
 
 const EVIDENCE_DIR: &str = "tests/evidence";
 const EXCLUDE_DIRS: &[&str] = &["target", ".git", ".git-exclude"];
-const REQUIRED_PROVENANCE_FIELDS: &[&str] =
-    &["run_id", "profile", "commit_sha", "command", "instrumented"];
+// RFC-0.30-003 R2: `toolchain` added. All seven files that existed before
+// this field were backfilled with an honest `unknown (predates this
+// field; not recoverable)` value (D2 — a guessed real version would be a
+// worse record than admitting it cannot be recovered), so the field is
+// required unconditionally rather than exempting pre-existing files —
+// one rule, no legacy carve-out for the checker to special-case.
+const REQUIRED_PROVENANCE_FIELDS: &[&str] = &[
+    "run_id",
+    "profile",
+    "commit_sha",
+    "command",
+    "instrumented",
+    "toolchain",
+];
 
 const NAME: &str = "evidence";
 
@@ -316,7 +328,7 @@ mod tests {
     }
 
     fn full_provenance() -> String {
-        "run_id = 20260101-000000\nprofile = smoke-m8\ncommit_sha = deadbeef\ncommand = cargo xtask qemu-test m8\ninstrumented = none\n".to_string()
+        "run_id = 20260101-000000\nprofile = smoke-m8\ncommit_sha = deadbeef\ncommand = cargo xtask qemu-test m8\ninstrumented = none\ntoolchain = 1.91.1 / ed61e7d7e / x86_64-unknown-linux-gnu / LLVM 21.1.2\n".to_string()
     }
 
     /// Isolated temp dir per test so `tests/evidence/` on the real

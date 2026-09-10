@@ -3,3 +3,4 @@ profile = semantic
 commit_sha = 6582d049404e9fa8a87e7eb5a1c676f2892369ef
 command = 60 qemu-system-riscv64 -machine virt -bios none -nographic -kernel target/riscv64gc-unknown-none-elf/release/fjell-kernel -drive file=fjell-disk.img,format=raw,if=none,id=hd0 -device virtio-blk-device,drive=hd0
 instrumented = none
+toolchain = unknown (predates this field; not recoverable)

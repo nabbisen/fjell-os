@@ -908,6 +908,7 @@ dependencies = [
 name = "fjell-repro-check"
 version = "0.29.0"
 dependencies = [
+ "fjell-consistency-check",
  "sha2",
 ]
 

@@ -1,4 +1,5 @@
 # algo: sha256 (64 hex chars per entry)
+# toolchain: 1.91.1 / ed61e7d7e242494fb7057f2657300d9e77bb4fcb / x86_64-unknown-linux-gnu / LLVM 21.1.2
 b13ff2ffbbab62534007846ad91fe073e435c78b44e91f91165a1c3973412fb1 crates/fjell-kernel/prebuilt/fjell-attestd.bin
 d4de1d1f7dc03e54a7225e5ddad2140f49ac41f2a89c452dfcf13993af6ee751 crates/fjell-kernel/prebuilt/fjell-auditd.bin
 09c98b8239fe03bf740e52ba221ef322a07f816127bab51b28393d05075dd90b crates/fjell-kernel/prebuilt/fjell-bootctl.bin

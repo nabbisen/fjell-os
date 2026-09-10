@@ -186,6 +186,11 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    // RFC-0.30-003 D1: read before `load_digests` strips comment lines —
+    // this is the attribution Finding 5 says never existed ("the detector
+    // fired and could say nothing about why").
+    let baseline_toolchain = read_recorded_toolchain(baseline_path);
+
     let baseline = match load_digests(baseline_path) {
         Ok(mut d) => {
             // Tolerate legacy baselines that recorded target/ entries.
@@ -198,7 +203,50 @@ fn check_existing_digests(args: &[String]) -> ExitCode {
         }
     };
 
-    compare_and_report(baseline, current)
+    let result = compare_and_report(baseline, current);
+    if result != ExitCode::SUCCESS {
+        report_toolchain_context(baseline_toolchain.as_deref());
+    }
+    result
+}
+
+/// On a mismatch, say whether it might be toolchain drift rather than a
+/// real reproducibility failure. Digests differing for the same committed
+/// files were, before this line, unattributable — this does not resolve
+/// that ambiguity (this project makes no cross-machine reproducibility
+/// claim; see RFC-0.30-001's residual), it only makes it visible.
+fn report_toolchain_context(baseline_toolchain: Option<&str>) {
+    let observed = fjell_consistency_check::toolchain::observe();
+    match (baseline_toolchain, &observed) {
+        (Some(recorded), Some(current)) if recorded != current.format_line() => {
+            eprintln!(
+                "\nfjell-repro-check: NOTE — the baseline was recorded under a \
+                 different toolchain than this check just ran under:\n  \
+                 baseline : {recorded}\n  \
+                 this run : {}\n  \
+                 This mismatch may be toolchain drift, not a real reproducibility \
+                 failure — confirm the toolchains agree before treating it as a bug.",
+                current.format_line()
+            );
+        }
+        (None, _) => {
+            eprintln!(
+                "\nfjell-repro-check: NOTE — this baseline has no recorded toolchain \
+                 (predates RFC-0.30-003), so toolchain drift cannot be ruled out or in \
+                 as an explanation for the mismatch above."
+            );
+        }
+        _ => {}
+    }
+}
+
+/// Reads the `# toolchain: ...` comment line `save_digests` writes,
+/// without going through `load_digests` (which discards comments).
+fn read_recorded_toolchain(path: &str) -> Option<String> {
+    let content = fs::read_to_string(path).ok()?;
+    content
+        .lines()
+        .find_map(|l| l.strip_prefix("# toolchain: ").map(str::to_string))
 }
 
 // ── Digest collection ─────────────────────────────────────────────────────────
@@ -304,7 +352,19 @@ fn save_digests(map: &BTreeMap<String, String>, path: &str) -> std::io::Result<(
     if let Some(parent) = Path::new(path).parent() {
         fs::create_dir_all(parent)?;
     }
+    // RFC-0.30-003 D1/D2: record what actually produced these digests, not
+    // what `rust-toolchain.toml` says should have. Observation failure is a
+    // hard error here — a baseline recorded with no toolchain line at all
+    // is an honest gap this project has already lived with; one recorded
+    // with a guessed value would not be.
+    let Some(observed) = fjell_consistency_check::toolchain::observe() else {
+        return Err(std::io::Error::other(
+            "cannot observe the toolchain (`rustc -vV` failed) — refusing to record a baseline \
+             with no toolchain line rather than one with a guessed value",
+        ));
+    };
     let mut out = String::from("# algo: sha256 (64 hex chars per entry)\n");
+    out.push_str(&format!("# toolchain: {}\n", observed.format_line()));
     for (k, v) in map {
         out.push_str(&format!("{} {}\n", v, k));
     }

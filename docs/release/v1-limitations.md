@@ -479,8 +479,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   identical commit from a different absolute checkout path also reproduced
   identically, ruling out the classic embedded-build-path hazard for this
   toolchain/profile. This is **same-machine** reproducibility only —
-  cross-machine remains untested and unclaimed while the toolchain is
-  unrecorded (**E-037**, open).
+  cross-machine remains untested and unclaimed (**E-037**, two survivors
+  named below — this project makes no cross-machine claim regardless).
 
   **The check's sensitivity was demonstrated, not assumed to exist:** forcing
   a differing `-C metadata` value scoped to the `riscv64gc-unknown-none-elf`
@@ -497,18 +497,41 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it to record. Two checks, two honestly different scopes.
 
 
-- **The toolchain is declared in twenty-two places, and recorded nowhere**
-  (Errata **E-037**, ACCEPTED, tracked to **RFC-0.30-003**).
-  `rust-toolchain.toml` (channel, `rust-src`, the RISC-V
-  target), `.github/workflows/ci.yml` (`apt-get install rustc-1.91`, in several
-  jobs — the same install block copied into **17 of the 19**),
-  `docs/release/release-checklist.md`, `docs/src/internals/local-development.md`,
-  `docs/src/tutorials/quick-start.md` and `Cargo.toml`'s `rust-version` all
-  state `1.91` independently; one of them is a check that would keep asserting
-  `1.91` after a bump. The channel still floats within `1.91.x`, and a patch bump moves
-  codegen and therefore digests. Nothing records which toolchain produced the
-  repro baseline, so a cross-machine digest mismatch is indistinguishable from
-  a real reproducibility failure.
+- **The toolchain used to be declared in twenty-two places, and recorded
+  nowhere** (Errata **E-037**, **ACCEPTED**, two survivors named, by
+  **RFC-0.30-003**). `rust-toolchain.toml` (channel, `rust-src`, the
+  RISC-V target), `.github/workflows/ci.yml` (`apt-get install
+  rustc-1.91`, copied into **17 of 19** jobs), `docs/release/
+  release-checklist.md`, `docs/src/internals/local-development.md`,
+  `docs/src/tutorials/quick-start.md` and `Cargo.toml`'s `rust-version`
+  all state `1.91` independently; one of them (`release-checklist.md`) is
+  a check that would have kept asserting `1.91` after a bump. Nothing
+  recorded which toolchain produced the repro baseline, so a digest
+  mismatch was indistinguishable from a real reproducibility failure.
+
+  **Fixed:** all three artefact-producing paths (`tests/repro/
+  baseline-digests.txt`, `tests/evidence/**/*.provenance.txt`,
+  `docs/release/trust-report.txt`) now record the toolchain **observed**
+  at production time (`rustc -vV`'s release/commit-hash/host/LLVM
+  version) — never the declared channel, which would have kept saying
+  `1.91` throughout the 1.91→1.98.1 incident while being wrong the whole
+  time. A new `toolchain-declarations` consistency-check compares
+  `rust-toolchain.toml`'s channel against the other 21 live sites (not
+  the historical release notes and handoffs the same grep also finds —
+  those are correct as written) and fails naming exactly which site was
+  left behind at a bump.
+
+  **What survives, in plain terms:** a version bump is still 22 manual
+  edits, not one — this makes a forgotten site loud instead of making it
+  impossible. And the channel still floats within `1.91.x`, unpinned;
+  pinning was argued (probably worth it eventually, cost not yet weighed)
+  and deliberately not done here. Both named rather than closed over.
+  CI installing via `apt` rather than `rustup` was considered and
+  rejected as the consolidation path: CI's independence from
+  `rust-toolchain.toml` is what let the 1.98.1 drift be measured against
+  a stable reference at all, and switching CI onto the same file the
+  incident already broke once would trade a detected failure mode for a
+  silent one.
 
   *Corrected 2026-09-10. This bullet previously said `rust-toolchain.toml` had
   been removed and that no `rust-version` field existed. Both were true for one

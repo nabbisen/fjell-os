@@ -61,6 +61,11 @@ fn build_report(dry_run: bool) -> String {
 
     let ts = report_timestamp();
     let version = env!("CARGO_PKG_VERSION");
+    // RFC-0.30-003 D1/D2: the observed toolchain, not the declared one —
+    // see `fjell_consistency_check::toolchain`'s doc comment for why.
+    let toolchain = fjell_consistency_check::toolchain::observe()
+        .map(|t| t.format_line())
+        .unwrap_or_else(|| "unknown (rustc -vV failed)".to_string());
 
     r.push_str("═══════════════════════════════════════════════════════════════\n");
     r.push_str("                    FJELL OS TRUST REPORT\n");
@@ -71,6 +76,7 @@ fn build_report(dry_run: bool) -> String {
         "Mode      : {}\n",
         if dry_run { "dry-run" } else { "full" }
     ));
+    r.push_str(&format!("Toolchain : {}\n", toolchain));
     r.push('\n');
 
     r.push_str(&section_1_capability_inventory());
@@ -463,6 +469,23 @@ mod tests {
         let r = build_report(true);
         assert!(r.contains("TRUST REPORT"));
         assert!(r.contains("Version"));
+    }
+
+    /// RFC-0.30-003 D1/D2: the header records the *observed* toolchain
+    /// (real `rustc -vV` output), never `rust-toolchain.toml`'s declared
+    /// channel — this test would still pass if the header wrote a hardcoded
+    /// "1.91", which is exactly the proxy this line exists to rule out, so
+    /// it also asserts the four real fields, not just the label.
+    #[test]
+    fn report_header_carries_the_observed_toolchain() {
+        let r = build_report(true);
+        assert!(r.contains("Toolchain :"), "report:\n{r}");
+        let observed = fjell_consistency_check::toolchain::observe()
+            .expect("rustc -vV must succeed in the test environment");
+        assert!(
+            r.contains(&observed.format_line()),
+            "report should contain the real observed toolchain line"
+        );
     }
 
     #[test]

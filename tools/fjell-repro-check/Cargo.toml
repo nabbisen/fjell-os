@@ -13,3 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 sha2 = "0.10"
+# RFC-0.30-003 D2: the one shared `rustc -vV` observer, so the baseline's
+# recorded toolchain and the provenance/trust-report ones (fjell-tools)
+# never drift into two different ideas of "what we observed".
+fjell-consistency-check = { path = "../fjell-consistency-check" }
