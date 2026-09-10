@@ -585,11 +585,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 - **The release cut is the only work in this project nobody reviews** (Errata
   **E-039**, ACCEPTED). The cycle's Roles table makes the implementer
   Responsible for verifying exit criteria and producing the release record, with
-  the architect Accountable and Consulted. In practice the architect has done
-  all of it for five consecutive releases, so those changes land unreviewed —
-  and they have included a four-commit staging failure, a `rfcs/accepted/`
-  directory that vanished from fresh clones, and document corrections nobody
-  checked.
+  the architect Accountable and Consulted. In practice the architect did all of
+  it for five consecutive releases (`0.25.0`-`0.29.0`), so those changes landed
+  unreviewed — and they included a four-commit staging failure, a
+  `rfcs/accepted/` directory that vanished from fresh clones, and document
+  corrections nobody checked.
+
+  **Being corrected at 0.30.0.** The cause was that the cut had no handoff while
+  every RFC has one; `docs/release/release-handoff.md` is now the standing
+  handoff for every cut, the Roles table's undefined `A`/`R`/`C`/`I` legend is
+  stated, and the implementer executes this cut with the architect reviewing it.
+  Exit criterion 8 — reading this document and the standards mapping against a
+  release's real changes — stays with the architect, because a resolving path is
+  not a true row and no gate can tell the difference. The entry stays ACCEPTED
+  until a cut has actually run that way.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker

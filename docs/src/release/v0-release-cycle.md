@@ -284,6 +284,21 @@ product, and it should not be tolerated in its process either.
 | Apply the tag | A | C | R |
 | Approve v1.0.0 specifically | **A/R** | C | I |
 
+**Legend** — `R` Responsible (does the work) · `A` Accountable (answers for the
+outcome) · `C` Consulted (asked before it lands) · `I` Informed (told after).
+
+*Added 2026-09-10. This table was used for five releases with its key defined
+nowhere in this document or in RFC-v0.21.3-002 — a contributing gap named in
+**E-039**. The conventional reading is unambiguous, but a table whose key is
+absent is easy to read past, and it was.*
+
+**The implementer executes this cycle**, per the `R` column, following
+[`docs/release/release-handoff.md`](../../release/release-handoff.md) — the
+standing handoff for every cut. Every RFC in this project gets a handoff; the
+cut had none, which is why it drifted to the architect for five consecutive
+releases (**E-039**). The architect retains exit criterion 8, which is
+judgement rather than procedure and is described there.
+
 `v1.0.0` remains under explicit owner publication control (DEC-002),
 unaffected by this cycle: the implementer prepares everything and stops:
 the owner alone applies that specific tag, cycle or no cycle.

@@ -2019,13 +2019,35 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Found:** the owner asked, at the `0.29.0` cut, whether it was right for the
   architect to do the preparation rather than hand part of it over. It is not
   what the cycle says.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-09), `unscheduled` pending an
-  owner decision, because two fixes are available and the choice is the owner's:
-  write a release-cycle handoff and hand the cut to the implementer, or amend the
-  Roles table to describe what is actually done. **What must not happen is the
-  table continuing to say one thing while practice does another** — that is the
-  E-023 family, in the document governing releases.
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-09), `unscheduled`.~~ →
+  **ACCEPTED**, tracked **0.30** — the cut itself (owner decision,
+  2026-09-10):
+  *"make work of dev team and handoffs for it if necessary and reasonable."*
 
+  > **Dispositioned 2026-09-10.** Both halves of this entry are addressed, and
+  > it closes when the cut it describes has actually been executed and reviewed
+  > that way — not before, because the drift is a fact about practice and only
+  > practice can settle it.
+  >
+  > **The missing handoff is written**:
+  > [`docs/release/release-handoff.md`](../release/release-handoff.md), standing
+  > rather than per-cut, since the defect was that *every* cut lacked one. It
+  > carries the six traps each named by the release that found it, the settled
+  > decisions, the order (which is load-bearing — trap 2 exists because the
+  > order was wrong once), the prohibited shortcuts, and the required evidence.
+  > `docs/src/release/v0-release-cycle.md` now points at it from the Roles
+  > table.
+  >
+  > **The contributing gap is closed**: the Roles table's `A`/`R`/`C`/`I` legend
+  > was defined nowhere and is now stated in both documents.
+  >
+  > **Exit criterion 8 stays with the architect** and is documented as staying
+  > there — reading `v1-limitations.md` and `standards-mapping.md` against a
+  > release's actual changes is judgement, not procedure, and `standards-mapping`
+  > /`evidence` both disclose that a resolving path is not a true row.
+  >
+  > The 0.30.0 cut is the first executed under this split. Its handoff is
+  > `.git-exclude/handoff/handoff-0.30.0-cut.md`.
 ## E-040 — `qemu-test` offers six milestones nothing can pass, and E-015 was closed with them in it
 
 - **Claim:** E-015 is **CLOSED**. Its own resolution says RFC-0.29-002 fixed
@@ -2146,7 +2168,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
 | E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
-| E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
+| E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | ACCEPTED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
