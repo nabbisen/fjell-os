@@ -29,9 +29,16 @@ Finding 6 — CI installs from apt, bypassing `rust-toolchain.toml`
 entirely — reads like a gap. Measured against what actually happened on
 2026-09-09, it is not: `rust-toolchain.toml` was removed, and **local**
 builds silently drifted to `1.98.1`. CI did not, because CI never reads
-that file. CI's independence from `rust-toolchain.toml` is precisely
-what kept a stable reference point through the incident — the thing the
-drift was eventually measured against.
+that file, so the blast radius stayed local.
+
+*Corrected at review, 2026-09-10: an earlier draft of this paragraph said
+CI's independence was "the thing the drift was eventually measured
+against." It was not. The drift was caught by `repro-check` locally,
+comparing freshly built binaries against the **committed baseline** —
+that baseline, not CI, was the stable reference, and CI played no part in
+detecting the incident. What CI's independence actually bought was
+containment: one environment drifted instead of two. The argument below
+rests on containment, which is true, not on detection, which was not.*
 
 **Shape 1 deletes that independence.** Making CI install via `rustup`
 (which honours `rust-toolchain.toml` by construction, the entire appeal

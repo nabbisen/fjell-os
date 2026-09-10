@@ -525,11 +525,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   edits, not one — this makes a forgotten site loud instead of making it
   impossible. And the channel still floats within `1.91.x`, unpinned;
   pinning was argued (probably worth it eventually, cost not yet weighed)
-  and deliberately not done here. Both named rather than closed over.
+  and deliberately not done here. **The two survivors are coupled**, found
+  at review: an exact pin makes the new drift check fail on a correct tree,
+  because Ubuntu's apt carries `rustc-1.91` and never `rustc-1.91.1`, so CI
+  cannot name a patch version while it installs from apt. Pinning therefore
+  waits on the consolidation question, not the other way round. Both named
+  rather than closed over.
   CI installing via `apt` rather than `rustup` was considered and
   rejected as the consolidation path: CI's independence from
-  `rust-toolchain.toml` is what let the 1.98.1 drift be measured against
-  a stable reference at all, and switching CI onto the same file the
+  `rust-toolchain.toml` contained the 1.98.1 drift to local builds (the
+  drift was detected by `repro-check` against the committed baseline, not
+  by CI), and switching CI onto the same file the
   incident already broke once would trade a detected failure mode for a
   silent one.
 

@@ -96,6 +96,19 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("toolchain-declarations", toolchain_declarations::check),
 ];
 
+#[cfg(test)]
+mod dispatch_tests {
+    use super::ALL_SUBCHECKS;
+
+    /// RFC-0.30-003 review: the library's `SUBCHECK_NAMES` is what Gate 12
+    /// renders; this table is what actually runs. They must not diverge.
+    #[test]
+    fn all_subchecks_matches_the_exported_name_list() {
+        let names: Vec<&str> = ALL_SUBCHECKS.iter().map(|(n, _)| *n).collect();
+        assert_eq!(names, fjell_consistency_check::SUBCHECK_NAMES.to_vec());
+    }
+}
+
 fn run_all() -> ExitCode {
     let mut all_ok = true;
     for (name, check) in ALL_SUBCHECKS {

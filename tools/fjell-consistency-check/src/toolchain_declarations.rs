@@ -10,14 +10,17 @@
 //!
 //! **What this checks, and what it deliberately does not:**
 //!
-//! - The 17 `.github/workflows/ci.yml` install blocks, `rust-toolchain.toml`
-//!   itself (the anchor), `docs/src/internals/local-development.md`'s
-//!   table row *and* its `rustup toolchain install` line, `docs/src/
-//!   tutorials/quick-start.md`'s apt line, and `docs/release/
-//!   release-checklist.md`'s check — 21 of the 22 sites — must all name the
-//!   same version as `rust-toolchain.toml`'s `channel`, the one file whose
-//!   only job is declaring it (D3: a live declaration, not a historical
-//!   record).
+//! - **Every versioned mention** in `.github/workflows/ci.yml` (68 today:
+//!   17 jobs, each naming `rustc-<v>` and `cargo-<v>` on an install line
+//!   and again on two `ln -sf` lines), plus
+//!   `docs/src/internals/local-development.md`'s table row *and* its
+//!   `rustup toolchain install` line, `docs/src/tutorials/quick-start.md`'s
+//!   apt line, and `docs/release/release-checklist.md`'s check, must all
+//!   name the same version as `rust-toolchain.toml`'s `channel` — the one
+//!   file whose only job is declaring it (D3: a live declaration, not a
+//!   historical record). Together these are 21 of E-037's 22 *sites*; the
+//!   scan counts mentions rather than sites deliberately, so that no
+//!   rewording of a site can hide one (see `extract_ci_versions`).
 //! - `Cargo.toml`'s `rust-version` is the 22nd site and is **not** compared
 //!   here. It is a floor, not a mirror — this project's own Non-goals say
 //!   it "generally should not" move on every toolchain bump, so requiring
@@ -86,14 +89,14 @@ pub fn run_check(
     let ci_versions = extract_ci_versions(ci_src);
     if ci_versions.is_empty() {
         problems.push(format!(
-            "{CI_PATH}: no `apt-get install -y rustc-<version>` blocks found — expected at least one"
+            "{CI_PATH}: no versioned `rustc-<version>`/`cargo-<version>` mentions found — expected at least one"
         ));
     }
     for v in &ci_versions {
         checked += 1;
         if v != &anchor {
             problems.push(format!(
-                "{CI_PATH}: a job installs rustc-{v}, but {RUST_TOOLCHAIN_PATH} says {anchor:?}"
+                "{CI_PATH}: a job names version {v}, but {RUST_TOOLCHAIN_PATH} says {anchor:?}"
             ));
         }
     }
@@ -155,9 +158,8 @@ pub fn run_check(
 
     if problems.is_empty() {
         println!(
-            "{NAME}: PASS ({checked} live sites agree with {RUST_TOOLCHAIN_PATH}'s channel {anchor:?}, \
-             plus {RUST_TOOLCHAIN_PATH} itself = {} sites)",
-            checked + 1
+            "{NAME}: PASS ({checked} versioned mentions across 4 live declaration files agree \
+             with {RUST_TOOLCHAIN_PATH}'s channel {anchor:?})"
         );
         ExitCode::SUCCESS
     } else {
@@ -181,17 +183,42 @@ fn extract_channel(src: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
-/// Every `sudo apt-get install -y rustc-<version> ...` line in `ci.yml` —
-/// 17 of them today, one per job that builds Fjell.
+/// Every versioned `rustc-<version>` / `cargo-<version>` mention anywhere
+/// in `ci.yml` — 68 today (17 jobs x an `apt-get install` line naming both
+/// plus two `ln -sf` lines naming both).
+///
+/// **Deliberately not anchored to the install line's exact spelling.** The
+/// first version of this function matched
+/// `strip_prefix("sudo apt-get install -y rustc-")`, and a block reworded
+/// to `... install -y --no-install-recommends rustc-1.90 ...` became
+/// invisible to it: the subcheck went on reporting `PASS` while a real job
+/// installed a stale compiler. That is scope blindness — the instrument
+/// checking fewer things than it believes and saying nothing — which is
+/// the exact defect family this milestone exists to remove, and it was
+/// sitting inside the gate built to remove it. Scanning every versioned
+/// mention instead means there is no spelling for a stale version to hide
+/// behind, and no hand-maintained expected count to go stale either.
+///
+/// The `ln -sf /usr/bin/rustc-<version>` lines are included on purpose:
+/// installing one compiler and symlinking another is a real way for a job
+/// to run something other than what it declares.
 fn extract_ci_versions(src: &str) -> Vec<String> {
-    src.lines()
-        .filter_map(|l| {
-            l.trim_start()
-                .strip_prefix("sudo apt-get install -y rustc-")
-        })
-        .filter_map(|rest| rest.split_whitespace().next())
-        .map(str::to_string)
-        .collect()
+    let mut found = Vec::new();
+    for prefix in ["rustc-", "cargo-"] {
+        let mut rest = src;
+        while let Some(i) = rest.find(prefix) {
+            rest = &rest[i + prefix.len()..];
+            let token: String = rest
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect();
+            // `cargo-fuzz` and friends are not versioned mentions.
+            if !token.is_empty() {
+                found.push(token);
+            }
+        }
+    }
+    found
 }
 
 /// `| Rust | 1.91 (stable) | ... |` — the second markdown-table cell.
@@ -258,10 +285,52 @@ mod tests {
     #[test]
     fn extract_ci_versions_finds_every_install_block() {
         let two_jobs = format!("{CI}\n{CI}");
+        // Two jobs, each naming rustc-1.91 and cargo-1.91.
+        assert_eq!(extract_ci_versions(&two_jobs).len(), 4);
+        assert!(extract_ci_versions(&two_jobs).iter().all(|v| v == "1.91"));
+    }
+
+    #[test]
+    fn a_reworded_install_line_cannot_hide_a_stale_version() {
+        // The defect found in review: the original parser anchored on the
+        // exact prefix `sudo apt-get install -y rustc-`, so this line was
+        // invisible to it and the subcheck reported PASS while a real job
+        // installed a stale compiler.
+        let reworded =
+            "          sudo apt-get install -y --no-install-recommends rustc-1.90 cargo-1.90\n";
+        let found = extract_ci_versions(reworded);
+        assert_eq!(found, vec!["1.90".to_string(), "1.90".to_string()]);
         assert_eq!(
-            extract_ci_versions(&two_jobs),
-            vec!["1.91".to_string(), "1.91".to_string()]
+            run_check(RUST_TOOLCHAIN, reworded, LOCAL_DEV, QUICK_START, CHECKLIST),
+            ExitCode::FAILURE
         );
+    }
+
+    /// Found in review, and recorded rather than worked around: an exact
+    /// patch pin (`channel = "1.91.1"`) — which is one of E-037's own three
+    /// closure conditions — makes this subcheck fail on an otherwise
+    /// correct tree, because Ubuntu's apt carries `rustc-1.91`, not
+    /// `rustc-1.91.1`. Whoever pins must decide then whether the CI
+    /// comparison drops to major.minor (a real asymmetry between rustup
+    /// channels and apt package names, not a weakened predicate) or whether
+    /// CI's install method changes with it. Asserting the current behaviour
+    /// so that decision is a deliberate edit to this test, not a surprise.
+    #[test]
+    fn an_exact_patch_pin_currently_fails_against_apts_major_minor_packages() {
+        let pinned = "[toolchain]\nchannel = \"1.91.1\"\n";
+        let ci = "          sudo apt-get install -y rustc-1.91 cargo-1.91\n";
+        let local_dev = "| Rust | 1.91.1 (stable) | x |\n\nrustup toolchain install 1.91.1\n";
+        let quick = "sudo apt install rustc-1.91.1 cargo-1.91.1\n";
+        let checklist = "rustc --version | grep \"1.91.1\"\n";
+        assert_eq!(
+            run_check(pinned, ci, local_dev, quick, checklist),
+            ExitCode::FAILURE
+        );
+    }
+
+    #[test]
+    fn cargo_fuzz_is_not_read_as_a_version() {
+        assert!(extract_ci_versions("cargo install cargo-fuzz\n").is_empty());
     }
 
     #[test]

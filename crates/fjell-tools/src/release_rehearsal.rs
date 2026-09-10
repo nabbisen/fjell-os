@@ -356,9 +356,15 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     if !g12_ok {
         all_pass = false;
     }
+    // RFC-0.30-003 review: rendered from the library's own list rather
+    // than re-typed here. This line carried a hand-copied set of names and
+    // went stale the moment `toolchain-declarations` was added.
+    let g12_names = fjell_consistency_check::SUBCHECK_NAMES;
     println!(
-        "  [{}] Gate 12 Consistency check                11 subchecks: syscall-surface, errata-limitations, rfc-status-folder, handoff-status, errata-tracking, version-currency, doc-links, doc-counts, standards-mapping, evidence, toolchain-declarations",
-        g12_mark
+        "  [{}] Gate 12 Consistency check                {} subchecks: {}",
+        g12_mark,
+        g12_names.len(),
+        g12_names.join(", ")
     );
 
     if all_pass {

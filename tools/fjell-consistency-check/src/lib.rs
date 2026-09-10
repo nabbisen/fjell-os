@@ -13,3 +13,27 @@
 
 pub mod errata;
 pub mod toolchain;
+
+/// The names of every subcheck, in the order Gate 12 reports them.
+///
+/// Added at RFC-0.30-003's review. `crates/fjell-tools`'s Gate 12 line
+/// carried its own hand-typed copy of this list, and adding
+/// `toolchain-declarations` made that copy stale the moment it landed —
+/// the same duplicate-list defect the dispatcher in this crate's `main.rs`
+/// had until RFC-0.30-002's review, one crate over. Gate 12 now renders
+/// this constant, and `main.rs` asserts its own `ALL_SUBCHECKS` agrees
+/// with it, so a twelfth subcheck cannot be added to one and not the
+/// other.
+pub const SUBCHECK_NAMES: &[&str] = &[
+    "syscall-surface",
+    "errata-limitations",
+    "rfc-status-folder",
+    "handoff-status",
+    "errata-tracking",
+    "version-currency",
+    "doc-links",
+    "doc-counts",
+    "standards-mapping",
+    "evidence",
+    "toolchain-declarations",
+];

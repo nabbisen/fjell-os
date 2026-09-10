@@ -1808,8 +1808,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `toolchain-declarations` subcheck comparing `rust-toolchain.toml`'s
   > `channel` against the other 21 live sites — over shape 1 (rustup in
   > CI), on a reason neither the RFC nor the handoff gave: **CI's
-  > independence from `rust-toolchain.toml` is what let the 1.91→1.98.1
-  > incident be measured at all.** Making CI read that file too would make
+  > independence from `rust-toolchain.toml` contained the 1.91→1.98.1
+  > incident to local builds.** (Corrected at review: CI did not *detect*
+  > the drift — `repro-check` did, locally, against the committed
+  > baseline. CI's independence bought containment, not detection.) Making CI read that file too would make
   > the *next* accidental removal silently drift CI as well, not catch it —
   > shape 1 would have reintroduced this erratum's own failure mode one
   > layer up, not removed it. Full argument:
@@ -1847,6 +1849,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   >    patch becomes a deliberate edit) has not been weighed with the care
   >    the decision deserves. D5's instruction stood: argue it, do not do
   >    it here.
+  >
+  >    **Found at review, 2026-09-10:** pinning is not a one-line change,
+  >    because it collides with survivor 1's own gate. `channel = "1.91.1"`
+  >    makes `toolchain-declarations` **fail on a correct tree** — Ubuntu's
+  >    apt carries `rustc-1.91`, never `rustc-1.91.1`, so CI can never name
+  >    a patch-level version while it installs from apt. Whoever pins must
+  >    decide then whether the CI comparison drops to major.minor (a real
+  >    asymmetry between rustup channels and apt package names, not a
+  >    weakened predicate) or whether CI's install method changes with it —
+  >    which is shape 1, survivor 1's own successor. The two survivors are
+  >    therefore coupled, and closing either alone is harder than it looks.
+  >    Asserted by
+  >    `an_exact_patch_pin_currently_fails_against_apts_major_minor_packages`
+  >    so the collision is a deliberate edit rather than a surprise.
   >
   > `Cargo.toml`'s `rust-version` floor and the Verus/`nightly` toolchains
   > are named (Finding 4) and explicitly not folded into the drift gate —
