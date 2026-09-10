@@ -28,7 +28,17 @@ All four must hold before beginning:
 1. Working tree is clean (`git status --short` is empty).
 2. The governing RFC's slices are complete and architect-reviewed.
 3. No review finding is open at "corrections required".
-4. The version in `Cargo.toml` is the version being released.
+4. The version being released is **decided**, and `Cargo.toml` holds either it
+   or the previous release's version — nothing else. Bumping it to the new
+   version is the cycle's first step ("Before criterion 1" below), not a
+   precondition of starting.
+
+   *Clarified 2026-09-10, while handing the cut to the implementer (E-039).
+   This criterion read "the version in `Cargo.toml` is the version being
+   released", which cannot hold before the cycle begins: the bump is a step
+   inside it. Read literally, no cut could ever start. Found by checking the
+   entry criteria from the written procedure rather than from memory — which is
+   the whole reason the cut was handed over.*
 
 ## Exit criteria — all required before the tag
 
