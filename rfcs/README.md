@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 177 files
+## Implemented (done/) — 180 files
 
-176 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+179 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -384,22 +384,22 @@ survives with two named instances rather than a tidy count.
 | 0.29-001 | [305 tests nothing runs, and five lists that disagree about one thing](./done/RFC-0.29-001-tests-that-run-and-lists-that-derive.md) — closed **E-013**, reduced **E-015**; a new tier runs 800 tests | 0.29.0 |
 | 0.29-002 | [The gate that blocks releases on open errata cannot see one that has a comment](./done/RFC-0.29-002-predicates-that-parse.md) — closed **E-015**, **E-017**; **E-014** left open with two survivors | 0.29.0 |
 
----
+### 0.30 — the instruments that decide whether a release may happen were themselves unchecked
 
-## Accepted (accepted/) — 3 RFCs
+Every line in this milestone found a checking mechanism reporting success
+without having checked something.
 
-Signed off by the owner; implementation may begin; not yet shipped.
-
-### 0.30 — reproducibility, and the checks that stand in for it
-
-| RFC | Title |
-|-----|-------|
-| 0.30-001 | [The reproducibility check compares a file to itself, and the kernel is not in the baseline](./accepted/RFC-0.30-001-reproducibility-that-reproduces.md) — accepted 2026-09-09; closes **E-036**; handoff: [`handoffs/`](./handoffs/RFC-0.30-001-reproducibility-that-reproduces/implementation-handoff.md) |
-| 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./accepted/RFC-0.30-002-checks-that-name-themselves.md) — accepted 2026-09-09; closes **E-035**, **E-038**; handoff: [`handoffs/`](./handoffs/RFC-0.30-002-checks-that-name-themselves/implementation-handoff.md) |
-| 0.30-003 | [The toolchain is declared in twenty-two places, and no artefact records which one built it](./accepted/RFC-0.30-003-a-toolchain-that-records-itself.md) — accepted 2026-09-10; closes or narrows **E-037**; handoff: [`handoffs/`](./handoffs/RFC-0.30-003-a-toolchain-that-records-itself/implementation-handoff.md) |
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.30-001 | [The reproducibility check compares a file to itself, and the kernel is not in the baseline](./done/RFC-0.30-001-reproducibility-that-reproduces.md) — closed **E-036**; a genuinely independent two-build check, in CI | 0.30.0 |
+| 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./done/RFC-0.30-002-checks-that-name-themselves.md) — closed **E-035**, **E-038**; every subcheck now names itself on failure | 0.30.0 |
+| 0.30-003 | [The toolchain is declared in twenty-two places, and no artefact records which one built it](./done/RFC-0.30-003-a-toolchain-that-records-itself.md) — narrowed **E-037** to two named, coupled survivors; toolchain now observed and recorded, not declared | 0.30.0 |
 
 ---
 
+## Accepted (accepted/) — none
+
+No RFC is currently signed off and awaiting implementation.
 
 ---
 

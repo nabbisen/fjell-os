@@ -1,6 +1,6 @@
 # RFC-0.30-001 §5 — Where should the real check run?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.30-001-reproducibility-that-reproduces.md](../../rfcs/accepted/RFC-0.30-001-reproducibility-that-reproduces.md)
+**Governing RFC:** [rfcs/done/RFC-0.30-001-reproducibility-that-reproduces.md](../../rfcs/done/RFC-0.30-001-reproducibility-that-reproduces.md)
 
 Answered after R1's measurement, per the handoff's required order — the
 handoff's own words: "that question cannot be answered without the number."

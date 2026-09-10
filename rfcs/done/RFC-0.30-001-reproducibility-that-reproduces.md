@@ -1,6 +1,6 @@
 # RFC-0.30-001: The reproducibility check compares a file to itself, and the kernel is not in the baseline
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-09; implementation may begin (RFC 000)
+**Status:** Implemented (0.30.0) — accepted 2026-09-09
 **Milestone:** 0.30
 **Tracks.** **E-036**, widened on scoping from *"the two-build check is never
 run"* to *"it is never run, it could not fail if it were, and neither mode

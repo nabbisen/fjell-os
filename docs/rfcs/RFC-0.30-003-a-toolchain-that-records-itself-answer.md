@@ -1,6 +1,6 @@
 # RFC-0.30-003 §7 — What is the single source of truth?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.30-003-a-toolchain-that-records-itself.md](../../rfcs/accepted/RFC-0.30-003-a-toolchain-that-records-itself.md)
+**Governing RFC:** [rfcs/done/RFC-0.30-003-a-toolchain-that-records-itself.md](../../rfcs/done/RFC-0.30-003-a-toolchain-that-records-itself.md)
 
 Answered after D1/D2 (the recording) were built, per the handoff's required
 order — the recording does not depend on how this lands.

@@ -1,6 +1,6 @@
 # RFC-0.30-002 §5 — When is the ABI enumeration owed?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.30-002-checks-that-name-themselves.md](../../rfcs/accepted/RFC-0.30-002-checks-that-name-themselves.md)
+**Governing RFC:** [rfcs/done/RFC-0.30-002-checks-that-name-themselves.md](../../rfcs/done/RFC-0.30-002-checks-that-name-themselves.md)
 
 Answered after reproducing E-038 and building R1/R2, per the handoff's
 required order, and before touching E-035's code.

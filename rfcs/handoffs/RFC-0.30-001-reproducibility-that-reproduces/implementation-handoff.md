@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.30-001
 
-**Governing RFC:** [RFC-0.30-001](../../accepted/RFC-0.30-001-reproducibility-that-reproduces.md)
+**Governing RFC:** [RFC-0.30-001](../../done/RFC-0.30-001-reproducibility-that-reproduces.md)
 **Milestone:** 0.30 — the first line of the milestone
-**Status:** inherited from the governing RFC (Accepted, 2026-09-09)
+**Status:** inherited from the governing RFC (Implemented, 0.30.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

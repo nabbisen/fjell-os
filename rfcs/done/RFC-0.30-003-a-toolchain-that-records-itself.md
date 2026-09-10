@@ -1,6 +1,6 @@
 # RFC-0.30-003: The toolchain is declared in twenty-two places, and no artefact records which one built it
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-10; implementation may begin (RFC 000)
+**Status:** Implemented (0.30.0) — accepted 2026-09-10
 **Milestone:** 0.30
 **Tracks.** **E-037** — the last remaining piece of the 0.30 instrument arc, and
 the one RFC-0.30-001 explicitly left open when it closed E-036 ("each CI run is
