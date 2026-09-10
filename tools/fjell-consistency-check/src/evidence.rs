@@ -1,8 +1,18 @@
 //! RFC-0.27-004: the `evidence` subcheck (Gate 12's 10th subcheck).
 //!
 //! `tests/evidence/` is the one place this project deliberately commits a
-//! QEMU serial log (R1) — everything else under `tests/qemu/artifacts/` and
-//! `tests/runs/` stays gitignored and overwritable exactly as before.
+//! QEMU **serial log** (R1). Every `serial.log` and every per-run directory
+//! elsewhere stays gitignored and overwritable exactly as before.
+//!
+//! *Corrected 2026-09-10: this comment used to say "everything else under
+//! `tests/qemu/artifacts/` and `tests/runs/` stays gitignored", which is
+//! wrong about the first of the two and misled a reader into proposing a
+//! `.gitignore` rule for it. `tests/runs/` is ignored wholesale;
+//! `tests/qemu/artifacts/` is **not** — `.gitignore` ignores only
+//! `*/runs/` under it (plus `*.log` globally), and the per-profile
+//! `expected-markers.txt`, `qemu-command.txt` and `result-summary.txt` are
+//! tracked for all 18 gated profiles and, in `.gitignore`'s own words,
+//! "must stay tracked".*
 //! Direction A and B, same shape as `errata-tracking`'s two directions:
 //!
 //!   - **A** — every citation of a `tests/evidence/...` path, in any

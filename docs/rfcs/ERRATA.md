@@ -354,6 +354,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   these were checks that **did not run**, or ran over an incomplete set —
   not checks that report success without checking.
 
+  > **Correction, architect, 2026-09-10.** *"The one named, surviving
+  > instance"* was wrong: **six more survived in the same `match` statement**
+  > — `m1` through `m6` all expect a `TEST:M<n>:PASS` marker the kernel has
+  > never emitted. The R5 search looked for what `v0.6-verification` emitted
+  > rather than asking which milestones the file offers can pass at all.
+  > E-015 stays CLOSED on its own four bullets, which were genuinely fixed;
+  > the survivors are carried by **E-040**.
+
 > **Re-derived 2026-09-08, scoping RFC-0.29-001.** The negative-test categories
 > are enumerated in **five** places and no two agree: `test_all.rs`'s
 > doc-comment says *"× 9 categories"*; `NEG_CATEGORIES` three lines below holds
@@ -2018,6 +2026,53 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   table continuing to say one thing while practice does another** — that is the
   E-023 family, in the document governing releases.
 
+## E-040 — `qemu-test` offers six milestones nothing can pass, and E-015 was closed with them in it
+
+- **Claim:** E-015 is **CLOSED**. Its own resolution says RFC-0.29-002 fixed
+  *"the one named, surviving instance"* — `smoke.rs`'s vestigial
+  `v0.6-verification` milestone, deleted because *"no kernel/service code has
+  ever emitted `TEST:V0.6-VERIFY:PASS`, so 'wire it up' was not an available
+  choice."*
+- **Tree:** **six identical instances survived, in the same `match` statement,
+  three lines above the one that was deleted.** `crates/fjell-tools/src/smoke.rs`
+  accepts eleven milestones; the kernel can emit exactly five PASS markers.
+
+  | `smoke.rs` accepts | Kernel emits (`grep 'kprintln!("TEST:'`) |
+  |---|---|
+  | `m1` `m2` `m3` `m4` `m5` `m6` | **nothing** |
+  | `m7` `m8` `v0.4-net` `v0.5-platform` `v0.7-sync` | `TEST:M7:PASS` (and `:FAIL`), `TEST:M8:PASS`, `TEST:V0.4-NET:PASS`, `TEST:V0.5-PLATFORM:PASS`, `TEST:V0.7-SYNC:PASS` |
+
+  `crates/fjell-kernel/src/trap/dispatch.rs:470-486` is the only site that emits
+  any of them.
+- **What that costs, concretely.** `cargo xtask qemu-test m5` boots QEMU, runs
+  the full 60-second timeout, and reports `FAIL` — not `unknown milestone`. It
+  is indistinguishable from a real regression, and it is how this was found:
+  three untracked directories under `tests/qemu/artifacts/` (`smoke-m5`,
+  `smoke-m7`, `_investigate-m8-long`) turned out to be the residue of exactly
+  this, with `smoke-m5/result-summary.txt` reading `FAIL` against an
+  `expected-markers.txt` of `TEST:M5:PASS` while the same serial log shows
+  `TEST:M7:PASS` and `TEST:M8:PASS` from the same boot.
+- **Why the closure missed them.** RFC-0.29-002 R5 searched for the marker
+  **`v0.6-verification` names** and correctly found nothing emitting it. It did
+  not ask the general question — *which of the milestones this file offers can
+  any of them pass?* — which is one `grep` and would have returned six more.
+  **A search scoped to the instance you already know about cannot find the
+  instances you do not**: E-014's scope-blindness family, in the sweep that
+  closed a scope-blindness erratum.
+- **Not the same as deleting them.** `m2`/`m3` still have live scaffolding
+  (`crates/fjell-kernel/src/task/user_image.rs`: *"Embedded static user task
+  images for M2/M3 smoke testing"*) and `m6` names a real driver
+  (`crates/drivers/fjell-driver-virtio-blk`: *"virtio-blk driver skeleton — M6
+  smoke test"*). Whether these six are deleted like `v0.6-verification` was, or
+  reconnected to markers, or reported as `not implemented` instead of `FAIL`, is
+  a design question and is deliberately **not** decided here.
+- **E-015 is not reopened.** Its four original bullets were genuinely fixed and
+  its history should stay readable. This entry carries the survivors instead, and
+  E-015's resolution now points here.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-10), `unscheduled`. Closing it
+  means every milestone `smoke.rs` accepts either passes or fails closed with a
+  reason, and the general question is asked once rather than per-instance.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -2061,6 +2116,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
+| E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

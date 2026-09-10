@@ -571,6 +571,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   this fix is for when one goes missing anyway.
 
 
+- **`qemu-test` accepts six milestones nothing can pass** (Errata **E-040**,
+  ACCEPTED). `cargo xtask qemu-test m1`…`m6` are accepted by the harness, but
+  the kernel emits a PASS marker for only `m7`, `m8`, `v0.4-net`,
+  `v0.5-platform` and `v0.7-sync`. Running one of the six boots QEMU, waits out
+  the full 60-second timeout and reports `FAIL`, indistinguishable from a real
+  regression, rather than saying the milestone is not implemented. None of the
+  six is gated by `test-all` or CI, so nothing that decides a release is
+  affected — but anyone exploring the harness by hand will hit it. Found
+  2026-09-10; E-015's closure had named only one such milestone and six more
+  survived it.
+
 - **The release cut is the only work in this project nobody reviews** (Errata
   **E-039**, ACCEPTED). The cycle's Roles table makes the implementer
   Responsible for verifying exit criteria and producing the release record, with
