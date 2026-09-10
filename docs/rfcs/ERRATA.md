@@ -2069,9 +2069,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **E-015 is not reopened.** Its four original bullets were genuinely fixed and
   its history should stay readable. This entry carries the survivors instead, and
   E-015's resolution now points here.
+- **The leak it was found through is fixed; the six milestones are not.**
+  `ArtifactDir::for_run` used to write `expected-markers.txt`,
+  `qemu-command.txt` and `result-summary.txt` for **every** run. Those three
+  are tracked for the 18 profiles `test-all` gates — `.gitignore` says they
+  "must stay tracked" — so a re-run rewrites them in place and `git status`
+  stays clean. **That design silently assumed every runnable profile's
+  directory is already tracked**, which is false for the six milestones above
+  and for any ad-hoc name: each such run left three untracked files behind
+  permanently, clearable only by a human noticing and deleting them.
+
+  Fixed 2026-09-10: the three summary files are written only where
+  `expected-markers.txt` is **already committed**. An ungated run now leaves
+  `serial.log` (ignored by `*.log`) and `runs/<run-id>/` (ignored) and nothing
+  else, and the run's full output survives under `runs/<run-id>/`. The skip is
+  printed, never silent — a genuinely new gated profile opts in by committing
+  its `expected-markers.txt`.
+
+  > **The first version of this fix was wrong, and its own demonstration
+  > caught it.** It keyed on whether the directory already existed — but the
+  > demonstrating run *created* the directory, so a second run of the same
+  > ungated milestone would have found it present and started writing. The
+  > leak would have taken two runs instead of one. `expected-markers.txt` is
+  > the stable key: committed for every gated profile, never written for an
+  > ungated one, so the guard holds however many times a milestone runs.
+  > Demonstrated end to end: `cargo xtask qemu-test m6` twice, the second
+  > against the directory the first created, leaving `git status` clean both
+  > times; `cargo xtask qemu-negative harness` unchanged, summaries still
+  > rewritten in place. Asserted by
+  > `repeated_ungated_runs_never_start_writing_summaries`.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-10), `unscheduled`. Closing it
   means every milestone `smoke.rs` accepts either passes or fails closed with a
-  reason, and the general question is asked once rather than per-instance.
+  reason, and the general question is asked once rather than per-instance. The
+  artefact leak above is already closed; what remains is the six milestones
+  themselves.
 
 ## Summary
 
