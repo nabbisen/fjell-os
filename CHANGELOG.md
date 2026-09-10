@@ -5,6 +5,125 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.30.0] — 2026-09-10 — The instruments that decide whether a release may happen were themselves unchecked
+
+Three RFCs, **three errata closed and one narrowed to two named survivors**,
+and the first release cut this project has run from a written handoff instead
+of from memory (**E-039**).
+
+Every line in this milestone found a checking mechanism reporting success
+without having checked something.
+
+### Fixed — the reproducibility check compared a file to itself (RFC-0.30-001)
+
+`fjell-repro-check`'s two-build mode ran `cargo xtask build` twice with no
+clean and no separate target directory between them, so the second build was
+an incremental no-op and the "comparison" was between a file and itself —
+measured at **0.41s and 0.40s per "build"**. Every call site passed
+`--skip-build` anyway; CI had no repro job at all.
+
+A genuine two-build run — a scoped `cargo clean` before each build — costs
+**4-7 seconds total**, not the "doubles CI build time" the RFC assumed before
+anyone had timed it. It now runs in CI on every push. Two independent runs
+produced bit-for-bit identical output across all 30 artefacts (the kernel ELF
+plus all 29 service prebuilts, both counts re-derived): this project's
+same-machine build is, as measured, reproducible. The check's sensitivity was
+demonstrated separately, on a real prior incident (`-C metadata` moving
+digests on a version bump) — the fixed comparison correctly reports `FAIL`.
+
+Closes **E-036**.
+
+### Fixed — four subchecks that failed without saying which (RFC-0.30-002)
+
+With an RFC lifecycle folder absent, four of Gate 12's subchecks failed with a
+bare `consistency-check: cannot read …` line — no subject, so the run ended
+`consistency-check: FAIL` with no way to tell which of ten checks broke.
+`handoff-status`'s own filed defect ("silent") turned out to be wrong on
+inspection: depending on which RFCs currently had open handoffs, it either
+produced the same unnamed message or, worse, **passed incorrectly**, blind to
+the missing folder because it only ever touched lifecycle folders
+incidentally.
+
+Every subcheck's I/O failure now names itself — applied to all ten subchecks
+that existed at the time, not only the four originally reported, since the
+same mechanism already reached the rest once built. `handoff-status` now
+checks all three lifecycle folders directly, closing the blind-pass gap
+structurally rather than by luck of which handoffs currently exist.
+
+Separately: the ABI snapshot's `Added` count used to be free — a release
+could ship with `Added: N` and a green gate, so the enumerate-and-regenerate
+step the release cycle documents had nothing enforcing it. `fjell-abi-snapshot
+--verify` now fails on any non-zero `Added`, moving the enumeration to the
+line that makes the addition, where the knowledge is, rather than deferring
+it to whoever runs the next cut.
+
+Closes **E-035** and **E-038**.
+
+### Narrowed — the toolchain was declared in twenty-two places and recorded in none (RFC-0.30-003)
+
+E-037 said five places; measured, it was **twenty-two** — seventeen of them
+copies of one CI install block. On 2026-09-09, `rust-toolchain.toml` was
+removed and local builds silently moved from **1.91.1 to 1.98.1**, changing
+all 24 committed prebuilts. The detector (`repro-check`) fired; nothing
+recorded *why*.
+
+All three artefact-producing paths (the repro baseline, evidence provenance,
+the trust report) now record the toolchain **observed** at production time
+(`rustc -vV`'s release/commit-hash/host/LLVM version) — never the declared
+channel, which would have kept saying `1.91` throughout the incident while
+being wrong the entire time. A new `toolchain-declarations` consistency
+subcheck compares every live declaration site against `rust-toolchain.toml`
+and fails naming exactly which one was left behind at a bump; a scope-blind
+first version of it (anchored to one exact install-line spelling) was found
+and fixed at review before it shipped.
+
+CI reading `rust-toolchain.toml` directly (the more thorough-looking fix) was
+considered and rejected: CI's independence from that file is what contained
+the 1.98.1 drift to local builds, and making CI depend on the same file the
+incident already broke once would trade a contained failure for a shared one.
+
+**E-037 narrowed, not closed** — two named, coupled survivors: still 22
+places to edit at a bump, and the channel remains unpinned (an exact pin
+would itself break the new drift check against Ubuntu's unversioned `apt`
+package names, so the two survivors cannot be resolved independently).
+
+### The cut itself
+
+**The first release cut run by the implementer**, against a written handoff
+(`docs/release/release-handoff.md`) rather than from the architect's memory —
+five prior releases had no such document and were prepared by the architect
+regardless of what the cycle's own Roles table said (**E-039**). One cycle-
+document defect was found and fixed by checking the entry criteria as
+written rather than from memory: criterion 4 required `Cargo.toml` to already
+hold the version being released *before* the cycle began, which no cut could
+ever satisfy, since the bump is the cycle's own first step.
+
+### Errata
+
+**40 entries: 0 OPEN, 30 CLOSED, 10 ACCEPTED.** Closed this release: **E-035**,
+**E-036**, **E-038**. Narrowed: **E-037** (two coupled survivors named).
+
+**E-040, filed today: `qemu-test` accepts eleven milestones; the kernel emits
+markers for five.** Found revisiting **E-015**'s 0.29.0 closure, in the same
+scope-blindness family this milestone's own instruments were built to
+remove: RFC-0.29-002 searched for the one named marker
+(`v0.6-verification`) and correctly found nothing emitting it, but never
+asked the general question — which of the milestones `smoke.rs` offers can
+any of them pass? — which is one `grep` away and finds six more (`m1`-`m6`).
+An artefact-leak half of this erratum is already fixed; the six-milestone
+half is **ACCEPTED, unscheduled**, disclosed in `v1-limitations.md`, and does
+not block this or any release on its own.
+
+**E-039**, tracked to this milestone, is not yet dispositioned: the handoff
+and this cut are its own proposed evidence, and whether it closes is for the
+architect to judge on this cut's review, not for the cut to declare of
+itself.
+
+Still open and unscheduled: **E-014** (two named instances), **E-034**,
+**E-037** (two coupled survivors), **E-040** (six milestones).
+
+---
+
 ## [0.29.0] — 2026-09-09 — The checks start checking
 
 Two RFCs, **five errata closed**, and the end of a backlog that had been open
