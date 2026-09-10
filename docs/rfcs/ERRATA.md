@@ -1566,7 +1566,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > 4`/`fjell-abi-snapshot --verify` now fails whenever `Added != 0`, not
   > only on `Removed`/`Changed sig`. Cost argued, not assumed:
   > `tests/abi/snapshot.json` has been touched in 8 commits across this
-  > project's entire 177-RFC history — the stable surface changes rarely,
+  > project's entire 176-RFC history — the stable surface changes rarely,
   > so the gate is red only on the line that made the addition, closed by
   > the one command (`--generate`) that same line already needed. Full
   > argument, including why shapes 2 (cut-only) and 3 (version-stamped
@@ -1692,7 +1692,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > same-machine only (E-037 still open for cross-machine), 30 artefacts, run
   > in CI every push.
 
-## E-037 — the toolchain is declared twice and recorded nowhere
+## E-037 — the toolchain is declared in five places and recorded nowhere
 
 - **Claim:** builds are reproducible from the pinned toolchain.
 - **Tree:** the toolchain is declared in **two** places that cannot see each
@@ -1788,7 +1788,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   which toolchain produced each artefact. Whatever closes it must state where `rust-src` and the target
   come from for a fresh clone, and record the toolchain with the artefacts.
 
-## E-038 — three subchecks fail silently when an RFC folder is absent
+## E-038 — four subchecks fail without naming themselves when an RFC folder is absent
 
 - **Claim:** `consistency-check` reports which subcheck failed and why.
 - **Tree:** when `rfcs/accepted/` does not exist, **`rfc-status-folder`,
@@ -1863,12 +1863,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > subcheck's own name and print `<name>: FAIL — <reason>` on any I/O
   > failure, replacing the generic `consistency-check: cannot read ...`
   > shape. Applied everywhere that shape appeared in this crate — not only
-  > the four named here, but three more instances found by the same sweep
-  > (`doc-links`, `version-currency`, `syscall-surface`, `evidence` each had
-  > at least one unnamed early-failure message of their own, undemonstrated
-  > only because their specific inputs were not the ones this reproduction
-  > happened to break). D2's "fix the class" reached all of them, since the
-  > mechanism already did once built.
+  > the four named here. The sweep reaches **all ten** subchecks: the six
+  > beyond this erratum — `doc-links`, `version-currency`, `syscall-surface`,
+  > `evidence`, `standards-mapping` and `errata-limitations` — each had at
+  > least one unnamed early-failure message of their own, undemonstrated only
+  > because their specific inputs were not the ones this reproduction happened
+  > to break. D2's "fix the class" reached all of them, since the mechanism
+  > already did once built.
   >
   > **`handoff-status` fixed on its actual defect** (see the correction
   > above, not the one originally filed): it now enumerates
@@ -1976,7 +1977,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
-| E-037 the toolchain is declared for CI only since `rust-toolchain.toml` was removed; no MSRV exists, and nothing tells a fresh clone it needs `rust-src` | unscheduled | ACCEPTED |
+| E-037 the toolchain version is declared in five places that cannot see each other, the channel floats within `1.91.x`, and no artefact records which toolchain produced it | unscheduled | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | unscheduled | ACCEPTED |
 

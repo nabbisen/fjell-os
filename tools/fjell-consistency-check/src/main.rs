@@ -22,6 +22,20 @@
 //!   - `evidence` — every `tests/evidence/` citation resolves with valid
 //!     provenance (direction A) and every promoted file is cited by
 //!     something (direction B) (RFC-0.27-004 R4)
+//!   - `errata-tracking` — every erratum's tracked RFC agrees with what
+//!     that RFC and the release records actually claim
+//!   - `version-currency` — `README.md`, the workspace version and
+//!     `crates/fjell-os`'s `fjell-abi` pin all agree
+//!   - `doc-links` — every relative Markdown link resolves, minus the
+//!     recorded known-broken set
+//!   - `doc-counts` — `rfcs/README.md`'s lifecycle-folder counts match the
+//!     tree
+//!
+//! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
+//! usage string are both derived from it. **This comment is not** — it is
+//! hand-maintained and had already gone stale (four of the ten were
+//! missing from it), which is why it says so rather than implying a
+//! guarantee it does not have.
 //!
 //! Usage:
 //!   `fjell-consistency-check <subcheck>`
@@ -46,28 +60,20 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let sub = args.first().map(String::as_str).unwrap_or("--help");
 
-    match sub {
-        "syscall-surface" => run_named("syscall-surface", syscall_surface::check),
-        "errata-limitations" => run_named("errata-limitations", errata_limitations::check),
-        "rfc-status-folder" => run_named("rfc-status-folder", rfc_status_folder::check),
-        "handoff-status" => run_named("handoff-status", handoff_status::check),
-        "errata-tracking" => run_named("errata-tracking", errata_tracking::check),
-        "version-currency" => run_named("version-currency", version_currency::check),
-        "doc-links" => run_named("doc-links", doc_links::check),
-        "doc-counts" => run_named("doc-counts", doc_counts::check),
-        "standards-mapping" => run_named("standards-mapping", standards_mapping::check),
-        "evidence" => run_named("evidence", evidence::check),
-        "--all" => run_all(),
-        _ => {
-            eprintln!(
-                "Usage: fjell-consistency-check \
-                 <syscall-surface|errata-limitations|rfc-status-folder|handoff-status|\
-                 errata-tracking|version-currency|doc-links|doc-counts|standards-mapping|\
-                 evidence|--all>"
-            );
-            ExitCode::FAILURE
-        }
+    if sub == "--all" {
+        return run_all();
     }
+    // RFC-0.30-002 D2, extended at review: the subcheck names were listed
+    // three times — once per `match` arm, once in `ALL_SUBCHECKS`, and once
+    // in the usage string — so an eleventh subcheck could reach `--all` and
+    // Gate 12 while being unreachable by name, or vice versa, with nothing
+    // noticing. `ALL_SUBCHECKS` is now the single list all three derive from.
+    if let Some((name, check)) = ALL_SUBCHECKS.iter().find(|(n, _)| *n == sub) {
+        return run_named(name, *check);
+    }
+    let names: Vec<&str> = ALL_SUBCHECKS.iter().map(|(n, _)| *n).collect();
+    eprintln!("Usage: fjell-consistency-check <{}|--all>", names.join("|"));
+    ExitCode::FAILURE
 }
 
 type Subcheck = (&'static str, fn() -> ExitCode);

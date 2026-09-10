@@ -31,8 +31,22 @@ Reproduced by moving `rfcs/accepted/` aside and running the real tool:
 The erratum says *"three subchecks emit no output at all."* **Both halves are
 wrong.** Three emit a message; what none of them emits is a **result line naming
 itself**, which is the format every passing subcheck uses and the thing a reader
-scans for. And there is a **fourth** — `handoff-status` — which is the only one
-that really is silent.
+scans for. And there is a **fourth** — `handoff-status` — which this table never named.
+
+> **Correction, architect, 2026-09-10, at the implementation review.** The row
+> above says `handoff-status` produces "header and nothing else at all", and the
+> sentence after it calls it "the only one that really is silent." **Both are
+> wrong, and the error was mine.** The reproduction behind this table filtered
+> the tool's output on the literal string `cannot read`; `handoff-status`'s
+> message reads `... which could not be read`, so my own predicate hid the
+> evidence — the same defeated-by-literal-matching shape this RFC and
+> RFC-0.29-002 exist to fix, committed inside the RFC that names it. R2's
+> diagnosis found what actually happens: `handoff-status` never enumerated the
+> lifecycle folders at all, reaching them only through whichever RFC a handoff
+> happened to cite, so with `rfcs/accepted/` absent it either printed an unnamed
+> message or **passed** — a false PASS, worse than the silence I attributed to
+> it. Recorded here rather than edited away; the requirements below stand
+> unchanged, and R2 is the reason the real defect was found.
 
 The aggregate ends `consistency-check: FAIL` with no `<name>: FAIL` anywhere, so
 the reader gets a failure with no subject. Three identical `cannot read

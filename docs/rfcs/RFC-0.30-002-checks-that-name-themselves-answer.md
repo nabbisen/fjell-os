@@ -18,7 +18,9 @@ verdict, so it inherits the stricter behaviour for free.
 
 **Measured, not guessed:** `tests/abi/snapshot.json` has been touched in
 **8 commits** across this project's entire history (`git log --oneline --
-tests/abi/snapshot.json`), against **177** RFCs shipped to `rfcs/done/`.
+tests/abi/snapshot.json`), against the **176** RFCs shipped to
+`rfcs/done/` (177 `.md` files there, one of which is `v0.7.x-index.md`,
+not an RFC — `rfcs/README.md` counts that folder in files, not RFCs).
 The stable surface changes rarely — both RFC-0.30-001 and this RFC itself
 declare "does not touch... the ABI surface" as a matter of course, and
 that is the common case, not the exception, measured directly rather than
@@ -29,7 +31,7 @@ gate becomes background noise when it fires often enough that seeing it
 red stops being informative, or when the person who can act on it is not
 the person who sees it. Neither holds for shape 1 as built:
 
-- It fires only on the ~4.5% of lines (8/177, and falling as the ABI
+- It fires only on the ~4.5% of lines (8/176, and falling as the ABI
   surface has matured) that touch a stable crate at all.
 - It fires on the *same commit* that made the addition, for the *same
   author* who has the context — not a downstream job, not a nightly run,

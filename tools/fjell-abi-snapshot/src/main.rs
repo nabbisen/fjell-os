@@ -240,9 +240,16 @@ fn verify(snapshot_path: &str) -> ExitCode {
     println!("fjell-abi-snapshot verify:");
     println!("  Baseline items : {}", baseline.len());
     println!("  Current items  : {}", current.len());
+    // The parenthetical points at the itemised list the FAIL path prints;
+    // on a passing run there is no "below", so it is not printed there.
     println!(
-        "  Added          : {} (not breaking, but not free — see below)",
-        added_count
+        "  Added          : {}{}",
+        added_count,
+        if added_count > 0 {
+            " (not breaking, but not free — see below)"
+        } else {
+            ""
+        }
     );
     println!("  Removed        : {}", removed.len());
     println!("  Changed sig    : {}", changed.len());

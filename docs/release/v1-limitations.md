@@ -445,7 +445,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **Fixed:** `fjell-abi-snapshot --verify` now fails whenever `Added != 0`, not
   only on `Removed`/`Changed sig` — the same gate, a stricter pass condition.
   Argued on measured cost, not assumed: `tests/abi/snapshot.json` has been
-  touched in 8 commits across this project's entire 177-RFC history, so the
+  touched in 8 commits across this project's entire 176-RFC history, so the
   gate is red only on the rare line that actually touches the stable surface,
   and only until that same line runs `--generate`. Demonstrated failing on a
   deliberately un-regenerated baseline (3 real current items held back via a
@@ -497,13 +497,24 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it to record. Two checks, two honestly different scopes.
 
 
-- **The toolchain is declared for CI only, and recorded nowhere** (Errata
-  **E-037**, ACCEPTED). `rust-toolchain.toml` was removed on 2026-09-09; CI
-  installs `rustc-1.91` and `rust-src` from apt and is unaffected, but a fresh
-  clone has nothing declaring the channel, nothing installing the `rust-src`
-  that `-Z build-std` requires, and **no `rust-version` field anywhere** to
-  refuse an unsuitable toolchain. Nothing records which toolchain produced the
-  repro baseline.
+- **The toolchain is declared in five places, and recorded nowhere** (Errata
+  **E-037**, ACCEPTED). `rust-toolchain.toml` (channel, `rust-src`, the RISC-V
+  target), `.github/workflows/ci.yml` (`apt-get install rustc-1.91`, in several
+  jobs), `docs/release/release-checklist.md`, `docs/src/internals/local-
+  development.md` and `Cargo.toml`'s `rust-version` all state `1.91`
+  independently; two of them are checks that would keep asserting `1.91` after
+  a bump. The channel still floats within `1.91.x`, and a patch bump moves
+  codegen and therefore digests. Nothing records which toolchain produced the
+  repro baseline, so a cross-machine digest mismatch is indistinguishable from
+  a real reproducibility failure.
+
+  *Corrected 2026-09-10. This bullet previously said `rust-toolchain.toml` had
+  been removed and that no `rust-version` field existed. Both were true for one
+  day: the file was removed on 2026-09-09 (`4cebbc4`), restored the same day
+  after the removal was found to have silently moved local builds from 1.91.1
+  to 1.98.1 and changed all 24 committed prebuilts, and `rust-version = "1.91"`
+  was added to `[workspace.package]` at the same time. The bullet was not
+  updated then.*
 
 - **Four subchecks used to fail without a result line naming themselves**
   (Errata **E-038**, **CLOSED** by **RFC-0.30-002**). With an RFC lifecycle
@@ -520,8 +531,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **Fixed:** `read_file`/`read_dir_named` (`tools/fjell-consistency-check`) now
   take the calling subcheck's own name and print `<name>: FAIL — <reason>` on
   any I/O failure — applied everywhere that shape appeared in the crate, not
-  only these four (3 more instances found and fixed by the same sweep:
-  `doc-links`, `version-currency`, `syscall-surface`, `evidence`).
+  only these four — the sweep reaches all ten subchecks, the other six being
+  `doc-links`, `version-currency`, `syscall-surface`, `evidence`,
+  `standards-mapping` and `errata-limitations`.
   `handoff-status` additionally now enumerates `rfcs/{proposed,accepted,done}`
   directly before touching any handoff, closing the blind-pass gap. Keeper
   files still exist in all four lifecycle folders, unrelated and unchanged —
