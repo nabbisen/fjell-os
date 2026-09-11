@@ -2196,6 +2196,29 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > that the markers started in the kernel, moved to user space at M4, and
   > moved back to the kernel at M7/M8 (`9363b91`). The replace-don't-join
   > pattern held in both planes; the RFC tells only the user-space half.
+  >
+  > **And the six were gated after all — by CI, on every push.** This
+  > erratum was scoped, and `v1-limitations.md` disclosed it, on the
+  > understanding that *"none of the six is gated by `test-all` or CI, so
+  > nothing that decides a release is affected."* `test-all` is right:
+  > `SMOKE_PROFILES` is four and none of the six is in it. **CI is not.**
+  > `.github/workflows/ci.yml:227` runs `ci-qemu-smoke` over a matrix of
+  > `[m1, m2, m3, m4, m5, m6, m7, m8]` and invokes `cargo xtask qemu-test`
+  > on each at line 240, with `fail-fast: false` and no
+  > `continue-on-error` — so **six of that job's eight matrix entries have
+  > been booting QEMU, waiting out the timeout and failing on every push
+  > and pull request**, for as long as the six have been dead. The cost
+  > this erratum describes as falling on "anyone exploring the harness by
+  > hand" has been falling on every CI run as well.
+  >
+  > **Not repaired by this line.** The obvious change — reduce that matrix
+  > to `[m7, m8]` — is a change to *what CI gates*, adjacent to this line's
+  > explicit "do not change what `test-all` gates" non-goal, and `ci.yml`
+  > is outside its `Touches`. Reported for a decision rather than resolved
+  > in code, per the handoff's standing instruction. Note that this line
+  > does improve those six jobs regardless: they now fail in under a second
+  > naming the milestone, instead of after a 60-second timeout looking like
+  > a regression.
 
 ## Summary
 

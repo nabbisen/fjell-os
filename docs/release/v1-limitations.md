@@ -580,10 +580,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `m7`, `m8`, `v0.4-net`, `v0.5-platform` and `v0.7-sync`. Running one of the
   six booted QEMU, waited out the full 60-second timeout and reported `FAIL`,
   indistinguishable from a real regression, rather than saying the milestone
-  is not implemented. None of the six was gated by `test-all` or CI, so
-  nothing that decides a release was affected — but anyone exploring the
-  harness by hand hit it. Found 2026-09-10; E-015's closure had named only one
+  is not implemented. Found 2026-09-10; E-015's closure had named only one
   such milestone and six more survived it.
+
+  *Corrected 2026-09-12, while closing this erratum: this bullet said "none
+  of the six is gated by `test-all` or CI, so nothing that decides a release
+  is affected." **`test-all` is right; CI is wrong.** `.github/workflows/
+  ci.yml`'s `ci-qemu-smoke` job runs a matrix of `[m1, m2, m3, m4, m5, m6,
+  m7, m8]` and invokes `cargo xtask qemu-test` on each, with no
+  `continue-on-error` — so six of its eight jobs have been booting QEMU,
+  timing out and failing on every push. Reported rather than repaired here:
+  what CI gates is adjacent to this line's "do not change what `test-all`
+  gates" non-goal and `ci.yml` is outside its Touches.*
 
   **Fixed:** the six are deleted and now reach the fail-closed `unknown
   milestone` path, which costs no QEMU boot — `qemu-test m5` answers in 0.36s
