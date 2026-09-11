@@ -2150,11 +2150,52 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > times; `cargo xtask qemu-negative harness` unchanged, summaries still
   > rewritten in place. Asserted by
   > `repeated_ungated_runs_never_start_writing_summaries`.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-10), tracked
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-10), tracked
   **RFC-0.31-001** (scoped 2026-09-12). Closing it means every milestone
   `smoke.rs` accepts either passes or fails closed with a reason, and the
   general question is asked once rather than per-instance. The artefact leak
-  above is already closed; what remains is the six milestones themselves.
+  above is already closed; what remains is the six milestones themselves.~~ →
+  **CLOSED** by **RFC-0.31-001**.
+
+  > **Closed by RFC-0.31-001, 2026-09-12.** The six arms are deleted;
+  > `m1`–`m6` reach the fail-closed `unknown milestone` path RFC-0.24-002
+  > Slice 2 built and never reached. `cargo xtask qemu-test m5` now answers
+  > in **0.36s** with `known: m7, m8, v0.4-net, v0.5-platform, v0.7-sync`,
+  > against a build-boot-and-time-out that previously cost 60 seconds to
+  > produce a `FAIL` indistinguishable from a regression. They were deleted
+  > rather than reconnected (D4): `TEST:M7:PASS` is the cumulative pass for
+  > everything M1–M6 ever checked, and re-adding user-space markers would
+  > recreate the concurrent-UART garbling `9363b91` moved emission into the
+  > kernel to fix.
+  >
+  > **The general question is now asked by a check, not per instance** (D2).
+  > A test in `crates/fjell-tools/src/smoke.rs` reads
+  > `crates/fjell-kernel/src/trap/dispatch.rs` and asserts both directions —
+  > every accepted marker is emitted, every emitted `…:PASS` is accepted —
+  > plus a third assertion that keeps those two honest: after comments are
+  > blanked, every surviving `TEST:` must lie inside a literal the parser
+  > recognised, so a marker built by `concat!` or printed from a `const`
+  > fails on the construction instead of reading as absence. Demonstrated
+  > red in all three directions on real files, reverted, `git status` clean;
+  > the third was demonstrated on a case where **both** agreement checks
+  > pass and only it fires.
+  >
+  > **A correction to this entry's own history, and to the RFC's.** Both say
+  > no kernel commit ever emitted `TEST:M1:PASS`…`TEST:M6:PASS`, citing
+  > `git log -S … -- crates/fjell-kernel` as empty for all six. Re-derived
+  > with a positive control (M7/M8 in the same command shape, to prove an
+  > empty result means absence and not a broken invocation): **that command
+  > is empty only for M1.** `TEST:M2:PASS` and `TEST:M3:PASS` were emitted
+  > by **kernel source** — `crate::kprintln!` in `trap/dispatch.rs` itself,
+  > added at `0c0b61a`, replaced by M3 at `7d10af8`, removed at `c587bdb`
+  > when the PASS moved to user space and the kernel kept only
+  > `TEST:M4:FAIL`. The M5/M6 hits under that pathspec are
+  > `prebuilt/fjell-init.bin`, the committed user-space binary, which
+  > embeds the string. The conclusion is unaffected — nothing emits any of
+  > the six **today**, which is what D1 turns on — but the true history is
+  > that the markers started in the kernel, moved to user space at M4, and
+  > moved back to the kernel at M7/M8 (`9363b91`). The replace-don't-join
+  > pattern held in both planes; the RFC tells only the user-space half.
 
 ## Summary
 
@@ -2199,7 +2240,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
-| E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | ACCEPTED |
+| E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

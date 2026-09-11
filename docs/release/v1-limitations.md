@@ -574,16 +574,29 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   this fix is for when one goes missing anyway.
 
 
-- **`qemu-test` accepts six milestones nothing can pass** (Errata **E-040**,
-  ACCEPTED). `cargo xtask qemu-test m1`…`m6` are accepted by the harness, but
-  the kernel emits a PASS marker for only `m7`, `m8`, `v0.4-net`,
-  `v0.5-platform` and `v0.7-sync`. Running one of the six boots QEMU, waits out
-  the full 60-second timeout and reports `FAIL`, indistinguishable from a real
-  regression, rather than saying the milestone is not implemented. None of the
-  six is gated by `test-all` or CI, so nothing that decides a release is
-  affected — but anyone exploring the harness by hand will hit it. Found
-  2026-09-10; E-015's closure had named only one such milestone and six more
-  survived it.
+- **`qemu-test` used to accept six milestones nothing can pass** (Errata
+  **E-040**, **CLOSED** by **RFC-0.31-001**). `cargo xtask qemu-test m1`…`m6`
+  were accepted by the harness, but the kernel emits a PASS marker for only
+  `m7`, `m8`, `v0.4-net`, `v0.5-platform` and `v0.7-sync`. Running one of the
+  six booted QEMU, waited out the full 60-second timeout and reported `FAIL`,
+  indistinguishable from a real regression, rather than saying the milestone
+  is not implemented. None of the six was gated by `test-all` or CI, so
+  nothing that decides a release was affected — but anyone exploring the
+  harness by hand hit it. Found 2026-09-10; E-015's closure had named only one
+  such milestone and six more survived it.
+
+  **Fixed:** the six are deleted and now reach the fail-closed `unknown
+  milestone` path, which costs no QEMU boot — `qemu-test m5` answers in 0.36s
+  and lists the five names that can actually pass. They were not reconnected:
+  `TEST:M7:PASS` is the cumulative pass for everything M1–M6 ever checked, and
+  re-adding user-space markers would recreate the concurrent-UART garbling
+  that moved marker emission into the kernel in the first place. **And the
+  general question is now asked by a check rather than per instance** — a test
+  reads the kernel's own `trap/dispatch.rs` and fails if any accepted
+  milestone is not emitted there, if anything emitted is not accepted, or if a
+  marker is constructed in a way the check cannot read (so "invisible" can no
+  longer pass for "absent"). That last part is what makes this closure
+  different from E-015's, which named one instance and left six.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer
