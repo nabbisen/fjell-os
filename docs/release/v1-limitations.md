@@ -613,11 +613,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   different from E-015's, which named one instance and left six.
 
 - **CI has never built this product** (Errata **E-041**, ACCEPTED, tracked to
-  0.31). The workflow has had one successful run in 152, on 2026-05-05, before
-  any QEMU-building job existed. Every job that builds a service — the smoke
-  and negative matrices, the v0.7 smokes, the two-build reproducibility check,
-  `test-services`, `proptest`, `cross-check` — fails at `-Z build-std` because
-  Ubuntu's apt `rust-src` ships no `library/Cargo.lock`. Every gate that
+  **RFC-0.31-002**). The workflow has had one successful run in 152, on
+  2026-05-05, before any QEMU-building job existed. Every job that builds a
+  service — the smoke and negative matrices, the v0.7 smokes, the two-build
+  reproducibility check, `cross-check`, `test-services` — fails at
+  `-Z build-std` because Ubuntu's apt `rust-src` ships no `library/Cargo.lock`;
+  `test-v07-formats` fails on a feature guard RFC-0.29-001 named and left;
+  `proptest`'s CI command does not compile at all. Every gate that
   decides a release in this project runs locally and always has, so nothing
   shipped on a claim CI made; but every sentence in this project that said a
   check "runs in CI on every push" was written from `ci.yml`'s text and was

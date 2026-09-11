@@ -407,9 +407,11 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.31-002 | [A CI that builds the product](./proposed/RFC-0.31-002-ci-that-builds-the-product.md) — closes **E-041**; E-037's consolidation survivor with it |
 
 ## Archive (archive/) — 2 RFCs
 

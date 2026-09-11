@@ -2263,7 +2263,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   | Failing in the latest run (`6ea1a5d`) | `qemu-smoke` ×8 (**including `m7` and `m8`**), `qemu-negative` ×12 (every gated profile), `qemu-v07` ×3, `repro-check`, `test-services`, `test-v07-formats`, `proptest`, `cross-check` |
   | Passing | `check`, `format`, `docs`, `test-host`, `host-bins`, `unsafe-audit`, `schema-gate`, `verus`, `negative-matrix` (the listing step only), and the two `continue-on-error` profiles |
 
-  **One cause, in every failing job**, from the logs:
+  **The dominant cause, in 25 of the 28 failing jobs**, from the logs:
 
   ```
   error: "/usr/lib/rust-1.91/lib/rustlib/src/rust/library/Cargo.lock" does not exist,
@@ -2275,6 +2275,21 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `Cargo.lock`, and `-Z build-std=core,compiler_builtins` (`crates/fjell-tools/src/qemu.rs`)
   requires it. **No CI job has ever built the kernel or a service.** Nothing
   that boots QEMU, and nothing that compares two builds, has ever run on CI.
+
+  > **Corrected 2026-09-12, the same day, while scoping RFC-0.31-002.** This
+  > entry first said "one cause, in every failing job". Reading every
+  > failing job's log rather than the eight I had opened: **three causes.**
+  > (1) `build-std` on apt `rust-src`, above — `qemu-smoke` ×8,
+  > `qemu-negative` ×12, `qemu-v07` ×3, `repro-check`, `cross-check`, and
+  > `test-services`' second step. (2) `test-v07-formats`: `fjell-sxt-crypto`'s
+  > `compile_error!` guard fires because the job passes no
+  > `crypto-profile-development` feature — **already named by RFC-0.29-001**
+  > ("exposed to the identical masking — named, not fixed there") and never
+  > fixed. (3) `proptest`: the job's own command does not compile —
+  > `error[E0405]: cannot find trait \`Strategy\` in this scope`, ten times —
+  > while `test-all`'s local proptest tier passes by running nothing
+  > (RFC-0.29-001's own finding about that tier). Three failures, three
+  > mechanisms, one habit: nobody opened a log.
 - **Three distinct defects, one entry:**
   1. **The instrument is red and nobody reads it.** Gate 7's own defect class
      at the top of the stack: CI ran on every push, failed on every push, and
@@ -2304,8 +2319,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (E-036, E-040); E-015, E-036, E-037 and E-040's closure text; CHANGELOG
   0.30.0; the 0.30.0 release record; RFC-0.30-001's and RFC-0.29-001's answer
   documents; RFC-0.30-003's §7 argument.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-12), tracked **0.31**.
-  Closing it means: CI installs the toolchain through rustup from
+- **Resolution:** **ACCEPTED** (architect, 2026-09-12), tracked
+  **RFC-0.31-002** (scoped 2026-09-12). Closing it means: CI installs the toolchain through rustup from
   `rust-toolchain.toml` (which, per RFC-0.30-003's own reasoning, must fail
   closed when that file is absent — the drift gate already does); every
   service-building job green at least once, observed with `gh`, not read from
@@ -2358,7 +2373,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
-| E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | 0.31 | ACCEPTED |
+| E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
