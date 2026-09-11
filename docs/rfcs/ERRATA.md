@@ -380,7 +380,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > hardcoded matrix, and `KNOWN_V01X_CATEGORIES`/`KNOWN_V02_CATEGORIES` are
 > all **removed** — `qemu_run::discover_negative_categories` (derived from
 > `tests/qemu/profiles/*.toml`) is the one answer all three call sites
-> use now, including `ci.yml` via a new `ci-negative-matrix` job and
+> use now, including `ci.yml` via a new `ci-negative-matrix` job *(the
+> listing job passes; every `qemu-negative` job it feeds fails at the service
+> build and always has — E-041, 2026-09-12)* and
 > `cargo xtask list-negative-categories`. `fjell-sig-ed25519`,
 > `fjell-fleet-sync`, `fjell-config-sync`'s tests now also run in ordinary
 > CI (`ci-host-bins`, R1's own fix) — closing this bullet's "possibly
@@ -1670,6 +1672,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `RFC-0.30-001-reproducibility-that-reproduces-answer.md` §R1). It runs in
   > CI on every push now (`ci-repro-check`), not nowhere.
   >
+  > *Corrected 2026-09-12 (E-041): that job has never succeeded. Every CI job that builds services fails at `-Z build-std` because Ubuntu's apt `rust-src` ships no `library/Cargo.lock`; the workflow has had one green run in 152, on 2026-05-05.* The check itself is real and its local
+  > demonstrations stand; the CI half of this closure was never true.
+  >
   > **The build is, as measured, reproducible.** Two independent runs — each
   > preceded by its own clean — produced bit-for-bit identical output across
   > all 30 artefacts (kernel ELF + 29 service prebuilts), confirmed twice.
@@ -1698,7 +1703,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   >
   > **T20 corrected** to state exactly this: genuinely independent builds,
   > same-machine only (E-037 still open for cross-machine), 30 artefacts, run
-  > in CI every push.
+  > in CI every push. *(The "run in CI" clause corrected 2026-09-12 — E-041.)*
 
 ## E-037 — the toolchain is declared in twenty-two places and recorded nowhere
 
@@ -1726,10 +1731,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   filing time, the two-build check never ran, and `--skip-build` compares
   committed files to a baseline recorded from those same files on the same
   machine. The two errata insulated each other. **This is only partly fixed by
-  E-036's closure**: the real two-build check now runs in CI, but each CI run
+  E-036's closure**: the real two-build check now runs in CI *(it does not —
+  E-041, 2026-09-12: the job has never succeeded)*, but each CI run
   is itself one machine building twice — nothing here yet compares digests
   *across* two different machines/toolchains, so a toolchain-driven drift is
   still exactly as invisible as before. E-037 remains open on its own merits.
+- **The apt toolchain cannot build this product at all (E-041, 2026-09-12).**
+  Ubuntu 24.04's apt `rust-src` ships no `library/Cargo.lock`, so `-Z
+  build-std` fails in every CI job that builds a service, and has since the
+  first such job was added. CI's "independence" from `rust-toolchain.toml`,
+  which RFC-0.30-003 §7 credited with containing the 1.98.1 drift, is
+  coincident with CI's inability to build the kernel. **Shape 1 — rustup in
+  CI — is therefore not survivor 1's successor; it is a precondition of CI
+  doing anything this erratum is about.** `rustup` is already on the runner
+  (`ci.yml:442,549,589`).
 - **`rust-toolchain.toml` is not the defect and must not be removed.** It is
   load-bearing: `-Z build-std=core,compiler_builtins`
   (`crates/fjell-tools/src/qemu.rs:63,107`) requires `rust-src`, and the RISC-V
@@ -2205,11 +2220,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `.github/workflows/ci.yml:227` runs `ci-qemu-smoke` over a matrix of
   > `[m1, m2, m3, m4, m5, m6, m7, m8]` and invokes `cargo xtask qemu-test`
   > on each at line 240, with `fail-fast: false` and no
-  > `continue-on-error` — so **six of that job's eight matrix entries have
-  > been booting QEMU, waiting out the timeout and failing on every push
-  > and pull request**, for as long as the six have been dead. The cost
-  > this erratum describes as falling on "anyone exploring the harness by
-  > hand" has been falling on every CI run as well.
+  > `continue-on-error` — so six of that job's eight matrix entries name
+  > milestones nothing can pass.
+  >
+  > *Corrected at review, 2026-09-12.* The submission wrote that those six
+  > *"have been booting QEMU, waiting out the timeout and failing on every
+  > push"*. That was read from `ci.yml`, not from a run. Observed with
+  > `gh`: **none of the eight boots QEMU on CI — all eight, `m7` and `m8`
+  > included, fail at the service build in seconds**, because apt's
+  > `rust-src` cannot `build-std`; the workflow has had one green run in
+  > 152. The six dead entries are real and go in the CI-repair line
+  > (**E-041**), but they are not what has been making CI red, and the
+  > review's own instruction against them — *invisible is indistinguishable
+  > from absent* — applied one level up: a YAML matrix is a declaration,
+  > not an observation.
   >
   > **Not repaired by this line.** The obvious change — reduce that matrix
   > to `[m7, m8]` — is a change to *what CI gates*, adjacent to this line's
@@ -2219,6 +2243,76 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > does improve those six jobs regardless: they now fail in under a second
   > naming the milestone, instead of after a 60-second timeout looking like
   > a regression.
+
+## E-041 — CI has been red for four months, every job that builds the product fails before building it, and every "runs in CI" claim was written without looking
+
+- **Claim:** RFC-0.30-001 (E-036's closure, T20, CHANGELOG 0.30.0, the 0.30.0
+  release record): the two-build reproducibility check *"runs in CI on every
+  push"*. RFC-0.29-001 (E-015's closure): the negative matrix is *"derived …
+  including `ci.yml` via a new `ci-negative-matrix` job"*. RFC-0.31-001's
+  submission: six dead smoke milestones *"have been booting QEMU, waiting out
+  the timeout and failing on every push"*. `README.md` carries the workflow's
+  status badge.
+- **Tree, observed 2026-09-12 with `gh run list` / `gh run view`, not inferred
+  from `ci.yml`:**
+
+  | | |
+  |---|---|
+  | Workflow runs, all time | **152 — 1 success, 151 failures** |
+  | Last successful run | **2026-05-05** (`843d724`) — before any QEMU-building job existed |
+  | Failing in the latest run (`6ea1a5d`) | `qemu-smoke` ×8 (**including `m7` and `m8`**), `qemu-negative` ×12 (every gated profile), `qemu-v07` ×3, `repro-check`, `test-services`, `test-v07-formats`, `proptest`, `cross-check` |
+  | Passing | `check`, `format`, `docs`, `test-host`, `host-bins`, `unsafe-audit`, `schema-gate`, `verus`, `negative-matrix` (the listing step only), and the two `continue-on-error` profiles |
+
+  **One cause, in every failing job**, from the logs:
+
+  ```
+  error: "/usr/lib/rust-1.91/lib/rustlib/src/rust/library/Cargo.lock" does not exist,
+  unable to build with the standard library
+  [xtask] service build FAILED
+  ```
+
+  Ubuntu 24.04's apt `rust-src` package does not ship the standard library's
+  `Cargo.lock`, and `-Z build-std=core,compiler_builtins` (`crates/fjell-tools/src/qemu.rs`)
+  requires it. **No CI job has ever built the kernel or a service.** Nothing
+  that boots QEMU, and nothing that compares two builds, has ever run on CI.
+- **Three distinct defects, one entry:**
+  1. **The instrument is red and nobody reads it.** Gate 7's own defect class
+     at the top of the stack: CI ran on every push, failed on every push, and
+     every RFC, erratum closure, threat-model row and release record written
+     since June described what `ci.yml` *says* rather than what CI *did*.
+     Mode 5, stale assertion — except these assertions were never true.
+  2. **The apt toolchain cannot build this product.** E-037 said CI's apt
+     install was a *choice* whose independence from `rust-toolchain.toml`
+     contained the 1.98.1 drift (RFC-0.30-003 §7). It is not a choice: apt's
+     toolchain structurally cannot `build-std`. CI's "independence" from the
+     product's toolchain declaration is coincident with CI's inability to build
+     the product. **E-037's shape 1 (rustup in CI) is not a successor line; it
+     is the only way CI can ever build the kernel** — and `rustup` is already
+     on the runner (`ci.yml:442,549,589`).
+  3. **RFC-0.31-001's submission repeated the pattern while naming it.** Its
+     lead finding — six matrix entries "booting QEMU, waiting out the timeout
+     and failing" — was read off `ci.yml`'s text. On CI, none of the eight
+     boots QEMU; all eight, `m7` and `m8` included, fail at the service build
+     in seconds. The six dead entries are real and should go, but they are not
+     what has been making CI red, and removing them would change nothing
+     observable.
+- **What is true**: every release gate in this project runs locally, and
+  every release record's evidence was produced locally. Nothing shipped on a
+  claim CI made, because CI never made one. What is false is every sentence
+  that said CI was doing the work.
+- **Corrected in place today**, each with a dated note: T20; `v1-limitations.md`
+  (E-036, E-040); E-015, E-036, E-037 and E-040's closure text; CHANGELOG
+  0.30.0; the 0.30.0 release record; RFC-0.30-001's and RFC-0.29-001's answer
+  documents; RFC-0.30-003's §7 argument.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-12), tracked **0.31**.
+  Closing it means: CI installs the toolchain through rustup from
+  `rust-toolchain.toml` (which, per RFC-0.30-003's own reasoning, must fail
+  closed when that file is absent — the drift gate already does); every
+  service-building job green at least once, observed with `gh`, not read from
+  YAML; the dead `qemu-smoke` matrix entries removed in the same line; and a
+  release-cycle step that records the CI conclusion for the release commit in
+  the release record, so "runs in CI" can never again be written from the
+  workflow file.
 
 ## Summary
 
@@ -2264,6 +2358,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
+| E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | 0.31 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

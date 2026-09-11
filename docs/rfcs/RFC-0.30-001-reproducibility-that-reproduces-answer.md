@@ -42,6 +42,15 @@ tree).
 `.github/workflows/ci.yml`), invoking a new `cargo xtask two-build-check`
 subcommand that runs `fjell-repro-check` without `--skip-build`.
 
+> **Corrected 2026-09-12 (E-041).** The job was added and has never once
+> succeeded: it fails at `-Z build-std` because Ubuntu's apt `rust-src` ships
+> no `library/Cargo.lock` — the same failure every service-building CI job
+> in this workflow has had since the first one was added. The answer's
+> reasoning about *where* the signal belongs stands; the sentence "runs on
+> every push and pull request" below described `ci.yml`'s text, which
+> nobody compared against a run. The measured reproducibility result in R1
+> is local and stands.
+
 **Why not option 2 (release cut only):** the RFC's own words — "catches a
 regression only at the moment it is most expensive to fix" — are correct,
 and there is no longer a cost argument for accepting that trade. A ~4–7s

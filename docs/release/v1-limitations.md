@@ -473,6 +473,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   on every push (`ci-repro-check`, `cargo xtask two-build-check`), not
   nowhere.
 
+  *Corrected 2026-09-12 (E-041): that job has never succeeded. Every CI job that builds services fails at `-Z build-std` because Ubuntu's apt `rust-src` ships no `library/Cargo.lock`; the workflow has had one green run in 152, on 2026-05-05.* The check is real and its demonstrations were
+  local; it has not yet run anywhere else.
+
   **The build is, as measured, reproducible.** Two independent runs (each
   with its own clean) produced bit-for-bit identical output across all 30
   artefacts — the kernel ELF plus all 29 service prebuilts, both counts
@@ -587,11 +590,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   of the six is gated by `test-all` or CI, so nothing that decides a release
   is affected." **`test-all` is right; CI is wrong.** `.github/workflows/
   ci.yml`'s `ci-qemu-smoke` job runs a matrix of `[m1, m2, m3, m4, m5, m6,
-  m7, m8]` and invokes `cargo xtask qemu-test` on each, with no
-  `continue-on-error` — so six of its eight jobs have been booting QEMU,
-  timing out and failing on every push. Reported rather than repaired here:
-  what CI gates is adjacent to this line's "do not change what `test-all`
-  gates" non-goal and `ci.yml` is outside its Touches.*
+  m7, m8]` and invokes `cargo xtask qemu-test` on each. Six of the eight name
+  milestones nothing can pass. Reported rather than repaired here: what CI
+  gates is adjacent to this line's "do not change what `test-all` gates"
+  non-goal and `ci.yml` is outside its Touches.* *Corrected again at review,
+  2026-09-12: the submission said those six "have been booting QEMU, timing
+  out and failing on every push" — read from the YAML, not from a run. On CI
+  none of the eight boots QEMU; all fail at the service build, as does every
+  other service-building job, and always has. See **E-041**.*
 
   **Fixed:** the six are deleted and now reach the fail-closed `unknown
   milestone` path, which costs no QEMU boot — `qemu-test m5` answers in 0.36s
@@ -605,6 +611,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   marker is constructed in a way the check cannot read (so "invisible" can no
   longer pass for "absent"). That last part is what makes this closure
   different from E-015's, which named one instance and left six.
+
+- **CI has never built this product** (Errata **E-041**, ACCEPTED, tracked to
+  0.31). The workflow has had one successful run in 152, on 2026-05-05, before
+  any QEMU-building job existed. Every job that builds a service — the smoke
+  and negative matrices, the v0.7 smokes, the two-build reproducibility check,
+  `test-services`, `proptest`, `cross-check` — fails at `-Z build-std` because
+  Ubuntu's apt `rust-src` ships no `library/Cargo.lock`. Every gate that
+  decides a release in this project runs locally and always has, so nothing
+  shipped on a claim CI made; but every sentence in this project that said a
+  check "runs in CI on every push" was written from `ci.yml`'s text and was
+  never true. The badge at the top of `README.md` has been red the whole time.
+  Repair needs rustup in CI (E-037's shape 1, now a precondition rather than a
+  successor) and a release-cycle step that records the observed CI conclusion.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer

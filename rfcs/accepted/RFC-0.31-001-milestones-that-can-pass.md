@@ -36,6 +36,21 @@ joined — by `Mn+1`'s marker when the next milestone landed:
 mapping was *"preserved verbatim from the v0.1.0 runner"* — it was, and it
 accumulated an arm per milestone while the emitter kept only the current one.
 
+> **Correction, architect, 2026-09-12, at the implementation review.** The
+> sentence above — *"empty for every n in 1…6: no kernel commit has ever
+> emitted one"* — is wrong, and the implementer's R1 re-derivation found it:
+> `TEST:M2:PASS` and `TEST:M3:PASS` were emitted **from the kernel** (`0c0b61a`,
+> `7d10af8`), moved to user space at `c587bdb`, and marker emission moved
+> back to the kernel at `9363b91`. The replace-don't-join pattern held in both
+> planes; this table told only the user-space half. **Why my command was
+> empty:** it was run in a `for m in M1 …` loop under zsh as
+> `-S"TEST:$m:PASS"`, and zsh reads `$m:P` as a parameter modifier, so the
+> search string was never the marker. The implementer's own first pass hit
+> the same trap and was caught by a positive control (M7/M8 in the same
+> command shape) — the discipline this RFC's D2 exists to enforce, and one I
+> had not applied to my own evidence. The conclusion (nothing emits any of
+> the six today) is unaffected and is what D1 turns on.
+
 The kernel's own comment settles what they test today
 (`dispatch.rs:465`): *"init orchestrates M1–M7 and exits after those
 complete."* **`TEST:M7:PASS` is the cumulative pass for everything M1–M6 ever

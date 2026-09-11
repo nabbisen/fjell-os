@@ -40,6 +40,17 @@ detecting the incident. What CI's independence actually bought was
 containment: one environment drifted instead of two. The argument below
 rests on containment, which is true, not on detection, which was not.*
 
+*Corrected a second time, 2026-09-12 (E-041). CI's "independence" from
+`rust-toolchain.toml` is not a design property — it is coincident with CI
+being unable to build the product at all: apt's `rust-src` cannot
+`build-std`, and no CI job has ever built the kernel or a service. The
+argument that shape 1 would extend a single point of failure onto "the one
+system that did not share it" therefore compared a working local build
+against a CI that has never built anything. Shape 3 (the drift gate) still
+stands on its own merits and is the reason a rustup-based CI can fail closed
+on a missing file; but shape 1 is now a precondition of CI doing any of this
+work, not a successor line.*
+
 **Shape 1 deletes that independence.** Making CI install via `rustup`
 (which honours `rust-toolchain.toml` by construction, the entire appeal
 of shape 1) means the next time that file is removed or misconfigured,

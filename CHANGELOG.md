@@ -24,7 +24,10 @@ measured at **0.41s and 0.40s per "build"**. Every call site passed
 
 A genuine two-build run — a scoped `cargo clean` before each build — costs
 **4-7 seconds total**, not the "doubles CI build time" the RFC assumed before
-anyone had timed it. It now runs in CI on every push. Two independent runs
+anyone had timed it. It now runs in CI on every push *(corrected 2026-09-12,
+**E-041**: that job has never succeeded — apt's `rust-src` cannot `build-std`,
+and the workflow has one green run in 152; the check and its evidence are
+local)*. Two independent runs
 produced bit-for-bit identical output across all 30 artefacts (the kernel ELF
 plus all 29 service prebuilts, both counts re-derived): this project's
 same-machine build is, as measured, reproducible. The check's sensitivity was

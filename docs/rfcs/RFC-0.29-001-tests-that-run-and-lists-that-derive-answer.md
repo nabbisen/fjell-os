@@ -157,6 +157,9 @@ excludes the result from the tier's own pass/fail tally. Confirmed live:
    error now print the same derived list.
 3. **`ci.yml`**'s `ci-qemu-negative` matrix cannot itself run a program to
    compute its own entries, so a new job (`ci-negative-matrix`) runs
+   *(corrected 2026-09-12, E-041: this listing job passes; every
+   `qemu-negative` job it feeds has failed at the service build since it
+   was added — apt's `rust-src` cannot `build-std`)*
    `cargo xtask list-negative-categories` (new subcommand — prints
    `[{"category":"...","release_gated":bool}, ...]`) and hands the result
    to `ci-qemu-negative` via `fromJson`. `release_gated: false` categories
