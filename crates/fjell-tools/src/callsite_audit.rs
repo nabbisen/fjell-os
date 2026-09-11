@@ -587,7 +587,13 @@ fn find_function_body_span(stripped_src: &str, fn_name: &str) -> Option<(usize, 
 /// literal contents are left intact. See `check_syscall_asm_callsite`'s
 /// comment for why this check needs that (unlike the other three, which
 /// use `strip_comments_and_strings` below).
-fn strip_comments_only(src: &str) -> String {
+///
+/// `pub(crate)` for RFC-0.31-001 D2: `smoke.rs`'s kernel-marker check needs
+/// the same "comments out, string contents in" reading of the same kernel
+/// source, and a second copy of a comment parser is the duplicate-logic
+/// defect this project keeps removing — not something to introduce while
+/// closing an erratum about a list that was copied.
+pub(crate) fn strip_comments_only(src: &str) -> String {
     let bytes = src.as_bytes();
     let n = bytes.len();
     let mut out = String::with_capacity(n);
