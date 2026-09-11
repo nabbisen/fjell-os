@@ -403,9 +403,11 @@ No RFC is currently signed off and awaiting implementation.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.31-001 | [Six milestones the smoke runner accepts and nothing can pass](./proposed/RFC-0.31-001-milestones-that-can-pass.md) — closes **E-040** |
 
 ## Archive (archive/) — 2 RFCs
 

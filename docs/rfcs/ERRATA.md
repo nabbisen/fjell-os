@@ -2150,11 +2150,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > times; `cargo xtask qemu-negative harness` unchanged, summaries still
   > rewritten in place. Asserted by
   > `repeated_ungated_runs_never_start_writing_summaries`.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-10), `unscheduled`. Closing it
-  means every milestone `smoke.rs` accepts either passes or fails closed with a
-  reason, and the general question is asked once rather than per-instance. The
-  artefact leak above is already closed; what remains is the six milestones
-  themselves.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-10), tracked
+  **RFC-0.31-001** (scoped 2026-09-12). Closing it means every milestone
+  `smoke.rs` accepts either passes or fails closed with a reason, and the
+  general question is asked once rather than per-instance. The artefact leak
+  above is already closed; what remains is the six milestones themselves.
 
 ## Summary
 
@@ -2199,7 +2199,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
-| E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | unscheduled | ACCEPTED |
+| E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
