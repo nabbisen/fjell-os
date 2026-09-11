@@ -111,10 +111,18 @@ order once.
 9. **Exit criteria 1-7**, capturing real command output for the record.
 10. **Regenerate and commit `trust-report.txt`** (§0.2).
 11. **Release record** at `docs/release/records/<version>.md` (§4).
-12. **Clean-clone check** — clone the committed tree into a scratch directory
+12. **Re-run exit criterion 6 after the record is committed.** The record's
+    own commit is what makes the milestone count as *shipped* to
+    `errata-tracking`, so an erratum tracked to this milestone and still
+    `ACCEPTED` turns Gate 12 red only *after* step 11. A gate run taken at
+    step 9 cannot see that. *(Found by the implementer at the 0.30.0 cut —
+    the first executed from this document — where the clean-clone check
+    caught it instead. If it fires, report it; do not close the erratum
+    yourself.)*
+13. **Clean-clone check** — clone the committed tree into a scratch directory
     and run `consistency-check --all` there. This is what caught E-038, and no
     procedure required it at the time. It is required now.
-13. **Stop.** Hand over for review; do not tag.
+14. **Stop.** Hand over for review; do not tag.
 
 ## 2. What stays with the architect, and why you must not do it
 
@@ -168,7 +176,8 @@ The release record at `docs/release/records/<version>.md` carries:
    write one to paper over a red gate.**
 8. The **repro-baseline diff**, showing which binaries moved and why that is
    the expected set.
-9. The **clean-clone check** result (§1 step 12).
+9. The **clean-clone check** result (§1 step 13), and the post-record re-run of
+   criterion 6 (§1 step 12).
 
 Follow the shape of [`records/0.29.0.md`](records/0.29.0.md); it is the most
 recent and the most complete.

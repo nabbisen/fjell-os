@@ -2020,9 +2020,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   architect to do the preparation rather than hand part of it over. It is not
   what the cycle says.
 - **Resolution:** ~~**ACCEPTED** (architect, 2026-09-09), `unscheduled`.~~ →
-  **ACCEPTED**, tracked **0.30** — the cut itself (owner decision,
+  ~~**ACCEPTED**, tracked **0.30** — the cut itself (owner decision,
   2026-09-10):
-  *"make work of dev team and handoffs for it if necessary and reasonable."*
+  *"make work of dev team and handoffs for it if necessary and reasonable."*~~
+  → **CLOSED** at the **0.30.0** cut, on the architect's review of it
+  (2026-09-12).
+
+  > **Closed 2026-09-12.** The 0.30.0 cut was executed by the implementer
+  > from `docs/release/release-handoff.md` and reviewed by the architect —
+  > the first release in this project whose preparation anyone checked. The
+  > cut's own record and CHANGELOG reported, correctly and without resolving
+  > it, that `errata-tracking` refused the cut on this very entry: committing
+  > the release record is what makes milestone 0.30 count as shipped, and
+  > this entry was tracked to 0.30 and still ACCEPTED. That is property 2
+  > firing as designed, and the implementer left the disposition to the
+  > review rather than closing an erratum about themselves. This is that
+  > review, and the evidence is the one the entry's own text named.
+  >
+  > **What reviewing the cut found**, which is the argument for having done
+  > it: under exit criterion 8 the threat model's T20 row still read "the
+  > toolchain is not yet recorded (E-037)" two days after RFC-0.30-003 had
+  > recorded it on every artefact — a stale row no gate can see, corrected.
+  > Two "ten subchecks" phrasings in `v1-limitations.md` that had become
+  > present-tense-wrong when the eleventh subcheck landed, corrected. And
+  > the implementer found a cycle defect from the inside: the written order
+  > ran exit criterion 6 before the release record existed, so a refusal
+  > caused by the record's own commit could not be seen — the clean-clone
+  > check caught it instead. The handoff now re-runs criterion 6 after the
+  > record lands.
+  >
+  > One trap-6 instance occurred and was self-reported: three `git mv`
+  > renames rode into the preceding commit because `git mv` stages
+  > immediately. No wrong content; the commit boundary did not match its
+  > message. Caught by the trap's own instruction, after the fact.
 
   > **Dispositioned 2026-09-10.** Both halves of this entry are addressed, and
   > it closes when the cut it describes has actually been executed and reviewed
@@ -2168,7 +2198,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
 | E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
-| E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | ACCEPTED |
+| E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | unscheduled | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and

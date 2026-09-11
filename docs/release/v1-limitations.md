@@ -144,7 +144,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   had their citations corrected to the real, specific demonstrations that
   already existed (a live category violation for Gate 2; the
   `SYSCALL-CALLSITE-001`/`-002` regression tests for Gate 11; one named
-  failing-test per subcheck for Gate 12's now-ten subchecks); 4 rows with no
+  failing-test per subcheck for Gate 12's then-ten subchecks — eleven since
+  RFC-0.30-003); 4 rows with no
   demonstration at all (`fjell-abi-snapshot` ×2, `repro/baseline-digests.txt`,
   `ci-arm64-check`) each got one produced live against real committed data
   (a reverted-and-restored scanner regression, a corrupted digest byte, a
@@ -562,9 +563,11 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **Fixed:** `read_file`/`read_dir_named` (`tools/fjell-consistency-check`) now
   take the calling subcheck's own name and print `<name>: FAIL — <reason>` on
   any I/O failure — applied everywhere that shape appeared in the crate, not
-  only these four — the sweep reaches all ten subchecks, the other six being
-  `doc-links`, `version-currency`, `syscall-surface`, `evidence`,
-  `standards-mapping` and `errata-limitations`.
+  only these four — the sweep reached all ten subchecks that existed at the
+  time, the other six being `doc-links`, `version-currency`,
+  `syscall-surface`, `evidence`, `standards-mapping` and
+  `errata-limitations`; the eleventh, `toolchain-declarations`
+  (RFC-0.30-003), was built on the same named helpers.
   `handoff-status` additionally now enumerates `rfcs/{proposed,accepted,done}`
   directly before touching any handoff, closing the blind-pass gap. Keeper
   files still exist in all four lifecycle folders, unrelated and unchanged —
@@ -582,8 +585,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   2026-09-10; E-015's closure had named only one such milestone and six more
   survived it.
 
-- **The release cut is the only work in this project nobody reviews** (Errata
-  **E-039**, ACCEPTED). The cycle's Roles table makes the implementer
+- **The release cut used to be the only work in this project nobody reviews**
+  (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer
   Responsible for verifying exit criteria and producing the release record, with
   the architect Accountable and Consulted. In practice the architect did all of
   it for five consecutive releases (`0.25.0`-`0.29.0`), so those changes landed
@@ -591,14 +594,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `rfcs/accepted/` directory that vanished from fresh clones, and document
   corrections nobody checked.
 
-  **Being corrected at 0.30.0.** The cause was that the cut had no handoff while
-  every RFC has one; `docs/release/release-handoff.md` is now the standing
-  handoff for every cut, the Roles table's undefined `A`/`R`/`C`/`I` legend is
-  stated, and the implementer executes this cut with the architect reviewing it.
-  Exit criterion 8 — reading this document and the standards mapping against a
-  release's real changes — stays with the architect, because a resolving path is
-  not a true row and no gate can tell the difference. The entry stays ACCEPTED
-  until a cut has actually run that way.
+  **Corrected at 0.30.0.** The cause was that the cut had no handoff while every
+  RFC has one; `docs/release/release-handoff.md` is now the standing handoff
+  for every cut, and the Roles table's undefined `A`/`R`/`C`/`I` legend is
+  stated. The 0.30.0 cut was the first executed by the implementer from that
+  handoff and reviewed by the architect like any other line. Exit criterion 8 —
+  reading this document, the standards mapping and the threat model against a
+  release's real changes — stays with the architect, because a resolving path
+  is not a true row and no gate can tell the difference; at this first reviewed
+  cut it found the threat model's T20 row still saying the toolchain was
+  "not yet recorded" two days after RFC-0.30-003 had recorded it. The cut also
+  found that the written order ran exit criterion 6 before the release record
+  existed, so a refusal the record's own commit causes could not be seen —
+  fixed in the handoff.
 
 - **QEMU negative-test coverage status (v0.19/v0.20).** The nine main
   negative categories now run real QEMU profiles with fail-closed marker

@@ -104,12 +104,19 @@ release's own record was committed, milestone `0.30` counted as shipped, and
 already shipped without being `CLOSED`. The mechanism worked exactly as
 designed; it is reported in the release record rather than resolved by the
 cut, since `E-039`'s own proposed resolution is this cut's review, which is
-not this record's to grant itself.
+not this record's to grant itself. **Closed on that review** (2026-09-12): the
+cut was executed from the handoff and reviewed like any other line, and the
+review's own criterion-8 pass found the threat model's T20 row still saying
+the toolchain was "not yet recorded" two days after RFC-0.30-003 recorded it
+— the first cut-time correction in this project that anyone checked. The
+ordering gap the cut surfaced (exit criterion 6 run before the record exists)
+is fixed in the handoff.
 
 ### Errata
 
-**40 entries: 0 OPEN, 30 CLOSED, 10 ACCEPTED.** Closed this release: **E-035**,
-**E-036**, **E-038**. Narrowed: **E-037** (two coupled survivors named).
+**40 entries: 0 OPEN, 31 CLOSED, 9 ACCEPTED.** Closed this release: **E-035**,
+**E-036**, **E-038**, **E-039**. Narrowed: **E-037** (two coupled survivors
+named).
 
 **E-040, filed today: `qemu-test` accepts eleven milestones; the kernel emits
 markers for five.** Found revisiting **E-015**'s 0.29.0 closure, in the same
@@ -122,10 +129,7 @@ An artefact-leak half of this erratum is already fixed; the six-milestone
 half is **ACCEPTED, unscheduled**, disclosed in `v1-limitations.md`, and does
 not block this or any release on its own.
 
-**E-039**, tracked to this milestone, is not yet dispositioned: the handoff
-and this cut are its own proposed evidence, and whether it closes is for the
-architect to judge on this cut's review, not for the cut to declare of
-itself.
+**E-039** closed on this cut's review — see "The cut itself" above.
 
 Still open and unscheduled: **E-014** (two named instances), **E-034**,
 **E-037** (two coupled survivors), **E-040** (six milestones).
