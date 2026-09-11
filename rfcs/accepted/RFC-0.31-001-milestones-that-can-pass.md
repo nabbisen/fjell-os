@@ -1,6 +1,6 @@
 # RFC-0.31-001: Six milestones the smoke runner accepts and nothing can pass
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-12; implementation may begin (RFC 000)
 **Milestone:** 0.31
 **Tracks.** **E-040** — six of the eleven milestones `cargo xtask qemu-test`
 accepts expect a marker no code emits; they boot QEMU, wait out the full

@@ -397,17 +397,19 @@ without having checked something.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-No RFC is currently signed off and awaiting implementation.
-
----
-
-## Proposed (proposed/) — 1 RFC
+Signed off by the owner; implementation may begin; not yet shipped.
 
 | RFC | Title |
 |-----|-------|
-| 0.31-001 | [Six milestones the smoke runner accepts and nothing can pass](./proposed/RFC-0.31-001-milestones-that-can-pass.md) — closes **E-040** |
+| 0.31-001 | [Six milestones the smoke runner accepts and nothing can pass](./accepted/RFC-0.31-001-milestones-that-can-pass.md) — accepted 2026-09-12; closes **E-040**; handoff: [`handoffs/`](./handoffs/RFC-0.31-001-milestones-that-can-pass/implementation-handoff.md) |
+
+---
+
+## Proposed (proposed/) — none
+
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 
