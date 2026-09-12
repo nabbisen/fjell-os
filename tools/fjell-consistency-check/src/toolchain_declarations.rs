@@ -57,6 +57,7 @@
 //! is not required to use the action.
 
 use crate::read_file;
+use std::fs;
 use std::process::ExitCode;
 
 const NAME: &str = "toolchain-declarations";
@@ -67,6 +68,41 @@ const ACTION_REF: &str = "uses: ./.github/actions/toolchain";
 const LOCAL_DEV_PATH: &str = "docs/src/internals/local-development.md";
 const QUICK_START_PATH: &str = "docs/src/tutorials/quick-start.md";
 const RELEASE_CHECKLIST_PATH: &str = "docs/release/release-checklist.md";
+
+/// Where a reader is told to run a command *now*. RFC-0.31-003 D3: an apt
+/// `rustc-<version>` instruction in any of these is a failure, because no
+/// apt toolchain can build this project — Ubuntu's `rust-src` ships the
+/// standard library's source without its `Cargo.lock`, and every kernel
+/// build passes `-Z build-std` (E-041).
+///
+/// **Scoped to live instruction sites, and not to the whole tree.** The
+/// RFC asks for "anywhere in the tree", and that is not implementable as
+/// written: `docs/rfcs/ERRATA.md` quotes the apt line because it is the
+/// defect E-041 records, `rfcs/` quotes it in four RFCs including
+/// RFC-0.31-003 itself, this file's own fixtures must contain it to test
+/// for it, and `docs/release/v1-limitations.md` discloses it. A rule that
+/// failed on all of those would fail on the document that mandates the
+/// rule. The distinction is the one this subcheck has always drawn: a
+/// declaration tells you what to do, a record tells you what was done.
+const LIVE_INSTRUCTION_ROOTS: &[&str] = &[
+    ".github/workflows",
+    "docs/src",
+    "README.md",
+    "docs/release/release-checklist.md",
+];
+
+/// The one subtree excluded from `LIVE_INSTRUCTION_ROOTS`: the book's
+/// archive of release notes and past milestone handoffs. Those record the
+/// prerequisites of a shipped release and are correct as written —
+/// `docs/src/releases/v0.1.0-scope.md` and `handoff-v0.17-v0.18.md` both
+/// name the apt line, and both are history. Named as one exclusion with a
+/// reason rather than a blocklist that grows quietly.
+const INSTRUCTION_ARCHIVE: &str = "docs/src/releases";
+
+/// Files the scan must have visited. A path typo or a moved directory would
+/// otherwise empty the scan silently, and an empty scan reports PASS — the
+/// failure mode this milestone exists to remove.
+const SCAN_MUST_INCLUDE: &[&str] = &[QUICK_START_PATH, LOCAL_DEV_PATH];
 
 /// What makes a job toolchain-dependent, and the words this subcheck uses
 /// to say so. Matched against the job's own `run:` lines — never against
@@ -117,7 +153,113 @@ pub fn check() -> ExitCode {
         &local_dev_src,
         &quick_start_src,
         &checklist_src,
+        &scan_live_instruction_sites(),
     )
+}
+
+/// One apt toolchain instruction found in a live instruction site.
+#[derive(Debug)]
+pub struct AptMention {
+    pub path: String,
+    pub line: usize,
+    pub text: String,
+    pub version: String,
+}
+
+/// What `scan_live_instruction_sites` found, including how much it looked
+/// at — because "found nothing" and "looked at nothing" must not report the
+/// same way.
+#[derive(Debug, Default)]
+pub struct AptScan {
+    pub hits: Vec<AptMention>,
+    pub files_scanned: usize,
+    /// Entries of `SCAN_MUST_INCLUDE` the walk never visited.
+    pub missing_required: Vec<String>,
+}
+
+impl AptScan {
+    /// A scan that looked at the required files and found nothing — the
+    /// correct state, for tests that are not about this property.
+    #[cfg(test)]
+    fn clean() -> Self {
+        AptScan {
+            hits: Vec::new(),
+            files_scanned: SCAN_MUST_INCLUDE.len(),
+            missing_required: Vec::new(),
+        }
+    }
+}
+
+/// Walk `LIVE_INSTRUCTION_ROOTS` (minus `INSTRUCTION_ARCHIVE`) for apt
+/// instructions that install a versioned Rust toolchain.
+fn scan_live_instruction_sites() -> AptScan {
+    let mut scan = AptScan::default();
+    let mut visited: Vec<String> = Vec::new();
+
+    for root in LIVE_INSTRUCTION_ROOTS {
+        walk(std::path::Path::new(root), &mut scan, &mut visited);
+    }
+
+    for required in SCAN_MUST_INCLUDE {
+        if !visited.iter().any(|v| v == required) {
+            scan.missing_required.push((*required).to_string());
+        }
+    }
+    scan
+}
+
+fn walk(path: &std::path::Path, scan: &mut AptScan, visited: &mut Vec<String>) {
+    let display = path.to_string_lossy().replace('\\', "/");
+    if display.starts_with(INSTRUCTION_ARCHIVE) {
+        return;
+    }
+    if path.is_dir() {
+        let Ok(entries) = fs::read_dir(path) else {
+            return;
+        };
+        let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+        paths.sort();
+        for child in paths {
+            walk(&child, scan, visited);
+        }
+        return;
+    }
+    let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+    if !matches!(ext, "md" | "yml" | "yaml" | "sh") {
+        return;
+    }
+    let Ok(src) = fs::read_to_string(path) else {
+        return;
+    };
+    scan.files_scanned += 1;
+    visited.push(display.clone());
+    for (i, line) in src.lines().enumerate() {
+        if let Some(version) = apt_toolchain_version(line) {
+            scan.hits.push(AptMention {
+                path: display.clone(),
+                line: i + 1,
+                text: line.trim().to_string(),
+                version,
+            });
+        }
+    }
+}
+
+/// `sudo apt install rustc-1.91 …` / `apt-get install -y rustc-1.91 …` —
+/// an apt invocation that installs a versioned Rust compiler. Matched on
+/// the two facts together (an apt install, and a versioned `rustc-`), so a
+/// sentence merely mentioning `rustc-1.91` in prose is not a hit and a
+/// reworded flag order still is.
+fn apt_toolchain_version(line: &str) -> Option<String> {
+    if !(line.contains("apt install") || line.contains("apt-get install")) {
+        return None;
+    }
+    let rest = line.split("rustc-").nth(1)?;
+    let version: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    (!version.is_empty()).then_some(version)
 }
 
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
@@ -130,6 +272,7 @@ pub fn run_check(
     local_dev_src: &str,
     quick_start_src: &str,
     checklist_src: &str,
+    apt: &AptScan,
 ) -> ExitCode {
     let Some(anchor) = extract_channel(rust_toolchain_src) else {
         eprintln!("{NAME}: FAIL — {RUST_TOOLCHAIN_PATH} has no `channel = \"...\"` line");
@@ -226,13 +369,38 @@ pub fn run_check(
             checked += 1;
             if v != anchor {
                 problems.push(format!(
-                    "{QUICK_START_PATH}: installs rustc-{v}, but {RUST_TOOLCHAIN_PATH} says {anchor:?}"
+                    "{QUICK_START_PATH}: `rustup toolchain install {v}` disagrees with {RUST_TOOLCHAIN_PATH}'s {anchor:?}"
                 ));
             }
         }
         None => problems.push(format!(
-            "{QUICK_START_PATH}: no `apt install rustc-<version>` line found"
+            "{QUICK_START_PATH}: no `rustup toolchain install <version>` line found"
         )),
+    }
+
+    // RFC-0.31-003 D3: no live instruction site installs Rust from apt.
+    for m in &apt.hits {
+        problems.push(format!(
+            "{}:{}: instructs a reader to install rustc-{} from apt — no apt toolchain can \
+             build this project (Ubuntu's `rust-src` ships no `library/Cargo.lock` and every \
+             kernel build passes `-Z build-std`; E-041). Use rustup, as {LOCAL_DEV_PATH} does. \
+             The line: {}",
+            m.path, m.line, m.version, m.text
+        ));
+    }
+    // The positive control for that scan, in both directions: it must have
+    // read something, and it must have read the sites that matter.
+    if apt.files_scanned == 0 {
+        problems.push(format!(
+            "the live-instruction scan read zero files — {LIVE_INSTRUCTION_ROOTS:?} matched \
+             nothing, so this subcheck is asserting nothing about apt toolchain instructions"
+        ));
+    }
+    for missing in &apt.missing_required {
+        problems.push(format!(
+            "the live-instruction scan never visited {missing} — it is one of the sites this \
+             check exists to cover, so the walk has gone blind rather than found it clean"
+        ));
     }
 
     match extract_checklist_version(checklist_src) {
@@ -253,7 +421,9 @@ pub fn run_check(
         println!(
             "{NAME}: PASS ({dependent} toolchain-dependent CI job(s) on {ACTION_PATH}, \
              0 versioned mentions in {CI_PATH}, {checked} site(s) checked against \
-             {RUST_TOOLCHAIN_PATH}'s channel {anchor:?})"
+             {RUST_TOOLCHAIN_PATH}'s channel {anchor:?}, 0 apt toolchain instructions \
+             across {} live instruction file(s))",
+            apt.files_scanned
         );
         ExitCode::SUCCESS
     } else {
@@ -416,15 +586,26 @@ fn extract_local_dev_command_version(src: &str) -> Option<String> {
         .map(str::to_string)
 }
 
-/// `sudo apt install rustc-1.91 cargo-1.91 rust-1.91-src lld llvm` —
-/// matched on `rustc-` specifically (not `rust-`, which also appears in
-/// `rust-1.91-src` on the same line and would otherwise be found first).
+/// `rustup toolchain install 1.91 --component rust-src …` — the first such
+/// line in the quick start.
+///
+/// **This site used to be an apt line** (`sudo apt install rustc-1.91 …`)
+/// and RFC-0.31-003 moved it to rustup for two reasons at once: that apt
+/// path cannot build this project at all (E-041, live in the one document
+/// written for a first-time reader), and while it existed an exact patch
+/// pin was impossible, because `toolchain-declarations` compares this site
+/// to the channel exactly and Ubuntu ships no `rustc-<major>.<minor>.<patch>`
+/// package. RFC-0.31-002's review recorded the pin collision as gone once
+/// `ci.yml` stopped naming apt packages; it had moved here, not gone.
 fn extract_quick_start_version(src: &str) -> Option<String> {
     let line = src
         .lines()
-        .find(|l| l.contains("apt install") && l.contains("rustc-"))?;
-    let rest = line.split("rustc-").nth(1)?;
-    rest.split_whitespace().next().map(str::to_string)
+        .find(|l| l.trim_start().starts_with("rustup toolchain install "))?;
+    line.trim_start()
+        .strip_prefix("rustup toolchain install ")?
+        .split_whitespace()
+        .next()
+        .map(str::to_string)
 }
 
 /// `rustc --version | grep "1.91"` — the one live *check*, not just prose.
@@ -445,8 +626,7 @@ mod tests {
     const RUST_TOOLCHAIN: &str = "[toolchain]\nchannel = \"1.91\"\nprofile = \"minimal\"\n";
     const ACTION: &str = "name: Install the declared toolchain\nruns:\n  using: composite\n";
     const LOCAL_DEV: &str = "| Tool | Version | Purpose |\n|---|---|---|\n| Rust | 1.91 (stable) | Kernel and all service crates |\n\n```sh\nrustup toolchain install 1.91\n```\n";
-    const QUICK_START: &str =
-        "```bash\nsudo apt install rustc-1.91 cargo-1.91 rust-src lld llvm\n```\n";
+    const QUICK_START: &str = "```bash\nrustup toolchain install 1.91 --component rust-src\nsudo apt install lld llvm\n```\n";
     const CHECKLIST: &str = "```bash run-verified\nrustc --version | grep \"1.91\"\n```\n";
 
     /// A correct post-RFC-0.31-002 workflow: no versioned mention, and the
@@ -477,6 +657,7 @@ jobs:
             LOCAL_DEV,
             QUICK_START,
             CHECKLIST,
+            &AptScan::clean(),
         )
     }
 
@@ -653,7 +834,15 @@ jobs:
     #[test]
     fn a_missing_composite_action_fails() {
         assert_eq!(
-            run_check(RUST_TOOLCHAIN, CI, None, LOCAL_DEV, QUICK_START, CHECKLIST),
+            run_check(
+                RUST_TOOLCHAIN,
+                CI,
+                None,
+                LOCAL_DEV,
+                QUICK_START,
+                CHECKLIST,
+                &AptScan::clean(),
+            ),
             ExitCode::FAILURE
         );
     }
@@ -666,24 +855,153 @@ jobs:
     /// accepts `channel = "1.91.1"`, so the collision is gone: pinning is
     /// now a decision about the pin alone.
     #[test]
-    fn an_exact_patch_pin_no_longer_collides_with_ci() {
-        let pinned = "[toolchain]\nchannel = \"1.91.1\"\n";
-        let local_dev = "| Rust | 1.91.1 (stable) | x |\n\nrustup toolchain install 1.91.1\n";
-        let quick = "sudo apt install rustc-1.91.1 cargo-1.91.1\n";
-        let checklist = "rustc --version | grep \"1.91.1\"\n";
+    fn an_exact_patch_pin_is_possible_now_that_no_site_is_an_apt_site() {
+        let pinned = "[toolchain]\nchannel = \"1.98.1\"\n";
+        let local_dev = "| Rust | 1.98.1 (stable) | x |\n\nrustup toolchain install 1.98.1\n";
+        let quick = "rustup toolchain install 1.98.1 --component rust-src\n";
+        let checklist = "rustc --version | grep \"1.98.1\"\n";
         assert_eq!(
-            run_check(pinned, CI, Some(ACTION), local_dev, quick, checklist),
+            run_check(
+                pinned,
+                CI,
+                Some(ACTION),
+                local_dev,
+                quick,
+                checklist,
+                &AptScan::clean(),
+            ),
             ExitCode::SUCCESS
         );
     }
 
+    /// The test this replaced asserted a tree that cannot exist. It used
+    /// the fixture `sudo apt install rustc-1.91.1 cargo-1.91.1` to show
+    /// that an exact pin no longer collided with the gate — but Ubuntu
+    /// ships no `rustc-<major>.<minor>.<patch>` package, so that apt line
+    /// could never have been run by anyone. It proved the gate accepted a
+    /// pin while asserting a tree that could not hold one. Recorded here
+    /// because "the fixture is impossible" is not visible from a green
+    /// test, and the replacement above uses shapes the tree really has.
     #[test]
-    fn extract_quick_start_is_not_fooled_by_rust_dash_src() {
+    fn an_apt_toolchain_instruction_in_a_live_site_fails_naming_it() {
+        let scan = AptScan {
+            hits: vec![AptMention {
+                path: QUICK_START_PATH.to_string(),
+                line: 11,
+                text: "sudo apt install rustc-1.91 cargo-1.91 rust-src lld llvm".to_string(),
+                version: "1.91".to_string(),
+            }],
+            files_scanned: 2,
+            missing_required: Vec::new(),
+        };
         assert_eq!(
-            extract_quick_start_version(
-                "sudo apt install rustc-1.91 cargo-1.91 rust-1.91-src lld llvm"
+            run_check(
+                RUST_TOOLCHAIN,
+                CI,
+                Some(ACTION),
+                LOCAL_DEV,
+                QUICK_START,
+                CHECKLIST,
+                &scan,
             ),
+            ExitCode::FAILURE
+        );
+    }
+
+    /// The positive control, both halves: a scan that read nothing, and a
+    /// scan that read something but never reached the sites it exists to
+    /// cover. Neither may report PASS.
+    #[test]
+    fn a_scan_that_read_nothing_fails_rather_than_passing_vacuously() {
+        let empty = AptScan {
+            hits: Vec::new(),
+            files_scanned: 0,
+            missing_required: SCAN_MUST_INCLUDE.iter().map(|s| s.to_string()).collect(),
+        };
+        assert_eq!(
+            run_check(
+                RUST_TOOLCHAIN,
+                CI,
+                Some(ACTION),
+                LOCAL_DEV,
+                QUICK_START,
+                CHECKLIST,
+                &empty,
+            ),
+            ExitCode::FAILURE
+        );
+    }
+
+    #[test]
+    fn a_scan_that_missed_a_required_site_fails_rather_than_passing_vacuously() {
+        let blind = AptScan {
+            hits: Vec::new(),
+            files_scanned: 400,
+            missing_required: vec![QUICK_START_PATH.to_string()],
+        };
+        assert_eq!(
+            run_check(
+                RUST_TOOLCHAIN,
+                CI,
+                Some(ACTION),
+                LOCAL_DEV,
+                QUICK_START,
+                CHECKLIST,
+                &blind,
+            ),
+            ExitCode::FAILURE
+        );
+    }
+
+    #[test]
+    fn apt_toolchain_version_needs_both_an_apt_install_and_a_versioned_rustc() {
+        assert_eq!(
+            apt_toolchain_version("sudo apt install rustc-1.91 cargo-1.91 rust-src"),
             Some("1.91".to_string())
+        );
+        assert_eq!(
+            apt_toolchain_version("sudo apt-get install -y --no-install-recommends rustc-1.90"),
+            Some("1.90".to_string())
+        );
+        // Prose naming the package is a record, not an instruction.
+        assert_eq!(
+            apt_toolchain_version("E-041: the `rustc-1.91` apt path cannot build-std"),
+            None
+        );
+        // An apt line that installs no Rust is fine — quick-start still
+        // uses one for lld, llvm and qemu.
+        assert_eq!(apt_toolchain_version("sudo apt install lld llvm"), None);
+        assert_eq!(apt_toolchain_version("sudo apt install cargo-fuzz"), None);
+    }
+
+    #[test]
+    fn extract_quick_start_reads_the_rustup_line_not_the_apt_one() {
+        let src = concat!(
+            "rustup toolchain install 1.91 \\\n",
+            "    --component rust-src \\\n",
+            "    --target riscv64gc-unknown-none-elf\n",
+            "sudo apt install lld llvm\n"
+        );
+        assert_eq!(extract_quick_start_version(src), Some("1.91".to_string()));
+    }
+
+    #[test]
+    fn a_quick_start_left_behind_at_a_bump_fails_naming_it() {
+        let bumped = "[toolchain]\nchannel = \"1.98.1\"\n";
+        let stale_quick = "rustup toolchain install 1.91 --component rust-src\n";
+        let local_dev = "| Rust | 1.98.1 (stable) | x |\n\nrustup toolchain install 1.98.1\n";
+        let checklist = "rustc --version | grep \"1.98.1\"\n";
+        assert_eq!(
+            run_check(
+                bumped,
+                CI,
+                Some(ACTION),
+                local_dev,
+                stale_quick,
+                checklist,
+                &AptScan::clean(),
+            ),
+            ExitCode::FAILURE
         );
     }
 
@@ -703,7 +1021,15 @@ jobs:
     fn a_doc_site_left_behind_at_a_bump_fails_naming_it() {
         let bumped = "[toolchain]\nchannel = \"1.92\"\nprofile = \"minimal\"\n";
         assert_eq!(
-            run_check(bumped, CI, Some(ACTION), LOCAL_DEV, QUICK_START, CHECKLIST),
+            run_check(
+                bumped,
+                CI,
+                Some(ACTION),
+                LOCAL_DEV,
+                QUICK_START,
+                CHECKLIST,
+                &AptScan::clean(),
+            ),
             ExitCode::FAILURE
         );
     }
@@ -717,7 +1043,8 @@ jobs:
                 Some(ACTION),
                 LOCAL_DEV,
                 QUICK_START,
-                CHECKLIST
+                CHECKLIST,
+                &AptScan::clean(),
             ),
             ExitCode::FAILURE
         );
@@ -733,7 +1060,8 @@ jobs:
                 Some(ACTION),
                 LOCAL_DEV,
                 QUICK_START,
-                stale_checklist
+                stale_checklist,
+                &AptScan::clean(),
             ),
             ExitCode::FAILURE
         );

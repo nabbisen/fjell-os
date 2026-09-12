@@ -7,12 +7,32 @@
 Ubuntu 24.04 (or compatible), x86_64 host.
 
 ```bash
-# Rust 1.91 (the pinned Fjell build toolchain) + sources + linker
-sudo apt install rustc-1.91 cargo-1.91 rust-src lld llvm
+# Rust, through rustup. Do not install Rust from apt: Ubuntu's `rust-src`
+# package ships the standard library's source without its `Cargo.lock`, and
+# this kernel is built with `-Z build-std`, which needs both. An apt
+# toolchain fails with
+#   error: ".../library/Cargo.lock" does not exist, unable to build with
+#          the standard library
+# which is the error that kept this project's CI red for four months
+# (ERRATA E-041). rustup is the only path that works.
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+rustup toolchain install 1.91 \
+    --component rust-src \
+    --target riscv64gc-unknown-none-elf
+
+# The linker and binary tools the kernel build needs. `ld.lld` is in the
+# `lld` package, not `llvm`; `llvm` provides llvm-objcopy and llvm-nm.
+# These are not Rust, so apt is the right source for them.
+sudo apt install lld llvm
 # QEMU with the riscv64 system emulator (package: qemu-system-misc)
 sudo apt install qemu-system-misc
 qemu-system-riscv64 --version   # expect 8.2.x
 ```
+
+Once you have cloned the repository, `rust-toolchain.toml` is what decides
+the toolchain: rustup reads it and installs the exact version, components
+and target the project declares, so the version above is a starting point
+rather than a second declaration.
 
 ## Build
 
