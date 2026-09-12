@@ -5,6 +5,121 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.31.0] — 2026-09-13 — The checks that had never run
+
+Three RFCs, **four errata closed** (**E-037**, **E-040**, **E-041**, **E-042**),
+and a crate deleted. 0.30 found instruments reporting success without having
+checked something. 0.31 found instruments that had **never executed at all**,
+and the reporting that covered for them.
+
+**CI built this product for the first time in this release.** Before it, the
+workflow had one green run in 152 — 2026-05-05, before any job compiled for
+RISC-V — and every sentence in this project that said a check "runs in CI on
+every push" had been written from `ci.yml`'s text rather than from a run.
+
+### Fixed — six smoke milestones nothing could pass (RFC-0.31-001)
+
+`cargo xtask qemu-test` accepted `m1`–`m6` and waited out a 60-second QEMU
+timeout on each, because the kernel emits no `TEST:M1..M6:PASS` marker and
+never has — `TEST:M7:PASS` is the cumulative pass for everything those
+milestones once covered. The runner's accepted list and the kernel's emitted
+markers had drifted with nothing comparing them.
+
+One list now, and a test reads the kernel's own `trap/dispatch.rs` and fails
+if an accepted milestone is not emitted there, if anything emitted is not
+accepted, **or if a marker is constructed in a way the parser cannot read** —
+so "invisible" can no longer pass for "absent". `qemu-test m5` now answers in
+0.36s naming the five milestones that can actually pass.
+
+Closes **E-040**.
+
+### Fixed — no CI job had ever built the kernel or a service (RFC-0.31-002)
+
+Every job that compiled for `riscv64gc-unknown-none-elf` died before building
+anything:
+
+```
+error: "/usr/lib/rust-1.91/lib/rustlib/src/rust/library/Cargo.lock" does not
+exist, unable to build with the standard library
+```
+
+Ubuntu's apt `rust-src` ships the standard library's source without its
+`Cargo.lock`, and every kernel build passes `-Z build-std`. **There is no apt
+package that fixes this**, so the seventeen hand-copied `apt-get install
+rustc-1.91` blocks had been installing a toolchain that structurally could not
+compile this product since the first QEMU job existed.
+
+CI now installs through rustup from `rust-toolchain.toml` via one composite
+action, which **fails closed** if that file is absent — rustup would otherwise
+resolve to the runner's ambient `stable` and go green against a toolchain
+nobody declared. `ci.yml` carries zero versioned toolchain mentions, and
+`toolchain-declarations` inverted to enforce that, deriving the set of jobs
+that need a toolchain from their own `run:` lines rather than from a list of
+job names.
+
+Also fixed, each invisible until the one in front of it stopped failing:
+`ld.lld` had never been installed by any job (`.cargo/config.toml` names it;
+Ubuntu ships it in `lld`, not `llvm`); `ci-test-v07-formats` passed no
+`crypto-profile-development` feature, which RFC-0.29-001 had named and left;
+and the six dead `qemu-smoke` matrix entries went. `ci-proptest` needed no fix
+— it had been compiling and running **24 passing property tests** all along,
+then dying in its doc-test phase because the apt shim covered `rustc` and
+`cargo` but not `rustdoc`, putting two different compilers in one job.
+
+**Eleven documents claiming a check "runs in CI" were corrected.** The release
+cycle gained exit criterion 9: the cut reads the release commit's run with
+`gh run view` and records the id and per-job conclusions. A red job blocks the
+tag or takes an accepted-risk statement.
+
+Closes **E-041**, and **E-037**'s consolidation survivor — twenty-two
+declaration sites became five.
+
+### Fixed — the toolchain was ten months stale behind a floating channel (RFC-0.31-003)
+
+`channel = "1.91"` floated within `1.91.x` and resolved to a compiler from
+2025-11-07: **ten months and seven minor versions** behind current stable, a
+gap nobody had decided on. Now pinned exactly at **1.98.1**, so the compiler
+that produced every committed artefact cannot move underneath it.
+
+Verified by behaviour rather than by compilation: all 24 `test-all` tiers
+green against the rebuilt tree and a fully green CI run. The bump moved **24
+of the 29 prebuilts** — the five that did not are 32–54 byte stubs.
+
+`docs/src/tutorials/quick-start.md` was still telling every first-time reader
+to `apt install rustc-1.91` — simultaneously E-041's cause, live in the one
+document written for someone who has never built this project, and the last
+thing in the tree that would have collided with an exact pin. It installs Rust
+through rustup now, and an apt Rust-toolchain instruction in any live
+documentation site is a gate failure.
+
+An exact pin converts silent drift into silent staleness, so the cut gained
+exit criterion 10: it records the pin, current stable and the gap, and **more
+than three minor versions behind blocks the tag**.
+
+`rust-version = "1.91"` stays where it is — a floor is a promise to a
+consumer, not a mirror of the build channel — but is now verified at exactly
+`1.91.0` rather than assumed.
+
+Closes **E-037**, the arc that opened at E-035.
+
+### Removed — `fjell-identityd` and an orphan API module
+
+`fjell-identityd` had never compiled for its own target since the day it was
+written: it imports `fjell_service_api::storaged`, which lived in
+`crates/fjell-service-api/src/storaged.rs` — **a file no `mod` declaration
+ever included**, because an inline `pub mod storaged` of tag constants already
+existed. Its functions were skeletons returning `ServiceUnavailable`, waiting
+on deliverables that never landed. The only job that compiles the crate had
+never got past installing its toolchain, so nothing could see it.
+
+Deleted as scaffolding rather than wired to a stub that cannot work. The
+node-identity **design** is untouched and live in `fjell-identity-format`,
+which four crates depend on.
+
+Closes **E-042**.
+
+---
+
 ## [0.30.0] — 2026-09-10 — The instruments that decide whether a release may happen were themselves unchecked
 
 Three RFCs, **three errata closed and one narrowed to two named survivors**,

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.31-001
 
-**Governing RFC:** [RFC-0.31-001](../../accepted/RFC-0.31-001-milestones-that-can-pass.md)
+**Governing RFC:** [RFC-0.31-001](../../done/RFC-0.31-001-milestones-that-can-pass.md)
 **Milestone:** 0.31
-**Status:** inherited from the governing RFC (Accepted, 2026-09-12)
+**Status:** inherited from the governing RFC (Implemented, 0.31.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

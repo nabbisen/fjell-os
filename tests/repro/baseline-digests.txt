@@ -1,7 +1,7 @@
 # algo: sha256 (64 hex chars per entry)
 # toolchain: 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 19841982dc7237ab8015f57f2232f8fc2469b6af02a36b4953b3edf5a156565e crates/fjell-kernel/prebuilt/fjell-attestd.bin
-8c398f4482cfc7eb6eb206df5434f89dab9a05520a1df6e730cf55b770a768e0 crates/fjell-kernel/prebuilt/fjell-auditd.bin
+5dcbd4e73647a977a745ff8d9b9b794cb8008dc47c4528ad204ca320c49e3f48 crates/fjell-kernel/prebuilt/fjell-auditd.bin
 02f4ae5b64ec3b2bf63cbe33bdcafdc1abef99bbe5e0de4a7d04c6fe771ba71c crates/fjell-kernel/prebuilt/fjell-bootctl.bin
 332e479d7b6c5aa09221f1e666f1f17d71de8a364078e89e57161d74c3f2a660 crates/fjell-kernel/prebuilt/fjell-cap-broker.bin
 a7fd8c0c836692f42fbb4a15d229c49c51a318594157f86cc5ee5fc5720836fb crates/fjell-kernel/prebuilt/fjell-configd.bin
@@ -10,10 +10,10 @@ a24778339cad30abd9fd3eed1713919a05d042e9bb6560c2e547464bbb778044 crates/fjell-ke
 4e02b11c6b2129abaa72654b1eb88cbb70c62951e674b23e349b3446203148cd crates/fjell-kernel/prebuilt/fjell-driver-uart.bin
 60bc527d71a469ef233abc9c764346ec06398eb3f63144cf848e7aaffe8b20f0 crates/fjell-kernel/prebuilt/fjell-driver-virtio-blk.bin
 5d184d12eea785310bab391db5f841e9ccd9845fd7d9c4cb760e0d775f7f7561 crates/fjell-kernel/prebuilt/fjell-driver-virtio-net.bin
-634964b6717b8b04818b8394df535374531294a8f8492f291ff32c6b0496ad32 crates/fjell-kernel/prebuilt/fjell-init.bin
+9d6ef1ecd5773ce549190d3544fdb060ea6e8ab3983d6a3b29c4ee99ceaa0d82 crates/fjell-kernel/prebuilt/fjell-init.bin
 c069bcff887ea195f7af68e4641aa427bc990749203b32704366057dfcf3ca06 crates/fjell-kernel/prebuilt/fjell-measuredd.bin
 60a71d8425031f2ce589edfcdbf39bfada298f34198dad2e72b0cc758350b6e1 crates/fjell-kernel/prebuilt/fjell-neg-test.bin
-239b6914a2a6762507d2bc38765a2715fbbd79efd864cef1b6a4dab5d7c196a7 crates/fjell-kernel/prebuilt/fjell-netd.bin
+308549efe77930d1ec60f4250c89051e7c7ef620bed0920e7c01ca3059007e0f crates/fjell-kernel/prebuilt/fjell-netd.bin
 7a3933943fbfc66aa5a307e507ed1f735f4a12bdaaf95ea970cecb7c3d00780e crates/fjell-kernel/prebuilt/fjell-powerd.bin
 bb41cd71ce51914f4c4b252edaa9dfc31949bceb2b62c3bae513fc56010fc799 crates/fjell-kernel/prebuilt/fjell-proxy-text.bin
 664d1c242793cc241cb3522b64b57add073e9e1a9ea5545ce7c949414dc8e324 crates/fjell-kernel/prebuilt/fjell-recoveryd.bin

@@ -1,6 +1,6 @@
 # RFC-0.31-001 §5 — Where does the accepted-milestone list live?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.31-001-milestones-that-can-pass.md](../../rfcs/accepted/RFC-0.31-001-milestones-that-can-pass.md)
+**Governing RFC:** [rfcs/done/RFC-0.31-001-milestones-that-can-pass.md](../../rfcs/done/RFC-0.31-001-milestones-that-can-pass.md)
 
 Answered before R2, per the handoff's required order — the shape decides
 whether there is a list to delete from at all.

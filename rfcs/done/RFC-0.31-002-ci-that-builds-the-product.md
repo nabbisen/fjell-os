@@ -1,6 +1,6 @@
 # RFC-0.31-002: A CI that builds the product
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-12; implementation may begin (RFC 000)
+**Status:** Implemented (0.31.0) — accepted 2026-09-12
 **Milestone:** 0.31
 **Tracks.** **E-041** — the workflow has had one green run in 152 (2026-05-05,
 before any QEMU-building job existed); no CI job has ever built the kernel or

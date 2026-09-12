@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 180 files
+## Implemented (done/) — 183 files
 
-179 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+182 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -395,17 +395,26 @@ without having checked something.
 | 0.30-002 | [Four subchecks that fail without saying which, and a baseline step nothing enforces](./done/RFC-0.30-002-checks-that-name-themselves.md) — closed **E-035**, **E-038**; every subcheck now names itself on failure | 0.30.0 |
 | 0.30-003 | [The toolchain is declared in twenty-two places, and no artefact records which one built it](./done/RFC-0.30-003-a-toolchain-that-records-itself.md) — narrowed **E-037** to two named, coupled survivors; toolchain now observed and recorded, not declared | 0.30.0 |
 
+### 0.31 — the checks that had never run
+
+0.30 found instruments reporting success without having checked. 0.31 found
+instruments that had never executed at all, and the reporting that covered for
+them. Six smoke milestones nothing could pass; a CI with one green run in 152
+that had never once built the kernel, while eleven documents said it ran on
+every push; a compiler ten months stale behind a floating channel. E-037
+closes the arc that opened at E-035.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.31-001 | [Six milestones the smoke runner accepts and nothing can pass](./done/RFC-0.31-001-milestones-that-can-pass.md) — closed **E-040**; one list, checked against the kernel's own markers in both directions | 0.31.0 |
+| 0.31-002 | [A CI that builds the product](./done/RFC-0.31-002-ci-that-builds-the-product.md) — closed **E-041** and **E-037**'s consolidation survivor; CI installs from `rust-toolchain.toml` through one composite action and builds the kernel for the first time | 0.31.0 |
+| 0.31-003 | [A toolchain that is current, and stays that way](./done/RFC-0.31-003-a-toolchain-that-stays-current.md) — closed **E-037**; pinned exactly at 1.98.1, and the cut now records how far behind the pin has drifted | 0.31.0 |
+
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — none
 
-Signed off by the owner; implementation may begin; not yet shipped.
-
-| RFC | Title |
-|-----|-------|
-| 0.31-001 | [Six milestones the smoke runner accepts and nothing can pass](./accepted/RFC-0.31-001-milestones-that-can-pass.md) — accepted 2026-09-12; closes **E-040**; handoff: [`handoffs/`](./handoffs/RFC-0.31-001-milestones-that-can-pass/implementation-handoff.md) |
-| 0.31-002 | [A CI that builds the product](./accepted/RFC-0.31-002-ci-that-builds-the-product.md) — accepted 2026-09-12; closes **E-041**, E-037's consolidation survivor; handoff: [`handoffs/`](./handoffs/RFC-0.31-002-ci-that-builds-the-product/implementation-handoff.md) |
-| 0.31-003 | [A toolchain that is current, and stays that way](./accepted/RFC-0.31-003-a-toolchain-that-stays-current.md) — accepted 2026-09-12; closes **E-037**'s last survivor; handoff: [`handoffs/`](./handoffs/RFC-0.31-003-a-toolchain-that-stays-current/implementation-handoff.md) |
+No RFC is currently awaiting implementation.
 
 ---
 

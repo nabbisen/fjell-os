@@ -107,6 +107,17 @@ order once.
 6. **ABI snapshot `--verify`** — expect `Added: 0` (trap 3).
 7. **Move this milestone's RFCs** `accepted/` → `done/`, `Status:` updated,
    `rfcs/README.md` counts updated, keepers left in place (trap 4).
+   **The move breaks every inbound link, and there are more of them than the
+   RFC files** — each RFC's handoff (`**Governing RFC:**`) and each `§N
+   answer` document under `docs/rfcs/` points into `accepted/`, and each
+   handoff's own `**Status:** inherited from the governing RFC (…)` line
+   still says `Accepted`. Both `doc-links` and `handoff-status` catch this,
+   but only *after* the move, so expect Gate 12 red between step 7 and its
+   repair and do not mistake it for a real finding. Two counts to update in
+   `rfcs/README.md`, not one: the `## Implemented (done/) — N files` heading
+   and the `N RFCs plus \`v0.7.x-index.md\`` line. *(Written down at the
+   0.31.0 cut. The 0.30.0 cut did all of this correctly and none of it was
+   in the procedure, so the second cut rediscovered it from a red gate.)*
 8. **CHANGELOG entry**, dated, under the version being released.
 9. **Exit criteria 1-7**, capturing real command output for the record.
 10. **Regenerate and commit `trust-report.txt`** (§0.2).
@@ -128,10 +139,22 @@ order once.
     noticed that no CI job had ever built the product — E-041. The gates
     stay local and that is deliberate; this step records CI, it does not
     defer to it.)* **Read the run, not the badge, and not `ci.yml`.**
-14. **Read how far behind the toolchain pin is** — `rustup check` (or
-    `curl -s https://static.rust-lang.org/dist/channel-rust-stable.toml
-    | grep -m1 version`) against `rust-toolchain.toml`'s `channel`. Record
-    the pin, current stable, and the gap in minor versions (§4.11).
+14. **Read how far behind the toolchain pin is** — `rustup check`, against
+    `rust-toolchain.toml`'s `channel`. Record the pin, current stable, and
+    the gap in minor versions (§4.11).
+
+    *Corrected at the 0.31.0 cut, its first exercise.* This step used to
+    offer `curl -s https://static.rust-lang.org/dist/channel-rust-stable.toml
+    | grep -m1 version` as an alternative. **It returns the wrong number.**
+    `[pkg.cargo]` is the first section in that file, so `grep -m1` reads
+    **cargo's** version — it answered `0.99.0 (797e8a9bc 2026-08-05)` while
+    stable rustc was `1.98.1`. If a cut needs the offline-of-rustup form, it
+    must select the `rustc` package explicitly:
+
+    ```sh
+    curl -s https://static.rust-lang.org/dist/channel-rust-stable.toml \
+      | awk '/^\[pkg\.rustc\]/{f=1} f&&/^version/{print; exit}'
+    ```
     **More than three minor versions behind blocks the tag**, or takes an
     accepted-risk statement under the existing rule (§4.7). *(RFC-0.31-003
     §7. The pin removed E-037's silent drift and replaced it with silent

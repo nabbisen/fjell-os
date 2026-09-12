@@ -1,6 +1,6 @@
 # RFC-0.31-003 §7 — What stops the next ten-month drift?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.31-003-a-toolchain-that-stays-current.md](../../rfcs/accepted/RFC-0.31-003-a-toolchain-that-stays-current.md)
+**Governing RFC:** [rfcs/done/RFC-0.31-003-a-toolchain-that-stays-current.md](../../rfcs/done/RFC-0.31-003-a-toolchain-that-stays-current.md)
 
 Answered before the pin, per the handoff's order — the pin is what creates
 the problem this question is about, so deciding it afterwards would be

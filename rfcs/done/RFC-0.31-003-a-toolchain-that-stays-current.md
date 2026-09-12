@@ -1,6 +1,6 @@
 # RFC-0.31-003: A toolchain that is current, and stays that way
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-12; implementation may begin (RFC 000)
+**Status:** Implemented (0.31.0) — accepted 2026-09-12
 **Milestone:** 0.31
 **Tracks.** **E-037**'s last survivor — `channel = "1.91"` floats within
 `1.91.x`, so the compiler that produced every committed artefact can move

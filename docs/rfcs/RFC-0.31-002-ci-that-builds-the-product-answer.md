@@ -1,6 +1,6 @@
 # RFC-0.31-002 §6 — What does CI cache, and what does a green run cost?
 
-**Governing RFC:** [rfcs/accepted/RFC-0.31-002-ci-that-builds-the-product.md](../../rfcs/accepted/RFC-0.31-002-ci-that-builds-the-product.md)
+**Governing RFC:** [rfcs/done/RFC-0.31-002-ci-that-builds-the-product.md](../../rfcs/done/RFC-0.31-002-ci-that-builds-the-product.md)
 
 Answered from R1's measurement, which was taken and written down before the
 question was decided — the handoff's required order, and the same order that
