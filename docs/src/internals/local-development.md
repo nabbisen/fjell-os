@@ -4,7 +4,7 @@
 
 | Tool | Version | Purpose |
 |---|---|---|
-| Rust | 1.91 (stable) | Kernel and all service crates |
+| Rust | 1.98.1 (pinned exactly) | Kernel and all service crates |
 | `riscv64gc-unknown-none-elf` target | — | Bare-metal kernel cross-build |
 | `qemu-system-riscv64` | ≥ 7.0 | Boot, smoke, and negative tests |
 | `ld.lld` (LLVM linker) | any | Cross-linker for the kernel |
@@ -18,7 +18,7 @@ See [Verus Setup](#verus-optional-gate-10) below.
 
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup toolchain install 1.91
+rustup toolchain install 1.98.1
 rustup target add riscv64gc-unknown-none-elf
 ```
 

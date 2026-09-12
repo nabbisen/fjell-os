@@ -16,7 +16,7 @@ Ubuntu 24.04 (or compatible), x86_64 host.
 # which is the error that kept this project's CI red for four months
 # (ERRATA E-041). rustup is the only path that works.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup toolchain install 1.91 \
+rustup toolchain install 1.98.1 \
     --component rust-src \
     --target riscv64gc-unknown-none-elf
 

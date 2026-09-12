@@ -149,11 +149,29 @@ default-members = [
 ]
 
 [workspace.package]
-# Verified floor, not a bisected minimum: this project is known to build on
-# 1.91 (the pinned toolchain) and on 1.98.1. The true minimum has never been
-# determined — see E-037. `rust-version` is a floor and does NOT select a
-# toolchain, install `rust-src`, or make builds reproducible; `rust-toolchain.toml`
-# does those, and removing it on 2026-09-09 silently moved local builds to 1.98.1.
+# Verified floor, not a bisected minimum, and deliberately NOT moved with the
+# pin (RFC-0.31-003 D4/R6). `rust-toolchain.toml` pins 1.98.1; this stays at
+# 1.91 because a floor is a promise to a consumer and there is no reason to
+# narrow it — the two published crates demonstrably build below the pin.
+#
+# What is now actually verified, which it was not before: the two crates that
+# inherit this field (`fjell-abi`, `fjell-os`) `cargo build` and `cargo test`
+# clean at **1.91.0** — the literal version this field names, not merely at
+# the 1.91.1 the old floating channel happened to resolve to. They also check
+# clean at 1.98.1.
+#
+# The true minimum is still undetermined (E-037's words: "a verified floor,
+# not a bisected minimum"). Probing below it is blocked by this field itself
+# — cargo refuses `+1.88.0` with "rustc 1.88.0 is not supported by the
+# following packages" before compiling anything — so lowering it would be a
+# deliberate widening of the promise, and a different question from this one.
+#
+# `rust-version` is a floor and does NOT select a toolchain, install
+# `rust-src`, or make builds reproducible; `rust-toolchain.toml` does those,
+# and removing it on 2026-09-09 silently moved local builds to 1.98.1. Until
+# 2026-09-12 this field reached no crate at all: `[workspace.package]` entries
+# are inherited only by crates that opt in with `rust-version.workspace =
+# true`, and none did.
 rust-version = "1.91"
 version = "0.30.0"
 edition         = "2024"
