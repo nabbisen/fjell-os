@@ -263,6 +263,33 @@ five-item drift (recorded just above) demonstrated. Moved the enumeration to
 the moment of addition, where nothing about it has to be reconstructed
 later.*
 
+### Before the tag — verify the CI run for the exact commit being tagged
+
+Exit criterion 9 has the release record cite a CI run, and **a record can
+never cite the run of its own commit**: the commit that names a run id is
+always later than the run it names. That is unavoidable and it leaves the
+final commit — the one the tag goes on — uncovered by the record's own
+citation.
+
+**The tag closes it, because a tag is not a commit.** Before applying it:
+
+```sh
+gh run list --workflow ci.yml --limit 5 --json databaseId,headSha,conclusion \
+  --jq '.[] | select(.headSha=="<commit being tagged>")'
+```
+
+Green, for that exact SHA, observed — not inferred from the record's run and
+not read from `ci.yml`. A red or missing run blocks the tag under the same
+rule as criterion 9 itself.
+
+*Added 2026-09-13, at the 0.31.0 cut's review. The implementer raised the
+boundary on criterion 9's first exercise and offered three options, all of
+which moved the uncovered commit rather than removing it. Putting the check
+at the tag terminates the regress: applying a tag creates no new commit to
+verify. They had already observed the final tree's run (`34703982615`) and
+declined to invent the requirement, which is why it is written here rather
+than assumed.*
+
 ### Before the tag — pin the crates.io logo URLs to this release's tag
 
 `assets/` sits at the repository root and is therefore **not in either crate's
@@ -275,15 +302,27 @@ crates/fjell-os/src/lib.rs:5     html_logo_url      (rustdoc sidebar)
 crates/fjell-os/src/lib.rs:6     html_favicon_url
 ```
 
-Between releases they point at `main`, which is correct for the repository and
-**wrong for a published page**: crates.io renders a version's README forever,
-but re-fetches the image every time someone loads it, so a `main`-pinned URL
-means an old release's page silently changes appearance whenever the logo is
-touched — and breaks outright if the file is ever moved. A published page is a
-point-in-time artifact and its images should be too.
+Between releases they carry **the previous release's tag**, and each cut
+rewrites them to its own.
 
-So, **in the version-bump commit, before the tag is applied**, rewrite
-`/main/` to `/<version>/` in all three:
+The reason is that a `main`-pinned URL would be **wrong for a published
+page**: crates.io renders a version's README forever but re-fetches the image
+every time someone loads it, so a `main`-pinned URL means an old release's
+page silently changes appearance whenever the logo is touched — and breaks
+outright if the file is ever moved. A published page is a point-in-time
+artifact and its images should be too.
+
+*(Corrected 2026-09-13, at the 0.31.0 cut's review. This paragraph said the
+URLs "point at `main` between releases". They did, for five days: between
+`4afdcd7` (2026-08-31, when the logo landed) and the `0.27.0` cut that first
+pinned them. `git log -S` confirms they have been touched at cuts and nowhere
+else since, so the sentence had been untrue for four releases. Flagged by the
+implementer and left for the architect, correctly — it is this document's
+statement of its own intent.)*
+
+So, **in the version-bump commit, before the tag is applied**, rewrite the
+previous release's version to this one in all three (`/main/` only if this is
+the first cut after a logo change):
 
 ```
 https://raw.githubusercontent.com/nabbisen/fjell-os/0.27.0/assets/logo.png

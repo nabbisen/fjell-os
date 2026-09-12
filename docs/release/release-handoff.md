@@ -139,6 +139,16 @@ order once.
     noticed that no CI job had ever built the product — E-041. The gates
     stay local and that is deliberate; this step records CI, it does not
     defer to it.)* **Read the run, not the badge, and not `ci.yml`.**
+    **A record can never cite the run of its own commit**, and that is not a
+    defect to design around: the record naming a run id is necessarily a
+    later commit than the run it names. Cite the run for the tree as it
+    stood when the record was written, and say which commit that was. The
+    gap is closed at tagging, not here — the tag is not a commit, so
+    verifying the run for the exact commit being tagged terminates the
+    regress instead of moving it. *(Raised by the implementer at the 0.31.0
+    cut, its first exercise, with three options offered and none taken
+    unilaterally. The fourth is above.)*
+
 14. **Read how far behind the toolchain pin is** — `rustup check`, against
     `rust-toolchain.toml`'s `channel`. Record the pin, current stable, and
     the gap in minor versions (§4.11).
@@ -146,9 +156,13 @@ order once.
     *Corrected at the 0.31.0 cut, its first exercise.* This step used to
     offer `curl -s https://static.rust-lang.org/dist/channel-rust-stable.toml
     | grep -m1 version` as an alternative. **It returns the wrong number.**
-    `[pkg.cargo]` is the first section in that file, so `grep -m1` reads
-    **cargo's** version — it answered `0.99.0 (797e8a9bc 2026-08-05)` while
-    stable rustc was `1.98.1`. If a cut needs the offline-of-rustup form, it
+    The file's **first line is `manifest-version = "2"`** — its schema
+    version — so `grep -m1 version` returns that, reproducibly; and even
+    skipping it, `[pkg.cargo]` precedes `[pkg.rustc]`, so the next match is
+    cargo's version, not rustc's. Either way it never reaches the number the
+    criterion needs. *(Symptom corrected at review, 2026-09-13: the finding
+    and the fix are right, the stated value was cargo's rather than the
+    `manifest-version` the command actually returns.)* If a cut needs the offline-of-rustup form, it
     must select the `rustc` package explicitly:
 
     ```sh
@@ -189,8 +203,9 @@ that is exactly the finding worth having. Do not edit the row.
 
 ## 3. The crates.io logo URLs
 
-Three URLs are pinned to `main` between releases and must point at this
-release's tag **in the version-bump commit, before the tag exists**:
+Three URLs carry **the previous release's tag** between releases, and must be
+rewritten to this release's **in the version-bump commit, before the tag
+exists**:
 
 ```
 crates/fjell-os/README.md:2      the crates.io landing-page banner
