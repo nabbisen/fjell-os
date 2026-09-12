@@ -659,16 +659,25 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 
   **Still ACCEPTED, on one job.** `test-services` is red because
   `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`
-  (**E-042**, OPEN) — a service source defect, reproducible locally, that
-  RFC-0.31-002's scope forbids it to fix. E-041's closure condition is
-  *every* service-building job observed green, so it is not the
-  implementer's to close.
+  (**E-042**, ACCEPTED, awaiting an owner decision) — a service source
+  defect, reproducible locally, that RFC-0.31-002's scope forbids it to fix,
+  and that review found deeper than a fix: the crate was written against an
+  orphan skeleton module. E-041's closure condition is *every*
+  service-building job observed green; the job stays red, deliberately,
+  until E-042 is decided.
 
-- **One service crate does not compile for its own target** (Errata
-  **E-042**, **OPEN**, unscheduled). `fjell-identityd` imports `fjell_cap`
-  and `fjell_service_api` without declaring either as a dependency, and
-  imports `Decision` and `NodeIdentityBuilder` from
-  `fjell_identity_format`'s root after both moved into submodules. It fails
+- **One service crate has never compiled for its own target** (Errata
+  **E-042**, ACCEPTED, tracked to 0.31, awaiting an owner decision).
+  `fjell-identityd` imports `fjell_cap` and `fjell_service_api` without
+  declaring either as a dependency, imports `Decision` and
+  `NodeIdentityBuilder` from `fjell_identity_format`'s root after both moved
+  into submodules — and, behind those, calls `store_read`/`store_append`
+  from `fjell-service-api/src/storaged.rs`, an orphan file no `mod`
+  declaration has ever included, whose functions are skeletons returning
+  `ServiceUnavailable`. It was never a two-line fix: the service was written
+  against an API that was never compiled and a manifest ordering that never
+  shipped. The decision is delete-as-scaffolding or wire-the-stub; the
+  architect recommends the former. It fails
   the same way locally and on CI (run `34674794847`, job `103502643804`).
   The other nineteen service crates in the same job cross-check clean. It
   was invisible because the only job that compiles it has never got past

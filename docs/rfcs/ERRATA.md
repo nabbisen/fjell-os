@@ -2385,7 +2385,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > profiles, all three `qemu-v07` categories, `cross-check`,
   > `arm64-check`, `repro-check`, `proptest`, `test-v07-formats`. The
   > kernel boots under QEMU on CI. `repro-check` builds the product twice
-  > and compares it, on CI — which RFC-0.30-001 claimed in March, and this
+  > and compares it, on CI — which RFC-0.30-001 claimed on 2026-09-09, and this
   > is the first time it has been true.
   >
   > **The one red job is `test-services`, and it is a service source
@@ -2440,6 +2440,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > commit. Two never-executed defects stacked behind one another, the
   > second invisible for exactly as long as the first kept failing.
 
+  > **Reviewed 2026-09-12 (architect).** The implementer's run id, per-job
+  > table and every correction above were re-derived from `gh` and hold:
+  > `34675339851` is 33 green / 1 red / 1 skipped, and the red job is
+  > `test-services` on E-042 alone. **This entry stays ACCEPTED, on exactly
+  > that job.** E-042 turned out to be deeper than the two-line fix the
+  > submission estimated — the crate was written against an orphan file
+  > that never compiled (see E-042) — so it is an owner decision, not a
+  > review edit, and the job stays red on purpose until it is taken. The
+  > other three closure conditions are met and observed; this one is not,
+  > and a closure condition that says *every* job means every job.
+
 ## E-042 — `fjell-identityd` has never compiled for its own target
 
 - **Claim:** `ci-test-services`' second step cross-checks twenty service
@@ -2483,7 +2494,51 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   prohibited shortcuts. The implementer found it, reproduced it, bounded it
   and filed it. **It is the one job standing between E-041 and closure**, so
   it needs a decision rather than a queue slot.
-- **Resolution:** **OPEN**, unscheduled — awaiting the architect.
+- **Resolution:** ~~**OPEN**, unscheduled — awaiting the architect.~~ →
+  **ACCEPTED** (architect, 2026-09-12), tracked **0.31**, awaiting an owner
+  decision between the two shapes below.
+
+  > **Ruled at RFC-0.31-002's review, 2026-09-12.** The implementer's
+  > escalation was correct, and the estimate that came with it — *"two
+  > `Cargo.toml` lines and two `use` paths"* — was not. I applied exactly
+  > that fix and a **fourth error** appeared behind the three:
+  > `fjell_service_api::storaged::{StoreResult, store_append, store_read}`
+  > do not exist in the compiled crate. They exist in
+  > `crates/fjell-service-api/src/storaged.rs` — **an orphan file**, added
+  > at `348f36b` (2026-06-06, "v0.7.x hardening batch 3"), that no `mod`
+  > declaration has ever included, because `lib.rs:58` already declared an
+  > inline `pub mod storaged { … }` of IPC tag constants at `97abad7`. The
+  > file's own doc says what it is: *"wired as a documented skeleton … returns
+  > `ServiceUnavailable` … full wiring requires storaged to expose its
+  > endpoint cap through the service-manager manifest before identityd
+  > starts. The manifest ordering and cap-broker policy are v0.7.2.1
+  > deliverables."* Those deliverables never landed.
+  >
+  > So `fjell-identityd` has never compiled **since it was written**, not
+  > since the reorganisation: the API it was written against was never part
+  > of the crate. Making it compile means wiring a stub whose every call
+  > returns `ServiceUnavailable`, so the service would build, be spawned by
+  > nothing, and do nothing. **That is a product decision, not a review
+  > edit**, and the partial fix was reverted so this entry's evidence stays
+  > exact. Nineteen of twenty crates in the job cross-check clean; the
+  > `fjell-identity-format` crate the service depends on is unaffected.
+  >
+  > **Two shapes, for the owner:** (1) **delete** `fjell-identityd` and the
+  > orphan `storaged.rs` as v0.7 scaffolding whose design precondition never
+  > shipped — the ADR (`ADR-v0.7-001`) stays as the record of the intent;
+  > (2) **wire** the orphan into `fjell-service-api` (merging its `tags` with
+  > the inline constants other services already use) and accept a service
+  > that compiles and cannot function until the manifest work is done. The
+  > architect recommends (1): a crate that was never built, never spawned
+  > and never could have worked is not coverage, and keeping it compiling
+  > would be the E-015 shape — a thing that exists so a list can name it.
+  >
+  > Status **ACCEPTED** rather than OPEN because the drift is disclosed,
+  > bounded to a crate no artefact includes, and scheduled; leaving it OPEN
+  > would block the 0.31.0 cut on a decision the cut does not depend on.
+  > `ci-test-services` stays red until it is taken — deliberately: removing
+  > the crate from that job's list to make the badge green is exactly what
+  > E-041 is about.
 
 ## Summary
 
@@ -2530,7 +2585,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
 | E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | ACCEPTED |
-| E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf` (two missing dependencies, two moved import paths); the one job that checks it has never reached it | unscheduled | OPEN |
+| E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | ACCEPTED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

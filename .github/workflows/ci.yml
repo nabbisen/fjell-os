@@ -416,8 +416,6 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install toolchain
-        uses: ./.github/actions/toolchain
       - name: Frozen schema files present and non-empty
         # RFC-0.24-002 Slice 7: this step checks presence and non-emptiness
         # only — it does not compare against current schema definitions, so
