@@ -408,14 +408,12 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + LLVM (lld)
+      - name: Install LLVM (ld.lld, the linker .cargo/config.toml names)
         run: |
           sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src llvm
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get install -y llvm
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       # RFC-0.30-001 §5: the real two-build reproducibility check, on every
       # push — measured cost is a few seconds (two independent builds of the
       # kernel and all 29 services), not the "doubles CI build time" the RFC

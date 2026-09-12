@@ -1,0 +1,83 @@
+name: Install the declared toolchain
+description: >
+  Install the Rust toolchain that rust-toolchain.toml declares, through
+  rustup, and refuse to go further unless what got installed is what the
+  file declares. RFC-0.31-002 D1/D2.
+
+inputs:
+  targets:
+    description: >
+      Extra rustup targets to add, space-separated. The targets
+      rust-toolchain.toml declares are installed from the file and do not
+      belong here; this is for a job that cross-checks a second
+      architecture (ci-arm64-check).
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    # D2 — fail closed, before any build step.
+    #
+    # rustup with no rust-toolchain.toml does not fail. It resolves to the
+    # runner's ambient `stable` and the job goes green against a toolchain
+    # nobody declared. That is RFC-0.30-003 §7's objection to installing
+    # from rustup in CI, and it was correct. The answer is not to avoid
+    # rustup - there is no apt package that ships library/Cargo.lock, so
+    # rustup is the only way CI can run `-Z build-std` at all (E-041). The
+    # answer is to check. This is the local `toolchain-declarations`
+    # failure-on-missing-file, reproduced on the runner.
+    - name: Assert the toolchain declaration exists
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ ! -f rust-toolchain.toml ]; then
+          echo "::error file=rust-toolchain.toml::rust-toolchain.toml is missing; refusing to build against the runner's ambient toolchain"
+          exit 1
+        fi
+        echo "rust-toolchain.toml:"
+        cat rust-toolchain.toml
+
+    # rustup reads rust-toolchain.toml here. Channel, profile, components
+    # and targets all come from the file, which is why this action takes no
+    # version input: a version input would be the twenty-third place the
+    # toolchain is written down (E-037).
+    - name: Install toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup show
+
+    - name: Add extra targets
+      if: inputs.targets != ''
+      shell: bash
+      env:
+        EXTRA_TARGETS: ${{ inputs.targets }}
+      run: |
+        set -euo pipefail
+        for t in $EXTRA_TARGETS; do
+          rustup target add "$t"
+        done
+
+    # The second half of D2: present is not the same as correct. rustup will
+    # happily serve a cached or ambient toolchain that is not the declared
+    # one - a cache key that omits this file's hash does exactly that.
+    - name: Assert the installed toolchain is the declared one
+      shell: bash
+      run: |
+        set -euo pipefail
+        want=$(grep -oP 'channel\s*=\s*"\K[^"]+' rust-toolchain.toml)
+        have=$(rustc -vV | grep -oP '^release: \K.*')
+        # Prefix match on the dot boundary, because the channel floats
+        # within 1.91.x. An exact pin (E-037's second survivor, argued
+        # separately) turns both patterns below into a single `=`.
+        case "$have" in
+          "$want"|"$want".*)
+            echo "rustc $have matches the declared channel $want"
+            ;;
+          *)
+            echo "::error file=rust-toolchain.toml::installed rustc $have is not the declared channel $want"
+            exit 1
+            ;;
+        esac
+        rustc -vV
