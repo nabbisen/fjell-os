@@ -18,7 +18,6 @@ members = [
     "crates/services/fjell-recoveryd",
     "crates/services/fjell-syncd",
     "crates/services/fjell-summaryd",
-    "crates/services/fjell-identityd",
     "crates/services/fjell-attestd",
     "crates/services/fjell-measuredd",
     "crates/formats/fjell-recovery-format",

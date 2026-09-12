@@ -20,6 +20,16 @@ sources: `SameFamily` (same trust_profile_tag), `Fleet` (roster-pinned), or
 
 `identityd` manages the identity lifecycle; `attestd` signs it.
 
+> **Note, 2026-09-12 (E-042).** The `identityd` *daemon* was removed: it was
+> written against `fjell-service-api::storaged`, an orphan module no `mod`
+> declaration ever included, and so had never compiled for its own target
+> since the day it was written. The trust model this ADR records is
+> unaffected and is live — it is implemented by `fjell-identity-format`
+> (`NodeIdentity`, `NodeIdentityPolicy`, `Decision`, `identity_digest`),
+> which `fjell-fleet-format`, `fjell-fleet-sync`, `fjell-summary-format` and
+> `fjell-fleetd` all depend on. What was deleted is the unbuilt daemon, not
+> the design.
+
 ## Consequences
 
 - Snapshot imports are rejected unless the source passes the local policy.

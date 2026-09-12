@@ -712,16 +712,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fjell-identityd"
-version = "0.30.0"
-dependencies = [
- "fjell-abi",
- "fjell-identity-format",
- "fjell-measure-format",
- "fjell-syscall",
-]
-
-[[package]]
 name = "fjell-init"
 version = "0.30.0"
 dependencies = [

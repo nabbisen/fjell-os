@@ -2495,8 +2495,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   and filed it. **It is the one job standing between E-041 and closure**, so
   it needs a decision rather than a queue slot.
 - **Resolution:** ~~**OPEN**, unscheduled — awaiting the architect.~~ →
-  **ACCEPTED** (architect, 2026-09-12), tracked **0.31**, awaiting an owner
-  decision between the two shapes below.
+  ~~**ACCEPTED** (architect, 2026-09-12), tracked **0.31**, awaiting an owner
+  decision between the two shapes below.~~ → **CLOSED** (owner decision,
+  2026-09-12): deleted as scaffolding whose design precondition never
+  shipped.
 
   > **Ruled at RFC-0.31-002's review, 2026-09-12.** The implementer's
   > escalation was correct, and the estimate that came with it — *"two
@@ -2533,12 +2535,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > and never could have worked is not coverage, and keeping it compiling
   > would be the E-015 shape — a thing that exists so a list can name it.
   >
-  > Status **ACCEPTED** rather than OPEN because the drift is disclosed,
+  > **Owner decision, 2026-09-12: delete.** Asked whether this was technical
+  > debt risk; it is, and specifically the kind this project keeps finding —
+  > a thing that exists so a list can name it. The crate sat in
+  > `crates/services/` indistinguishable at a glance from twenty that build,
+  > was a workspace member and therefore in `cargo metadata` and every list
+  > derived from it, and was named in the one job that would have caught it,
+  > which is why that job was red. `v0.7-release-notes.md` disclosed it as a
+  > "stub" — honest for what was believed, and wrong in kind: a stub
+  > compiles and does nothing, this did not compile.
+  >
+  > **Deleted:** `crates/services/fjell-identityd/` (5 files) and
+  > `crates/fjell-service-api/src/storaged.rs` (the orphan it was written
+  > against, referenced by no `mod` declaration and by no other crate —
+  > `fjell-summaryd` names `store_append` only in comments). Removed from
+  > `Cargo.toml`'s members and from `ci-test-services`' cross-check list;
+  > `ci-host-bins`' exclude list is derived from `cargo metadata`
+  > (RFC-0.29-001) and needed no edit.
+  >
+  > **The design survives; only the unbuilt daemon is gone.** The trust
+  > model of `ADR-v0.7-001` is implemented by `fjell-identity-format`
+  > (`NodeIdentity`, `NodeIdentityPolicy`, `Decision`, `identity_digest`),
+  > which `fjell-fleet-format`, `fjell-fleet-sync`, `fjell-summary-format`
+  > and `fjell-fleetd` all depend on and which compiles and is tested. The
+  > ADR carries a dated note saying so. `fjell-service-api`'s inline
+  > `pub mod storaged` of IPC tag constants — a different thing with the
+  > same name, and the reason the orphan was never wired — is untouched.
+  >
+  > The nineteen remaining crates in `ci-test-services`' list cross-check
+  > clean locally, verified after the deletion.
+  >
+  > Status was **ACCEPTED** rather than OPEN because the drift was disclosed,
   > bounded to a crate no artefact includes, and scheduled; leaving it OPEN
-  > would block the 0.31.0 cut on a decision the cut does not depend on.
-  > `ci-test-services` stays red until it is taken — deliberately: removing
-  > the crate from that job's list to make the badge green is exactly what
-  > E-041 is about.
+  > would have blocked the 0.31.0 cut on a decision the cut does not depend
+  > on. The decision was taken the same day.
 
 ## Summary
 
@@ -2585,7 +2615,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
 | E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | ACCEPTED |
-| E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | ACCEPTED |
+| E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
