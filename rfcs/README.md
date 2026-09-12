@@ -408,9 +408,11 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.31-003 | [A toolchain that is current, and stays that way](./proposed/RFC-0.31-003-a-toolchain-that-stays-current.md) — closes **E-037**'s last survivor |
 
 ## Archive (archive/) — 2 RFCs
 

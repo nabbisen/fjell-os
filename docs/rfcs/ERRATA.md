@@ -1926,6 +1926,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   >    `an_exact_patch_pin_currently_fails_against_apts_major_minor_packages`
   >    so the collision is a deliberate edit rather than a surprise.
   >
+  >    **Corrected 2026-09-12, scoping RFC-0.31-003.** RFC-0.31-002 recorded
+  >    this collision as resolved, because `ci.yml` no longer names an apt
+  >    package. **True of `ci.yml`, false of the tree.**
+  >    `docs/src/tutorials/quick-start.md` still reads `sudo apt install
+  >    rustc-1.91 cargo-1.91 …`, and `toolchain-declarations` compares
+  >    documentation sites to the anchor exactly — so a pin at `1.98.1`
+  >    would demand `rustc-1.98.1`, a package that cannot exist. **The
+  >    collision moved from `ci.yml` to `quick-start.md`; it did not go.**
+  >    The replacement test `an_exact_patch_pin_no_longer_collides_with_ci`
+  >    uses the fixture `sudo apt install rustc-1.91.1 cargo-1.91.1` — an
+  >    apt invocation that would fail. It proves the gate accepts an exact
+  >    pin, not that the tree can have one.
+  >
+  >    **Worse, and live today:** that apt line is the path **E-041** proved
+  >    cannot `-Z build-std` (Ubuntu's `rust-src` ships no
+  >    `library/Cargo.lock`). The quick start tells a new reader to install
+  >    a toolchain that cannot build this project, producing the exact error
+  >    that kept CI red for four months. E-041 was closed on CI going green;
+  >    its cause was never removed from the tutorial. RFC-0.31-003 moves the
+  >    quick start to rustup, which fixes both at once.
+  >
   > `Cargo.toml`'s `rust-version` floor and the Verus/`nightly` toolchains
   > are named (Finding 4) and explicitly not folded into the drift gate —
   > a floor is not a mirror, and unifying either was never this line's
@@ -2674,7 +2695,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
-| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); ~~two survivors~~ -> one: consolidation CLOSED by RFC-0.31-002 (22 places -> five, four of them documentation), and the channel still floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
+| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); ~~two survivors~~ -> one: consolidation CLOSED by RFC-0.31-002 (22 places -> five, four of them documentation), and the channel still floats within `1.91.x` unpinned | RFC-0.31-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
