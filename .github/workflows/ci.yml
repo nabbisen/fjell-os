@@ -408,10 +408,14 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install LLVM (ld.lld, the linker .cargo/config.toml names)
+      # `llvm` gives llvm-objcopy/llvm-nm (qemu.rs:181,242); `ld.lld` is in
+      # the separate `lld` package, which no job has ever installed - the
+      # apt blocks asked for `llvm` alone and died at -Z build-std long
+      # before the linker was reached, so nothing ever found out.
+      - name: Install LLVM binutils and ld.lld
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm
+          sudo apt-get install -y llvm lld
       - name: Install toolchain
         uses: ./.github/actions/toolchain
       # RFC-0.30-001 §5: the real two-build reproducibility check, on every
