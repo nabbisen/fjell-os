@@ -1788,6 +1788,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   removal was believed to rely on, which had **never existed**. It is recorded
   as a *verified floor*, not a bisected minimum: the project is known to build on
   1.91 and on 1.98.1, and the true minimum has never been determined.
+
+  > **Correction, architect, 2026-09-12.** That field was added and **reached
+  > no crate**. `[workspace.package]` entries are inherited only by crates
+  > that opt in with `rust-version.workspace = true`, and none did:
+  > `cargo metadata` reported `rust_version: None` for every package in the
+  > workspace, including both published crates, for the three days this
+  > entry has claimed the field was added as a fix. A declaration that
+  > exists and does nothing is this erratum's own subject, committed inside
+  > the entry that names it — and it was mine.
+  >
+  > **Fixed the same day:** `rust-version.workspace = true` added to
+  > `crates/fjell-abi` and `crates/fjell-os`, the two crates this project
+  > actually publishes, where a floor is a promise to a consumer rather than
+  > decoration. `cargo metadata` now reports `rust_version: 1.91` for both.
+  > The floor remains *verified-at*, not bisected — nobody has established
+  > that 1.91 is the minimum, only that the project builds there.
 - **The version is declared in five places, not two.** Bumping it is a scoped
   piece of work, not an edit:
 
@@ -1806,6 +1822,29 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **The channel still floats within `1.91.x`.** Restoring verbatim kept that
   deliberately: pinning an exact patch is a behaviour change, and it belongs
   with the bump rather than smuggled into a restore.
+
+  > **Measured for the owner's question, 2026-09-12** — *"why pin at 1.91.1
+  > rather than something newer?"* The declared channel `1.91` currently
+  > resolves to `1.91.1 (ed61e7d7e 2025-11-07)`, **ten months and seven
+  > minor versions behind** the current stable `1.98.1 (48a229cea
+  > 2026-09-01)`. Probed rather than assumed, each with a positive control:
+  > the **kernel** checks clean on 1.98.1 under `-Z build-std`
+  > (`cargo +1.98.1 check -p fjell-kernel --target riscv64gc-unknown-none-elf`,
+  > 0 errors), and **all 22 host packages** in `ci-check`'s list check clean
+  > on 1.98.1 and on 1.91.1 alike. The 2026-09-09 incident is corroborating
+  > evidence that the full build succeeds there: it rebuilt all 24 prebuilts.
+  >
+  > *A first probe of the host crates used `--workspace --exclude
+  > fjell-kernel` and reported 43 errors on 1.98.1. The control found 35 on
+  > 1.91.1 from the same command: it was compiling RISC-V `asm!` crates for
+  > the host, and proved nothing about either toolchain. Recorded because
+  > the count looked like a finding.*
+  >
+  > **What is still unverified is behaviour, not compilation** — no QEMU
+  > tier has run against a 1.98.1-built kernel, and all 24 committed
+  > prebuilts, the repro baseline and every evidence log were produced at
+  > 1.91.1. That is what a bump line has to establish, and it is why the
+  > bump is a line rather than an edit.
 - **Resolution:** ~~**ACCEPTED** (architect, 2026-09-08; updated 2026-09-09),
   tracked **RFC-0.30-003** (scoped 2026-09-10). Closing it means one
   declaration, an exact pin, and a record of which toolchain produced each
