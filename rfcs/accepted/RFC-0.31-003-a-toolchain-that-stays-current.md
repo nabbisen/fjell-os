@@ -31,8 +31,8 @@ Compilation on 1.98.1 is **already proven**, each probe with a positive
 control: the kernel checks clean under `-Z build-std`
 (`cargo +1.98.1 check -p fjell-kernel --target riscv64gc-unknown-none-elf`,
 0 errors), and all 22 host packages in `ci-check`'s list check clean on
-1.98.1 and 1.91.1 alike. The 2026-09-09 incident corroborates: it rebuilt all
-**29** prebuilts at 1.98.1 without a compile error.
+1.98.1 and 1.91.1 alike. The 2026-09-09 incident corroborates: it rebuilt the
+prebuilts at 1.98.1 without a compile error.
 
 **What is unproven is behaviour.** No QEMU tier has ever run against a
 1.98.1-built kernel. That is what this line exists to establish, and it is
@@ -119,9 +119,16 @@ on 1.91" is not a floor.
 green, against a 1.98.1-built tree, plus a green CI run observed with `gh`
 (RFC-0.31-002's rule). A clean `cargo check` is a precondition, not evidence.
 
-**D6 — The prebuilt diff is expected to be total, and that is the one moment
-the repro check cannot tell expected from unexpected.** Every one of the 29
-binaries will change. The line must therefore show *separately* that each
+**D6 — The prebuilt diff is expected to be near-total, and that is the one
+moment the repro check cannot tell expected from unexpected.** Most of the 29
+binaries will change.
+
+> *Corrected at review: this said "every one of the 29". It was **24 of 29** —
+> five are 32–54 byte stubs that seven minor versions of codegen cannot
+> alter. D6's argument survives and sharpens: a partial diff cannot
+> distinguish "unchanged because codegen is identical" from "unchanged
+> because the build skipped it" either, which took an mtime check to tell
+> apart.* The line must therefore show *separately* that each
 still behaves: the digest diff is not evidence of correctness here, only of
 the bump having happened.
 
@@ -178,8 +185,8 @@ user-facing defect (Finding 2) whether or not the bump proceeds.
 
 **R3 — Bump and pin** (D1, D2), then rebuild: `cargo xtask build`, re-record
 `tests/repro/baseline-digests.txt`, confirm its `# toolchain:` header reads
-the new compiler, and confirm the diff is exactly the 29 prebuilts and
-nothing else.
+the new compiler, and confirm the diff touches only prebuilts and
+nothing else, and account for every one that did **not** move.
 
 **R4 — D5**: full `test-all`, all 24 tiers, against the bumped tree; a green
 CI run, observed, with the run id. **Gate 10 (Verus) specifically** — `ci-verus`
@@ -222,8 +229,8 @@ of the `asm!` blocks the callsite gates guard — is what the QEMU pass checks
 and nothing else does.
 
 **The repro baseline is blind exactly here** (D6). Its job is to catch
-unexpected digest change, and this is the one commit where all 29 change on
-purpose. A real regression hides perfectly inside an expected total diff. The
+unexpected digest change, and this is the one commit where most of them change
+on purpose. A real regression hides perfectly inside an expected total diff. The
 QEMU pass is the only thing standing in that gap, which is why R5 asks for it
 explicitly rather than letting a green `repro-check` imply it.
 

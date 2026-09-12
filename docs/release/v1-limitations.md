@@ -595,7 +595,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   been removed and that no `rust-version` field existed. Both were true for one
   day: the file was removed on 2026-09-09 (`4cebbc4`), restored the same day
   after the removal was found to have silently moved local builds from 1.91.1
-  to 1.98.1 and changed all 29 committed prebuilts, and `rust-version = "1.91"`
+  to 1.98.1 and changed 24 of the 29 committed prebuilts, and `rust-version = "1.91"`
   was added to `[workspace.package]` at the same time. The bullet was not
   updated then.*
 

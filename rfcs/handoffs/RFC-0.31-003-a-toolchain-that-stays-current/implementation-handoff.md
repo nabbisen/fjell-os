@@ -17,7 +17,8 @@ went wrong. **This one disables the instrument as a side effect of doing the
 work.**
 
 `tests/repro/baseline-digests.txt` exists to notice when a committed binary's
-digest changes unexpectedly. This commit changes **all 29 of them on purpose**.
+digest changes unexpectedly. This commit changes **most of them on purpose**
+*(24 of 29, as measured at review; this handoff said "all 29")*.
 For exactly one commit, "every digest moved" is both the expected outcome and
 what a serious regression would look like, and `repro-check` cannot tell you
 which you have.
@@ -44,12 +45,14 @@ looked like a finding until the control showed 35 on 1.91.1 from the identical
 command — it was compiling RISC-V `asm!` crates for the host and said nothing
 about either toolchain. Use `ci-check`'s explicit `-p` list, not `--workspace`.
 
-**The prebuilt count is 29.** E-037, `v1-limitations.md`, the CHANGELOG and my
-own first draft of this RFC all said **24**, for three days, while
-RFC-0.30-001 correctly said "30 artefacts — the kernel ELF plus all 29 service
-prebuilts" and nobody compared them. Corrected today. If any figure in the RFC
-disagrees with the tree, **report it** — twelve consecutive lines have
-corrected one of mine, and this is the twelfth.
+**The prebuilt count is 29 — and 24 of them change.** This paragraph
+originally said only the first half, having "corrected" E-037's 24 to 29 that
+morning on the grounds that the tree holds 29. **That correction was wrong**:
+29 is the total, 24 is the changed set, and the implementer established it by
+measuring the transition rather than inheriting either figure. Two quantities
+that had been made to replace each other. If any figure in the RFC disagrees
+with the tree, **report it** — twelve consecutive lines have corrected one of
+mine, and this is the twelfth.
 
 ## 0.2 Settled — do not re-open
 
@@ -134,8 +137,10 @@ merits; do not inherit my discomfort with it.
 After bumping and pinning:
 
 1. `cargo xtask build`, then re-record `tests/repro/baseline-digests.txt`.
-2. **Confirm the diff is exactly 29 prebuilts and nothing else** — not "looks
-   right", the file list.
+2. **Confirm the diff touches only prebuilts, and account for every one that
+   did not move** — not "looks right", the file list. *(24 of 29 moved; the
+   five that did not are byte-identical stubs, and telling that apart from
+   "the build skipped them" took an mtime check.)*
 3. **Confirm the baseline's `# toolchain:` header reads the new compiler.**
    It is written from `rustc -vV` (RFC-0.30-003), so a stale header means the
    rebuild did not happen under the toolchain you think.
