@@ -2401,8 +2401,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (E-036, E-040); E-015, E-036, E-037 and E-040's closure text; CHANGELOG
   0.30.0; the 0.30.0 release record; RFC-0.30-001's and RFC-0.29-001's answer
   documents; RFC-0.30-003's §7 argument.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-12), tracked
-  **RFC-0.31-002** (scoped 2026-09-12). Closing it means: CI installs the toolchain through rustup from
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-12), tracked
+  **RFC-0.31-002** (scoped 2026-09-12).~~ → **CLOSED** by **RFC-0.31-002**,
+  on run `34692058308` (2026-09-12). Closing it meant: CI installs the toolchain through rustup from
   `rust-toolchain.toml` (which, per RFC-0.30-003's own reasoning, must fail
   closed when that file is absent — the drift gate already does); every
   service-building job green at least once, observed with `gh`, not read from
@@ -2479,16 +2480,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > commit. Two never-executed defects stacked behind one another, the
   > second invisible for exactly as long as the first kept failing.
 
+  > **CLOSED 2026-09-12, on an observed run.** All four closure conditions
+  > are met: CI installs through rustup from `rust-toolchain.toml` and fails
+  > closed when it is absent (demonstrated red on run `34675044074`, job
+  > `103503283586`, at the assert step with the build step skipped); the
+  > dead `qemu-smoke` matrix entries are gone; the release cycle gained exit
+  > criterion 9 and handoff step 13, which record the release commit's run
+  > id and per-job conclusions; and **every job is green**.
+  >
+  > **Run `34692058308`** (`c3e16a6`, the E-042 deletion): **34 success, 0
+  > failure, 1 skipped** (`fuzz-nightly`, schedule-only). Confirmed on the
+  > next commit too — run `34692184045` (`593be17`): 34 / 0 / 1.
+  >
+  > **This workflow has 3 successful runs in 165.** The first was
+  > 2026-05-05, before any job that builds for RISC-V existed. The other two
+  > are these, and they are the first in this project's history in which CI
+  > compiled the kernel, booted it under QEMU, ran all fourteen negative
+  > profiles, and compared two independent builds of the product. Every
+  > sentence this register corrected on 2026-09-12 — nine documents saying a
+  > check "runs in CI on every push" — is true now, and was not when it was
+  > written.
+  >
+  > *Closed on a run id, which is the entry's own rule. `gh run view
+  > 34692058308 --json jobs` is the evidence; `ci.yml` is not.*
+
   > **Reviewed 2026-09-12 (architect).** The implementer's run id, per-job
   > table and every correction above were re-derived from `gh` and hold:
   > `34675339851` is 33 green / 1 red / 1 skipped, and the red job is
-  > `test-services` on E-042 alone. **This entry stays ACCEPTED, on exactly
-  > that job.** E-042 turned out to be deeper than the two-line fix the
-  > submission estimated — the crate was written against an orphan file
-  > that never compiled (see E-042) — so it is an owner decision, not a
-  > review edit, and the job stays red on purpose until it is taken. The
-  > other three closure conditions are met and observed; this one is not,
-  > and a closure condition that says *every* job means every job.
+  > `test-services` on E-042 alone. **At review this entry stayed ACCEPTED,
+  > on exactly that job** — E-042 turned out to be deeper than the two-line
+  > fix the submission estimated, so it was an owner decision rather than a
+  > review edit, and the job stayed red on purpose until it was taken. The
+  > owner took it the same day (delete); the job went green; this entry is
+  > closed above. A closure condition that says *every* job means every
+  > job, and now it is every job.
 
 ## E-042 — `fjell-identityd` has never compiled for its own target
 
@@ -2653,7 +2678,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
-| E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | ACCEPTED |
+| E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and

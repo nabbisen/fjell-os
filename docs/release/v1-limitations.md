@@ -629,8 +629,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   longer pass for "absent"). That last part is what makes this closure
   different from E-015's, which named one instance and left six.
 
-- **CI has never built this product** (Errata **E-041**, ACCEPTED, tracked to
-  **RFC-0.31-002**). The workflow has had one successful run in 152, on
+- **CI had never built this product** (Errata **E-041**, **CLOSED**
+  2026-09-12 by **RFC-0.31-002**, on run `34692058308`). The workflow has had one successful run in 152, on
   2026-05-05, before any QEMU-building job existed. Every job that builds a
   service — the smoke and negative matrices, the v0.7 smokes, the two-build
   reproducibility check, `cross-check`, `test-services` — fails at
@@ -657,14 +657,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   died afterwards in its doc-test phase because the apt shim covered `rustc`
   and `cargo` but not `rustdoc`.
 
-  **Still ACCEPTED, on one job.** `test-services` is red because
-  `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`
-  (**E-042**, ACCEPTED, awaiting an owner decision) — a service source
-  defect, reproducible locally, that RFC-0.31-002's scope forbids it to fix,
-  and that review found deeper than a fix: the crate was written against an
-  orphan skeleton module. E-041's closure condition is *every*
-  service-building job observed green; the job stays red, deliberately,
-  until E-042 is decided.
+  **Closed the same day, on a fully green run.** The last red job,
+  `test-services`, was red because `fjell-identityd` had never compiled for
+  `riscv64gc-unknown-none-elf` (**E-042**) — a service source defect that
+  RFC-0.31-002's scope forbade it to fix, and that review found deeper than
+  the two-line repair it looked like. The owner's decision was to delete the
+  dead crate; run **`34692058308`** is then **34 green, 0 red, 1 skipped**,
+  confirmed again on the next commit (`34692184045`). This workflow has three
+  successful runs in 165: one on 2026-05-05, before any job built for RISC-V,
+  and these two. They are the first in which CI compiled the kernel, booted
+  it under QEMU, ran all fourteen negative profiles, and compared two
+  independent builds of the product.
 
 - **One service crate had never compiled for its own target** (Errata
   **E-042**, **CLOSED** 2026-09-12 — deleted).
