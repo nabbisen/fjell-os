@@ -702,28 +702,30 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 
 - **One service crate had never compiled for its own target** (Errata
   **E-042**, **CLOSED** 2026-09-12 — deleted).
-  `fjell-identityd` imports `fjell_cap` and `fjell_service_api` without
-  declaring either as a dependency, imports `Decision` and
-  `NodeIdentityBuilder` from `fjell_identity_format`'s root after both moved
-  into submodules — and, behind those, calls `store_read`/`store_append`
+  `fjell-identityd` imported `fjell_cap` and `fjell_service_api` without
+  declaring either as a dependency, imported `Decision` and
+  `NodeIdentityBuilder` from `fjell_identity_format`'s root after both had
+  moved into submodules — and, behind those, called `store_read`/`store_append`
   from `fjell-service-api/src/storaged.rs`, an orphan file no `mod`
-  declaration has ever included, whose functions are skeletons returning
+  declaration ever included, whose functions were skeletons returning
   `ServiceUnavailable`. It was never a two-line fix: the service was written
   against an API that was never compiled and a manifest ordering that never
-  shipped.
+  shipped. `ci-test-services`, the only job that compiled it, had never got
+  past installing its toolchain (E-041) and so had never reported it.
 
   **Deleted** (owner decision): the daemon and the orphan module. The node
   identity *design* is untouched and live — `fjell-identity-format`
   implements it and four other crates depend on it; what went was the
-  daemon that was never built, never spawned, and could not have worked. It fails
-  the same way locally and on CI (run `34674794847`, job `103502643804`).
-  The other nineteen service crates in the same job cross-check clean. It
-  was invisible because the only job that compiles it has never got past
-  installing its toolchain — which is E-041's cost, stated concretely: an
-  instrument reporting nothing is not neutral, it is cover. **This crate is
-  not part of any release artefact today** (`cargo xtask build` does not
-  build it and no `prebuilt/` entry comes from it), so nothing shipped
-  depends on it; what is unknown is how long it has been broken.
+  daemon that was never built, never spawned, and could not have worked. It
+  failed identically locally and on CI (run `34674794847`, job
+  `103502643804`); the other nineteen service crates in that job cross-checked
+  clean. It was invisible because the only job that compiled it had never got
+  past installing its toolchain — which is E-041's cost, stated concretely: an
+  instrument reporting nothing is not neutral, it is cover. **It was in no
+  release artefact** (`cargo xtask build` never built it and no `prebuilt/`
+  entry came from it), so nothing shipped depended on it. How long it had been
+  broken is answerable after all: since it was written, because the API it
+  imported was in a file no `mod` declaration ever included.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer
