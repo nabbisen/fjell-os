@@ -1,6 +1,6 @@
 # RFC-0.31-003: A toolchain that is current, and stays that way
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-12; implementation may begin (RFC 000)
 **Milestone:** 0.31
 **Tracks.** **E-037**'s last survivor — `channel = "1.91"` floats within
 `1.91.x`, so the compiler that produced every committed artefact can move
@@ -32,7 +32,7 @@ control: the kernel checks clean under `-Z build-std`
 (`cargo +1.98.1 check -p fjell-kernel --target riscv64gc-unknown-none-elf`,
 0 errors), and all 22 host packages in `ci-check`'s list check clean on
 1.98.1 and 1.91.1 alike. The 2026-09-09 incident corroborates: it rebuilt all
-24 prebuilts at 1.98.1 without a compile error.
+**29** prebuilts at 1.98.1 without a compile error.
 
 **What is unproven is behaviour.** No QEMU tier has ever run against a
 1.98.1-built kernel. That is what this line exists to establish, and it is
@@ -120,7 +120,7 @@ green, against a 1.98.1-built tree, plus a green CI run observed with `gh`
 (RFC-0.31-002's rule). A clean `cargo check` is a precondition, not evidence.
 
 **D6 — The prebuilt diff is expected to be total, and that is the one moment
-the repro check cannot tell expected from unexpected.** Every one of the 24
+the repro check cannot tell expected from unexpected.** Every one of the 29
 binaries will change. The line must therefore show *separately* that each
 still behaves: the digest diff is not evidence of correctness here, only of
 the bump having happened.
@@ -178,7 +178,7 @@ user-facing defect (Finding 2) whether or not the bump proceeds.
 
 **R3 — Bump and pin** (D1, D2), then rebuild: `cargo xtask build`, re-record
 `tests/repro/baseline-digests.txt`, confirm its `# toolchain:` header reads
-the new compiler, and confirm the diff is exactly the 24 prebuilts and
+the new compiler, and confirm the diff is exactly the 29 prebuilts and
 nothing else.
 
 **R4 — D5**: full `test-all`, all 24 tiers, against the bumped tree; a green
@@ -222,7 +222,7 @@ of the `asm!` blocks the callsite gates guard — is what the QEMU pass checks
 and nothing else does.
 
 **The repro baseline is blind exactly here** (D6). Its job is to catch
-unexpected digest change, and this is the one commit where all 24 change on
+unexpected digest change, and this is the one commit where all 29 change on
 purpose. A real regression hides perfectly inside an expected total diff. The
 QEMU pass is the only thing standing in that gap, which is why R5 asks for it
 explicitly rather than letting a green `repro-check` imply it.

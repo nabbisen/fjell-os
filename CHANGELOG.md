@@ -67,7 +67,9 @@ Closes **E-035** and **E-038**.
 E-037 said five places; measured, it was **twenty-two** — seventeen of them
 copies of one CI install block. On 2026-09-09, `rust-toolchain.toml` was
 removed and local builds silently moved from **1.91.1 to 1.98.1**, changing
-all 24 committed prebuilts. The detector (`repro-check`) fired; nothing
+all 29 committed prebuilts *(corrected 2026-09-12: this entry said 24;
+the tree has 29, and had 29 at the time)*. The detector (`repro-check`)
+fired; nothing
 recorded *why*.
 
 All three artefact-producing paths (the repro baseline, evidence provenance,

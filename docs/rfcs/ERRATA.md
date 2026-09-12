@@ -1780,7 +1780,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that would have kept both properties, not as a correction to the owner's call.
 - **Restored 2026-09-09**, at the owner's direction, after the removal was found
   to have silently moved local builds from **1.91.1 to 1.98.1** — seven minor
-  versions — changing all 24 committed prebuilt binaries and turning
+  versions — changing all **29** committed prebuilt binaries and turning
   `repro-check` red. Discovered only because the architect happened to rebuild
   while checking the removal was safe. **This is the erratum's own predicted
   failure mode, realised within a day.**
@@ -1832,7 +1832,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > (`cargo +1.98.1 check -p fjell-kernel --target riscv64gc-unknown-none-elf`,
   > 0 errors), and **all 22 host packages** in `ci-check`'s list check clean
   > on 1.98.1 and on 1.91.1 alike. The 2026-09-09 incident is corroborating
-  > evidence that the full build succeeds there: it rebuilt all 24 prebuilts.
+  > evidence that the full build succeeds there: it rebuilt all 29 prebuilts.
+  >
+  > *Figure corrected 2026-09-12, while writing RFC-0.31-003's handoff. This
+  > entry said "24 committed prebuilt binaries" and so did three other
+  > documents; `ls crates/fjell-kernel/prebuilt/*.bin` is **29**, and was 29
+  > at `4cebbc4` (the removal), at `0.29.0` and at `0.30.0`. The repro
+  > baseline has 29 entries. 24 is almost certainly `test-all`'s tier count
+  > carried into the wrong sentence. RFC-0.30-001's "30 artefacts — the
+  > kernel ELF plus all 29 service prebuilts" was right the whole time, and
+  > disagreed with this entry for three days without anyone comparing them.*
   >
   > *A first probe of the host crates used `--workspace --exclude
   > fjell-kernel` and reported 43 errors on 1.98.1. The control found 35 on
@@ -1841,7 +1850,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > the count looked like a finding.*
   >
   > **What is still unverified is behaviour, not compilation** — no QEMU
-  > tier has run against a 1.98.1-built kernel, and all 24 committed
+  > tier has run against a 1.98.1-built kernel, and all 29 committed
   > prebuilts, the repro baseline and every evidence log were produced at
   > 1.91.1. That is what a bump line has to establish, and it is why the
   > bump is a line rather than an edit.

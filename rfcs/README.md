@@ -397,7 +397,7 @@ without having checked something.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 3 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -405,14 +405,13 @@ Signed off by the owner; implementation may begin; not yet shipped.
 |-----|-------|
 | 0.31-001 | [Six milestones the smoke runner accepts and nothing can pass](./accepted/RFC-0.31-001-milestones-that-can-pass.md) — accepted 2026-09-12; closes **E-040**; handoff: [`handoffs/`](./handoffs/RFC-0.31-001-milestones-that-can-pass/implementation-handoff.md) |
 | 0.31-002 | [A CI that builds the product](./accepted/RFC-0.31-002-ci-that-builds-the-product.md) — accepted 2026-09-12; closes **E-041**, E-037's consolidation survivor; handoff: [`handoffs/`](./handoffs/RFC-0.31-002-ci-that-builds-the-product/implementation-handoff.md) |
+| 0.31-003 | [A toolchain that is current, and stays that way](./accepted/RFC-0.31-003-a-toolchain-that-stays-current.md) — accepted 2026-09-12; closes **E-037**'s last survivor; handoff: [`handoffs/`](./handoffs/RFC-0.31-003-a-toolchain-that-stays-current/implementation-handoff.md) |
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.31-003 | [A toolchain that is current, and stays that way](./proposed/RFC-0.31-003-a-toolchain-that-stays-current.md) — closes **E-037**'s last survivor |
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 
