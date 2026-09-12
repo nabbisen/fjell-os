@@ -38,14 +38,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: cargo fmt --check
         run: cargo fmt --all --check
 
@@ -54,14 +48,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + rust-src
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: cargo check (host-buildable crates)
         # Covers format/api/tools crates plus the enforcement and syscall
         # libraries added in v0.2.  The RISC-V kernel and service binaries
@@ -96,14 +84,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + rust-src + LLVM
+      # `llvm` gives llvm-objcopy/llvm-nm (qemu.rs:181,242); `ld.lld` is in
+      # the separate `lld` package. No job installed it before RFC-0.31-002
+      # because every one of them died at -Z build-std long before a linker
+      # was reached.
+      - name: Install LLVM binutils and ld.lld
         run: |
           sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src llvm
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get install -y llvm lld
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: cargo check (riscv64gc-unknown-none-elf)
         # Type-checks the kernel and all service binaries for the RISC-V
         # bare-metal target.  This catches register-constant gaps, wrong
@@ -127,14 +117,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: cargo test (host-pure crates)
         # Includes fjell-cap (16 enforcement tests) and fjell-ipc (10 endpoint
         # tests) added in v0.2, in addition to the format/api/tools crates.
@@ -165,14 +149,8 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: Test additional lib crates
         run: |
           cargo test \
@@ -224,18 +202,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        milestone: [m1, m2, m3, m4, m5, m6, m7, m8]
+        # RFC-0.31-002 D5 / E-040: m1-m6 were deleted from
+        # crates/fjell-tools/src/smoke.rs by RFC-0.31-001 - the kernel
+        # prints no TEST:M1..M6:PASS marker, so nothing could ever have
+        # passed them. Between that line and this one the six failed at
+        # argument parsing (`unknown milestone`), which is what run
+        # 34655244163 shows. m7/m8 going green in the same run as this
+        # edit is the proof the matrix change is a deletion of dead
+        # entries and not a narrowing of coverage.
+        milestone: [m7, m8]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + QEMU + LLVM
+      # `llvm` gives llvm-objcopy/llvm-nm (qemu.rs:181,242); `ld.lld` is in
+      # the separate `lld` package. No job installed it before RFC-0.31-002
+      # because every one of them died at -Z build-std long before a linker
+      # was reached.
+      - name: Install QEMU, LLVM binutils and ld.lld
         run: |
           sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
-              qemu-system-misc qemu-utils llvm
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get install -y qemu-system-misc qemu-utils llvm lld
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: cargo xtask qemu-test ${{ matrix.milestone }}
         run: cargo xtask qemu-test ${{ matrix.milestone }}
       - name: Upload artefacts
@@ -253,14 +240,8 @@ jobs:
       categories: ${{ steps.derive.outputs.categories }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       # RFC-0.29-001 D1/R3/R4: the matrix below used to be a fifth
       # hand-typed copy of "the negative-test categories" (nine names,
       # missing semantic/uart-rx/uart-rx-unbound, which test-all already
@@ -283,15 +264,16 @@ jobs:
         include: ${{ fromJson(needs.ci-negative-matrix.outputs.categories) }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + QEMU + LLVM
+      # `llvm` gives llvm-objcopy/llvm-nm (qemu.rs:181,242); `ld.lld` is in
+      # the separate `lld` package. No job installed it before RFC-0.31-002
+      # because every one of them died at -Z build-std long before a linker
+      # was reached.
+      - name: Install QEMU, LLVM binutils and ld.lld
         run: |
           sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
-              qemu-system-misc qemu-utils llvm
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get install -y qemu-system-misc qemu-utils llvm lld
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       # RFC-0.29-001 D5: store/upgrade are derived into this matrix like
       # any other category (they have real profiles) but are not
       # release-gated — continue-on-error reports their real result
@@ -316,17 +298,20 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: Test v0.4-v0.7 format crates
+        # RFC-0.29-001 named this guard and did not apply it here: excluding
+        # the bare-metal crates removes fjell-secure-transportd, the edge
+        # that was silently turning fjell-sxt-crypto's
+        # crypto-profile-development on for the whole graph via feature
+        # unification, so its own compile_error! guard fires for real. The
+        # flag is the one ci-host-bins already passes
+        # (cargo_metadata.rs:309), stated deliberately rather than inherited
+        # by accident.
         run: |
           cargo test \
+            --features fjell-sxt-crypto/crypto-profile-development \
             -p fjell-net-format \
             -p fjell-sxt-crypto \
             -p fjell-diag-format \
@@ -344,14 +329,8 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: Property tests
         # RFC-0.24-002 Slice 6: fjell-proptest's 24 proptest! cases all live
         # in tests/ (harness.rs, verus_lemma_properties.rs), not src/ — with
@@ -369,14 +348,8 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: Unsafe audit (category= check)
         run: cargo run -p fjell-unsafe-audit -- --workspace . --check
 
@@ -386,14 +359,8 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       # RFC-0.29-001 R1 (E-013): the gate tools' own tests -- Gate 12's ten
       # subchecks, Gate 11's five callsite checks, and the rest of the
       # crates `--lib` alone cannot reach -- run nowhere in CI today. Same
@@ -433,15 +400,10 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + AArch64 target
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          rustup target add aarch64-unknown-none
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
+        with:
+          targets: aarch64-unknown-none
       - name: cargo check arch boundary (ARM64)
         run: |
           cargo check -p fjell-arch-arm64 \
@@ -454,14 +416,8 @@ jobs:
     needs: [ci-check]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: Frozen schema files present and non-empty
         # RFC-0.24-002 Slice 7: this step checks presence and non-emptiness
         # only — it does not compare against current schema definitions, so
@@ -507,15 +463,16 @@ jobs:
         category: [v0.4-net, v0.5-platform, v0.7-sync]
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 + QEMU + LLVM
+      # `llvm` gives llvm-objcopy/llvm-nm (qemu.rs:181,242); `ld.lld` is in
+      # the separate `lld` package. No job installed it before RFC-0.31-002
+      # because every one of them died at -Z build-std long before a linker
+      # was reached.
+      - name: Install QEMU, LLVM binutils and ld.lld
         run: |
           sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src \
-              qemu-system-misc qemu-utils llvm
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get install -y qemu-system-misc qemu-utils llvm lld
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: cargo xtask qemu-test ${{ matrix.category }}
         run: cargo xtask qemu-test ${{ matrix.category }}
       - name: Upload artifacts
@@ -579,14 +536,12 @@ jobs:
       VERUS_TOOLCHAIN: 1.95.0-x86_64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust 1.91 (Fjell build toolchain)
+      - name: Install unzip (for the pinned Verus bundle)
         run: |
           sudo apt-get update
-          sudo apt-get install -y rustc-1.91 cargo-1.91 rust-src unzip rustup
-          mkdir -p $HOME/.local/bin
-          ln -sf /usr/bin/rustc-1.91 $HOME/.local/bin/rustc
-          ln -sf /usr/bin/cargo-1.91 $HOME/.local/bin/cargo
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          sudo apt-get install -y unzip
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
       - name: Install rustup toolchain Verus requires
         run: rustup toolchain install "$VERUS_TOOLCHAIN" --profile minimal
       - name: Install pinned Verus (bundled z3)
