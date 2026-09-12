@@ -546,19 +546,27 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   edits, not one — this makes a forgotten site loud instead of making it
   impossible. And the channel still floats within `1.91.x`, unpinned;
   pinning was argued (probably worth it eventually, cost not yet weighed)
-  and deliberately not done here. **The two survivors are coupled**, found
-  at review: an exact pin makes the new drift check fail on a correct tree,
-  because Ubuntu's apt carries `rustc-1.91` and never `rustc-1.91.1`, so CI
-  cannot name a patch version while it installs from apt. Pinning therefore
-  waits on the consolidation question, not the other way round. Both named
-  rather than closed over.
-  CI installing via `apt` rather than `rustup` was considered and
-  rejected as the consolidation path: CI's independence from
-  `rust-toolchain.toml` contained the 1.98.1 drift to local builds (the
-  drift was detected by `repro-check` against the committed baseline, not
-  by CI), and switching CI onto the same file the
-  incident already broke once would trade a detected failure mode for a
-  silent one.
+  and deliberately not done there.
+
+  **One survivor now** (updated 2026-09-12). Consolidation is **closed**:
+  RFC-0.31-002 put CI on rustup reading `rust-toolchain.toml`, and
+  twenty-two declaration sites became five, four of them documentation a
+  human types. *The argument recorded here previously — that CI installing
+  via apt was the safer choice, because its independence from
+  `rust-toolchain.toml` contained the 1.98.1 drift to local builds — did not
+  survive contact with E-041: apt's `rust-src` ships no `library/Cargo.lock`,
+  so that "independence" was coincident with CI being unable to build the
+  product at all.*
+
+  What remains is the **floating channel**, tracked to **RFC-0.31-003**. The
+  declared `1.91` resolves to a compiler from 2025-11-07 — ten months and
+  seven minor versions behind current stable — so pinning is also a decision
+  about *what* to pin at. That line must first move
+  `docs/src/tutorials/quick-start.md` off apt: it still tells a new reader to
+  `apt install rustc-1.91`, which is simultaneously the path that cannot
+  `-Z build-std` (E-041's cause, still live in the tutorial after E-041 was
+  closed on CI going green) and the last thing in the tree that would collide
+  with an exact pin.
 
   *Corrected 2026-09-10. This bullet previously said `rust-toolchain.toml` had
   been removed and that no `rust-version` field existed. Both were true for one
