@@ -2004,6 +2004,60 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `an_exact_patch_pin_no_longer_collides_with_ci`, which asserts the
   > opposite and would fail if an apt block ever came back.
 
+  > **CLOSED — RFC-0.31-003, 2026-09-12.** `channel = "1.98.1"`. All three
+  > of this erratum's own closure conditions — *"one declaration, an exact
+  > pin, and a record"* — are now met: the record by RFC-0.30-003, the one
+  > declaration by RFC-0.31-002, the exact pin here.
+  >
+  > **The collision had not gone; it had moved, and survivor 2 could not be
+  > closed until it was found.** RFC-0.31-002's review recorded pinning as
+  > free because `ci.yml` no longer named an apt package and the gate's test
+  > passed. Both true, and the conclusion was still wrong:
+  > `docs/src/tutorials/quick-start.md` still read `sudo apt install
+  > rustc-1.91 …`, and `toolchain-declarations` compares every documentation
+  > site to the channel **exactly**, so a patch-level pin would have demanded
+  > `rustc-1.98.1` — a package Ubuntu cannot ship. The test that certified
+  > the collision gone used the fixture `sudo apt install rustc-1.91.1
+  > cargo-1.91.1`, an apt invocation that has never been runnable: it proved
+  > the *gate* accepted a pin while asserting a *tree* that could not exist.
+  > RFC-0.31-003 moved the quick start to rustup first (R2, its own commit),
+  > which fixed a live defect independently — that page had been telling
+  > every first-time reader to install the one toolchain E-041 proved cannot
+  > build this project — and only then was the pin possible.
+  >
+  > **What the pin was taken *at*, and why that was a second decision.**
+  > `1.91` resolved to a compiler from 2025-11-07: ten months and seven minor
+  > versions behind stable. Pinning there would have frozen a gap nobody had
+  > chosen. Pinned at **1.98.1**, current stable, verified by a 24-tier QEMU
+  > pass and a fully green CI run (`34695574958`, 34 jobs) rather than by
+  > compilation alone.
+  >
+  > **Twenty-two declaration sites are now five**, of which four are
+  > documentation a human types and all five are gated. A version bump is one
+  > declaration plus four documentation edits that a check names if you miss
+  > one — demonstrated by bumping the channel with the doc sites left behind
+  > and watching all four be named.
+  >
+  > **What does not come with this closure, stated so it is not lost.**
+  > Cross-machine reproducibility is still compared nowhere: every digest this
+  > project has ever recorded was produced on one machine, and this erratum
+  > had been carrying that disclosure. It is **not** a surviving instance of
+  > E-037 — E-037 was "declared in twenty-two places and recorded nowhere",
+  > and no claim of cross-machine reproducibility exists anywhere in this
+  > project to be contradicted. It stays a disclosed non-claim in
+  > `docs/release/v1-limitations.md`, now stated on its own rather than
+  > inside this entry's parenthesis, so closing E-037 does not quietly retire
+  > it. Likewise the true MSRV minimum remains undetermined (RFC-0.31-003 R6:
+  > the floor is now verified at exactly `1.91.0` rather than assumed, but
+  > verified is not bisected).
+  >
+  > **And the pin's own cost is now instrumented.** An exact pin converts
+  > silent drift into silent staleness — the same ten-month gap can recur
+  > with nobody deciding. Release-cycle **exit criterion 10** records the pin,
+  > current stable and the gap at every cut, and more than three minor
+  > versions behind blocks the tag or takes an accepted-risk statement
+  > (RFC-0.31-003 §7).
+
 ## E-038 — four subchecks fail without naming themselves when an RFC folder is absent
 
 - **Claim:** `consistency-check` reports which subcheck failed and why.
@@ -2704,7 +2758,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
-| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); ~~two survivors~~ -> one: consolidation CLOSED by RFC-0.31-002 (22 places -> five, four of them documentation), and the channel still floats within `1.91.x` unpinned | RFC-0.31-003 | ACCEPTED |
+| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); ~~two survivors~~ -> ~~one~~ -> none: consolidation CLOSED by RFC-0.31-002 (22 places -> five, four of them documentation), and the channel pinned exactly at 1.98.1 by RFC-0.31-003 | RFC-0.31-003 | CLOSED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |

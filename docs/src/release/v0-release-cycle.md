@@ -53,6 +53,7 @@ All four must hold before beginning:
 | 7 | CHANGELOG entry | present, version and date correct |
 | 8 | Docs match reality | no doc asserts behaviour the tree does not have |
 | 9 | The release commit's CI run read | `gh run view <id> --json jobs`, run id and per-job conclusions recorded |
+| 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
 gate.** [`docs/release/v1-limitations.md`](../../release/v1-limitations.md)
@@ -92,6 +93,37 @@ said "runs in CI on every push", each written from `ci.yml`'s text.
 what CI concluded; it does not move any gate into CI or make a release
 depend on one. What it removes is the possibility of shipping while an
 instrument the project believes in has been reporting nothing.
+
+**Criterion 10 exists because an exact pin goes stale by default.**
+`rust-toolchain.toml` names one version and nothing moves it; that is the
+point (E-037: a floating channel moved the compiler underneath every
+committed artefact). The cost is that the version now only changes when
+somebody decides, and this project reached **ten months and seven minor
+versions** behind current stable without anybody deciding — in a
+security-focused kernel.
+
+Staleness was never an information problem: `rustup check` would have
+printed the gap on any day of those ten months. What was missing was a
+moment at which somebody had to answer for it. This is that moment, and the
+threshold is what makes it one — a step that records a number and requires
+nothing is a report, and this project has a demonstrated record of reports
+not being read (E-041).
+
+**Three minor versions** is about four and a half months at Rust's six-week
+cadence: long enough to skip a release or two while something else is
+urgent, short enough that no drift reaches ten months without a dated,
+signed statement in a release record. It is a starting value; that one
+exists is what matters.
+
+**Read at the cut, not gated in the tree.** Every gate in this project is a
+pure function of the committed tree, and the clean-clone check (which found
+E-038) depends on that: re-running `consistency-check --all` on a committed
+tree must answer what it answered then. A gate that consulted upstream's
+current release would make every historical commit eventually red and every
+record's "the gates passed" quietly false. So the gap is *observed* at the
+cut and *recorded*, the same way criterion 9 treats CI — the gates stay
+offline and deterministic; the outside world is read at a moment, written
+where someone is already looking, and given teeth.
 
 ### Before criterion 4 — re-record the repro baseline after a version bump
 

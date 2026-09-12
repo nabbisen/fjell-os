@@ -491,8 +491,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   identical commit from a different absolute checkout path also reproduced
   identically, ruling out the classic embedded-build-path hazard for this
   toolchain/profile. This is **same-machine** reproducibility only —
-  cross-machine remains untested and unclaimed (**E-037**, two survivors
-  named below — this project makes no cross-machine claim regardless).
+  cross-machine remains untested and unclaimed — **this project makes no
+  cross-machine claim**, and every digest it has ever recorded was produced
+  on one machine. *(Stated on its own from 2026-09-12. This sentence used to
+  cite E-037's surviving instances; E-037 is now CLOSED, and this limitation
+  is not one of the things that closed with it — it was never a contradicted
+  claim, only an unmade one. Decoupled deliberately rather than allowed to
+  retire alongside the erratum that happened to be carrying it.)*
 
   **The check's sensitivity was demonstrated, not assumed to exist:** forcing
   a differing `-C metadata` value scoped to the `riscv64gc-unknown-none-elf`
@@ -510,9 +515,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 
 
 - **The toolchain used to be declared in twenty-two places, and recorded
-  nowhere** (Errata **E-037**, **ACCEPTED**, ~~two survivors~~ **one
-  survivor**, by **RFC-0.30-003** and **RFC-0.31-002**). *Updated
-  2026-09-12: the consolidation survivor is CLOSED. CI installs through
+  nowhere** (Errata **E-037**, ~~ACCEPTED~~ **CLOSED** 2026-09-12, by
+  **RFC-0.30-003**, **RFC-0.31-002** and **RFC-0.31-003** — all three of its
+  own closure conditions, *"one declaration, an exact pin, and a record"*,
+  are met). *Updated 2026-09-12: the consolidation survivor is CLOSED. CI installs through
   rustup from `rust-toolchain.toml` via one composite action, so the count
   is five, not twenty-two — the declaration itself plus the four
   documentation sites a human types by hand, all four still gated. The
@@ -558,15 +564,32 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   so that "independence" was coincident with CI being unable to build the
   product at all.*
 
-  What remains is the **floating channel**, tracked to **RFC-0.31-003**. The
-  declared `1.91` resolves to a compiler from 2025-11-07 — ten months and
-  seven minor versions behind current stable — so pinning is also a decision
-  about *what* to pin at. That line must first move
-  `docs/src/tutorials/quick-start.md` off apt: it still tells a new reader to
-  `apt install rustc-1.91`, which is simultaneously the path that cannot
-  `-Z build-std` (E-041's cause, still live in the tutorial after E-041 was
-  closed on CI going green) and the last thing in the tree that would collide
-  with an exact pin.
+  **Nothing remains (updated 2026-09-12, RFC-0.31-003).** The channel is
+  pinned exactly at **1.98.1** — current stable, not the ten-month-old
+  compiler `1.91` resolved to, because pinning where we happened to be would
+  have frozen a gap nobody had chosen. Verified by a 24-tier QEMU pass on the
+  rebuilt tree and a fully green CI run (`34695574958`, 34 jobs), not by
+  compilation alone: 24 of the 29 prebuilts changed, and a digest diff cannot
+  tell an expected total change from a regression hiding inside one.
+
+  Before the pin could be taken, `docs/src/tutorials/quick-start.md` had to
+  move off apt — it was still telling every first-time reader to
+  `apt install rustc-1.91`, which is at once the path that cannot
+  `-Z build-std` (E-041's cause, still live in the tutorial months after
+  E-041 was closed on CI going green) and the last thing in the tree that
+  would have collided with an exact pin. RFC-0.31-002's review had recorded
+  that collision as gone; it had moved from `ci.yml` to the tutorial, and the
+  test certifying it gone used an apt command that has never been runnable.
+
+  **What this closure does not include**, stated so it is not lost with the
+  erratum: cross-machine reproducibility is still compared nowhere (above,
+  now stated independently), and the true MSRV minimum is still undetermined
+  — the floor is now *verified* at exactly `1.91.0` rather than assumed, but
+  verified is not bisected. **And the pin's own cost is instrumented**: an
+  exact pin turns silent drift into silent staleness, so release-cycle exit
+  criterion 10 records the pin, current stable and the gap at every cut, and
+  more than three minor versions behind blocks the tag or takes an
+  accepted-risk statement.
 
   *Corrected 2026-09-10. This bullet previously said `rust-toolchain.toml` had
   been removed and that no `rust-version` field existed. Both were true for one

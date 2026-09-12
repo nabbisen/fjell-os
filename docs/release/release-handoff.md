@@ -128,10 +128,23 @@ order once.
     noticed that no CI job had ever built the product — E-041. The gates
     stay local and that is deliberate; this step records CI, it does not
     defer to it.)* **Read the run, not the badge, and not `ci.yml`.**
-14. **Clean-clone check** — clone the committed tree into a scratch directory
+14. **Read how far behind the toolchain pin is** — `rustup check` (or
+    `curl -s https://static.rust-lang.org/dist/channel-rust-stable.toml
+    | grep -m1 version`) against `rust-toolchain.toml`'s `channel`. Record
+    the pin, current stable, and the gap in minor versions (§4.11).
+    **More than three minor versions behind blocks the tag**, or takes an
+    accepted-risk statement under the existing rule (§4.7). *(RFC-0.31-003
+    §7. The pin removed E-037's silent drift and replaced it with silent
+    staleness; this is what makes staleness cost a decision instead of
+    nothing. The project reached ten months and seven minor versions behind
+    without anyone deciding to be.)* **This is an observation recorded at a
+    moment, not a gate** — `consistency-check` stays a pure function of the
+    committed tree, so that re-running it on an old tree still answers the
+    question it answered then.
+15. **Clean-clone check** — clone the committed tree into a scratch directory
     and run `consistency-check --all` there. This is what caught E-038, and no
     procedure required it at the time. It is required now.
-15. **Stop.** Hand over for review; do not tag.
+16. **Stop.** Hand over for review; do not tag.
 
 ## 2. What stays with the architect, and why you must not do it
 
@@ -185,13 +198,18 @@ The release record at `docs/release/records/<version>.md` carries:
    write one to paper over a red gate.**
 8. The **repro-baseline diff**, showing which binaries moved and why that is
    the expected set.
-9. The **clean-clone check** result (§1 step 14), and the post-record re-run of
+9. The **clean-clone check** result (§1 step 15), and the post-record re-run of
    criterion 6 (§1 step 12).
 10. **The release commit's CI run** (§1 step 13): the **run id**, and a
     per-job conclusion table — every job, named, with its conclusion. Not a
     summary, not a badge, and not a sentence containing the words "runs in
     CI". If a job is red, say which and why, and either the tag is blocked or
     item 7 applies.
+11. **Toolchain currency** (§1 step 14): the pinned version, current stable,
+    and the gap in minor versions, with the command that produced it. Beyond
+    three, either the tag is blocked or item 7 applies — and an accepted-risk
+    statement here says *why staying behind is the right call for this
+    release*, not that nobody got to it.
 
 Follow the shape of [`records/0.29.0.md`](records/0.29.0.md); it is the most
 recent and the most complete.
