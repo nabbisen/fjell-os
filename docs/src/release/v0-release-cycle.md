@@ -52,6 +52,7 @@ All four must hold before beginning:
 | 6 | Mechanical gates | `cargo xtask release-rehearsal`, full gate table recorded |
 | 7 | CHANGELOG entry | present, version and date correct |
 | 8 | Docs match reality | no doc asserts behaviour the tree does not have |
+| 9 | The release commit's CI run read | `gh run view <id> --json jobs`, run id and per-job conclusions recorded |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
 gate.** [`docs/release/v1-limitations.md`](../../release/v1-limitations.md)
@@ -71,6 +72,26 @@ the citing document's reading of the log is correct (the same weak
 predicate, disclosed the same way, in the subcheck's own module doc and in
 `tests/evidence/README.md`). Re-check any newly-promoted log's citation by
 hand at each cut, the same as the two documents above.
+
+**Criterion 9 is read from the run, never from anything else.**
+`gh run list --workflow ci.yml` for the run whose `headSha` is the release
+commit; `gh run view <id> --json jobs` for the conclusions. The run id and a
+per-job table go in the release record. A red job blocks the tag or takes an
+accepted-risk statement under the existing rule — it is not noted and walked
+past.
+
+This criterion exists because for four months nothing in this cycle
+consulted CI, and so nothing noticed that **no CI job had ever built this
+product**: every job that compiled for `riscv64gc-unknown-none-elf` died at
+`-Z build-std` against an apt toolchain that ships the standard library's
+source without its `Cargo.lock` (E-041, RFC-0.31-002). The badge on
+`README.md` was red for the whole period and was right. Eleven documents
+said "runs in CI on every push", each written from `ci.yml`'s text.
+
+**The gates stay local, and that is deliberate.** This criterion records
+what CI concluded; it does not move any gate into CI or make a release
+depend on one. What it removes is the possibility of shipping while an
+instrument the project believes in has been reporting nothing.
 
 ### Before criterion 4 — re-record the repro baseline after a version bump
 
@@ -342,7 +363,15 @@ change (RFC-v0.21.3-002 Decision request 1, owner-accepted 2026-07-30).
   which stays authoritative for `v1.0.0` specifically (bundle signing,
   offline release key, attestation — deliberately heavier than any v0
   release needs).
-- It adds no CI enforcement. This is a documented, followed-by-hand cycle;
-  automation may follow once it has been used a few times.
+- **It does not move any gate into CI.** Every gate in this cycle runs
+  locally and still does; a release does not depend on a CI run passing,
+  and CI runs no gate that the cycle relies on. What the cycle now does
+  with CI is *read it*: exit criterion 9 records the release commit's run
+  id and per-job conclusions, and a red job blocks the tag or takes an
+  accepted-risk statement. Recorded, not deferred to.
+  *(Until 2026-09-12 this line read "It adds no CI enforcement. This is a
+  documented, followed-by-hand cycle." That was honest and it was the
+  reason nothing noticed E-041 for four months — a cycle that consults no
+  instrument cannot be told the instrument is broken. RFC-0.31-002 D7.)*
 - It does not change version-numbering semantics or decide `v1.0` timing —
   both remain owner authority, untouched.

@@ -1892,6 +1892,49 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > a floor is not a mirror, and unifying either was never this line's
   > Non-goal to take on.
 
+  > **Survivor 1 CLOSED; survivor 2 survives, re-stated — RFC-0.31-002,
+  > 2026-09-12.**
+  >
+  > **~~Still 22 places to edit at a bump~~ → five.** `ci.yml`'s seventeen
+  > hand-copied apt blocks are gone; every job that needs a toolchain uses
+  > `.github/actions/toolchain`, which reads `rust-toolchain.toml` and
+  > nothing else. The five that remain are `rust-toolchain.toml` itself —
+  > the declaration, which is not a duplicate of anything — and the four
+  > sites a *human* reads and types by hand:
+  > `docs/src/internals/local-development.md` (the prerequisite table row
+  > and the `rustup toolchain install` line),
+  > `docs/src/tutorials/quick-start.md`'s apt line, and
+  > `docs/release/release-checklist.md`'s `rustc --version | grep` check.
+  > Those four are still compared against the channel by
+  > `toolchain-declarations`, unchanged. A bump is now one declaration plus
+  > four documentation edits that a gate names if you forget them, against
+  > twenty-two sites of which twenty-one were machine instructions.
+  >
+  > **Survivor 2 — the channel still floats — is not closed, and E-037
+  > therefore does not close.** E-037's own bar was *"one declaration, an
+  > exact pin, and a record."* The record arrived with RFC-0.30-003; the
+  > one declaration arrives here; **the exact pin has still not been
+  > taken**, `channel = "1.91"` still matches any `1.91.x`, and the
+  > cross-machine digest comparison this erratum is ultimately about is
+  > still performed nowhere. Two of three is not three.
+  >
+  > **What did change about survivor 2: it is now a free decision.** The
+  > 2026-09-10 review found that pinning collided with survivor 1's own
+  > gate — `channel = "1.91.1"` made `toolchain-declarations` fail on a
+  > correct tree, because Ubuntu's apt carries `rustc-1.91` and never
+  > `rustc-1.91.1`. **That collision is gone.** `ci.yml` names no apt
+  > package now, and rustup accepts an exact patch channel, so the
+  > asymmetry between rustup channel names and apt package names has no
+  > remaining point of contact with this project. The two survivors were
+  > recorded as coupled; closing survivor 1 uncoupled them. Pinning is now
+  > a decision about pinning alone — its real cost (every upstream patch
+  > release becomes a deliberate edit) against its real benefit — and it is
+  > still not this line's to take (RFC-0.31-002 Non-goals).
+  >
+  > The test that asserted the collision is replaced by
+  > `an_exact_patch_pin_no_longer_collides_with_ci`, which asserts the
+  > opposite and would fail if an apt block ever came back.
+
 ## E-038 — four subchecks fail without naming themselves when an RFC folder is absent
 
 - **Claim:** `consistency-check` reports which subcheck failed and why.
@@ -2329,6 +2372,119 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the release record, so "runs in CI" can never again be written from the
   workflow file.
 
+  > **RFC-0.31-002 implemented, 2026-09-12. Three of this entry's four
+  > closure conditions are met and observed; one job is not green, for a
+  > reason outside RFC-0.31-002's scope, so this entry stays `ACCEPTED`
+  > pending the architect's ruling rather than being closed by the
+  > implementer.**
+  >
+  > **Observed on run `34674794847`** (`c3e6035`, push): **33 success, 1
+  > failure, 1 skipped** (`fuzz-nightly`, schedule-only). Every job that
+  > builds the product is green for the first time in this project's
+  > history — `qemu-smoke` (`m7`, `m8`), all fourteen `qemu-negative`
+  > profiles, all three `qemu-v07` categories, `cross-check`,
+  > `arm64-check`, `repro-check`, `proptest`, `test-v07-formats`. The
+  > kernel boots under QEMU on CI. `repro-check` builds the product twice
+  > and compares it, on CI — which RFC-0.30-001 claimed in March, and this
+  > is the first time it has been true.
+  >
+  > **The one red job is `test-services`, and it is a service source
+  > defect, not a CI defect.** `fjell-identityd` does not compile for
+  > `riscv64gc-unknown-none-elf` and never has: see **E-042**. It
+  > reproduces locally, identically, with no CI involved. RFC-0.31-002
+  > *"does not touch the kernel, the ABI surface, or any service"*, so the
+  > implementer filed it rather than fixing it. Nineteen of the twenty
+  > service crates in that job's list cross-check clean.
+  >
+  > **Corrections to this entry's own failure table**, re-derived from every
+  > failing job's log rather than from the eight opened when it was
+  > written:
+  >
+  > 1. **29 failing jobs, not 28.** `arm64-check` appears in neither this
+  >    entry's failure list nor its passing list. It was failing, on cause
+  >    1, on the very run this entry was written from (`34650936565`, job
+  >    `103433269310`). A job omitted from both columns of a two-column
+  >    census is this entry's own defect, one level in.
+  > 2. **Cause 1's cell says 25 and its own list enumerates 26**
+  >    (8+12+3+1+1+1). 26+1+1 = 28, the total stated. The list was right and
+  >    the number was a slip.
+  > 3. **Cause 3 was mischaracterised, and the correction matters.**
+  >    `proptest` was recorded as *"the job's own command does not
+  >    compile"*. It compiles. It runs **24 real property tests** — 10 in
+  >    `tests/harness.rs`, 14 in `tests/verus_lemma_properties.rs` — and all
+  >    24 pass, on CI, on run `34657033682`, job `103451689336`. The ten
+  >    `E0405` errors are cascade. The first error is `E0514`, and it
+  >    arrives *after* every test has already passed, in the doc-test phase:
+  >    the apt blocks shimmed `rustc` and `cargo` into `$HOME/.local/bin`
+  >    and **not `rustdoc`**, so `cargo test`'s doc-test step ran the
+  >    runner's ambient rustup `rustdoc`, which auto-installed the official
+  >    `1.91.1` and then refused rlibs built by Ubuntu's source-tarball
+  >    `1.91.1` of the same version number. Two compilers in one job, from
+  >    an incomplete shim. **That is cause 1's root cause wearing a
+  >    different hat** — so the three causes were really two, and the job
+  >    was never the uncovered liability it was written up as. It needed no
+  >    fix of its own: installing one toolchain removed it.
+  > 4. **A fourth cause existed by the time implementation started**, and it
+  >    was this project's own: RFC-0.31-001 deleted `m1`-`m6` from
+  >    `crates/fjell-tools/src/smoke.rs` at `7c859f6` while `ci.yml`'s
+  >    matrix still named them, so from run `34655244163` onward the six
+  >    failed at argument parsing (`[xtask] qemu-test: unknown milestone`)
+  >    rather than at `build-std`. Closed by D5 in the same line.
+  >
+  > **A defect nothing could have seen until cause 1 was fixed:**
+  > `.cargo/config.toml:18` names `ld.lld` as the RISC-V linker, Ubuntu's
+  > `llvm` package does not ship it (the separate `lld` package does), and
+  > **every apt block in this workflow asked for `llvm` alone.** No job ever
+  > reached a linker, so nothing found out. It surfaced in the first run
+  > where the toolchain worked (`34674222129`) and was fixed in the next
+  > commit. Two never-executed defects stacked behind one another, the
+  > second invisible for exactly as long as the first kept failing.
+
+## E-042 — `fjell-identityd` has never compiled for its own target
+
+- **Claim:** `ci-test-services`' second step cross-checks twenty service
+  binaries for `riscv64gc-unknown-none-elf`; `fjell-identityd` is the first
+  crate in its list.
+- **Tree:** `fjell-identityd` does not compile for that target, and there is
+  no sign it ever did. Observed on CI (run `34674794847`, job
+  `103502643804`) and reproduced locally with the identical three errors:
+
+  ```
+  error[E0432]: unresolved import `fjell_cap`
+    --> crates/services/fjell-identityd/src/main.rs:16:5
+  error[E0433]: failed to resolve: use of unresolved module or unlinked
+                crate `fjell_service_api`
+    --> crates/services/fjell-identityd/src/main.rs:22:5
+  error[E0432]: unresolved imports `fjell_identity_format::Decision`,
+                `fjell_identity_format::NodeIdentityBuilder`
+    --> crates/services/fjell-identityd/src/main.rs:18:24
+  ```
+
+  Two are missing dependencies: `crates/services/fjell-identityd/Cargo.toml`
+  declares `fjell-abi`, `fjell-syscall`, `fjell-identity-format` and
+  `fjell-measure-format`, while the source imports `fjell_cap` and
+  `fjell_service_api`, neither of which is a dependency. The third is two
+  import paths that moved into submodules
+  (`fjell_identity_format::policy::Decision`,
+  `fjell_identity_format::identity::NodeIdentityBuilder`) with the `use`
+  left at the crate root. An unused-import warning sits on the same line.
+- **Why it was invisible:** the job that checks it has never reached it.
+  `ci-test-services` died at `-Z build-std` on every run since the job was
+  added (E-041), and no local gate runs this crate for this target —
+  `cargo xtask build` does not include it, `test-all`'s tiers do not, and
+  the host `cargo check` list in `ci-check` does not name it. The crate sits
+  in the workspace and in one CI job's argument list, and that job could not
+  start. **This is E-041's cost made concrete:** an instrument that reports
+  nothing is not neutral, it is cover.
+- **Scope:** the other nineteen service crates in that job's list all
+  cross-check clean, checked one at a time.
+- **Not fixed here.** RFC-0.31-002 *"does not touch the kernel, the ABI
+  surface, or any service"* — its own scope line, repeated in its handoff's
+  prohibited shortcuts. The implementer found it, reproduced it, bounded it
+  and filed it. **It is the one job standing between E-041 and closure**, so
+  it needs a decision rather than a queue slot.
+- **Resolution:** **OPEN**, unscheduled — awaiting the architect.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -2369,11 +2525,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
-| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); two survivors: still 22 places to edit at a bump, and the channel floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
+| E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); ~~two survivors~~ -> one: consolidation CLOSED by RFC-0.31-002 (22 places -> five, four of them documentation), and the channel still floats within `1.91.x` unpinned | RFC-0.30-003 | ACCEPTED |
 | E-038 four subchecks fail without a result line naming themselves when an RFC folder is absent | RFC-0.30-002 | CLOSED |
 | E-039 the architect has been Responsible for the cut at five consecutive releases; the Roles table assigns that to the implementer | 0.30 | CLOSED |
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
 | E-041 CI has one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job has ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | ACCEPTED |
+| E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf` (two missing dependencies, two moved import paths); the one job that checks it has never reached it | unscheduled | OPEN |
 
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

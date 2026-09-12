@@ -476,6 +476,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   *Corrected 2026-09-12 (E-041): that job has never succeeded. Every CI job that builds services fails at `-Z build-std` because Ubuntu's apt `rust-src` ships no `library/Cargo.lock`; the workflow has had one green run in 152, on 2026-05-05.* The check is real and its demonstrations were
   local; it has not yet run anywhere else.
 
+  *Corrected again 2026-09-12, later the same day (RFC-0.31-002): it runs on
+  CI now, and this is the first sentence about it here written from a run
+  rather than from `ci.yml`. `ci-repro-check` is green on run `34674356238`,
+  job `103501524504`; `cargo xtask two-build-check` ran 04:59:10Z-04:59:37Z,
+  27 seconds to build the product twice and compare all 30 artefacts. The
+  claim in the paragraph above — "it now runs in CI on every push" — is true
+  from `ca1dcd5` onward and was false for the six months before it.*
+
   **The build is, as measured, reproducible.** Two independent runs (each
   with its own clean) produced bit-for-bit identical output across all 30
   artefacts — the kernel ELF plus all 29 service prebuilts, both counts
@@ -502,8 +510,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 
 
 - **The toolchain used to be declared in twenty-two places, and recorded
-  nowhere** (Errata **E-037**, **ACCEPTED**, two survivors named, by
-  **RFC-0.30-003**). `rust-toolchain.toml` (channel, `rust-src`, the
+  nowhere** (Errata **E-037**, **ACCEPTED**, ~~two survivors~~ **one
+  survivor**, by **RFC-0.30-003** and **RFC-0.31-002**). *Updated
+  2026-09-12: the consolidation survivor is CLOSED. CI installs through
+  rustup from `rust-toolchain.toml` via one composite action, so the count
+  is five, not twenty-two — the declaration itself plus the four
+  documentation sites a human types by hand, all four still gated. The
+  surviving limitation is the second one below: the channel floats within
+  `1.91.x`, unpinned, and cross-machine reproducibility is still compared
+  nowhere. Pinning is now a free decision: it used to collide with the drift
+  gate, because Ubuntu's apt has no `rustc-1.91.1` package, and `ci.yml`
+  names no apt package any more.* `rust-toolchain.toml` (channel, `rust-src`, the
   RISC-V target), `.github/workflows/ci.yml` (`apt-get install
   rustc-1.91`, copied into **17 of 19** jobs), `docs/release/
   release-checklist.md`, `docs/src/internals/local-development.md`,
@@ -626,6 +643,40 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   never true. The badge at the top of `README.md` has been red the whole time.
   Repair needs rustup in CI (E-037's shape 1, now a precondition rather than a
   successor) and a release-cycle step that records the observed CI conclusion.
+
+  **Repaired 2026-09-12 (RFC-0.31-002), and observed: run `34674794847`,
+  33 jobs green, 1 red, 1 skipped.** CI installs the toolchain through rustup
+  from `rust-toolchain.toml` via `.github/actions/toolchain`, which fails
+  closed if that file is absent (demonstrated red on run `34675044074`, job
+  `103503283586`, at the assert step with the build step skipped). The kernel
+  boots under QEMU on CI; the two-build reproducibility check runs there; the
+  dead `m1`-`m6` matrix entries are gone; and the release cycle gained exit
+  criterion 9, which records the release commit's run id and per-job
+  conclusions. Two of this paragraph's three named causes turned out to be
+  one — `proptest` compiled and ran 24 passing property tests all along, and
+  died afterwards in its doc-test phase because the apt shim covered `rustc`
+  and `cargo` but not `rustdoc`.
+
+  **Still ACCEPTED, on one job.** `test-services` is red because
+  `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`
+  (**E-042**, OPEN) — a service source defect, reproducible locally, that
+  RFC-0.31-002's scope forbids it to fix. E-041's closure condition is
+  *every* service-building job observed green, so it is not the
+  implementer's to close.
+
+- **One service crate does not compile for its own target** (Errata
+  **E-042**, **OPEN**, unscheduled). `fjell-identityd` imports `fjell_cap`
+  and `fjell_service_api` without declaring either as a dependency, and
+  imports `Decision` and `NodeIdentityBuilder` from
+  `fjell_identity_format`'s root after both moved into submodules. It fails
+  the same way locally and on CI (run `34674794847`, job `103502643804`).
+  The other nineteen service crates in the same job cross-check clean. It
+  was invisible because the only job that compiles it has never got past
+  installing its toolchain — which is E-041's cost, stated concretely: an
+  instrument reporting nothing is not neutral, it is cover. **This crate is
+  not part of any release artefact today** (`cargo xtask build` does not
+  build it and no `prebuilt/` entry comes from it), so nothing shipped
+  depends on it; what is unknown is how long it has been broken.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer
