@@ -2756,15 +2756,18 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Tree, observed:** every scheduled run of `ci-fuzz-nightly` since the
   harness was added (`e63d19f`, 2026-06-06) has failed — all eight targets,
   every week. The latest, `34829212731` on 2026-09-14, ran against the released
-  0.31.0 tree and turned the README's CI badge red. The push-only view of the
-  same badge (`?event=push`) is green, which is why nothing at a cut noticed.
+  0.31.0 tree and turned the README's CI badge red. The badge shows the most
+  recent run of any event, so the next push (`eb71cbe`, run `34951074576`)
+  turned it green again: it is red from each Monday's scheduled run until the
+  next push and green otherwise, while every cut reads a push run — which is
+  why nothing at a cut noticed.
   Three defects are stacked, each hiding the next:
 
   | # | Defect | Since |
   |---|---|---|
   | 1 | `fuzz/` is neither a workspace member nor excluded, so cargo refuses: *"current package believes it's in a workspace when it's not"* | `e63d19f`, 2026-06-06 |
   | 2 | its dependency paths point at `../crates/<name>`; the format crates moved to `crates/formats/` | `a5b5167`, 2026-07-23 |
-  | 3 | **6 of 8 targets call functions that no longer exist** — e.g. `fjell_attestation_format::v2::parse_record`, `fjell_keyring::snapshot::parse`, `fjell_upgrade_format::release_metadata::parse`, `fjell_diag_format::parse_bundle`, and the module `fjell_upgrade_format::rollback`. Only `semantic_record_parse` and `update_index_parse` compile | not established |
+  | 3 | **6 of 8 targets do not compile**, and five of them call functions that **never existed** — `fjell_attestation_format::v2::parse_record`, `fjell_keyring::snapshot::parse`, `fjell_upgrade_format::release_metadata::parse`, `fjell_diag_format::parse_bundle`, and the module `fjell_upgrade_format::rollback`. Only `semantic_record_parse` and `update_index_parse` compile | **the harness's creation** — none of the five existed at `e63d19f` |
 
   Defects 2 and 3 were found by repairing 1, then 2, in a scratch clone; the
   tracked tree is unchanged. **The harness has never run once.** ADR-v0.6-003's
@@ -2783,14 +2786,31 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      every cut since the criterion was added would have passed with this job
      red — and 0.31.0 did.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.32**.
-  Closing it means: all eight targets compile; a real fuzz run is observed
-  green, with a run id; the job can be triggered on demand, so a fix is not
+  Closing it means: the harness builds; every target exercises a real decoder
+  of untrusted bytes, and targets that do not are retired; the seed corpora
+  are actually used; a real fuzz run is observed green, with a run id; the job can be triggered on demand, so a fix is not
   waiting a week to be proven; the release cycle reads the latest scheduled
   run as well as the release commit's push run; and the claims above are made
   true or corrected. **Not** by filtering the README badge to push events,
   which would hide the job rather than fix it. Corrected in place today:
   ADR-v0.6-003, `v1-readiness.md`, `what-is-fjell.md`, `overview.md`, and
   E-041's closure.
+
+> **Further findings, 2026-09-15, while scoping RFC-0.32-001.** The harness was
+> never a working harness that rotted. At the commit that created it
+> (`e63d19f`), five of its eight targets already called functions that did not
+> exist — `fjell-identityd`'s shape (E-042): code written against an API that
+> was never there. Of the remaining three, `update_index_parse`'s entire body
+> is `let _ = data.len();` — it compiles because it tests nothing — and
+> `board_profile_parse` decodes no input, only checking that a digest is
+> deterministic. That leaves **one real target**, `semantic_record_parse`. The
+> formats most targets were named after mostly have no byte decoder at all;
+> they are Rust structs with constructors, digests and signatures. The seeded
+> corpora under `fuzz/corpora/` are never passed to `cargo fuzz run`, so even a
+> working job would start empty. The originating RFC,
+> `RFC-v0.6-003-semantic-schema-compatibility-and-format-fuzzing`, was marked
+> Implemented; it is reclassified `Implemented-with-Errata`, and its other
+> mechanism — the schema freeze — is **E-045**.
 
 ## E-044 — the A/B boot-control state machine has no runtime client
 
@@ -2825,6 +2845,95 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   a service nothing talks to, and a reboot nothing dispatches.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.33**, with
   the undispatched syscalls it depends on. ADR-0009 corrected in place today.
+
+## E-045 — the frozen wire-format schemas were never enforced, and have already drifted
+
+- **Claim:** RFC-v0.6-003 (Implemented, v0.6.0) specified a frozen schema file
+  per public format, a `fjell-tools schema dump` generator, and a
+  `schema_dump_matches_frozen_baseline` test.
+  `docs/src/adr/ADR-v0.6-003-format-fuzzing.md`: *"Frozen schema files lock
+  field layouts. Any layout change must be accompanied by a BREAKING-SCHEMA
+  commit, a schema version bump, and an ADR — enforced by CI"*; *"Schema drift
+  (accidental field reorder, size change) is caught per-PR"*; *"The frozen
+  schema files serve as authoritative wire-format documentation."* Every
+  `.frozen` file's header reads *"generated by fjell-tools schema dump"*.
+- **Tree, observed 2026-09-15:**
+  - **The generator and the comparison test were never built.** No commit on
+    any branch defines `fn schema_dump` or a `schema-dump` command
+    (`git log --all -S`).
+  - **Nothing reads a `.frozen` file.** No code or test in the workspace
+    references one, and the six frozen-format crates checked contain no
+    `size_of`/`offset_of` layout assertions.
+  - **`ci-schema-gate` checks that eleven files exist and are non-empty** —
+    nothing more.
+  - **The schemas have drifted, in both formats checked.**
+    `rollback-record-v1.frozen` describes `channel u8[16]`, `min_counter u32`
+    and `updated_tick u64`; the struct has `channel_id [u8; 8]`,
+    `min_counter u64`, `last_advance_tick u64` and two further fields.
+    `release-metadata-v1.frozen` describes a signature block
+    (`signature.purpose`, `.epoch`, `.bytes`) and three digests; the struct has
+    no signature field and a different set of counters, digests and provenance
+    fields. **Neither `schema_version` was bumped.**
+- **Why nothing saw it:** a presence check reported as a drift check, and the
+  one mechanism that would compare layouts was specified, marked implemented,
+  and never written.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.33**, with
+  the ABI work these formats belong to. Closing it means either a generated
+  schema with a real comparison gate, or retiring the frozen files and the
+  claims made for them; a census of all eleven files is part of that line.
+  RFC-v0.6-003 reclassified `Implemented-with-Errata`; ADR-v0.6-003 corrected in
+  place today.
+
+## E-046 — Rust structs are reinterpreted as raw bytes without the guarantees that would make it sound, including across a service boundary
+
+- **Claim:** each site carries a `// SAFETY:` justification, and Gate 2
+  verifies that it exists.
+  - `fjell_service_api::chunked::reassemble<T: Copy>(buf: &[u8]) -> T`:
+    *"bytewise reinterpretation is sound as long as sender and receiver share
+    the identical type definition, compiled by the identical compiler for the
+    identical target"*; its SAFETY comment cites a *"caller contract"* that
+    `buf` holds `size_of::<T>()` initialised bytes of `T`.
+  - `BootControlBlock::seal`/`is_valid` (`fjell-upgrade-format`) and
+    `StoreSuperblock::seal`/`is_valid` (`fjell-store-format`): *"byte slice is
+    aligned and sized correctly by the caller; no aliasing."*
+- **Tree, observed 2026-09-15:**
+  1. **`reassemble` turns bytes another task sent into a type most byte
+     patterns are not valid values of.** `fjell-semantic-stream`
+     (`PUBLISH_COMMIT`) and `fjell-proxy-text` (`RENDER_COMMIT`) rebuild a
+     `SemanticEnvelope` from chunks received over IPC — sent today by
+     `fjell-sample-service` — and reinterpret the bytes with `read_unaligned`.
+     `SemanticEnvelope` is not `#[repr(C)]` and contains an enum
+     (`SemanticPayload`) and `Option` fields. **An invalid discriminant from a
+     buggy or compromised sender is undefined behaviour in the receiver**, at
+     the boundary a capability microkernel exists to distrust. The "caller
+     contract" binds no one: `reassemble` is a safe `pub fn` with no length
+     check, so a short slice from any future caller would be an out-of-bounds
+     read. The two current call sites are not short — their buffers are
+     `ENV_SIZE.div_ceil(32) * 32` bytes by construction.
+  2. **The checksum paths read padding.** `BootControlBlock` and
+     `StoreSuperblock` are `#[repr(C)]` with a `u16` immediately followed by a
+     `u64` — at least six padding bytes each — and `seal`/`is_valid` view
+     `size_of::<Self>()` bytes as `&[u8]`. Reading padding through a byte slice
+     is undefined behaviour, and `is_valid`'s `let mut copy = *self` is not
+     required to preserve it. Nothing reads either structure from disk today
+     (E-044), so this is latent.
+  3. **The sending side does the same:** `fjell-sample-service` views the
+     non-`repr(C)` `SemanticEnvelope` as bytes over its full in-memory size, a
+     layout Rust does not specify for such a type.
+- **Why nothing saw it:** Gate 2 is sound for what it claims — that every
+  unsafe site *has* a SAFETY comment. It cannot check the comment is true, and
+  none of these mentions padding, discriminant validity or `repr`. The one fuzz
+  target that works exercises `fjell_semantic_v1::decode`, a different, safe
+  codec; the envelope receive path has never been fuzzed or fed malformed input.
+- **Not demonstrated at runtime.** No current sender produces an invalid
+  envelope, and no misbehaviour has been observed. Miri is available for the
+  nightly toolchain; running these paths under it is the obvious first
+  demonstration.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.32**.
+  Closing it means the envelope receive path validates rather than
+  reinterprets untrusted bytes, and the checksum paths compute over explicitly
+  serialised fields rather than struct memory — each demonstrated under Miri
+  or an equivalent, not argued.
 
 ## Summary
 
@@ -2875,6 +2984,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 | E-043 the fuzz harness has never run: every weekly `fuzz-nightly` run since 2026-06-06 failed on three stacked defects (workspace membership, paths broken by the July reorg, 6 of 8 targets calling functions that no longer exist); the job is schedule-only, so exit criterion 9 and E-041's closure could not see it | 0.32 | ACCEPTED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
+| E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
+| E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | 0.32 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

@@ -34,3 +34,9 @@ Fuzzing runs nightly with the seeded corpora as starting points.
 - Format regressions that cause parser panics are caught before merge.
 - Schema drift (accidental field reorder, size change) is caught per-PR.
 - The frozen schema files serve as authoritative wire-format documentation.
+
+> **Correction, 2026-09-15 (E-045).** Neither consequence about schemas has
+> held. `ci-schema-gate` checks only that the frozen files exist and are not
+> empty; the `fjell-tools schema dump` generator and the comparison test that
+> RFC-v0.6-003 specified were never built; and in both formats checked, the
+> frozen description no longer matches the code, with no schema version bumped.

@@ -736,10 +736,11 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   boundaries, and a weekly CI job is meant to run them. It has failed every
   week since it was added in June 2026: the fuzz crate is misconfigured as a
   workspace member, its dependency paths broke in the July crate
-  reorganisation, and six of the eight targets call parser functions that no
-  longer exist. It does not run on push or pull request, so no release step
-  ever saw it, and the README's CI badge turned red on the released 0.31.0
-  tree when the scheduled run failed on 2026-09-14. **No fuzz run has ever
+  reorganisation, and five of the eight targets call parser functions that
+  never existed — they did not compile even on the day they were added. It does not run on push or pull request, so no release step
+  ever saw it. The README's CI badge turned red on the released 0.31.0 tree
+  when the scheduled run failed on 2026-09-14, and green again at the next
+  push — it shows only the most recent run, so it is red a day or so a week. **No fuzz run has ever
   succeeded.** Parser robustness rests on host unit tests and property tests,
   and two formats — `fjell-store-format` and `fjell-verify-format` — have no
   tests at all.
@@ -752,6 +753,23 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   sends `bootctl` a message, there is no runtime health check, and no reboot
   syscall is implemented, so a rollback could not reboot if one were ever
   requested. Nothing currently requests one.
+
+- **The frozen wire-format schemas are neither frozen nor accurate** (Errata
+  **E-045**, ACCEPTED, tracked to 0.33). Eleven `.frozen` files are described
+  as the authoritative layout of formats that cross service boundaries, and CI
+  is said to reject layout changes. CI only checks that the files exist and
+  are not empty; the generator their headers name was never built; and in both
+  formats checked, the described layout no longer matches the code, with no
+  schema version bumped.
+
+- **Two code paths treat Rust structs as raw bytes unsoundly** (Errata
+  **E-046**, ACCEPTED, tracked to 0.32). The semantic-stream and text-proxy
+  services rebuild a message from bytes another service sent by reinterpreting
+  them directly as a Rust type containing an enum, so a malformed message from
+  a buggy or compromised sender is undefined behaviour rather than a rejected
+  input. Separately, the boot-control and store-superblock checksums are
+  computed over struct memory including padding. Neither has been observed to
+  misbehave; both are unsound as written.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer
