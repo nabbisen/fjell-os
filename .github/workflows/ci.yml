@@ -25,7 +25,10 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '0 4 * * 1'  # Weekly fuzz nightly
+    - cron: '0 4 * * 1'  # Weekly: every job, including the full fuzz run (ci-fuzz-run)
+  # RFC-0.32-001 D5: run on demand, so a fix to the fuzz harness or a decoder
+  # is proven the day it lands rather than the following Monday.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -481,39 +484,117 @@ jobs:
           path: tests/qemu/artifacts/smoke-${{ matrix.category }}/
           if-no-files-found: warn
 
-  ci-fuzz-nightly:
-    name: fuzz-nightly
+  # RFC-0.32-001 §7 — on every event, including push and pull request:
+  # BUILD every fuzz target and REPLAY every committed seed once. This job
+  # proves the targets compile and that no decoder panics on an input already
+  # in the corpus. It does not fuzz, and nothing here is named as if it did —
+  # the fuzz run is `fuzz-run`, below. Its Done lines report the seed count,
+  # never fuzzing (answer document, §7).
+  ci-fuzz-build:
+    name: fuzz-build
     runs-on: ubuntu-24.04
-    if: github.event_name == 'schedule'
+    outputs:
+      targets: ${{ steps.list.outputs.targets }}
+    steps:
+      - uses: actions/checkout@v7
+      # §8: the nightly floats (a dated pin is not yet worth its machinery);
+      # cargo-fuzz and fuzz/Cargo.lock are locked. rustup is already on the
+      # runner, as the composite toolchain action relies on.
+      - name: Install nightly and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustc +nightly -vV
+          cargo +nightly install cargo-fuzz --locked --version 0.13.2
+          cargo +nightly fuzz --version
+      # The run matrix is derived here, from cargo-fuzz's own target list —
+      # never hand-listed (E-014's family). Positive control: an empty list,
+      # or a target with no seeds (D3), fails rather than yielding a matrix
+      # of nothing.
+      - name: List fuzz targets
+        id: list
+        run: |
+          targets=$(cargo +nightly fuzz list)
+          if [ -z "$targets" ]; then
+            echo "::error file=fuzz/Cargo.toml::cargo fuzz list returned no targets; refusing to report a matrix of nothing"
+            exit 1
+          fi
+          for t in $targets; do
+            if [ -z "$(ls -A "fuzz/corpora/$t" 2>/dev/null)" ]; then
+              echo "::error file=fuzz/Cargo.toml::target $t has no seeds in fuzz/corpora/$t (RFC-0.32-001 D3)"
+              exit 1
+            fi
+          done
+          echo "targets=$(printf '%s\n' $targets | jq -R . | jq -cs .)" >> "$GITHUB_OUTPUT"
+          printf '%s\n' $targets
+      # Nightly drift lands in this step: a compile error and no artifact.
+      - name: Build fuzz targets
+        run: cargo +nightly fuzz build
+      # A real crash on a known input lands in this step, with its input
+      # uploaded below. -runs=0 executes each seed once and mutates nothing.
+      - name: Replay committed seeds
+        run: |
+          rc=0
+          for t in $(cargo +nightly fuzz list); do
+            mkdir -p "fuzz/corpus/$t"
+            cargo +nightly fuzz run "$t" "fuzz/corpus/$t" "fuzz/corpora/$t" -- -runs=0 || rc=1
+          done
+          exit $rc
+      - name: Upload crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-build-crashes
+          path: fuzz/artifacts/
+          if-no-files-found: ignore
+
+  # RFC-0.32-001 D4/D5 — the fuzz run: on schedule, and on demand through
+  # workflow_dispatch so a fix is proven the day it lands. Each target for 300
+  # seconds, from its committed seeds. Evidence of fuzzing is this job's run id
+  # and libFuzzer's `Done N runs in M second(s)` line per target, nothing else.
+  #
+  # It runs even when fuzz-build's replay failed, as long as fuzz-build got as
+  # far as listing the targets: one target crashing on a seed must not stop
+  # the other targets being fuzzed.
+  ci-fuzz-run:
+    name: fuzz-run
+    runs-on: ubuntu-24.04
+    needs: [ci-fuzz-build]
+    if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && needs.ci-fuzz-build.outputs.targets != '' }}
     strategy:
       fail-fast: false
       matrix:
-        target:
-          - attestation_v2_parse
-          - release_metadata_parse
-          - rollback_record_parse
-          - keyring_snapshot_parse
-          - board_profile_parse
-          - update_index_parse
-          - diagnostic_bundle_parse
-          - semantic_record_parse
+        target: ${{ fromJson(needs.ci-fuzz-build.outputs.targets) }}
     steps:
       - uses: actions/checkout@v7
-      - name: Install Rust nightly + cargo-fuzz
+      - name: Install nightly and cargo-fuzz
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rustup
-          rustup toolchain install nightly
-          cargo +nightly install cargo-fuzz
-      - name: Run fuzz target (${{ matrix.target }})
+          rustup toolchain install nightly --profile minimal
+          rustc +nightly -vV
+          cargo +nightly install cargo-fuzz --locked --version 0.13.2
+          cargo +nightly fuzz --version
+      - name: Fuzz ${{ matrix.target }} for 300 seconds
         run: |
-          cargo +nightly fuzz run ${{ matrix.target }} \
+          mkdir -p "fuzz/corpus/${{ matrix.target }}"
+          cargo +nightly fuzz run "${{ matrix.target }}" \
+            "fuzz/corpus/${{ matrix.target }}" "fuzz/corpora/${{ matrix.target }}" \
             -- -max_total_time=300
-      - name: Upload corpus/crash artifacts
+      # cargo-fuzz writes a crashing input to fuzz/artifacts/<target>/. The job
+      # this replaces uploaded only fuzz/corpus/, so a crash on CI would have
+      # turned it red and discarded the one input that explains it (E-043).
+      - name: Upload crashing input
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: fuzz-${{ matrix.target }}
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+      # D3: the grown corpus is kept as a run artifact, not written back into
+      # the tree. Promoting an input into fuzz/corpora/ is a reviewed commit.
+      - name: Upload grown corpus
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-corpus-${{ matrix.target }}
           path: fuzz/corpus/${{ matrix.target }}/
           if-no-files-found: warn
 
