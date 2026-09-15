@@ -47,7 +47,7 @@
 | Proptest harness (≥ 10 properties; 14 confirmed at v0.20.0) | RFC v0.6-001 | **DONE** (v0.6.0) |
 | Verus formal proofs — capability + lease (`release_required=true`), boot-control (pilot, `release_required=false`); 20 obligations machine-checked; callsite-audit Gate 11 blocking | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1 proofs; v0.20.0 gate) |
 | Reproducible build gate (SHA-256 baseline, two-build mode) | RFC-v0.16-005 H-04 | **DONE** (v0.18.2) |
-| Fuzz targets (≥ 4) | RFC v0.6-003 | **DONE** (v0.6.0) |
+| Fuzz targets (≥ 4) | RFC v0.6-003 | **IN PROGRESS** → 0.32 — 8 targets exist, 2 compile, and none has ever run successfully in CI (E-043; previously marked done at v0.6.0) |
 | Unsafe-audit gate, zero gaps | RFC v0.6-004, RFC 060 | **DONE** (v0.8.24) |
 | QEMU smoke tier (≥ 4 profiles) | — | **DONE** (v0.8.0) |
 | QEMU negative tier (≥ 9 categories, fail-closed, 27 real markers) | RFC-v0.7.1-002 | **DONE** (v0.20.0 — real from v0.19.0; fail-closed gate v0.20.0) |

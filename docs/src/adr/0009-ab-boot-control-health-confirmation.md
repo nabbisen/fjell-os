@@ -85,6 +85,18 @@ but not enforced at the kernel level; `upgraded` is a stub.
 - Active-slot write protection will be enforced when `upgraded` is an IPC service
   and the kernel provides a write-permission capability for the inactive slot only.
 
+> **Correction, 2026-09-15 (E-044).** Several statements above no longer
+> describe the tree. Mirror selection **is** tested (four tests in
+> `fjell-upgrade-format`). `health_ok` is not a hardcoded constant:
+> `fjell-bootctl-model` models health failure and last-known-good fallback —
+> but no crate uses that model, so there is still no health check at runtime.
+> Candidate boot is no longer simulated in `fjell-init`, or anywhere. The smoke
+> test does not exercise the state transitions: `bootctl` is spawned and waits
+> for four messages that no component sends. M8 shipped without timer
+> preemption, and no reboot syscall is dispatched, so the rollback path — if
+> anything ever reached it — would discard the reboot error and spin. The
+> decision stands; the runtime it describes does not exist yet.
+
 
 ## Security Boundary Impact
 

@@ -700,6 +700,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it under QEMU, ran all fourteen negative profiles, and compared two
   independent builds of the product.
 
+  *Corrected 2026-09-15: "fully green" held for every job CI runs **on
+  push**. The weekly scheduled fuzz job was listed as skipped in both runs and
+  has never succeeded — see **E-043**.*
+
 - **One service crate had never compiled for its own target** (Errata
   **E-042**, **CLOSED** 2026-09-12 — deleted).
   `fjell-identityd` imported `fjell_cap` and `fjell_service_api` without
@@ -726,6 +730,28 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   entry came from it), so nothing shipped depended on it. How long it had been
   broken is answerable after all: since it was written, because the API it
   imported was in a file no `mod` declaration ever included.
+
+- **The fuzz harness has never run** (Errata **E-043**, ACCEPTED, tracked to
+  0.32). Eight fuzz targets exist for the binary formats that cross service
+  boundaries, and a weekly CI job is meant to run them. It has failed every
+  week since it was added in June 2026: the fuzz crate is misconfigured as a
+  workspace member, its dependency paths broke in the July crate
+  reorganisation, and six of the eight targets call parser functions that no
+  longer exist. It does not run on push or pull request, so no release step
+  ever saw it, and the README's CI badge turned red on the released 0.31.0
+  tree when the scheduled run failed on 2026-09-14. **No fuzz run has ever
+  succeeded.** Parser robustness rests on host unit tests and property tests,
+  and two formats — `fjell-store-format` and `fjell-verify-format` — have no
+  tests at all.
+
+- **A/B boot confirmation and rollback are not wired up** (Errata **E-044**,
+  ACCEPTED, tracked to 0.33). ADR-0009 describes candidate boot, health
+  confirmation and rollback between two slots. The pieces exist separately —
+  the boot-control block format (tested), a health and last-known-good model
+  (tested, but used by nothing) and a `bootctl` service — but no component
+  sends `bootctl` a message, there is no runtime health check, and no reboot
+  syscall is implemented, so a rollback could not reboot if one were ever
+  requested. Nothing currently requests one.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer

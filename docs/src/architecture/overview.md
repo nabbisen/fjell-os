@@ -52,10 +52,10 @@ include a Trust Report assembled from these records.
 ## Verification tiers
 
 1. Host library tests and conformance tests (`cargo test`)
-2. Property tests (`fjell-proptest`) and fuzz targets
+2. Property tests (`fjell-proptest`); fuzz targets exist but have never run successfully (E-043)
 3. Unsafe-site and MMIO-ordering audits (zero-gap gates)
 4. Reproducible-build gate (SHA-256, two-build comparison)
-5. QEMU smoke (m1–m8 + feature profiles) and negative tests
+5. QEMU smoke (m7, m8 + feature profiles) and negative tests
 6. Verus formal proofs (release-required for capability and lease)
 
 `cargo xtask test-all` runs tiers 1–5 locally; `cargo xtask

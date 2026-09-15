@@ -318,6 +318,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   See `docs/verification/instrument-audit-closeout.md` §3.1 and
   `docs/release/v1-limitations.md`.
 
+> **A further instance, recorded 2026-09-15 — not fixed.** Gate 5's readiness
+> checker (`tools/fjell-readiness-check/src/main.rs`) counts a matrix row as
+> done if it contains the substring `DONE (` anywhere, so a cell reading
+> "NOT DONE (…)" would count as done; and a row carrying none of its four
+> recognised statuses is counted nowhere, so an unrecognised status can never
+> block. Neither misfires on the current matrix. Found while choosing a
+> status for the fuzz row under E-043, which had to avoid writing `DONE (`.
+
 ## E-015 — Hand-enumerated instrument scopes that no longer match reality
 
 - **Claim:** RFC 025 (CI/QEMU automation foundation) and RFC 026 (negative test
@@ -2602,6 +2610,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > owner took it the same day (delete); the job went green; this entry is
   > closed above. A closure condition that says *every* job means every
   > job, and now it is every job.
+  >
+  > **Correction, architect, 2026-09-15.** *"Every job is green"* (above) and
+  > *"now it is every job"* are false, and I wrote both. Both runs this entry
+  > cites list `fuzz-nightly` as **skipped**: it runs only on the weekly
+  > schedule (`if: github.event_name == 'schedule'`), and no scheduled run was
+  > read before this entry closed. Every scheduled run since the job was added
+  > has failed — including `34829212731` on 2026-09-14, against the released
+  > 0.31.0 tree, which turned the README's CI badge red. What this entry's
+  > four conditions actually established is that every job CI runs **on
+  > push** is green. The closure stands on that narrower ground — the product
+  > builds and boots on CI — and the scheduled job is carried by **E-043**.
+  > *Skipped* was read as *not failing*: the scope blindness this entry was
+  > filed about, inside its own closure.
 
 ## E-042 — `fjell-identityd` has never compiled for its own target
 
@@ -2722,6 +2743,89 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > would have blocked the 0.31.0 cut on a decision the cut does not depend
   > on. The decision was taken the same day.
 
+## E-043 — the fuzz harness has never run, and the release process cannot see the job that would show it
+
+- **Claim:** `docs/src/adr/ADR-v0.6-003-format-fuzzing.md`: *"A `fuzz/`
+  directory using `cargo +nightly fuzz` contains 8 targets"*, *"Fuzzing runs
+  nightly with the seeded corpora as starting points"*, and *"Format
+  regressions that cause parser panics are caught before merge."*
+  `docs/release/v1-readiness.md`: *"Fuzz targets (≥ 4) … **DONE** (v0.6.0)"*.
+  `docs/src/intro/what-is-fjell.md` and `docs/src/architecture/overview.md`
+  list fuzzing among the project's test tiers. E-041's closure: *"every job is
+  green"*.
+- **Tree, observed:** every scheduled run of `ci-fuzz-nightly` since the
+  harness was added (`e63d19f`, 2026-06-06) has failed — all eight targets,
+  every week. The latest, `34829212731` on 2026-09-14, ran against the released
+  0.31.0 tree and turned the README's CI badge red. The push-only view of the
+  same badge (`?event=push`) is green, which is why nothing at a cut noticed.
+  Three defects are stacked, each hiding the next:
+
+  | # | Defect | Since |
+  |---|---|---|
+  | 1 | `fuzz/` is neither a workspace member nor excluded, so cargo refuses: *"current package believes it's in a workspace when it's not"* | `e63d19f`, 2026-06-06 |
+  | 2 | its dependency paths point at `../crates/<name>`; the format crates moved to `crates/formats/` | `a5b5167`, 2026-07-23 |
+  | 3 | **6 of 8 targets call functions that no longer exist** — e.g. `fjell_attestation_format::v2::parse_record`, `fjell_keyring::snapshot::parse`, `fjell_upgrade_format::release_metadata::parse`, `fjell_diag_format::parse_bundle`, and the module `fjell_upgrade_format::rollback`. Only `semantic_record_parse` and `update_index_parse` compile | not established |
+
+  Defects 2 and 3 were found by repairing 1, then 2, in a scratch clone; the
+  tracked tree is unchanged. **The harness has never run once.** ADR-v0.6-003's
+  consequence could not have held even with the harness working: the job does
+  not run on push or pull request at all, so it cannot catch anything "before
+  merge".
+- **Why nothing saw it — three instruments, one blind spot.**
+  1. The instrument audit (`docs/verification/instrument-audit.md`) recorded
+     `ci-fuzz-nightly` as **UNAUDITED** because it is schedule-only, and its
+     close-out resolved that *"these stay `UNAUDITED` and are not converted to
+     anything."* Honest at the time; never followed up.
+  2. E-041 closed on push runs in which the job was **skipped**, and read
+     skipped as not failing.
+  3. Exit criterion 9 reads the CI run **of the release commit**, which is a
+     push run. A job that runs only on schedule is structurally outside it, so
+     every cut since the criterion was added would have passed with this job
+     red — and 0.31.0 did.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.32**.
+  Closing it means: all eight targets compile; a real fuzz run is observed
+  green, with a run id; the job can be triggered on demand, so a fix is not
+  waiting a week to be proven; the release cycle reads the latest scheduled
+  run as well as the release commit's push run; and the claims above are made
+  true or corrected. **Not** by filtering the README badge to push events,
+  which would hide the job rather than fix it. Corrected in place today:
+  ADR-v0.6-003, `v1-readiness.md`, `what-is-fjell.md`, `overview.md`, and
+  E-041's closure.
+
+## E-044 — the A/B boot-control state machine has no runtime client
+
+- **Claim:** `docs/src/adr/0009-ab-boot-control-health-confirmation.md`
+  (Accepted), Consequences: *"The A/B model is structurally in place; the smoke
+  test exercises the state transitions with simulated health checks,"* and
+  *"Real reboot-and-confirm is blocked on the preemptive scheduler (M8
+  prerequisite)."* Its body: *"CandidateBoot: In M7 this is simulated inline in
+  `fjell-init`"*, *"`health_ok` is currently a fixed `true` constant"*, and
+  *"The mirror selection algorithm is defined but untested."*
+- **Tree, observed 2026-09-15:**
+  - `fjell-bootctl` is spawned at boot (`ImageId::BOOTCTL`) and loops in
+    `sys_ipc_recv`, answering four messages — `BOOT_PENDING_QUERY`,
+    `BOOT_CONFIRM`, `BOOT_ROLLBACK`, `BOOT_SHUTDOWN`. **No crate sends it any of
+    them**, and no promoted evidence log contains a line of its output. Nothing
+    exercises the state transitions, simulated or otherwise.
+  - `fjell-init` no longer simulates a candidate boot, and nothing else does.
+  - `fjell-bootctl-model` implements health failure and last-known-good
+    fallback (`health_fail`, `reboot()`), with six tests — and **no crate
+    depends on it**. So `health_ok` is no longer a hardcoded constant, and
+    there is still no health check at runtime.
+  - Mirror selection **is** tested: four tests in `fjell-upgrade-format`.
+  - The rollback arm, if reached, discards the reboot error
+    (`let _ = sys_reboot(...)`) and busy-spins in `loop {}`, because neither
+    reboot syscall (`PlatformReboot` 18, `Reboot` 120) is dispatched.
+  - M8 shipped without timer preemption: the timer interrupt has never been
+    enabled (`crates/fjell-kernel/src/arch/riscv64/csr.rs`). Whether
+    reboot-and-confirm truly requires preemption is not established; that no
+    reboot syscall is dispatched is.
+- **Not a live hazard**, because nothing reaches rollback. It is an Accepted
+  ADR describing a mechanism that exists only as parts: a model nothing uses,
+  a service nothing talks to, and a reboot nothing dispatches.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.33**, with
+  the undispatched syscalls it depends on. ADR-0009 corrected in place today.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -2769,6 +2873,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 
+| E-043 the fuzz harness has never run: every weekly `fuzz-nightly` run since 2026-06-06 failed on three stacked defects (workspace membership, paths broken by the July reorg, 6 of 8 targets calling functions that no longer exist); the job is schedule-only, so exit criterion 9 and E-041's closure could not see it | 0.32 | ACCEPTED |
+| E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

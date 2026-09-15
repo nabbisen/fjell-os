@@ -20,6 +20,15 @@ a BREAKING-SCHEMA commit, a schema version bump, and an ADR — enforced by CI.
 
 Fuzzing runs nightly with the seeded corpora as starting points.
 
+> **Correction, 2026-09-15 (E-043).** The harness described here has never
+> run. The CI job is weekly, not nightly, and runs only on its schedule —
+> never on push or pull request — so it could not catch a regression "before
+> merge" even when working. It has failed every week since it was added:
+> `fuzz/` is misconfigured as a workspace member, its dependency paths broke in
+> the July 2026 crate reorganisation, and six of the eight targets call parser
+> functions that no longer exist. The decision stands; the consequences below
+> have not held.
+
 ## Consequences
 
 - Format regressions that cause parser panics are caught before merge.
