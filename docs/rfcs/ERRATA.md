@@ -2765,7 +2765,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   green"*.
 - **Tree, observed:** every scheduled run of `ci-fuzz-nightly` since the
   harness was added (`e63d19f`, 2026-06-06) has failed — all eight targets,
-  every week. The latest, `34829212731` on 2026-09-14, ran against the released
+  every week *(corrected at RFC-0.32-001: the scheduled runs of 2026-07-27 and
+  2026-08-24, both at `891a1ec`, failed before defect 1 — the root
+  `Cargo.toml` itself had unterminated strings until `f3519dc`; the first two
+  runs' logs have expired and their cause cannot be checked)*. The latest, `34829212731` on 2026-09-14, ran against the released
   0.31.0 tree and turned the README's CI badge red. The badge shows the most
   recent run of any event, so the next push (`eb71cbe`, run `34951074576`)
   turned it green again: it is red from each Monday's scheduled run until the
@@ -2777,7 +2780,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   |---|---|---|
   | 1 | `fuzz/` is neither a workspace member nor excluded, so cargo refuses: *"current package believes it's in a workspace when it's not"* | `e63d19f`, 2026-06-06 |
   | 2 | its dependency paths point at `../crates/<name>`; the format crates moved to `crates/formats/` | `a5b5167`, 2026-07-23 |
-  | 3 | **6 of 8 targets do not compile**, and five of them call functions that **never existed** — `fjell_attestation_format::v2::parse_record`, `fjell_keyring::snapshot::parse`, `fjell_upgrade_format::release_metadata::parse`, `fjell_diag_format::parse_bundle`, and the module `fjell_upgrade_format::rollback`. Only `semantic_record_parse` and `update_index_parse` compile | **the harness's creation** — none of the five existed at `e63d19f` |
+  | 3 | **6 of 8 targets do not compile**, and five of them call functions that **never existed** — `fjell_attestation_format::v2::parse_record`, `fjell_keyring::snapshot::parse`, `fjell_upgrade_format::release_metadata::parse`, `fjell_diag_format::parse_bundle`, and the module `fjell_upgrade_format::rollback`. Only `semantic_record_parse` and `update_index_parse` compile *(corrected at RFC-0.32-001: **5 of 8** — `board_profile_parse` also builds once defects 1 and 2 are repaired; the five that do not are exactly the five calling functions that never existed)* | **the harness's creation** — none of the five existed at `e63d19f` |
 
   Defects 2 and 3 were found by repairing 1, then 2, in a scratch clone; the
   tracked tree is unchanged. **The harness has never run once.** ADR-v0.6-003's
@@ -2795,7 +2798,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      push run. A job that runs only on schedule is structurally outside it, so
      every cut since the criterion was added would have passed with this job
      red — and 0.31.0 did.
-- **Resolution:** ~~**ACCEPTED**~~ **CLOSED** 2026-09-15 by **RFC-0.32-001** (accepted by the architect and scoped the same day).
+- **Resolution:** ~~**ACCEPTED**~~ **CLOSED** 2026-09-15 by **RFC-0.32-001** (scoped by the architect, accepted by the owner the same day). *(Corrected at review: this said "accepted by the architect".)*
   Closing it means: the harness builds; every target exercises a real decoder
   of untrusted bytes, and targets that do not are retired; the seed corpora
   are actually used; a real fuzz run is observed green, with a run id; the job can be triggered on demand, so a fix is not
@@ -3111,7 +3114,52 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   means deciding what the parser should derive from a real tree — depth,
   `/soc` handling, virtio device identification — and whether anything should
   call it at all.
-- **Resolution:** **OPEN**, unscheduled — awaiting the architect.
+- **Resolution:** ~~**OPEN**~~ **ACCEPTED** (architect, 2026-09-15, at
+  RFC-0.32-001's review), **unscheduled**. Verified before ruling: in a scratch
+  crate outside the tree, `derive_board_profile` on the committed seed
+  `fuzz/corpora/dtb_validate/qemu-virt-bios-none.dtb` — a real FDT
+  (`d00dfeed`) carrying `riscv-virtio,qemu` and `virtio,mmio` nodes — returns
+  `Err(MissingPlic)`; `node_depth == 2` is at `derive.rs:90`; the only
+  manifests naming the crate are the root workspace's member list and
+  `fuzz/Cargo.toml`; `UnknownNode` appears once in the crate, in the doc
+  comment at `parser.rs:4`; `fjell-devmgr`
+  (`crates/services/fjell-devmgr/src/main.rs`) builds
+  `BoardProfile::qemu_virt_default` in code.
+
+  **ACCEPTED, not OPEN:** OPEN is live drift in something relied on, and
+  nothing shipped relies on this crate. What is live is the documentation's
+  claim that something does — corrected in place today in ADR-v0.5-002 and
+  RFC-v0.5-002's status line (`Implemented-with-Errata`). **Its disposition is
+  the owner's, the way E-042's was:** delete `fjell-dtb-derive` and its fuzz
+  target, or make it derive from a real tree and give it a caller. Until then
+  the fuzz target stays: E-047 shows it finds real defects in code that is
+  still published in the tree.
+
+## E-049 — `fjell-ci-coverage --check` has been red and nothing runs it; its matcher counts any `-p ` as a package
+
+- **Claim:** `tools/fjell-ci-coverage/src/main.rs:7` — the tool scans CI YAML
+  *"for `-p <name>` references, and reports which packages are missing"*; its
+  existence implies CI coverage of workspace packages is checked.
+- **Tree, observed 2026-09-15:** `cargo run -p fjell-ci-coverage -- --check`
+  exits **1** on today's workflow, listing uncovered packages (19 by the
+  implementer's count; the red predates RFC-0.32-001 and was present at
+  0.31.0, per the implementer). **Nothing runs `--check`:** CI builds and
+  tests the tool (`-p fjell-ci-coverage` in `ci.yml`'s `check` list), and
+  neither `xtask`, `release-rehearsal` nor the release cycle invokes it. Its
+  inline matcher (`main.rs`, the "Also match inline" loop) takes the word after
+  any `-p ` on a line, so `mkdir -p "fuzz/corpus/$t"` counts
+  `"fuzz/corpus/$t"` as a covered package — the implementer measured the
+  covered count rising from 70 to 72 when RFC-0.32-001's jobs landed.
+- **How it surfaced:** RFC-0.32-001 R4 — the implementer tried the tool as a
+  commit gate, found it red, and showed the red was pre-existing.
+- **Why nothing saw it:** an instrument nobody runs cannot fail anyone, and a
+  literal `-p ` match cannot tell a package flag from `mkdir -p` (**E-014**'s
+  family).
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), **unscheduled**.
+  Closing it means deciding whether this instrument should exist — if it
+  should, it runs somewhere that can stop something, it parses `cargo`
+  invocations rather than substrings, and it is shown failing; if not, it is
+  deleted and nothing claims coverage is checked.
 
 ## Summary
 
@@ -3159,13 +3207,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-040 `qemu-test` accepts six milestones (`m1`-`m6`) whose PASS marker nothing emits; they burn a full QEMU timeout and report FAIL, and E-015 was closed with them surviving | RFC-0.31-001 | CLOSED |
 | E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
-
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | 0.32 | ACCEPTED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
-| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | OPEN |
+| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
+| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

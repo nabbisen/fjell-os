@@ -61,6 +61,10 @@ this project to read as "fuzzing works". So:
   *"Replay committed seeds"*. Nothing on the push path is named `fuzz` alone.
 - Exit criterion 9 records `fuzz-build` and the latest scheduled `fuzz-run`
   as **separate rows** (R7).
+  *(Superseded by R7 as built, noted at review: criterion 9 reads a
+  `workflow_dispatch` run of the release commit as the evidence, with its
+  `fuzz-run` jobs' `Done` lines, and the latest scheduled run only as context.
+  The same applies to "reads the latest scheduled run" below.)*
 - The evidence rule — a run id and libFuzzer's `Done N runs in M second(s)` —
   **applies to `fuzz-run` only**. Replay prints the same line with `N` equal
   to the seed count and `M` zero, and is never cited as fuzzing.

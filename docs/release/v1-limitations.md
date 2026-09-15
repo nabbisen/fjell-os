@@ -755,11 +755,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
     tests at all.
 
 - **One device-tree parser has never worked on a real device tree** (Errata
-  **E-048**, **OPEN**). `fjell-dtb-derive` returns `MissingPlic` on QEMU's own
+  **E-048**, ACCEPTED, unscheduled — deletion or repair is an owner decision). `fjell-dtb-derive` returns `MissingPlic` on QEMU's own
   `virt` tree, because QEMU nests devices one level deeper than the parser
   looks, and nothing uses the crate. ADR-v0.5-002 and RFC-v0.5-002 describe a
   boot-time and build-time use that was never built. **Nothing shipped
   depends on it**: `fjell-devmgr` builds its board profile in code.
+
+- **The CI package-coverage tool is red and runs nowhere** (Errata **E-049**,
+  ACCEPTED, unscheduled). `fjell-ci-coverage --check` reports packages that no
+  CI job names, and exits 1 on the current workflow, but no job, gate or
+  release step runs it — so nothing checks that every workspace package is
+  exercised in CI. Its matcher also reads `mkdir -p "<path>"` as a package.
 
 - **A/B boot confirmation and rollback are not wired up** (Errata **E-044**,
   ACCEPTED, tracked to 0.33). ADR-0009 describes candidate boot, health

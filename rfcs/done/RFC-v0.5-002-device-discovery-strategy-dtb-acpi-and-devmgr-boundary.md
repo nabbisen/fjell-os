@@ -1,6 +1,6 @@
 # RFC-v0.5-002: Device Discovery Strategy — DTB / ACPI and devmgr Boundary
 
-**Status.** Implemented (v0.5.0)
+**Status.** Implemented-with-Errata (v0.5.0) — reclassified 2026-09-15: `devmgr` never parsed a device tree, `fjell-tools profile derive` and the `SMOKE:DERIVE` marker were never built, and `fjell-dtb-derive` fails on QEMU's own `virt` tree (E-048).
 
 ## Status
 

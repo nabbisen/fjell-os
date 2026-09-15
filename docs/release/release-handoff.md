@@ -251,7 +251,9 @@ The release record at `docs/release/records/<version>.md` carries:
 10. **The release commit's CI runs** (§1 step 13): the **push run** and a
     **`workflow_dispatch` run of the same commit**, each with its **run id**
     and a per-job conclusion table — every job, named, with its conclusion —
-    and, for every `fuzz-run` job, its `Done N runs in M second(s)` line.
+    and, for every `fuzz-run` job, its `Done N runs in M second(s)` line,
+    with `M` at least the configured 300 — a seed replay prints the same line
+    with `M` of 0.
     Beside them, the latest `schedule` run's id, date and head commit, as
     context. Not a summary, not a badge, and not a sentence containing the
     words "runs in CI". If a job is red, say which, why and at which step, and

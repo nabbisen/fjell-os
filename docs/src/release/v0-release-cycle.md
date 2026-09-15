@@ -113,8 +113,16 @@ Record its run id, date and per-job table beside the push run's, and for each
 `fuzz-run (<target>)` job, the libFuzzer line from its log:
 
 ```sh
-gh run view --job <job-id> --log | grep -E '^Done [0-9]+ runs in [0-9]+ second'
+gh run view --job <job-id> --log | grep -oE 'Done [0-9]+ runs in [0-9]+ second\(s\)'
 ```
+
+*Corrected at review, 2026-09-15: this command was committed as
+`grep -E '^Done …'`, which matches nothing. `gh run view --log` prefixes every
+line with the job name, the step name and a timestamp, so no line begins with
+`Done`. Run against the green job `104405944986` it returned 0 lines while the
+unanchored form returned 1. Under the rule below that a green job with no
+`Done` line is red, the command as written would have turned every green
+`fuzz-run` red, on the first cut to use it.*
 
 - **The dispatched run is the evidence; the latest scheduled run is context.**
   Record the scheduled run's id, date and head commit, but do not let it
@@ -125,9 +133,13 @@ gh run view --job <job-id> --log | grep -E '^Done [0-9]+ runs in [0-9]+ second'
   the evidence. Dispatch again.
 - **No scheduled run since the last cut** is recorded as such. It does not
   block; the dispatched run decides.
-- **A green `fuzz-run` job with no `Done N runs in M second(s)` line** is
-  treated as red. A job can succeed while fuzzing nothing — an empty target, a
-  missing corpus, `-runs=0` — and "the job passed" is not evidence it fuzzed.
+- **A green `fuzz-run` job with no `Done N runs in M second(s)` line, or with
+  `M` below the configured 300 seconds,** is treated as red. A job can succeed
+  while fuzzing nothing — an empty target, a missing corpus, `-runs=0` — and
+  "the job passed" is not evidence it fuzzed. *The presence of the line alone
+  does not show that: a seed replay prints it too, as `Done 5 runs in 0
+  second(s)` — observed in `fuzz-build` job `104405551669`. Tightened at
+  review, 2026-09-15.*
 - **A red `fuzz-build` or `fuzz-run` job** blocks the tag or takes an
   accepted-risk statement under the existing rule. Record the failing step's
   name: a failure at *Build fuzz targets* on an unchanged tree is nightly
@@ -324,6 +336,15 @@ gh run list --workflow ci.yml --limit 5 --json databaseId,headSha,conclusion \
 Green, for that exact SHA, observed — not inferred from the record's run and
 not read from `ci.yml`. A red or missing run blocks the tag under the same
 rule as criterion 9 itself.
+
+**The fuzz dispatch is not repeated for the tagged commit when nothing it
+fuzzes has changed.** The dispatched run of the release commit covers the tag
+if `git diff --name-only <release commit> <commit being tagged>` touches
+nothing under `fuzz/`, `crates/`, `tools/` or `.github/` — the commits after the
+release commit are the record and review documents. If it touches any of them,
+dispatch again against the commit being tagged and read its `fuzz-run` jobs as
+criterion 9 does. *(Added at RFC-0.32-001's review: criterion 9 now reads a
+dispatched run, and the boundary above applies to it the same way.)*
 
 *Added 2026-09-13, at the 0.31.0 cut's review. The implementer raised the
 boundary on criterion 9's first exercise and offered three options, all of

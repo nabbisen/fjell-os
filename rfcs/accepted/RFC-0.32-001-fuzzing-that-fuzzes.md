@@ -34,6 +34,13 @@ the README badge red. Each defect hid the next:
 | 2 | its dependency paths point at `../crates/<name>`; the format crates moved to `crates/formats/` | `a5b5167`, 2026-07-23 |
 | 3 | six of eight targets do not compile; five call functions that **never existed** | the harness's creation |
 
+*Corrected by the implementation (R1), recorded at review: **five** of eight
+did not compile — `board_profile_parse` builds once defects 1 and 2 are
+repaired, and the five failures are exactly the five functions that never
+existed. And not every scheduled run failed on these three defects: the runs
+of 2026-07-27 and 2026-08-24 (both at `891a1ec`) failed earlier, on a root
+`Cargo.toml` with unterminated strings, fixed in `f3519dc`.*
+
 Defects 2 and 3 were found by repairing 1, then 2, in a scratch clone. At
 `e63d19f` none of `v2::parse_record`, `release_metadata::parse`, the module
 `upgrade_format::rollback`, `diag_format::parse_bundle` or

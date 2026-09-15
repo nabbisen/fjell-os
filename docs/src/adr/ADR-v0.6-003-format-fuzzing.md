@@ -43,7 +43,7 @@ Fuzzing runs nightly with the seeded corpora as starting points.
 >   The other five check that decoding never panics on any input.
 > - **Fuzzing runs weekly and on demand, not nightly** — the `fuzz-run` job,
 >   each target for 300 seconds from committed, verified seeds. Run
->   `34976532420` fuzzed all six on the released decoders:
+>   `34976532420` fuzzed all six on the fixed, unreleased tree (`058c586`) *(corrected at review: this said "the released decoders")*:
 >
 >   | Target | libFuzzer |
 >   |---|---|
