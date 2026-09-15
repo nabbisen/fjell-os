@@ -2952,6 +2952,105 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   serialised fields rather than struct memory — each demonstrated under Miri
   or an equivalent, not argued.
 
+## E-047 — `fjell-dtb-derive` adds two offsets taken from the device tree it is parsing without checking the sum
+
+- **Claim:** `docs/src/adr/ADR-v0.5-002-no-runtime-dtb-parse.md`: *"DTB
+  complexity is isolated to a single, well-tested library."*
+  `crates/fjell-dtb-derive/src/parser.rs`: `get_string` *"Read[s] a
+  NUL-terminated string from the strings block"*, returning `Option` — `None`
+  when there is no such string.
+- **Tree:** `get_string(dtb, str_off, name_off)` computes
+  `(str_off + name_off) as usize` (`parser.rs:108`). Both are `u32`s read from
+  the input: `str_off` is the header's `off_dt_strings`, and `name_off` comes
+  from every `FDT_PROP` token. A device tree whose two values sum past
+  `u32::MAX` panics with *"attempt to add with overflow"* in any build with
+  overflow checks — tests, debug builds, and every fuzz build. Without overflow
+  checks the sum wraps, and the lookup reads a string from the wrong offset.
+  The `Option` return cannot help: the panic is in the addition, before the
+  bounds-checked `get`.
+- **How it surfaced:** RFC-0.32-001 R1. The first-ever run of the new
+  `dtb_derive_board_profile` fuzz target, local and started from QEMU's own
+  `virt` device tree, reached it in 30 seconds:
+
+  ```
+  panicked at crates/fjell-dtb-derive/src/parser.rs:108:17:
+  attempt to add with overflow
+  SUMMARY: libFuzzer: deadly signal
+  ```
+
+  The 5044-byte crashing input (`crash-ea5342043de319156e738a33741fa7a084b9441c`)
+  is committed as the regression seed
+  `fuzz/corpora/dtb_derive_board_profile/regression-e047-get-string-add-overflow`,
+  and `cargo fuzz run dtb_derive_board_profile <input>` reproduces the panic.
+- **Reach:** nothing calls `fjell-dtb-derive` today (**E-048**), so this is
+  latent. Its input is firmware-supplied by design.
+- **The fix, verified in a scratch copy:** `str_off.checked_add(name_off)?` —
+  one line, inside the decoder. With it, `fjell-dtb-derive`'s 11 unit tests
+  pass, the crashing input executes cleanly, and a further 120-second run (11.1M
+  executions) found nothing more. It is applied only after a real CI run has
+  shown this crash turning the fuzz job red with its input uploaded
+  (RFC-0.32-001 D8).
+- **Resolution:** **OPEN**, tracked **0.32** (RFC-0.32-001).
+
+## E-048 — `fjell-dtb-derive` has never derived a board profile from a real device tree, and nothing that is documented as using it exists
+
+- **Claim:**
+  - `docs/src/adr/ADR-v0.5-002-no-runtime-dtb-parse.md`: *"DTB parsing is done
+    exactly once: at `devmgr` boot, using `fjell-dtb-derive`"*; *"Unknown
+    `compatible` values produce `DeriveError::UnknownNode`; the service fails
+    hard rather than registering an unknown device"*; *"DTB complexity is
+    isolated to a single, well-tested library"*; *"Unknown hardware is rejected
+    at boot rather than silently ignored."*
+  - `rfcs/done/RFC-v0.5-002-device-discovery-strategy-dtb-acpi-and-devmgr-boundary.md`,
+    **Implemented (v0.5.0)**: an operator workflow `fjell-tools profile derive
+    --dtb boards/qemu-virt.dtb …` (§5.1); acceptance *"CI uses derived profile
+    for v0.5 QEMU boot"*, *"QEMU boots with derived profile"*, and the marker
+    `SMOKE:DERIVE:QEMU_VIRT_MATCHES_BASELINE`.
+  - `crates/fjell-dtb-derive/src/parser.rs:4`: unknown nodes *"are passed to the
+    caller as `DeriveError::UnknownNode`"*.
+- **Tree, observed 2026-09-15:**
+  1. **On QEMU's own `virt` device tree it fails.** `derive_board_profile` on
+     the DTB QEMU generates for exactly the configuration the test runner boots
+     (`-machine virt -bios none`, `crates/fjell-tools/src/qemu_run.rs`) returns
+     **`Err(MissingPlic)`**. QEMU places every device under `/soc` — the PLIC at
+     `/soc/interrupt-controller@c000000`, the UART, all eight `virtio_mmio`
+     nodes — at node depth 3. The parser records devices only at
+     `node_depth == 2` (`derive.rs:90`). Its compatibles are not the problem:
+     the PLIC declares `"sifive,plic-1.0.0", "riscv,plic0"`, and `riscv,plic0`
+     is accepted.
+  2. **Its tests pass because they never use a real layout.** Every test builds
+     a synthetic tree with the device directly under the root
+     (`tests.rs`, `make_plic_dtb`: `plic@c000000` at depth 2).
+  3. **Nothing uses it.** No crate depends on `fjell-dtb-derive`.
+     `fjell-devmgr` parses no device tree; it builds
+     `BoardProfile::qemu_virt_default(…)` in code (`fjell-devmgr/src/main.rs`).
+     `fjell-tools` has no `profile` subcommand. `boards/` does not exist. No
+     `SMOKE:DERIVE:*` marker is emitted anywhere (control: `TEST:M8:PASS` is
+     found in `fjell-kernel/src/trap/dispatch.rs`).
+  4. **`DeriveError::UnknownNode` does not exist.** The enum is
+     `DtbParseFailed, TooManyDevices, MissingPlic, OverlappingRanges,
+     OutOfDmaSpace`. An unknown `compatible` makes `classify_compat` return
+     `None` and the node is **skipped** — the opposite of *"rejected at boot
+     rather than silently ignored"*.
+  5. **Every `virtio,mmio` node classifies as `VirtioNetMmio`**
+     (`classify_compat`), so even a correct depth rule would register block
+     devices as network devices.
+- **How it surfaced:** RFC-0.32-001 R1, verifying the seed corpus for the new
+  `dtb_derive_board_profile` fuzz target through the real decoder. The seed was
+  QEMU's own device tree, and the decoder rejected it. The same line's first
+  fuzz run found a crash in the same parser (**E-047**).
+- **Why nothing saw it:** the parser was written against a synthetic tree and
+  tested against the same synthetic tree, and the one path that would have fed
+  it a real one — `devmgr` at boot, or `profile derive` at build time — was
+  never built. `fjell-identityd`'s shape (**E-042**) and the fuzz harness's
+  (**E-043**): code recorded as in use, with no caller and no real input.
+- **Not fixed here.** It is not a crash, and RFC-0.32-001's handoff permits a
+  fix only for a crash whose fix is inside the decoder and small. Fixing it
+  means deciding what the parser should derive from a real tree — depth,
+  `/soc` handling, virtio device identification — and whether anything should
+  call it at all.
+- **Resolution:** **OPEN**, unscheduled — awaiting the architect.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3003,6 +3102,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | 0.32 | ACCEPTED |
+| E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | OPEN |
+| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | OPEN |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
