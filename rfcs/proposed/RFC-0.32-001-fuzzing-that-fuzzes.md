@@ -12,7 +12,7 @@ cannot see the job that would show it.
 source.**
 **Relates to:** E-046 (the envelope receive path — not fuzzed here, see D7);
 E-045 (the same originating RFC's other mechanism, tracked 0.33); E-041 (whose
-closure read this job's "skipped" as passing); RFC-v0.6-003 (which specified
+final census counted this job's "skipped" runs as passing); RFC-v0.6-003 (which specified
 the harness and was marked Implemented); RFC-0.31-002 (the rule that a CI claim
 needs a run id).
 

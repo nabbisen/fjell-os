@@ -326,6 +326,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > block. Neither misfires on the current matrix. Found while choosing a
 > status for the fuzz row under E-043, which had to avoid writing `DONE (`.
 
+> **A further instance, recorded 2026-09-15 — not fixed.** `errata-tracking`'s
+> closing-claim detector (`header_claims_close` in
+> `tools/fjell-consistency-check/src/errata_tracking.rs`) treats any clause in
+> an RFC header that names an erratum and contains the substring `clos` as a
+> claim to close it — so "closure", "enclosed" and "disclosed" all read as
+> "closes". Found when RFC-0.32-001's header described E-041 as an erratum
+> "whose closure read this job's skipped as passing" and the gate refused the
+> RFC for claiming to close E-041. The RFC was reworded; the matcher still
+> matches a substring, not a claim.
+
 ## E-015 — Hand-enumerated instrument scopes that no longer match reality
 
 - **Claim:** RFC 025 (CI/QEMU automation foundation) and RFC 026 (negative test
