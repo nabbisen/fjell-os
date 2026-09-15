@@ -7,62 +7,65 @@ edition = "2021"
 [package.metadata]
 cargo-fuzz = true
 
+# Its own workspace, never a member of the root one: built with nightly and
+# sanitizers. An empty [workspace] table here (rather than `exclude` in the
+# root Cargo.toml) stops cargo's workspace search at this directory, so it
+# also builds from a checkout nested inside another workspace — which this
+# project makes routinely under .git-exclude/tmp/. With only a root `exclude`,
+# such a nested clone walks on up to the outer workspace and fails with the
+# same "believes it's in a workspace" error this line repairs (RFC-0.32-001 R1).
+[workspace]
+
+# One target per real decoder of bytes from outside its component
+# (RFC-0.32-001 D2). The measure is decoders exercised, not target files.
 [dependencies]
-fjell-attestation-format    = { path = "../crates/fjell-attestation-format" }
-fjell-upgrade-format        = { path = "../crates/fjell-upgrade-format" }
-fjell-keyring               = { path = "../crates/fjell-keyring" }
-fjell-platform-format       = { path = "../crates/fjell-platform-format" }
-fjell-diag-format           = { path = "../crates/fjell-diag-format" }
-fjell-semantic-v1           = { path = "../crates/fjell-semantic-v1" }
-fjell-measure-format        = { path = "../crates/fjell-measure-format" }
-fjell-store-format          = { path = "../crates/fjell-store-format" }
-libfuzzer-sys               = "0.4"
-
-# Prevent this from being included in a standard `cargo build`.
-[[bin]]
-name = "attestation_v2_parse"
-path = "fuzz_targets/attestation_v2_parse.rs"
-test = false
-doc  = false
-
-[[bin]]
-name = "release_metadata_parse"
-path = "fuzz_targets/release_metadata_parse.rs"
-test = false
-doc  = false
-
-[[bin]]
-name = "rollback_record_parse"
-path = "fuzz_targets/rollback_record_parse.rs"
-test = false
-doc  = false
-
-[[bin]]
-name = "keyring_snapshot_parse"
-path = "fuzz_targets/keyring_snapshot_parse.rs"
-test = false
-doc  = false
-
-[[bin]]
-name = "board_profile_parse"
-path = "fuzz_targets/board_profile_parse.rs"
-test = false
-doc  = false
-
-[[bin]]
-name = "update_index_parse"
-path = "fuzz_targets/update_index_parse.rs"
-test = false
-doc  = false
-
-[[bin]]
-name = "diagnostic_bundle_parse"
-path = "fuzz_targets/diagnostic_bundle_parse.rs"
-test = false
-doc  = false
+libfuzzer-sys         = "0.4"
+fjell-semantic-v1     = { path = "../crates/fjell-semantic-v1" }
+fjell-keyring         = { path = "../crates/fjell-keyring" }
+fjell-audit-format    = { path = "../crates/formats/fjell-audit-format" }
+fjell-dtb-derive      = { path = "../crates/fjell-dtb-derive" }
+fjell-dtb-validate    = { path = "../crates/fjell-dtb-validate" }
+fjell-platform-format = { path = "../crates/formats/fjell-platform-format" }
+fjell-cap-manifest    = { path = "../crates/fjell-cap-manifest" }
 
 [[bin]]
 name = "semantic_record_parse"
 path = "fuzz_targets/semantic_record_parse.rs"
 test = false
-doc  = false
+doc = false
+bench = false
+
+[[bin]]
+name = "revocation_record_parse"
+path = "fuzz_targets/revocation_record_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "audit_record_parse"
+path = "fuzz_targets/audit_record_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dtb_derive_board_profile"
+path = "fuzz_targets/dtb_derive_board_profile.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dtb_validate"
+path = "fuzz_targets/dtb_validate.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "cap_manifest_parse"
+path = "fuzz_targets/cap_manifest_parse.rs"
+test = false
+doc = false
+bench = false

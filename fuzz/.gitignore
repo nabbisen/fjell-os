@@ -1,0 +1,6 @@
+# cargo-fuzz outputs: never tracked. Seeds live in corpora/ and are reviewed;
+# corpus/ is the grown, per-run working corpus; artifacts/ holds crashing inputs.
+target/
+corpus/
+artifacts/
+coverage/
