@@ -52,7 +52,7 @@ All four must hold before beginning:
 | 6 | Mechanical gates | `cargo xtask release-rehearsal`, full gate table recorded |
 | 7 | CHANGELOG entry | present, version and date correct |
 | 8 | Docs match reality | no doc asserts behaviour the tree does not have |
-| 9 | The release commit's CI run read | `gh run view <id> --json jobs`, run id and per-job conclusions recorded |
+| 9 | The release commit's CI runs read | the push run and a `workflow_dispatch` run of the release commit, each by `gh run view <id> --json jobs`: run ids and per-job conclusions, plus a `Done N runs` line per `fuzz-run` job; the latest `schedule` run's id and date as context |
 | 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
@@ -93,6 +93,49 @@ said "runs in CI on every push", each written from `ci.yml`'s text.
 what CI concluded; it does not move any gate into CI or make a release
 depend on one. What it removes is the possibility of shipping while an
 instrument the project believes in has been reporting nothing.
+
+**Criterion 9 also covers the fuzz run, which no push run contains.**
+`fuzz-run` runs only on `schedule` and `workflow_dispatch` (RFC-0.32-001 D5), so
+the release commit's push run never includes it. Until 0.32 that made the job
+structurally invisible at every cut: 0.31.0 shipped while every scheduled run
+of the old fuzz job had failed for three months (E-043).
+
+At every cut, **dispatch the workflow against the release commit** and read
+that run too:
+
+```sh
+gh workflow run ci.yml --ref main          # main must be at the release commit
+gh run list --workflow ci.yml --event workflow_dispatch --limit 5 \
+  --json databaseId,headSha,createdAt,conclusion
+```
+
+Record its run id, date and per-job table beside the push run's, and for each
+`fuzz-run (<target>)` job, the libFuzzer line from its log:
+
+```sh
+gh run view --job <job-id> --log | grep -E '^Done [0-9]+ runs in [0-9]+ second'
+```
+
+- **The dispatched run is the evidence; the latest scheduled run is context.**
+  Record the scheduled run's id, date and head commit, but do not let it
+  stand in for the dispatch. A scheduled run is almost always of an older
+  tree — it ran on the last Monday — so it can show the job green on some
+  earlier commit and never on this one.
+- **If the dispatched run's head commit is not the release commit**, it is not
+  the evidence. Dispatch again.
+- **No scheduled run since the last cut** is recorded as such. It does not
+  block; the dispatched run decides.
+- **A green `fuzz-run` job with no `Done N runs in M second(s)` line** is
+  treated as red. A job can succeed while fuzzing nothing — an empty target, a
+  missing corpus, `-runs=0` — and "the job passed" is not evidence it fuzzed.
+- **A red `fuzz-build` or `fuzz-run` job** blocks the tag or takes an
+  accepted-risk statement under the existing rule. Record the failing step's
+  name: a failure at *Build fuzz targets* on an unchanged tree is nightly
+  drift; a failure at *Replay committed seeds* or *Fuzz `<target>` for 300 seconds* is a crash,
+  and its input is in the run's artifacts. The answer document for
+  RFC-0.32-001 §8 sets out why those two cannot land in the same step.
+
+*Added by RFC-0.32-001 D6.*
 
 **Criterion 10 exists because an exact pin goes stale by default.**
 `rust-toolchain.toml` names one version and nothing moves it; that is the

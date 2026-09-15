@@ -132,7 +132,7 @@ conclusion, and the two failures cannot land in the same step:
 |---|---|---|
 | *Install nightly and cargo-fuzz* — also prints `rustc +nightly -vV`, the observed toolchain (RFC-0.30-003) | install failure | — |
 | *Build fuzz targets* | **compile error, no artifact** | — |
-| *Replay committed seeds* / *Fuzz `<target>`* | — | **`SUMMARY: libFuzzer: deadly signal`, a `crash-<sha>` artifact uploaded** |
+| *Replay committed seeds* / *Fuzz `<target>` for 300 seconds* | — | **`SUMMARY: libFuzzer: deadly signal`, a `crash-<sha>` artifact uploaded** |
 
 R7 records the failing step's name beside a red `fuzz-build` or `fuzz-run`.
 

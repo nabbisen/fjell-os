@@ -149,6 +149,16 @@ order once.
     cut, its first exercise, with three options offered and none taken
     unilaterally. The fourth is above.)*
 
+    **Then dispatch the workflow against the release commit and read that run
+    as well** — `fuzz-run` never appears in a push run, because it runs only
+    on `schedule` and `workflow_dispatch` (RFC-0.32-001). Its run id, date,
+    per-job table and each `fuzz-run` job's `Done N runs in M second(s)` line
+    go in the record (§4.10), with the latest `schedule` run's id and date
+    beside them as context only. A scheduled run is of an older tree and
+    cannot stand in for the dispatch. A `fuzz-run` job that is green with no
+    `Done` line is red. The cycle document's criterion 9 section has the
+    commands and the rules for a missing or stale scheduled run.
+
 14. **Read how far behind the toolchain pin is** — `rustup check`, against
     `rust-toolchain.toml`'s `channel`. Record the pin, current stable, and
     the gap in minor versions (§4.11).
@@ -238,11 +248,14 @@ The release record at `docs/release/records/<version>.md` carries:
    the expected set.
 9. The **clean-clone check** result (§1 step 15), and the post-record re-run of
    criterion 6 (§1 step 12).
-10. **The release commit's CI run** (§1 step 13): the **run id**, and a
-    per-job conclusion table — every job, named, with its conclusion. Not a
-    summary, not a badge, and not a sentence containing the words "runs in
-    CI". If a job is red, say which and why, and either the tag is blocked or
-    item 7 applies.
+10. **The release commit's CI runs** (§1 step 13): the **push run** and a
+    **`workflow_dispatch` run of the same commit**, each with its **run id**
+    and a per-job conclusion table — every job, named, with its conclusion —
+    and, for every `fuzz-run` job, its `Done N runs in M second(s)` line.
+    Beside them, the latest `schedule` run's id, date and head commit, as
+    context. Not a summary, not a badge, and not a sentence containing the
+    words "runs in CI". If a job is red, say which, why and at which step, and
+    either the tag is blocked or item 7 applies.
 11. **Toolchain currency** (§1 step 14): the pinned version, current stable,
     and the gap in minor versions, with the command that produced it. Beyond
     three, either the tag is blocked or item 7 applies — and an accepted-risk
