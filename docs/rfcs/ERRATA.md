@@ -2821,6 +2821,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > `RFC-v0.6-003-semantic-schema-compatibility-and-format-fuzzing`, was marked
 > Implemented; it is reclassified `Implemented-with-Errata`, and its other
 > mechanism — the schema freeze — is **E-045**.
+>
+> **And a crash would leave nothing to reproduce it (found 2026-09-15, writing
+> the handoff).** The job's last step is named *"Upload corpus/crash
+> artifacts"* and uploads `fuzz/corpus/<target>/` only. cargo-fuzz writes a
+> crashing input to `fuzz/artifacts/<target>/`, which no step uploads. Once a
+> target runs, a crash on CI turns the job red and discards the one input that
+> explains it. The step's name claims what its `path:` does not do.
 
 ## E-044 — the A/B boot-control state machine has no runtime client
 

@@ -412,17 +412,19 @@ closes the arc that opened at E-035.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-No RFC is currently awaiting implementation.
-
----
-
-## Proposed (proposed/) — 1 RFC
+Signed off by the owner; implementation may begin; not yet shipped.
 
 | RFC | Title |
 |-----|-------|
-| 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./proposed/RFC-0.32-001-fuzzing-that-fuzzes.md) — closes **E-043** |
+| 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./accepted/RFC-0.32-001-fuzzing-that-fuzzes.md) — accepted 2026-09-15; closes **E-043**; handoff: [`handoffs/`](./handoffs/RFC-0.32-001-fuzzing-that-fuzzes/implementation-handoff.md) |
+
+---
+
+## Proposed (proposed/) — none
+
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 

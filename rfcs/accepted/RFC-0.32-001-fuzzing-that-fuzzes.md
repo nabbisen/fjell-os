@@ -1,6 +1,6 @@
 # RFC-0.32-001: A fuzz harness that has never run, aimed mostly at formats with nothing to parse
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-15; implementation may begin (RFC 000)
 **Milestone:** 0.32
 **Tracks.** **E-043** — the fuzz harness has never run, and the release process
 cannot see the job that would show it.
