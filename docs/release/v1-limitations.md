@@ -731,19 +731,35 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   broken is answerable after all: since it was written, because the API it
   imported was in a file no `mod` declaration ever included.
 
-- **The fuzz harness has never run** (Errata **E-043**, ACCEPTED, tracked to
-  0.32). Eight fuzz targets exist for the binary formats that cross service
-  boundaries, and a weekly CI job is meant to run them. It has failed every
-  week since it was added in June 2026: the fuzz crate is misconfigured as a
-  workspace member, its dependency paths broke in the July crate
-  reorganisation, and five of the eight targets call parser functions that
-  never existed — they did not compile even on the day they were added. It does not run on push or pull request, so no release step
-  ever saw it. The README's CI badge turned red on the released 0.31.0 tree
-  when the scheduled run failed on 2026-09-14, and green again at the next
-  push — it shows only the most recent run, so it is red a day or so a week. **No fuzz run has ever
-  succeeded.** Parser robustness rests on host unit tests and property tests,
-  and two formats — `fjell-store-format` and `fjell-verify-format` — have no
-  tests at all.
+- **Fuzzing covers six decoders, and none of them sits on a live boundary**
+  (Errata **E-043**, **CLOSED** 2026-09-15 by RFC-0.32-001). The fuzz harness
+  had never run: five of its eight targets called functions that never
+  existed. It now has one target per byte decoder a host fuzz crate can reach
+  — semantic envelopes, revocation records, audit records, both device-tree
+  parsers, capability manifests — and CI fuzzed all six for 300 seconds each
+  in run `34976532420`. Every push builds the targets and replays every
+  committed seed. What this does not cover, stated plainly:
+  - **The fuzzed decoders are not on live untrusted paths.** Only the audit
+    decoder has a runtime caller, and its input is the kernel. The one live
+    cross-service byte path, `fjell_service_api::chunked::reassemble`, is not
+    fuzzed, because it is unsound by construction (E-046).
+  - **Some decoders cannot be reached from a fuzz crate at all** — the key-file
+    and signature-manifest parsers inside the `fjell-tools` binary, and the
+    word and MMIO decoders inside bare-metal services and drivers.
+  - **New-input crashes are found weekly, not before merge.** Push and pull
+    request runs replay known inputs only.
+  - **The fuzzing nightly floats**, so a nightly regression can turn the job
+    red with no change to the tree; it fails at the build step, which is how
+    it is told apart from a crash.
+  - Two formats, `fjell-store-format` and `fjell-verify-format`, still have no
+    tests at all.
+
+- **One device-tree parser has never worked on a real device tree** (Errata
+  **E-048**, **OPEN**). `fjell-dtb-derive` returns `MissingPlic` on QEMU's own
+  `virt` tree, because QEMU nests devices one level deeper than the parser
+  looks, and nothing uses the crate. ADR-v0.5-002 and RFC-v0.5-002 describe a
+  boot-time and build-time use that was never built. **Nothing shipped
+  depends on it**: `fjell-devmgr` builds its board profile in code.
 
 - **A/B boot confirmation and rollback are not wired up** (Errata **E-044**,
   ACCEPTED, tracked to 0.33). ADR-0009 describes candidate boot, health

@@ -52,7 +52,7 @@ include a Trust Report assembled from these records.
 ## Verification tiers
 
 1. Host library tests and conformance tests (`cargo test`)
-2. Property tests (`fjell-proptest`); fuzz targets exist but have never run successfully (E-043)
+2. Property tests (`fjell-proptest`)
 3. Unsafe-site and MMIO-ordering audits (zero-gap gates)
 4. Reproducible-build gate (SHA-256, two-build comparison)
 5. QEMU smoke (m7, m8 + feature profiles) and negative tests
@@ -60,3 +60,7 @@ include a Trust Report assembled from these records.
 
 `cargo xtask test-all` runs tiers 1–5 locally; `cargo xtask
 release-rehearsal` runs the full release gate matrix including the proofs.
+
+Fuzzing is CI-only, not a local tier: every push builds each fuzz target and
+replays its committed seeds (`fuzz-build`), and each of the six decoder targets
+is fuzzed for 300 seconds weekly and on demand (`fuzz-run`, RFC-0.32-001).

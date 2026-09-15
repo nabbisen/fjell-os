@@ -1,6 +1,6 @@
 # RFC-v0.6-003: Semantic Schema Compatibility and Format Fuzzing
 
-**Status.** Implemented-with-Errata (v0.6.0) — reclassified 2026-09-15: neither of its two mechanisms ever worked. The fuzz harness never compiled or ran (E-043); the schema freeze was never enforced and the generator was never built (E-045).
+**Status.** Implemented-with-Errata (v0.6.0) — reclassified 2026-09-15: neither of its two mechanisms ever worked. The fuzz harness never compiled or ran (E-043 — closed 2026-09-15 by RFC-0.32-001, which rebuilt it against the decoders that exist and ran it); the schema freeze was never enforced and the generator was never built (E-045).
 
 ## Status
 

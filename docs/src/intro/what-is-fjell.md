@@ -20,7 +20,7 @@ the [Trust Report](../../release/trust-report.txt).
 **The security core is small and checked three ways.** The kernel runs on
 RISC-V (Sv39, single-hart at v1.0) with services isolated in user mode.
 Beyond the conventional test tiers (host tests, property tests, QEMU smoke
-and negative tests), the release-critical invariants — capability
+and negative tests, and CI fuzzing of every reachable byte decoder), the release-critical invariants — capability
 rights can never be amplified, and a revoked lease can never be reused — are
 formally proved in Verus and machine-checked as a release gate.
 

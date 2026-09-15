@@ -25,15 +25,51 @@ Fuzzing runs nightly with the seeded corpora as starting points.
 > never on push or pull request — so it could not catch a regression "before
 > merge" even when working. It has failed every week since it was added:
 > `fuzz/` is misconfigured as a workspace member, its dependency paths broke in
-> the July 2026 crate reorganisation, and six of the eight targets call parser
-> functions that no longer exist. The decision stands; the consequences below
+> the July 2026 crate reorganisation, and five of the eight targets call parser
+> functions that never existed *(this said six, and "no longer exist", until
+> RFC-0.32-001 re-derived both)*. The decision stands; the consequences below
 > have not held.
+
+> **Resolved, 2026-09-15 (RFC-0.32-001; E-043 CLOSED).** The decision now
+> holds, with three differences stated rather than smoothed over.
+>
+> - **The harness targets decoders, not formats.** Of the eight formats this
+>   ADR counted, most have no byte decoder at all, so a target per format
+>   would fuzz nothing — five of the original targets called functions that
+>   never existed. There are now six targets, one per real byte decoder a host
+>   fuzz crate can reach.
+> - **Only `revocation_record_parse` checks parse → serialize → parse**,
+>   because only revocation records have an encoder to round-trip through.
+>   The other five check that decoding never panics on any input.
+> - **Fuzzing runs weekly and on demand, not nightly** — the `fuzz-run` job,
+>   each target for 300 seconds from committed, verified seeds. Run
+>   `34976532420` fuzzed all six on the released decoders:
+>
+>   | Target | libFuzzer |
+>   |---|---|
+>   | `semantic_record_parse` | `Done 164962007 runs in 301 second(s)` |
+>   | `revocation_record_parse` | `Done 204905946 runs in 301 second(s)` |
+>   | `audit_record_parse` | `Done 294673929 runs in 301 second(s)` |
+>   | `dtb_derive_board_profile` | `Done 10721172 runs in 301 second(s)` |
+>   | `dtb_validate` | `Done 20054742 runs in 301 second(s)` |
+>   | `cap_manifest_parse` | `Done 9974999 runs in 301 second(s)` |
+>
+> The first run of the device-tree target found a real crash in
+> `fjell-dtb-derive` within 30 seconds (E-047, fixed); its input is now a
+> permanent regression seed.
 
 ## Consequences
 
 - Format regressions that cause parser panics are caught before merge.
 - Schema drift (accidental field reorder, size change) is caught per-PR.
 - The frozen schema files serve as authoritative wire-format documentation.
+
+> **Correction, 2026-09-15 (RFC-0.32-001).** The first consequence — parser panics caught before merge — is now true **for inputs already
+> in the corpus, and not for new ones.** On every push and pull request,
+> `fuzz-build` builds every target and replays every committed seed, so a
+> target that stops compiling, or a decoder that starts panicking on a known
+> input, is caught before merge. A panic on an input nobody has seen yet is
+> found only by the weekly or dispatched `fuzz-run`, after merge.
 
 > **Correction, 2026-09-15 (E-045).** Neither consequence about schemas has
 > held. `ci-schema-gate` checks only that the frozen files exist and are not

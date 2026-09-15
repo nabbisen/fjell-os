@@ -47,7 +47,7 @@
 | Proptest harness (≥ 10 properties; 14 confirmed at v0.20.0) | RFC v0.6-001 | **DONE** (v0.6.0) |
 | Verus formal proofs — capability + lease (`release_required=true`), boot-control (pilot, `release_required=false`); 20 obligations machine-checked; callsite-audit Gate 11 blocking | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1 proofs; v0.20.0 gate) |
 | Reproducible build gate (SHA-256 baseline, two-build mode) | RFC-v0.16-005 H-04 | **DONE** (v0.18.2) |
-| Fuzz targets (≥ 4) | RFC v0.6-003 | **IN PROGRESS** → 0.32 — 8 targets exist, 2 compile, and none has ever run successfully in CI (E-043; previously marked done at v0.6.0) |
+| Every byte decoder a host fuzz crate can reach is fuzzed | RFC v0.6-003, RFC-0.32-001 | **DONE** (0.32) — six decoders, all six fuzzed on CI for 300 s in run `34976532420`; decoders a host fuzz crate cannot reach are named in E-043's closure, not counted. *(This row read "Fuzz targets (≥ 4)" until 2026-09-15. Eight target files satisfied it while five had never compiled and one fuzzed anything; a count of targets was the defect.)* |
 | Unsafe-audit gate, zero gaps | RFC v0.6-004, RFC 060 | **DONE** (v0.8.24) |
 | QEMU smoke tier (≥ 4 profiles) | — | **DONE** (v0.8.0) |
 | QEMU negative tier (≥ 9 categories, fail-closed, 27 real markers) | RFC-v0.7.1-002 | **DONE** (v0.20.0 — real from v0.19.0; fail-closed gate v0.20.0) |

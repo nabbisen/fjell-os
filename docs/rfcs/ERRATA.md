@@ -2795,7 +2795,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      push run. A job that runs only on schedule is structurally outside it, so
      every cut since the criterion was added would have passed with this job
      red — and 0.31.0 did.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **RFC-0.32-001** (scoped 2026-09-15).
+- **Resolution:** ~~**ACCEPTED**~~ **CLOSED** 2026-09-15 by **RFC-0.32-001** (accepted by the architect and scoped the same day).
   Closing it means: the harness builds; every target exercises a real decoder
   of untrusted bytes, and targets that do not are retired; the seed corpora
   are actually used; a real fuzz run is observed green, with a run id; the job can be triggered on demand, so a fix is not
@@ -2828,6 +2828,55 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > crashing input to `fuzz/artifacts/<target>/`, which no step uploads. Once a
 > target runs, a crash on CI turns the job red and discards the one input that
 > explains it. The step's name claims what its `path:` does not do.
+
+> **CLOSED — RFC-0.32-001, 2026-09-15.** Every closing condition above,
+> observed rather than read from the workflow:
+>
+> | Condition | Evidence |
+> |---|---|
+> | The harness builds | `fuzz/Cargo.toml` carries its own `[workspace]` table and correct paths; `fuzz-build` green on push run `34976519663` |
+> | Every target exercises a real decoder of bytes from outside its component; the rest retired | seven retired (five called functions that never existed, one was `let _ = data.len();`, one decoded no input); six kept or added, one per decoder below |
+> | The seed corpora are used | `fuzz/corpora/<target>/`, generated from the crates' own encoders or real inputs and verified through the real decoder; passed to every run and replayed on every push |
+> | A real fuzz run observed green, with a run id | run `34976532420`, all six targets, 300 s each — the `Done` lines are in ADR-v0.6-003's resolution |
+> | The job can be triggered on demand | `workflow_dispatch`, admitted by `fuzz-run`'s `if:` — first used on run `34975568093` |
+> | The release cycle reads the scheduled run | exit criterion 9 now dispatches `fuzz-run` against the release commit and records its `Done` lines, with the latest scheduled run as context |
+> | The claims made true or corrected | ADR-v0.6-003, `v1-readiness.md`, `overview.md`, `what-is-fjell.md`, RFC-v0.6-003's status line |
+> | Not by filtering the badge | the badge is unfiltered |
+>
+> **Demonstrated failing on real runs** (D8): dispatch run `34975568093`
+> ran `fuzz-run` rather than skipping it; the same run and push run
+> `34975556300` went red on the crash later filed as E-047, and the crashing
+> input was downloaded from both and reproduced locally, byte-identical; push
+> run `34976500584` went red at *Build fuzz targets* on a target calling a
+> function that does not exist, with the replay never reached.
+>
+> **The decoders, and which are fuzzed.** The measure is decoders exercised,
+> not target files — one before this line, six after.
+>
+> | Decoder | Input comes from | Live caller | Fuzzed |
+> |---|---|---|---|
+> | `fjell_semantic_v1::decode` | encoded intent envelopes | none at runtime (fixture checks; `fjell-proxy-text`'s `ingest`, called only by its tests) | yes |
+> | `fjell_keyring::RevocationRecord::from_bytes` | revocation records | none | yes, with a round-trip check |
+> | `fjell_audit_format::AuditRecordBin::from_bytes` | the kernel's audit ring | `fjell-auditd` | yes |
+> | `fjell_dtb_derive::derive_board_profile` and its token walk | a firmware device tree | none (E-048) | yes — found E-047 |
+> | `fjell_dtb_validate::validate_dtb` | a firmware device tree | none | yes |
+> | `fjell_cap_manifest::parse_manifest` | manifests read from disk by `fjell-tools` | `fjell-tools` | yes |
+> | `fjell_service_api::chunked::reassemble` | IPC bytes from another service | `fjell-semantic-stream`, `fjell-proxy-text` | **no** — unsound by construction until E-046's line |
+> | `fjell-tools`' key-file and signature-manifest parsers | files on disk | `fjell-tools` | **no** — modules of a bin-only crate |
+> | `fjell-measuredd`'s IPC word decoders; `fjell-driver-virtio-net`'s MMIO readers | IPC words; device memory | the service; the driver | **no** — bare-metal crates |
+>
+> **Stated, not survivors:** none of the six fuzzed decoders has a live
+> caller that receives untrusted bytes, so fuzzing protects code before it
+> is wired rather than code on a live boundary; the one live cross-service
+> byte path is `reassemble`, and a target against a sound `reassemble` is
+> the condition for fuzzing on every push (RFC-0.32-001 §7). The fuzzing
+> nightly floats, revisited at the first build-step failure on an unchanged
+> tree (§8). The grown corpus is kept as a run artifact, not written back.
+> Each is in `docs/release/v1-limitations.md`.
+>
+> *Corrected in this closure: this entry and its summary row said six of
+> the eight targets did not compile and called functions that "no longer
+> exist". Five did not compile, and those functions never existed.*
 
 ## E-044 — the A/B boot-control state machine has no runtime client
 
@@ -2990,7 +3039,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   executions) found nothing more. It is applied only after a real CI run has
   shown this crash turning the fuzz job red with its input uploaded
   (RFC-0.32-001 D8).
-- **Resolution:** **OPEN**, tracked **0.32** (RFC-0.32-001).
+- **Resolution:** ~~**OPEN**~~ **CLOSED**, tracked **0.32** (RFC-0.32-001).
+
+  > **CLOSED — RFC-0.32-001, 2026-09-15.** Shown on real runs before the fix:
+  > push run `34975556300` went red at *Replay committed seeds* and dispatch
+  > run `34975568093` at *Fuzz dtb_derive_board_profile for 300 seconds*, both
+  > with `attempt to add with overflow` at `parser.rs:108:17` and the input
+  > uploaded. The input was downloaded from both runs, found byte-identical to
+  > the committed seed, and reproduced locally from the downloaded file.
+  >
+  > Fixed in `058c586`: `str_off.checked_add(name_off)?`. Push run
+  > `34976519663` replays the input cleanly, and dispatch run `34976532420`
+  > fuzzed the fixed parser for 300 seconds without a crash:
+  > `Done 10721172 runs in 301 second(s)`. The input stays in `fuzz/corpora/` as a
+  > regression seed replayed on every push.
 
 ## E-048 — `fjell-dtb-derive` has never derived a board profile from a real device tree, and nothing that is documented as using it exists
 
@@ -3098,11 +3160,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 
-| E-043 the fuzz harness has never run: every weekly `fuzz-nightly` run since 2026-06-06 failed on three stacked defects (workspace membership, paths broken by the July reorg, 6 of 8 targets calling functions that no longer exist); the job is schedule-only, so exit criterion 9 and E-041's closure could not see it | RFC-0.32-001 | ACCEPTED |
+| E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | 0.32 | ACCEPTED |
-| E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | OPEN |
+| E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | OPEN |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
