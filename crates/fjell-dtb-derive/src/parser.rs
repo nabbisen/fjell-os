@@ -105,7 +105,9 @@ pub fn parse_header(dtb: &[u8]) -> Result<DtbHeader, ParseError> {
 
 /// Read a NUL-terminated string from the strings block.
 pub fn get_string<'a>(dtb: &'a [u8], str_off: u32, name_off: u32) -> Option<&'a [u8]> {
-    let start = (str_off + name_off) as usize;
+    // E-047: both offsets come from the device tree being parsed; their sum
+    // can pass u32::MAX, which panicked here under overflow checks.
+    let start = str_off.checked_add(name_off)? as usize;
     let slice = dtb.get(start..)?;
     let end = slice.iter().position(|&b| b == 0)?;
     Some(&slice[..end])
