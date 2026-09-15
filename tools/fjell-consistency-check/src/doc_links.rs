@@ -86,6 +86,7 @@ pub fn run_check(files: &[(&Path, &str)], known_broken: &BTreeSet<(String, Strin
     let mut broken = Vec::new();
     let mut recorded = 0usize;
     let mut total_links = 0usize;
+    let mut matched: BTreeSet<(String, String)> = BTreeSet::new();
 
     for (path, content) in files {
         let dir = path.parent().unwrap_or(Path::new("."));
@@ -100,13 +101,30 @@ pub fn run_check(files: &[(&Path, &str)], known_broken: &BTreeSet<(String, Strin
                 continue;
             }
             let file_label = normalise_label(path);
-            if known_broken.contains(&(file_label.clone(), link.clone())) {
+            let key = (file_label.clone(), link.clone());
+            if known_broken.contains(&key) {
                 recorded += 1;
+                matched.insert(key);
                 continue;
             }
             broken.push(format!(
                 "{file_label}: broken link {link:?} (resolves to {})",
                 resolved.display()
+            ));
+        }
+    }
+
+    // An allow-list entry that no longer matches a broken link is not
+    // harmless: it would silently excuse that link if it ever broke again.
+    // Until 2026-09-15 this check only consulted the list for links that were
+    // already broken, so a fixed link's entry stayed forever and nothing could
+    // say so — the list failed open. Found when both recorded entries turned
+    // out to be mechanically fixable.
+    for (file, link) in known_broken {
+        if !matched.contains(&(file.clone(), link.clone())) {
+            broken.push(format!(
+                "{KNOWN_BROKEN_PATH}: lists `{file} -> {link}`, which is not a broken link — \
+                 remove the entry, or it will excuse that link if it breaks again"
             ));
         }
     }
@@ -248,5 +266,24 @@ mod tests {
         assert!(parsed.contains(&("foo.md".to_string(), "../bar.md".to_string())));
         assert!(parsed.contains(&("baz.md".to_string(), "qux.md".to_string())));
         assert_eq!(parsed.len(), 2);
+    }
+
+    /// The allow-list must not fail open: an entry whose link has been fixed
+    /// would otherwise excuse that link, silently, if it ever broke again.
+    #[test]
+    fn stale_known_broken_entry_fails() {
+        let files = [(Path::new("Cargo.toml"), "[x](src/main.rs)")];
+        let mut known = BTreeSet::new();
+        known.insert(("Cargo.toml".to_string(), "src/main.rs".to_string()));
+        assert_eq!(run_check(&files, &known), ExitCode::FAILURE);
+    }
+
+    /// Same, for an entry whose link has been removed from the file entirely.
+    #[test]
+    fn known_broken_entry_for_a_link_no_longer_present_fails() {
+        let files = [(Path::new("Cargo.toml"), "no links here")];
+        let mut known = BTreeSet::new();
+        known.insert(("Cargo.toml".to_string(), "does/not/exist.md".to_string()));
+        assert_eq!(run_check(&files, &known), ExitCode::FAILURE);
     }
 }

@@ -28,4 +28,4 @@ Child capabilities may only have rights that are a subset of their parent's.
 | `cap_delete` | Remove this slot only |
 | `cap_revoke` | Remove all descendants; keep target |
 
-See [ADR-0003](../adr/0003-capability-security.md) for design rationale.
+See [ADR-0003 — Capability-Based Security](../adr/superseded/0003-capability-security.md) for the original design rationale (superseded by RFC 045; its content now lives in [ADR-0002](../adr/0002-capability-based-ipc.md) and [ADR-0003](../adr/0003-lease-epoch-revocation.md)).
