@@ -2785,7 +2785,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      push run. A job that runs only on schedule is structurally outside it, so
      every cut since the criterion was added would have passed with this job
      red — and 0.31.0 did.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.32**.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **RFC-0.32-001** (scoped 2026-09-15).
   Closing it means: the harness builds; every target exercises a real decoder
   of untrusted bytes, and targets that do not are retired; the seed corpora
   are actually used; a real fuzz run is observed green, with a run id; the job can be triggered on demand, so a fix is not
@@ -2982,7 +2982,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 
-| E-043 the fuzz harness has never run: every weekly `fuzz-nightly` run since 2026-06-06 failed on three stacked defects (workspace membership, paths broken by the July reorg, 6 of 8 targets calling functions that no longer exist); the job is schedule-only, so exit criterion 9 and E-041's closure could not see it | 0.32 | ACCEPTED |
+| E-043 the fuzz harness has never run: every weekly `fuzz-nightly` run since 2026-06-06 failed on three stacked defects (workspace membership, paths broken by the July reorg, 6 of 8 targets calling functions that no longer exist); the job is schedule-only, so exit criterion 9 and E-041's closure could not see it | RFC-0.32-001 | ACCEPTED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | 0.32 | ACCEPTED |

@@ -418,9 +418,11 @@ No RFC is currently awaiting implementation.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./proposed/RFC-0.32-001-fuzzing-that-fuzzes.md) — closes **E-043** |
 
 ## Archive (archive/) — 2 RFCs
 
