@@ -1,5 +1,7 @@
 # HANDOFF — Fjell OS v0.17 → v0.18
 
+**Status:** Historical — a session handoff covering v0.17–v0.18 (2026-07). Kept for the record; its "Status at handoff" line below describes the tree as it stood then.
+
 **Period:** v0.17.0 (Verus adoption foundation) → v0.18.3 (v1 hardening)
 **Status at handoff:** v0.18.3 archived; all v0.17/v0.18 RFCs in `done/` (RFC-v0.17-001
 in `proposed/`, awaiting architect decision); `release-rehearsal` gates 1–10 PASS on

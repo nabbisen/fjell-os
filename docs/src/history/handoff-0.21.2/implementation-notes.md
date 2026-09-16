@@ -1,5 +1,7 @@
 # Fjell OS — Implementation Notes (Implementer Handoff)
 
+**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by the Internals chapters; kept for the record.
+
 *Compact implementation handoff. Version: v0.21.2.*
 
 ## 1. Implementation goal

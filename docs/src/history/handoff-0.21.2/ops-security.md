@@ -1,5 +1,7 @@
 # Fjell OS — Ops, Release & Security (Cross-Cutting Handoff)
 
+**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by the Operations and Security chapters; kept for the record.
+
 *Compact operational + security handoff. Version: v0.21.2.*
 
 ## 1. Release and packaging essentials

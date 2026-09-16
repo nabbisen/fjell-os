@@ -1,5 +1,7 @@
 # Fjell OS — Compact Handoff Bundle (v0.21.2)
 
+**Status:** Historical — the handoff bundle written at v0.21.2 (2026-07). Kept for the record; it describes the project as it stood then, not as it stands now.
+
 This bundle hands off Fjell OS at **v0.21.2**, the v1.0 freeze candidate. It
 follows the compact, evidence-focused handoff structure: every section is
 either `Done — evidence`, `Pending — owner/date`, or `N/A — reason`.

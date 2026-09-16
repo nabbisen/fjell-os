@@ -1,5 +1,7 @@
 # HANDOFF — Fjell OS v0.19.0 → v0.20.0
 
+**Status:** Historical — a session handoff covering v0.19–v0.20 (2026-07). Kept for the record; its "Status at handoff" line below describes the tree as it stood then.
+
 **Period:** v0.19.0 (architect review response: real QEMU negative tests) →
 v0.20.0 (fail-closed harness + IPC ABI fix)
 **Status at handoff:** v0.20.0 archived (`fjell-os-0_20_0.tar.gz`);

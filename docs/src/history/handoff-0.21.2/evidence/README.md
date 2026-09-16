@@ -1,5 +1,7 @@
 # Evidence
 
+**Status:** Historical — the evidence index of the v0.21.2 handoff bundle (2026-07). Kept for the record; current evidence lives in `tests/evidence/`.
+
 Gate logs are generated on demand rather than checked in, because the
 reproducibility baseline is re-recorded per run by design and the QEMU
 artifacts are ephemeral (both are gitignored).

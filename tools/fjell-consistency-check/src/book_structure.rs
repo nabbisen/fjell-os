@@ -548,6 +548,102 @@ pub fn run_unique_check(docs_dirs: &[PathBuf], root_dirs: &[String]) -> ExitCode
     ExitCode::FAILURE
 }
 
+// ── historical-status-lines ──────────────────────────────────────────────────
+
+const HISTORICAL_NAME: &str = "historical-status-lines";
+
+/// The sections that hold documents kept for the record (D15).
+///
+/// A page here is not maintained, and must say so on its own face. Prose that
+/// looks current and is not is the documentation form of a comment the
+/// compiler does not check — which is the whole reason this line classifies
+/// documents at all.
+const HISTORICAL_DIRS: &[&str] = &["docs/src/history", "docs/src/adr/superseded"];
+
+/// The words a status line may use to say "not maintained". A closed
+/// vocabulary, so the line cannot drift into saying nothing.
+const HISTORICAL_WORDS: &[&str] = &["Historical", "Superseded", "Frozen", "Archived"];
+
+/// How far into a page the line must appear: it is for a reader who has just
+/// arrived, so it has to be visible before the first section.
+const STATUS_WITHIN_LINES: usize = 20;
+
+pub fn historical_status_lines() -> ExitCode {
+    let mut pages: Vec<(PathBuf, String)> = Vec::new();
+    for dir in HISTORICAL_DIRS {
+        let found = match markdown_under(Path::new(dir)) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("{HISTORICAL_NAME}: FAIL — cannot walk {dir}: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        for f in found {
+            match fs::read_to_string(&f) {
+                Ok(c) => pages.push((f, c)),
+                Err(e) => {
+                    eprintln!("{HISTORICAL_NAME}: FAIL — cannot read {}: {e}", f.display());
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    }
+    let refs: Vec<(&Path, &str)> = pages
+        .iter()
+        .map(|(p, c)| (p.as_path(), c.as_str()))
+        .collect();
+    run_historical_check(&refs)
+}
+
+/// Core comparison, pure in its inputs.
+pub fn run_historical_check(pages: &[(&Path, &str)]) -> ExitCode {
+    let mut missing: Vec<String> = Vec::new();
+
+    for (path, content) in pages {
+        let head: Vec<&str> = content.lines().take(STATUS_WITHIN_LINES).collect();
+        let status = head.iter().find(|l| l.trim_start().starts_with("**Status"));
+        match status {
+            None => missing.push(format!(
+                "    {}  — no `**Status:**` line in its first {STATUS_WITHIN_LINES} lines",
+                path.display()
+            )),
+            Some(line) if !HISTORICAL_WORDS.iter().any(|w| line.contains(w)) => {
+                missing.push(format!(
+                    "    {}  — its status line says none of {:?}: {}",
+                    path.display(),
+                    HISTORICAL_WORDS,
+                    line.trim()
+                ))
+            }
+            Some(_) => {}
+        }
+    }
+
+    if missing.is_empty() {
+        println!(
+            "{HISTORICAL_NAME}: PASS ({} page(s) under {} say on their own face that they are \
+             kept for the record)",
+            pages.len(),
+            HISTORICAL_DIRS.join(", ")
+        );
+        return ExitCode::SUCCESS;
+    }
+
+    eprintln!(
+        "{HISTORICAL_NAME}: FAIL — {} page(s) in a historical section do not say they are \
+         historical:",
+        missing.len()
+    );
+    for m in &missing {
+        eprintln!("{m}");
+    }
+    eprintln!(
+        "  D15: each carries a status line naming what superseded it, when, and that it is kept \
+         for the record."
+    );
+    ExitCode::FAILURE
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -697,5 +793,50 @@ mod tests {
             run_unique_check(&one, &["crates".to_string()]),
             ExitCode::SUCCESS
         );
+    }
+}
+
+#[cfg(test)]
+mod historical_tests {
+    use super::*;
+
+    #[test]
+    fn a_page_that_says_it_is_superseded_passes() {
+        let p = Path::new("docs/src/adr/superseded/0001-x.md");
+        assert_eq!(
+            run_historical_check(&[(p, "# X\n\n**Status:** Superseded — see ADR-0002\n")]),
+            ExitCode::SUCCESS
+        );
+    }
+
+    #[test]
+    fn a_page_with_no_status_line_fails() {
+        let p = Path::new("docs/src/history/notes.md");
+        assert_ne!(
+            run_historical_check(&[(p, "# Notes\n\nSome prose.\n")]),
+            ExitCode::SUCCESS
+        );
+    }
+
+    /// The line must say it is *not maintained*, not merely exist — a page
+    /// stamped "**Status:** Accepted" in a historical section is the exact
+    /// thing D15 is about.
+    #[test]
+    fn a_status_line_that_does_not_say_historical_fails() {
+        let p = Path::new("docs/src/history/notes.md");
+        assert_ne!(
+            run_historical_check(&[(p, "# Notes\n\n**Status:** Accepted\n")]),
+            ExitCode::SUCCESS
+        );
+    }
+
+    #[test]
+    fn a_status_line_buried_past_the_top_of_the_page_fails() {
+        let p = Path::new("docs/src/history/notes.md");
+        let buried = format!(
+            "# Notes\n{}\n**Status:** Historical\n",
+            "\nfiller".repeat(30)
+        );
+        assert_ne!(run_historical_check(&[(p, &buried)]), ExitCode::SUCCESS);
     }
 }

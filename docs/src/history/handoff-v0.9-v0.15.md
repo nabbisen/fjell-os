@@ -1,5 +1,7 @@
 # HANDOFF — Fjell OS v0.9 → v0.15
 
+**Status:** Historical — a session handoff covering v0.9–v0.15 (2026-06). Kept for the record; its "Status at handoff" line below describes the tree as it stood then.
+
 **Period:** v0.9.0 (SDK published) → v0.15.1 (freeze candidate, patch)
 **Status at handoff:** code at 0.15.1; all 139 RFCs in `done/`; v1.0.0 tag explicitly *not* applied (awaiting architect approval).
 **Audience:** architect review.

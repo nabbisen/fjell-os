@@ -1,5 +1,7 @@
 # SDK Trial — Lessons Learned from v0.14
 
+**Status:** Historical — findings from the SDK trial at v0.14 (2026-06). Kept for the record; the SDK chapters describe the current surface.
+
 *Required by RFC-v0.14-002 §8. Captures every rough edge encountered
 while authoring `fjell-config-sync` using only `fjell-sdk`.*
 

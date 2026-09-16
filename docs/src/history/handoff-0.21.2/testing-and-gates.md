@@ -1,5 +1,7 @@
 # Fjell OS — Testing and Gates (QA Handoff)
 
+**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by [QEMU Tests](../../internals/qemu-tests.md) and the release checklist; kept for the record.
+
 *Compact testing handoff. Version: v0.21.2.*
 
 ## 1. Test goal

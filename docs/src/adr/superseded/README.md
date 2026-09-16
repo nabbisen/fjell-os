@@ -1,5 +1,7 @@
 # Superseded ADRs
 
+**Status:** Historical — the index of replaced decisions. Kept for the record; nothing under it describes how the system works today.
+
 Decisions that were replaced. They are kept for the record, not for guidance:
 **nothing here describes how the system works today.** Each one names what
 replaced it in its own Status line.

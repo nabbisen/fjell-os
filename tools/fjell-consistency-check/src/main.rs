@@ -103,6 +103,10 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
         "unique-doc-directory-names",
         book_structure::unique_doc_directory_names,
     ),
+    (
+        "historical-status-lines",
+        book_structure::historical_status_lines,
+    ),
 ];
 
 #[cfg(test)]

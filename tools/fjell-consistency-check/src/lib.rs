@@ -40,4 +40,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "prose-in-the-book",
     "no-stub-pages",
     "unique-doc-directory-names",
+    "historical-status-lines",
 ];

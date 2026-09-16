@@ -1,5 +1,7 @@
 # Fjell OS — Project Summary (PM Handoff)
 
+**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by the book's current chapters; kept for the record.
+
 *Compact project-level handoff. Version: v0.21.2.*
 
 ## 1. Project goal

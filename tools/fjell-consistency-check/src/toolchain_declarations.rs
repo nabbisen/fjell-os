@@ -144,6 +144,63 @@ const BUILD_TRIGGERS: &[(&str, &str)] = &[
     ("-Z build-std", "needs the standard library's source"),
 ];
 
+/// The book's own toolchain pin (RFC-0.32-003 D17).
+const MDBOOK_LOCK_PATH: &str = "docs/MDBOOK.lock";
+
+/// Compare the mdBook version `docs/MDBOOK.lock` pins with the one `ci.yml`
+/// actually installs.
+///
+/// This is E-037's shape one tool over: before the lock existed, CI installed
+/// 0.4.40 and the structure audit was written under 0.5.4, with nothing
+/// stating which was correct. Declaring it in one place is only half the fix —
+/// the other half is that something compares the declaration to the install.
+pub fn compare_book_toolchain(lock_src: &str, ci_src: &str) -> Result<String, Vec<String>> {
+    let Some(pinned) = lock_src
+        .lines()
+        .map(str::trim)
+        .find_map(|l| l.strip_prefix("version"))
+        .and_then(|rest| rest.split('"').nth(1))
+    else {
+        return Err(vec![format!(
+            "{MDBOOK_LOCK_PATH} has no `version = \"...\"` line, so nothing declares which \
+             mdBook builds this book"
+        )]);
+    };
+
+    let installed: Vec<(usize, String)> = ci_src
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| l.contains("mdbook-v") || l.contains("mdBook/releases/download/v"))
+        .filter_map(|(i, l)| {
+            let after = l.split("/download/v").nth(1)?;
+            let v = after.split('/').next()?;
+            Some((i + 1, v.to_string()))
+        })
+        .collect();
+
+    if installed.is_empty() {
+        return Err(vec![format!(
+            "{MDBOOK_LOCK_PATH} pins mdBook {pinned}, but {CI_PATH} installs no mdBook release \
+             this check can see — a pin nothing is compared against is E-037's shape"
+        )]);
+    }
+    let disagreeing: Vec<String> = installed
+        .iter()
+        .filter(|(_, v)| *v != pinned)
+        .map(|(line, v)| {
+            format!(
+                "{CI_PATH}:{line}: installs mdBook {v}, but {MDBOOK_LOCK_PATH} pins {pinned} — \
+                 CI and a developer would build the same book with different tools"
+            )
+        })
+        .collect();
+    if disagreeing.is_empty() {
+        Ok(pinned.to_string())
+    } else {
+        Err(disagreeing)
+    }
+}
+
 pub fn check() -> ExitCode {
     let Some(rust_toolchain_src) = read_file(NAME, RUST_TOOLCHAIN_PATH) else {
         return ExitCode::FAILURE;
@@ -163,7 +220,12 @@ pub fn check() -> ExitCode {
     let Some(checklist_src) = read_file(NAME, RELEASE_CHECKLIST_PATH) else {
         return ExitCode::FAILURE;
     };
-    run_check(
+    let book = match read_file(NAME, MDBOOK_LOCK_PATH) {
+        Some(lock_src) => compare_book_toolchain(&lock_src, &ci_src),
+        None => Err(vec![format!("{MDBOOK_LOCK_PATH} is missing")]),
+    };
+
+    let rest = run_check(
         &rust_toolchain_src,
         &ci_src,
         Some(&action_src),
@@ -171,7 +233,20 @@ pub fn check() -> ExitCode {
         &quick_start_src,
         &checklist_src,
         &scan_live_instruction_sites(),
-    )
+    );
+
+    match book {
+        Ok(version) => {
+            println!("{NAME}: the book builds under mdBook {version}, in CI and locally");
+            rest
+        }
+        Err(problems) => {
+            for p in &problems {
+                eprintln!("{NAME}: FAIL — {p}");
+            }
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// One apt toolchain instruction found in a live instruction site.
@@ -641,6 +716,43 @@ fn extract_checklist_version(src: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::compare_book_toolchain;
+
+    const LOCK: &str = "[mdbook]\nversion  = \"0.5.4\"\n";
+    const CI_INSTALL: &str = "          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz \\\n";
+
+    #[test]
+    fn book_toolchain_agrees_when_the_versions_match() {
+        assert_eq!(
+            compare_book_toolchain(LOCK, CI_INSTALL),
+            Ok("0.5.4".to_string())
+        );
+    }
+
+    /// D17's required demonstration: the check fails on a disagreement, and
+    /// names both sides rather than saying "mismatch".
+    #[test]
+    fn book_toolchain_fails_when_ci_installs_a_different_version() {
+        let stale = CI_INSTALL.replace("0.5.4", "0.4.40");
+        let err = compare_book_toolchain(LOCK, &stale).unwrap_err();
+        assert_eq!(err.len(), 1);
+        assert!(err[0].contains("installs mdBook 0.4.40"), "{}", err[0]);
+        assert!(err[0].contains("pins 0.5.4"), "{}", err[0]);
+    }
+
+    /// A pin with nothing to compare against is the defect, not a pass.
+    #[test]
+    fn book_toolchain_fails_when_ci_installs_nothing() {
+        let err = compare_book_toolchain(LOCK, "no mdbook here\n").unwrap_err();
+        assert!(err[0].contains("installs no mdBook release"), "{}", err[0]);
+    }
+
+    #[test]
+    fn book_toolchain_fails_when_the_lock_declares_nothing() {
+        let err = compare_book_toolchain("[mdbook]\n", CI_INSTALL).unwrap_err();
+        assert!(err[0].contains("no `version"), "{}", err[0]);
+    }
+
     use super::*;
 
     const RUST_TOOLCHAIN: &str = "[toolchain]\nchannel = \"1.91\"\nprofile = \"minimal\"\n";

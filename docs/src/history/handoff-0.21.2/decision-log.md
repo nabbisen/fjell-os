@@ -1,5 +1,7 @@
 # Fjell OS — Decision Log
 
+**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by the ADRs; kept for the record.
+
 *Consolidated register of decisions that future work must preserve or
 consciously revisit. Version: v0.21.2.*
 
