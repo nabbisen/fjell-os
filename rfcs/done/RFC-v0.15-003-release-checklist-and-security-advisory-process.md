@@ -1,6 +1,6 @@
 # RFC-v0.15-003 — Release Checklist and Security Advisory Process
 
-**Status:** Implemented (v0.15.0)
+**Status:** Implemented-with-Errata (v0.15.0) — reclassified 2026-09-16: none of §3's three artefacts was ever built. The process document `docs/src/security/advisory-process.md` and the advisory register `docs/src/security/advisories/` did not exist, while a condensed copy of the process in the release checklist named an intake address that could not receive mail and a second acknowledgement commitment (E-051 — RFC-0.32-004 built both, checks the register while it is empty, and leaves one decision with the owner: the acknowledgement commitment). The third, the end-to-end rehearsal record `docs/src/security/advisory-process-rehearsal.md` (§3.7), was never built either, and still is not.
 **Target version:** v0.15.0
 **Parent:** v0.15-001.
 **Cross-refs:** RFC-v0.10-003 (reproducible build), v0.11-003 (signing),

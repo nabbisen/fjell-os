@@ -3492,6 +3492,33 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   advisory check that names the surface it covered; and RFC-v0.15-003
   reclassified `Implemented-with-Errata`.
 
+  > **Addressed by RFC-0.32-004, 2026-09-16 — not closed, because one of its
+  > own closing conditions is the owner's to meet.**
+  >
+  > Built: [`docs/src/security/advisory-process.md`](../docs/src/security/advisory-process.md),
+  > the one statement of the process, which the release checklist now links to
+  > rather than restating; one intake channel, `security@<domain>` removed; the
+  > register at `docs/src/security/advisories/`, empty, and the seventeenth
+  > subcheck `security-advisories`, which passes on it and was shown failing on
+  > a missing field, a duplicate id and a `Fixed in` naming an untagged
+  > version; `.github/scripts/dependency-advisories.sh` in CI on every event,
+  > stating its surface and refusing a stale database; exit criterion 11; and
+  > RFC-v0.15-003 reclassified, naming **three** unbuilt artefacts where this
+  > entry named two.
+  >
+  > **Survivors, named:**
+  > - **The acknowledgement commitment.** Both documents carry
+  >   `{{ACKNOWLEDGEMENT-WINDOW}}` until the owner chooses (RFC-0.32-004 §D;
+  >   7 days proposed). That is one commitment in the sense that there are no
+  >   longer two — `security-advisories` fails if the documents ever disagree —
+  >   but a placeholder is not a promise, and `.github/SECURITY.md` is what
+  >   GitHub shows a reporter. **This erratum closes when it is replaced.**
+  > - **The rehearsal record** (RFC-v0.15-003 §3.7) was never built and is not
+  >   built here. A real end-to-end rehearsal needs a private advisory to run
+  >   through; the demonstrations exercise the register's shape, not intake.
+  >
+  > The first run of the dependency check was red: **E-053**.
+
 ## E-052 — eleven citations in the published book point outside the site, and two instruments require exactly that spelling
 
 - **Claim:** RFC-0.32-003 R8 — *"no chapter links to a path the site does not

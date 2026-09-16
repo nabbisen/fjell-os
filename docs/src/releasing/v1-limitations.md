@@ -779,17 +779,29 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   citation as a filesystem path, so converting the links to repository URLs
   turns Gate 12 red until those checks accept both spellings.
 
-- **The security advisory process exists only as a description of itself**
-  (Errata **E-051**, ACCEPTED, tracked to 0.32). RFC-v0.15-003 specified an
-  advisory process document and a per-advisory record directory, and was marked
-  Implemented; neither exists. The release checklist also publishes a
-  placeholder address, `security@<domain>`, beside the working GitHub
-  private-advisory channel in `SECURITY.md`, with a different acknowledgement
-  commitment — so a reporter following the checklist writes to nothing. And no
-  mechanism watches security advisories for the 153 third-party packages in
-  `Cargo.lock`; note that the two published crates have no third-party
-  dependencies, so this is a build- and host-surface gap. No vulnerability has
-  been reported to date.
+- **The security advisory process has no acknowledgement commitment yet**
+  (Errata **E-051**, ACCEPTED, tracked to 0.32; addressed by RFC-0.32-004).
+  RFC-v0.15-003 specified an advisory process and a per-advisory register, was
+  marked Implemented, and built neither; the release checklist meanwhile
+  published an address that could not receive mail beside the working channel.
+  **Now built:** one process document, one intake channel — GitHub's private
+  security advisory — and a register that is empty, because no vulnerability
+  has been reported, and checked while empty. Advisories published against
+  every crate in `Cargo.lock` are found by CI on every push and weekly, and the
+  first run found two (E-053, fixed). What remains:
+  - **The acknowledgement time is a placeholder** in `.github/SECURITY.md` and
+    the process document, pending the owner's choice. A reporter can reach the
+    project; they cannot yet be told when to expect a reply.
+  - **Every time in the process is a target, not a guarantee.** Fjell OS has
+    one maintainer, and the process says so rather than implying a 30-day
+    patch can be promised.
+  - **The process has never been exercised end to end.** The register's shape
+    is checked; intake, triage and coordinated disclosure have only been
+    written down.
+  - **A clean dependency check says nothing about what Fjell OS ships**, and
+    its report says so: the published crates and the kernel have no
+    third-party dependencies at all. It covers the tools, tests, benchmarks
+    and the development-grade crypto crate.
 
 - **Most of the documentation was not in the documentation** (Errata
   **E-050**, **CLOSED** 2026-09-16 by RFC-0.32-003). The book rendered 59 of
