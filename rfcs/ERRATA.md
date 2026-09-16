@@ -3408,6 +3408,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   would notice a build behaving differently under the other. E-037's shape, one
   tool over; folded into RFC-0.32-003 (D10).*
 
+- **Resolution:** **CLOSED** 2026-09-16 by **RFC-0.32-003**.
+
+  | | before | after |
+  |---|---|---|
+  | pages under `docs/src` in `SUMMARY.md` | 59 of 170 | **171 of 171** |
+  | ADR pages in the built site | 0 | **43** |
+  | markdown under `docs/` outside the book | 70 | **0** |
+  | pointer pages | 3 (a fourth was stale generated output) | **0** |
+  | duplicate directory names | 7 collisions across 6 names | **0** |
+  | `docs/book/` ignored | no | yes, and asserted |
+  | the book's mdBook version | declared nowhere, forked 0.4.40 / 0.5.4 | `docs/MDBOOK.lock`, checked against CI |
+  | published | nowhere | GitHub Pages, from `main` |
+
+  Held by five instruments rather than by intent, each demonstrated failing
+  before the moves that made it pass: `summary-completeness`,
+  `prose-in-the-book`, `no-stub-pages`, `unique-doc-directory-names` and
+  `historical-status-lines`. Gate 12 runs 16 subchecks, up from 11.
+
+  **Two corrections to this entry, from implementing it.** "76 of 135" is
+  **75 pages of 134**: the 135th file is `SUMMARY.md`, which is the navigation
+  and cannot list itself. And the four stub pages named above are four
+  different defects — two pointers, one thin page that points nowhere, and one
+  stale generated report — so a single predicate finds two of them, plus a
+  fifth page the audit did not name (`tutorials/three-node-fleet.md`). The
+  count was right about the symptom and wrong about the shape.
+
+  **Survivors, named rather than implied:** the five mdBook 0.5 warnings about
+  unclosed HTML tags in page content are recorded in `docs/MDBOOK.lock` and not
+  fixed — they are content, and this line does not edit content. And nothing
+  checks that the *published site* stays complete between deploys; `ci-pages`
+  verifies the artifact contains the ADRs, which is a control on the build,
+  not a monitor on the site.
+
 ## E-051 — the security advisory process was specified, marked Implemented, and has neither of its artefacts; two intake channels are published at once
 
 - **Claim:** `rfcs/done/RFC-v0.15-003-release-checklist-and-security-advisory-process.md`
@@ -3512,7 +3545,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
-| E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | ACCEPTED |
+| E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

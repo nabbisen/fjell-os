@@ -784,16 +784,30 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   dependencies, so this is a build- and host-surface gap. No vulnerability has
   been reported to date.
 
-- **Most of the documentation is not in the documentation** (Errata
-  **E-050**, ACCEPTED, unscheduled). The published book renders 59 of the 135
-  Markdown files under its own source root; the other 76 — including all 41
-  architecture decision records — are in the repository but in no book, and
-  `mdbook build` reports nothing — and nothing publishes the book in any case:
-  CI builds it and discards the output, and the repository has no GitHub Pages
-  site. Several book pages are stubs pointing at the
-  real document outside the book, where the site cannot follow them, and one
-  describes itself as a symlink that does not exist. Everything is present for
-  a reader who browses the repository; a reader of the book sees a fraction.
+- **Most of the documentation was not in the documentation** (Errata
+  **E-050**, **CLOSED** 2026-09-16 by RFC-0.32-003). The book rendered 59 of
+  the 135 Markdown files under its own source root; the other 75 — including
+  all 41 architecture decision records — were in the repository but in no
+  book, `mdbook build` reported nothing, and nothing published the book in any
+  case. Several pages were stubs pointing at the real document outside the
+  book, where the site cannot follow them, and one described itself as a
+  symlink that does not exist.
+
+  **Corrected.** Every page is in `SUMMARY.md`, the ADRs are a navigable
+  section with an index, all prose lives under `docs/src`, the stubs are gone,
+  no directory name is used twice, the mdBook version is pinned and checked,
+  and the book is published to GitHub Pages from `main`. Five subchecks hold
+  it. What this does **not** cover:
+  - **Nothing watches the published site between deploys.** The deploy job
+    checks its own artifact contains the ADRs; that is a control on the build,
+    not a monitor on the site.
+  - **Five mdBook 0.5 warnings remain**, all placeholder angle brackets in
+    page content read as unclosed HTML tags. They are recorded in
+    `docs/MDBOOK.lock` as an expected baseline rather than fixed, because that
+    line moved documents and did not edit them.
+  - **A page can still be wrong.** These instruments check that a page is
+    reachable, is not a pointer, and says whether it is maintained. None of
+    them reads it.
 
 - **Ten crates' unit tests do not run in CI** (Errata **E-049**, ACCEPTED,
   unscheduled). CI names test packages in hand-written `-p` lists, and ten
