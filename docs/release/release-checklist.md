@@ -82,9 +82,9 @@ cargo xtask abi-snapshot --verify
 
 ```bash run-verified
 cargo xtask trust-report
-# Expected: [trust-report] written to docs/release/trust-report.txt
+# Expected: [trust-report] written to releases/trust-report.txt
 # Verify all 6 sections are non-empty:
-grep "^§[1-6]\." docs/release/trust-report.txt
+grep "^§[1-6]\." releases/trust-report.txt
 ```
 
 ---

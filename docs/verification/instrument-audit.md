@@ -99,7 +99,7 @@ they still hold, not re-derived from scratch.
   repository state. **This is a corrected citation, not a demonstration
   produced by this line** — the real evidence already existed and was
   simply mis-cited.
-- **Demonstration (0.24.0 release cut, `docs/release/records/0.24.0.md`):**
+- **Demonstration (0.24.0 release cut, `releases/0.24.0.md`):**
   Gate 2 was run against a **live category violation already present in the
   committed tree** and correctly failed on it — an actual broken repository
   state, not a synthetic unit-test fixture. `unsafe-audit --check`'s own
@@ -396,7 +396,7 @@ they still hold, not re-derived from scratch.
 - **Claim:** the trust report is complete (RFC 061 §6's six sections).
 - **Actual:** runs `trust-report` to regenerate the file, discards the
   regeneration's own success/failure (`let _ = sh(...)`), then reads
-  `docs/release/trust-report.txt` from disk and counts how many of the
+  `releases/trust-report.txt` from disk and counts how many of the
   literal strings `§1`..`§6` appear; passes iff all six do.
 - **Modes:** 3 (fail-open on absence) and 4 (weak predicate) — compounding.
   The six section headers are unconditional string literals the generator
@@ -411,7 +411,7 @@ they still hold, not re-derived from scratch.
   ```
   $ cargo run -q -p fjell-tools -- trust-report
   error: could not compile `fjell-tools` ...
-  $ cat docs/release/trust-report.txt   # unregenerated, pre-existing content
+  $ cat releases/trust-report.txt   # unregenerated, pre-existing content
   Version   : 0.23.0
   # §1..§6 all present — 6 of 6
   ```

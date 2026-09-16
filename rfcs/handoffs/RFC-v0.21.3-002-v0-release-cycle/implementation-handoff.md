@@ -38,7 +38,7 @@ green on evidence rather than assertion — do not disturb it.
 ## 1. Change scope
 
 **In scope:** `docs/src/release/`, `docs/src/SUMMARY.md`,
-`docs/release/release-checklist.md`, `docs/release/records/`,
+`docs/release/release-checklist.md`, `releases/`,
 `verification/verus/TOOLCHAIN.md`, and the IMP-06 wording wherever the decision
 log records it.
 
@@ -126,7 +126,7 @@ the tag. Prepare everything, then hand back.
 2. Run the full **exit criteria** sweep at the final commit and capture real
    output. Do not reuse output from earlier in this RFC's review chain — the tree
    has changed since. Re-run everything.
-3. Write the release record at **`docs/release/records/0.21.3.md`**: the
+3. Write the release record at **`releases/0.21.3.md`**: the
    exit-criteria table with real output, the full gate table, known limitations,
    and any accepted-risk statement.
 

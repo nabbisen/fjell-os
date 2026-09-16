@@ -987,7 +987,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 ## E-025 — `trust-report`'s cap-manifest scan walks untracked scratch trees
 
-- **Claim:** `docs/release/trust-report.txt`'s capability inventory reports the
+- **Claim:** `releases/trust-report.txt`'s capability inventory reports the
   cap-manifests in this repository.
 - **Tree:** `crates/fjell-tools/src/trust_report.rs:122` skips exactly
   `["target", ".git", "tests/runs"]` — a hand-maintained literal list that does

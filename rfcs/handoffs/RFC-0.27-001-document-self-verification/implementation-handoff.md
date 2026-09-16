@@ -50,7 +50,7 @@ Three properties, in the RFC. The second is the point: **no erratum may name a
 milestone that has already shipped.**
 
 **Open design question, deliberately not decided:** how does the check learn
-which milestones shipped? `git tag`, `docs/release/records/*.md`, or
+which milestones shipped? `git tag`, `releases/*.md`, or
 `CHANGELOG.md` headings.
 
 My inclination is the release records — self-contained, and it avoids making an

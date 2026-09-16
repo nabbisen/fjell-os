@@ -33,7 +33,7 @@
 //! identical in a full clone, a shallow clone, or an exported tarball.
 //! "Is this exact commit object an ancestor of `HEAD`" has no such
 //! git-free answer: unlike "has this version shipped" (which
-//! `errata_tracking` answers from `docs/release/records/*.md` instead),
+//! `errata_tracking` answers from `releases/*.md` instead),
 //! there is no committed file recording every commit that was ever `HEAD`.
 //! This check shells out to `git cat-file` and `git merge-base
 //! --is-ancestor` — a deliberate, narrow exception, disclosed here rather

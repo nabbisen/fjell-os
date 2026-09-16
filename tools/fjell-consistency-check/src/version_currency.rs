@@ -15,7 +15,7 @@
 //! legitimate — `ROADMAP.md`'s shipped-release table, and every RFC's own
 //! prose discussing the releases before or around it. Those documents are
 //! historical narrative by design, exactly like `CHANGELOG.md` and
-//! `docs/release/records/`, which the RFC already excludes; a whole-tree
+//! `releases/`, which the RFC already excludes; a whole-tree
 //! version sweep would need the same exclusion extended to essentially
 //! every RFC file and to `ROADMAP.md`, at which point it is not "outside
 //! `CHANGELOG.md`" but "outside almost everything," and would still need

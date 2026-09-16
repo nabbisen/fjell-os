@@ -84,7 +84,7 @@ cargo xtask trust-report --dry-run
 - [v1.0 Readiness Matrix](docs/release/v1-readiness.md) — 55 DONE, 3 DEFERRED, 0 OPEN
 - [v1.0 Non-Goals](docs/release/v1-non-goals.md) — 23 explicitly scoped items
 - [Threat Model](docs/security/threat-model-v1.md) — 20 in-scope threats
-- [Trust Report](docs/release/trust-report.txt)
+- [Trust Report](releases/trust-report.txt)
 - [RFC Process](rfcs/README.md) — 154 files in `done/`
 - [Deployment: StarFive VisionFive 2](docs/deployment/starfive-visionfive2.md)
 - [Fleet Demo Tutorial](examples/three-node-fleet/README.md)

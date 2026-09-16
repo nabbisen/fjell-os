@@ -11,7 +11,7 @@ what to pin *at*, and the answer is not the ten-month-old version we are on.
 `docs/release/release-checklist.md`, `tools/fjell-consistency-check`
 (`toolchain-declarations`), and — as *output*, not as edits —
 `crates/fjell-kernel/prebuilt/*.bin`, `tests/repro/baseline-digests.txt`,
-`docs/release/trust-report.txt`. **Does not touch kernel, ABI or service
+`releases/trust-report.txt`. **Does not touch kernel, ABI or service
 source.**
 **Relates to:** RFC-0.31-002 (which made the bump one line by putting CI on
 rustup, and whose review recorded the collision this RFC finds has moved

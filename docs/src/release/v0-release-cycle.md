@@ -425,7 +425,7 @@ repro-baseline step cost a red tier before anyone recorded it.*
 1. **A git tag** — bare version, no `v` prefix (e.g. `0.21.3`, not `v0.21.3`;
    Rust crate convention).
 2. **A CHANGELOG entry**, dated, under the version being released.
-3. **A release record**, committed at `docs/release/records/<version>.md`,
+3. **A release record**, committed at `releases/<version>.md`,
    containing:
    - the exit-criteria table above, with real command output for each row
    - the full `release-rehearsal` gate table

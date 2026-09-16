@@ -38,7 +38,7 @@ the person who sees it. Neither holds for shape 1 as built:
   not someone else's problem inherited at a cut. There is no window in
   which the gate is red on `main` for a change some other line made; the
   discipline is "regenerate before your own line is done," which this
-  project already applies identically to `docs/release/trust-report.txt`.
+  project already applies identically to `releases/trust-report.txt`.
 - Unlike a check that stays red until someone finds time (the shape that
   genuinely breeds ignoring it), this one is closed by one mechanical
   command (`--generate`) the author already has open. The friction is a

@@ -96,7 +96,7 @@ avoid. There is no version of this that is both offline and not fail-open.
 ## Why shape 4 is stronger here than it looks, and the evidence for it
 
 The RFC's stated weakness of shape 4 is that it fires *"only as often as we
-cut"*. Measured, from `docs/release/records/`:
+cut"*. Measured, from `releases/`:
 
 | | |
 |---|---|

@@ -31,7 +31,7 @@ pub fn cmd_trust_report(args: &[String]) -> ExitCode {
         .find(|w| w[0] == "--out")
         .and_then(|w| w.get(1))
         .map(String::as_str)
-        .unwrap_or("docs/release/trust-report.txt");
+        .unwrap_or("releases/trust-report.txt");
 
     println!("[trust-report] collecting sections …");
     let report = build_report(dry_run);

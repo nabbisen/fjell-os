@@ -78,7 +78,7 @@ Checked directly, all three artefact records:
 |---|---|---|
 | `tests/repro/baseline-digests.txt` | `# algo: sha256` — that is the entire header | **no** |
 | `tests/evidence/**/*.provenance.txt` | `run_id`, `profile`, `commit_sha`, `command`, `instrumented` | **no** |
-| `docs/release/trust-report.txt` | `Generated`, `Version`, `Mode` | **no** |
+| `releases/trust-report.txt` | `Generated`, `Version`, `Mode` | **no** |
 
 So a digest mismatch on another machine is **indistinguishable from a real
 reproducibility failure**, which is precisely the claim RFC-0.30-001 declined to
@@ -102,7 +102,7 @@ just read the file has to solve this first.
 
 **D1 — Every artefact-producing path records the toolchain that produced it.**
 `tests/repro/baseline-digests.txt`, `tests/evidence/**/*.provenance.txt`, and
-`docs/release/trust-report.txt`. This is the half of E-037 that RFC-0.30-001's
+`releases/trust-report.txt`. This is the half of E-037 that RFC-0.30-001's
 residual depends on and it lands in this line regardless of how §7 is decided.
 
 **D2 — Record the *observed* toolchain, never the declared one.** The value

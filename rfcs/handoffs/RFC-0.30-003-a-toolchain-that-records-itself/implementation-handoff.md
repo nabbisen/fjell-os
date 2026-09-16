@@ -47,7 +47,7 @@ embarrassment.
 
 1. **All three artefact records carry the toolchain** (D1):
    `tests/repro/baseline-digests.txt`, `tests/evidence/**/*.provenance.txt`,
-   `docs/release/trust-report.txt`.
+   `releases/trust-report.txt`.
 2. **Record the observed toolchain, never the declared one** (D2). Run
    `rustc -vV` at production time and record `release`, `commit-hash`, `host`
    and `LLVM version` — all four. **Reading `rust-toolchain.toml` and writing

@@ -31,7 +31,7 @@
 //! ## Design question: how does the check know what has shipped?
 //!
 //! Three candidates were named in the RFC: `git tag`, `CHANGELOG.md`
-//! headings, or `docs/release/records/*.md`. **Chosen: release records.**
+//! headings, or `releases/*.md`. **Chosen: release records.**
 //! Every other subcheck in this tool reads only committed files, never
 //! shells out to git — a syscall-surface or handoff-status run behaves
 //! identically in a full clone, a shallow clone, or an exported tarball,
@@ -42,7 +42,7 @@
 //! whose `**Version:**` field is exactly the fact this check needs, no more.
 //! The trade-off: a shipped release with no record file (none exist before
 //! `0.21.3`) is invisible to this check. Every erratum this RFC's data
-//! concerns (E-011 onward) is well inside the range `docs/release/records/`
+//! concerns (E-011 onward) is well inside the range `releases/`
 //! covers, so this is accepted rather than backfilled.
 //!
 //! ## Design note: direction B's "claims to close" detector
@@ -74,7 +74,10 @@ use std::fs;
 use std::process::ExitCode;
 
 const ERRATA_PATH: &str = "rfcs/ERRATA.md";
-const RECORDS_DIR: &str = "docs/release/records";
+/// Dated release records. Moved out of `docs/` by RFC-0.32-003 (D12): a
+/// record of what was true on a date is not a maintained page, so it does not
+/// live in the book.
+const RECORDS_DIR: &str = "releases";
 const RFC_DIRS: &[&str] = &[
     "rfcs/proposed",
     "rfcs/accepted",

@@ -96,7 +96,7 @@ Three properties:
    `errata-limitations` and `handoff-status`.
 
 **Design question, not pre-decided:** how does the check know which milestones
-have shipped? Candidates are `git tag`, `docs/release/records/*.md`, or
+have shipped? Candidates are `git tag`, `releases/*.md`, or
 `CHANGELOG.md` headings. The release records are the most self-contained and do
 not make an instrument depend on git state — but **state the choice and why**;
 do not just pick one.
@@ -114,7 +114,7 @@ better than a stale one.
 ### S3 — `version-currency`
 
 No tracked document asserts a version other than the current workspace version,
-outside `CHANGELOG.md` and `docs/release/records/` (which are historical by
+outside `CHANGELOG.md` and `releases/` (which are historical by
 design).
 
 This is E-023's specified-but-never-built check.

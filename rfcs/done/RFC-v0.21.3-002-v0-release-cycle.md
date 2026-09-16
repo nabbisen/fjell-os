@@ -161,7 +161,7 @@ because it is the criterion most likely to be softened under time pressure.
 
 1. A git tag.
 2. A CHANGELOG entry.
-3. **A release record** committed at `docs/release/records/<version>.md`
+3. **A release record** committed at `releases/<version>.md`
    containing the exit-criteria table with real command output, the gate table,
    known limitations, and any accepted-risk statement.
 
@@ -216,7 +216,7 @@ Within this RFC's scope, in `docs/release/release-checklist.md`:
       linked from `SUMMARY.md`.
 - [ ] `docs/release/release-checklist.md` steps 6 and 12 invoke real
       subcommands; scope-titled for v1.0; cross-links this RFC.
-- [ ] `docs/release/records/` exists with a record for the first release cut
+- [ ] `releases/` exists with a record for the first release cut
       under this cycle.
 - [ ] `CHANGELOG.md` marks `0.21.2` per Decision request 2.
 - [ ] `release-checklist.md` Step 11 uses the bare-tag convention (`0.21.2`,

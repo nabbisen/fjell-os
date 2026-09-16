@@ -148,7 +148,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
                 ),
             );
         }
-        let report = sh(&["cat", "docs/release/trust-report.txt"]);
+        let report = sh(&["cat", "releases/trust-report.txt"]);
         let sections = ["§1", "§2", "§3", "§4", "§5", "§6"]
             .iter()
             .filter(|s| report.contains(**s))

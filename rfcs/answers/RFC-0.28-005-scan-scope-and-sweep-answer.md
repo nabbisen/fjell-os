@@ -89,7 +89,7 @@ today's clean tree already reports `284/284`, not `311/311` (confirmed by
 codebase's actual unsafe-site count has moved in the intervening line
 (most plausibly RFC-0.28-002's syscall-asm consolidation, which removed
 several raw `asm!` sites); this is not a regression this line introduced,
-and `docs/release/trust-report.txt` itself is separately known-stale
+and `releases/trust-report.txt` itself is separately known-stale
 (still reads `311`) for the same, already-established reason — it is a
 release artefact regenerated only at a cut, not this line's concern.
 

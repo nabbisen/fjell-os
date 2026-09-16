@@ -82,7 +82,7 @@ failure, and four of them **look like success at the moment they happen**.
 
 - **The tag carries no `v` prefix.** `0.30.0`, never `v0.30.0` (Rust crate
   convention). A `/v.../` URL 404s.
-- **`docs/release/trust-report.txt` is committed at a cut.** Mid-line it is
+- **`releases/trust-report.txt` is committed at a cut.** Mid-line it is
   regenerated incidentally and reverted; **at a cut the regenerated file is the
   artifact** and goes in. This is the one place that rule inverts.
 - **You do not apply the tag or publish.** You prepare everything and stop. The
@@ -121,7 +121,7 @@ order once.
 8. **CHANGELOG entry**, dated, under the version being released.
 9. **Exit criteria 1-7**, capturing real command output for the record.
 10. **Regenerate and commit `trust-report.txt`** (§0.2).
-11. **Release record** at `docs/release/records/<version>.md` (§4).
+11. **Release record** at `releases/<version>.md` (§4).
 12. **Re-run exit criterion 6 after the record is committed.** The record's
     own commit is what makes the milestone count as *shipped* to
     `errata-tracking`, so an erratum tracked to this milestone and still
@@ -232,7 +232,7 @@ E-014 literal-predicate family, disclosed rather than fixed.
 
 ## 4. Required evidence
 
-The release record at `docs/release/records/<version>.md` carries:
+The release record at `releases/<version>.md` carries:
 
 1. The **entry-criteria** check.
 2. The **exit-criteria table**, with real command output for each row — not
@@ -264,7 +264,7 @@ The release record at `docs/release/records/<version>.md` carries:
     statement here says *why staying behind is the right call for this
     release*, not that nobody got to it.
 
-Follow the shape of [`records/0.29.0.md`](records/0.29.0.md); it is the most
+Follow the shape of [`../../releases/0.29.0.md`](../../releases/0.29.0.md); it is the most
 recent and the most complete.
 
 ## 5. Prohibited shortcuts

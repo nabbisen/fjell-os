@@ -222,7 +222,7 @@ not honest.** 33 findings remain open under errata E-013 through E-017; the 22
 the audit's own demonstration rule and the re-derivation of the rest is
 incomplete (**E-017**). Records: `docs/verification/instrument-audit.md`,
 `docs/verification/instrument-audit-closeout.md`,
-`docs/release/records/0.24.0.md`.
+`releases/0.24.0.md`.
 
 ### 0.25 — Functional advancement: the external interrupt plane (**shipped 2026-08-16**)
 
@@ -281,7 +281,7 @@ scheduler's `PRIORITY_USER` has three disconnected copies with two values, so
 prior `init` path used a blocking recv that removed it from ready-queue
 contention. Correcting the constant hung the M6 boot sequence and was reverted.
 
-Records: `docs/release/records/0.25.0.md`.
+Records: `releases/0.25.0.md`.
 
 ### 0.26 — the scheduler priority defect, and what it was holding up (**shipped 2026-08-27**)
 
@@ -319,7 +319,7 @@ co-receiver removed its cover. **E-019** — the `ipc` profile is green again an
 **nothing guarantees it**, which makes `RFC-0.26-003` more necessary than when
 it was red, not less.
 
-Records: `docs/release/records/0.26.0.md`.
+Records: `releases/0.26.0.md`.
 
 ### 0.27 — document self-verification (RFC-0.27-001)
 

@@ -538,7 +538,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 
   **Fixed:** all three artefact-producing paths (`tests/repro/
   baseline-digests.txt`, `tests/evidence/**/*.provenance.txt`,
-  `docs/release/trust-report.txt`) now record the toolchain **observed**
+  `releases/trust-report.txt`) now record the toolchain **observed**
   at production time (`rustc -vV`'s release/commit-hash/host/LLVM
   version) — never the declared channel, which would have kept saying
   `1.91` throughout the 1.91→1.98.1 incident while being wrong the whole

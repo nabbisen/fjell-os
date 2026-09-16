@@ -14,7 +14,7 @@ This page is the operator-readable distillation of that decision.*
 "Explainable" means more than readable. It means every authority
 grant, update action, and recovery step leaves a signed, typed, and
 machine-readable evidence record that can be independently verified.
-See [Trust Report](../../release/trust-report.txt) for the artefact this
+See [Trust Report](../../../releases/trust-report.txt) for the artefact this
 produces.
 
 ---

@@ -283,7 +283,7 @@ enum AncestorCheck {
 /// or an exported tarball). "Is this exact commit object reachable from
 /// HEAD" has no git-free proxy: there is no committed file recording every
 /// commit that was ever HEAD, unlike "has this version shipped" (which
-/// `errata_tracking` answers from `docs/release/records/*.md` instead).
+/// `errata_tracking` answers from `releases/*.md` instead).
 /// On a **shallow clone**, this can report `Inconclusive` for a genuinely
 /// valid historical sha whose object was never fetched — a real limitation,
 /// disclosed rather than silently producing a false FAIL.
