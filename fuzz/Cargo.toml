@@ -27,6 +27,7 @@ fjell-dtb-derive      = { path = "../crates/fjell-dtb-derive" }
 fjell-dtb-validate    = { path = "../crates/fjell-dtb-validate" }
 fjell-platform-format = { path = "../crates/formats/fjell-platform-format" }
 fjell-cap-manifest    = { path = "../crates/fjell-cap-manifest" }
+fjell-semantic-format = { path = "../crates/formats/fjell-semantic-format" }
 
 [[bin]]
 name = "semantic_record_parse"
@@ -66,6 +67,13 @@ bench = false
 [[bin]]
 name = "cap_manifest_parse"
 path = "fuzz_targets/cap_manifest_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "semantic_envelope_wire_decode"
+path = "fuzz_targets/semantic_envelope_wire_decode.rs"
 test = false
 doc = false
 bench = false
