@@ -62,3 +62,8 @@ tests/runs/
 # Custom
 /.git-exclude/
 *.local.json
+
+# mdBook's build output (RFC-0.32-003 D9). Committing it would repeat the
+# artefact leak fixed in 0.30: a local build becomes a diff, and the tree
+# starts carrying a stale copy of its own documentation.
+/docs/book/

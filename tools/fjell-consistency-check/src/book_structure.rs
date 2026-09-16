@@ -54,6 +54,13 @@ const ROOT_PAGES: &[(&str, &str)] = &[
 /// twice.
 const GENERATED_DIRS: &[&str] = &["book"];
 
+/// The generated output this module skips, and the ignore rule that has to
+/// exist for skipping it to be safe. D9: assert the ignore rather than
+/// trusting it — every check here walks past `docs/book/`, so if it stopped
+/// being ignored, a committed build would be invisible to all four of them.
+const GENERATED_OUTPUT: &str = "docs/book";
+const GENERATED_OUTPUT_IGNORE: &str = "/docs/book/";
+
 /// A page at or under `docs/src` whose body is this small *and* which points
 /// at a document outside the book is a pointer, not a page (D5).
 ///
@@ -290,6 +297,22 @@ pub fn prose_in_the_book() -> ExitCode {
         }
     }
     root_md.sort();
+
+    // D9, checked here because this is the walk that relies on it.
+    let gitignore = fs::read_to_string(".gitignore").unwrap_or_default();
+    if !gitignore
+        .lines()
+        .map(str::trim)
+        .any(|l| l == GENERATED_OUTPUT_IGNORE)
+    {
+        eprintln!(
+            "{PROSE_NAME}: FAIL — `{GENERATED_OUTPUT}` is mdBook's build output and every check \
+             in this module walks past it, but .gitignore has no `{GENERATED_OUTPUT_IGNORE}` \
+             line, so a local build is committable and would be invisible to all of them (D9)"
+        );
+        return ExitCode::FAILURE;
+    }
+
     run_prose_check(&all, &root_md)
 }
 
