@@ -67,7 +67,7 @@ const ACTION_PATH: &str = ".github/actions/toolchain/action.yml";
 const ACTION_REF: &str = "uses: ./.github/actions/toolchain";
 const LOCAL_DEV_PATH: &str = "docs/src/internals/local-development.md";
 const QUICK_START_PATH: &str = "docs/src/tutorials/quick-start.md";
-const RELEASE_CHECKLIST_PATH: &str = "docs/src/release/release-checklist.md";
+const RELEASE_CHECKLIST_PATH: &str = "docs/src/releasing/release-checklist.md";
 
 /// Where a reader is told to run a command *now*. RFC-0.31-003 D3: an apt
 /// `rustc-<version>` instruction in any of these is a failure, because no
@@ -80,7 +80,7 @@ const RELEASE_CHECKLIST_PATH: &str = "docs/src/release/release-checklist.md";
 /// written: `rfcs/ERRATA.md` quotes the apt line because it is the
 /// defect E-041 records, `rfcs/` quotes it in four RFCs including
 /// RFC-0.31-003 itself, this file's own fixtures must contain it to test
-/// for it, and `docs/src/release/v1-limitations.md` discloses it. A rule that
+/// for it, and `docs/src/releasing/v1-limitations.md` discloses it. A rule that
 /// failed on all of those would fail on the document that mandates the
 /// rule. The distinction is the one this subcheck has always drawn: a
 /// declaration tells you what to do, a record tells you what was done.
@@ -88,13 +88,13 @@ const LIVE_INSTRUCTION_ROOTS: &[&str] = &[
     ".github/workflows",
     "docs/src",
     "README.md",
-    "docs/src/release/release-checklist.md",
+    "docs/src/releasing/release-checklist.md",
 ];
 
 /// The one subtree excluded from `LIVE_INSTRUCTION_ROOTS`: the book's
 /// archive of release notes and past milestone handoffs. Those record the
 /// prerequisites of a shipped release and are correct as written —
-/// `docs/src/releases/v0.1.0-scope.md` and `handoff-v0.17-v0.18.md` both
+/// `docs/src/history/v0.1.0-scope.md` and `handoff-v0.17-v0.18.md` both
 /// name the apt line, and both are history. Named as one exclusion with a
 /// reason rather than a blocklist that grows quietly.
 /// RFC-0.32-003 D3 moved `v1-limitations.md` into the book, which brought it
@@ -105,11 +105,13 @@ const LIVE_INSTRUCTION_ROOTS: &[&str] = &[
 /// for the same stated reason, rather than by quietly reverting the move.
 const INSTRUCTION_EXCLUSIONS: &[(&str, &str)] = &[
     (
-        "docs/src/releases",
-        "the book's archive of release notes and past milestone handoffs",
+        "docs/src/history",
+        "the book's archive of release notes and past milestone handoffs \
+         (`docs/src/releases/` until RFC-0.32-003 renamed it out of its \
+         collision with `docs/src/release/`)",
     ),
     (
-        "docs/src/release/v1-limitations.md",
+        "docs/src/releasing/v1-limitations.md",
         "discloses the apt line as a limitation; a record, not a declaration",
     ),
 ];

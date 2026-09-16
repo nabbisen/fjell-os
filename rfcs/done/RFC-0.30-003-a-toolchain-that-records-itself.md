@@ -9,7 +9,7 @@ machines/toolchains").
 **Touches.** `rust-toolchain.toml`, `.github/workflows/ci.yml`,
 `tools/fjell-repro-check`, `crates/fjell-tools` (provenance/trust-report
 writers), `docs/src/internals/local-development.md`,
-`docs/src/tutorials/quick-start.md`, `docs/src/release/release-checklist.md`.
+`docs/src/tutorials/quick-start.md`, `docs/src/releasing/release-checklist.md`.
 **Does not touch the kernel, the ABI surface, or any service.**
 **Relates to:** RFC-0.30-001 (E-036; this is its named residual);
 RFC-0.27-004 (the `.provenance.txt` format this extends); RFC-0.24-003.
@@ -29,7 +29,7 @@ below were re-derived for this RFC; none is inherited.
 | `Cargo.toml` | `rust-version = "1.91"` | 1 |
 | `docs/src/internals/local-development.md:7,21` | prerequisite table + `rustup toolchain install 1.91` | 1 |
 | `docs/src/tutorials/quick-start.md:10-11` | `apt install rustc-1.91 cargo-1.91 rust-1.91-src …` | 1 |
-| `docs/src/release/release-checklist.md:25` | `rustc --version \| grep "1.91"` | 1 |
+| `docs/src/releasing/release-checklist.md:25` | `rustc --version \| grep "1.91"` | 1 |
 
 Only `ci-docs` and `ci-fuzz-nightly` lack the install block. **A version bump is
 seventeen identical hand-edits plus five different ones** — not "an edit", and
@@ -43,15 +43,15 @@ installs `rust-src` — a second, quieter disagreement inside the same family.
 ### Finding 2 — one of them is a check, not two
 
 E-037 says "two of those are checks that would go on asserting 1.91 after a
-bump." **One is:** `docs/src/release/release-checklist.md:25`'s
+bump." **One is:** `docs/src/releasing/release-checklist.md:25`'s
 `rustc --version | grep "1.91"`. The rest are declarations or prose. The
 distinction matters because a check that asserts a stale number is worse than a
 document that does — it fails a correct build.
 
 ### Finding 3 — most occurrences of `1.91` must NOT move, and a naive gate would break them
 
-`grep -rn "1\.91"` finds it in `CHANGELOG.md`, `docs/src/releases/v0.7-release-
-notes.md`, `docs/src/releases/v0.1.0-scope.md`, `handoff-v0.17-v0.18.md`, three
+`grep -rn "1\.91"` finds it in `CHANGELOG.md`, `docs/src/history/v0.7-release-
+notes.md`, `docs/src/history/v0.1.0-scope.md`, `handoff-v0.17-v0.18.md`, three
 files under `handoff-0.21.2/`, and the Verus review records. **Every one of
 those is a historical record of what was true at that release and is correct as
 written.** Any consolidation or any "all sites agree" gate that cannot tell a
@@ -195,7 +195,7 @@ as RFC-0.29-002 did for E-014. **Do not close it to tidy the register.** A
 partial close with two named survivors is a better record than a clean one that
 is not true.
 
-**R6 — If any instance survives, `docs/src/release/v1-limitations.md` says so** in
+**R6 — If any instance survives, `docs/src/releasing/v1-limitations.md` says so** in
 the reader's terms, not the register's.
 
 ### Non-goals

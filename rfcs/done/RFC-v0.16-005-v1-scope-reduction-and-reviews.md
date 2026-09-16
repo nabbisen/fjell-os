@@ -19,7 +19,7 @@ unvalidated on silicon** (errata E-004, ACCEPTED).
 
 ## 2. Claims v1.0 must NOT make
 
-Recorded in `docs/src/release/v1-non-goals.md` and the release notes:
+Recorded in `docs/src/releasing/v1-non-goals.md` and the release notes:
 
 - validated real-hardware deployment
 - production industrial-gateway readiness

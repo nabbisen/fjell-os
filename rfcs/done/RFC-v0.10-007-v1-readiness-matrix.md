@@ -18,7 +18,7 @@ a status: **DONE**, **IN PROGRESS** (with target milestone), **DEFERRED**
 
 ## 2. The matrix
 
-Maintained at `docs/src/release/v1-readiness.md`. v0.10 lands the initial
+Maintained at `docs/src/releasing/v1-readiness.md`. v0.10 lands the initial
 fill; later milestones update cells they retire.
 
 ### 2.1 Identity dimension
@@ -121,7 +121,7 @@ When a milestone closes:
 
 ## 4. Acceptance criteria
 
-1. `docs/src/release/v1-readiness.md` exists with the matrix as published
+1. `docs/src/releasing/v1-readiness.md` exists with the matrix as published
    here.
 2. Every IN PROGRESS cell names a target milestone.
 3. Every DEFERRED cell names the RFC that records the rationale.

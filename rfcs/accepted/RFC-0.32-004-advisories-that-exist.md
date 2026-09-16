@@ -32,7 +32,7 @@ Measured 2026-09-16.
 | `docs/src/security/advisories/FSAD-<year>-<seq>.md` — one record per closed advisory | **directory absent**; no `FSAD-*` file anywhere |
 
 What does exist is a condensed copy of the same process inside
-`docs/src/release/release-checklist.md` — the severity tiers, the timeline, the
+`docs/src/releasing/release-checklist.md` — the severity tiers, the timeline, the
 record template, and the sentence *"Committed to
 `docs/src/security/advisories/FSAD-YYYY-NNN.md`"*, naming a directory that has never
 existed. Nothing checks any of it.
@@ -47,7 +47,7 @@ arrives.
 | Source | Channel | Acknowledgement |
 |---|---|---|
 | `.github/SECURITY.md` (published, and what GitHub surfaces) | private GitHub security advisory, real URL | *"within a small number of days"* |
-| `docs/src/release/release-checklist.md` §Security advisory process | `security@<domain>` — *"fill in before v1.0 landing"* | **72 hours** |
+| `docs/src/releasing/release-checklist.md` §Security advisory process | `security@<domain>` — *"fill in before v1.0 landing"* | **72 hours** |
 
 A reporter who follows the checklist writes to a placeholder. A reporter who
 follows `SECURITY.md` is fine. The project has therefore published, at the same

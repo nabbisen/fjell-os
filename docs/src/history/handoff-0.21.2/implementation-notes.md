@@ -113,7 +113,7 @@ over the whole workspace will try to compile RISC-V-asm crates (e.g.
 **Correction (RFC-v0.21.3-002):** "no nesting" means no *double* nesting, not
 "no parent directory" — the archive intentionally does have one
 (`fjell-os-v{version}/`). See
-[`docs/src/release/v0-release-cycle.md`](../../release/v0-release-cycle.md)
+[`docs/src/releasing/v0-release-cycle.md`](../../releasing/v0-release-cycle.md)
 §Release archive convention for the authoritative, single-source statement
 (owner-accepted, Decision request 1). Row left as originally written, per
 the frozen-bundle convention.

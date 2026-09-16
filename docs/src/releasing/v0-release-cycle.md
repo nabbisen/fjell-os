@@ -56,7 +56,7 @@ All four must hold before beginning:
 | 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
-gate.** [`docs/src/release/v1-limitations.md`](./v1-limitations.md)
+gate.** [`docs/src/releasing/v1-limitations.md`](./v1-limitations.md)
 and [`docs/src/compliance/standards-mapping.md`](../compliance/standards-mapping.md)
 each assert, row by row, that a specific mechanism exists and works a
 specific way. Gate 12's `standards-mapping` subcheck confirms every cited
@@ -459,7 +459,7 @@ nowhere in this document or in RFC-v0.21.3-002 — a contributing gap named in
 absent is easy to read past, and it was.*
 
 **The implementer executes this cycle**, per the `R` column, following
-[`docs/src/release/release-handoff.md`](./release-handoff.md) — the
+[`docs/src/releasing/release-handoff.md`](./release-handoff.md) — the
 standing handoff for every cut. Every RFC in this project gets a handoff; the
 cut had none, which is why it drifted to the architect for five consecutive
 releases (**E-039**). The architect retains exit criterion 8, which is

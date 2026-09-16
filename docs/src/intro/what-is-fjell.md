@@ -35,4 +35,4 @@ as a post-v1.0 milestone.
 
 For who this is for, read [Why Fjell?](why-fjell.md). For the architecture,
 start at the [Overview](../architecture/overview.md). For what Fjell
-deliberately does not do, see [v1.0 Non-Goals](../release/v1-non-goals.md).
+deliberately does not do, see [v1.0 Non-Goals](../releasing/v1-non-goals.md).

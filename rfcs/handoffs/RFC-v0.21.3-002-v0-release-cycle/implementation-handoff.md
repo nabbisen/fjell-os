@@ -14,7 +14,7 @@ design conflict, **stop and escalate** — do not resolve it in code.
 
 - The governing RFC — especially §The v0 development release cycle and the two
   **accepted** decision requests.
-- `docs/src/release/release-checklist.md` — the v1.0 procedure you are repairing,
+- `docs/src/releasing/release-checklist.md` — the v1.0 procedure you are repairing,
   not replacing.
 - RFC 000 (`rfcs/done/000-rfc-lifecycle-policy.md`) — index integrity and the
   cross-reference sweep rule.
@@ -37,8 +37,8 @@ green on evidence rather than assertion — do not disturb it.
 
 ## 1. Change scope
 
-**In scope:** `docs/src/release/`, `docs/src/SUMMARY.md`,
-`docs/src/release/release-checklist.md`, `releases/`,
+**In scope:** `docs/src/releasing/`, `docs/src/SUMMARY.md`,
+`docs/src/releasing/release-checklist.md`, `releases/`,
 `verification/verus/TOOLCHAIN.md`, and the IMP-06 wording wherever the decision
 log records it.
 
@@ -56,7 +56,7 @@ log records it.
 
 ## 2. Slice A — Document the v0 release cycle
 
-Create `docs/src/release/v0-release-cycle.md` from the RFC's §The v0 development
+Create `docs/src/releasing/v0-release-cycle.md` from the RFC's §The v0 development
 release cycle: trigger, entry criteria, the 8 exit criteria, required artifacts,
 the roles table, and the known-bad convention.
 
@@ -76,7 +76,7 @@ Wire it into `docs/src/SUMMARY.md` beside the existing release entries
 
 ## 3. Slice B — Repair the v1.0 checklist
 
-In `docs/src/release/release-checklist.md` — repair, do not rewrite. It is
+In `docs/src/releasing/release-checklist.md` — repair, do not rewrite. It is
 authoritative for v1.0 and stays that way.
 
 | Line | Now | Required |

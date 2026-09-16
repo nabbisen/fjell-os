@@ -33,7 +33,7 @@ After v0.10, an outside reader should be able to:
 | v0.10-004 | Benchmark Baseline and Regression Tracking | `cargo xtask bench`, baseline file |
 | v0.10-005 | Reference QEMU Fleet Deployment | `examples/three-node-fleet/` |
 | v0.10-006 | Documentation Maturity and Persona Guides | `docs/src/` complete for three personas |
-| v0.10-007 | v1.0 Readiness Matrix | `docs/src/release/v1-readiness.md` |
+| v0.10-007 | v1.0 Readiness Matrix | `docs/src/releasing/v1-readiness.md` |
 
 These RFCs are independent but should land in roughly the listed order;
 each later RFC references earlier ones.

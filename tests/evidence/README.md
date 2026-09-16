@@ -57,7 +57,7 @@ ancestor of `HEAD`.** It does not and cannot verify that the provenance is
 fabricated `instrumented` field would pass. This is the same weak predicate
 RFC-0.27-003's `standards-mapping` subcheck discloses about itself: the
 tooling checks structure, not truth. See
-[`docs/src/release/v0-release-cycle.md`](../../docs/src/release/v0-release-cycle.md)
+[`docs/src/releasing/v0-release-cycle.md`](../../docs/src/releasing/v0-release-cycle.md)
 for what a human must still re-check by hand at each release cut.
 
 ## Historical citations that predate this directory

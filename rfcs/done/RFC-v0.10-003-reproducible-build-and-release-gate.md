@@ -90,7 +90,7 @@ A reproducible build requires:
    `fjell-kernel` and identical `prebuilt/*.bin` digests.
 4. `cargo xtask release --version vX.Y.Z` exists and produces a
    `release.txt` with digests.
-5. `docs/src/release/reproducibility.md` documents the requirements
+5. `docs/src/releasing/reproducibility.md` documents the requirements
    in §3.2.
 
 ## 6. Out of scope

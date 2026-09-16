@@ -37,7 +37,7 @@ check must not be readable as "the product has no third-party risk".
 ```
 ls docs/src/security/                                  # no advisory-process.md, no advisories/
 find . -name 'FSAD-*' -not -path './target/*'      # empty; control: find . -name 'SECURITY.md' hits
-grep -n 'security@' docs/src/release/release-checklist.md
+grep -n 'security@' docs/src/releasing/release-checklist.md
 grep -c '^name = ' Cargo.lock                      # 243 total, 153 third-party
 cargo tree -p fjell-os --depth 2 -e normal         # two lines: fjell-os -> fjell-abi
 ```

@@ -35,7 +35,7 @@ review has been implemented. The release rehearsal for v0.20.0 produces:
   [PASS] Gate 6  Trust report (6 sections)        6 sections
   [PASS] Gate 7  ERRATA register (0 OPEN)         0 OPEN errata
   [PASS] Gate 8  Validation drills (markers)      all 5 markers present
-  [ -- ] Gate 9  MANUAL: confirm docs/src/release/v1-limitations.md
+  [ -- ] Gate 9  MANUAL: confirm docs/src/releasing/v1-limitations.md
   [PASS] Gate 10 Verus release-required proofs    MACHINE-CHECKED-PASS
   [PASS] Gate 11 Callsite conformance             LEASE/CAP/BCB-CALLSITE (static heuristic guard)
 RELEASE-REHEARSAL: ALL MECHANICAL GATES PASS
@@ -101,7 +101,7 @@ No current test fails because of this — the affected syscalls aren't covered b
 the WrongType expectation — but it is a real error-contract inconsistency.
 Annotated as a follow-up cleanup item.
 
-**6. Gate 9 remains manual.** The six items in `docs/src/release/v1-limitations.md`
+**6. Gate 9 remains manual.** The six items in `docs/src/releasing/v1-limitations.md`
 have been updated (see §4.2). The confirmer must read and sign off.
 
 ### 0.3 The one concrete finding that dominates this milestone
@@ -385,7 +385,7 @@ enforcement before v1.0.0.
 
 ### 4.2 Gate 9 reference document current state
 
-`docs/src/release/v1-limitations.md` at v0.20.0:
+`docs/src/releasing/v1-limitations.md` at v0.20.0:
 
 | # | Item | Change from v0.19.0 |
 |---|------|---------------------|

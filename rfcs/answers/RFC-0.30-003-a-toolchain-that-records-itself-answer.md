@@ -14,7 +14,7 @@ parses `rust-toolchain.toml`'s `channel` as the anchor and compares it
 against every other **live** declaration: the 17 `ci.yml` install blocks,
 `docs/src/internals/local-development.md` (its table row and its
 `rustup toolchain install` line, checked independently), `docs/src/
-tutorials/quick-start.md`, and `docs/src/release/release-checklist.md`'s
+tutorials/quick-start.md`, and `docs/src/releasing/release-checklist.md`'s
 check. 21 of the 22 sites participate; `Cargo.toml`'s `rust-version` does
 not (see "What is deliberately excluded" below).
 

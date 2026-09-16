@@ -73,7 +73,7 @@ question directly instead of inferring it from a proxy.
 `removed.is_empty() && changed.is_empty() && added_count == 0`; the
 `FAIL` path enumerates every added item by name when `added_count > 0`
 (previously only `Removed`/`Changed` were itemized).
-`docs/src/release/v0-release-cycle.md`: the "before criterion 6" step
+`docs/src/releasing/v0-release-cycle.md`: the "before criterion 6" step
 rewritten from a cut-time task ("enumerate here") to a cut-time
 *confirmation* that the per-line discipline already held — a non-zero
 `Added` at the cut is now itself a finding (the gate should have already

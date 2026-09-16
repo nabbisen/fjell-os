@@ -156,8 +156,8 @@ Decided by: <name>
 
 ## Implementation notes
 
-- The `gate-decision-v0.2.12.md` file lives in `docs/src/releases/`.
-- The release-gate doc at `docs/src/releases/v0.2.0-release-gate.md`
+- The `gate-decision-v0.2.12.md` file lives in `docs/src/history/`.
+- The release-gate doc at `docs/src/history/v0.2.0-release-gate.md`
   should be replaced (or sub-divided into per-release files).
 - RFC 043 should be moved to status `Superseded` with a pointer to
   this RFC.

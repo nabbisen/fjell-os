@@ -2,7 +2,7 @@
 //!
 //! Every erratum in `rfcs/ERRATA.md` whose `## Summary` table marks it
 //! `ACCEPTED` is, by definition, a disclosed v1.0 limitation. Gate 9
-//! (`docs/src/release/v1-limitations.md`) is documented as "the single
+//! (`docs/src/releasing/v1-limitations.md`) is documented as "the single
 //! authoritative list" for that release gate — an ACCEPTED erratum missing
 //! from it is exactly the recorded E-011 instance (RFC-v0.22-001
 //! Motivation #2): the register said ACCEPTED, the limitations doc did not
@@ -13,7 +13,7 @@ use fjell_consistency_check::errata::{is_accepted, parse_summary_rows};
 use std::process::ExitCode;
 
 const ERRATA_PATH: &str = "rfcs/ERRATA.md";
-const LIMITATIONS_PATH: &str = "docs/src/release/v1-limitations.md";
+const LIMITATIONS_PATH: &str = "docs/src/releasing/v1-limitations.md";
 
 const NAME: &str = "errata-limitations";
 

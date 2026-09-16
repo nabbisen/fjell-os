@@ -370,7 +370,7 @@ they still hold, not re-derived from scratch.
 ### Gate 5 — Readiness matrix (0 OPEN) — **finding**
 
 - **Claim:** the v1.0 readiness matrix has zero items blocking release.
-- **Actual:** parses `docs/src/release/v1-readiness.md`, counts table rows
+- **Actual:** parses `docs/src/releasing/v1-readiness.md`, counts table rows
   containing the exact literal `**OPEN**`; passes iff that count is zero.
   Only four status literals are recognized at all: `**DONE**`,
   `**IN PROGRESS**`/`IN_PROGRESS`, `**DEFERRED**`, `**OPEN**`.
@@ -469,7 +469,7 @@ they still hold, not re-derived from scratch.
 
 ### Gate 9 — Release-notes limitations — **UNAUDITED**
 
-- **Claim:** `docs/src/release/v1-limitations.md` covers hardware, multi-hart,
+- **Claim:** `docs/src/releasing/v1-limitations.md` covers hardware, multi-hart,
   POSIX, kernel-IPC, ZeroizeOnDrop, and trust-anchor provisioning.
 - **Actual:** printed as a manual reminder; not auto-checked by design
   (`release_rehearsal.rs` prints `[ -- ]`, never `[PASS]`/`[FAIL]`, for this
@@ -842,7 +842,7 @@ regardless of what the note actually says. Re-ran the exact command to
 confirm:
 ```
 $ cargo run -q -p fjell-tools -- consistency-check --all
-errata-limitations: PASS (4 ACCEPTED errata, all referenced in docs/src/release/v1-limitations.md)
+errata-limitations: PASS (4 ACCEPTED errata, all referenced in docs/src/releasing/v1-limitations.md)
 ```
 This is not a constructed demonstration — it is the artifact's present,
 uncorrected state, produced as a side effect of this RFC's own Pass 1

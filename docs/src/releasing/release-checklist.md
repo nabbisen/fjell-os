@@ -104,7 +104,7 @@ cd docs && mdbook build && cd ..
 ## Step 7 — v1.0 Readiness Matrix: zero OPEN cells
 
 ```bash run-verified
-grep "OPEN" docs/src/release/v1-readiness.md
+grep "OPEN" docs/src/releasing/v1-readiness.md
 # Expected: empty output (no OPEN cells)
 ```
 
@@ -164,11 +164,11 @@ done
 ## Step 10 — Attest the release manifest
 
 ```bash
-cargo xtask trust-report --out docs/src/release/v1.0.0/trust-report.txt
+cargo xtask trust-report --out docs/src/releasing/v1.0.0/trust-report.txt
 cargo xtask sign-bundle \
-    --bundle docs/src/release/v1.0.0/trust-report.txt \
+    --bundle docs/src/releasing/v1.0.0/trust-report.txt \
     --key    /path/to/v1.0-release.key \
-    --out    docs/src/release/v1.0.0/trust-report.txt.sig
+    --out    docs/src/releasing/v1.0.0/trust-report.txt.sig
 ```
 
 ---

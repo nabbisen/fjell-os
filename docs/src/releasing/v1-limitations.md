@@ -451,7 +451,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   and only until that same line runs `--generate`. Demonstrated failing on a
   deliberately un-regenerated baseline (3 real current items held back via a
   scratch `--snapshot` copy, no tracked file touched): `Added: 3`, `Result:
-  FAIL`, naming all three. `docs/src/release/v0-release-cycle.md`'s cut-time
+  FAIL`, naming all three. `docs/src/releasing/v0-release-cycle.md`'s cut-time
   step is now a confirmation that the per-line discipline held, not a task.
 
 - **The two-build reproducibility check used to never run, and could not fail
@@ -528,7 +528,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   gate, because Ubuntu's apt has no `rustc-1.91.1` package, and `ci.yml`
   names no apt package any more.* `rust-toolchain.toml` (channel, `rust-src`, the
   RISC-V target), `.github/workflows/ci.yml` (`apt-get install
-  rustc-1.91`, copied into **17 of 19** jobs), `docs/src/release/
+  rustc-1.91`, copied into **17 of 19** jobs), `docs/src/releasing/
   release-checklist.md`, `docs/src/internals/local-development.md`,
   `docs/src/tutorials/quick-start.md` and `Cargo.toml`'s `rust-version`
   all state `1.91` independently; one of them (`release-checklist.md`) is
@@ -860,7 +860,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   corrections nobody checked.
 
   **Corrected at 0.30.0.** The cause was that the cut had no handoff while every
-  RFC has one; `docs/src/release/release-handoff.md` is now the standing handoff
+  RFC has one; `docs/src/releasing/release-handoff.md` is now the standing handoff
   for every cut, and the Roles table's undefined `A`/`R`/`C`/`I` legend is
   stated. The 0.30.0 cut was the first executed by the implementer from that
   handoff and reviewed by the architect like any other line. Exit criterion 8 —

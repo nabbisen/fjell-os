@@ -8,8 +8,8 @@ a service; every "runs in CI on every push" sentence since June was written
 from `ci.yml`'s text. **Also E-037's first survivor** (consolidation): this
 line is E-037's shape 1 by necessity, not by choice — see Finding 2.
 **Touches.** `.github/workflows/ci.yml`, `tools/fjell-consistency-check`
-(`toolchain-declarations`), `docs/src/release/v0-release-cycle.md`,
-`docs/src/release/release-handoff.md`, the release-record shape, `README.md`.
+(`toolchain-declarations`), `docs/src/releasing/v0-release-cycle.md`,
+`docs/src/releasing/release-handoff.md`, the release-record shape, `README.md`.
 **Does not touch the kernel, the ABI surface, or any service.** The one
 service-adjacent job it may change (`ci-test-v07-formats`) changes only the
 feature flag the job passes, per RFC-0.29-001's own recorded fix.

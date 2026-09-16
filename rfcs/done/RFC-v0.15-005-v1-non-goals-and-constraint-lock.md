@@ -21,7 +21,7 @@ post-v1.0 reconsideration path looks like.
 
 ## 2. The non-goals document
 
-`docs/src/release/v1-non-goals.md` — explicitly authoritative for v1.0.
+`docs/src/releasing/v1-non-goals.md` — explicitly authoritative for v1.0.
 Structure:
 
 ### 2.1 Form
@@ -149,7 +149,7 @@ The document survives v0.15 only after an adversarial review pass:
   - Is updated (the doc admits an unforeseen consideration; this is
     rare and itself an event worth noting in the next RFC).
 - The review pass and its outcome are committed at
-  `docs/src/release/v1-non-goals-review.md`.
+  `docs/src/releasing/v1-non-goals-review.md`.
 
 Without this pass, the document is unproven.
 
@@ -161,10 +161,10 @@ review. Without that assertion's resolution to DONE, v1.0 cannot tag.
 
 ## 5. Acceptance criteria
 
-1. `docs/src/release/v1-non-goals.md` exists and covers N1–N20.
+1. `docs/src/releasing/v1-non-goals.md` exists and covers N1–N20.
 2. Each N<n> follows the four-headed structure of §2.1.
 3. Adversarial review attested at
-   `docs/src/release/v1-non-goals-review.md`.
+   `docs/src/releasing/v1-non-goals-review.md`.
 4. The readiness matrix row "Non-goals" is DONE.
 5. The document references the identity statement in RFC 061 §2.
 6. No N<n> contradicts an existing invariant from RFC 061 §4.

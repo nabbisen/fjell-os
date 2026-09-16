@@ -28,8 +28,8 @@ Add the following durable artefacts before tagging v0.1.1:
 
 | Path | Purpose |
 |---|---|
-| `docs/src/releases/v0.1.0-scope.md` | What v0.1.0 includes |
-| `docs/src/releases/v0.1.0-limitations.md` | What v0.1.0 does *not* do |
+| `docs/src/history/v0.1.0-scope.md` | What v0.1.0 includes |
+| `docs/src/history/v0.1.0-limitations.md` | What v0.1.0 does *not* do |
 | `docs/src/security/v0.1.0-threat-model.md` | Skeleton, expanded by RFC 027 |
 | `docs/src/security/v0.1.0-known-non-goals.md` | Explicit non-goals |
 | `docs/src/roadmap/v0.1.x-stabilization.md` | This release line's plan |
@@ -87,7 +87,7 @@ defeat the purpose.
 ## Test plan
 
 - `docs/src/SUMMARY.md` references all five new pages.
-- `README.md` contains a link to `docs/src/releases/v0.1.0-limitations.md`.
+- `README.md` contains a link to `docs/src/history/v0.1.0-limitations.md`.
 - `ROADMAP.md` contains a heading for v0.2 reading *Security Boundary
   Closure*.
 - CI link-check job (added in RFC 025) does not flag any broken link.

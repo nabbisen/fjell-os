@@ -47,7 +47,7 @@ state from recorded evidence.
 ## What Fjell is not
 
 The following are explicitly **not** targeted before v1.0. See
-[v1.0 Non-Goals](../release/v1-non-goals.md) for the full table with
+[v1.0 Non-Goals](../releasing/v1-non-goals.md) for the full table with
 rationale.
 
 - General-purpose servers or web hosting

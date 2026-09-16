@@ -1,7 +1,7 @@
 # Adversarial Review — v0.16 Validation Closure
 
 **Scope:** threat model (`docs/src/security/threat-model-v1.md`) and v1.0
-non-goals (`docs/src/release/v1-non-goals.md`).
+non-goals (`docs/src/releasing/v1-non-goals.md`).
 **Purpose:** close errata E-007 and E-009 — both documents shipped without
 a recorded adversarial review.
 **Method:** red-team pass asking, for each in-scope threat, "what would an

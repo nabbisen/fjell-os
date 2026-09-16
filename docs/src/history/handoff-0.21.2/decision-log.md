@@ -7,7 +7,7 @@ consciously revisit. Version: v0.21.2.*
 
 | ID | Decision | Why | Consequence | Source |
 |---|---|---|---|---|
-| DEC-001 | v1.0 is a narrow, supported QEMU profile, not a production OS | Honest scoping; the project would over-claim otherwise | Release notes must explicitly state every non-claim | `docs/src/release/v1.0-release-notes.md` |
+| DEC-001 | v1.0 is a narrow, supported QEMU profile, not a production OS | Honest scoping; the project would over-claim otherwise | Release notes must explicitly state every non-claim | `docs/src/releasing/v1.0-release-notes.md` |
 | DEC-002 | v1.0.0 cannot be tagged, published, or announced without explicit owner confirmation | Single human authority over the release event | No CI job or agent may apply the v1.0.0 tag | Architect review v0.20.0 §7 |
 | DEC-005 | Store/upgrade negative profiles deferred from the v1 gate | Late-stage scope control | Must be documented as non-gated; mandatory for v1.1 | Architect review v0.20.0 §4.2 |
 | DEC-006 | svc READY negative pair accepted as partial (2/4) for v1.0 | Timing-sensitive; not yet deterministic | Do not claim full service-lifecycle coverage | Architect review v0.20.0 §4.3 |
@@ -39,7 +39,7 @@ archive has no top-level parent directory at all — it does not; it means
 phrasing is exactly how an undocumented deviation from the project's
 general archive-layout rule stayed invisible for multiple releases. The
 convention is now stated once, authoritatively, in
-[`docs/src/release/v0-release-cycle.md`](../../release/v0-release-cycle.md)
+[`docs/src/releasing/v0-release-cycle.md`](../../releasing/v0-release-cycle.md)
 §Release archive convention, owner-accepted (Decision request 1). IMP-06's
 row above is left as originally written, per the frozen-bundle convention.
 | H-02 | `CapError::WrongKind → SysError::WrongType` (canonical) | Removed divergence from `to_sys_error()` | `trap/syscall.rs` (v0.20.1) |

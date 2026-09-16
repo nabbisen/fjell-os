@@ -143,10 +143,10 @@ toolkit regenerate     v0.14-003 — generated catalog emitters (prior session)
 | Path | Lines | Status |
 |------|-------|--------|
 | `docs/src/identity/v1-direction.md` | 80 | Distilled from RFC 061 |
-| `docs/src/release/v1-readiness.md` | 119 | Live tracking matrix |
-| `docs/src/release/v1-non-goals.md` | 184 | 20 items, four-headed format |
+| `docs/src/releasing/v1-readiness.md` | 119 | Live tracking matrix |
+| `docs/src/releasing/v1-non-goals.md` | 184 | 20 items, four-headed format |
 | `docs/src/security/threat-model-v1.md` | 214 | 20 in-scope, 8 out-of-scope |
-| `docs/src/release/release-checklist.md` | 183 | Mechanical procedure |
+| `docs/src/releasing/release-checklist.md` | 183 | Mechanical procedure |
 | `docs/src/operations/recovery-guide.md` | 220 | Failure-mode catalogue |
 | `docs/src/deployment/starfive-visionfive2.md` | 119 | Has TODO markers |
 | `docs/perf/baseline.json`, `.md` | 30 + 30 | x86-64 host numbers only |

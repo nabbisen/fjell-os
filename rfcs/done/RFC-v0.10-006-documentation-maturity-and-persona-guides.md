@@ -63,8 +63,8 @@ Required path:
 - `docs/src/assurance/unsafe-inventory.md` — already exists; link.
 - `docs/src/assurance/property-tests.md` — RFC v0.6-001 overview.
 - `docs/src/identity/v1-direction.md` — full text of RFC 061.
-- `docs/src/release/reproducibility.md` — v0.10-003.
-- `docs/src/release/v1-readiness.md` — v0.10-007.
+- `docs/src/releasing/reproducibility.md` — v0.10-003.
+- `docs/src/releasing/v1-readiness.md` — v0.10-007.
 - `docs/src/contributing/rfc-process.md` — RFC 000 distilled.
 
 ## 3. Truth bond

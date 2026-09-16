@@ -83,7 +83,7 @@ markers; `tests/qemu/artifacts/svc/expected-markers.txt` expects **two**. The
 missing pair — `READY_ACCEPTED` and `UNAUTHORIZED_READY` — are precisely the two
 that require service-manager to receive a READY message.
 
-**6. The recorded cause is wrong.** `docs/src/release/v1-limitations.md:328` says
+**6. The recorded cause is wrong.** `docs/src/releasing/v1-limitations.md:328` says
 *"svc 2/4 — READY pair pending a startup-timing fix."* It is not timing. It is
 topology, and a wrong diagnosis on the record is why nobody looked again.
 
@@ -153,7 +153,7 @@ is exactly why it should be tested rather than believed.
 
 The services' `send_ready()`; `fjell-init`'s wait functions; `spawn.rs`'s slot
 installation; `fjell-service-manager`; the svc profile's expected markers;
-RFC-0.26-004's invariant text; `docs/src/release/v1-limitations.md:328`'s wrong
+RFC-0.26-004's invariant text; `docs/src/releasing/v1-limitations.md:328`'s wrong
 cause; **E-024** → `CLOSED`; **E-031**.
 
 ### Non-goals

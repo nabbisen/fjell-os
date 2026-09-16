@@ -38,5 +38,5 @@ able to reconstruct any state from recorded evidence.
 
 Fjell is for new services on dedicated nodes, not ported workloads. If you
 need POSIX software, containers, a GUI, or hard real-time guarantees, run
-those on an adjacent system — see [v1.0 Non-Goals](../release/v1-non-goals.md)
+those on an adjacent system — see [v1.0 Non-Goals](../releasing/v1-non-goals.md)
 for the full list with rationale and operator alternatives.

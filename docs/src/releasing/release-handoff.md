@@ -1,7 +1,7 @@
 # Release Handoff — the standing instruction for cutting a release
 
 **Audience:** implementation model
-**Governing document:** [`docs/src/release/v0-release-cycle.md`](./v0-release-cycle.md)
+**Governing document:** [`docs/src/releasing/v0-release-cycle.md`](./v0-release-cycle.md)
 **Status:** standing — this document is the handoff for **every** cut, not one of them.
 
 This handoff directs execution. It does not redefine the cycle. If you find a
@@ -195,7 +195,7 @@ order once.
 
 ## 2. What stays with the architect, and why you must not do it
 
-**Exit criterion 8 — reading `docs/src/release/v1-limitations.md` and
+**Exit criterion 8 — reading `docs/src/releasing/v1-limitations.md` and
 `docs/src/compliance/standards-mapping.md` by hand against this release's actual
 changes.**
 

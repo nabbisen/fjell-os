@@ -65,7 +65,7 @@ exist.
 
 More than the proposal credits. The mapping is largely a re-presentation of
 artifacts that ship today: the 12 release-rehearsal gates, 21 test tiers, the
-threat model's T1–T20 and OS1–OS8, `docs/src/release/v1-limitations.md`, the errata
+threat model's T1–T20 and OS1–OS8, `docs/src/releasing/v1-limitations.md`, the errata
 register, `trust-report.txt`, the unsafe and MMIO audits, the ABI snapshot, the
 reproducible-build baseline, the Verus proofs, and `.github/SECURITY.md` as
 corrected on 2026-08-31.
@@ -183,7 +183,7 @@ the next line's work — but this is the implementer's to argue.
 ## Scope
 
 `docs/src/compliance/standards-mapping.md`; `tools/fjell-consistency-check`;
-`docs/src/release/v0-release-cycle.md`; `rfcs/README.md`; `rfcs/ERRATA.md`
+`docs/src/releasing/v0-release-cycle.md`; `rfcs/README.md`; `rfcs/ERRATA.md`
 if the mapping surfaces a gap worth a row.
 
 ### Non-goals

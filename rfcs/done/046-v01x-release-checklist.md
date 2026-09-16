@@ -4,7 +4,7 @@
 **Also known as:** RFC-v0.1.x-010  
 **Status:** Implemented (v0.1.4)
 **Target version:** v0.1.4  
-**Affects:** `docs/src/releases/`, release process
+**Affects:** `docs/src/history/`, release process
 
 ## Problem
 
@@ -18,7 +18,7 @@ introduces major security boundary changes.  Without a checklist:
 
 ## Proposed fix
 
-Add `docs/src/releases/v0.1.x-release-checklist.md` describing
+Add `docs/src/history/v0.1.x-release-checklist.md` describing
 the release gates that must be satisfied before tagging any
 v0.1.x version.
 

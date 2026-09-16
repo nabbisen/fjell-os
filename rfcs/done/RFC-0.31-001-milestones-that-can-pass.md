@@ -146,7 +146,7 @@ anything, and report any row that disagrees.
 D4), with the `known:` line updated per D3.
 **R3 — §5 answered and built**, with the D2 check in place either way.
 **R4 — Both directions demonstrated failing** (D5).
-**R5 — E-040 → `CLOSED`**, register and `docs/src/release/v1-limitations.md` in
+**R5 — E-040 → `CLOSED`**, register and `docs/src/releasing/v1-limitations.md` in
 the same commit. E-015's correction note already points here; leave it.
 **R6 — `smoke.rs`'s module comment corrected**: *"preserved verbatim from the
 v0.1.0 runner"* is the sentence that explains this erratum and should say so.

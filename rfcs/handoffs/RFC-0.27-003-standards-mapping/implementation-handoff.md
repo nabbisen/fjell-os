@@ -125,7 +125,7 @@ the reason Gate 5 could not see a `**BLOCKED**` row.
 3. The subcheck, with unit tests.
 4. **All four demonstrations, captured** — the FAIL output for each.
 5. Gate 12 label updated to name all **9** subchecks.
-6. The mapping named in `docs/src/release/v0-release-cycle.md` (R5).
+6. The mapping named in `docs/src/releasing/v0-release-cycle.md` (R5).
 7. `release-rehearsal` green; `test-all` 21/21; `syscall-surface` **35/29/6**
    (unchanged — this RFC touches no syscall).
 8. `cargo fmt --all --check` — run it.

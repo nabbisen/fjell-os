@@ -5,7 +5,7 @@
 //! loop using `sys_irq_wait` / `sys_irq_ack` (RFC v0.4-001 §7.3).
 //!
 //! Full virtio register reads and ring ops land in v0.4.0-alpha.2.
-// SMOKE-TEST STUB (v1.0 limitation; see docs/src/release/v1-limitations.md):
+// SMOKE-TEST STUB (v1.0 limitation; see docs/src/releasing/v1-limitations.md):
 // this service signals readiness and exits before its main loop by design,
 // so the kernel can emit the milestone marker. The full implementation is
 // post-v1.0 roadmap work; the allows below keep the intentional dead paths

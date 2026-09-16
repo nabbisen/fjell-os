@@ -250,7 +250,7 @@ Required edits:
 | `docs/src/external-design/capability-lease.md` §2 | Remove `cap_install` / `cap_install_with_rights` from the as-built capability operations; state that bootstrap installs go through the in-kernel `install_raw` path at spawn time. |
 | `docs/src/abi/ipc-register-layout.md` | Remove `SyscallNumber::IpcTrySend` (does not exist). `sys_ipc_try_send` issues `IpcSend` (20). |
 | `docs/src/api/syscalls.md` | Currently a 7-line stub. Either make it the authoritative 26-entry catalog or make it an explicit pointer. Do not leave it implying completeness. |
-| `docs/src/releases/handoff-0.21.2/project-summary.md` §2, `external-design.md` §2 | Correct the "38 syscalls" claim. |
+| `docs/src/history/handoff-0.21.2/project-summary.md` §2, `external-design.md` §2 | Correct the "38 syscalls" claim. |
 
 **Also record as a known limitation** (in the appropriate limitations/errata
 document — check with the architect if the target is ambiguous):

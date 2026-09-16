@@ -211,7 +211,7 @@ package names, so the two survivors cannot be resolved independently).
 ### The cut itself
 
 **The first release cut run by the implementer**, against a written handoff
-(`docs/src/release/release-handoff.md`) rather than from the architect's memory —
+(`docs/src/releasing/release-handoff.md`) rather than from the architect's memory —
 five prior releases had no such document and were prepared by the architect
 regardless of what the cycle's own Roles table said (**E-039**). One cycle-
 document defect was found and fixed by checking the entry criteria as
@@ -947,7 +947,7 @@ green while a documented rule went unmet.
     dispatched match arms, and a committed `tests/syscall/expected.toml`
     (35 declared, 26 dispatched, the explicit 9-name undispatched set).
   - `errata-limitations` — every `ACCEPTED` erratum in `rfcs/ERRATA.md`
-    must be referenced in `docs/src/release/v1-limitations.md`.
+    must be referenced in `docs/src/releasing/v1-limitations.md`.
   - `rfc-status-folder` — each RFC's `Status:` field must agree with its
     `rfcs/proposed/` vs. `rfcs/done/` folder.
   - `handoff-status` — each handoff's inherited Status must match its
@@ -1071,7 +1071,7 @@ with the shipped implementation. No v1.0 tag activity.
   v0.9.4, v0.10.0, and v0.16.0 sections.
 - Corrected stale figures in the root `README.md` (version, RFC count,
   unsafe-site count re-derived from `fjell-unsafe-audit`) and in
-  `docs/src/releases/handoff-0.21.2/*.md` (version stamps v0.21.1 →
+  `docs/src/history/handoff-0.21.2/*.md` (version stamps v0.21.1 →
   v0.21.2).
 - Corrected the claim that Gate 9 was the sole remaining blocker to
   v1.0.0 in `ROADMAP.md` and `docs/src/roadmap/roadmap.md`: the
@@ -1108,7 +1108,7 @@ for the full account.
 
 ### Added
 
-- **Compact handoff bundle** at `docs/src/releases/handoff/`: role-based,
+- **Compact handoff bundle** at `docs/src/history/handoff/`: role-based,
   evidence-focused handoff documents (project summary, external design,
   implementation notes, testing and gates, ops/security, decision log) plus
   a bundle README and an evidence-generation note. Wired into SUMMARY.md
@@ -1255,7 +1255,7 @@ following the same discipline applied to the root directory in v0.20.2.
 ## [0.20.1] — v1.0 candidate: H-01 IPC ABI doc + H-02 WrongKind fix + release notes
 
 First supported release of Fjell OS for the `riscv64gc-unknown-none-elf` /
-QEMU `virt` profile. See `docs/src/release/v1.0-release-notes.md` for the
+QEMU `virt` profile. See `docs/src/releasing/v1.0-release-notes.md` for the
 full claim statement, the explicit limitation list, and the publication
 control requirement.
 
@@ -1289,7 +1289,7 @@ targets. The approved claim is:
   word-count packing requirement, the badge removal, the E-010 historical
   note, and the lease-bound IPC revocation semantics. Covered by ABI
   stability commitment (RFC-v0.10-002) from v1.0.0 onward.
-- **`docs/src/release/v1.0-release-notes.md`** — claim statement, prohibited
+- **`docs/src/releasing/v1.0-release-notes.md`** — claim statement, prohibited
   claims, Gate 9 limitation table, and publication control requirement.
 
 ### Validation
@@ -1358,7 +1358,7 @@ the ipc profile is restored to 3/3 markers.**
 - **RB-02** — Gate 11 (`callsite-audit`) is genuinely wired into
   `release-rehearsal` and blocking. (The v0.19.0 edit had silently no-opped;
   the gate line now appears in rehearsal output.)
-- **RB-03** — `docs/src/release/v1-limitations.md` placeholder statement replaced
+- **RB-03** — `docs/src/releasing/v1-limitations.md` placeholder statement replaced
   with the current per-category status, including the explicit non-gating of
   store/upgrade.
 - **RB-04** — `cargo xtask provision-dev` implemented. Refuses without the
@@ -1500,7 +1500,7 @@ mismatches were silently skipping scenarios).
 - **Scope guardrail** in `proof-gate-policy.md`: Verus stays out of
   drivers, scheduler, MMIO/DMA, and services.
 - **Boot-control promotion scheduled** in ledger (architect D5).
-- **`docs/src/release/v1-limitations.md` item 6** — updated from "pending" to the
+- **`docs/src/releasing/v1-limitations.md` item 6** — updated from "pending" to the
   ratified provisioning decision.
 
 ### Known findings recorded (not blocking)
@@ -1545,7 +1545,7 @@ machine-checked, full two-build reproducibility PASS.
 
 ### Documentation
 
-- **Gate 9 single source**: new `docs/src/release/v1-limitations.md`
+- **Gate 9 single source**: new `docs/src/releasing/v1-limitations.md`
   consolidating the six manual-check items with their governing records
   (E-004, N1, N21, N23, console single-hart invariant, RFC-v0.17-001);
   the rehearsal Gate 9 message now points at it.
@@ -1877,6 +1877,6 @@ surface; no STABLE items were removed or renamed during v0.10–v1.0.
 
 ## Previous releases
 
-See `docs/src/releases/` for v0.1.x–v0.9.x release notes.
+See `docs/src/history/` for v0.1.x–v0.9.x release notes.
 
 ---

@@ -21,7 +21,7 @@ an emergency. v0.15 lands both as committed, rehearsed procedures.
 
 ## 2. Release checklist
 
-`docs/src/release/release-checklist.md` — a procedure that runs against a
+`docs/src/releasing/release-checklist.md` — a procedure that runs against a
 clean checkout to produce signed v1.0 artefacts.
 
 ### 2.1 Sequence
@@ -41,7 +41,7 @@ clean checkout to produce signed v1.0 artefacts.
 11. Attest the release manifest with the v1.0 release key.
 12. Publish release tarball + signatures to the release location.
 13. Tag the commit v1.0.0.
-14. Commit the Trust Report from step 5 to docs/src/release/v1.0.0/.
+14. Commit the Trust Report from step 5 to docs/src/releasing/v1.0.0/.
 ```
 
 Each step has a documented expected output. The checklist is itself
@@ -163,7 +163,7 @@ two are intentionally separate.
 
 ## 5. Acceptance criteria
 
-1. `docs/src/release/release-checklist.md` exists and covers §2.
+1. `docs/src/releasing/release-checklist.md` exists and covers §2.
 2. `cargo xtask release-checklist --dry-run` runs and validates each
    step.
 3. A full rehearsal of the checklist is committed against a

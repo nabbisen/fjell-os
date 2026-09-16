@@ -76,7 +76,7 @@ Also out of scope:
 ## Known limitations
 
 Before reporting, it is worth reading
-[`docs/src/release/v1-limitations.md`](../docs/src/release/v1-limitations.md) and the
+[`docs/src/releasing/v1-limitations.md`](../docs/src/releasing/v1-limitations.md) and the
 errata register [`rfcs/ERRATA.md`](../rfcs/ERRATA.md). The project
 records what it knows is wrong, including gaps in its own verification
 instruments. A limitation already recorded there is not a vulnerability report,
