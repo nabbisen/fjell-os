@@ -201,6 +201,39 @@ jobs:
       - name: mdbook build
         run: cd docs && mdbook build
 
+  # RFC-0.32-004 D4/D5 — published advisories against every tracked Cargo.lock.
+  #
+  # Every event, not only the schedule: a push can *add* a vulnerable crate,
+  # and the schedule catches an advisory *published* against a lockfile that
+  # did not change. Both are the case this job exists for, and the check takes
+  # seconds.
+  #
+  # It needs the network, which no release-rehearsal Gate does. So it is not a
+  # Gate: CI records it and the cut reads the record, the way exit criterion 9
+  # reads a CI run (RFC-0.31-002 D7). The rule a cut applies — a green run
+  # against the release commit's exact Cargo.lock, database no more than 7 days
+  # old — is in docs/src/releasing/v0-release-cycle.md.
+  #
+  # Exit 1 is a finding; exit 2 is a run that could not tell, including an
+  # advisory database too old to trust. Both are red. Neither is a pass.
+  ci-dependency-advisories:
+    name: dependency-advisories
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install toolchain
+        uses: ./.github/actions/toolchain
+      # The version is read from the script, which refuses to run under any
+      # other: one declaration, not a second copy here to drift from it.
+      - name: Install cargo-audit (pinned by the check itself)
+        run: |
+          version=$(sed -n 's/^PINNED_AUDIT="\(.*\)"$/\1/p' .github/scripts/dependency-advisories.sh)
+          [ -n "$version" ] || { echo "::error::no PINNED_AUDIT in the check script"; exit 1; }
+          cargo install cargo-audit --locked --version "$version"
+          cargo audit --version
+      - name: Check every Cargo.lock against the RustSec advisory database
+        run: .github/scripts/dependency-advisories.sh
+
   # RFC-0.32-003 D18 — publish the book.
   #
   # A built book that is thrown away cannot be "documentation that can be

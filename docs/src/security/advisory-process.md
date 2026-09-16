@@ -144,12 +144,19 @@ every third-party crate in the lockfile lives.
 
 A finding is an erratum like any other.
 
-To run the same check locally, with the same tool CI uses:
+To run the same check locally — the same script CI runs, with the same tool:
 
 ```bash
 cargo install cargo-audit --locked --version 0.22.2
-cargo audit
+.github/scripts/dependency-advisories.sh
 ```
+
+Run the script rather than `cargo audit` alone. The script is what states the
+surface above, covers every `Cargo.lock` in the tree rather than only the
+root's, and refuses a result read from a stale database: when the database
+cannot be fetched, `cargo-audit` falls back to its local cache **without
+saying so**, and a months-old cache produces a report that looks exactly like
+a fresh one.
 
 ## 8. Releases
 

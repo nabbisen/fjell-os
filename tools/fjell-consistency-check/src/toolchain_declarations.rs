@@ -201,6 +201,66 @@ pub fn compare_book_toolchain(lock_src: &str, ci_src: &str) -> Result<String, Ve
     }
 }
 
+/// The dependency-advisory check, whose `PINNED_AUDIT` is the one
+/// declaration of the cargo-audit version (RFC-0.32-004). CI reads its install
+/// version from this file.
+const ADVISORY_SCRIPT_PATH: &str = ".github/scripts/dependency-advisories.sh";
+/// Where a maintainer is told how to install the same tool locally.
+const ADVISORY_PROCESS_PATH: &str = "docs/src/security/advisory-process.md";
+
+/// Compare the cargo-audit version the check pins with the one the process
+/// document tells a maintainer to install.
+///
+/// A dependency check a maintainer runs with a different tool from CI's can
+/// disagree with CI about whether a release is safe to cut, and neither would
+/// say why. RFC-0.32-003 D17's lesson, one tool over: the declaration is only
+/// half the fix; something has to compare it with what is installed.
+pub fn compare_audit_tool(script_src: &str, process_src: &str) -> Result<String, Vec<String>> {
+    let Some(pinned) = script_src
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("PINNED_AUDIT=\""))
+        .and_then(|rest| rest.split('"').next())
+        .filter(|v| !v.is_empty())
+    else {
+        return Err(vec![format!(
+            "{ADVISORY_SCRIPT_PATH} declares no PINNED_AUDIT, so nothing pins the cargo-audit \
+             version CI installs"
+        )]);
+    };
+
+    let documented: Vec<(usize, String)> = process_src
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| l.contains("cargo install cargo-audit"))
+        .filter_map(|(i, l)| {
+            let v = l.split("--version").nth(1)?.split_whitespace().next()?;
+            Some((i + 1, v.to_string()))
+        })
+        .collect();
+
+    if documented.is_empty() {
+        return Err(vec![format!(
+            "{ADVISORY_SCRIPT_PATH} pins cargo-audit {pinned}, but {ADVISORY_PROCESS_PATH} gives \
+             no `cargo install cargo-audit --locked --version` command for a maintainer to run"
+        )]);
+    }
+    let disagreeing: Vec<String> = documented
+        .iter()
+        .filter(|(_, v)| *v != pinned)
+        .map(|(line, v)| {
+            format!(
+                "{ADVISORY_PROCESS_PATH}:{line}: tells a maintainer to install cargo-audit {v}, but \
+                 {ADVISORY_SCRIPT_PATH} pins {pinned} and refuses to run under anything else"
+            )
+        })
+        .collect();
+    if disagreeing.is_empty() {
+        Ok(pinned.to_string())
+    } else {
+        Err(disagreeing)
+    }
+}
+
 pub fn check() -> ExitCode {
     let Some(rust_toolchain_src) = read_file(NAME, RUST_TOOLCHAIN_PATH) else {
         return ExitCode::FAILURE;
@@ -220,6 +280,16 @@ pub fn check() -> ExitCode {
     let Some(checklist_src) = read_file(NAME, RELEASE_CHECKLIST_PATH) else {
         return ExitCode::FAILURE;
     };
+    let audit = match (
+        read_file(NAME, ADVISORY_SCRIPT_PATH),
+        read_file(NAME, ADVISORY_PROCESS_PATH),
+    ) {
+        (Some(script), Some(process)) => compare_audit_tool(&script, &process),
+        _ => Err(vec![
+            "the advisory check or its process document is missing".to_string(),
+        ]),
+    };
+
     let book = match read_file(NAME, MDBOOK_LOCK_PATH) {
         Some(lock_src) => compare_book_toolchain(&lock_src, &ci_src),
         None => Err(vec![format!("{MDBOOK_LOCK_PATH} is missing")]),
@@ -235,17 +305,33 @@ pub fn check() -> ExitCode {
         &scan_live_instruction_sites(),
     );
 
+    let mut failed = rest != ExitCode::SUCCESS;
     match book {
         Ok(version) => {
-            println!("{NAME}: the book builds under mdBook {version}, in CI and locally");
-            rest
+            println!("{NAME}: the book builds under mdBook {version}, in CI and locally")
         }
         Err(problems) => {
+            failed = true;
             for p in &problems {
                 eprintln!("{NAME}: FAIL — {p}");
             }
-            ExitCode::FAILURE
         }
+    }
+    match audit {
+        Ok(version) => println!(
+            "{NAME}: dependency advisories are checked with cargo-audit {version}, in CI and locally"
+        ),
+        Err(problems) => {
+            failed = true;
+            for p in &problems {
+                eprintln!("{NAME}: FAIL — {p}");
+            }
+        }
+    }
+    if failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
     }
 }
 
@@ -716,7 +802,33 @@ fn extract_checklist_version(src: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use super::compare_audit_tool;
     use super::compare_book_toolchain;
+
+    const SCRIPT: &str = "set -uo pipefail\nPINNED_AUDIT=\"0.22.2\"\n";
+    const PROCESS: &str =
+        "```bash\ncargo install cargo-audit --locked --version 0.22.2\ncargo audit\n```\n";
+
+    #[test]
+    fn audit_tool_agrees_when_the_versions_match() {
+        assert_eq!(
+            compare_audit_tool(SCRIPT, PROCESS),
+            Ok("0.22.2".to_string())
+        );
+    }
+
+    #[test]
+    fn audit_tool_fails_when_the_process_names_another_version() {
+        let err = compare_audit_tool(SCRIPT, &PROCESS.replace("0.22.2", "0.21.0")).unwrap_err();
+        assert!(err[0].contains("install cargo-audit 0.21.0"), "{}", err[0]);
+        assert!(err[0].contains("pins 0.22.2"), "{}", err[0]);
+    }
+
+    #[test]
+    fn audit_tool_fails_when_nothing_is_pinned_or_documented() {
+        assert!(compare_audit_tool("no pin here\n", PROCESS).is_err());
+        assert!(compare_audit_tool(SCRIPT, "no install command\n").is_err());
+    }
 
     const LOCK: &str = "[mdbook]\nversion  = \"0.5.4\"\n";
     const CI_INSTALL: &str = "          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz \\\n";
