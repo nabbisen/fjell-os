@@ -54,6 +54,7 @@ mod errata_tracking;
 mod evidence;
 mod handoff_status;
 mod rfc_status_folder;
+mod security_advisories;
 mod standards_mapping;
 mod status;
 mod syscall_surface;
@@ -106,7 +107,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     (
         "historical-status-lines",
         book_structure::historical_status_lines,
-    ),
+    ), // RFC-0.32-004 D3: the advisory register, valid while empty.
+    ("security-advisories", security_advisories::check),
 ];
 
 #[cfg(test)]

@@ -177,6 +177,8 @@
 - [Adversarial Review — v0.16 Validation Closure](./security/adversarial-review-v0.16.md)
 - [Fjell OS v0.1 Threat Model](./security/threat-model-v0.1.md)
 - [Fjell OS — Threat Model v1.0](./security/threat-model-v1.md)
+- [Security Advisory Process](./security/advisory-process.md)
+  - [Security Advisories](./security/advisories/README.md)
 - [Fjell OS v0.1.0 — Known Non-Goals](./security/v0.1.0-known-non-goals.md)
 - [Fjell OS — Standards Mapping (CRA Annex I / IEC 62443-4-1 / IEC 62443-4-2)](./compliance/standards-mapping.md)
 

@@ -23,7 +23,7 @@ git status --short
 ```bash run-verified
 # 2 — Verify toolchain
 rustc --version | grep "1.98.1"
-# Expected: line containing "1.91"
+# Expected: line containing "1.98.1"
 ```
 
 ---
@@ -203,30 +203,14 @@ cargo xtask package-release
 
 ---
 
-## Security advisory process (RFC-v0.15-003 §3)
+## Security advisories
 
-### Intake
-- Reporter contacts `security@<domain>` (fill in before v1.0 landing).
-- Acknowledgement target: 72 hours.
+The process — the one intake channel, acknowledgement, severity, disclosure and
+the record format — is [the Security Advisory Process](../security/advisory-process.md).
+It is not restated here: this checklist used to carry its own copy, and that
+copy had drifted from the RFC it summarised, naming an intake address that
+could not receive mail and a record template missing two of its fields
+(E-051).
 
-### Severity tiers
-- **Critical:** ≤ 30 days to patch.
-- **High:** ≤ 60 days.
-- **Medium:** ≤ 90 days.
-- **Low:** next regular release.
-
-### Advisory format (template)
-```
-ID:          FSAD-YYYY-NNN
-Severity:    Critical | High | Medium | Low
-Reported:    YYYY-MM-DD
-Disclosed:   YYYY-MM-DD
-Affected:    vX.Y.Z–vA.B.C
-Fixed in:    vA.B.C
-Reporter:    (name or "anonymous")
-Description: …
-Threat ref:  T<n> (RFC-v0.15-002)
-References:  commit hash, RFCs
-```
-
-Committed to `docs/src/security/advisories/FSAD-YYYY-NNN.md`.
+What a cut reads is in [the release cycle](./v0-release-cycle.md): the
+advisory register, and a green dependency-check run.

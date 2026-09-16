@@ -41,4 +41,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "no-stub-pages",
     "unique-doc-directory-names",
     "historical-status-lines",
+    "security-advisories",
 ];

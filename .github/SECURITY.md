@@ -19,9 +19,16 @@ If you believe you have found a security issue in Fjell OS:
 
 ## What you can expect
 
-- An acknowledgement within a small number of days.
+- An acknowledgement within {{ACKNOWLEDGEMENT-WINDOW}}. If you have heard nothing
+  by then, follow up on the same advisory.
 - A discussion of severity and timeline before any public disclosure.
 - Credit in the changelog and security advisory unless you ask for anonymity.
+
+The whole process — triage, severity, the disclosure timeline, and what the
+project can and cannot promise as a single-maintainer project — is
+[the Security Advisory Process](../docs/src/security/advisory-process.md).
+Published advisories are listed in
+[the advisory register](../docs/src/security/advisories/).
 
 ## Supported versions
 
@@ -70,8 +77,9 @@ Also out of scope:
   scope and **is** in scope.
 - Best-practice nits on otherwise-safe code (please file a normal issue or PR).
 - Vulnerabilities in upstream Rust crates — report those upstream, though we
-  appreciate a heads-up. Fjell's direct external dependency surface is nine
-  crates, and the kernel itself has none.
+  appreciate a heads-up. Fjell's direct external dependency surface is seven
+  crates; the kernel and both published crates have none. Published advisories
+  against every crate in `Cargo.lock` are checked mechanically in CI.
 
 ## Known limitations
 
