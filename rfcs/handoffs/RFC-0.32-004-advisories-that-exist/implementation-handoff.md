@@ -77,6 +77,14 @@ makes it. The architect is asking them.
 for that one value, land everything else, and say in the review request which
 value you would choose and why. Do not pick one silently, and do not ship two.
 
+*Corrected at review, 2026-09-16: this instruction had a consequence I did not
+foresee. `.github/SECURITY.md` is published the moment it is pushed — GitHub
+shows it to every reporter — so "land everything else" put the literal token
+`{{ACKNOWLEDGEMENT-WINDOW}}` in front of the public. The implementation did
+exactly what this said. The instruction should have kept the reporter-facing
+file's existing wording until the owner chose the value, and placed the
+placeholder only in the process document.*
+
 ## 3. §A — the network question, concretely
 
 Every gate in this project is offline and deterministic; RFC-0.31-003 turned
