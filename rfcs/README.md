@@ -412,7 +412,7 @@ closes the arc that opened at E-035.
 
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — 4 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
@@ -421,14 +421,13 @@ Signed off by the owner; implementation may begin; not yet shipped.
 | 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./accepted/RFC-0.32-001-fuzzing-that-fuzzes.md) — accepted 2026-09-15; closes **E-043**; handoff: [`handoffs/`](./handoffs/RFC-0.32-001-fuzzing-that-fuzzes/implementation-handoff.md) |
 | 0.32-002 | [Bytes from another service are not a struct](./accepted/RFC-0.32-002-bytes-are-not-a-struct.md) — accepted 2026-09-16; closes **E-046**; handoff: [`handoffs/`](./handoffs/RFC-0.32-002-bytes-are-not-a-struct/implementation-handoff.md) |
 | 0.32-003 | [Documentation that can be found](./accepted/RFC-0.32-003-documentation-that-can-be-found.md) — accepted 2026-09-16; closes **E-050**; handoff: [`handoffs/`](./handoffs/RFC-0.32-003-documentation-that-can-be-found/implementation-handoff.md) |
+| 0.32-004 | [Advisories that exist](./accepted/RFC-0.32-004-advisories-that-exist.md) — accepted 2026-09-16; closes **E-051**; handoff: [`handoffs/`](./handoffs/RFC-0.32-004-advisories-that-exist/implementation-handoff.md) |
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.32-004 | [Advisories that exist](./proposed/RFC-0.32-004-advisories-that-exist.md) — closes **E-051** |
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 

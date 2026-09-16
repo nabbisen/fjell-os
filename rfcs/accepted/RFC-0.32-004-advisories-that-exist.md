@@ -1,6 +1,6 @@
 # RFC-0.32-004: Advisories that exist
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-16; implementation may begin (RFC 000)
 **Milestone:** 0.32
 **Tracks.** **E-051** — the security advisory process is specified, marked
 Implemented, and has neither of its artefacts; two intake channels are
