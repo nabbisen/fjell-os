@@ -598,6 +598,42 @@ jobs:
           path: fuzz/corpus/${{ matrix.target }}/
           if-no-files-found: warn
 
+  # RFC-0.32-002 §D — undefined-behaviour detection on the crates this line
+  # made safe. Miri interprets the code and reports UB that compiles and runs
+  # clean natively; it is the tool that named the defect E-046 describes, at
+  # `.correlation_id.<enum-tag>`, before the decoder replaced it.
+  #
+  # Schedule and dispatch only, like fuzz-run and for the same reason: Miri is
+  # slow, and the project's rule is that gates stay local and CI records
+  # (RFC-0.31-002 D7). The counter-argument in the handoff's §D is why it is
+  # here at all rather than local-only — a check that runs only where the
+  # toolchain happens to be installed is a check nobody runs, which is E-049
+  # one crate over. The component is installed explicitly, so a runner without
+  # it fails this job rather than skipping silently.
+  #
+  # Named for what it proves: these crates' tests execute without undefined
+  # behaviour. It does not prove the services do — they are no_std riscv64
+  # binaries Miri cannot run, and the QEMU tiers are their evidence.
+  ci-miri:
+    name: miri
+    runs-on: ubuntu-24.04
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install nightly with miri
+        run: |
+          rustup toolchain install nightly --profile minimal \
+            --component miri --component rust-src
+          cargo +nightly miri --version
+      # Positive control: a crate whose tests Miri must be able to run at all.
+      # If this step reports zero tests, the job below proves nothing.
+      - name: No undefined behaviour in the wire codec and the checksum paths
+        run: |
+          cargo +nightly miri test \
+            -p fjell-semantic-format \
+            -p fjell-store-format \
+            -p fjell-upgrade-format
+
   # Verus proof machine-check (RFC-v0.17-005 / RFC-v0.18-001).
   # NON-BLOCKING on push: continue-on-error keeps Verus off the merge path
   # (never a Fjell build dependency). This job RECORDS the VERUS:TARGET:*
