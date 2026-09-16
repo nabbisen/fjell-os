@@ -767,6 +767,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `fjell-devmgr` builds its board profile in code. Boot-time validation
   belongs with hardware bring-up (E-004).
 
+- **Most of the documentation is not in the documentation** (Errata
+  **E-050**, ACCEPTED, unscheduled). The published book renders 59 of the 135
+  Markdown files under its own source root; the other 76 — including all 41
+  architecture decision records — are in the repository but in no book, and
+  `mdbook build` reports nothing. Several book pages are stubs pointing at the
+  real document outside the book, where the site cannot follow them, and one
+  describes itself as a symlink that does not exist. Everything is present for
+  a reader who browses the repository; a reader of the book sees a fraction.
+
 - **Ten crates' unit tests do not run in CI** (Errata **E-049**, ACCEPTED,
   unscheduled). CI names test packages in hand-written `-p` lists, and ten
   crates appear in none of them — 118 tests, including `fjell-sig-ed25519`

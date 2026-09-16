@@ -3256,6 +3256,59 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   nothing else reads — is deleted, because a tool that checks a list that no
   longer exists is one more thing to keep true.
 
+## E-050 — 76 files under the book root are in no book, and the book's own pages point at documents it does not contain
+
+- **Claim:** `docs/book.toml` declares `src = "src"` and CI builds the book on
+  every push (`ci-docs`: *"cd docs && mdbook build"*); `README.md` sends a
+  reader to `docs/src/SUMMARY.md` as the documentation index; mdBook's contract
+  is that `SUMMARY.md` is the navigation tree for what is under `src/`.
+  `docs/src/release/v1-readiness.md` states: *"This file symlinks to the live
+  matrix at `docs/release/v1-readiness.md`."*
+- **Tree, observed 2026-09-16** (full audit:
+  [`docs/verification/documentation-structure-audit.md`](../verification/documentation-structure-audit.md)):
+  1. **`docs/src` holds 135 `.md` files; `SUMMARY.md` lists 59.** The other
+     **76 are published nowhere** — not rendered, not copied. `mdbook build`
+     exits 0 and warns about none of them: `docs/book/adr/` is created with
+     **0 `.html` and 0 `.md`**, while the listed `intro/` chapters produce 3
+     `.html` (control). Among the invisible: **all 41 ADRs**, `internals/` (9),
+     `reference/` (6).
+  2. **The authoritative document is usually the one outside the book**, and
+     the book page is a stub: `v1-readiness` 226 B in the book against 6.0 KB
+     outside; `unsafe-inventory` 241 B against `instrument-audit.md`'s 83.9 KB.
+     Links from book pages to those targets (13 to `release/`, 4 to
+     `verification/`, 4 to `adr/`, 2 to `rfcs/`) cannot resolve in the built
+     site, because nothing outside `docs/src` is copied into it.
+  3. **The "symlinks" sentence is false**: `find docs -type l` finds **zero**
+     symlinks. It is a copy with a sentence describing a link.
+  4. **Four directory names exist twice** (`perf`, `security`, `verification`,
+     `release` — inside and outside `docs/src`), one of them three times
+     (`verification/` also at the repo root). `docs/perf/baseline.md` and
+     `docs/src/perf/baseline.md` differ by **one character** (`../../` vs
+     `../../../`) — a copy made to relocate its own link.
+  5. **Names that collide otherwise:** `docs/src/release/` (process) beside
+     `docs/src/releases/` (session handoffs), both in `SUMMARY.md`;
+     `docs/rfcs/` (errata + 18 answer documents) beside the root `rfcs/` (224
+     files); `ROADMAP.md` (23.8 KB) beside `docs/src/roadmap/roadmap.md`
+     (16.1 KB), neither marked as superseding the other.
+  6. **`docs/book/` is not in `.gitignore`**, so a local build leaves the whole
+     site untracked and committable — the artefact-leak shape fixed in 0.30,
+     one directory over.
+- **Why nothing saw it:** no instrument reads `SUMMARY.md`. `doc-links` checks
+  that links resolve *on disk*, which they do — a reader on GitHub follows them
+  fine, and only a reader of the built book cannot. mdBook itself reports
+  nothing about files it was never told to include, so the build is green at 0
+  chapters or 59.
+- **Not a broken build.** Everything is present in the repository; what is
+  missing is reachability and one honest sentence.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-16), **unscheduled** —
+  awaiting the owner's scheduling. Closing it means: one documentation root
+  with everything a human reads under `docs/src` and in `SUMMARY.md`; the
+  duplicate directory names gone; the stub-and-pointer pattern replaced by the
+  document itself; `docs/book/` ignored; and **a subcheck that fails when a
+  file under `docs/src` is absent from `SUMMARY.md`, or an entry resolves to
+  nothing** — demonstrated failing in both directions, so the 76 cannot
+  reaccumulate.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3309,6 +3362,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
+| E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | unscheduled | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
