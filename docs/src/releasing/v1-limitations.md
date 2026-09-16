@@ -829,8 +829,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
     reachable, is not a pointer, and says whether it is maintained. None of
     them reads it.
 
-- **Ten crates' unit tests do not run in CI** (Errata **E-049**, ACCEPTED,
-  unscheduled). CI names test packages in hand-written `-p` lists, and ten
+- **Ten crates' unit tests do not run in CI** (Errata **E-049**, ACCEPTED, tracked to
+  0.33). CI names test packages in hand-written `-p` lists, and ten
   crates appear in none of them — 118 tests, including `fjell-sig-ed25519`
   and `fjell-replay-cache`. They do run locally at every cut (Gate 1 is
   `cargo test --workspace --lib`), so this is a CI gap, not untested code.

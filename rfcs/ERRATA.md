@@ -3308,7 +3308,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   literal `-p ` match cannot tell a package flag from `mkdir -p` (**E-014**'s
   family).
 - **Resolution:** **ACCEPTED** (architect, 2026-09-15; re-derived and
-  re-scoped 2026-09-16), **unscheduled**. Closing it means the hand-written
+  re-scoped 2026-09-16), tracked **0.33** (owner, 2026-09-16: cut 0.32 now
+  rather than hold it for this line; the design above is settled and approved). Closing it means the hand-written
   `-p` lists are gone, not that the tool that polices them is improved:
   CI runs the same workspace-derived invocations as Gate 1 and tier 1b, from
   one shared definition; the entries that silently test nothing disappear with
@@ -3669,7 +3670,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
-| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
+| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | 0.33 | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
