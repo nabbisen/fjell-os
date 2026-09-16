@@ -8,7 +8,11 @@ guarantees that would make it sound, including across a service boundary.
 `crates/formats/fjell-semantic-format/`, `fjell-semantic-stream`,
 `fjell-proxy-text`, `fjell-sample-service`,
 `crates/formats/fjell-upgrade-format/`, `crates/formats/fjell-store-format/`,
-`crates/fjell-sxt-crypto/src/hkdf.rs`, `fuzz/`. **Does not touch the kernel.**
+`crates/fjell-sxt-crypto/src/hkdf.rs`, `fuzz/`, and
+`.github/workflows/ci.yml` (the Miri job §D contemplates — *added at review:
+this list omitted it while the handoff's §D required a decision about where
+Miri runs, and the implementer flagged the gap rather than widening the line
+silently*). **Does not touch the kernel.**
 **Relates to:** E-043's line (which deliberately left this path unfuzzed until
 it is sound); E-044 (nothing reads the boot-control block from disk today);
 E-045 (the frozen schemas these checksums belong to); E-014 (an instrument
@@ -150,7 +154,10 @@ installing the component is part of this line.
 
 **D8 — The measure is `unsafe` removed, not `unsafe` annotated.** The target is
 zero `unsafe` blocks in `fjell-service-api`'s `chunked` module and in both
-format crates' checksum paths. A SAFETY comment left anywhere in this line's
+format crates' checksum paths — *corrected at review: `chunked` keeps one, the
+`asm!` block that is the IPC syscall itself (`ipc_call4`). It reinterprets
+nothing and cannot be written in safe code; the target is every `unsafe` that
+turns bytes into a value.* A SAFETY comment left anywhere in this line's
 scope must name what makes it true — `repr`, initialisation, provenance — not
 who promised it.
 
@@ -163,7 +170,10 @@ the types and their wire form drift apart when they live apart, which is E-045
 in one sentence. Argue it.
 
 **§B — What does the wire form contain?** Today's transfer is 4936 bytes in
-**155 blocking IPC calls** per envelope, most of it the unused arms of an enum.
+**157 blocking IPC calls** per envelope (`BEGIN` + 155 `CHUNK` + `COMMIT`),
+most of it the unused arms of an enum. *(This said "155 blocking IPC calls";
+155 is the chunk count. Corrected at review from the implementation's
+re-derivation.)*
 An encoding that carries only the live variant and the fields in use would be a
 fraction of that. **Is shrinking it in scope here, or a separate line?** My
 lean: encode only the live variant — it falls out of writing the encoder at all

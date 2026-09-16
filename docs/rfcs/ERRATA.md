@@ -3012,7 +3012,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      bytes**, `repr(Rust)`; its padding is not required to be initialised, so
      the bytes `fjell-sample-service` ships can carry whatever was on its
      stack — an information leak across the boundary the system exists to
-     separate. The transfer is also **155 blocking IPC calls** per envelope.
+     separate. The transfer is also **157 blocking IPC calls** per envelope
+     (`BEGIN` + 155 `CHUNK` + `COMMIT`; this entry said 155, which is the chunk
+     count — corrected at review 2026-09-16).
   4. **The padding the checksums read, counted:** `BootControlBlock` is 88
      bytes for 73 bytes of fields (**15** padding); `StoreSuperblock` 64 for 50
      (**14**).
@@ -3054,7 +3056,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 - **Resolution:** **CLOSED** 2026-09-16 by **RFC-0.32-002**.
   `reassemble` is deleted rather than length-checked — `git grep reassemble
-  -- '*.rs'` is empty — and with it the last of the six non-kernel sites:
+  -- '*.rs'` matches one line at the tip, a comment in the new fuzz target
+  recording what the decoder replaced; no code refers to it *(the review
+  request's transcript showed exit 1, captured before that target existed)* — and with it the last of the six non-kernel sites:
   `grep -rn 'reassemble\|from_raw_parts' --include='*.rs' crates | grep -v
   fjell-kernel` now matches nothing, where it matched six sites in three
   crates on 2026-09-15. (Control: the same probe still finds the kernel's

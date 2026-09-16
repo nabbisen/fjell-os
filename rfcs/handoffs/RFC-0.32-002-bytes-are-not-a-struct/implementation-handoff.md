@@ -99,8 +99,9 @@ putting a codec in it means every consumer of the types takes the codec too.
 If you split it, say what stops the two drifting — because "the types and their
 wire form in different crates, kept in step by hand" is E-045's exact shape.
 
-**§B (what the wire form carries).** Today: 4936 bytes, **155 blocking IPC
-calls** per envelope, most of it the unused arms of an enum. I lean to encoding
+**§B (what the wire form carries).** Today: 4936 bytes, **157 blocking IPC
+calls** per envelope (`BEGIN` + 155 `CHUNK` + `COMMIT`; this said 155, which is
+the chunk count — corrected at review), most of it the unused arms of an enum. I lean to encoding
 only the live variant and the fields in use. The argument against doing it
 here: it makes this line both a soundness fix and a format redesign, and the
 soundness fix is the urgent half. If you take the smaller scope, the encoder
@@ -135,8 +136,12 @@ The receive loop must refuse, not absorb. Each of these is a test:
 | `COMMIT` with no `BEGIN` | reinterprets whatever is in `buf` | refused |
 | unknown discriminant in the bytes | undefined behaviour | decode error |
 
-"Refused" means the protocol's existing error reply (`PUBLISH_ERR` /
-`RENDER_ERR`), and the buffer reset so the next message starts clean.
+"Refused" means the protocol's existing error reply, and the buffer reset so
+the next message starts clean. *(Corrected at review: this named `RENDER_ERR`,
+which does not exist. `semantic_stream` has `PUBLISH_ERR`; `proxy_text` has
+`ERR = 0x51F`, which its default arm already replies. Using the constant that
+exists was right — adding a protocol tag is a wire change this line did not
+scope.)*
 
 **The live evidence is the `semantic` negative profile**
 (`tests/qemu/profiles/semantic.toml`), which already drives sample-service →
@@ -222,7 +227,7 @@ Flag for focused review:
 - **Miri's "before" transcript** — the line where it names the undefined
   behaviour, first.
 - **The wire size and chunk count** you chose (§B), against today's 4936 bytes
-  in 155 calls.
+  in 157 calls.
 - **Your §A answer**, and what keeps the types and their wire form together.
 - **Anything you found while converting the call sites that the RFC missed** —
   it was scoped from six grep hits and two receive loops.
