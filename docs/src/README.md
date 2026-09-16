@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.png" alt="Fjell OS" width="160">
+  <img src="./images/logo.png" alt="Fjell OS" width="160">
 </p>
 
 # Fjell OS Documentation

@@ -185,4 +185,4 @@ They are the fleet's evidence chain for this run.
 ---
 
 *For the full RFC specification, see
-[RFC-v0.10-005](../../../rfcs/done/RFC-v0.10-005-reference-qemu-fleet-deployment.md).*
+[RFC-v0.10-005](https://github.com/nabbisen/fjell-os/blob/main/rfcs/done/RFC-v0.10-005-reference-qemu-fleet-deployment.md).*

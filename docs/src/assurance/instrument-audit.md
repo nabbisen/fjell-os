@@ -1,7 +1,7 @@
 # Instrument Audit Register
 
-**Governing RFC:** [RFC-0.24-001](../../../rfcs/done/RFC-0.24-001-instrument-audit.md)
-**Handoff:** [implementation-handoff.md](../../../rfcs/handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md)
+**Governing RFC:** [RFC-0.24-001](https://github.com/nabbisen/fjell-os/blob/main/rfcs/done/RFC-0.24-001-instrument-audit.md)
+**Handoff:** [implementation-handoff.md](https://github.com/nabbisen/fjell-os/blob/main/rfcs/handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md)
 **Close-out and disposition:** [instrument-audit-closeout.md](./instrument-audit-closeout.md)
 — this file is the authoritative row-level record; the close-out disposes of
 what it found (repairs, errata E-013/E-014/E-015/E-016, and 0.25 candidates).
@@ -1467,7 +1467,7 @@ never its goal.
 
 Slice 8 (above) became its own RFC when sizing it found three further scanner
 defects (B, C, D) that were *what made the duplicates* — see
-[RFC-0.24-003](../../../rfcs/done/RFC-0.24-003-abi-snapshot-identity.md). R1's
+[RFC-0.24-003](https://github.com/nabbisen/fjell-os/blob/main/rfcs/done/RFC-0.24-003-abi-snapshot-identity.md). R1's
 own duplicate-key check, run for the first time against a corrected scanner,
 found a fourth (impl scope, repaired as R6) — the first defect in this entire
 milestone caught by an instrument's own guard rather than a person.

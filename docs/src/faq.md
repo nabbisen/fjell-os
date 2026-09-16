@@ -22,7 +22,7 @@ RISC-V has a clean privilege architecture with no legacy baggage. The M/S/U mode
 
 ## Does Fjell run on real hardware?
 
-Not in v0.20. The validated profile is QEMU `virt`. VisionFive 2 is provisional. See [v1.0 limitations](../../docs/src/releasing/v1-limitations.md).
+Not in v0.20. The validated profile is QEMU `virt`. VisionFive 2 is provisional. See [v1.0 limitations](./releasing/v1-limitations.md).
 
 ## Why no kernel heap?
 

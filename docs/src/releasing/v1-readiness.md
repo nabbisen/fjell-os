@@ -121,5 +121,5 @@
 ---
 
 *CI gate: `cargo xtask readiness-check` counts OPEN cells and fails
-if any are present. Maintained by [`tools/fjell-readiness-check/`](../../../tools/fjell-readiness-check/)
+if any are present. Maintained by [`tools/fjell-readiness-check/`](https://github.com/nabbisen/fjell-os/blob/main/tools/fjell-readiness-check)
 (RFC-v0.10-007 §4 — tool lands in v0.10 cycle).*

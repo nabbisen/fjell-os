@@ -5,7 +5,7 @@ led to it. An ADR is a record: it is not edited once accepted, and a decision
 that changes is replaced by a new ADR rather than by an edit to the old one.
 
 The ones that were replaced are kept — see
-[Superseded ADRs](./superseded/README.md) — because the reason a decision was
+[Superseded ADRs](./superseded/) — because the reason a decision was
 reversed is usually more useful than the decision itself.
 
 | Decision | Status |

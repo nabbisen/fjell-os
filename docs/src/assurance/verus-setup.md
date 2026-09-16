@@ -2,7 +2,7 @@
 
 The complete Verus installation recipe, pinned version, and background
 are documented in
-[`verification/verus/TOOLCHAIN.md`](../../../verification/verus/TOOLCHAIN.md)
+[`verification/verus/TOOLCHAIN.md`](https://github.com/nabbisen/fjell-os/blob/main/verification/verus/TOOLCHAIN.md)
 at the repository root.
 
 ## Quick reference
@@ -56,4 +56,4 @@ directory to `PATH`.
 
 For full details including the rationale, two-toolchain design, and
 conformance-only fallback, see
-[`verification/verus/TOOLCHAIN.md`](../../../verification/verus/TOOLCHAIN.md).
+[`verification/verus/TOOLCHAIN.md`](https://github.com/nabbisen/fjell-os/blob/main/verification/verus/TOOLCHAIN.md).

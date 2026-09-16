@@ -156,7 +156,7 @@ is not on `PATH`. Gate 10 in `release-rehearsal` requires it for the
 final release sign-off.
 
 The pinned version and a complete install recipe live in
-[`verification/verus/TOOLCHAIN.md`](../../../verification/verus/TOOLCHAIN.md).
+[`verification/verus/TOOLCHAIN.md`](https://github.com/nabbisen/fjell-os/blob/main/verification/verus/TOOLCHAIN.md).
 
 Quick reference (Linux x86\_64):
 

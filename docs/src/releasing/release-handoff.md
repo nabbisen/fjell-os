@@ -264,7 +264,7 @@ The release record at `releases/<version>.md` carries:
     statement here says *why staying behind is the right call for this
     release*, not that nobody got to it.
 
-Follow the shape of [`../../releases/0.29.0.md`](../../../releases/0.29.0.md); it is the most
+Follow the shape of [`../../releases/0.29.0.md`](https://github.com/nabbisen/fjell-os/blob/main/releases/0.29.0.md); it is the most
 recent and the most complete.
 
 ## 5. Prohibited shortcuts

@@ -1,6 +1,6 @@
 # Instrument Audit — Close-Out and Disposition
 
-**Governing RFC:** [RFC-0.24-001](../../../rfcs/done/RFC-0.24-001-instrument-audit.md)
+**Governing RFC:** [RFC-0.24-001](https://github.com/nabbisen/fjell-os/blob/main/rfcs/done/RFC-0.24-001-instrument-audit.md)
 **Register:** [instrument-audit.md](./instrument-audit.md) — the authoritative
 row-level record; this document disposes of what it found.
 **Author:** architect

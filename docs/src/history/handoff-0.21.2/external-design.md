@@ -1,6 +1,6 @@
 # Fjell OS — External Design (Architect Handoff)
 
-**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by [External Design](../../external-design/README.md); kept for the record.
+**Status:** Historical — part of the v0.21.2 handoff bundle (2026-07). Superseded by [External Design](../../external-design/); kept for the record.
 
 *Compact design handoff. Version: v0.21.2.*
 
