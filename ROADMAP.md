@@ -6,6 +6,29 @@ of the next; scope discipline is a first-class constraint.
 
 ---
 
+## Roadmap philosophy
+
+Fjell's roadmap builds **trustworthy thin vertical slices** rather than adding
+features horizontally. It deliberately excludes many drivers, GUI, networking,
+AI, and compatibility layers early. The ordering is fixed:
+
+```text
+1. Boot        →  it starts
+2. Isolate     →  it separates
+3. Communicate →  it talks (IPC)
+4. Delegate    →  it passes authority (capabilities)
+5. Audit       →  it records
+6. Reproduce   →  it rebuilds from declarative config
+7. Mean        →  it emits semantic streams
+8. Upgrade     →  it updates safely
+9. Verify      →  it proves its invariants
+```
+
+Keeping this order is what makes Fjell "an OS whose responsibilities were pared
+down to meet modern demands", not "an over-stuffed next-generation OS".
+
+---
+
 ## v0.1.0 — Initial Release
 
 ### M0 · Repository Foundation ✅
@@ -452,6 +475,90 @@ or announced without explicit owner confirmation.
 
 ---
 
-For the full roadmap — the original M0–M11 MVP plan, the complete execution
-record, and the forward roadmap (v1.0, v1.1, v2+) — see
-[`docs/src/roadmap/roadmap.md`](docs/src/roadmap/roadmap.md).
+## The original MVP plan — milestones 9 to 11
+
+*Merged from the book's roadmap page, RFC-0.32-003 D13. Milestones 0–8 are the
+v0.1.0 section above, which supersedes the original plan's wording for them.
+These three were never restated there.*
+
+### Milestone 9 — Immutable Upgrade Prototype
+
+*Build the foundation for long-lived operation and safe updates.*
+Deliverables: image manifest, upgrade service, inactive-slot write, integrity
+check, rollback flag. Done when an update never overwrites the running image in
+place, a new image is verified before switching, a failed-boot rollback design
+exists, and upgrade events are audited.
+
+### Milestone 10 — Verification and Hardening
+
+*Make Fjell's verifiability concrete.*
+Deliverables: formal-model candidates, property tests, fuzz tests, syscall
+tests, IPC/capability invariant tests, ADRs. Done when the major
+capability/IPC invariants are tested or modelled, unsafe sites carry safety
+comments, fuzz targets are defined, and developers can tell verified from
+non-verified areas.
+
+### Milestone 11 — Developer SDK and Documentation
+
+*Make the developer experience of building services on Fjell workable.*
+Deliverables: service SDK, IPC client library, capability/audit/semantic-stream
+helpers, service template, developer guide. Done when a sample service can be
+built with the SDK, that service uses IPC/audit/config/semantic-stream, and a
+developer can implement a minimal service from the docs.
+
+---
+
+# Longer-horizon directions
+
+*Merged from the book's roadmap page. These are directions, not commitments,
+and the dated execution record above is what this project has actually done.*
+
+## v1.1 — Hardening the deferred boundaries
+
+| Theme | Requirement / limitation closed |
+|---|---|
+| Store & upgrade negative profiles become mandatory release gates | v1.0 limitation (deferred store/upgrade) |
+| Service-manager READY negative pair completed (2/4 → 4/4) | v1.0 partial svc coverage |
+| Factory-station trust-anchor provisioning | Requirements limitation item 6; RFC-v0.17-001 |
+| End-to-end provision + sign + verify workflow gate | Signing-side coupling closure |
+| DMA user-VA unmap re-enabled (root-cause the v0.8.x page-table corruption) | Kernel debt |
+
+## v2 and beyond — Longer-horizon directions
+
+These realize parts of the original requirements deferred as non-goals for the
+initial phases (requirements §7.3, §8 "Could"):
+
+| Direction | Notes |
+|---|---|
+| **Real hardware bring-up** | Boot on silicon (e.g. StarFive VisionFive 2); the provisional board profile becomes validated. Closes v1.0 limitation item 1 (E-004). |
+| **Multi-hart / SMP** | SMP scheduling, per-hart locking, IPIs. Closes v1.0 limitation item 2. |
+| **Hardware-anchored provisioning** | Trust anchor rooted in hardware (PMP/enclave), superseding dev/QEMU TOFU. |
+| **Active power-state scheduling** | Realize FR-KRN-006 fully: suspend/resume coupled to hardware C-states, beyond today's telemetry. |
+| **Personal Proxy & continuous state measurement** | The ABDD analysis's second and third shifts: proxy-side dynamic adaptation and continuous telemetry-driven adjustment (beyond the text reference proxy). |
+| **Richer Presentation Proxies** | Audio, braille, and other proxies on the existing semantic boundary. |
+| **Multi-architecture** | Bring `fjell-arch-arm64` from stub to a real target. |
+
+## Explicit non-goals (unchanged across the roadmap)
+
+Per the requirements' "will not do" declarations, Fjell does **not** pursue:
+becoming a general-purpose desktop OS; full POSIX/Linux compatibility; a GUI
+stack in the OS core; an AI-native kernel; a `root`-premised authority model;
+pulling drivers back into the kernel; cloud-mandatory operation; or a universal
+accessibility-settings collection.
+
+## Success criteria (the roadmap's north star)
+
+Success was never defined as "a convenient OS". It is defined as:
+
+```text
+- it boots
+- it isolates
+- it controls authority via capabilities
+- it communicates safely via IPC
+- it audits its state
+- it reproduces state declaratively from config
+- it emits meaning without a GUI
+- the OS core stays small
+```
+
+Holding the fixed ordering above is what keeps Fjell on that line.

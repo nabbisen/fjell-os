@@ -210,7 +210,6 @@
 
 # Roadmap
 
-- [Roadmap and Milestones](./roadmap/roadmap.md)
 - [Fjell OS v0.1.x — Stabilisation Roadmap](./roadmap/v0.1.x-stabilization.md)
 - [Fjell OS v0.2 — Preparation Backlog](./roadmap/v0.2-preparation-backlog.md)
 - [v0.23+ Direction Options](./roadmap/v0.23-direction-options.md)
