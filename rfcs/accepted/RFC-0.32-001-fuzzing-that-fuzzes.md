@@ -6,9 +6,9 @@
 cannot see the job that would show it.
 **Touches.** `fuzz/`, the root `Cargo.toml` (workspace membership),
 `.github/workflows/ci.yml` (the fuzz job and its triggers),
-`docs/src/release/v0-release-cycle.md` and `docs/release/release-handoff.md`
+`docs/src/release/v0-release-cycle.md` and `docs/src/release/release-handoff.md`
 (exit criterion 9), `docs/src/adr/ADR-v0.6-003-format-fuzzing.md`,
-`docs/release/v1-readiness.md`. **Does not touch kernel, ABI or service
+`docs/src/release/v1-readiness.md`. **Does not touch kernel, ABI or service
 source.**
 **Relates to:** E-046 (the envelope receive path — not fuzzed here, see D7);
 E-045 (the same originating RFC's other mechanism, tracked 0.33); E-041 (whose

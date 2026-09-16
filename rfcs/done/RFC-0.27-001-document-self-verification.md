@@ -5,7 +5,7 @@
 **Tracks.** Cross-document agreement: the errata backlog, version claims, links,
 and counts.
 **Touches.** `tools/fjell-consistency-check`, `rfcs/ERRATA.md`,
-`ROADMAP.md`, `docs/verification/instrument-audit-closeout.md`, and whichever
+`ROADMAP.md`, `docs/src/assurance/instrument-audit-closeout.md`, and whichever
 documents the new checks find wrong.
 **Relates to:** closes **E-016** and **E-023**; re-dispositions **E-014**,
 **E-015**, **E-017**; RFC-v0.22-001 (Gate 12, which this extends),

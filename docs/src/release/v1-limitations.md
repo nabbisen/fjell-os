@@ -6,7 +6,7 @@ require updating the governing record first, then this page.*
 
 | # | Limitation | Governing record |
 |---|------------|------------------|
-| 1 | **Hardware** — no validated real-hardware deployment; the VisionFive 2 profile is provisional and was never booted on silicon | Errata **E-004** (ACCEPTED); `docs/deployment/starfive-visionfive2.md` TODOs |
+| 1 | **Hardware** — no validated real-hardware deployment; the VisionFive 2 profile is provisional and was never booted on silicon | Errata **E-004** (ACCEPTED); `docs/src/deployment/starfive-visionfive2.md` TODOs |
 | 2 | **Multi-hart** — the kernel runs single-hart; SMP scheduling, per-hart locking (e.g. the console spinlock), and IPIs are deferred to the multi-hart milestone | v1.0 design decision; `crates/fjell-kernel/src/console.rs` invariant note |
 | 3 | **POSIX** — no POSIX compatibility surface (descriptors, fork, signals, ttys) | Non-goal **N1** |
 | 4 | **Kernel-IPC for the SDK reference service** — the SDK reference service does not operate over live kernel-mediated IPC | Non-goal **N21** |
@@ -336,7 +336,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **E-027**, ACCEPTED). The v0.9–v0.15 handoff asserted a "threat-model gate"
   enforcing it; no such gate exists in any commit on any branch. The property
   holds as of 2026-08-31 — all 20 `Tn` sections in
-  `docs/security/threat-model-v1.md` cite an RFC, and the 20 in-scope / 8
+  `docs/src/security/threat-model-v1.md` cite an RFC, and the 20 in-scope / 8
   out-of-scope counts are correct — but it is held by hand, and a regression
   would be reported by nothing.
 
@@ -528,7 +528,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   gate, because Ubuntu's apt has no `rustc-1.91.1` package, and `ci.yml`
   names no apt package any more.* `rust-toolchain.toml` (channel, `rust-src`, the
   RISC-V target), `.github/workflows/ci.yml` (`apt-get install
-  rustc-1.91`, copied into **17 of 19** jobs), `docs/release/
+  rustc-1.91`, copied into **17 of 19** jobs), `docs/src/release/
   release-checklist.md`, `docs/src/internals/local-development.md`,
   `docs/src/tutorials/quick-start.md` and `Cargo.toml`'s `rust-version`
   all state `1.91` independently; one of them (`release-checklist.md`) is
@@ -860,7 +860,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   corrections nobody checked.
 
   **Corrected at 0.30.0.** The cause was that the cut had no handoff while every
-  RFC has one; `docs/release/release-handoff.md` is now the standing handoff
+  RFC has one; `docs/src/release/release-handoff.md` is now the standing handoff
   for every cut, and the Roles table's undefined `A`/`R`/`C`/`I` legend is
   stated. The 0.30.0 cut was the first executed by the implementer from that
   handoff and reviewed by the architect like any other line. Exit criterion 8 —
@@ -879,7 +879,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   log fails the run). All nine now have every specified marker confirmed
   (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1,
   **svc 4/4 — Errata E-024/E-031, closed by RFC-0.28-001**, evidence:
-  [`tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log`](../../tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log));
+  [`tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log`](../../../tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log));
   the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC words ABI and the
   reply-edge cancellation path. The `store` and `upgrade` negative profiles
   exist as marker specifications but have **no emitting scenarios yet** and

@@ -445,7 +445,7 @@ mod tests {
     fn citation_outside_tests_evidence_is_ignored() {
         let docs = [(
             Path::new("some/doc.md"),
-            "[x](../docs/security/threat-model-v1.md)",
+            "[x](../docs/src/security/threat-model-v1.md)",
         )];
         assert_eq!(
             run_check(&docs, &[], "tests/evidence", always_ancestor),

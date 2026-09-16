@@ -59,9 +59,9 @@ Required path:
 - `docs/src/architecture/measurement-and-attestation.md` —
   RFC v0.3-001..004.
 - `docs/src/architecture/fleet.md` — RFC v0.8-001..005.
-- `docs/src/verification/unsafe-charter.md` — already exists; link.
-- `docs/src/verification/unsafe-inventory.md` — already exists; link.
-- `docs/src/verification/property-tests.md` — RFC v0.6-001 overview.
+- `docs/src/assurance/unsafe-charter.md` — already exists; link.
+- `docs/src/assurance/unsafe-inventory.md` — already exists; link.
+- `docs/src/assurance/property-tests.md` — RFC v0.6-001 overview.
 - `docs/src/identity/v1-direction.md` — full text of RFC 061.
 - `docs/src/release/reproducibility.md` — v0.10-003.
 - `docs/src/release/v1-readiness.md` — v0.10-007.

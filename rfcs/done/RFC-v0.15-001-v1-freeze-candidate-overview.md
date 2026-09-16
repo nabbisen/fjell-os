@@ -30,10 +30,10 @@ If that bar is met, v1.0.0 is tagged.
 | RFC | Title | Deliverable |
 |-----|-------|-------------|
 | v0.15-001 | This overview | Coordination |
-| v0.15-002 | Threat Model Finalization | `docs/security/threat-model-v1.md` |
-| v0.15-003 | Release Checklist and Security Advisory Process | `docs/release/release-checklist.md` + advisory policy |
-| v0.15-004 | Operator Recovery Guide and Field Documentation | `docs/operations/recovery-guide.md` |
-| v0.15-005 | v1.0 Non-Goals and Constraint Lock | `docs/release/v1-non-goals.md` |
+| v0.15-002 | Threat Model Finalization | `docs/src/security/threat-model-v1.md` |
+| v0.15-003 | Release Checklist and Security Advisory Process | `docs/src/release/release-checklist.md` + advisory policy |
+| v0.15-004 | Operator Recovery Guide and Field Documentation | `docs/src/operations/recovery-guide.md` |
+| v0.15-005 | v1.0 Non-Goals and Constraint Lock | `docs/src/release/v1-non-goals.md` |
 
 ## 3. Posture: the freeze
 
@@ -78,15 +78,15 @@ v0.15.0 may be tagged when:
 1. The four sub-RFCs (002–005) are merged to `done/`.
 2. The freeze discipline (§3) has been in force throughout the cycle
    without unauthorised exception.
-3. `docs/security/threat-model-v1.md` covers every adversary class
+3. `docs/src/security/threat-model-v1.md` covers every adversary class
    the team commits to mitigating.
-4. `docs/release/release-checklist.md` produces a reproducible release
+4. `docs/src/release/release-checklist.md` produces a reproducible release
    when executed verbatim.
 5. The advisory process from v0.15-003 has been exercised once
    end-to-end against a synthetic advisory.
 6. The recovery guide from v0.15-004 covers every entry in v0.13-005's
    DR table.
-7. `docs/release/v1-non-goals.md` is committed and survives an
+7. `docs/src/release/v1-non-goals.md` is committed and survives an
    adversarial review (a contributor attempts to negotiate items off
    the list; the document holds or the negotiation is reflected back
    in the doc).

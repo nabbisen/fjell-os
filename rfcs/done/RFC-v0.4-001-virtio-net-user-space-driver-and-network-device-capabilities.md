@@ -448,7 +448,7 @@ negotiation, ring index math — is factored into a host-testable library
 ```text
 docs/src/architecture/v0.4-001-virtio-net.md
 docs/src/development/v0.4-001-virtio-net.md
-docs/src/verification/v0.4-001-virtio-net-invariants.md
+docs/src/assurance/v0.4-001-virtio-net-invariants.md
 docs/src/format/net-device-protocol.md
 docs/src/adr/v0.4-001-net-device-boundary.md
 docs/src/adr/v0.4-001-irq-syscall.md

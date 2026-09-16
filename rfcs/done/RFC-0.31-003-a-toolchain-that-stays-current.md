@@ -8,7 +8,7 @@ underneath it. Closing it means an exact pin; taking the pin means deciding
 what to pin *at*, and the answer is not the ten-month-old version we are on.
 **Touches.** `rust-toolchain.toml`, `Cargo.toml` (the `rust-version` floor),
 `docs/src/tutorials/quick-start.md`, `docs/src/internals/local-development.md`,
-`docs/release/release-checklist.md`, `tools/fjell-consistency-check`
+`docs/src/release/release-checklist.md`, `tools/fjell-consistency-check`
 (`toolchain-declarations`), and — as *output*, not as edits —
 `crates/fjell-kernel/prebuilt/*.bin`, `tests/repro/baseline-digests.txt`,
 `releases/trust-report.txt`. **Does not touch kernel, ABI or service
@@ -203,7 +203,7 @@ the floor to something verified. Say which, and why.
 **R7 — §7 answered in writing**, and built.
 
 **R8 — E-037 → `CLOSED`**, or its remaining instance named. Register and
-`docs/release/v1-limitations.md` in the same commit. E-037 has been narrowed
+`docs/src/release/v1-limitations.md` in the same commit. E-037 has been narrowed
 twice; if something survives this line, name it rather than rounding up.
 
 ### Non-goals

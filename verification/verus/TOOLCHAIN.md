@@ -16,7 +16,7 @@ Updated 2026-07-30 (v0.21.3): upgraded from the hand-unpacked release asset
 `release/0.2026.05.24.ecee80a` / rustup 1.95.0 to the package-managed AUR
 `verus-bin` / rustup 1.97.1. All 20 obligations were re-verified unchanged
 under the new prover, on a different rustc and a different host OS — see
-`docs/verification/verus/review-records/v0.21.3-prover-upgrade.md` for the
+`docs/src/assurance/proofs/review-records/v0.21.3-prover-upgrade.md` for the
 recorded re-certification. The previous pin's certification is not
 retracted; both are recorded in `TOOLCHAIN.lock` (`[history]`).
 

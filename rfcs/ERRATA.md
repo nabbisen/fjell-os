@@ -53,7 +53,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Shipped:** recovery guide written; no drill run; no attestation.
 - **Resolution:** **CLOSED** by RFC-v0.16-003 — a QEMU recovery drill
   is executed and its attestation committed under
-  `docs/operations/recovery-drills/`.
+  `docs/src/operations/recovery-drills/`.
 
 ## E-006 — RFC-v0.14-002 §5: catalog intent tags
 
@@ -128,7 +128,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 ## E-012 — RFC-v0.15-003: v1.0 release checklist Step 9 bundle path
 
-- **Claim:** `docs/release/release-checklist.md` Step 9 ("Sign all bundles")
+- **Claim:** `docs/src/release/release-checklist.md` Step 9 ("Sign all bundles")
   iterates `target/release-bundles/*.bundle` and signs each one.
 - **Shipped:** `cargo xtask package-release`
   (`crates/fjell-tools/src/package_release.rs`) produces a single
@@ -143,7 +143,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   view), which is ACCEPTED semantics under this register's own legend
   (a documented, deliberate limitation), on the same grounds as E-004.
   Not investigated or fixed; must be resolved before v1.0 preparation
-  begins. See `docs/release/v1-limitations.md`.
+  begins. See `docs/src/release/v1-limitations.md`.
 
 ## E-013 — `crates/fjell-tools/src/test_all.rs` tier 1: "Host library tests" claim
 
@@ -197,7 +197,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   reopening this entry. Originally found during RFC-v0.23-002 Slice 1
   while writing the two-demonstration unit tests that RFC requires — they
   could not be proven to run under tier 1 or any other `cargo test`
-  invocation. See `docs/release/v1-limitations.md`.
+  invocation. See `docs/src/release/v1-limitations.md`.
 
 > **Second confirmation 2026-08-03 (RFC-0.24-001 Pass 4).** The six gate-tool
 > crates — `fjell-abi-snapshot`, `fjell-consistency-check`, `fjell-mmio-audit`,
@@ -315,8 +315,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     an earlier point in the erratum's life. Left open rather than shipped
     with a demonstrated false-positive.
 
-  See `docs/verification/instrument-audit-closeout.md` §3.1 and
-  `docs/release/v1-limitations.md`.
+  See `docs/src/assurance/instrument-audit-closeout.md` §3.1 and
+  `docs/src/release/v1-limitations.md`.
 
 > **A further instance, recorded 2026-09-15 — not fixed.** Gate 5's readiness
 > checker (`tools/fjell-readiness-check/src/main.rs`) counts a matrix row as
@@ -451,7 +451,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   instrument was RFC-0.24-001's explicit non-goal** — which is why this waits
   for 0.25 rather than being fixed quietly by the person who would then write
   the checker. The drift and the reason nobody noticed it are the same finding.
-  See `docs/verification/instrument-audit-closeout.md` §3.3.
+  See `docs/src/assurance/instrument-audit-closeout.md` §3.3.
 
 ## E-017 — RFC-0.24-001: "every instrument claimed as sound has a committed demonstration"
 
@@ -481,8 +481,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   2026-09-09 addendum below), and no instance survives. This is why
   RFC-0.24-001 shipped `Implemented-with-Errata` rather than `Implemented`:
   its normative text claimed more than the merged work verified at the
-  time. See `docs/verification/instrument-audit-closeout.md` §4.1 and
-  `docs/release/v1-limitations.md`.
+  time. See `docs/src/assurance/instrument-audit-closeout.md` §4.1 and
+  `docs/src/release/v1-limitations.md`.
 
 > **Counted 2026-09-09, at the owner's request, before scheduling.** E-017 was
 > read as *"two rows verified, twenty assumed."* Going through the register row
@@ -550,7 +550,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > | Cited to a prior RFC / repaired since | 3 | (unchanged) |
 > | **Verified directly against real config ("sound by design")** | **1** | `ci-verus` |
 >
-> 8+4+2+4+3+1 = **22**, matching the summary table exactly. `docs/verification/
+> 8+4+2+4+3+1 = **22**, matching the summary table exactly. `docs/src/assurance/
 > instrument-audit.md`'s totals table needed no edit; this erratum's own prior
 > addendum did, and does now.
 >
@@ -684,7 +684,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   constant; it does not audit every service for ordering assumptions) and
   is real design work for its own line. `cargo xtask test-all` is 19/21
   with these two tiers failing; every other tier, including the two new
-  RFC-0.25-001 uart-rx profiles, passes. See `docs/release/v1-limitations.md`.
+  RFC-0.25-001 uart-rx profiles, passes. See `docs/src/release/v1-limitations.md`.
 - **Correction and closure (RFC-0.28-003, 2026-09-08).** This entry's scope
   narrowed to the `ipc` profile only once E-020 was filed separately for the
   `semantic` profile's distinct consequence (a shipped feature not
@@ -873,7 +873,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the design-answer document naming this a real, six-instance, unmet
   primitive need — not decided here. May be relevant to **E-019 /
   RFC-0.26-003**'s `ipc` investigation — flagged, not absorbed. See
-  `docs/release/v1-limitations.md`.
+  `docs/src/release/v1-limitations.md`.
 
 ## E-023 — RFC-v0.7.1-001: the release tool's `RELEASE.md` and consistency checks were never built
 
@@ -914,7 +914,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   exist). Building it is a real instrument, which E-016's own disposition
   already carries as a 0.27 candidate — this entry gives that candidate a
   concrete, already-specified starting point rather than a blank page. See
-  `docs/release/v1-limitations.md`.
+  `docs/src/release/v1-limitations.md`.
 
 ---
 
@@ -1137,7 +1137,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   no commit on any branch. It is not a gate that was built and later removed;
   it was never written.
 - **The property itself holds**, checked by hand on 2026-08-31:
-  `docs/security/threat-model-v1.md` carries 20 `### Tn` sections, every one
+  `docs/src/security/threat-model-v1.md` carries 20 `### Tn` sections, every one
   citing an RFC, and 8 `OSn` rows — matching the handoff's counts exactly. So
   the sentence was wrong about the mechanism while being right about the
   outcome, which is the shape this project keeps finding: **a claim that reads
@@ -1292,7 +1292,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   The absent pair is exactly the two requiring service-manager to receive a READY
   message. A profile that expects only what already passes detects nothing about
   the rest.
-- **And the recorded cause was wrong.** `docs/release/v1-limitations.md` read
+- **And the recorded cause was wrong.** `docs/src/release/v1-limitations.md` read
   *"svc 2/4 — READY pair pending a startup-timing fix."* It is not timing; it is
   topology. **A wrong diagnosis on the record is why nobody looked again** —
   corrected 2026-09-06.
@@ -1615,7 +1615,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 ## E-036 — T20's two-build reproducibility check has never been run
 
-- **Claim:** `docs/security/threat-model-v1.md` §T20
+- **Claim:** `docs/src/security/threat-model-v1.md` §T20
   (*Reproducibility-failure-as-substitution*) states its defence as
   *"RFC-v0.10-003 (reproducible build gate). **Two-build SHA-256 digest
   comparison** (hardened from FNV-1a in RFC-v0.16-005, H-04)."*
@@ -1829,7 +1829,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   |---|---|
   | `rust-toolchain.toml` | `channel = "1.91"` |
   | `.github/workflows/ci.yml` | `apt-get install rustc-1.91 cargo-1.91`, in several jobs |
-  | `docs/release/release-checklist.md:25` | `rustc --version \| grep "1.91"` — **a verification step** |
+  | `docs/src/release/release-checklist.md:25` | `rustc --version \| grep "1.91"` — **a verification step** |
   | `docs/src/internals/local-development.md:7,21` | documented prerequisite, `rustup toolchain install 1.91` |
   | `Cargo.toml` | `rust-version = "1.91"` (added today) |
 
@@ -1890,7 +1890,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > entry missed `docs/src/tutorials/quick-start.md` — the install instruction
   > a new user actually follows, which additionally names `rust-1.91-src` where
   > CI names `rust-src`. **And one of them is a check, not two:** only
-  > `docs/release/release-checklist.md:25`'s `rustc --version | grep "1.91"`
+  > `docs/src/release/release-checklist.md:25`'s `rustc --version | grep "1.91"`
   > asserts the version; the rest declare or describe it. A third thing this
   > entry never said: most occurrences of `1.91` in the tree are **historical
   > records** (release notes, handoffs, the changelog) that are correct as
@@ -1995,7 +1995,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `docs/src/internals/local-development.md` (the prerequisite table row
   > and the `rustup toolchain install` line),
   > `docs/src/tutorials/quick-start.md`'s apt line, and
-  > `docs/release/release-checklist.md`'s `rustc --version | grep` check.
+  > `docs/src/release/release-checklist.md`'s `rustc --version | grep` check.
   > Those four are still compared against the channel by
   > `toolchain-declarations`, unchanged. A bump is now one declaration plus
   > four documentation edits that a gate names if you forget them, against
@@ -2067,7 +2067,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > E-037 — E-037 was "declared in twenty-two places and recorded nowhere",
   > and no claim of cross-machine reproducibility exists anywhere in this
   > project to be contradicted. It stays a disclosed non-claim in
-  > `docs/release/v1-limitations.md`, now stated on its own rather than
+  > `docs/src/release/v1-limitations.md`, now stated on its own rather than
   > inside this entry's parenthesis, so closing E-037 does not quietly retire
   > it. Likewise the true MSRV minimum remains undetermined (RFC-0.31-003 R6:
   > the floor is now verified at exactly `1.91.0` rather than assumed, but
@@ -2230,7 +2230,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (2026-09-12).
 
   > **Closed 2026-09-12.** The 0.30.0 cut was executed by the implementer
-  > from `docs/release/release-handoff.md` and reviewed by the architect —
+  > from `docs/src/release/release-handoff.md` and reviewed by the architect —
   > the first release in this project whose preparation anyone checked. The
   > cut's own record and CHANGELOG reported, correctly and without resolving
   > it, that `errata-tracking` refused the cut on this very entry: committing
@@ -2263,7 +2263,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > practice can settle it.
   >
   > **The missing handoff is written**:
-  > [`docs/release/release-handoff.md`](../docs/release/release-handoff.md), standing
+  > [`docs/src/release/release-handoff.md`](../docs/src/release/release-handoff.md), standing
   > rather than per-cut, since the defect was that *every* cut lacked one. It
   > carries the six traps each named by the release that found it, the settled
   > decisions, the order (which is load-bearing — trap 2 exists because the
@@ -2759,7 +2759,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   directory using `cargo +nightly fuzz` contains 8 targets"*, *"Fuzzing runs
   nightly with the seeded corpora as starting points"*, and *"Format
   regressions that cause parser panics are caught before merge."*
-  `docs/release/v1-readiness.md`: *"Fuzz targets (≥ 4) … **DONE** (v0.6.0)"*.
+  `docs/src/release/v1-readiness.md`: *"Fuzz targets (≥ 4) … **DONE** (v0.6.0)"*.
   `docs/src/intro/what-is-fjell.md` and `docs/src/architecture/overview.md`
   list fuzzing among the project's test tiers. E-041's closure: *"every job is
   green"*.
@@ -2788,7 +2788,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   not run on push or pull request at all, so it cannot catch anything "before
   merge".
 - **Why nothing saw it — three instruments, one blind spot.**
-  1. The instrument audit (`docs/verification/instrument-audit.md`) recorded
+  1. The instrument audit (`docs/src/assurance/instrument-audit.md`) recorded
      `ci-fuzz-nightly` as **UNAUDITED** because it is schedule-only, and its
      close-out resolved that *"these stay `UNAUDITED` and are not converted to
      anything."* Honest at the time; never followed up.
@@ -2879,7 +2879,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > the condition for fuzzing on every push (RFC-0.32-001 §7). The fuzzing
 > nightly floats, revisited at the first build-step failure on an unchanged
 > tree (§8). The grown corpus is kept as a run artifact, not written back.
-> Each is in `docs/release/v1-limitations.md`.
+> Each is in `docs/src/release/v1-limitations.md`.
 >
 > *Corrected in this closure: this entry and its summary row said six of
 > the eight targets did not compile and called functions that "no longer
@@ -3325,9 +3325,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   reader to `docs/src/SUMMARY.md` as the documentation index; mdBook's contract
   is that `SUMMARY.md` is the navigation tree for what is under `src/`.
   `docs/src/release/v1-readiness.md` states: *"This file symlinks to the live
-  matrix at `docs/release/v1-readiness.md`."*
+  matrix at `docs/src/release/v1-readiness.md`."*
 - **Tree, observed 2026-09-16** (full audit:
-  [`docs/verification/documentation-structure-audit.md`](../docs/verification/documentation-structure-audit.md)):
+  [`docs/src/assurance/documentation-structure-audit.md`](../docs/src/assurance/documentation-structure-audit.md)):
   1. **`docs/src` holds 135 `.md` files — 134 pages plus `SUMMARY.md` — and
      `SUMMARY.md` lists 59.** The other **75 pages are published nowhere**
      *(this entry said 76, counting the navigation file itself; corrected
@@ -3346,7 +3346,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      symlinks. It is a copy with a sentence describing a link.
   4. **Four directory names exist twice** (`perf`, `security`, `verification`,
      `release` — inside and outside `docs/src`), one of them three times
-     (`verification/` also at the repo root). `docs/perf/baseline.md` and
+     (`verification/` also at the repo root). `docs/src/perf/baseline.md` and
      `docs/src/perf/baseline.md` differ by **one character** (`../../` vs
      `../../../`) — a copy made to relocate its own link.
   5. **Names that collide otherwise:** `docs/src/release/` (process) beside
@@ -3389,12 +3389,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > (`assets`, `verification`) cannot be reached by any move group, so the
   > book's copies are renamed — `docs/src/images/` and `docs/src/assurance/` —
   > rather than the predicate being narrowed to prose-bearing directories.
-  > `docs/verification/verus/`'s prose is in scope and becomes
+  > `docs/src/assurance/proofs/`'s prose is in scope and becomes
   > `docs/src/assurance/proofs/`; the non-goal covers the **root**
   > `verification/verus/`, which is proof source.
   >
   > **A further instance of this erratum, found by the implementation and
-  > verified here:** `docs/src/verification/unsafe-inventory.md` is generated
+  > verified here:** `docs/src/assurance/unsafe-inventory.md` is generated
   > output frozen at v0.6.0 stating *"Total unsafe sites: 0"*, while
   > `fjell-unsafe-audit` reports **277 sites, 277 with a SAFETY comment, 0
   > missing**. A page in the book, looking maintained, asserting something false
@@ -3412,14 +3412,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 - **Claim:** `rfcs/done/RFC-v0.15-003-release-checklist-and-security-advisory-process.md`
   is **`Implemented (v0.15.0)`**, and its §3 specifies
-  `docs/security/advisory-process.md` (*"what happens between 'vulnerability
+  `docs/src/security/advisory-process.md` (*"what happens between 'vulnerability
   reported' and 'patched release shipped'"*) and a record per closed advisory at
-  `docs/security/advisories/FSAD-<year>-<seq>.md`.
-  `docs/release/release-checklist.md` repeats the process and states:
-  *"Committed to `docs/security/advisories/FSAD-YYYY-NNN.md`."*
+  `docs/src/security/advisories/FSAD-<year>-<seq>.md`.
+  `docs/src/release/release-checklist.md` repeats the process and states:
+  *"Committed to `docs/src/security/advisories/FSAD-YYYY-NNN.md`."*
   `CHANGELOG.md` lists *"security advisory process"* among v0.15's deliverables.
 - **Tree, observed 2026-09-16:**
-  1. **Neither artefact exists.** `docs/security/` holds two files
+  1. **Neither artefact exists.** `docs/src/security/` holds two files
      (`adversarial-review-v0.16.md`, `threat-model-v1.md`); there is no
      `advisory-process.md`, no `advisories/` directory, and no `FSAD-*` file
      anywhere in the tree (control: the same search finds `.github/SECURITY.md`).
@@ -3522,9 +3522,9 @@ ACCEPTED.** E-014,
 E-015 and E-016 were filed together as the instrument audit's
 disposition — grouped by root cause rather than one per finding, so the register
 records four families instead of thirty-three individually-true rows. Each names
-its member findings explicitly; `docs/verification/instrument-audit.md` remains
+its member findings explicitly; `docs/src/assurance/instrument-audit.md` remains
 the authoritative row-level record and
-`docs/verification/instrument-audit-closeout.md` the disposition. All three are
+`docs/src/assurance/instrument-audit-closeout.md` the disposition. All three are
 **ACCEPTED, not OPEN**, on the same grounds as E-004/E-011/E-012/E-013:
 scheduled deferral to a named future line is a deliberate decision, not live
 unresolved drift. Seven of the audit's findings were repaired in RFC-0.24-002

@@ -24,7 +24,7 @@ struct SyncUnsafeCell(UnsafeCell<Uart>);
 
 // SAFETY: category=kernel-global-mutable single-hart invariant — accessed
 // exclusively from hart 0, no concurrency. v1.0 DESIGN DECISION (not a
-// pending action): multi-hart is a v1.0 non-goal (docs/release/v1-non-goals.md),
+// pending action): multi-hart is a v1.0 non-goal (docs/src/release/v1-non-goals.md),
 // so a spinlock is intentionally deferred to the multi-hart milestone.
 unsafe impl Sync for SyncUnsafeCell {}
 

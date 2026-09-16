@@ -3,7 +3,7 @@
 **Status:** Implemented (v0.21.3)
 **Milestone:** v0.21.3
 **Tracks.** Cross-cutting release governance. Not tied to a feature.
-**Touches.** `docs/release/release-checklist.md`, `CHANGELOG.md`, tag
+**Touches.** `docs/src/release/release-checklist.md`, `CHANGELOG.md`, tag
 conventions, `crates/fjell-tools/src/package_release.rs`.
 **Relates to:** RFC-v0.15-003 (v1.0 release checklist), RFC 046 (v0.1.x
 checklist), RFC 000 (lifecycle policy — precedent for policy-as-RFC)
@@ -45,7 +45,7 @@ when no gate run was even possible.
 
 ### M3 — The existing checklist is scoped to v1.0 and has drifted
 
-`docs/release/release-checklist.md` is genuinely rigorous — pre-flight
+`docs/src/release/release-checklist.md` is genuinely rigorous — pre-flight
 conditions, gates, tagging at Step 11 *after* the gates. Two problems:
 
 1. **Scope.** It opens *"Run this exactly to produce a v1.0 release."* It is a
@@ -193,7 +193,7 @@ Applies immediately to `0.21.2` (see §7, Decision request 2).
 
 ## Repairs to the existing checklist
 
-Within this RFC's scope, in `docs/release/release-checklist.md`:
+Within this RFC's scope, in `docs/src/release/release-checklist.md`:
 
 1. Step 6: `cargo xtask docs build` → a command that exists, or remove the step
    and state that docs are built by mdBook directly.
@@ -214,7 +214,7 @@ Within this RFC's scope, in `docs/release/release-checklist.md`:
 
 - [ ] This cycle is documented at `docs/src/release/v0-release-cycle.md` and
       linked from `SUMMARY.md`.
-- [ ] `docs/release/release-checklist.md` steps 6 and 12 invoke real
+- [ ] `docs/src/release/release-checklist.md` steps 6 and 12 invoke real
       subcommands; scope-titled for v1.0; cross-links this RFC.
 - [ ] `releases/` exists with a record for the first release cut
       under this cycle.

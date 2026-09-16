@@ -1,7 +1,7 @@
 # Release Handoff — the standing instruction for cutting a release
 
 **Audience:** implementation model
-**Governing document:** [`docs/src/release/v0-release-cycle.md`](../src/release/v0-release-cycle.md)
+**Governing document:** [`docs/src/release/v0-release-cycle.md`](./v0-release-cycle.md)
 **Status:** standing — this document is the handoff for **every** cut, not one of them.
 
 This handoff directs execution. It does not redefine the cycle. If you find a
@@ -195,8 +195,8 @@ order once.
 
 ## 2. What stays with the architect, and why you must not do it
 
-**Exit criterion 8 — reading `docs/release/v1-limitations.md` and
-`docs/compliance/standards-mapping.md` by hand against this release's actual
+**Exit criterion 8 — reading `docs/src/release/v1-limitations.md` and
+`docs/src/compliance/standards-mapping.md` by hand against this release's actual
 changes.**
 
 Gate 12's `standards-mapping` subcheck confirms every cited path still exists.
@@ -264,7 +264,7 @@ The release record at `releases/<version>.md` carries:
     statement here says *why staying behind is the right call for this
     release*, not that nobody got to it.
 
-Follow the shape of [`../../releases/0.29.0.md`](../../releases/0.29.0.md); it is the most
+Follow the shape of [`../../releases/0.29.0.md`](../../../releases/0.29.0.md); it is the most
 recent and the most complete.
 
 ## 5. Prohibited shortcuts

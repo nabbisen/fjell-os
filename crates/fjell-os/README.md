@@ -24,7 +24,7 @@ of the project that *is* a library: the stable ABI surface, as
 | **Changelog** | [`CHANGELOG.md`](https://github.com/nabbisen/fjell-os/blob/main/CHANGELOG.md) |
 | **Roadmap** | [`ROADMAP.md`](https://github.com/nabbisen/fjell-os/blob/main/ROADMAP.md) |
 | **RFCs** | [`rfcs/`](https://github.com/nabbisen/fjell-os/tree/main/rfcs) — every design decision, with its review record |
-| **Known limitations** | [`docs/release/v1-limitations.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/release/v1-limitations.md) |
+| **Known limitations** | [`docs/src/release/v1-limitations.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/src/release/v1-limitations.md) |
 | **Errata register** | [`rfcs/ERRATA.md`](https://github.com/nabbisen/fjell-os/blob/main/rfcs/ERRATA.md) — where every known divergence is recorded |
 | **ABI crate** | [`fjell-abi`](https://crates.io/crates/fjell-abi) |
 
@@ -51,7 +51,7 @@ fleet:
 - **How do I recover?** Every documented failure mode has a tested playbook.
 
 Not for general-purpose servers, desktop environments, or POSIX workloads. See
-the [v1.0 non-goals](https://github.com/nabbisen/fjell-os/blob/main/docs/release/v1-non-goals.md).
+the [v1.0 non-goals](https://github.com/nabbisen/fjell-os/blob/main/docs/src/release/v1-non-goals.md).
 
 ## How the project verifies itself
 
@@ -62,7 +62,7 @@ the errata register rather than fixed silently.
 That register currently carries **11 accepted limitations and 0 open** — including
 several found by auditing the verification tooling itself, which turned out to
 have instruments that reported success without checking. See
-[`docs/verification/instrument-audit-closeout.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/verification/instrument-audit-closeout.md).
+[`docs/src/assurance/instrument-audit-closeout.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/src/assurance/instrument-audit-closeout.md).
 
 ## Licence
 

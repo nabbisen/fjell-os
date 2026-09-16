@@ -493,7 +493,7 @@ Target: ≥ 22 tests.
 ```text
 docs/src/architecture/v0.3-002-keyring.md
 docs/src/development/v0.3-002-keyring.md
-docs/src/verification/v0.3-002-keyring-invariants.md
+docs/src/assurance/v0.3-002-keyring-invariants.md
 docs/src/adr/v0.3-002-keyring-boundary.md
 docs/src/format/keyring-snapshot.md            — on-disk format
 ```

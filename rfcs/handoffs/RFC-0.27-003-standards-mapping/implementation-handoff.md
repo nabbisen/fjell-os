@@ -120,7 +120,7 @@ the reason Gate 5 could not see a `**BLOCKED**` row.
 
 ## 6. Required evidence
 
-1. `docs/compliance/standards-mapping.md`, with sources and retrieval dates.
+1. `docs/src/compliance/standards-mapping.md`, with sources and retrieval dates.
 2. **§4 answered in writing**, with the two rejected shapes and why.
 3. The subcheck, with unit tests.
 4. **All four demonstrations, captured** — the FAIL output for each.

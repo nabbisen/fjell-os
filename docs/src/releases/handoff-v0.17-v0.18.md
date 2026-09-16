@@ -77,7 +77,7 @@ is documented behavior (RFC 025 §chicken-and-egg), but it means test-all tiers 
 provide no fault-injection coverage today. A project that promotes its capability
 invariant to "release-required" and formally proves it should arguably have at least
 one negative test that exercises a real capability refusal path in QEMU. This gap is
-recorded in `docs/release/v1-limitations.md` but the architect may view it as a
+recorded in `docs/src/release/v1-limitations.md` but the architect may view it as a
 precondition for v1.0.0 tagging rather than a post-v1.0 item.
 
 **4. RFC-v0.17-001 trust-anchor provisioning is unratified.**
@@ -156,16 +156,16 @@ logic, no IPC path, no syscall numbers, and no cryptographic code was modified.
 
 | Path | Purpose |
 |------|---------|
-| `docs/verification/verus/proof-gate-policy.md` | Staging table, R-V1 rule, promotion artifact checklist (9 items), promotion ledger |
-| `docs/verification/verus/review-records/v0.17-pilot-targets.md` | Per-obligation review; machine-check results; C4–C8 addendum |
-| `docs/release/v1-limitations.md` | Gate 9 consolidated reference: 6 items with governing records |
+| `docs/src/assurance/proofs/proof-gate-policy.md` | Staging table, R-V1 rule, promotion artifact checklist (9 items), promotion ledger |
+| `docs/src/assurance/proofs/review-records/v0.17-pilot-targets.md` | Per-obligation review; machine-check results; C4–C8 addendum |
+| `docs/src/release/v1-limitations.md` | Gate 9 consolidated reference: 6 items with governing records |
 | `tools/fjell-repro-check/README.md` | Baseline maintenance procedure |
 | `docs/src/intro/what-is-fjell.md` | mdbook intro (was TODO stub) |
 | `docs/src/intro/why-fjell.md` | mdbook archetypes and rationale (was TODO stub) |
 | `docs/src/tutorials/quick-start.md` | Verified boot output; corrected apt packages (was TODO stub) |
 | `docs/src/architecture/overview.md` | Kernel/service layout; verification tiers (was TODO stub) |
 | `docs/src/sdk/writing-a-service.md` | Canonical template steps; `static mut` and IpcReply-a1 invariants (was TODO stub) |
-| `docs/src/release/v1-non-goals.md` | Pointer page to `docs/release/v1-non-goals.md` (was TODO stub) |
+| `docs/src/release/v1-non-goals.md` | Pointer page to `docs/src/release/v1-non-goals.md` (was TODO stub) |
 
 ### 1.6 Code-quality posture after this period
 
@@ -597,7 +597,7 @@ It presents three mechanisms and asks for two decisions:
 - **§6:** Decide whether first-boot TOFU requires an explicit `--allow-tofu-provision`
   flag or is acceptable as default for the dev profile.
 
-This RFC is already listed under the v1.0 limitations in `docs/release/v1-limitations.md`
+This RFC is already listed under the v1.0 limitations in `docs/src/release/v1-limitations.md`
 as item 6. It does not block the Verus work but it does block the v1.0.0 tag.
 
 ### 6.2 Two-milestone promotion timing (REQUIRED DECISION)
@@ -640,11 +640,11 @@ verification/verus/verus-targets.toml
 verification/verus/TOOLCHAIN.md           (replaced stub)
 verification/verus/TOOLCHAIN.lock         (new)
 verification/verus/README.md              (new)
-docs/verification/verus/proof-gate-policy.md
-docs/verification/verus/review-records/v0.17-pilot-targets.md
-docs/verification/verus/templates/verus-module-template.rs
-docs/verification/verus/templates/rust-conformance-test-template.rs
-docs/release/v1-limitations.md
+docs/src/assurance/proofs/proof-gate-policy.md
+docs/src/assurance/proofs/review-records/v0.17-pilot-targets.md
+docs/src/assurance/proofs/templates/verus-module-template.rs
+docs/src/assurance/proofs/templates/rust-conformance-test-template.rs
+docs/src/release/v1-limitations.md
 tools/fjell-repro-check/README.md
 docs/src/intro/what-is-fjell.md           (replaced stub)
 docs/src/intro/why-fjell.md               (replaced stub)

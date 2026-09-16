@@ -15,7 +15,7 @@ Implemented, never built); E-050's line, which moves the paths this one writes
 into.
 
 **Sequencing.** After **RFC-0.32-003**, whose move groups decide where
-`docs/security/` lives. Writing new documents into a tree that is about to move
+`docs/src/security/` lives. Writing new documents into a tree that is about to move
 would create the merge this project avoids.
 
 ## Summary
@@ -28,13 +28,13 @@ Measured 2026-09-16.
 
 | Specified | In the tree |
 |---|---|
-| `docs/security/advisory-process.md` — *"what happens between vulnerability reported and patched release shipped"* | **absent** |
-| `docs/security/advisories/FSAD-<year>-<seq>.md` — one record per closed advisory | **directory absent**; no `FSAD-*` file anywhere |
+| `docs/src/security/advisory-process.md` — *"what happens between vulnerability reported and patched release shipped"* | **absent** |
+| `docs/src/security/advisories/FSAD-<year>-<seq>.md` — one record per closed advisory | **directory absent**; no `FSAD-*` file anywhere |
 
 What does exist is a condensed copy of the same process inside
-`docs/release/release-checklist.md` — the severity tiers, the timeline, the
+`docs/src/release/release-checklist.md` — the severity tiers, the timeline, the
 record template, and the sentence *"Committed to
-`docs/security/advisories/FSAD-YYYY-NNN.md`"*, naming a directory that has never
+`docs/src/security/advisories/FSAD-YYYY-NNN.md`"*, naming a directory that has never
 existed. Nothing checks any of it.
 
 **Zero advisories is the correct number today** — no vulnerability has been
@@ -47,7 +47,7 @@ arrives.
 | Source | Channel | Acknowledgement |
 |---|---|---|
 | `.github/SECURITY.md` (published, and what GitHub surfaces) | private GitHub security advisory, real URL | *"within a small number of days"* |
-| `docs/release/release-checklist.md` §Security advisory process | `security@<domain>` — *"fill in before v1.0 landing"* | **72 hours** |
+| `docs/src/release/release-checklist.md` §Security advisory process | `security@<domain>` — *"fill in before v1.0 landing"* | **72 hours** |
 
 A reporter who follows the checklist writes to a placeholder. A reporter who
 follows `SECURITY.md` is fine. The project has therefore published, at the same

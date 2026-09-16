@@ -420,7 +420,7 @@ Total fixed footprint ≈ 1.5 KiB plus per-session DMA pages on demand.
 ```text
 docs/src/architecture/v0.4-002-netd.md
 docs/src/development/v0.4-002-netd.md
-docs/src/verification/v0.4-002-netd-invariants.md
+docs/src/assurance/v0.4-002-netd-invariants.md
 docs/src/format/net-session-protocol.md
 docs/src/adr/v0.4-002-net-session-shape.md
 ```

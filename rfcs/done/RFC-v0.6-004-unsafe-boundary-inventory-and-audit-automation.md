@@ -30,7 +30,7 @@ attach a justifying ADR or RFC reference to each, and add a CI gate that
 rejects new `unsafe` without a matching tag in the commit body.
 
 Output: a machine-checked **Unsafe Inventory** document and an
-`docs/src/verification/unsafe-charter.md` that defines the policy for adding new `unsafe`.
+`docs/src/assurance/unsafe-charter.md` that defines the policy for adding new `unsafe`.
 
 ---
 
@@ -49,14 +49,14 @@ in code comments at best. Centralising the inventory:
 ## 3. Goals
 
 ```text
-- Inventory file under docs/src/verification/unsafe-inventory.md, auto-
+- Inventory file under docs/src/assurance/unsafe-inventory.md, auto-
   generated, listing every `unsafe` block by (file:line:length) with a
   classification tag.
 - A small set of classification tags (AsmTrampoline, MmioAccess,
   DmaAccess, AtomicPtr, FFI, RawCast, TraitImplSafetyDoc).
 - CI gate: `cargo run -p fjell-unsafe-audit` produces the same inventory
   bit-for-bit as the checked-in file; any drift fails CI.
-- An docs/src/verification/unsafe-charter.md defining when `unsafe` is acceptable, what comments
+- An docs/src/assurance/unsafe-charter.md defining when `unsafe` is acceptable, what comments
   it must carry, and how to retire blocks.
 ```
 
@@ -118,7 +118,7 @@ TraitImplSafetyDoc — implementing an unsafe trait (Send/Sync) where the
 Any `unsafe` block must have a `// SAFETY:` comment whose first word is
 one of the tags. The audit tool reads the tag from the comment.
 
-### 5.3 docs/src/verification/unsafe-charter.md
+### 5.3 docs/src/assurance/unsafe-charter.md
 
 ```text
 1. Every `unsafe` block requires a `// SAFETY: <Tag>` line.
@@ -173,7 +173,7 @@ pub struct UnsafeRecord {
 4. if comment missing → record as Violation; fail.
 5. build records list, sorted by (file, line).
 6. render Markdown.
-7. compare to checked-in docs/src/verification/unsafe-inventory.md;
+7. compare to checked-in docs/src/assurance/unsafe-inventory.md;
    exit non-zero on diff.
 ```
 
@@ -258,8 +258,8 @@ Host tool; no runtime cost.
 
 ```text
 - tools/fjell-unsafe-audit ships.
-- docs/src/verification/unsafe-inventory.md checked in.
-- docs/src/verification/unsafe-charter.md checked in at repo root.
+- docs/src/assurance/unsafe-inventory.md checked in.
+- docs/src/assurance/unsafe-charter.md checked in at repo root.
 - CI job `unsafe-audit` enforced on every PR.
 - Every existing unsafe block has a SAFETY comment.
 - ADR-v0.6-004 filed.
@@ -270,9 +270,9 @@ Host tool; no runtime cost.
 ## 13. Documentation Requirements
 
 ```text
-docs/src/verification/v0.6-004-unsafe-audit.md
-docs/src/verification/unsafe-inventory.md      — auto-generated
-docs/src/verification/unsafe-charter.md                              — repo root
+docs/src/assurance/v0.6-004-unsafe-audit.md
+docs/src/assurance/unsafe-inventory.md      — auto-generated
+docs/src/assurance/unsafe-charter.md                              — repo root
 docs/src/adr/v0.6-004-unsafe-charter.md
 ```
 

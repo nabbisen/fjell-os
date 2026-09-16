@@ -14,7 +14,7 @@ v0.9: RISC-V RV64GC (QEMU `virt`). v0.12 adds the first real RISC-V board. ARM64
 
 ## Where is the kernel source?
 
-`crates/fjell-kernel/` — all code in Rust with `#![forbid(unsafe_code)]` except audited boundaries under `docs/src/verification/unsafe-charter.md`.
+`crates/fjell-kernel/` — all code in Rust with `#![forbid(unsafe_code)]` except audited boundaries under `docs/src/assurance/unsafe-charter.md`.
 
 ## Why RISC-V and not x86-64?
 
@@ -22,7 +22,7 @@ RISC-V has a clean privilege architecture with no legacy baggage. The M/S/U mode
 
 ## Does Fjell run on real hardware?
 
-Not in v0.20. The validated profile is QEMU `virt`. VisionFive 2 is provisional. See [v1.0 limitations](../../docs/release/v1-limitations.md).
+Not in v0.20. The validated profile is QEMU `virt`. VisionFive 2 is provisional. See [v1.0 limitations](../../docs/src/release/v1-limitations.md).
 
 ## Why no kernel heap?
 

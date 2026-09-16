@@ -3,7 +3,7 @@
 **Author:** architect
 **Date:** 2026-09-08, after the `0.28.0` cut
 **For:** the owner, setting the next milestone's theme
-**Source:** [RFC-0.24-001](../../rfcs/done/RFC-0.24-001-instrument-audit.md) and
+**Source:** [RFC-0.24-001](../../../rfcs/done/RFC-0.24-001-instrument-audit.md) and
 its [close-out](./instrument-audit-closeout.md)
 
 ---

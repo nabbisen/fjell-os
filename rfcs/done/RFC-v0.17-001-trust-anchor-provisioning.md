@@ -13,7 +13,7 @@ that lie" anti-pattern was detected by a gate rather than by review.*
 ***Deferred (RFC 000 partial-implementation rule):*** *the tier→mechanism table's
 remaining tiers are not implemented — factory-station provisioning (v1.1) and
 hardware-anchored provisioning (v2+). Both are recorded in
-`docs/release/v1-limitations.md` item 6.*
+`docs/src/release/v1-limitations.md` item 6.*
 **Milestone:** v0.17
 **Origin:** Deferred from RFC-v0.16-005 (architect review H-02).
 **Supersedes:** RFC-v0.17-001 RESERVED placeholder.
@@ -113,7 +113,7 @@ hardware fuse programming protocol (Option C detail, deferred to v2).
 **Decision date:** 2026-06-04
 **Deciding architect review:** v0.18.3 Verus verification layer review (D6 / §4.4)
 
-Ratified per the table in `docs/verification/verus/review-records/v0.18-architect-review-decisions.md`:
+Ratified per the table in `docs/src/assurance/proofs/review-records/v0.18-architect-review-decisions.md`:
 - Development/QEMU: TOFU with explicit `--allow-tofu-provision` flag only.
 - Factory/field (v1.1): factory station provisioning.
 - High-assurance (v2+): hardware-anchored provisioning.
@@ -121,5 +121,5 @@ Ratified per the table in `docs/verification/verus/review-records/v0.18-architec
 Silent default TOFU is explicitly prohibited for all v1-supported profiles.
 
 Implementation of the `--allow-tofu-provision` flag for the dev profile is
-tracked as a pre-v1.0.0 implementation item (see `docs/release/v1-limitations.md`
+tracked as a pre-v1.0.0 implementation item (see `docs/src/release/v1-limitations.md`
 item 6).

@@ -30,7 +30,7 @@
 //! in that folder, not one of them.
 //!
 //! **Excluded deliberately**, per the handoff's instruction to say so: the
-//! instrument audit's own totals table (`docs/verification/instrument-audit.md`
+//! instrument audit's own totals table (`docs/src/assurance/instrument-audit.md`
 //! — already corrected under RFC-0.24-003, and its own document, not
 //! `rfcs/README.md`), and every other numeric claim anywhere else in the
 //! tree (service counts, syscall counts already covered by

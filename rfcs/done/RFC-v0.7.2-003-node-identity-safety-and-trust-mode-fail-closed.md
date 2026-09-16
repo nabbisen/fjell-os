@@ -376,7 +376,7 @@ RFC v0.5-005).
 ```text
 - docs/src/reference/identity-construction.md — the build pattern.
 - docs/src/reference/trust-modes.md — fail-closed semantics.
-- docs/src/verification/unsafe-charter.md updated if the build path triggers new unsafe.
+- docs/src/assurance/unsafe-charter.md updated if the build path triggers new unsafe.
 ```
 
 ## Open Questions

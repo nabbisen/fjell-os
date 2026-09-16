@@ -474,7 +474,7 @@ pub fn unique_doc_directory_names() -> ExitCode {
 
 /// D6: no two directories under `docs/`, and none against a repository-root
 /// directory, share a leaf name. A name that means two things is why
-/// `docs/verification/` (the audits) and `verification/` (proof source) were
+/// `docs/src/assurance/` (the audits) and `verification/` (proof source) were
 /// read as the same place.
 pub fn run_unique_check(docs_dirs: &[PathBuf], root_dirs: &[String]) -> ExitCode {
     let mut by_leaf: BTreeMap<String, Vec<String>> = BTreeMap::new();

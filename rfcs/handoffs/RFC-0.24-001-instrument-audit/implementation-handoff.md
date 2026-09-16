@@ -41,7 +41,7 @@ do not believe.
 ## 0.2 Design decisions settled — do not re-open
 
 1. **One register, appended to as you go:**
-   `docs/verification/instrument-audit.md`. One row per instrument, the four
+   `docs/src/assurance/instrument-audit.md`. One row per instrument, the four
    answers, and a status of `sound` / `finding` / `UNAUDITED`.
 2. **Submit per pass, not at the end.** Four passes, four review requests. The
    RFC makes passes independently cuttable; that only works if each is reviewed
@@ -55,7 +55,7 @@ do not believe.
 
 ## 1. Change scope
 
-**In scope:** `docs/verification/instrument-audit.md` (new); test files needed
+**In scope:** `docs/src/assurance/instrument-audit.md` (new); test files needed
 for demonstrations. (§6 is withdrawn.)
 
 **Explicitly NOT in scope:**

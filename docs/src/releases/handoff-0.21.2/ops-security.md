@@ -44,7 +44,7 @@ still run). All gates except 9 are mechanical.
   `qemu-system-riscv64`. Verus (separate 1.95 toolchain) only for Gate 10.
 - **No external `qemu-img`** — disk image is created in pure Rust.
 - **Per-distro packages and full setup:** `docs/src/internals/local-development.md`.
-- **Verus install:** `docs/src/verification/verus-setup.md`;
+- **Verus install:** `docs/src/assurance/verus-setup.md`;
   `verification/verus/TOOLCHAIN.lock` pins the version.
 - **Secrets:** none required for build or host tests. Trust-anchor provisioning
   (dev/QEMU) writes a dev key only when `--allow-tofu-provision` is passed; the
@@ -56,7 +56,7 @@ still run). All gates except 9 are mechanical.
 
 | ID | Decision | Why it matters | Evidence / owner |
 |---|---|---|---|
-| SEC-01 | `forbid(unsafe_code)` outside kernel/arch; every unsafe site categorised with `// SAFETY:` | Bounds and audits the TCB | `docs/src/verification/unsafe-charter.md`; Gate 2 |
+| SEC-01 | `forbid(unsafe_code)` outside kernel/arch; every unsafe site categorised with `// SAFETY:` | Bounds and audits the TCB | `docs/src/assurance/unsafe-charter.md`; Gate 2 |
 | SEC-02 | No silent TOFU; provisioning requires `--allow-tofu-provision` | Prevents accidental trust-on-first-use | RFC-v0.17-001; `cargo xtask provision-dev` |
 | SEC-03 | Signed bundles verified (Ed25519/RFC 8032) before execution | Authenticity of deployed binaries | `fjell-sig-ed25519`, `fjell-bundle-format` |
 | SEC-04 | Crypto relies on audited primitives (dalek Ed25519, Argon2id, AES-256-GCM) | Avoids custom crypto | dependency manifest |

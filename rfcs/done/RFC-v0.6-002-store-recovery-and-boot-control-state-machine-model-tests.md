@@ -276,9 +276,9 @@ The harness is the strategy. Self-tests:
 ## 13. Documentation Requirements
 
 ```text
-docs/src/verification/v0.6-002-store-recovery-model.md
-docs/src/verification/v0.6-002-bootctl-model.md
-docs/src/verification/v0.6-002-properties.md
+docs/src/assurance/v0.6-002-store-recovery-model.md
+docs/src/assurance/v0.6-002-bootctl-model.md
+docs/src/assurance/v0.6-002-properties.md
 docs/src/adr/v0.6-002-cross-model-stitching.md
 ```
 

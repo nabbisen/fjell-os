@@ -169,7 +169,7 @@ against the *same* corrupted input.
 5. `cargo xtask release-rehearsal` green; Gate 12 still **35/26/9**.
 6. `cargo xtask test-all` — all 19 tiers.
 7. `cargo fmt --all --check` clean.
-8. `docs/verification/instrument-audit.md` — Gate 4's row back to `sound`,
+8. `docs/src/assurance/instrument-audit.md` — Gate 4's row back to `sound`,
    citing demonstration 1 and **not** the tool's unit suite. That substitution
    is what made the row wrong the first time.
 

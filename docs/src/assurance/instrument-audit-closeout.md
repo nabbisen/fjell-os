@@ -1,6 +1,6 @@
 # Instrument Audit — Close-Out and Disposition
 
-**Governing RFC:** [RFC-0.24-001](../../rfcs/done/RFC-0.24-001-instrument-audit.md)
+**Governing RFC:** [RFC-0.24-001](../../../rfcs/done/RFC-0.24-001-instrument-audit.md)
 **Register:** [instrument-audit.md](./instrument-audit.md) — the authoritative
 row-level record; this document disposes of what it found.
 **Author:** architect
@@ -247,7 +247,7 @@ with items being fixed inside the same line.
 | **E-015** | Explicit-list and matrix staleness (§3.2) | ACCEPTED |
 | **E-016** | No link-or-count integrity instrument (§3.3) | ACCEPTED |
 
-`ERRATA.md` and `docs/release/v1-limitations.md` were updated **in the same
+`ERRATA.md` and `docs/src/release/v1-limitations.md` were updated **in the same
 edit**. Splitting them is what produced the live divergence the audit found;
 `errata-limitations` matches only the ID and would not have caught it a second
 time either.

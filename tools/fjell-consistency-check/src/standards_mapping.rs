@@ -1,7 +1,7 @@
 //! RFC-0.27-003: the `standards-mapping` subcheck (Gate 12's 9th subcheck).
 //!
 //! Verifies the row-level contract (RFC §R3) over
-//! `docs/compliance/standards-mapping.md`:
+//! `docs/src/compliance/standards-mapping.md`:
 //!
 //!   1. every status cell is from D4's closed vocabulary: `met`, `partial`,
 //!      `not-met`, `not-applicable`, `roadmap`, `unassessed`;
@@ -33,14 +33,14 @@
 //! Evidence-column paths are Markdown links (`[label](path)`), written
 //! relative to the mapping document's own directory — the same convention
 //! `doc-links` checks for every other tracked document — so they are
-//! resolved against `docs/compliance/`, not the repository root.
+//! resolved against `docs/src/compliance/`, not the repository root.
 
 use crate::read_file;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-const MAPPING_PATH: &str = "docs/compliance/standards-mapping.md";
-const MAPPING_DIR: &str = "docs/compliance";
+const MAPPING_PATH: &str = "docs/src/compliance/standards-mapping.md";
+const MAPPING_DIR: &str = "docs/src/compliance";
 const STATUS_VALUES: &[&str] = &[
     "met",
     "partial",
@@ -257,7 +257,7 @@ pub fn check() -> ExitCode {
 mod tests {
     use super::*;
 
-    const DIR: &str = "docs/compliance";
+    const DIR: &str = "docs/src/compliance";
 
     #[test]
     fn parses_a_well_formed_row() {

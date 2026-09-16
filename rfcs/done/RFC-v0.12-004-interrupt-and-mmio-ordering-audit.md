@@ -84,12 +84,12 @@ list — actual findings published with v0.12 landing):
 - IRQ-ack writes followed by re-enable reads without a `fence w,r`.
 - PLIC pending/claim ordering subtleties on real hardware vs. QEMU.
 
-Each finding is documented in `docs/verification/mmio-audit-v0.12.md`
+Each finding is documented in `docs/src/assurance/mmio-audit-v0.12.md`
 with the audit id, before/after, and the rationale.
 
 ## 5. Documentation deliverable
 
-`docs/verification/mmio-audit-v0.12.md` contains:
+`docs/src/assurance/mmio-audit-v0.12.md` contains:
 
 - Audit tool description.
 - Inventory at landing time (total sites, per-classification counts).
@@ -122,7 +122,7 @@ fresh audit.
    annotation; `--check` exits 0.
 3. `ci-mmio-audit` is wired into CI and into the host tier of
    `cargo xtask test-all`.
-4. `docs/verification/mmio-audit-v0.12.md` is committed with the full
+4. `docs/src/assurance/mmio-audit-v0.12.md` is committed with the full
    inventory and findings.
 5. Trust Report includes the audit summary subsection.
 6. On the chosen target (v0.12-002), the kernel boots and exercises

@@ -25,7 +25,7 @@ v0.15 consolidates and audits.
 
 ## 2. The recovery guide
 
-`docs/operations/recovery-guide.md` — the authoritative operator
+`docs/src/operations/recovery-guide.md` — the authoritative operator
 reference. Structure:
 
 ### 2.1 Quick-start triage
@@ -119,7 +119,7 @@ it. v0.15 requires:
   follow-up RFC reference.
 
 The follow-test attestation is committed at
-`docs/operations/recovery-guide-attestation.md`.
+`docs/src/operations/recovery-guide-attestation.md`.
 
 ## 4. Trust Report integration
 
@@ -138,7 +138,7 @@ candidate per the v0.15-001 freeze discipline.
 
 ## 6. Acceptance criteria
 
-1. `docs/operations/recovery-guide.md` exists and covers §2.
+1. `docs/src/operations/recovery-guide.md` exists and covers §2.
 2. Every entry in v0.13-005's DR table (DR1–DR8) has a section in the
    guide.
 3. Every boot/DTB failure mode from v0.12-003 has a section.

@@ -30,7 +30,7 @@ out-of-band help.
 | v0.12-002 | Real-Board Target Selection (or Hardened QEMU Fallback) | Decision + `BoardProfile` |
 | v0.12-003 | DTB and Boot Handoff Validation | Boot-time DTB checker |
 | v0.12-004 | Interrupt and MMIO Ordering Audit | Audit report + fence audit pass |
-| v0.12-005 | Field Operations Notes and Deployment Guide | `docs/deployment/<target>.md` |
+| v0.12-005 | Field Operations Notes and Deployment Guide | `docs/src/deployment/<target>.md` |
 
 The work is sequential: target choice (002) gates everything that
 references its devices, ordering, and firmware behaviour.

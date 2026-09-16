@@ -7,7 +7,7 @@ release.*
 *Every command must produce the documented output or the step is FAIL.*
 
 *For every release before `v1.0.0`, use the
-[v0 Development Release Cycle](../src/release/v0-release-cycle.md)
+[v0 Development Release Cycle](./v0-release-cycle.md)
 (RFC-v0.21.3-002) instead — this checklist does not apply there.*
 
 ---
@@ -104,7 +104,7 @@ cd docs && mdbook build && cd ..
 ## Step 7 — v1.0 Readiness Matrix: zero OPEN cells
 
 ```bash run-verified
-grep "OPEN" docs/release/v1-readiness.md
+grep "OPEN" docs/src/release/v1-readiness.md
 # Expected: empty output (no OPEN cells)
 ```
 
@@ -164,11 +164,11 @@ done
 ## Step 10 — Attest the release manifest
 
 ```bash
-cargo xtask trust-report --out docs/release/v1.0.0/trust-report.txt
+cargo xtask trust-report --out docs/src/release/v1.0.0/trust-report.txt
 cargo xtask sign-bundle \
-    --bundle docs/release/v1.0.0/trust-report.txt \
+    --bundle docs/src/release/v1.0.0/trust-report.txt \
     --key    /path/to/v1.0-release.key \
-    --out    docs/release/v1.0.0/trust-report.txt.sig
+    --out    docs/src/release/v1.0.0/trust-report.txt.sig
 ```
 
 ---
@@ -193,7 +193,7 @@ The subcommand is `package-release`, not `release`, and it takes no
 `--version` flag — the version comes from `Cargo.toml` directly. Unpacks to
 a single top-level `fjell-os-v{version}/` directory (this project's
 convention; see the
-[v0 Development Release Cycle](../src/release/v0-release-cycle.md)
+[v0 Development Release Cycle](./v0-release-cycle.md)
 §Release archive convention — the same convention applies to `v1.0.0`).
 
 ```bash run-verified
@@ -229,4 +229,4 @@ Threat ref:  T<n> (RFC-v0.15-002)
 References:  commit hash, RFCs
 ```
 
-Committed to `docs/security/advisories/FSAD-YYYY-NNN.md`.
+Committed to `docs/src/security/advisories/FSAD-YYYY-NNN.md`.

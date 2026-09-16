@@ -2,7 +2,7 @@
 //! trust-anchor provisioning.
 //!
 //! Architect ruling (v0.18.3 review §4.4, recorded in
-//! docs/verification/verus/review-records/v0.18-architect-review-decisions.md):
+//! docs/src/assurance/proofs/review-records/v0.18-architect-review-decisions.md):
 //!
 //!   Development/QEMU profile: TOFU allowed ONLY with the explicit
 //!   `--allow-tofu-provision` flag. Silent default TOFU is prohibited.

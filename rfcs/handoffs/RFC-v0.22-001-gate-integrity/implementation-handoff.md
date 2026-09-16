@@ -141,7 +141,7 @@ has a recorded real violation, which is why they qualify:
 
 | Subcheck | Rule | Violation on record |
 |---|---|---|
-| `errata-limitations` | Every `ACCEPTED` erratum appears in `docs/release/v1-limitations.md` | E-011 |
+| `errata-limitations` | Every `ACCEPTED` erratum appears in `docs/src/release/v1-limitations.md` | E-011 |
 | `rfc-status-folder` | Each RFC's `Status:` agrees with its folder | RFC 000's named anti-pattern |
 | `handoff-status` | Each handoff's status matches its governing RFC | The RFC-v0.21.3-001 handoff |
 

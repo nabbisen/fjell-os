@@ -151,7 +151,7 @@ to notice.
    before.
 6. **E-037 resolved honestly** — `CLOSED`, or `ACCEPTED` with every surviving
    instance named — text corrected either way, register and
-   `docs/release/v1-limitations.md` in the same commit.
+   `docs/src/release/v1-limitations.md` in the same commit.
 7. `release-rehearsal` green; `test-all` all tiers; `consistency-check --all`;
    `syscall-surface` 35/29/6; `callsite-audit` 5 checks.
 8. `cargo fmt --all --check`.

@@ -33,7 +33,7 @@ Out of scope: compromise of the underlying cryptographic primitive
 (would require a Fjell-wide algorithm migration, deferred to a
 post-v1.0 hybrid-mode RFC).
 
-## 3. The playbook (`docs/operations/key-compromise.md`)
+## 3. The playbook (`docs/src/operations/key-compromise.md`)
 
 For each scenario the document specifies:
 
@@ -165,11 +165,11 @@ Markers: `DRILL:S1:PASS`, `DRILL:S2:PASS`, `DRILL:S5:PASS`.
 S3 and S4 are not CI-feasible (S3 requires substituted anchors at
 install time; S4 requires destroying real key material). They are
 exercised by manual operator walkthrough at landing time, attested in
-`docs/operations/drill-attestation-v0.13.md`.
+`docs/src/operations/drill-attestation-v0.13.md`.
 
 ## 8. Acceptance criteria
 
-1. `docs/operations/key-compromise.md` exists and covers S1–S5.
+1. `docs/src/operations/key-compromise.md` exists and covers S1–S5.
 2. The five new xtask commands exist and work end-to-end against the
    reference fleet.
 3. `TrustAnchorRoot` is defined, provisioned in the reference fleet

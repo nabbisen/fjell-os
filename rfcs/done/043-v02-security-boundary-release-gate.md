@@ -45,7 +45,7 @@ until every checkbox below is satisfied:
 
 ### Documentation gates
 
-- `docs/security/threat-model-v0.2.md` exists and supersedes the
+- `docs/src/security/threat-model-v0.2.md` exists and supersedes the
   v0.1 threat model.
 - `docs/audit/v0.2-security-boundary-audit.md` exists and
   classifies every operation listed in RFC 029 as `OK` or

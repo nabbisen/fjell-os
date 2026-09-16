@@ -63,7 +63,7 @@ with an architect decision record.
 | Revocation bounded and atomic | Lease epoch monotonic; reply-edge cancellation on revoke | `crates/fjell-kernel/src/lease/`; Verus lease target |
 | No ambient authority | Every syscall capability-gated; default deny | `crates/fjell-kernel/src/trap/syscall.rs` |
 | Signed bundles | Ed25519 verify before execution | `fjell-sig-ed25519`, `fjell-bundle-format` |
-| Audited unsafe only | `forbid(unsafe_code)` + classified boundaries gate | `docs/src/verification/unsafe-charter.md` |
+| Audited unsafe only | `forbid(unsafe_code)` + classified boundaries gate | `docs/src/assurance/unsafe-charter.md` |
 | Reproducible build | Two-build digest comparison | `tests/repro/`, `fjell-repro-check` |
 
 ## 4. Key tradeoffs and decisions

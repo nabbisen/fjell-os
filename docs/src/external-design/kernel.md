@@ -123,7 +123,7 @@ that the resource exists (NFR-SEC-001).
   `trap/syscall.rs` has no dispatch arm for any of them (see §2, "Declared,
   not dispatched"); calling one returns `UnknownSyscall`. `driver-virtio-net`
   calls `sys_irq_bind`, but it is a documented early-exit stub
-  (`docs/release/v1-limitations.md`), so this is not exercised as a live
+  (`docs/src/release/v1-limitations.md`), so this is not exercised as a live
   interrupt path at v1.0.
 
 ## 7. Known gaps

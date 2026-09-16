@@ -4,7 +4,7 @@
 //! obligations over random inputs. They are empirical conformance evidence
 //! that the shipped predicates match the modeled behaviour — they are not
 //! proofs, and they never substitute for the Verus machine-check. Proof
-//! status is recorded in docs/verification/verus/review-records/ and the
+//! status is recorded in docs/src/assurance/proofs/review-records/ and the
 //! pinned toolchain in verification/verus/TOOLCHAIN.lock (the pilot
 //! obligations are machine-checked as of v0.17.1). The pack lists
 //! property/corpus tests as a valid conformance artifact (guides/03 §3).

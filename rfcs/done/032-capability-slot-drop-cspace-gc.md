@@ -202,5 +202,5 @@ Expected marker: `NEG:CAP:CSpace_REUSE_AFTER_DROP:PASS`.
 - Documentation updates required:
   `docs/architecture/cspace.md`,
   `docs/architecture/capability-drop.md`,
-  `docs/security/lazy-invalidation-and-cspace-gc.md`,
-  `docs/verification/cspace-invariants.md`.
+  `docs/src/security/lazy-invalidation-and-cspace-gc.md`,
+  `docs/src/assurance/cspace-invariants.md`.

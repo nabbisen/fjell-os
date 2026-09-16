@@ -50,7 +50,7 @@ VERUS:TARGET:<name>:FAIL
 ```text
 verification/verus/TOOLCHAIN.md
 verification/verus/verus-targets.toml
-docs/verification/verus/proof-gate-policy.md
+docs/src/assurance/proofs/proof-gate-policy.md
 ```
 
 ## 7. Failure isolation

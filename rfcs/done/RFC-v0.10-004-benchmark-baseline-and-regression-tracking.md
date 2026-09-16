@@ -92,7 +92,7 @@ A new tier in `cargo xtask test-all`:
 
 ## 6. Honest reporting
 
-The baseline file is published. The README and `docs/perf/baseline.md`
+The baseline file is published. The README and `docs/src/perf/baseline.md`
 publish a table of current numbers with caveats:
 
 - QEMU cycle counts are emulation artefacts, useful for relative
@@ -108,7 +108,7 @@ publish a table of current numbers with caveats:
    produce results.
 3. `docs/perf/baseline.json` is committed and version-1 schema valid.
 4. `cargo xtask bench` runs, compares, and exits non-zero on regression.
-5. The README links to `docs/perf/baseline.md` with current numbers
+5. The README links to `docs/src/perf/baseline.md` with current numbers
    and the caveats from §6.
 
 ## 8. Out of scope

@@ -486,7 +486,7 @@ Target: ≥ 12 host tests.
 ```text
 docs/src/architecture/v0.3-004-attestation-v2.md
 docs/src/development/v0.3-004-attestation-v2.md
-docs/src/verification/v0.3-004-attestation-v2-invariants.md
+docs/src/assurance/v0.3-004-attestation-v2-invariants.md
 docs/src/format/attestation-record-v2.md
 docs/src/adr/v0.3-004-attestation-v2.md
 ```

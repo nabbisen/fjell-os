@@ -112,7 +112,7 @@ more than the thing it corrected.
    in `expected-markers.txt` and in a real run** — demonstrated by a log promoted
    to `tests/evidence/` with provenance.
 5. RFC-0.26-004's invariant text corrected.
-6. `docs/release/v1-limitations.md:328`'s "startup-timing" cause corrected — it
+6. `docs/src/release/v1-limitations.md:328`'s "startup-timing" cause corrected — it
    is topology.
 7. **E-024 → `CLOSED`**; **E-031** filed or closed as the work decides. Register
    and `v1-limitations.md` edited in the **same commit**.

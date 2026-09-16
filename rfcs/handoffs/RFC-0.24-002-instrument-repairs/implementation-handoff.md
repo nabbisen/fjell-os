@@ -29,7 +29,7 @@ Stop and escalate.
    the fix, reproducing the audit's finding, and *after* the fix, confirming it
    now catches what it missed.
 2. The fix.
-3. The register row in `docs/verification/instrument-audit.md` moved from
+3. The register row in `docs/src/assurance/instrument-audit.md` moved from
    `finding` to `sound`, citing the demonstration.
 
 **Step 1 before step 2, always.** RFC-v0.22-001's governing principle is that a
@@ -60,7 +60,7 @@ demonstration was only ever run green proves nothing.
 | `crates/fjell-tools/src/negative.rs` | 4 |
 | `tools/fjell-abi-snapshot/src/main.rs` | 5 |
 | `tests/abi/snapshot.json` | 5 — only if the format changes |
-| `docs/verification/instrument-audit.md` | all — row updates |
+| `docs/src/assurance/instrument-audit.md` | all — row updates |
 
 **Explicitly NOT in scope** — the full list is in the RFC's non-goals; the ones
 you are most likely to reach for:
@@ -162,7 +162,7 @@ on. Slices 3 and 4 need no revert — nothing was constructed.
    categories unaffected by Slice 4.
 4. `cargo fmt --all --check` clean. *(Named explicitly because omitting it from
    RFC-v0.23-002's evidence list let a fmt failure surface at release prep.)*
-5. `docs/verification/instrument-audit.md` — seven rows moved `finding` →
+5. `docs/src/assurance/instrument-audit.md` — seven rows moved `finding` →
    `sound`, each citing its demonstration.
 
 ## 7. Review request

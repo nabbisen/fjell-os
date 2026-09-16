@@ -1,7 +1,7 @@
 # Fjell Verus Proofs
 
 Selective formal verification for small, stable, security-critical logic.
-Fjell stays Rust-first; see `docs/verification/verus/proof-gate-policy.md`.
+Fjell stays Rust-first; see `docs/src/assurance/proofs/proof-gate-policy.md`.
 
 ## Layout
 

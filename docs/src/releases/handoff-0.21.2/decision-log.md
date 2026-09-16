@@ -7,7 +7,7 @@ consciously revisit. Version: v0.21.2.*
 
 | ID | Decision | Why | Consequence | Source |
 |---|---|---|---|---|
-| DEC-001 | v1.0 is a narrow, supported QEMU profile, not a production OS | Honest scoping; the project would over-claim otherwise | Release notes must explicitly state every non-claim | `docs/release/v1.0-release-notes.md` |
+| DEC-001 | v1.0 is a narrow, supported QEMU profile, not a production OS | Honest scoping; the project would over-claim otherwise | Release notes must explicitly state every non-claim | `docs/src/release/v1.0-release-notes.md` |
 | DEC-002 | v1.0.0 cannot be tagged, published, or announced without explicit owner confirmation | Single human authority over the release event | No CI job or agent may apply the v1.0.0 tag | Architect review v0.20.0 §7 |
 | DEC-005 | Store/upgrade negative profiles deferred from the v1 gate | Late-stage scope control | Must be documented as non-gated; mandatory for v1.1 | Architect review v0.20.0 §4.2 |
 | DEC-006 | svc READY negative pair accepted as partial (2/4) for v1.0 | Timing-sensitive; not yet deterministic | Do not claim full service-lifecycle coverage | Architect review v0.20.0 §4.3 |

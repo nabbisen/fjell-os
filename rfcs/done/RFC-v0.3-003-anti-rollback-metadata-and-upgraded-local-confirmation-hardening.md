@@ -415,7 +415,7 @@ In `crates/fjell-storaged` or a new test bin:
 ```text
 docs/src/architecture/v0.3-003-anti-rollback.md
 docs/src/development/v0.3-003-anti-rollback.md
-docs/src/verification/v0.3-003-anti-rollback-invariants.md
+docs/src/assurance/v0.3-003-anti-rollback-invariants.md
 docs/src/adr/v0.3-003-anti-rollback.md
 docs/src/format/release-metadata.md
 docs/src/format/rollback-record.md

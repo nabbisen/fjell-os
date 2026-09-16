@@ -125,7 +125,7 @@ cargo xtask fleet status
 
 ## §3.5 Key compromise (DR2 + DR5)
 
-Follow the playbook in `docs/operations/key-compromise.md` (RFC-v0.13-003).
+Follow the playbook in `docs/src/operations/key-compromise.md` (RFC-v0.13-003).
 
 Quick reference:
 
@@ -216,5 +216,5 @@ cargo xtask fleet re-enrol --node <id>
 
 ---
 
-*Full DR scenarios (DR1–DR8): `docs/operations/disaster-recovery.md` (RFC-v0.13-005).*
-*Key compromise playbook: `docs/operations/key-compromise.md` (RFC-v0.13-003).*
+*Full DR scenarios (DR1–DR8): `docs/src/operations/disaster-recovery.md` (RFC-v0.13-005).*
+*Key compromise playbook: `docs/src/operations/key-compromise.md` (RFC-v0.13-003).*

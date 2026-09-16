@@ -71,7 +71,7 @@ capability in the init CSpace, and a `wait_service_ready` call before first IPC.
 
 - **Some services are smoke-test stubs** at v1.0 (`netd`,
   `driver-virtio-net`, and others signal ready and exit by design). This is
-  documented in `docs/release/v1-limitations.md`.
+  documented in `docs/src/release/v1-limitations.md`.
 - **Base userland commands (FR-SVC-006)** — the requirement lists list/read/
   write/etc. as a single-binary userland. At v1.0 the service plane exists but
   the full interactive command set is not the focus; the SDK reference service

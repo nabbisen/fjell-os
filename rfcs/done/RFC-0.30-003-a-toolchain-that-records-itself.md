@@ -9,7 +9,7 @@ machines/toolchains").
 **Touches.** `rust-toolchain.toml`, `.github/workflows/ci.yml`,
 `tools/fjell-repro-check`, `crates/fjell-tools` (provenance/trust-report
 writers), `docs/src/internals/local-development.md`,
-`docs/src/tutorials/quick-start.md`, `docs/release/release-checklist.md`.
+`docs/src/tutorials/quick-start.md`, `docs/src/release/release-checklist.md`.
 **Does not touch the kernel, the ABI surface, or any service.**
 **Relates to:** RFC-0.30-001 (E-036; this is its named residual);
 RFC-0.27-004 (the `.provenance.txt` format this extends); RFC-0.24-003.
@@ -29,7 +29,7 @@ below were re-derived for this RFC; none is inherited.
 | `Cargo.toml` | `rust-version = "1.91"` | 1 |
 | `docs/src/internals/local-development.md:7,21` | prerequisite table + `rustup toolchain install 1.91` | 1 |
 | `docs/src/tutorials/quick-start.md:10-11` | `apt install rustc-1.91 cargo-1.91 rust-1.91-src …` | 1 |
-| `docs/release/release-checklist.md:25` | `rustc --version \| grep "1.91"` | 1 |
+| `docs/src/release/release-checklist.md:25` | `rustc --version \| grep "1.91"` | 1 |
 
 Only `ci-docs` and `ci-fuzz-nightly` lack the install block. **A version bump is
 seventeen identical hand-edits plus five different ones** — not "an edit", and
@@ -43,7 +43,7 @@ installs `rust-src` — a second, quieter disagreement inside the same family.
 ### Finding 2 — one of them is a check, not two
 
 E-037 says "two of those are checks that would go on asserting 1.91 after a
-bump." **One is:** `docs/release/release-checklist.md:25`'s
+bump." **One is:** `docs/src/release/release-checklist.md:25`'s
 `rustc --version | grep "1.91"`. The rest are declarations or prose. The
 distinction matters because a check that asserts a stale number is worse than a
 document that does — it fails a correct build.
@@ -64,7 +64,7 @@ and it is why "one declaration" is harder here than it sounds.
 | Toolchain | For | Declared in |
 |---|---|---|
 | `1.91` (floating within `1.91.x`) | kernel, services, tools | `rust-toolchain.toml` + the 21 sites above |
-| `1.95.0-x86_64-unknown-linux-gnu` | the Verus prover (Gate 10) | `ci.yml:577`, `docs/src/internals/local-development.md:165`, `docs/src/verification/verus-setup.md:18` |
+| `1.95.0-x86_64-unknown-linux-gnu` | the Verus prover (Gate 10) | `ci.yml:577`, `docs/src/internals/local-development.md:165`, `docs/src/assurance/verus-setup.md:18` |
 | `nightly` | `cargo-fuzz` (`ci-fuzz-nightly`) | `ci.yml:549` only |
 
 `rust-toolchain.toml` describes one of the three. The other two are declared
@@ -195,7 +195,7 @@ as RFC-0.29-002 did for E-014. **Do not close it to tidy the register.** A
 partial close with two named survivors is a better record than a clean one that
 is not true.
 
-**R6 — If any instance survives, `docs/release/v1-limitations.md` says so** in
+**R6 — If any instance survives, `docs/src/release/v1-limitations.md` says so** in
 the reader's terms, not the register's.
 
 ### Non-goals

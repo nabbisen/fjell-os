@@ -60,7 +60,7 @@ bottom. Moving to structured data means either:
    design work with its own review cycle, and a rewrite of every one of
    the 38 entries currently in the file, not a fix this line's `Touches`
    covers (`crates/fjell-tools`, `tools/fjell-consistency-check`,
-   `tools/fjell-unsafe-audit`, `docs/verification/instrument-audit.md`).
+   `tools/fjell-unsafe-audit`, `docs/src/assurance/instrument-audit.md`).
 
 Shape 1 is not a rejection of shape 3 on principle — it is the answer that
 fits inside this line's actual scope. If a future line wants to size shape

@@ -180,7 +180,7 @@ passed" is not evidence it fuzzed.
 ## 6. R7 — criterion 9 reads scheduled runs
 
 In both `docs/src/release/v0-release-cycle.md` (the "Criterion 9 is read from
-the run" paragraph) and `docs/release/release-handoff.md` (the step that
+the run" paragraph) and `docs/src/release/release-handoff.md` (the step that
 records CI): the latest `schedule` run's id, its date, and its per-job table
 beside the release commit's push run.
 

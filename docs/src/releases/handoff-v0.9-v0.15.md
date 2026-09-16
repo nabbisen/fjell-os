@@ -143,15 +143,15 @@ toolkit regenerate     v0.14-003 — generated catalog emitters (prior session)
 | Path | Lines | Status |
 |------|-------|--------|
 | `docs/src/identity/v1-direction.md` | 80 | Distilled from RFC 061 |
-| `docs/release/v1-readiness.md` | 119 | Live tracking matrix |
-| `docs/release/v1-non-goals.md` | 184 | 20 items, four-headed format |
-| `docs/security/threat-model-v1.md` | 214 | 20 in-scope, 8 out-of-scope |
-| `docs/release/release-checklist.md` | 183 | Mechanical procedure |
-| `docs/operations/recovery-guide.md` | 220 | Failure-mode catalogue |
-| `docs/deployment/starfive-visionfive2.md` | 119 | Has TODO markers |
+| `docs/src/release/v1-readiness.md` | 119 | Live tracking matrix |
+| `docs/src/release/v1-non-goals.md` | 184 | 20 items, four-headed format |
+| `docs/src/security/threat-model-v1.md` | 214 | 20 in-scope, 8 out-of-scope |
+| `docs/src/release/release-checklist.md` | 183 | Mechanical procedure |
+| `docs/src/operations/recovery-guide.md` | 220 | Failure-mode catalogue |
+| `docs/src/deployment/starfive-visionfive2.md` | 119 | Has TODO markers |
 | `docs/perf/baseline.json`, `.md` | 30 + 30 | x86-64 host numbers only |
 | `docs/sdk/lessons-from-v0.14.md` | 80 | 4 lessons logged |
-| `docs/verification/mmio-audit-v0.12.md` | 100 | Full inventory |
+| `docs/src/assurance/mmio-audit-v0.12.md` | 100 | Full inventory |
 | `platform/starfive-visionfive2/board-profile.toml` | 30 | Committed, untested on metal |
 
 ### 1.5 Code quality posture
@@ -404,7 +404,7 @@ architect's view on each would be welcome:
 
 ### 4.2 Threat model coverage
 
-`docs/security/threat-model-v1.md` enumerates **20 in-scope threats**
+`docs/src/security/threat-model-v1.md` enumerates **20 in-scope threats**
 (T1–T20) and **8 out-of-scope threats** (OS1–OS8) with rationale. Each
 `Tn` references an existing merged RFC.
 
@@ -530,7 +530,7 @@ That is a v0.16 candidate.
 
 ### 5.3 Recovery posture
 
-The recovery guide (`docs/operations/recovery-guide.md`) has a triage
+The recovery guide (`docs/src/operations/recovery-guide.md`) has a triage
 page and per-scenario procedures. Every documented symptom has a
 section. **None of these procedures has been operationally walked
 through** by a person who did not author them. RFC-v0.15-004 §3

@@ -435,7 +435,7 @@ DMA region.
 ```text
 docs/src/architecture/v0.4-003-secure-transport.md
 docs/src/development/v0.4-003-secure-transport.md
-docs/src/verification/v0.4-003-secure-transport-invariants.md
+docs/src/assurance/v0.4-003-secure-transport-invariants.md
 docs/src/format/sxt-channel-protocol.md
 docs/src/adr/v0.4-003-secure-transport-boundary.md
 docs/src/adr/v0.4-003-tls-cipher-suite.md

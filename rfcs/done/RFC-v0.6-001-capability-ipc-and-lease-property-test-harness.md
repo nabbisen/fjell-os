@@ -295,8 +295,8 @@ The harness *is* the test strategy. The harness itself is unit-tested:
 ## 13. Documentation Requirements
 
 ```text
-docs/src/verification/v0.6-001-property-test-harness.md
-docs/src/verification/v0.6-001-properties.md       — full list of properties
+docs/src/assurance/v0.6-001-property-test-harness.md
+docs/src/assurance/v0.6-001-properties.md       — full list of properties
 docs/src/adr/v0.6-001-proptest-as-verification.md
 ```
 

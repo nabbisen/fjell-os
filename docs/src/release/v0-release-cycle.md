@@ -2,7 +2,7 @@
 
 *Governed by RFC-v0.21.3-002. This is the operative procedure — follow it,
 don't just read it once. For a v1.0 release, use
-[the v1.0 release checklist](../../release/release-checklist.md)
+[the v1.0 release checklist](./release-checklist.md)
 instead; this cycle does not apply there.*
 
 This is the lightweight, actually-used release path for every v0.x release.
@@ -56,8 +56,8 @@ All four must hold before beginning:
 | 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
-gate.** [`docs/release/v1-limitations.md`](../../release/v1-limitations.md)
-and [`docs/compliance/standards-mapping.md`](../../compliance/standards-mapping.md)
+gate.** [`docs/src/release/v1-limitations.md`](./v1-limitations.md)
+and [`docs/src/compliance/standards-mapping.md`](../compliance/standards-mapping.md)
 each assert, row by row, that a specific mechanism exists and works a
 specific way. Gate 12's `standards-mapping` subcheck confirms every cited
 path in the mapping still exists — it does **not** confirm the cited
@@ -459,7 +459,7 @@ nowhere in this document or in RFC-v0.21.3-002 — a contributing gap named in
 absent is easy to read past, and it was.*
 
 **The implementer executes this cycle**, per the `R` column, following
-[`docs/release/release-handoff.md`](../../release/release-handoff.md) — the
+[`docs/src/release/release-handoff.md`](./release-handoff.md) — the
 standing handoff for every cut. Every RFC in this project gets a handoff; the
 cut had none, which is why it drifted to the architect for five consecutive
 releases (**E-039**). The architect retains exit criterion 8, which is
@@ -494,7 +494,7 @@ change (RFC-v0.21.3-002 Decision request 1, owner-accepted 2026-07-30).
 
 ## What this cycle does not cover
 
-- It does not replace [the v1.0 release checklist](../../release/release-checklist.md),
+- It does not replace [the v1.0 release checklist](./release-checklist.md),
   which stays authoritative for `v1.0.0` specifically (bundle signing,
   offline release key, attestation — deliberately heavier than any v0
   release needs).

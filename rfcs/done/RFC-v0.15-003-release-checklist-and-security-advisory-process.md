@@ -21,7 +21,7 @@ an emergency. v0.15 lands both as committed, rehearsed procedures.
 
 ## 2. Release checklist
 
-`docs/release/release-checklist.md` — a procedure that runs against a
+`docs/src/release/release-checklist.md` — a procedure that runs against a
 clean checkout to produce signed v1.0 artefacts.
 
 ### 2.1 Sequence
@@ -41,7 +41,7 @@ clean checkout to produce signed v1.0 artefacts.
 11. Attest the release manifest with the v1.0 release key.
 12. Publish release tarball + signatures to the release location.
 13. Tag the commit v1.0.0.
-14. Commit the Trust Report from step 5 to docs/release/v1.0.0/.
+14. Commit the Trust Report from step 5 to docs/src/release/v1.0.0/.
 ```
 
 Each step has a documented expected output. The checklist is itself
@@ -66,7 +66,7 @@ The v1.0 release key is distinct from the day-to-day signing key:
 
 - Stored on a workstation that does **not** participate in CI.
 - Used only at step 10–11 of the checklist.
-- Rotated per the cadence in `docs/security/key-policy.md` (post-v1.0
+- Rotated per the cadence in `docs/src/security/key-policy.md` (post-v1.0
   document; the v0.15 commitment is "rotation procedure exists from
   day one").
 
@@ -79,7 +79,7 @@ the checklist cleanly afterwards.
 
 ## 3. Security advisory process
 
-`docs/security/advisory-process.md` — what happens between
+`docs/src/security/advisory-process.md` — what happens between
 "vulnerability reported" and "patched release shipped."
 
 ### 3.1 Intake
@@ -116,7 +116,7 @@ written rationale in the advisory record.
 ### 3.4 Advisory artefact
 
 For each closed advisory, a record committed to
-`docs/security/advisories/FSAD-<year>-<seq>.md`:
+`docs/src/security/advisories/FSAD-<year>-<seq>.md`:
 
 ```text
 ID:            FSAD-2026-001
@@ -151,7 +151,7 @@ bound for compelling them to coordinate.
 
 Before v0.15 lands, the advisory process is exercised once
 end-to-end against a synthetic report. The rehearsal output is
-committed at `docs/security/advisory-process-rehearsal.md` as
+committed at `docs/src/security/advisory-process-rehearsal.md` as
 evidence the procedure works.
 
 ## 4. Linkage with v0.13-003
@@ -163,17 +163,17 @@ two are intentionally separate.
 
 ## 5. Acceptance criteria
 
-1. `docs/release/release-checklist.md` exists and covers §2.
+1. `docs/src/release/release-checklist.md` exists and covers §2.
 2. `cargo xtask release-checklist --dry-run` runs and validates each
    step.
 3. A full rehearsal of the checklist is committed against a
    v0.15.0-rc candidate.
-4. `docs/security/advisory-process.md` exists and covers §3.
+4. `docs/src/security/advisory-process.md` exists and covers §3.
 5. Severity rubric, timelines, advisory artefact template, and CVE
    handling are all written.
 6. The synthetic advisory rehearsal output is committed.
 7. The v1.0 release key is defined and its handling is documented in
-   `docs/security/key-policy.md` (placeholder content acceptable;
+   `docs/src/security/key-policy.md` (placeholder content acceptable;
    filled at v1.0 landing).
 
 ## 6. Out of scope

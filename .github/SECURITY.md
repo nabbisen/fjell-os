@@ -34,7 +34,7 @@ implied commitment is worse than a small explicit one.
 ## What's in scope
 
 The authoritative boundary is
-[`docs/security/threat-model-v1.md`](../docs/security/threat-model-v1.md),
+[`docs/src/security/threat-model-v1.md`](../docs/src/security/threat-model-v1.md),
 which enumerates 20 in-scope threats (T1–T20) with the mechanism defending
 each. Reports against any of them are in scope. In summary, that means:
 
@@ -76,7 +76,7 @@ Also out of scope:
 ## Known limitations
 
 Before reporting, it is worth reading
-[`docs/release/v1-limitations.md`](../docs/release/v1-limitations.md) and the
+[`docs/src/release/v1-limitations.md`](../docs/src/release/v1-limitations.md) and the
 errata register [`rfcs/ERRATA.md`](../rfcs/ERRATA.md). The project
 records what it knows is wrong, including gaps in its own verification
 instruments. A limitation already recorded there is not a vulnerability report,

@@ -18,7 +18,7 @@ explicit success criteria.
 
 ## 2. Deliverable
 
-A single document at `docs/deployment/<target>.md` covering:
+A single document at `docs/src/deployment/<target>.md` covering:
 
 ### 2.1 Prerequisites
 
@@ -95,7 +95,7 @@ Each row links to a longer treatment in the doc or a relevant RFC.
 - Documents are built by `cargo xtask docs build` (v0.10-006).
 - Code-block fixtures run in CI for QEMU paths.
 - Real-hardware paths require explicit operator attestation at landing;
-  the form is a small checklist committed to `docs/deployment/<target>-attestation-<vN>.md`
+  the form is a small checklist committed to `docs/src/deployment/<target>-attestation-<vN>.md`
   carrying the attesting operator's signature (under the v0.11 keyring).
 
 ## 6. Operator interaction with the trust spine
@@ -114,7 +114,7 @@ document them, and link to the RFCs that will smooth them in v0.13.
 
 ## 7. Acceptance criteria
 
-1. `docs/deployment/<target>.md` exists, covering all of §2.
+1. `docs/src/deployment/<target>.md` exists, covering all of §2.
 2. `cargo xtask docs build` passes including fixture verification.
 3. An outside operator can deploy Fjell to the chosen target by
    following the guide alone. ("Outside" means not the document

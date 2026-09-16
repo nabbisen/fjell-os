@@ -6,7 +6,7 @@
 run"* to *"it is never run, it could not fail if it were, and neither mode
 covers the kernel."*
 **Touches.** `tools/fjell-repro-check`, `tests/repro/baseline-digests.txt`,
-`docs/security/threat-model-v1.md` (**T20**), the release cycle. **Does not touch
+`docs/src/security/threat-model-v1.md` (**T20**), the release cycle. **Does not touch
 the kernel source, the ABI, or any service.**
 **Relates to:** **E-037** (the toolchain is recorded with no artefact — the
 reason cross-machine reproducibility is untestable today); RFC-0.24-002 (whose
@@ -14,7 +14,7 @@ reason cross-machine reproducibility is untestable today); RFC-0.24-002 (whose
 
 ## Summary
 
-`docs/security/threat-model-v1.md` **T20** — *Reproducibility-failure-as-
+`docs/src/security/threat-model-v1.md` **T20** — *Reproducibility-failure-as-
 substitution* — states its defence as:
 
 > *"RFC-v0.10-003 (reproducible build gate). **Two-build SHA-256 digest

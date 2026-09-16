@@ -23,7 +23,7 @@ Current version: **0.31.0**. Release tags carry no `v` prefix.
 
 **v1.0 is explicitly not in view** (owner decision, 2026-07-30); v0 development
 continues, and functional advancement precedes any v1.0 consideration. The
-`docs/release/v1-*` documents below are the standing scope statement for that
+`docs/src/release/v1-*` documents below are the standing scope statement for that
 eventual work, not a claim that it is imminent.
 
 ---
@@ -39,7 +39,7 @@ Fjell is for operators who need to answer three questions about every node in th
 Primary archetypes: industrial gateway (A1), sensor/edge fleet node (A2), regulated field device (A3).
 
 Not for: general-purpose servers, desktop environments, POSIX-compatible workloads.
-See [v1.0 Non-Goals](docs/release/v1-non-goals.md).
+See [v1.0 Non-Goals](docs/src/release/v1-non-goals.md).
 
 ---
 
@@ -81,15 +81,15 @@ cargo xtask trust-report --dry-run
 
 - [Full documentation](docs/src/SUMMARY.md)
 - [v1.0 Identity and Direction](docs/src/identity/v1-direction.md)
-- [v1.0 Readiness Matrix](docs/release/v1-readiness.md) — 55 DONE, 3 DEFERRED, 0 OPEN
-- [v1.0 Non-Goals](docs/release/v1-non-goals.md) — 23 explicitly scoped items
-- [Threat Model](docs/security/threat-model-v1.md) — 20 in-scope threats
+- [v1.0 Readiness Matrix](docs/src/release/v1-readiness.md) — 55 DONE, 3 DEFERRED, 0 OPEN
+- [v1.0 Non-Goals](docs/src/release/v1-non-goals.md) — 23 explicitly scoped items
+- [Threat Model](docs/src/security/threat-model-v1.md) — 20 in-scope threats
 - [Trust Report](releases/trust-report.txt)
 - [RFC Process](rfcs/README.md) — 154 files in `done/`
-- [Deployment: StarFive VisionFive 2](docs/deployment/starfive-visionfive2.md)
-- [Fleet Demo Tutorial](examples/three-node-fleet/README.md)
-- [Performance Baseline](docs/perf/baseline.md)
-- [MMIO Audit Report](docs/verification/mmio-audit-v0.12.md)
+- [Deployment: StarFive VisionFive 2](docs/src/deployment/starfive-visionfive2.md)
+- [Fleet Demo Tutorial](docs/src/tutorials/three-node-fleet.md)
+- [Performance Baseline](docs/src/perf/baseline.md)
+- [MMIO Audit Report](docs/src/assurance/mmio-audit-v0.12.md)
 
 ---
 

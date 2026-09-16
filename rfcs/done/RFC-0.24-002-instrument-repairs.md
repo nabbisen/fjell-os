@@ -321,7 +321,7 @@ otherwise.
       negative categories unaffected.
 - [ ] `cargo fmt --all --check` clean. *(Named explicitly: omitting it from
       RFC-v0.23-002's evidence list surfaced a fmt failure at release prep.)*
-- [ ] `docs/verification/instrument-audit.md` updated — each repaired
+- [ ] `docs/src/assurance/instrument-audit.md` updated — each repaired
       instrument's row moves from `finding` to `sound`, citing the
       demonstration.
 - [ ] No instrument added. No finding outside these seven touched.

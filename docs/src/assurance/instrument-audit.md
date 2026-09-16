@@ -1,7 +1,7 @@
 # Instrument Audit Register
 
-**Governing RFC:** [RFC-0.24-001](../../rfcs/done/RFC-0.24-001-instrument-audit.md)
-**Handoff:** [implementation-handoff.md](../../rfcs/handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md)
+**Governing RFC:** [RFC-0.24-001](../../../rfcs/done/RFC-0.24-001-instrument-audit.md)
+**Handoff:** [implementation-handoff.md](../../../rfcs/handoffs/RFC-0.24-001-instrument-audit/implementation-handoff.md)
 **Close-out and disposition:** [instrument-audit-closeout.md](./instrument-audit-closeout.md)
 — this file is the authoritative row-level record; the close-out disposes of
 what it found (repairs, errata E-013/E-014/E-015/E-016, and 0.25 candidates).
@@ -370,7 +370,7 @@ they still hold, not re-derived from scratch.
 ### Gate 5 — Readiness matrix (0 OPEN) — **finding**
 
 - **Claim:** the v1.0 readiness matrix has zero items blocking release.
-- **Actual:** parses `docs/release/v1-readiness.md`, counts table rows
+- **Actual:** parses `docs/src/release/v1-readiness.md`, counts table rows
   containing the exact literal `**OPEN**`; passes iff that count is zero.
   Only four status literals are recognized at all: `**DONE**`,
   `**IN PROGRESS**`/`IN_PROGRESS`, `**DEFERRED**`, `**OPEN**`.
@@ -469,7 +469,7 @@ they still hold, not re-derived from scratch.
 
 ### Gate 9 — Release-notes limitations — **UNAUDITED**
 
-- **Claim:** `docs/release/v1-limitations.md` covers hardware, multi-hart,
+- **Claim:** `docs/src/release/v1-limitations.md` covers hardware, multi-hart,
   POSIX, kernel-IPC, ZeroizeOnDrop, and trust-anchor provisioning.
 - **Actual:** printed as a manual reminder; not auto-checked by design
   (`release_rehearsal.rs` prints `[ -- ]`, never `[PASS]`/`[FAIL]`, for this
@@ -842,7 +842,7 @@ regardless of what the note actually says. Re-ran the exact command to
 confirm:
 ```
 $ cargo run -q -p fjell-tools -- consistency-check --all
-errata-limitations: PASS (4 ACCEPTED errata, all referenced in docs/release/v1-limitations.md)
+errata-limitations: PASS (4 ACCEPTED errata, all referenced in docs/src/release/v1-limitations.md)
 ```
 This is not a constructed demonstration — it is the artifact's present,
 uncorrected state, produced as a side effect of this RFC's own Pass 1
@@ -1467,7 +1467,7 @@ never its goal.
 
 Slice 8 (above) became its own RFC when sizing it found three further scanner
 defects (B, C, D) that were *what made the duplicates* — see
-[RFC-0.24-003](../../rfcs/done/RFC-0.24-003-abi-snapshot-identity.md). R1's
+[RFC-0.24-003](../../../rfcs/done/RFC-0.24-003-abi-snapshot-identity.md). R1's
 own duplicate-key check, run for the first time against a corrected scanner,
 found a fourth (impl scope, repaired as R6) — the first defect in this entire
 milestone caught by an instrument's own guard rather than a person.

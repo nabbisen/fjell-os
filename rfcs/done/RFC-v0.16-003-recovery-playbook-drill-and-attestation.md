@@ -12,7 +12,7 @@ and the follow-test attestation required by RFC-v0.15-004 §3 was missing.
 ## Change
 
 Walked the recovery guide against the reference environment and committed
-`docs/operations/recovery-drills/v0.16-dr-walkthrough.md`. Scenarios
+`docs/src/operations/recovery-drills/v0.16-dr-walkthrough.md`. Scenarios
 exercised against real crate APIs (not just read):
 
 - **DR1 Coordinator loss** — `CoordinatorPromotion`, operator-signed path.

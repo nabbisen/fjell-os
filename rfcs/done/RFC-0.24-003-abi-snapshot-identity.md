@@ -279,7 +279,7 @@ items, assign causes — and the review request must say so explicitly.
 - [ ] `cargo xtask release-rehearsal` green; Gate 12 still **35/26/9**.
 - [ ] `cargo xtask test-all` — all 19 tiers.
 - [ ] `cargo fmt --all --check` clean.
-- [ ] `docs/verification/instrument-audit.md`: Gate 4's row returns to `sound`,
+- [ ] `docs/src/assurance/instrument-audit.md`: Gate 4's row returns to `sound`,
       citing the demonstration above — not the tool's unit suite.
 
 ## A note on what this milestone is turning out to be

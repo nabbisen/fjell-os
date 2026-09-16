@@ -189,7 +189,7 @@ fn main() -> ExitCode {
             let path = args
                 .get(1)
                 .map(String::as_str)
-                .unwrap_or("docs/release/v1-readiness.md");
+                .unwrap_or("docs/src/release/v1-readiness.md");
             let status = std::process::Command::new("cargo")
                 .args(["run", "-p", "fjell-readiness-check", "--", "--matrix", path])
                 .status()

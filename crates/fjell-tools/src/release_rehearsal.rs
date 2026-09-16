@@ -273,7 +273,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
 
     println!(
         "\n  [ -- ] Gate 9  Release-notes limitations    MANUAL: confirm \
-              docs/release/v1-limitations.md covers hardware, multi-hart, POSIX, \
+              docs/src/release/v1-limitations.md covers hardware, multi-hart, POSIX, \
               kernel-IPC, ZeroizeOnDrop, trust-anchor provisioning"
     );
 

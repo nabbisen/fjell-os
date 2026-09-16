@@ -492,7 +492,7 @@ row.
 ```text
 docs/src/architecture/v0.3-001-trust-provider.md      — overall architecture
 docs/src/development/v0.3-001-trust-provider.md       — implementer notes
-docs/src/verification/v0.3-001-trust-provider-invariants.md
+docs/src/assurance/v0.3-001-trust-provider-invariants.md
 docs/src/adr/v0.3-001-trust-provider-boundary.md      — security-boundary ADR
 ```
 

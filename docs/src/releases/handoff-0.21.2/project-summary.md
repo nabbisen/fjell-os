@@ -51,11 +51,11 @@ Apache-2.0, author nabbisen. Full requirements live in
 
 | Area | Status | Evidence | Owner | Notes |
 |---|---|---|---|---|
-| Requirements | Done | `rfcs/done/` (154 resolved RFCs), `docs/release/v1-limitations.md` | nabbisen | v1.0 scope frozen |
+| Requirements | Done | `rfcs/done/` (154 resolved RFCs), `docs/src/release/v1-limitations.md` | nabbisen | v1.0 scope frozen |
 | External design | Done | `rfcs/`, `docs/src/adr/` (10 current ADRs) | nabbisen | Crate boundaries reorganized v0.21.0 |
 | Implementation | Done | `cargo xtask build` (zero warnings at v0.21.2) | — | 80 crates; kernel + 29 service programs |
 | Tests / proofs | Done | `cargo xtask release-rehearsal` (Gates 1–8,10,11 pass); Verus capability 8/8, lease 5/5 | — | Gate 9 manual, pending — *superseded, see note below* |
-| Release readiness | Partial | `docs/release/v1.0-release-notes.md` | nabbisen | Gate 9 sign-off is the only blocker — *superseded, see note below* |
+| Release readiness | Partial | `docs/src/release/v1.0-release-notes.md` | nabbisen | Gate 9 sign-off is the only blocker — *superseded, see note below* |
 
 *(Superseded — RFC-v0.21.3-001: at v0.21.2 the workspace manifest did not
 parse, so `cargo xtask release-rehearsal` could not actually run; the
@@ -70,7 +70,7 @@ preserve or consciously revisit:
 
 | ID | Decision | Why | Consequence | Source |
 |---|---|---|---|---|
-| DEC-001 | v1.0 is a narrow QEMU profile, not a production OS | Honest scoping; avoids over-claiming | Release notes must state every non-claim | `docs/release/v1.0-release-notes.md` |
+| DEC-001 | v1.0 is a narrow QEMU profile, not a production OS | Honest scoping; avoids over-claiming | Release notes must state every non-claim | `docs/src/release/v1.0-release-notes.md` |
 | DEC-002 | v1.0.0 cannot be tagged/published without owner confirmation | Single human authority over the release | No CI or agent may tag v1.0.0 | Architect review v0.20.0 |
 | DEC-003 | Selective Verus boundary (capability + lease only) | Verifying everything is infeasible; verify the security-critical predicates | IPC/service-manager are tested, not proven | RFC-v0.18-001 |
 | DEC-004 | Crate subdirectory grouping (arch/drivers/formats/services) | 80 flat crates were unnavigable | Path deps relative to subdir; names unchanged | CHANGELOG v0.21.0 |
@@ -87,8 +87,8 @@ preserve or consciously revisit:
 
 ## 6. Next-step recommendation
 
-1. **Owner (nabbisen):** read `docs/release/v1-limitations.md` and
-   `docs/release/v1.0-release-notes.md`; sign Gate 9. *Blocking dependency for
+1. **Owner (nabbisen):** read `docs/src/release/v1-limitations.md` and
+   `docs/src/release/v1.0-release-notes.md`; sign Gate 9. *Blocking dependency for
    everything below.*
 2. **Owner:** after Gate 9, confirm the v1.0.0 tag explicitly (publication
    control). Expected artifact: the v1.0.0 git tag and release archive.

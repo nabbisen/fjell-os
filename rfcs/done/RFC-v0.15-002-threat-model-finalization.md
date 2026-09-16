@@ -18,7 +18,7 @@ operator must defend instead.
 
 ## 2. The threat model document
 
-`docs/security/threat-model-v1.md` is the deliverable. Its structure:
+`docs/src/security/threat-model-v1.md` is the deliverable. Its structure:
 
 ### 2.1 Adversary model (by capability, not by archetype)
 
@@ -128,7 +128,7 @@ gate verdict.
 
 ## 5. Acceptance criteria
 
-1. `docs/security/threat-model-v1.md` exists and covers §2.
+1. `docs/src/security/threat-model-v1.md` exists and covers §2.
 2. Every T<n> in-scope item references an existing merged RFC.
 3. Every OS<n> out-of-scope item has explicit rationale.
 4. Capability table from §2.1 is complete.

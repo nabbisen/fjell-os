@@ -41,7 +41,7 @@ Each entry has a runbook section with:
 - Verification (criteria for "back to normal").
 - Post-incident attestation (what to commit to the audit chain).
 
-The runbook is committed at `docs/operations/disaster-recovery.md`.
+The runbook is committed at `docs/src/operations/disaster-recovery.md`.
 
 ## 3. Semantic summary consistency
 
@@ -111,7 +111,7 @@ After any DR scenario closes, the operator commits:
 - The signed manifests produced (rotation, revocation, reconcile,
   promotion).
 - The runbook section followed, with any deviations noted.
-- A short narrative committed to `docs/operations/incidents/<date>.md`.
+- A short narrative committed to `docs/src/operations/incidents/<date>.md`.
 
 These artefacts feed the next Trust Report and the v0.15 threat-model
 finalisation: incident data tells us which threats were exercised.
@@ -128,11 +128,11 @@ scenarios:
 - Promotion procedure (success path).
 
 DR2, DR3, DR6, DR8 require manual operator walkthrough at landing and
-are attested in `docs/operations/dr-attestation-v0.13.md`.
+are attested in `docs/src/operations/dr-attestation-v0.13.md`.
 
 ## 7. Acceptance criteria
 
-1. `docs/operations/disaster-recovery.md` exists with full coverage
+1. `docs/src/operations/disaster-recovery.md` exists with full coverage
    of DR1–DR8.
 2. `tools/fjell-summary-check/` exists, runs the static and temporal
    checks, and is invoked by the coordinator on every ingested

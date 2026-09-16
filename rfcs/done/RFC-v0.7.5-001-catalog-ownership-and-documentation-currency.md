@@ -430,7 +430,7 @@ ADR-v0.7.5-001.
 - docs/src/reference/semantic-catalog-governance.md created.
 - docs/src/reference/platform-info-syscalls.md updated.
 - docs/src/internals/unsafe-audit.csv committed.
-- docs/src/verification/unsafe-charter.md updated with the seven categories and per-
+- docs/src/assurance/unsafe-charter.md updated with the seven categories and per-
   category invariant guidance.
 - CHANGELOG.md v0.7.5 entry lists every deprecation.
 ```

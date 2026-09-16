@@ -221,8 +221,8 @@ preserves O(1) hot-path cost.
   stabilisation.
 - Documentation updates required:
   `docs/architecture/capability-enforcement.md`,
-  `docs/security/capability-threat-model.md`,
-  `docs/verification/capability-invariants.md`,
+  `docs/src/security/capability-threat-model.md`,
+  `docs/src/assurance/capability-invariants.md`,
   `docs/abi/syscall-capability-requirements.md`.
 - The initial `ObjectScope` implementation may support only `Any`,
   `Task`, `Endpoint`, `Lease`, `MmioRegion`, `DmaRegion`.  Other

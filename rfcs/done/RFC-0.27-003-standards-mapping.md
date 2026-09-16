@@ -5,7 +5,7 @@
 **Tracks.** BIZ-06 from the system proposal: a maintained mapping from CRA
 Annex I and IEC 62443-4-1/4-2 to Fjell mechanisms and evidence artifacts, with
 per-clause status.
-**Touches.** `docs/compliance/` (new), `tools/fjell-consistency-check`,
+**Touches.** `docs/src/compliance/` (new), `tools/fjell-consistency-check`,
 Gate 12's subcheck count. **Does not touch the kernel, the ABI, or any service.**
 **Relates to:** **E-027** (a gate asserted in published documentation that was
 never built — this RFC's failure mode, already realised once); **E-023** (four
@@ -65,7 +65,7 @@ exist.
 
 More than the proposal credits. The mapping is largely a re-presentation of
 artifacts that ship today: the 12 release-rehearsal gates, 21 test tiers, the
-threat model's T1–T20 and OS1–OS8, `docs/release/v1-limitations.md`, the errata
+threat model's T1–T20 and OS1–OS8, `docs/src/release/v1-limitations.md`, the errata
 register, `trust-report.txt`, the unsafe and MMIO audits, the ABI snapshot, the
 reproducible-build baseline, the Verus proofs, and `.github/SECURITY.md` as
 corrected on 2026-08-31.
@@ -130,7 +130,7 @@ signal, not a success signal**, and the implementer should expect that.
 
 ## The actual deliverable — R1…R5
 
-**R1 — `docs/compliance/standards-mapping.md`.** One document, two parts: CRA
+**R1 — `docs/src/compliance/standards-mapping.md`.** One document, two parts: CRA
 Annex I (Parts I and II) clause-level; IEC 62443-4-1/4-2 structural per D3.
 Every row: identifier, requirement (sourced per D2/D3), status per D4, the Fjell
 mechanism, and **a repository-relative path to the evidence**.
@@ -182,7 +182,7 @@ the next line's work — but this is the implementer's to argue.
 
 ## Scope
 
-`docs/compliance/standards-mapping.md`; `tools/fjell-consistency-check`;
+`docs/src/compliance/standards-mapping.md`; `tools/fjell-consistency-check`;
 `docs/src/release/v0-release-cycle.md`; `rfcs/README.md`; `rfcs/ERRATA.md`
 if the mapping surfaces a gap worth a row.
 

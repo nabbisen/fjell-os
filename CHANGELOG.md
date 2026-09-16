@@ -211,7 +211,7 @@ package names, so the two survivors cannot be resolved independently).
 ### The cut itself
 
 **The first release cut run by the implementer**, against a written handoff
-(`docs/release/release-handoff.md`) rather than from the architect's memory —
+(`docs/src/release/release-handoff.md`) rather than from the architect's memory —
 five prior releases had no such document and were prepared by the architect
 regardless of what the cycle's own Roles table said (**E-039**). One cycle-
 document defect was found and fixed by checking the entry criteria as
@@ -502,7 +502,7 @@ independent of scheduling entirely.
 
 ### Added — a standards mapping, and the instrument that keeps it honest (RFC-0.27-003)
 
-`docs/compliance/standards-mapping.md`: 37 rows against CRA Annex I
+`docs/src/compliance/standards-mapping.md`: 37 rows against CRA Annex I
 (clause-level, transcribed from Regulation (EU) 2024/2847 with retrieval date)
 and IEC 62443-4-1/4-2 (**structural only** — both are paywalled and neither is
 transcribed or paraphrased).
@@ -774,10 +774,10 @@ something else. Eleven for eleven, by accident.
 
 ### Added — the instrument audit (RFC-0.24-001)
 
-- `docs/verification/instrument-audit.md` — one register, one row per
+- `docs/src/assurance/instrument-audit.md` — one register, one row per
   instrument, four passes: the 12 release-rehearsal gates, the 19 `test-all`
   tiers, the 8 committed state-asserting artifacts, the 16 CI jobs.
-- `docs/verification/instrument-audit-closeout.md` — the disposition: what was
+- `docs/src/assurance/instrument-audit-closeout.md` — the disposition: what was
   repaired, what was deferred and to which erratum, and what the audit found
   about the review process itself.
 - A five-mode taxonomy — scope blindness, proxy attestation, fail-open on
@@ -947,7 +947,7 @@ green while a documented rule went unmet.
     dispatched match arms, and a committed `tests/syscall/expected.toml`
     (35 declared, 26 dispatched, the explicit 9-name undispatched set).
   - `errata-limitations` — every `ACCEPTED` erratum in `rfcs/ERRATA.md`
-    must be referenced in `docs/release/v1-limitations.md`.
+    must be referenced in `docs/src/release/v1-limitations.md`.
   - `rfc-status-folder` — each RFC's `Status:` field must agree with its
     `rfcs/proposed/` vs. `rfcs/done/` folder.
   - `handoff-status` — each handoff's inherited Status must match its
@@ -1161,7 +1161,7 @@ alignment · docs/codebase alignment).
 ### Fixed — documentation / codebase alignment (Dimension 5)
 
 - **README version badge**: was `0.15.1`, now `0.21.0`.
-- **`docs/verification/mmio-audit-v0.12.md`**: updated three crate paths to
+- **`docs/src/assurance/mmio-audit-v0.12.md`**: updated three crate paths to
   `crates/services/` after the v0.21.0 reorganization.
 - **`docs/src/sdk/writing-a-service.md`**: `crates/fjell-sample-service` →
   `crates/services/fjell-sample-service`.
@@ -1217,7 +1217,7 @@ following the same discipline applied to the root directory in v0.20.2.
 - **`docs/src/getting-started/` removed**: not referenced by SUMMARY.md;
   unique FAQ content merged into `docs/src/faq.md`.
 - **`docs/src/perf/baseline.md`** synced with the full content from
-  `docs/perf/baseline.md` (was a 7-line stub).
+  `docs/src/perf/baseline.md` (was a 7-line stub).
 - **Empty template directories removed**: two brace-expansion artifact dirs
   in `docs/src/` (`{identity,release,...}` and `{intro,tutorials,...}`).
 - **`rfcs/archive/`** (empty) removed.
@@ -1255,7 +1255,7 @@ following the same discipline applied to the root directory in v0.20.2.
 ## [0.20.1] — v1.0 candidate: H-01 IPC ABI doc + H-02 WrongKind fix + release notes
 
 First supported release of Fjell OS for the `riscv64gc-unknown-none-elf` /
-QEMU `virt` profile. See `docs/release/v1.0-release-notes.md` for the
+QEMU `virt` profile. See `docs/src/release/v1.0-release-notes.md` for the
 full claim statement, the explicit limitation list, and the publication
 control requirement.
 
@@ -1289,7 +1289,7 @@ targets. The approved claim is:
   word-count packing requirement, the badge removal, the E-010 historical
   note, and the lease-bound IPC revocation semantics. Covered by ABI
   stability commitment (RFC-v0.10-002) from v1.0.0 onward.
-- **`docs/release/v1.0-release-notes.md`** — claim statement, prohibited
+- **`docs/src/release/v1.0-release-notes.md`** — claim statement, prohibited
   claims, Gate 9 limitation table, and publication control requirement.
 
 ### Validation
@@ -1358,7 +1358,7 @@ the ipc profile is restored to 3/3 markers.**
 - **RB-02** — Gate 11 (`callsite-audit`) is genuinely wired into
   `release-rehearsal` and blocking. (The v0.19.0 edit had silently no-opped;
   the gate line now appears in rehearsal output.)
-- **RB-03** — `docs/release/v1-limitations.md` placeholder statement replaced
+- **RB-03** — `docs/src/release/v1-limitations.md` placeholder statement replaced
   with the current per-category status, including the explicit non-gating of
   store/upgrade.
 - **RB-04** — `cargo xtask provision-dev` implemented. Refuses without the
@@ -1491,7 +1491,7 @@ mismatches were silently skipping scenarios).
   (LEASE-CALLSITE-001: no `wrapping_add` on lease epoch;
   CAP-CALLSITE-001: `is_subset_of` present in cspace.rs mint path;
   BCB-CALLSITE-001: no duplicate mirror-selection logic).
-- **`docs/verification/verus/review-records/v0.18-architect-review-decisions.md`**
+- **`docs/src/assurance/proofs/review-records/v0.18-architect-review-decisions.md`**
   — formal record of architect decisions D1–D6, the two-milestone exception
   text (D3), and the trust-anchor provisioning tier→mechanism ratification.
 - **RFC-v0.17-001 accepted** — moved to `rfcs/done/`; §4/§6 decision ratified:
@@ -1500,7 +1500,7 @@ mismatches were silently skipping scenarios).
 - **Scope guardrail** in `proof-gate-policy.md`: Verus stays out of
   drivers, scheduler, MMIO/DMA, and services.
 - **Boot-control promotion scheduled** in ledger (architect D5).
-- **`docs/release/v1-limitations.md` item 6** — updated from "pending" to the
+- **`docs/src/release/v1-limitations.md` item 6** — updated from "pending" to the
   ratified provisioning decision.
 
 ### Known findings recorded (not blocking)
@@ -1545,7 +1545,7 @@ machine-checked, full two-build reproducibility PASS.
 
 ### Documentation
 
-- **Gate 9 single source**: new `docs/release/v1-limitations.md`
+- **Gate 9 single source**: new `docs/src/release/v1-limitations.md`
   consolidating the six manual-check items with their governing records
   (E-004, N1, N21, N23, console single-hart invariant, RFC-v0.17-001);
   the rehearsal Gate 9 message now points at it.
@@ -1706,7 +1706,7 @@ No proof or shipped-code change; still Stage A, all targets non-blocking.
   recording `VERUS:TARGET:*:PASS` to the step summary and uploading
   `verus-markers.txt`. `continue-on-error: true` keeps Verus strictly
   non-blocking — it can never gate a merge or release (Stage A guarantee).
-- **Promotion ledger** in `docs/verification/verus/proof-gate-policy.md` —
+- **Promotion ledger** in `docs/src/assurance/proofs/proof-gate-policy.md` —
   tracks the two-milestone PASS criterion. v0.17.1 is recorded as the first
   CI PASS; the next tag's PASS clears the criterion, after which a target may
   be promoted by RFC amendment with architect sign-off.
@@ -1766,7 +1766,7 @@ Fjell remains Rust-first; proofs are additive and never a build dependency.
   — runs Verus if installed; otherwise conformance-only mode (Stage A).
   Emits `VERUS:TARGET:<name>:{PASS|FAIL|CONFORMANCE-ONLY}` + JSON.
 - **`verification/verus/{verus-targets.toml,TOOLCHAIN.md,README.md}`**.
-- **`docs/verification/verus/proof-gate-policy.md`** + imported pack
+- **`docs/src/assurance/proofs/proof-gate-policy.md`** + imported pack
   guides, checklists, templates, appendices.
 - **RFCs** `rfcs/proposed/v0.17/`: 002 capability, 003 lease, 004 boot-control,
   005 CI proof gate, 006 adoption umbrella; 001 reserved for trust-anchor

@@ -484,7 +484,7 @@ UPDATE.ROLLBACK_TO_PREVIOUS_SLOT
 ```text
 docs/src/architecture/v0.4-004-staged-upgrade.md
 docs/src/development/v0.4-004-staged-upgrade.md
-docs/src/verification/v0.4-004-staged-upgrade-invariants.md
+docs/src/assurance/v0.4-004-staged-upgrade-invariants.md
 docs/src/format/update-index.md
 docs/src/operator/update-cli.md
 docs/src/adr/v0.4-004-staged-upgrade-states.md

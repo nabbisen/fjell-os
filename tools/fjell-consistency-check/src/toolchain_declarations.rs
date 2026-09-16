@@ -67,7 +67,7 @@ const ACTION_PATH: &str = ".github/actions/toolchain/action.yml";
 const ACTION_REF: &str = "uses: ./.github/actions/toolchain";
 const LOCAL_DEV_PATH: &str = "docs/src/internals/local-development.md";
 const QUICK_START_PATH: &str = "docs/src/tutorials/quick-start.md";
-const RELEASE_CHECKLIST_PATH: &str = "docs/release/release-checklist.md";
+const RELEASE_CHECKLIST_PATH: &str = "docs/src/release/release-checklist.md";
 
 /// Where a reader is told to run a command *now*. RFC-0.31-003 D3: an apt
 /// `rustc-<version>` instruction in any of these is a failure, because no
@@ -80,7 +80,7 @@ const RELEASE_CHECKLIST_PATH: &str = "docs/release/release-checklist.md";
 /// written: `rfcs/ERRATA.md` quotes the apt line because it is the
 /// defect E-041 records, `rfcs/` quotes it in four RFCs including
 /// RFC-0.31-003 itself, this file's own fixtures must contain it to test
-/// for it, and `docs/release/v1-limitations.md` discloses it. A rule that
+/// for it, and `docs/src/release/v1-limitations.md` discloses it. A rule that
 /// failed on all of those would fail on the document that mandates the
 /// rule. The distinction is the one this subcheck has always drawn: a
 /// declaration tells you what to do, a record tells you what was done.
@@ -88,7 +88,7 @@ const LIVE_INSTRUCTION_ROOTS: &[&str] = &[
     ".github/workflows",
     "docs/src",
     "README.md",
-    "docs/release/release-checklist.md",
+    "docs/src/release/release-checklist.md",
 ];
 
 /// The one subtree excluded from `LIVE_INSTRUCTION_ROOTS`: the book's
@@ -97,7 +97,22 @@ const LIVE_INSTRUCTION_ROOTS: &[&str] = &[
 /// `docs/src/releases/v0.1.0-scope.md` and `handoff-v0.17-v0.18.md` both
 /// name the apt line, and both are history. Named as one exclusion with a
 /// reason rather than a blocklist that grows quietly.
-const INSTRUCTION_ARCHIVE: &str = "docs/src/releases";
+/// RFC-0.32-003 D3 moved `v1-limitations.md` into the book, which brought it
+/// inside `docs/src` and therefore inside this scan for the first time. It
+/// discloses the apt line rather than instructing anyone to run it — the
+/// distinction this subcheck has always drawn, and the one the comment above
+/// already named this file for. Excluded by the same rule as the archive, and
+/// for the same stated reason, rather than by quietly reverting the move.
+const INSTRUCTION_EXCLUSIONS: &[(&str, &str)] = &[
+    (
+        "docs/src/releases",
+        "the book's archive of release notes and past milestone handoffs",
+    ),
+    (
+        "docs/src/release/v1-limitations.md",
+        "discloses the apt line as a limitation; a record, not a declaration",
+    ),
+];
 
 /// Files the scan must have visited. A path typo or a moved directory would
 /// otherwise empty the scan silently, and an empty scan reports PASS — the
@@ -190,7 +205,7 @@ impl AptScan {
     }
 }
 
-/// Walk `LIVE_INSTRUCTION_ROOTS` (minus `INSTRUCTION_ARCHIVE`) for apt
+/// Walk `LIVE_INSTRUCTION_ROOTS` (minus `INSTRUCTION_EXCLUSIONS`) for apt
 /// instructions that install a versioned Rust toolchain.
 fn scan_live_instruction_sites() -> AptScan {
     let mut scan = AptScan::default();
@@ -210,7 +225,10 @@ fn scan_live_instruction_sites() -> AptScan {
 
 fn walk(path: &std::path::Path, scan: &mut AptScan, visited: &mut Vec<String>) {
     let display = path.to_string_lossy().replace('\\', "/");
-    if display.starts_with(INSTRUCTION_ARCHIVE) {
+    if INSTRUCTION_EXCLUSIONS
+        .iter()
+        .any(|(excluded, _why)| display.starts_with(excluded))
+    {
         return;
     }
     if path.is_dir() {

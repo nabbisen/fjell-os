@@ -8,7 +8,7 @@
 This handoff directs execution. It does not redefine the RFC. If you find a
 design conflict, **stop and escalate** — do not resolve it in code.
 
-**Start after RFC-0.32-003.** That line decides where `docs/security/` lives,
+**Start after RFC-0.32-003.** That line decides where `docs/src/security/` lives,
 and this one writes new documents into it. Use the post-restructure paths.
 
 ---
@@ -35,9 +35,9 @@ check must not be readable as "the product has no third-party risk".
 ## 0.1 Re-derive first (R1), each absence with a positive control
 
 ```
-ls docs/security/                                  # no advisory-process.md, no advisories/
+ls docs/src/security/                                  # no advisory-process.md, no advisories/
 find . -name 'FSAD-*' -not -path './target/*'      # empty; control: find . -name 'SECURITY.md' hits
-grep -n 'security@' docs/release/release-checklist.md
+grep -n 'security@' docs/src/release/release-checklist.md
 grep -c '^name = ' Cargo.lock                      # 243 total, 153 third-party
 cargo tree -p fjell-os --depth 2 -e normal         # two lines: fjell-os -> fjell-abi
 ```
@@ -64,7 +64,7 @@ dependency check → demonstrations → release-cycle integration → RFC-v0.15-
 reclassified → errata → evidence.**
 
 **The register's subcheck lands with the register, not after it.** An empty
-directory with no check is what `docs/security/advisories/` has effectively
+directory with no check is what `docs/src/security/advisories/` has effectively
 been since v0.15.
 
 ## 2. §D is not yours to answer

@@ -501,7 +501,7 @@ path (spawn, install, bind, provider change).
   parent = None and how lease-based recursive revoke replaces it).
 - docs/src/reference/trust-provider-policy.md updated for the
   Enforcing-mode signed-policy gate.
-- docs/src/verification/unsafe-charter.md gains a "capability authority" category with
+- docs/src/assurance/unsafe-charter.md gains a "capability authority" category with
   the install/revoke invariants.
 ```
 

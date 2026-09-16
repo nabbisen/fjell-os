@@ -301,8 +301,8 @@ None at runtime. CI failures are surfaced as job logs and PR comments.
 ## 13. Documentation Requirements
 
 ```text
-docs/src/verification/v0.6-003-fuzzing.md
-docs/src/verification/v0.6-003-schema-compat.md
+docs/src/assurance/v0.6-003-fuzzing.md
+docs/src/assurance/v0.6-003-schema-compat.md
 docs/src/adr/v0.6-003-fuzz-targets.md
 docs/src/adr/v0.6-003-breaking-schema-policy.md
 CONTRIBUTING.md  — append section on BREAKING-SCHEMA

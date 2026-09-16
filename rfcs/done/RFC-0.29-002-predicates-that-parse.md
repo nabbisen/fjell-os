@@ -8,7 +8,7 @@ lines. All three are the same thing said three ways: *a check that did not check
 what it claimed.*
 **Touches.** `crates/fjell-tools` (`release_rehearsal`, `qemu_run`),
 `tools/fjell-consistency-check`, `tools/fjell-unsafe-audit`,
-`docs/verification/instrument-audit.md`. **Does not touch the kernel, the ABI,
+`docs/src/assurance/instrument-audit.md`. **Does not touch the kernel, the ABI,
 or any service.**
 **Relates to:** RFC-0.24-001 (which found all three); RFC-0.28-005 and
 RFC-0.29-001 (the "derive, don't enumerate" template this applies to predicates);

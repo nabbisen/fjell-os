@@ -1,6 +1,6 @@
 //! `fjell-readiness-check` — v1.0 readiness matrix gate (RFC-v0.10-007 §4).
 //!
-//! Parses `docs/release/v1-readiness.md` and fails if any cell contains
+//! Parses `docs/src/release/v1-readiness.md` and fails if any cell contains
 //! the literal word `OPEN`. Every `OPEN` cell blocks the v1.0 release.
 //!
 //! Exit codes:
@@ -11,7 +11,7 @@
 use std::fs;
 use std::process::ExitCode;
 
-const MATRIX_PATH: &str = "docs/release/v1-readiness.md";
+const MATRIX_PATH: &str = "docs/src/release/v1-readiness.md";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -144,7 +144,7 @@ mod tests {
     fn current_matrix_has_no_open_cells() {
         // When run from workspace root, check the actual matrix file.
         // When run from target/ the file isn't accessible; skip gracefully.
-        let content = match std::fs::read_to_string("docs/release/v1-readiness.md") {
+        let content = match std::fs::read_to_string("docs/src/release/v1-readiness.md") {
             Ok(c) => c,
             Err(_) => return,
         };

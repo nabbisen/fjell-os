@@ -254,6 +254,6 @@ and force the system to leak slots.
   - `LEASE-006` Lease epoch mismatch always rejects capability use.
 - Documentation updates required:
   `docs/architecture/lease-epoch-revocation.md`,
-  `docs/security/revocation-model.md`,
-  `docs/verification/lease-invariants.md`,
+  `docs/src/security/revocation-model.md`,
+  `docs/src/assurance/lease-invariants.md`,
   `docs/development/lease-negative-tests.md`.

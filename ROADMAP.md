@@ -220,8 +220,8 @@ carrying the syscall ABI).
 not honest.** 33 findings remain open under errata E-013 through E-017; the 22
 `sound` verdicts are themselves provisional, because two were found violating
 the audit's own demonstration rule and the re-derivation of the rest is
-incomplete (**E-017**). Records: `docs/verification/instrument-audit.md`,
-`docs/verification/instrument-audit-closeout.md`,
+incomplete (**E-017**). Records: `docs/src/assurance/instrument-audit.md`,
+`docs/src/assurance/instrument-audit-closeout.md`,
 `releases/0.24.0.md`.
 
 ### 0.25 — Functional advancement: the external interrupt plane (**shipped 2026-08-16**)

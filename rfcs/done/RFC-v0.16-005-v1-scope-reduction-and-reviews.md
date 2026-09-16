@@ -19,7 +19,7 @@ unvalidated on silicon** (errata E-004, ACCEPTED).
 
 ## 2. Claims v1.0 must NOT make
 
-Recorded in `docs/release/v1-non-goals.md` and the release notes:
+Recorded in `docs/src/release/v1-non-goals.md` and the release notes:
 
 - validated real-hardware deployment
 - production industrial-gateway readiness
@@ -32,7 +32,7 @@ Recorded in `docs/release/v1-non-goals.md` and the release notes:
 ## 3. Adversarial reviews (errata E-007, E-009)
 
 Recorded review pass over the threat model and non-goals; findings folded
-back. See `docs/security/adversarial-review-v0.16.md`.
+back. See `docs/src/security/adversarial-review-v0.16.md`.
 
 ## 4. Trust-anchor provisioning (H-02)
 
