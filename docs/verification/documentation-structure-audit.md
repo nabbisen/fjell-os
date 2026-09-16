@@ -59,7 +59,7 @@ compliance mapping. A reader of the published book cannot reach one.
 |---|---:|---|---:|
 | `docs/src/release/v1-readiness.md` | 226 B | `docs/release/v1-readiness.md` | 6.0 KB |
 | `docs/src/release/v1-non-goals.md` | 815 B | `docs/release/v1-non-goals.md` | 8.5 KB |
-| `docs/src/dev/trust-report.md` | 284 B | `releases/trust-report.txt` | 5.3 KB |
+| `docs/src/dev/trust-report.md` | 284 B | `docs/release/trust-report.txt` | 5.3 KB |
 | `docs/src/verification/unsafe-inventory.md` | 241 B | `docs/verification/instrument-audit.md` | 83.9 KB |
 
 So the navigable book shows the pointer and hides the document.
@@ -100,8 +100,8 @@ again, and the book's `verus-setup.md` links out to it.
 - **`docs/src/release/` vs `docs/src/releases/`.** Singular is release
   *process*; plural is *session handoffs*. Both are in `SUMMARY.md`, eight
   lines apart.
-- **`rfcs/answers/` vs `rfcs/`.** The root `rfcs/` is the RFC corpus (224 files).
-  `rfcs/answers/` is the errata register plus 18 "answer" documents that belong to
+- **`docs/rfcs/` vs `rfcs/`.** The root `rfcs/` is the RFC corpus (224 files).
+  `docs/rfcs/` is the errata register plus 18 "answer" documents that belong to
   those RFCs. Two directories with the same name, different owners, neither
   named for what it holds.
 - **`ROADMAP.md` (root, 23.8 KB) vs `docs/src/roadmap/roadmap.md` (16.1 KB).**
@@ -125,11 +125,11 @@ documents**:
 
 | File | Paths |
 |---|---|
-| `tools/fjell-consistency-check/src/errata_tracking.rs` | `rfcs/ERRATA.md`, `docs/release/records` |
-| `tools/fjell-consistency-check/src/errata_limitations.rs` | `rfcs/ERRATA.md`, `docs/release/v1-limitations.md` |
+| `tools/fjell-consistency-check/src/errata_tracking.rs` | `docs/rfcs/ERRATA.md`, `docs/release/records` |
+| `tools/fjell-consistency-check/src/errata_limitations.rs` | `docs/rfcs/ERRATA.md`, `docs/release/v1-limitations.md` |
 | `tools/fjell-consistency-check/src/standards_mapping.rs` | `docs/compliance`, `docs/compliance/standards-mapping.md` |
 | `tools/fjell-consistency-check/src/toolchain_declarations.rs` | `docs/src`, `docs/src/internals/local-development.md`, `docs/src/tutorials/quick-start.md`, `docs/src/releases`, `docs/release/release-checklist.md` |
-| `crates/fjell-tools/src/{main,release_rehearsal,trust_report,bench}.rs` | `docs/release/v1-readiness.md`, `releases/trust-report.txt`, `rfcs/ERRATA.md`, `docs/perf/baseline.json` |
+| `crates/fjell-tools/src/{main,release_rehearsal,trust_report,bench}.rs` | `docs/release/v1-readiness.md`, `docs/release/trust-report.txt`, `docs/rfcs/ERRATA.md`, `docs/perf/baseline.json` |
 | `tools/fjell-readiness-check/src/main.rs` | `docs/release/v1-readiness.md` |
 
 **The link gate is on our side.** `doc-links` walks the whole tree (excluding

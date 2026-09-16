@@ -30,7 +30,7 @@ build machine (x86-64). Not RISC-V silicon numbers; see §Caveats.*
 
 ## Regression policy
 
-`cargo xtask bench` compares against `docs/perf/baseline.json`.
+`cargo xtask bench` compares against `benches/baseline.json`.
 A metric exceeding its `tol_pct` band fails the build.
 Improvements exceeding the band log a notice but do not fail;
 updating the baseline requires a deliberate PR.

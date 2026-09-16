@@ -1,11 +1,11 @@
 //! `cargo xtask bench [--baseline] [--check]`
 //!
 //! Runs the host criterion benches and optionally compares against the
-//! committed baseline in `docs/perf/baseline.json` (RFC-v0.10-004).
+//! committed baseline in `benches/baseline.json` (RFC-v0.10-004).
 //!
 //! Modes:
 //!   (default)    — run benches, print results, do not compare.
-//!   `--baseline` — run and write a fresh `docs/perf/baseline.json`.
+//!   `--baseline` — run and write a fresh `benches/baseline.json`.
 //!   `--check`    — run and fail if any metric exceeds its tolerance band.
 //!
 //! Note: full criterion runs are slow. In CI the bench tier in `test-all`
@@ -16,7 +16,7 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode, Stdio};
 
-const BASELINE_PATH: &str = "docs/perf/baseline.json";
+const BASELINE_PATH: &str = "benches/baseline.json";
 
 pub fn cmd_bench(args: &[String]) -> ExitCode {
     let write_baseline = args.iter().any(|a| a == "--baseline");

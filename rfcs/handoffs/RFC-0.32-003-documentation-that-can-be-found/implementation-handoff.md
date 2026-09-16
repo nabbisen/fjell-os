@@ -42,7 +42,7 @@ The reference counts that size the work — derive them, do not trust this table
 
 | Moving path | Files that reference it |
 |---|---:|
-| `rfcs/ERRATA.md` | 44 |
+| `docs/rfcs/ERRATA.md` | 44 |
 | `docs/release/…` | 75 |
 | `docs/verification/…` | 29 |
 | `docs/security/…` | 21 |
@@ -88,8 +88,8 @@ content is rewritten in a commit that moves it.
 
 | # | Move | Notes |
 |---|---|---|
-| 1 | `rfcs/ERRATA.md` → `rfcs/ERRATA.md`; `rfcs/answers/*-answer.md` → `rfcs/answers/` | 44 referencing files; 3 tools hard-code the old path |
-| 2 | `releases/*` → `releases/`; `docs/release/*trust-report.txt` → `releases/` | dated records; `errata_tracking` and `trust_report` read these |
+| 1 | `docs/rfcs/ERRATA.md` → `rfcs/ERRATA.md`; `docs/rfcs/*-answer.md` → `rfcs/answers/` | 44 referencing files; 3 tools hard-code the old path |
+| 2 | `docs/release/records/*` → `releases/`; `docs/release/*trust-report.txt` → `releases/` | dated records; `errata_tracking` and `trust_report` read these |
 | 3 | `docs/perf/baseline.json` → `benches/baseline.json` | `fjell-tools bench` writes it |
 | 4 | `docs/{release,verification,security,compliance,operations,deployment,perf}/*.md` → `docs/src/…` | the prose; delete the stub pages they replace |
 | 5 | `docs/src/release/` → `docs/src/releasing/`; `docs/src/releases/` → `docs/src/history/` | the `release`/`releases` collision |
@@ -121,7 +121,7 @@ the count moves from 11 to 15 in the rehearsal's own output.
 `CHANGELOG.md`, `ROADMAP.md`, `TERMS_OF_USE.md`) is the one list, and it lives
 in one place with a comment saying why each is there.
 
-**Do not edit dated records to match the new count.** `releases/0.31.0.md`
+**Do not edit dated records to match the new count.** `docs/release/records/0.31.0.md`
 says *"11 subchecks"* because that is what ran that day; under D12 a record is
 never edited after its cut. That is also the first test of the
 maintained-versus-dated rule — get it right here and the rest follows.
