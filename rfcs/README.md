@@ -424,9 +424,11 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.32-004 | [Advisories that exist](./proposed/RFC-0.32-004-advisories-that-exist.md) — closes **E-051** |
 
 ## Archive (archive/) — 2 RFCs
 

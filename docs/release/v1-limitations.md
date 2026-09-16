@@ -767,6 +767,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `fjell-devmgr` builds its board profile in code. Boot-time validation
   belongs with hardware bring-up (E-004).
 
+- **The security advisory process exists only as a description of itself**
+  (Errata **E-051**, ACCEPTED, tracked to 0.32). RFC-v0.15-003 specified an
+  advisory process document and a per-advisory record directory, and was marked
+  Implemented; neither exists. The release checklist also publishes a
+  placeholder address, `security@<domain>`, beside the working GitHub
+  private-advisory channel in `SECURITY.md`, with a different acknowledgement
+  commitment — so a reporter following the checklist writes to nothing. And no
+  mechanism watches security advisories for the 153 third-party packages in
+  `Cargo.lock`; note that the two published crates have no third-party
+  dependencies, so this is a build- and host-surface gap. No vulnerability has
+  been reported to date.
+
 - **Most of the documentation is not in the documentation** (Errata
   **E-050**, ACCEPTED, unscheduled). The published book renders 59 of the 135
   Markdown files under its own source root; the other 76 — including all 41

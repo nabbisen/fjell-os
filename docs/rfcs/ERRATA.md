@@ -3325,6 +3325,57 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   would notice a build behaving differently under the other. E-037's shape, one
   tool over; folded into RFC-0.32-003 (D10).*
 
+## E-051 — the security advisory process was specified, marked Implemented, and has neither of its artefacts; two intake channels are published at once
+
+- **Claim:** `rfcs/done/RFC-v0.15-003-release-checklist-and-security-advisory-process.md`
+  is **`Implemented (v0.15.0)`**, and its §3 specifies
+  `docs/security/advisory-process.md` (*"what happens between 'vulnerability
+  reported' and 'patched release shipped'"*) and a record per closed advisory at
+  `docs/security/advisories/FSAD-<year>-<seq>.md`.
+  `docs/release/release-checklist.md` repeats the process and states:
+  *"Committed to `docs/security/advisories/FSAD-YYYY-NNN.md`."*
+  `CHANGELOG.md` lists *"security advisory process"* among v0.15's deliverables.
+- **Tree, observed 2026-09-16:**
+  1. **Neither artefact exists.** `docs/security/` holds two files
+     (`adversarial-review-v0.16.md`, `threat-model-v1.md`); there is no
+     `advisory-process.md`, no `advisories/` directory, and no `FSAD-*` file
+     anywhere in the tree (control: the same search finds `.github/SECURITY.md`).
+     What exists is a condensed copy of the process inside the release
+     checklist, naming a directory that has never existed.
+  2. **Two intake channels are published simultaneously.** `.github/SECURITY.md`
+     — the file GitHub surfaces — directs a reporter to a private GitHub
+     security advisory at a working URL, and promises acknowledgement *"within a
+     small number of days"*. The release checklist directs them to
+     `security@<domain>`, *"(fill in before v1.0 landing)"*, and promises **72
+     hours**. One of the two published addresses cannot receive mail, and the
+     project has published a commitment it never chose.
+  3. **Nothing watches dependency advisories.** `Cargo.lock` holds **153**
+     third-party packages — `aes-gcm`, `argon2`, `ed25519-dalek 2.2.0`,
+     `curve25519-dalek`, `sha2`, `getrandom`, `proptest`, `criterion` among them
+     — and there is no `cargo-audit`, no `cargo-deny`, no `deny.toml` and no CI
+     job consulting any advisory database. *Narrowing the claim honestly:* the
+     two **published** crates, `fjell-os` and `fjell-abi`, have **zero**
+     third-party dependencies, so the exposure is the build and host surface,
+     not the shipped artefacts.
+- **Why nothing saw it:** the process is prose about a future event, and no
+  instrument reads prose. `doc-links` cannot fail on a directory that is
+  described but never linked, and the two channel statements live in different
+  files that no check compares — the toolchain-declaration problem, one subject
+  over. The CRA mapping is already honest about the neighbouring gap
+  (`CRA-II-1` not-met, II-2/4/8 roadmap), which is why this was visible to an
+  audit but not to a gate.
+- **Not an emergency, and that is the argument for doing it now.** No
+  vulnerability has been reported; zero advisories is the correct count. The
+  process will otherwise first be exercised under time pressure, by one
+  maintainer, on the day a real report arrives.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked
+  **RFC-0.32-004** (scoped 2026-09-16). Closing it means: one process document
+  at one path, referenced rather than restated; one intake channel and one
+  acknowledgement commitment; an advisory register with the errata register's
+  discipline, checked — and **passing while empty**; a mechanical dependency
+  advisory check that names the surface it covered; and RFC-v0.15-003
+  reclassified `Implemented-with-Errata`.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3379,6 +3430,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | ACCEPTED |
+| E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
