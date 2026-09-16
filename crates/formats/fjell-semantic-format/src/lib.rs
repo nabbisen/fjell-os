@@ -6,6 +6,8 @@
 
 #![no_std]
 
+pub mod wire;
+
 // ── Capacity constants ────────────────────────────────────────────────────────
 pub const MAX_TEXT_BYTES: usize = 128;
 pub const MAX_ACTIONS: usize = 8;
