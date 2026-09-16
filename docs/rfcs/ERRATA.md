@@ -3328,8 +3328,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   matrix at `docs/release/v1-readiness.md`."*
 - **Tree, observed 2026-09-16** (full audit:
   [`docs/verification/documentation-structure-audit.md`](../verification/documentation-structure-audit.md)):
-  1. **`docs/src` holds 135 `.md` files; `SUMMARY.md` lists 59.** The other
-     **76 are published nowhere** — not rendered, not copied. `mdbook build`
+  1. **`docs/src` holds 135 `.md` files — 134 pages plus `SUMMARY.md` — and
+     `SUMMARY.md` lists 59.** The other **75 pages are published nowhere**
+     *(this entry said 76, counting the navigation file itself; corrected
+     2026-09-16 by the instrument built to enforce it)* — not rendered, not copied. `mdbook build`
      exits 0 and warns about none of them: `docs/book/adr/` is created with
      **0 `.html` and 0 `.md`**, while the listed `intro/` chapters produce 3
      `.html` (control). Among the invisible: **all 41 ADRs**, `internals/` (9),
@@ -3380,6 +3382,25 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   file under `docs/src` is absent from `SUMMARY.md`, or an entry resolves to
   nothing** — demonstrated failing in both directions, so the 76 cannot
   reaccumulate.
+
+  > **Mid-line ruling, 2026-09-16.** The four subchecks were built first and run
+  > against the tree, failing as D11 requires: 75 pages in no book, 70 prose
+  > files outside it, 3 stub pages, 7 duplicate-name collisions. Two collisions
+  > (`assets`, `verification`) cannot be reached by any move group, so the
+  > book's copies are renamed — `docs/src/images/` and `docs/src/assurance/` —
+  > rather than the predicate being narrowed to prose-bearing directories.
+  > `docs/verification/verus/`'s prose is in scope and becomes
+  > `docs/src/assurance/proofs/`; the non-goal covers the **root**
+  > `verification/verus/`, which is proof source.
+  >
+  > **A further instance of this erratum, found by the implementation and
+  > verified here:** `docs/src/verification/unsafe-inventory.md` is generated
+  > output frozen at v0.6.0 stating *"Total unsafe sites: 0"*, while
+  > `fjell-unsafe-audit` reports **277 sites, 277 with a SAFETY comment, 0
+  > missing**. A page in the book, looking maintained, asserting something false
+  > about the kernel — the documentation form of the defect class this project
+  > files errata about. It is deleted rather than regenerated: a generated page
+  > needs a generator and a freshness check, which is E-045's shape.
 
   *Found while scoping: the book's own toolchain is undeclared and already
   forked — CI installs **mdBook 0.4.40** (`ci.yml`), while the machine that

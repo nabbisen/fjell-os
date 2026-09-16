@@ -35,7 +35,7 @@ any fixture you could write.
 find docs/src -name '*.md' | wc -l                                   # expect 135
 grep -oE '\]\(\.?/?[^)]+\.md\)' docs/src/SUMMARY.md | sort -u | wc -l  # expect 59
 cd docs && mdbook build && ls book/adr                               # 0 html, 0 md
-grep -rn '"docs/' --include='*.rs' crates tools | wc -l              # expect 18 paths, 8 files
+grep -rn '"docs/' --include='*.rs' crates tools | wc -l              # 21 literals in 10 files
 ```
 
 The reference counts that size the work — derive them, do not trust this table:
@@ -52,6 +52,14 @@ The reference counts that size the work — derive them, do not trust this table
 **A grep that finds nothing must first be shown finding something.** The audit's
 own count was wrong once before correction (a `./` prefix made 76 look like
 135); re-derive rather than inherit.
+
+*Corrected at the mid-line ruling, 2026-09-16, from the implementation's own
+re-derivation: it is **21 literals in 10 files**, not 18 in 8 — of which one is
+a test fixture, three already point inside the book, and 17 are real paths into
+moving documents. Every reference count in the table above is 1–3 low, because
+RFC-0.32-002 landed between this handoff and the line starting and every
+document it wrote cites `ERRATA.md` and `v1-limitations.md`. The work is
+slightly larger than the table says, not differently shaped.*
 
 ## 0.2 Settled — do not re-open
 

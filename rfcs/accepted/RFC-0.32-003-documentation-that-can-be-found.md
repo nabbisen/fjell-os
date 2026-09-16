@@ -167,6 +167,63 @@ source `main`, site `https://nabbisen.github.io/fjell-os/`. `build_type:
 workflow` means a deployment comes from a workflow job, not from a branch, so
 this line writes that job; until it exists the site has nothing to serve.
 
+## Settled at the mid-line ruling, 2026-09-16
+
+The implementation built the four subchecks first, ran them against the tree as
+D11 requires, and stopped at the two collisions the move table cannot reach —
+reporting rather than inventing a name, as §2 instructs. These are the rulings.
+
+**D19 — `assets`: the book's copy is renamed `docs/src/images/`.** The
+repository root's `assets/` holds brand material (favicons, logos) that README
+and the published crates reference; it does not move. **The predicate is not
+narrowed to prose-bearing directories.** A check that stops seeing a collision
+because the colliding thing is a picture is a check with an exception in it,
+and the exception would have to be maintained.
+
+**D20 — `verification`: the book's copy is renamed `docs/src/assurance/`**, and
+the audits from `docs/verification/` land there. The repository root's
+`verification/` is proof source and does not move (non-goal).
+
+**`docs/verification/verus/`'s 19 files are in scope**, and the non-goal does
+not cover them: it names `verification/verus/` at the **root**, which holds the
+proofs, `verus-targets.toml` and `TOOLCHAIN.lock`. The directory under `docs/`
+holds guides, checklists, review records and appendices — prose about proving,
+which is documentation. It becomes **`docs/src/assurance/proofs/`**, a name
+that does not repeat `verus`, so no new collision is created.
+
+**Two of those 19 are not prose** — `templates/rust-conformance-test-template.rs`
+and `templates/verus-module-template.rs`. They are source templates and go to
+`verification/verus/templates/` at the root, beside the proof source they
+belong to. Adding files there is not "moving `verification/verus/`".
+
+**D21 — `docs/src/verification/unsafe-inventory.md` is deleted, not
+regenerated.** Verified at this review: the page states *"Total unsafe sites:
+0"*, while `fjell-unsafe-audit` reports **277 sites, 277 with a SAFETY comment,
+0 missing**. It is a generated report frozen at v0.6.0, asserting something
+false about the current tree, in the book. Its replacement is a short chapter
+describing what the unsafe gate checks and how to run it, **carrying no
+counts** — a number in prose is a number that goes stale, and the gate prints
+the live one. It is not regenerated into the book: a generated page needs a
+generator and a freshness check, which is E-045's shape, and this line does not
+build one.
+
+**D22 — `RFC-0.26-001-…-investigation.md` goes to `rfcs/answers/`** with the
+answer documents, and that directory's README says what it holds: documents
+attached to an RFC — answers and investigations. One file does not earn its own
+directory.
+
+**D23 — both instrument decisions are approved as built.** Counting a full
+`https://github.com/…/blob/main/docs/…` URL as a pointer is right: a stub is a
+stub in either spelling, and the relative-path-only rule would have missed one
+of the two real stubs. Rejecting an undeclared `.md` at the repository root is
+**in scope and wanted**: it is what makes D13's four-page exception a list the
+tree enforces rather than a sentence in an RFC.
+
+**D24 — the deliberately-red tree is not pushed.** Gate 12 is red by design
+between the instruments landing and the moves completing (D11), and a red
+`main` is not the demonstration — the transcript is. The whole sequence is
+pushed when the checks pass. *(Endorsing what the implementation already did.)*
+
 ## Requirements
 
 **R1 — Re-derive the audit's figures** before acting: the 135/59/76 counts, the

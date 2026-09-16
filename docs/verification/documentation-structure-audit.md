@@ -24,16 +24,18 @@ outside `docs/src/`, and 76 files inside `docs/src/` are absent from
 | Location | `.md` files | In the book? |
 |---|---:|---|
 | `docs/src/` — listed in `SUMMARY.md` | **59** | yes |
-| `docs/src/` — **not** listed | **76** | **no** |
-| `docs/` outside `src/` | 68 | no |
+| `docs/src/` — **not** listed | **75** | **no** |
+| `docs/` outside `src/` | 70 | no |
 | `rfcs/` | 224 | no |
 | `verification/` (repo root) | 2 | no |
 | repo root (`README`, `CHANGELOG`, `ROADMAP`, `TERMS_OF_USE`) | 4 | no |
 
 ## F1 — 76 files under the book root are in no book
 
-`docs/src` holds 135 `.md` files; `SUMMARY.md` lists 59. The remaining **76
-are published nowhere**: not rendered, not copied. `cd docs && mdbook build`
+`docs/src` holds 135 `.md` files — **134 pages plus `SUMMARY.md` itself** —
+and `SUMMARY.md` lists 59. The remaining **75 pages are published nowhere**
+*(this audit said 76, counting the navigation file as a page in no book;
+corrected 2026-09-16 from the instrument built to enforce it)*: not rendered, not copied. `cd docs && mdbook build`
 exits 0 and prints no warning; `docs/book/adr/` is created but contains **0
 `.html` and 0 `.md`**, while the listed `intro/` chapters produce 3 `.html`
 (the control).
@@ -60,8 +62,18 @@ compliance mapping. A reader of the published book cannot reach one.
 | `docs/src/dev/trust-report.md` | 284 B | `docs/release/trust-report.txt` | 5.3 KB |
 | `docs/src/verification/unsafe-inventory.md` | 241 B | `docs/verification/instrument-audit.md` | 83.9 KB |
 
-So the navigable book shows the pointer and hides the document. **And the
-pointer misdescribes itself:** `docs/src/release/v1-readiness.md` says *"This
+So the navigable book shows the pointer and hides the document.
+
+*Corrected 2026-09-16, from the mechanical predicate built to enforce this:
+these four are four different problems, and only two are pointers.*
+`v1-readiness.md` (relative link) and `v1-non-goals.md` (full GitHub URL) are
+true pointers; `dev/trust-report.md` is a thin page that links nowhere; and
+`verification/unsafe-inventory.md` is **stale generated output** — it states
+*"Total unsafe sites: 0"* where `fjell-unsafe-audit` reports **277 sites, 277
+with a SAFETY comment**. A fifth pointer this audit missed,
+`tutorials/three-node-fleet.md`, points at `examples/three-node-fleet/`.
+
+**And the pointer misdescribes itself:** `docs/src/release/v1-readiness.md` says *"This
 file symlinks to the live matrix"*. There are **zero symlinks** under `docs/`
 (`find docs -type l`). It is a copy of a sentence, not a link.
 
@@ -104,7 +116,12 @@ The same shape as the artefact leak fixed in 0.30, one directory over.
 
 ## F6 — what a migration has to update
 
-Eighteen `docs/…` paths are hard-coded in eight Rust files:
+**Twenty-one `docs/…` string literals are hard-coded in ten Rust files**
+*(this said eighteen in eight; corrected 2026-09-16 — re-derived as literals in
+code, excluding the new subcheck module's own constants)*. They are not all
+work: one is a test fixture (`doc_links.rs`'s synthetic `"docs/a.md"`), three
+already point inside the book, and **seventeen are real paths into moving
+documents**:
 
 | File | Paths |
 |---|---|
