@@ -3109,6 +3109,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   it a real one — `devmgr` at boot, or `profile derive` at build time — was
   never built. `fjell-identityd`'s shape (**E-042**) and the fuzz harness's
   (**E-043**): code recorded as in use, with no caller and no real input.
+- **Re-derived 2026-09-16, at the owner's question "is fixing it reasonable?" —
+  and the answer is that deriving cannot be made to work here at all.**
+  QEMU's `virt` tree carries **eight identical `virtio,mmio` nodes**;
+  `classify_compat` (`derive.rs:175`) maps every one of them to
+  `DeviceClass::VirtioNetMmio`, and the declared profile has exactly one
+  `VirtioNetMmio` and one `VirtioBlkMmio` (`board.rs`). Which virtio device a
+  node is lives in the device's own MMIO register, not in the device tree, so
+  **no depth fix makes a derived profile match the declared one** — the
+  comparison RFC-v0.5-002 specifies cannot pass on this board.
+- **The same hole, one crate over: `fjell-dtb-validate` has no caller either.**
+  Its own header says it is *"Called from `_start` after the trap table is
+  installed"*. The kernel forwards `dtb_pa` from firmware
+  (`boot.rs`) and parses nothing: `crates/fjell-kernel/src/platform/dtb.rs` is
+  a stub, *"deferred to a future milestone"*. **RFC-v0.12-003 (Implemented,
+  v0.12.0)** requires the kernel to validate the inbound DTB and emit
+  `BOOT.DTB_MISMATCH`; **ADR-v0.5-001** says `fjell-dtb-derive` derives the
+  profile *"from the kernel-handed-off DTB at boot"*; the VisionFive 2 guide
+  tells an operator to expect `FJELL-BOOT-FAIL: DTB` on mismatch. No such
+  marker exists in the tree (control: `TEST:M8:PASS` is found), and nothing
+  reads `platform/starfive-visionfive2/board-profile.toml`. Corrected in place
+  today; RFC-v0.12-003 reclassified `Implemented-with-Errata`.
+  **`validate_dtb` itself works**: run against the committed QEMU tree and the
+  declared profile it returns `Ok(sha256:195a5d87…)`. It is wiring that is
+  missing, not correctness.
+- **The architect's recommendation, for the owner's decision:** delete
+  `fjell-dtb-derive` with its fuzz target and seeds (nothing uses it, and its
+  documented purpose is unreachable on this board); keep `fjell-dtb-validate`
+  and give it a host test that validates the committed QEMU tree against
+  `qemu_virt_default`, which turns "the declared profile still matches the
+  machine we boot" into a check; and leave boot-time validation to the
+  hardware bring-up that needs it (E-004, v1.1), rather than claiming it now.
 - **Not fixed here.** It is not a crash, and RFC-0.32-001's handoff permits a
   fix only for a crash whose fix is inside the decoder and small. Fixing it
   means deciding what the parser should derive from a real tree — depth,
@@ -3141,25 +3172,63 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   *"for `-p <name>` references, and reports which packages are missing"*; its
   existence implies CI coverage of workspace packages is checked.
 - **Tree, observed 2026-09-15:** `cargo run -p fjell-ci-coverage -- --check`
-  exits **1** on today's workflow, listing uncovered packages (19 by the
-  implementer's count; the red predates RFC-0.32-001 and was present at
-  0.31.0, per the implementer). **Nothing runs `--check`:** CI builds and
+  exits **1** on today's workflow, listing 19 uncovered packages (the red
+  predates RFC-0.32-001 and was present at 0.31.0, per the implementer).
+  **Nothing runs `--check`:** CI builds and
   tests the tool (`-p fjell-ci-coverage` in `ci.yml`'s `check` list), and
   neither `xtask`, `release-rehearsal` nor the release cycle invokes it. Its
   inline matcher (`main.rs`, the "Also match inline" loop) takes the word after
   any `-p ` on a line, so `mkdir -p "fuzz/corpus/$t"` counts
   `"fuzz/corpus/$t"` as a covered package — the implementer measured the
   covered count rising from 70 to 72 when RFC-0.32-001's jobs landed.
+- **Its report is wrong in both directions — re-derived 2026-09-16, after the
+  entry above was filed on the report rather than on the tree.**
+  1. **False positives.** CI's `ci-host-bins` job runs `cargo xtask
+     host-bin-tests`, which is `cargo test --workspace --bins --tests` with
+     `fjell-proptest` and the bare-metal crates excluded and
+     `fjell-sxt-crypto/crypto-profile-development` passed explicitly
+     (`cargo_metadata::host_bin_test_argv`). It names no package, so the tool
+     sees no `-p` and reports every bin-only crate as uncovered — including
+     `fjell-consistency-check`'s 143 tests, `fjell-abi-snapshot`'s 37, and the
+     rest of the gate tools. They run in CI on every push.
+  2. **The real gap is narrower and worse.** What no CI job reaches is the
+     **`--lib` unit tests of ten crates no `-p` list names**: `fjell-sig-ed25519`
+     (11 tests), `fjell-replay-cache` (11), `fjell-semantic-toolkit` (27),
+     `fjell-fleet-sync` (13), `fjell-config-sync` (12), `fjell-cap-manifest`
+     (12), `fjell-bundle-format` (12), `fjell-dev-harness` (8),
+     `fjell-dtb-validate` (7), `fjell-sdk` (5) — 118 tests, two of them
+     security-relevant. They do run locally: Gate 1 and `test-all` tier 1 are
+     `cargo test --workspace --lib --exclude fjell-proptest`.
+  3. **And some `-p` entries that look like coverage test nothing.** CI's
+     service list passes `--lib` for crates that have no lib target.
+     `cargo test -p fjell-devmgr --lib` alone exits **101** (*"no library
+     targets found"*); mixed with a crate that has one —
+     `-p fjell-devmgr -p fjell-cap --lib` — cargo builds `fjell-cap` only and
+     **succeeds silently**. Fifteen service entries are in that list. The
+     tool counts each as covered, because the string `-p fjell-devmgr` is
+     there.
+- **Measured, not proposed:** `cargo test --workspace --lib --exclude
+  fjell-proptest --features fjell-sxt-crypto/crypto-profile-development` runs
+  **49 lib crates, 580 tests, exit 0**, and includes all ten crates above. The
+  explicit `--features` matters: `cargo test -p fjell-sxt-crypto --lib` alone
+  fails its own `compile_error!` guard (exit 101), and a workspace run passes
+  only because `fjell-secure-transportd` enables the feature through
+  unification — an accident `host_bin_test_argv` already refuses to rely on.
 - **How it surfaced:** RFC-0.32-001 R4 — the implementer tried the tool as a
   commit gate, found it red, and showed the red was pre-existing.
 - **Why nothing saw it:** an instrument nobody runs cannot fail anyone, and a
   literal `-p ` match cannot tell a package flag from `mkdir -p` (**E-014**'s
   family).
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), **unscheduled**.
-  Closing it means deciding whether this instrument should exist — if it
-  should, it runs somewhere that can stop something, it parses `cargo`
-  invocations rather than substrings, and it is shown failing; if not, it is
-  deleted and nothing claims coverage is checked.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15; re-derived and
+  re-scoped 2026-09-16), **unscheduled**. Closing it means the hand-written
+  `-p` lists are gone, not that the tool that polices them is improved:
+  CI runs the same workspace-derived invocations as Gate 1 and tier 1b, from
+  one shared definition; the entries that silently test nothing disappear with
+  the lists; a subcheck refuses a CI test job that hand-lists packages
+  (`toolchain-declarations`' inversion, demonstrated failing); and
+  `fjell-ci-coverage` — with `[workspace.metadata.fjell.ci_excluded]`, which
+  nothing else reads — is deleted, because a tool that checks a list that no
+  longer exists is one more thing to keep true.
 
 ## Summary
 

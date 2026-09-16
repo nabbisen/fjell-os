@@ -1,6 +1,6 @@
 # RFC-v0.12-003 — DTB and Boot Handoff Validation
 
-**Status:** Implemented (v0.12.0)
+**Status:** Implemented-with-Errata (v0.12.0) — reclassified 2026-09-16: the validator was built and works, but nothing calls it. The kernel forwards the firmware DTB pointer and parses nothing (`platform/dtb.rs` is a stub), so no boot validates its DTB and no `BOOT.DTB_MISMATCH`/`FJELL-BOOT-FAIL: DTB` is ever emitted (E-048).
 **Target version:** v0.12.0
 **Parent:** v0.12-001.
 **Cross-refs:** RFC v0.5-002 (DTB derivation), v0.12-002 (target).

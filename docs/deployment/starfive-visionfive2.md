@@ -73,6 +73,14 @@ TEST:M8:PASS        ← success marker
 
 ## Step 5 — Verify DTB handoff
 
+> **Correction, 2026-09-16 (E-048): this does not happen yet.** The kernel
+> forwards the firmware DTB pointer and parses nothing, no crate calls
+> `fjell-dtb-validate`, and the marker below is emitted nowhere in the tree.
+> Nothing reads `board-profile.toml` either. The step is kept because it
+> describes the intended bring-up check, which belongs with the hardware work
+> this guide is for (E-004); until then, treat its absence as expected rather
+> than as a passing DTB check.
+
 The DTB validation (RFC-v0.12-003) fires at early boot. On mismatch:
 
 ```

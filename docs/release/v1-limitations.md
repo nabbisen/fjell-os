@@ -757,15 +757,27 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 - **One device-tree parser has never worked on a real device tree** (Errata
   **E-048**, ACCEPTED, unscheduled — deletion or repair is an owner decision). `fjell-dtb-derive` returns `MissingPlic` on QEMU's own
   `virt` tree, because QEMU nests devices one level deeper than the parser
-  looks, and nothing uses the crate. ADR-v0.5-002 and RFC-v0.5-002 describe a
-  boot-time and build-time use that was never built. **Nothing shipped
-  depends on it**: `fjell-devmgr` builds its board profile in code.
+  looks, and nothing uses the crate — and on this board no fix would help,
+  because QEMU's eight identical `virtio,mmio` nodes cannot be told apart from
+  the device tree at all. **Neither device-tree crate has a caller:**
+  `fjell-dtb-validate` works on the real tree but the kernel's DTB parser is a
+  stub, so the boot-time validation described by RFC-v0.12-003, ADR-v0.5-001,
+  ADR-v0.5-002 and the VisionFive 2 guide does not happen and no
+  `FJELL-BOOT-FAIL: DTB` marker exists. **Nothing shipped depends on either**:
+  `fjell-devmgr` builds its board profile in code. Boot-time validation
+  belongs with hardware bring-up (E-004).
 
-- **The CI package-coverage tool is red and runs nowhere** (Errata **E-049**,
-  ACCEPTED, unscheduled). `fjell-ci-coverage --check` reports packages that no
-  CI job names, and exits 1 on the current workflow, but no job, gate or
-  release step runs it — so nothing checks that every workspace package is
-  exercised in CI. Its matcher also reads `mkdir -p "<path>"` as a package.
+- **Ten crates' unit tests do not run in CI** (Errata **E-049**, ACCEPTED,
+  unscheduled). CI names test packages in hand-written `-p` lists, and ten
+  crates appear in none of them — 118 tests, including `fjell-sig-ed25519`
+  and `fjell-replay-cache`. They do run locally at every cut (Gate 1 is
+  `cargo test --workspace --lib`), so this is a CI gap, not untested code.
+  Some `-p` entries in those lists also test nothing: a service crate with no
+  lib target, passed with `--lib` alongside crates that have one, is skipped
+  silently. The tool meant to catch this, `fjell-ci-coverage`, runs nowhere,
+  and its report is wrong in both directions — it cannot see the
+  workspace-wide `--bins --tests` job that covers every gate tool, and it
+  counts `mkdir -p "<path>"` as a package.
 
 - **A/B boot confirmation and rollback are not wired up** (Errata **E-044**,
   ACCEPTED, tracked to 0.33). ADR-0009 describes candidate boot, health

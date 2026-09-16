@@ -24,5 +24,8 @@ A new `KeyPurpose::BoardProfile` (0x07) covers the signing anchor.
 - Adding a board requires only a new signed `BoardProfile` — no kernel recompile.
 - The digest chain makes profile substitution detectable.
 - `fjell-dtb-derive` derives `BoardProfile` from the kernel-handed-off DTB at boot,
+  *(**Correction, 2026-09-16 (E-048):** it does not. No crate uses
+  `fjell-dtb-derive`, the kernel hands off no parsed DTB, and `devmgr`
+  constructs `BoardProfile::qemu_virt_default` in code.)*
   avoiding runtime FDT parsing in services.
 - `devmgr` verifies `board.platform_ref == platform.profile_digest` before registration.

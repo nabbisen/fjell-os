@@ -3,8 +3,15 @@
 //! DTB (Device Tree Blob) validation for Fjell boot handoff (RFC-v0.12-003).
 //!
 //! Validates the DTB handed to the kernel by firmware against the declared
-//! `BoardProfile`. Called from `_start` after the trap table is installed but
-//! before any subsystem initialises.
+//! `BoardProfile`.
+//!
+//! **Not called from anywhere (E-048, 2026-09-16).** This header said "Called
+//! from `_start` after the trap table is installed but before any subsystem
+//! initialises"; the kernel forwards the firmware DTB pointer and parses
+//! nothing (`fjell-kernel/src/platform/dtb.rs` is a stub), and no crate
+//! depends on this one. The checks below work — `validate_dtb` accepts QEMU's
+//! own `virt` tree against `BoardProfile::qemu_virt_default` — but nothing
+//! runs them at boot. Boot-time wiring belongs with hardware bring-up (E-004).
 //!
 //! ## Checks
 //!
