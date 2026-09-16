@@ -238,7 +238,7 @@
   {"crate":"fjell-service-api","module":"chunked","impl_type":"","kind":"fn","name":"send","sig":"a71b5f52bff38c81"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"","kind":"struct","name":"Reassembler","sig":"ba6ca9e13a011bea"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"begin","sig":"f49037cbbc0774d7"},
-  {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"chunk","sig":"4faa940ea6c2d6b3"},
+  {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"chunk","sig":"b740c2f5dc437885"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"commit","sig":"36a70ceb284c3ac9"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"new","sig":"5607879020b06992"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"reset","sig":"8e0a6eaa52598031"},
