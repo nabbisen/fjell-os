@@ -79,6 +79,10 @@ cargo xtask trust-report --dry-run
 
 ## More Detail
 
+**The book is published at <https://nabbisen.github.io/fjell-os/>** — every
+page, including all 41 architecture decision records. The links below point
+into the repository; the site renders the same pages.
+
 - [Full documentation](docs/src/SUMMARY.md)
 - [v1.0 Identity and Direction](docs/src/identity/v1-direction.md)
 - [v1.0 Readiness Matrix](docs/src/releasing/v1-readiness.md) — 55 DONE, 3 DEFERRED, 0 OPEN
