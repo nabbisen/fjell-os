@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-09-12 15:52:45 UTC
-Version   : 0.31.0
+Generated : 2026-09-16 11:14:14 UTC
+Version   : 0.32.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -31,17 +31,17 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Service binaries in prebuilt/: 29
-    fjell-init.bin (17223 bytes)
+    fjell-init.bin (17471 bytes)
     fjell-configd.bin (472 bytes)
     fjell-cap-broker.bin (1576 bytes)
     fjell-auditd.bin (2760 bytes)
     fjell-service-manager.bin (1416 bytes)
-    fjell-sample-service.bin (4496 bytes)
+    fjell-sample-service.bin (6064 bytes)
     fjell-neg-test.bin (9088 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (50 bytes)
-    fjell-semantic-stream.bin (1649 bytes)
-    fjell-proxy-text.bin (5440 bytes)
+    fjell-semantic-stream.bin (11709 bytes)
+    fjell-proxy-text.bin (11920 bytes)
     fjell-devmgr.bin (4624 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
     fjell-storaged.bin (2003 bytes)
@@ -75,8 +75,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 284
-  with SAFETY comment: 284
+  total unsafe sites : 277
+  with SAFETY comment: 277
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -84,15 +84,15 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260912-152923
-  24    QEMU negative: user-copy                            60.2s  PASS
+  Latest test-all run: 20260916-105215
+  24    QEMU negative: user-copy                            60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 24  |  PASS: 22  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 2
   
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 580 passed, 0 failed  [PASS]
+    Host tests   : 605 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 
