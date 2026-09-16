@@ -1,6 +1,6 @@
 # RFC-0.32-003: Documentation that can be found
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-16; implementation may begin (RFC 000)
 **Milestone:** 0.32
 **Tracks.** **E-050** — 76 of the 135 files under the book root are in no book,
 the book's pages point at documents it does not contain, and four directory
@@ -161,10 +161,11 @@ the same commit. The audit's own build under 0.5.4 succeeded on today's
 
 **D18 — The book is published** (new finding above). A built book that is
 thrown away cannot be "documentation that can be found", and this line is named
-for that. GitHub Pages, deployed from CI on `main`. **Enabling Pages is the
-owner's action** — it is a repository setting and an outward-facing publication,
-so the implementer prepares the workflow and the owner switches it on; the line
-does not publish anything without that.
+for that. GitHub Pages, deployed from CI on `main`. **The owner configured
+Pages on 2026-09-16** — verified: `has_pages=true`, `build_type: workflow`,
+source `main`, site `https://nabbisen.github.io/fjell-os/`. `build_type:
+workflow` means a deployment comes from a workflow job, not from a branch, so
+this line writes that job; until it exists the site has nothing to serve.
 
 ## Requirements
 
