@@ -257,9 +257,14 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     # Two pushes landing together must not race each other onto the site; the
     # later one wins and the earlier is cancelled rather than interleaved.
+    # A later deploy queues behind an earlier one rather than cancelling it.
+    # With cancel-in-progress, criterion 9's own dispatch of the release commit
+    # cancelled that commit's push-run deploy: every cut hit it, found at the
+    # 0.32.0 cut. Both deploys serve the same commit, so queueing costs a
+    # redundant deploy and never serves an older tree.
     concurrency:
       group: pages
-      cancel-in-progress: true
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - name: Install mdBook

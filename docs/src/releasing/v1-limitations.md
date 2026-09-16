@@ -731,13 +731,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   broken is answerable after all: since it was written, because the API it
   imported was in a file no `mod` declaration ever included.
 
-- **Fuzzing covers six decoders, and none of them sits on a live boundary**
-  (Errata **E-043**, **CLOSED** 2026-09-15 by RFC-0.32-001). The fuzz harness
-  had never run: five of its eight targets called functions that never
-  existed. It now has one target per byte decoder a host fuzz crate can reach
-  — semantic envelopes, revocation records, audit records, both device-tree
-  parsers, capability manifests — and CI fuzzed all six for 300 seconds each
-  in run `34976532420`. Every push builds the targets and replays every
+- **Fuzzing covers seven decoders, and only one of them sits on a live
+  cross-service boundary** (Errata **E-043**, **CLOSED** 2026-09-15 by
+  RFC-0.32-001). The fuzz harness had never run: five of its eight targets
+  called functions that never existed. It now has one target per byte decoder
+  a host fuzz crate can reach — the semantic envelope wire format, semantic
+  intent records, revocation records, audit records, both device-tree parsers,
+  capability manifests — and all seven were fuzzed for 300 seconds each at the
+  0.32.0 cut (dispatch run `35089305545`). *(This bullet said "six decoders,
+  and none on a live boundary" until the 0.32.0 cut review: RFC-0.32-002 added
+  the seventh, on the live path, and updated the sub-bullet below but not this
+  heading.)* Every push builds the targets and replays every
   committed seed. What this does not cover, stated plainly:
   - **Most fuzzed decoders are not on live untrusted paths.** Only the audit
     decoder and the semantic envelope decoder have runtime callers. *(Updated

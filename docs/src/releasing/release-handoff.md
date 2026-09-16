@@ -121,7 +121,13 @@ order once.
 8. **CHANGELOG entry**, dated, under the version being released.
 9. **Exit criteria 1-7**, capturing real command output for the record.
 10. **Regenerate and commit `trust-report.txt`** (§0.2).
-11. **Release record** at `releases/<version>.md` (§4).
+11. **Release record** at `releases/<version>.md` (§4). **Written after steps
+    13–15, not before them**: the record carries their results (§4.10–§4.12),
+    and step 13's dispatched run must be *of the release commit*, so the cut
+    commits are pushed first. The order that works — found by the 0.32.0 cut,
+    the first to dispatch — is: cut commits → push → steps 13–15 → this record →
+    step 12 → the clean clone. *(Not renumbered, because §4 and the cycle
+    document cite these step numbers.)*
 12. **Re-run exit criterion 6 after the record is committed.** The record's
     own commit is what makes the milestone count as *shipped* to
     `errata-tracking`, so an erratum tracked to this milestone and still
@@ -287,8 +293,10 @@ The release record at `releases/<version>.md` carries:
     with what it reaches. The number of published security advisories, from
     Gate 12's `security-advisories` line.
 
-Follow the shape of [`../../releases/0.29.0.md`](https://github.com/nabbisen/fjell-os/blob/main/releases/0.29.0.md); it is the most
-recent and the most complete.
+Follow the shape of the most recent record in
+[`releases/`](https://github.com/nabbisen/fjell-os/tree/main/releases).
+*(This named `0.29.0.md` as "the most recent" through two later cuts; a
+version number in this sentence goes stale by the next release.)*
 
 ## 5. Prohibited shortcuts
 

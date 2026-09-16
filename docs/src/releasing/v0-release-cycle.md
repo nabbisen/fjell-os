@@ -125,6 +125,13 @@ unanchored form returned 1. Under the rule below that a green job with no
 `Done` line is red, the command as written would have turned every green
 `fuzz-run` red, on the first cut to use it.*
 
+- **A not-gated tier's job conclusion is not its result.** The negative-test
+  jobs with `release_gated = false` run their step under `continue-on-error`,
+  and GitHub's jobs API reports a step's *conclusion*, not its *outcome* — so a
+  tier that failed reads `success`. For those jobs, read the log for the
+  profile's own line (``profile `store` FAIL``) and record that. Found at the
+  0.32.0 cut: `store` and `upgrade` failed in both runs, as recorded, and the
+  0.31.0 record had listed both under success.
 - **The dispatched run is the evidence; the latest scheduled run is context.**
   Record the scheduled run's id, date and head commit, but do not let it
   stand in for the dispatch. A scheduled run is almost always of an older

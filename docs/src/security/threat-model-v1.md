@@ -69,7 +69,14 @@ Every threat is keyed to an adversary capability, not a named actor.
 
 **Adversary:** C-SUPPLY  
 **Defence:** I6 (`forbid(unsafe_code)` except at audited boundaries); unsafe-audit gate; RFC v0.6-004 + RFC 060.  
-**Residual:** Unsoundness in the Rust standard library or LLVM.
+**Residual:** Unsoundness in the Rust standard library or LLVM — **and in this
+project's own `unsafe`.** The unsafe-audit gate verifies that every site carries
+a classified justification, not that the justification is true. E-046 was such a
+site: a safe function reinterpreting another service's bytes as a struct, with a
+SAFETY comment, passing the gate. RFC-0.32-002 removed it and added Miri over
+the format crates on schedule and dispatch — a check of behaviour rather than of
+comments, over three crates, not the tree. *(Corrected at the 0.32.0 cut review:
+this residual named only the toolchain.)*
 
 ---
 
@@ -157,7 +164,14 @@ Every threat is keyed to an adversary capability, not a named actor.
 
 **Adversary:** C-NODE-EXEC  
 **Defence:** RFC 055 (kernel-attested sender identity). The kernel stamps sender `TaskId` on every IPC; services cannot forge it.  
-**Residual:** None within the current architecture.
+**Residual:** None within the current architecture, for forgery. **Adjacent,
+and not forgery:** a correctly identified sender whose *payload* is malformed —
+by a bug or by compromise. The kernel attests who sent the bytes, never that
+they are well-formed, so every receiver must decode rather than reinterpret.
+E-046 was exactly this, on the semantic path; RFC-0.32-002 made that path
+decode through a checked wire format and fuzzes the decoder. **No mechanism
+requires every service to do the same.** *(Named at the 0.32.0 cut review: this
+entry covered forgery and was silent on the neighbouring class.)*
 
 ---
 
