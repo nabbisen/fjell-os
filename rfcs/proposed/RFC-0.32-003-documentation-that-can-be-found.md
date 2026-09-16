@@ -35,6 +35,11 @@ measurements are not repeated here. What matters for scope:
   collide with repository-root directories; `docs/src/release` sits beside
   `docs/src/releases`; `ROADMAP.md` beside `docs/src/roadmap/roadmap.md`.
 - **`docs/book/` is not ignored**, so a local build is committable.
+- **Nothing publishes the book.** `ci-docs` runs `mdbook build` and the output
+  is discarded: no deploy step, no artifact upload, no `gh-pages` branch, and
+  the repository has **`has_pages=false`** (the Pages API returns 404). The 59
+  chapters that *are* in `SUMMARY.md` are as unreadable to an outsider as the
+  76 that are not. Found 2026-09-16, while confirming the owner's answer to §D.
 - **The book's own toolchain is undeclared and already forked:** CI installs
   **mdBook 0.4.40**; the architect's machine built this audit with **0.5.4**.
   Nothing states which is correct, and nothing would notice a build that
@@ -97,39 +102,69 @@ files, the stubs and the duplicate names. That failing run *is* D8's evidence �
 no synthetic fixture can be as honest, and nothing is moved until the
 instrument that will keep it moved exists.
 
-## The open questions
+## Settled by the owner, 2026-09-16
 
-**§A — What is the artefact directory called, and what belongs in it?** My lean:
-`docs/records/`, holding only what a tool writes or reads as data
-(`trust-report.txt`, `baseline.json`). The argument against: the per-release
-records under `docs/release/records/` are prose a person reads, and moving them
-into the book while keeping the word "records" for machine artefacts invites
-exactly the confusion this line is removing. **Name both, and say which word
-each gets.**
+The five questions this RFC opened were answered before acceptance. They are
+decisions now, not leanings.
 
-**§B — Which roadmap survives?** `ROADMAP.md` (23.8 KB, root) and
-`docs/src/roadmap/roadmap.md` (16.1 KB) are different documents. The guideline
-keeps `README.md` lean and routes detail into the book, which argues for the
-book's copy plus a root pointer — but the root file is the one a GitHub visitor
-finds. Propose; do not merge two documents silently.
+**D12 — `docs/` holds the book and nothing else** (§A). Its children are
+`book.toml`, `theme/`, `src/` and the version pin. Everything that is not a
+book page leaves it:
 
-**§C — Does `ERRATA.md` really belong in `rfcs/`?** My lean is yes: it is
-governance, cited by every RFC, and `docs/rfcs/` beside `rfcs/` is the sharpest
-name collision in the tree. The argument against: the register is read by three
-tools and by every reviewer, and moving it changes the most-referenced path in
-the project. **If you move it, the same commit updates every tool path and
-every relative link; say how many.**
+| What | Where | Why |
+|---|---|---|
+| Every maintained page a human reads | `docs/src/…`, in `SUMMARY.md` | D1 |
+| Per-release records and trust reports | **`releases/`** (repository root) | dated records, never edited after the cut — not maintained pages |
+| Benchmark baseline data | `benches/baseline.json`, beside the benchmark crate that writes it | data read by `fjell-tools bench`; its prose becomes a book chapter |
+| RFC corpus, answers, errata register | `rfcs/…` | D4 |
+| Verus proof sources | `verification/verus/` (unchanged) | source, not documentation |
 
-**§D — What happens to existing URLs?** README links, crates.io's rendered
-README, and any external reference to `docs/...` on GitHub break on a move.
-mdBook supports redirects for the built site; the repository paths themselves
-cannot redirect. **Say what you checked in the pinned mdBook version**, and
-what the policy is for links this line breaks.
+**The maintained/dated line is the rule that decides future cases**: a document
+that is kept true lives in the book; a record of what was true on a date lives
+in `releases/`. **No two of these directories share a leaf name** — `releases/`
+(records), `docs/src/releasing/` (how a release is made), `docs/src/history/`
+(session handoffs) — so the `release`/`releases` collision cannot come back
+under a new spelling.
 
-**§E — Which mdBook version is declared** (D10), 0.4.40 or 0.5.4, and where
-does the declaration live so that `toolchain-declarations` can check it?
+**D13 — `ROADMAP.md` at the repository root is the surviving roadmap** (§B),
+and it is **rearranged and cleaned up** as part of this line.
+`docs/src/roadmap/roadmap.md` (16.1 KB, overlapping content) is merged into it
+and removed, and the book's roadmap entry goes with it. **This is the one
+content edit this line performs**, and it is carved out of the non-goals below:
+it happens in its own commit, separate from every move, so both diffs stay
+reviewable. The four repository-root pages — `README.md`, `CHANGELOG.md`,
+`ROADMAP.md`, `TERMS_OF_USE.md` — are the declared exception to D1, because
+they are what a visitor finds first; the subchecks encode that list rather than
+leaving it to judgement.
 
-**Answer all five in writing before moving anything.**
+**D14 — `ERRATA.md` and the answer documents move to `rfcs/`** (§C), with every
+tool path and relative link updated in the same commit.
+
+**D15 — Documentation is technical debt too, so this line classifies it** (§C,
+the owner's caution). Every document is **current**, **historical** or a
+**record**. Historical documents — superseded ADRs, session handoffs, `v0.1.x`
+scope and gate documents — live under one section that says so, and **each
+carries a status line naming what superseded it and when**. A subcheck enforces
+that line inside that section. Prose that looks current and is not is the
+documentation form of a comment the compiler does not check.
+
+**D16 — No redirects** (§D). Old paths are not preserved; the repository and
+the site are updated in place. **Best effort on links**: `doc-links` must be
+green, `README.md` and the root pages repointed, and R8 checks the built site
+rather than only the filesystem.
+
+**D17 — mdBook 0.5** (§E), declared in one file — `docs/MDBOOK.lock`, following
+`verification/verus/TOOLCHAIN.lock`'s precedent — and checked by
+`toolchain-declarations` against the version CI installs. CI moves off 0.4.40 in
+the same commit. The audit's own build under 0.5.4 succeeded on today's
+`book.toml`, which is evidence that the move is small, not that it is free.
+
+**D18 — The book is published** (new finding above). A built book that is
+thrown away cannot be "documentation that can be found", and this line is named
+for that. GitHub Pages, deployed from CI on `main`. **Enabling Pages is the
+owner's action** — it is a repository setting and an outward-facing publication,
+so the implementer prepares the workflow and the owner switches it on; the line
+does not publish anything without that.
 
 ## Requirements
 
@@ -159,18 +194,29 @@ toolchain and demonstrated failing.
 spot-checked: an ADR reachable from the navigation, and no chapter linking to a
 path the site does not contain.
 
-**R9 — E-050 CLOSED**, or its survivors named; register and
+**R9 — D13's roadmap merge and cleanup**, in its own commit, with a summary of
+what moved and what was dropped.
+
+**R10 — D15's classification**: every document marked current, historical or
+record, the historical ones under one section with their status lines, and the
+subcheck that enforces them.
+
+**R11 — D17 and D18**: the mdBook pin and its check; the Pages deploy workflow,
+**prepared and not enabled** until the owner switches Pages on, with the run id
+of a successful build under the pinned version.
+
+**R12 — E-050 CLOSED**, or its survivors named; register and
 `v1-limitations.md` in the same commit.
 
-**R10 — The gates:** `release-rehearsal`, `consistency-check --all` by exit
+**R13 — The gates:** `release-rehearsal`, `consistency-check --all` by exit
 status, `cargo fmt --all --check`, and a CI run id for the push.
 
 ### Non-goals
 
-- **Rewriting any document's content.** This line moves, indexes and gates; it
-  does not edit prose, except the stub pages it deletes and the links it must
-  repoint.
-- Merging the two roadmaps (§B proposes; the owner decides).
+- **Rewriting any document's content** — with one carved-out exception, D13's
+  roadmap merge and cleanup, which happens in its own commit. Otherwise this
+  line moves, indexes and gates; it does not edit prose, beyond the stub pages
+  it deletes, the status lines D14 adds and the links it must repoint.
 - Changing the RFC process, the errata lifecycle, or `rfcs/`'s own folder
   structure beyond D4.
 - Moving `verification/verus/` — it is proof source, not documentation.

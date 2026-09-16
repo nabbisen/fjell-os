@@ -3293,6 +3293,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   6. **`docs/book/` is not in `.gitignore`**, so a local build leaves the whole
      site untracked and committable — the artefact-leak shape fixed in 0.30,
      one directory over.
+  7. **And nothing publishes the book at all** (found 2026-09-16, confirming
+     the owner's answer on migration): `ci-docs` runs `mdbook build` and
+     discards the output — no deploy step, no artifact upload, no `gh-pages`
+     branch, and the repository reports **`has_pages=false`** with the Pages
+     API returning 404. The 59 chapters that *are* listed are therefore as
+     unreachable to an outside reader as the 76 that are not. Tracked in
+     RFC-0.32-003 (D18); enabling Pages is the owner's action.
 - **Why nothing saw it:** no instrument reads `SUMMARY.md`. `doc-links` checks
   that links resolve *on disk*, which they do — a reader on GitHub follows them
   fine, and only a reader of the built book cannot. mdBook itself reports

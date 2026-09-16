@@ -771,7 +771,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **E-050**, ACCEPTED, unscheduled). The published book renders 59 of the 135
   Markdown files under its own source root; the other 76 — including all 41
   architecture decision records — are in the repository but in no book, and
-  `mdbook build` reports nothing. Several book pages are stubs pointing at the
+  `mdbook build` reports nothing — and nothing publishes the book in any case:
+  CI builds it and discards the output, and the repository has no GitHub Pages
+  site. Several book pages are stubs pointing at the
   real document outside the book, where the site cannot follow them, and one
   describes itself as a symlink that does not exist. Everything is present for
   a reader who browses the repository; a reader of the book sees a fraction.
