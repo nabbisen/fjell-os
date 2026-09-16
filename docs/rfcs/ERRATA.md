@@ -3300,14 +3300,23 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   chapters or 59.
 - **Not a broken build.** Everything is present in the repository; what is
   missing is reachability and one honest sentence.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-16), **unscheduled** —
-  awaiting the owner's scheduling. Closing it means: one documentation root
+- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked
+  **RFC-0.32-003** (scoped 2026-09-16, at the owner's direction to schedule it
+  as soon as is reasonable; it starts after RFC-0.32-002's review lands,
+  because that line's closure edits three of the files this one moves).
+  Closing it means: one documentation root
   with everything a human reads under `docs/src` and in `SUMMARY.md`; the
   duplicate directory names gone; the stub-and-pointer pattern replaced by the
   document itself; `docs/book/` ignored; and **a subcheck that fails when a
   file under `docs/src` is absent from `SUMMARY.md`, or an entry resolves to
   nothing** — demonstrated failing in both directions, so the 76 cannot
   reaccumulate.
+
+  *Found while scoping: the book's own toolchain is undeclared and already
+  forked — CI installs **mdBook 0.4.40** (`ci.yml`), while the machine that
+  built this audit has **0.5.4**. Nothing says which is correct, and nothing
+  would notice a build behaving differently under the other. E-037's shape, one
+  tool over; folded into RFC-0.32-003 (D10).*
 
 ## Summary
 
@@ -3362,7 +3371,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
-| E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | unscheduled | ACCEPTED |
+| E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
