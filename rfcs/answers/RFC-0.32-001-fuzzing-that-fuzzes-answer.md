@@ -1,6 +1,6 @@
 # RFC-0.32-001 §7 and §8 — what runs on push, and which toolchain fuzzes
 
-**Governing RFC:** [rfcs/accepted/RFC-0.32-001-fuzzing-that-fuzzes.md](../../rfcs/accepted/RFC-0.32-001-fuzzing-that-fuzzes.md)
+**Governing RFC:** [rfcs/done/RFC-0.32-001-fuzzing-that-fuzzes.md](../../rfcs/done/RFC-0.32-001-fuzzing-that-fuzzes.md)
 
 Answered after R1 and before R4, in the handoff's order. R1 changed both
 answers, so its evidence comes first.

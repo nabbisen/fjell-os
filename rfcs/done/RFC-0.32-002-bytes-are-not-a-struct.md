@@ -1,6 +1,6 @@
 # RFC-0.32-002: Bytes from another service are not a struct
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-16; implementation may begin (RFC 000)
+**Status:** Implemented (0.32.0) — accepted 2026-09-16
 **Milestone:** 0.32
 **Tracks.** **E-046** — Rust structs are reinterpreted as raw bytes without the
 guarantees that would make it sound, including across a service boundary.

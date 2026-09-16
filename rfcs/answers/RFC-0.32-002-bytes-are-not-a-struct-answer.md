@@ -1,6 +1,6 @@
 # RFC-0.32-002 §A–§D — where the codec lives, what it carries, what the checksums cover, and where Miri runs
 
-**Governing RFC:** [rfcs/accepted/RFC-0.32-002-bytes-are-not-a-struct.md](../../rfcs/accepted/RFC-0.32-002-bytes-are-not-a-struct.md)
+**Governing RFC:** [rfcs/done/RFC-0.32-002-bytes-are-not-a-struct.md](../../rfcs/done/RFC-0.32-002-bytes-are-not-a-struct.md)
 
 Answered after R1 and before the codec, in the handoff's order. R1's
 measurements are what these four rest on, so they come first.

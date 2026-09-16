@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.32-001
 
-**Governing RFC:** [RFC-0.32-001](../../accepted/RFC-0.32-001-fuzzing-that-fuzzes.md)
+**Governing RFC:** [RFC-0.32-001](../../done/RFC-0.32-001-fuzzing-that-fuzzes.md)
 **Milestone:** 0.32
-**Status:** inherited from the governing RFC (Accepted, 2026-09-15)
+**Status:** inherited from the governing RFC (Implemented, 0.32.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

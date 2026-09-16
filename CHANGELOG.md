@@ -5,6 +5,105 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.32.0] — 2026-09-16 — Things that claimed to exist
+
+Four RFCs, **six errata closed** (**E-043**, **E-046**, **E-047**, **E-050**,
+**E-051**, **E-053**). 0.31 found instruments that had never executed. 0.32 found
+artefacts that had been **specified, marked Implemented, and described as
+working, without existing in the form described**: a fuzz harness that had never
+once run; a decoder that trusted another service's bytes as a struct; a book no
+reader could reach, most of which was in no book at all; and an advisory process
+that was a description of itself.
+
+Every one is now built, and every instrument that holds it was shown failing
+before it was trusted.
+
+**The book is published** at <https://nabbisen.github.io/fjell-os/>.
+
+### Fixed — a fuzz harness that had never run (RFC-0.32-001)
+
+Five of the harness's eight targets called functions that did not exist, so it
+had never compiled, and the scheduled CI job that "fuzzed weekly" had failed on
+every run for three months. It now has one target per real byte decoder a host
+crate can reach — seven, including the service wire decoder below — seeds
+replayed on every push, a 300-second run per target on schedule and on demand,
+and a crashing input uploaded rather than discarded.
+
+Its first real run found a defect in 30 seconds: `fjell-dtb-derive` added two
+offsets read from the device tree without checking the sum, so a crafted tree
+panicked it (**E-047**, fixed). Closes **E-043** and **E-047**.
+
+### Fixed — bytes from another service were read as a struct (RFC-0.32-002)
+
+`semantic-stream` and `proxy-text` rebuilt a message from bytes another service
+sent by reinterpreting them directly as a Rust type containing enums. Miri named
+the undefined behaviour at `.correlation_id.<enum-tag>`. **Worse, a zero-filled
+buffer — what a receiver holds before its first message — was not undefined
+behaviour at all**: it decoded silently into a fabricated envelope.
+
+The envelope now crosses the boundary as a versioned wire format decoded by safe
+code that returns `Result`; both receive loops check the length `BEGIN` declared
+instead of discarding it; `semantic-stream` re-encodes what it forwards rather
+than passing received bytes through; and the boot-control and store-superblock
+checksums are computed over named fields instead of struct memory. An envelope
+is 143 bytes in 7 IPC calls, where it was 4,936 in 157. The six raw
+reinterpretation sites the erratum found outside the kernel are gone; the
+kernel's four were out of scope and remain. Closes **E-046**.
+
+### Fixed — documentation that could not be found (RFC-0.32-003)
+
+75 of the book's 134 pages, including all 41 architecture decision records,
+were in no navigation; several pages were stubs pointing at the real document
+outside the book; four directory names existed twice; and nothing published the
+book at all. Every page — 173 now — is reachable from `SUMMARY.md`, prose lives
+under one root, dated release records moved to `releases/`, the RFC corpus to
+`rfcs/`, the mdBook version is pinned and checked against CI, and the book
+deploys to GitHub Pages from `main`. Five subchecks hold the structure.
+
+Checking the **published site**, not only the filesystem, found three defects no
+link check can see — including one this line caused, a front-page logo held in
+an HTML tag no repointing pass read. Closes **E-050**.
+
+### Added — a security advisory process that exists (RFC-0.32-004)
+
+RFC-v0.15-003 specified an advisory process and a register, was marked
+Implemented, and built neither; the release checklist published an address that
+could not receive mail. There is now one process document, one intake channel —
+GitHub's private security advisory — and a register that is **empty, because no
+vulnerability has been reported, and checked while empty**.
+
+**Owner decisions made this release:**
+
+- **Acknowledgement within 7 days** of a report, and **a severity decision,
+  with the reason, within 14 days**. Every time in the process is a target, not
+  a guarantee: Fjell OS has one maintainer, and the process says so.
+- **A defect found internally gets an advisory only when it reaches a published
+  crate** (`fjell-os`, `fjell-abi`). Otherwise it is an erratum. The first case
+  ruled under this, E-046, receives no advisory.
+
+Published advisories against every `Cargo.lock` are now checked in CI on every
+push and weekly. **The first run was red** — RUSTSEC-2026-0204 in
+`crossbeam-epoch` and RUSTSEC-2026-0190 in `anyhow` — for a benchmark harness
+and a lockfile entry compiled for no target, neither reaching a published crate,
+the kernel or a service. Both fixed by patch-level updates (**E-053**). The
+check states in its own output that the published crates carry no third-party
+dependencies, so a clean run is never read as a claim about what ships.
+
+A release cut now reads that check (exit criterion 11), and waits rather than
+proceeding with a note if the advisory database cannot be fetched. Closes
+**E-051** and **E-053**.
+
+### Changed — paths
+
+Anyone holding a link into the old tree: `docs/rfcs/ERRATA.md` is
+`rfcs/ERRATA.md`; the answer documents are `rfcs/answers/`; release records and
+the trust report are `releases/`; the benchmark baseline is
+`benches/baseline.json`; and `docs/{release,verification,security,compliance,
+operations,deployment,perf}/` are under `docs/src/`, with `release` →
+`releasing`, `verification` → `assurance`. There are no redirects.
+
+---
+
 ## [0.31.0] — 2026-09-13 — The checks that had never run
 
 Three RFCs, **four errata closed** (**E-037**, **E-040**, **E-041**, **E-042**),

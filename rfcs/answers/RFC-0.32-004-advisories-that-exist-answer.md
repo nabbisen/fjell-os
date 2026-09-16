@@ -1,6 +1,6 @@
 # RFC-0.32-004 §A–§E — where the dependency check runs, where advisories live, how they relate to errata, and SBOM
 
-**Governing RFC:** [../accepted/RFC-0.32-004-advisories-that-exist.md](../accepted/RFC-0.32-004-advisories-that-exist.md)
+**Governing RFC:** [../done/RFC-0.32-004-advisories-that-exist.md](../done/RFC-0.32-004-advisories-that-exist.md)
 
 Answered after R1 and before implementation, in the handoff's order. §D is the
 owner's; it is proposed here, not decided.

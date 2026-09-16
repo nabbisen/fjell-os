@@ -1,6 +1,6 @@
 # RFC-0.32-003: Documentation that can be found
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-16; implementation may begin (RFC 000)
+**Status:** Implemented (0.32.0) — accepted 2026-09-16
 **Milestone:** 0.32
 **Tracks.** **E-050** — 76 of the 135 files under the book root are in no book,
 the book's pages point at documents it does not contain, and four directory

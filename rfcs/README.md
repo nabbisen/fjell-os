@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 183 files
+## Implemented (done/) — 187 files
 
-182 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+186 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -410,18 +410,30 @@ closes the arc that opened at E-035.
 | 0.31-002 | [A CI that builds the product](./done/RFC-0.31-002-ci-that-builds-the-product.md) — closed **E-041** and **E-037**'s consolidation survivor; CI installs from `rust-toolchain.toml` through one composite action and builds the kernel for the first time | 0.31.0 |
 | 0.31-003 | [A toolchain that is current, and stays that way](./done/RFC-0.31-003-a-toolchain-that-stays-current.md) — closed **E-037**; pinned exactly at 1.98.1, and the cut now records how far behind the pin has drifted | 0.31.0 |
 
+### 0.32 — things that claimed to exist
+
+0.31 found instruments that had never executed. 0.32 found artefacts that had
+been specified, marked Implemented, and described as working, without existing
+in the form described: a fuzz harness that had never once run; a decoder that
+trusted another service's bytes as a struct; a book no reader could reach, most
+of which was in no book at all; and an advisory process that was a description
+of itself. Each is now built, and each is held by an instrument shown failing
+before it was trusted.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./done/RFC-0.32-001-fuzzing-that-fuzzes.md) — closed **E-043**, **E-047**; six real decoders fuzzed, a dispatchable run, crash inputs uploaded | 0.32.0 |
+| 0.32-002 | [Bytes from another service are not a struct](./done/RFC-0.32-002-bytes-are-not-a-struct.md) — closed **E-046**; a defined wire format, framing enforced, no reinterpreting `unsafe` at the service boundary | 0.32.0 |
+| 0.32-003 | [Documentation that can be found](./done/RFC-0.32-003-documentation-that-can-be-found.md) — closed **E-050**; one book root, every page navigable, published | 0.32.0 |
+| 0.32-004 | [Advisories that exist](./done/RFC-0.32-004-advisories-that-exist.md) — closed **E-051**, **E-053**; one process, one channel, a register checked while empty, dependency advisories in CI | 0.32.0 |
+
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — none
 
-Signed off by the owner; implementation may begin; not yet shipped.
-
-| RFC | Title |
-|-----|-------|
-| 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./accepted/RFC-0.32-001-fuzzing-that-fuzzes.md) — accepted 2026-09-15; closes **E-043**; handoff: [`handoffs/`](./handoffs/RFC-0.32-001-fuzzing-that-fuzzes/implementation-handoff.md) |
-| 0.32-002 | [Bytes from another service are not a struct](./accepted/RFC-0.32-002-bytes-are-not-a-struct.md) — accepted 2026-09-16; closes **E-046**; handoff: [`handoffs/`](./handoffs/RFC-0.32-002-bytes-are-not-a-struct/implementation-handoff.md) |
-| 0.32-003 | [Documentation that can be found](./accepted/RFC-0.32-003-documentation-that-can-be-found.md) — accepted 2026-09-16; closes **E-050**; handoff: [`handoffs/`](./handoffs/RFC-0.32-003-documentation-that-can-be-found/implementation-handoff.md) |
-| 0.32-004 | [Advisories that exist](./accepted/RFC-0.32-004-advisories-that-exist.md) — accepted 2026-09-16; closes **E-051**; handoff: [`handoffs/`](./handoffs/RFC-0.32-004-advisories-that-exist/implementation-handoff.md) |
+Signed off by the owner; implementation may begin; not yet shipped. Every
+accepted RFC shipped in 0.32.0. `accepted/README.md` keeps the folder in a
+fresh clone.
 
 ---
 
