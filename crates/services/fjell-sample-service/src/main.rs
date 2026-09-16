@@ -91,18 +91,18 @@ fn emit_sample_intent() {
     };
     let envelope = SemanticEnvelope::new_intent(node_id, 1, intent);
 
-    // SAFETY: category=raw-pointer-deref `SemanticEnvelope` is `Copy` with no
-    // pointers or heap allocations — every field is a fixed-size array, enum,
-    // or primitive (verified against fjell-semantic-format/src/lib.rs in
-    // full). Reinterpreting it as a byte slice for wire transfer is sound
-    // because sender and receiver are built from the identical type
-    // definition by the identical compiler for the identical target (one
-    // `cargo build` invocation produces every service binary).
-    let bytes: &[u8] = unsafe {
-        core::slice::from_raw_parts(
-            &envelope as *const SemanticEnvelope as *const u8,
-            core::mem::size_of::<SemanticEnvelope>(),
-        )
+    // RFC-0.32-002 D4: the sender encodes. It does not publish a view of its
+    // own stack memory — `SemanticEnvelope` is `repr(Rust)`, so its padding
+    // bytes are not required to be initialised, and shipping
+    // `size_of::<SemanticEnvelope>()` bytes of it sent whatever happened to
+    // be on this service's stack across a capability boundary.
+    let mut out = [0u8; wire::MAX_WIRE_BYTES];
+    let bytes: &[u8] = match wire::encode(&envelope, &mut out) {
+        Ok(n) => &out[..n],
+        Err(_) => {
+            sys_debug_writeln("sample-service: intent encode FAILED");
+            return;
+        }
     };
 
     let reply = fjell_service_api::chunked::send(

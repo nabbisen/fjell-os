@@ -980,6 +980,7 @@ name = "fjell-service-api"
 version = "0.31.0"
 dependencies = [
  "fjell-abi",
+ "fjell-semantic-format",
  "fjell-syscall",
 ]
 

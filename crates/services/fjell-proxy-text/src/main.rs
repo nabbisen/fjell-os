@@ -4,9 +4,7 @@
 mod rt;
 use fjell_cap::CapHandle;
 use fjell_proxy_text::{render_event, render_intent, render_state};
-use fjell_semantic_format::{
-    ActionId, CorrelationId, IntentNode, SemanticEnvelope, SemanticPayload,
-};
+use fjell_semantic_format::{ActionId, CorrelationId, IntentNode, SemanticPayload, wire};
 use fjell_service_api::proxy_text as proto;
 use fjell_service_api::semantic_stream as sem_proto;
 use fjell_syscall::{sys_cap_inspect, sys_debug_writeln};
@@ -20,10 +18,11 @@ const SEM_STREAM_EP: u32 = 1;
 // self-asserted) to obtain the rights presented for each action's check.
 const DEMO_CAP_SLOT: u32 = 2;
 
-/// Byte size of one `SemanticEnvelope`, rounded up to a whole number of
-/// 32-byte chunks — see fjell_service_api::chunked's doc comment.
-const ENV_SIZE: usize = core::mem::size_of::<SemanticEnvelope>();
-const ENV_BUF_SIZE: usize = ENV_SIZE.div_ceil(32) * 32;
+/// Receive-buffer size: the widest envelope the wire format can carry
+/// (RFC-0.32-002 D1), rounded up to a whole number of 32-byte chunks — not
+/// `size_of::<SemanticEnvelope>()`, which is the struct's in-memory size and
+/// has nothing to do with its encoding.
+const ENV_BUF_SIZE: usize = wire::MAX_WIRE_BYTES.div_ceil(32) * 32;
 
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
@@ -138,29 +137,39 @@ pub extern "C" fn service_main() -> ! {
     // `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md`.
     sys_debug_writeln("M5: proxy-text started");
 
-    let mut buf = [0u8; ENV_BUF_SIZE];
-    let mut offset = 0usize;
+    let mut frames = fjell_service_api::chunked::Reassembler::<ENV_BUF_SIZE>::new();
 
     loop {
         let (tag_packed, w0, w1, w2, w3) = recv_call();
         let tag = tag_packed & 0xFFFF;
         match tag {
             t if t == proto::RENDER_BEGIN => {
-                offset = 0;
-                reply(proto::RENDER_OK, 0, 0, 0);
+                // RFC-0.32-002 D3, as in semantic-stream: the declared length
+                // is recorded and checked, not discarded.
+                match frames.begin(w0) {
+                    Ok(()) => reply(proto::RENDER_OK, 0, 0, 0),
+                    Err(_) => reply(proto::ERR, 0, 0, 0),
+                }
             }
-            t if t == proto::RENDER_CHUNK => {
-                fjell_service_api::chunked::write_chunk(&mut buf, offset, w0, w1, w2, w3);
-                offset += fjell_service_api::chunked::CHUNK_BYTES;
-                reply(proto::RENDER_OK, 0, 0, 0);
-            }
+            t if t == proto::RENDER_CHUNK => match frames.chunk(w0, w1, w2, w3) {
+                Ok(()) => reply(proto::RENDER_OK, 0, 0, 0),
+                Err(_) => {
+                    frames.reset();
+                    reply(proto::ERR, 0, 0, 0);
+                }
+            },
             t if t == proto::RENDER_COMMIT => {
-                // `buf` holds ENV_BUF_SIZE >= ENV_SIZE bytes, every byte
-                // either real transferred data or the sender's
-                // zero-padding — see fjell_service_api::chunked::reassemble
-                // for the safety reasoning (shared with the send side in
-                // fjell-semantic-stream/src/main.rs).
-                let envelope: SemanticEnvelope = fjell_service_api::chunked::reassemble(&buf);
+                let decoded = match frames.commit() {
+                    Ok(bytes) => wire::decode_exact(bytes).ok(),
+                    Err(_) => None,
+                };
+                frames.reset();
+                let Some(envelope) = decoded else {
+                    // Framing or decoding refused it. proxy_text has no
+                    // RENDER_ERR; `ERR` is this protocol's error reply.
+                    reply(proto::ERR, 0, 0, 0);
+                    continue;
+                };
                 // Render (and, for an Intent, copy out what the return leg
                 // needs) BEFORE replying. `dispatch_action` below calls back
                 // into semantic-stream — which is, right now, still blocked

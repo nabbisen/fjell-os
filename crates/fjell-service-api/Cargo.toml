@@ -9,3 +9,9 @@ publish = false
 [dependencies]
 fjell-abi    = { path = "../fjell-abi" }
 fjell-syscall = { path = "../fjell-syscall" }
+
+[dev-dependencies]
+# For the receive-path test only (RFC-0.32-002 D3): the framing is
+# format-agnostic, but the refusals are only meaningful end to end, with a
+# real decoder behind them. Dev-only, so no service takes this edge.
+fjell-semantic-format = { path = "../formats/fjell-semantic-format" }

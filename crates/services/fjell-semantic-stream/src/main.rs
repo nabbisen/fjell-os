@@ -97,12 +97,12 @@ const EP_SLOT: u32 = 0;
 // proxy-text endpoint cap (object 8), pre-installed by spawn.rs.
 const PROXY_TEXT_EP: u32 = 1;
 
-/// Byte size of one `SemanticEnvelope`, rounded up to a whole number of
-/// 32-byte chunks so every chunked write lands fully in bounds (the tail
-/// past the real struct size is zero-padding, matching what the sender
-/// already transmits — see `fjell_service_api::chunked`).
-const ENV_SIZE: usize = core::mem::size_of::<SemanticEnvelope>();
-const ENV_BUF_SIZE: usize = ENV_SIZE.div_ceil(32) * 32;
+/// Receive-buffer size: the widest envelope the wire format can carry
+/// (RFC-0.32-002 D1), rounded up to a whole number of 32-byte chunks. It is
+/// no longer `size_of::<SemanticEnvelope>()` — the struct's in-memory size
+/// is not the size of its encoding, and nothing here reinterprets one as the
+/// other.
+const ENV_BUF_SIZE: usize = wire::MAX_WIRE_BYTES.div_ceil(32) * 32;
 
 fn recv_call() -> (usize, usize, usize, usize, usize) {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
@@ -123,7 +123,13 @@ fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
     }
 }
 
-/// Forward `bytes` (a full `SemanticEnvelope`'s raw bytes) on to proxy-text.
+/// Forward an encoding of `envelope` on to proxy-text.
+///
+/// RFC-0.32-002 §2: this re-encodes what it forwards. It does **not** pass
+/// the received bytes through. A proxy that forwards untrusted bytes as
+/// "already checked" makes the receiver reinterpret them a second time, which
+/// is how one malformed message from sample-service used to be decoded twice,
+/// in two services.
 fn forward_to_proxy_text(bytes: &[u8]) -> usize {
     use fjell_service_api::proxy_text as pt_proto;
     fjell_service_api::chunked::send(
@@ -172,8 +178,7 @@ pub extern "C" fn service_main() -> ! {
     // (needed to look up an action's required_capability when proxy-text
     // later calls back with DISPATCH_ACTION). Plain locals — this loop is
     // the only thing that ever touches them, so no static/UnsafeCell needed.
-    let mut buf = [0u8; ENV_BUF_SIZE];
-    let mut offset = 0usize;
+    let mut frames = fjell_service_api::chunked::Reassembler::<ENV_BUF_SIZE>::new();
     let mut last_intent: Option<IntentNode> = None;
 
     loop {
@@ -181,30 +186,60 @@ pub extern "C" fn service_main() -> ! {
         let tag = tag_packed & 0xFFFF;
         match tag {
             t if t == proto::PUBLISH_BEGIN => {
-                offset = 0;
-                reply(proto::PUBLISH_OK, 0, 0, 0);
-            }
-            t if t == proto::PUBLISH_CHUNK => {
-                fjell_service_api::chunked::write_chunk(&mut buf, offset, w0, w1, w2, w3);
-                offset += fjell_service_api::chunked::CHUNK_BYTES;
-                reply(proto::PUBLISH_OK, 0, 0, 0);
-            }
-            t if t == proto::PUBLISH_COMMIT => {
-                // `buf` holds ENV_BUF_SIZE >= ENV_SIZE bytes, every byte
-                // either real transferred data or the sender's
-                // zero-padding — see fjell_service_api::chunked::reassemble
-                // for the safety reasoning.
-                let envelope: SemanticEnvelope = fjell_service_api::chunked::reassemble(&buf);
-                if let SemanticPayload::Intent(n) = &envelope.payload {
-                    last_intent = Some(*n);
+                // RFC-0.32-002 D3: the declared length is recorded, not
+                // discarded. A length this buffer cannot hold is refused here
+                // rather than absorbed and truncated later.
+                match frames.begin(w0) {
+                    Ok(()) => reply(proto::PUBLISH_OK, 0, 0, 0),
+                    Err(_) => reply(proto::PUBLISH_ERR, 0, 0, 0),
                 }
-                let ok = validate_envelope(&envelope);
-                if ok {
-                    let _ = forward_to_proxy_text(&buf[..]);
-                    reply(proto::PUBLISH_OK, 0, 0, 0);
-                } else {
+            }
+            t if t == proto::PUBLISH_CHUNK => match frames.chunk(w0, w1, w2, w3) {
+                Ok(()) => reply(proto::PUBLISH_OK, 0, 0, 0),
+                Err(_) => {
+                    frames.reset();
                     reply(proto::PUBLISH_ERR, 0, 0, 0);
                 }
+            },
+            t if t == proto::PUBLISH_COMMIT => {
+                // Two independent refusals, in order: the framing must agree
+                // with what BEGIN declared, and then the bytes must decode.
+                // Neither can be satisfied by what the previous message left
+                // in the buffer.
+                let decoded = match frames.commit() {
+                    Ok(bytes) => wire::decode_exact(bytes).ok(),
+                    Err(_) => None,
+                };
+                frames.reset();
+
+                let ok = match decoded {
+                    Some(envelope) if validate_envelope(&envelope) => {
+                        if let SemanticPayload::Intent(n) = &envelope.payload {
+                            last_intent = Some(*n);
+                        }
+                        // §2: encode again from the value this service
+                        // validated, rather than forwarding what arrived.
+                        let mut out = [0u8; ENV_BUF_SIZE];
+                        match wire::encode(&envelope, &mut out) {
+                            Ok(n) => {
+                                let _ = forward_to_proxy_text(&out[..n]);
+                                true
+                            }
+                            Err(_) => false,
+                        }
+                    }
+                    _ => false,
+                };
+                reply(
+                    if ok {
+                        proto::PUBLISH_OK
+                    } else {
+                        proto::PUBLISH_ERR
+                    },
+                    0,
+                    0,
+                    0,
+                );
             }
             t if t == proto::DISPATCH_ACTION => {
                 let correlation_id = CorrelationId(w0 as u64);

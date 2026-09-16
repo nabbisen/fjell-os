@@ -512,39 +512,110 @@ pub mod chunked {
         ipc_call4(ep_slot, commit_tag, 0, 0, 0, 0)
     }
 
-    /// Reassemble one chunk's four words into `out` at `offset`. Bytes past
-    /// `out.len()` are dropped (the final chunk is zero-padded by the
-    /// sender past the BEGIN-declared length; callers truncate to that
-    /// length, so nothing beyond it is ever read back).
-    pub fn write_chunk(out: &mut [u8], offset: usize, w0: usize, w1: usize, w2: usize, w3: usize) {
-        for (i, w) in [w0, w1, w2, w3].iter().enumerate() {
-            let start = offset + i * 8;
-            if start + 8 <= out.len() {
-                out[start..start + 8].copy_from_slice(&w.to_le_bytes());
-            }
+    /// Why the framing was refused. Each variant is a case the receive loop
+    /// used to absorb silently (RFC-0.32-002 D3).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum FrameError {
+        /// A CHUNK or COMMIT arrived with no BEGIN before it. The buffer may
+        /// hold the previous message; it is not offered to the caller.
+        NoBegin,
+        /// BEGIN declared more bytes than this receiver's buffer holds.
+        DeclaredTooLarge,
+        /// More chunks arrived than the declared length needs. Previously
+        /// these were written past the end and dropped.
+        TooManyChunks,
+        /// COMMIT arrived before the declared number of bytes did.
+        /// Previously the shortfall was read as the previous message's tail.
+        ShortMessage,
+    }
+
+    /// Chunked-receive framing for one endpoint.
+    ///
+    /// It holds the length BEGIN declared and counts the bytes that actually
+    /// arrive, so `commit` can only ever hand back bytes this message wrote.
+    /// That is the whole point: there is no path by which a short or absent
+    /// message reaches a caller holding the previous message's bytes, because
+    /// `commit` refuses unless the count matches.
+    ///
+    /// It yields a byte slice, never a typed value — building a type out of
+    /// those bytes is the decoder's job, and the decoder can say no.
+    pub struct Reassembler<const N: usize> {
+        buf: [u8; N],
+        /// Bytes BEGIN declared, or `None` when no message is in progress.
+        declared: Option<usize>,
+        /// Bytes written by CHUNKs since BEGIN, counting the sender's
+        /// zero-padding in the final chunk.
+        received: usize,
+    }
+
+    impl<const N: usize> Default for Reassembler<N> {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
-    /// Reassemble a chunked byte buffer back into `T`. `buf` must hold at
-    /// least `size_of::<T>()` bytes (every byte either real transferred
-    /// data or the sender's zero-padding — see `send`/`write_chunk` above).
-    ///
-    /// Restricted to `T: Copy` — every caller in this codebase uses this
-    /// for `Copy`, no-pointer, fixed-size structs
-    /// (`StateNode`/`EventNode`/`IntentNode`/`SemanticEnvelope`), for which
-    /// bytewise reinterpretation is sound as long as sender and receiver
-    /// share the identical type definition, compiled by the identical
-    /// compiler for the identical target — true here, since one `cargo
-    /// build` invocation produces every service binary. `T: Copy` does not
-    /// by itself prove the absence of pointers for an arbitrary type; this
-    /// is a documented caller contract, not a compiler-enforced one.
-    pub fn reassemble<T: Copy>(buf: &[u8]) -> T {
-        // SAFETY: category=raw-pointer-deref caller contract (see doc
-        // comment above) guarantees `buf` holds at least `size_of::<T>()`
-        // initialised bytes of `T`'s own wire representation;
-        // `read_unaligned` handles any alignment mismatch between the byte
-        // buffer and `T`'s required alignment.
-        unsafe { core::ptr::read_unaligned(buf.as_ptr().cast()) }
+    impl<const N: usize> Reassembler<N> {
+        pub const fn new() -> Self {
+            Reassembler {
+                buf: [0u8; N],
+                declared: None,
+                received: 0,
+            }
+        }
+
+        /// Abandon any message in progress. Called after every COMMIT,
+        /// successful or not, so the next message starts clean.
+        pub fn reset(&mut self) {
+            self.declared = None;
+            self.received = 0;
+        }
+
+        /// BEGIN: record the declared length instead of discarding it.
+        pub fn begin(&mut self, declared_len: usize) -> Result<(), FrameError> {
+            self.reset();
+            if declared_len > N {
+                return Err(FrameError::DeclaredTooLarge);
+            }
+            self.declared = Some(declared_len);
+            Ok(())
+        }
+
+        /// CHUNK: 32 bytes into the buffer, refused if they would exceed
+        /// what BEGIN declared.
+        pub fn chunk(
+            &mut self,
+            w0: usize,
+            w1: usize,
+            w2: usize,
+            w3: usize,
+        ) -> Result<(), FrameError> {
+            let declared = self.declared.ok_or(FrameError::NoBegin)?;
+            // The sender zero-pads the final chunk, so the last one may run
+            // past `declared` but never past the chunk that contains it.
+            if self.received >= declared.div_ceil(CHUNK_BYTES) * CHUNK_BYTES {
+                return Err(FrameError::TooManyChunks);
+            }
+            for (i, w) in [w0, w1, w2, w3].iter().enumerate() {
+                let at = self.received + i * 8;
+                if at + 8 <= N {
+                    self.buf[at..at + 8].copy_from_slice(&w.to_le_bytes());
+                }
+            }
+            self.received += CHUNK_BYTES;
+            Ok(())
+        }
+
+        /// COMMIT: the declared bytes, or a refusal. Every byte returned was
+        /// written by a CHUNK of this message.
+        pub fn commit(&mut self) -> Result<&[u8], FrameError> {
+            let declared = self.declared.ok_or(FrameError::NoBegin)?;
+            if self.received < declared {
+                return Err(FrameError::ShortMessage);
+            }
+            self.declared = None;
+            self.received = 0;
+            Ok(&self.buf[..declared])
+        }
     }
 }
 
