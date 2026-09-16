@@ -739,10 +739,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   parsers, capability manifests — and CI fuzzed all six for 300 seconds each
   in run `34976532420`. Every push builds the targets and replays every
   committed seed. What this does not cover, stated plainly:
-  - **The fuzzed decoders are not on live untrusted paths.** Only the audit
-    decoder has a runtime caller, and its input is the kernel. The one live
-    cross-service byte path, `fjell_service_api::chunked::reassemble`, is not
-    fuzzed, because it is unsound by construction (E-046).
+  - **Most fuzzed decoders are not on live untrusted paths.** Only the audit
+    decoder and the semantic envelope decoder have runtime callers. *(Updated
+    2026-09-16, RFC-0.32-002: the live cross-service byte path was
+    `fjell_service_api::chunked::reassemble`, left unfuzzed because it was
+    unsound by construction. It has been replaced by
+    `fjell_semantic_format::wire::decode`, safe code returning `Result`, and
+    the `semantic_envelope_wire_decode` target fuzzes it — the first fuzzed
+    decoder on a live cross-service path.)*
   - **Some decoders cannot be reached from a fuzz crate at all** — the key-file
     and signature-manifest parsers inside the `fjell-tools` binary, and the
     word and MMIO decoders inside bare-metal services and drivers.
@@ -751,8 +755,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   - **The fuzzing nightly floats**, so a nightly regression can turn the job
     red with no change to the tree; it fails at the build step, which is how
     it is told apart from a crash.
-  - Two formats, `fjell-store-format` and `fjell-verify-format`, still have no
-    tests at all.
+  - One format, `fjell-verify-format`, still has no tests at all.
+    *(`fjell-store-format` gained its first three on 2026-09-16 with
+    RFC-0.32-002's checksum change.)*
 
 - **One device-tree parser has never worked on a real device tree** (Errata
   **E-048**, ACCEPTED, unscheduled — deletion or repair is an owner decision). `fjell-dtb-derive` returns `MissingPlic` on QEMU's own
@@ -819,14 +824,31 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   formats checked, the described layout no longer matches the code, with no
   schema version bumped.
 
-- **Two code paths treat Rust structs as raw bytes unsoundly** (Errata
-  **E-046**, ACCEPTED, tracked to 0.32). The semantic-stream and text-proxy
-  services rebuild a message from bytes another service sent by reinterpreting
-  them directly as a Rust type containing an enum, so a malformed message from
-  a buggy or compromised sender is undefined behaviour rather than a rejected
-  input. Separately, the boot-control and store-superblock checksums are
-  computed over struct memory including padding. Neither has been observed to
-  misbehave; both are unsound as written.
+- **Two code paths treated Rust structs as raw bytes unsoundly** (Errata
+  **E-046**, **CLOSED** 2026-09-16 by RFC-0.32-002). The semantic-stream and
+  text-proxy services rebuilt a message from bytes another service sent by
+  reinterpreting them directly as a Rust type containing an enum, so a
+  malformed message from a buggy or compromised sender was undefined behaviour
+  rather than a rejected input — Miri named it at
+  `.correlation_id.<enum-tag>`. Separately, the boot-control and
+  store-superblock checksums were computed over struct memory including
+  padding.
+
+  **Corrected.** The envelope now crosses the boundary as a versioned wire
+  format decoded by safe code that returns `Result`, both receive loops check
+  the length `BEGIN` declared instead of discarding it, semantic-stream
+  re-encodes what it forwards rather than passing received bytes through, and
+  both checksums are computed over an explicit field serialisation. What this
+  does **not** cover, stated plainly:
+  - **No QEMU tier drives a malformed envelope.** The `semantic` negative
+    profile exercises the live path end to end, not a hostile sender; the five
+    framing refusals and the decoder's refusals are host tests.
+  - **The kernel's four raw-reinterpretation sites are unchanged** — a
+    deliberate non-goal of that line, and a separate boundary (E-044).
+  - **The old checksum bytes are not readable.** Nothing has ever read either
+    block from disk (E-044), so the version constants moved to 2 rather than
+    the encoder preserving a format with no reader. A disk written by an
+    earlier build would now read as invalid.
 
 - **The release cut used to be the only work in this project nobody reviews**
   (Errata **E-039**, **CLOSED** at 0.30.0). The cycle's Roles table makes the implementer

@@ -2865,6 +2865,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > | `fjell_dtb_validate::validate_dtb` | a firmware device tree | none | yes |
 > | `fjell_cap_manifest::parse_manifest` | manifests read from disk by `fjell-tools` | `fjell-tools` | yes |
 > | `fjell_service_api::chunked::reassemble` | IPC bytes from another service | `fjell-semantic-stream`, `fjell-proxy-text` | **no** — unsound by construction until E-046's line |
+>
+> *(Superseded 2026-09-16, RFC-0.32-002: `reassemble` no longer exists. The
+> same path is now `fjell_semantic_format::wire::decode`, and it **is** fuzzed
+> — target `semantic_envelope_wire_decode`.)*
 > | `fjell-tools`' key-file and signature-manifest parsers | files on disk | `fjell-tools` | **no** — modules of a bin-only crate |
 > | `fjell-measuredd`'s IPC word decoders; `fjell-driver-virtio-net`'s MMIO readers | IPC words; device memory | the service; the driver | **no** — bare-metal crates |
 >
@@ -3023,12 +3027,66 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   'nightly-x86_64-unknown-linux-gnu'"*) — this entry said it was available,
   which was read from the toolchain's component *list*, not from running it.
   Installing it is part of RFC-0.32-002.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked
-  **RFC-0.32-002** (scoped 2026-09-16).
-  Closing it means the envelope receive path validates rather than
-  reinterprets untrusted bytes, and the checksum paths compute over explicitly
-  serialised fields rather than struct memory — each demonstrated under Miri
-  or an equivalent, not argued.
+- **Demonstrated at runtime, 2026-09-16.** Miri is now installed, and it
+  reports the defect on the old path, named:
+
+  ```
+  error: Undefined Behavior: constructing invalid value of type
+    std::ptr::Unaligned<fjell_semantic_format::SemanticEnvelope>:
+    at .0.correlation_id.<enum-tag>, encountered 0xffffffffffffffff,
+    but expected a valid enum tag
+   --> src/lib.rs:6:14
+    |
+  6 |     unsafe { core::ptr::read_unaligned(buf.as_ptr().cast()) }
+  ```
+
+  **One correction to this entry, from taking that measurement.** The
+  stale-buffer case in point 2 above is worse than "undefined behaviour", not
+  better: a **zero-filled** buffer — what a receiver holds before its first
+  message — is *not* rejected by Miri at all. It decodes silently into a
+  fabricated envelope (`schema_version 0`, `stream Intent`, `correlation
+  None`, `payload State`), because every one of those enums admits a zero
+  discriminant and `Option`'s niche is not zero. So the first message a
+  receiver mishandles produces a plausible envelope rather than a trap, and
+  the demonstration above needed a non-zero pattern to find a byte Rust
+  considers invalid. Silent corruption is the common case; UB is the case a
+  tool can see.
+
+- **Resolution:** **CLOSED** 2026-09-16 by **RFC-0.32-002**.
+  `reassemble` is deleted rather than length-checked — `git grep reassemble
+  -- '*.rs'` is empty — and with it the last of the six non-kernel sites:
+  `grep -rn 'reassemble\|from_raw_parts' --include='*.rs' crates | grep -v
+  fjell-kernel` now matches nothing, where it matched six sites in three
+  crates on 2026-09-15. (Control: the same probe still finds the kernel's
+  four, which this line does not touch — E-044.)
+  - The envelope crosses the boundary as a **defined wire format**
+    (`fjell-semantic-format`'s `wire` module): safe code, no `unsafe`, a
+    version field, explicit lengths, and an exhaustive tag mapping generated
+    by a macro that matches on variants, so a new model variant is a compile
+    error rather than an unencodable value. An unknown discriminant is
+    `WireError::BadTag` — an error value, not a value.
+  - **Both receive loops enforce their own framing** (`chunked::Reassembler`):
+    `BEGIN`'s declared length is recorded and checked, extra chunks are
+    refused rather than dropped, and a `COMMIT` that does not match is
+    refused with the protocol's error reply. `write_chunk`, whose documented
+    behaviour was to drop bytes past the end, is gone with it.
+  - **`fjell-semantic-stream` no longer forwards the bytes it received.** It
+    decodes, validates, and re-encodes, so a malformed message is refused
+    once rather than reinterpreted twice, in two services.
+  - **The sender encodes** rather than publishing a view of its own stack, so
+    `repr(Rust)` padding no longer crosses a capability boundary.
+  - **Both checksums are computed over an explicit field serialisation**
+    shared by `seal` and `is_valid`, with no struct-memory view and no
+    padding: 45 bytes for `BootControlBlock` (of 88) and 46 for
+    `StoreSuperblock` (of 64). The on-disk bytes change, so both `version`
+    constants move to **2**.
+  - **`HkdfRoundBuf` borrows with a lifetime**; its crate's 20 tests pass.
+  - Miri is clean afterwards on the same inputs, and on all three crates'
+    tests; a scheduled `miri` CI job runs them.
+- **What this does not close.** The kernel's four raw sites (E-044's
+  boundary), and the fact that no QEMU tier drives a *malformed* envelope —
+  the `semantic` negative profile exercises the live path, not a hostile
+  sender. The refusals are host tests.
 
 ## E-047 — `fjell-dtb-derive` adds two offsets taken from the device tree it is parsing without checking the sum
 
@@ -3425,7 +3483,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
-| E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | ACCEPTED |
+| E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
