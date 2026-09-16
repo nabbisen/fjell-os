@@ -46,6 +46,7 @@
 use std::fs;
 use std::process::ExitCode;
 
+mod book_structure;
 mod doc_counts;
 mod doc_links;
 mod errata_limitations;
@@ -94,6 +95,14 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("standards-mapping", standards_mapping::check),
     ("evidence", evidence::check),
     ("toolchain-declarations", toolchain_declarations::check),
+    // RFC-0.32-003 D8: the four that hold the documentation's structure.
+    ("summary-completeness", book_structure::summary_completeness),
+    ("prose-in-the-book", book_structure::prose_in_the_book),
+    ("no-stub-pages", book_structure::no_stub_pages),
+    (
+        "unique-doc-directory-names",
+        book_structure::unique_doc_directory_names,
+    ),
 ];
 
 #[cfg(test)]

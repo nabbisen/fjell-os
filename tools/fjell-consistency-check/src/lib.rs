@@ -36,4 +36,8 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "standards-mapping",
     "evidence",
     "toolchain-declarations",
+    "summary-completeness",
+    "prose-in-the-book",
+    "no-stub-pages",
+    "unique-doc-directory-names",
 ];
