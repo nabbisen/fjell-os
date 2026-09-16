@@ -25,7 +25,7 @@ of the project that *is* a library: the stable ABI surface, as
 | **Roadmap** | [`ROADMAP.md`](https://github.com/nabbisen/fjell-os/blob/main/ROADMAP.md) |
 | **RFCs** | [`rfcs/`](https://github.com/nabbisen/fjell-os/tree/main/rfcs) — every design decision, with its review record |
 | **Known limitations** | [`docs/release/v1-limitations.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/release/v1-limitations.md) |
-| **Errata register** | [`docs/rfcs/ERRATA.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/rfcs/ERRATA.md) — where every known divergence is recorded |
+| **Errata register** | [`rfcs/ERRATA.md`](https://github.com/nabbisen/fjell-os/blob/main/rfcs/ERRATA.md) — where every known divergence is recorded |
 | **ABI crate** | [`fjell-abi`](https://crates.io/crates/fjell-abi) |
 
 ## Status — read this before depending on anything here

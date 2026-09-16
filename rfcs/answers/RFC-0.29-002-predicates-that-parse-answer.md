@@ -9,7 +9,7 @@ would mean writing a parser that might then have to move.
 
 ## Answer: shape 1 — one shared parser, in `fjell-consistency-check`
 
-At least four places used to re-parse `docs/rfcs/ERRATA.md`'s `## Summary`
+At least four places used to re-parse `rfcs/ERRATA.md`'s `## Summary`
 table independently: Gate 7 (`grep -c "\| OPEN \|"`, the worst of the
 four — an exact literal, not even a parser), `errata-limitations`'s own
 `parse_accepted_errata`, `errata-tracking`'s own `parse_summary_rows`, and
@@ -32,7 +32,7 @@ shape for `ACCEPTED`) is read correctly.
   `classify_tracking`, and `extract_erratum_id` are gone.
 - `crates/fjell-tools` (a *different* crate) takes a path dependency on
   `fjell-consistency-check` specifically for this — Gate 7 now reads
-  `docs/rfcs/ERRATA.md` directly and calls
+  `rfcs/ERRATA.md` directly and calls
   `fjell_consistency_check::errata::{parse_summary_rows, is_open}`,
   replacing the `grep` shell-out entirely.
 

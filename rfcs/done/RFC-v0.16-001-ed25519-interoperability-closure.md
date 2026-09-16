@@ -77,7 +77,7 @@ This closes threat-model item T10's defence claim and resolves RB-01.
 This investigation supersedes the handoff §0.3 and §6.1 claim that the
 discrepancy was "reproducible and unexplained." It is now explained:
 operator transcription error in a test constant. Recorded in
-`docs/rfcs/ERRATA.md` as E-001 (see RFC-v0.16-004).
+`rfcs/ERRATA.md` as E-001 (see RFC-v0.16-004).
 
 ## 6. Lesson
 

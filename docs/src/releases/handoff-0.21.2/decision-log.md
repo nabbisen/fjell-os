@@ -31,7 +31,7 @@ consciously revisit. Version: v0.21.2.*
 | IMP-04 | Disk image via `File::create + set_len` | No `qemu-img` dependency (Arch ships it separately) | `qemu_run.rs` |
 | IMP-05 | ABI surface frozen; snapshot forbids removals | Downstream stability | Gate 4 (abi-snapshot) |
 | IMP-06 | Release archive unpacks to `fjell-os-v{version}/`, no nesting | Clean extraction | `package-release` xtask |
-| E-010 | IPC word count packed in tag bits 16–23; identity at a6; badge dropped | Correct payload delivery | `docs/rfcs/ERRATA.md` §E-010; `docs/src/abi/ipc-register-layout.md` |
+| E-010 | IPC word count packed in tag bits 16–23; identity at a6; badge dropped | Correct payload delivery | `rfcs/ERRATA.md` §E-010; `docs/src/abi/ipc-register-layout.md` |
 
 **Correction (RFC-v0.21.3-002):** IMP-06's "no nesting" reads as though the
 archive has no top-level parent directory at all — it does not; it means
@@ -60,5 +60,5 @@ row above is left as originally written, per the frozen-bundle convention.
 | E-004 | VisionFive 2 profile never booted on silicon | ACCEPTED as v1.0 limitation; hardware bring-up is post-v1.0 |
 | E-010 | IPC words ABI broken (word count not packed; badge collision) | FIXED v0.20.0; register layout now normative |
 
-For the live errata register read `docs/rfcs/ERRATA.md` (Gate 7 requires 0 OPEN
+For the live errata register read `rfcs/ERRATA.md` (Gate 7 requires 0 OPEN
 entries).

@@ -1,6 +1,6 @@
 # RFC-v0.15-004 — Operator Recovery Guide and Field Documentation
 
-> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-005/E-008 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-003.
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-005/E-008 in `rfcs/ERRATA.md`; reconciled by RFC-v0.16-003.
 
 **Status:** Implemented-with-Errata (v0.15.0)
 **Target version:** v0.15.0

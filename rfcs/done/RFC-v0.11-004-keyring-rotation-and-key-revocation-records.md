@@ -1,6 +1,6 @@
 # RFC-v0.11-004 — Keyring Rotation and Key Revocation Records
 
-> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-003 in `docs/rfcs/ERRATA.md`; reconciled by (v0.15.x).
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-003 in `rfcs/ERRATA.md`; reconciled by (v0.15.x).
 
 **Status:** Implemented-with-Errata (v0.11.0)
 **Target version:** v0.11.0

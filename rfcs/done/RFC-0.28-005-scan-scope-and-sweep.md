@@ -7,7 +7,7 @@
 this milestone, and swept here rather than slipped again.
 **Touches.** `crates/fjell-tools` (`trust_report`), `tools/fjell-unsafe-audit`,
 `tools/fjell-consistency-check` (`version-currency`),
-`docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`, `tests/evidence/`.
+`rfcs/answers/RFC-0.26-004-readiness-channel-answer.md`, `tests/evidence/`.
 **Does not touch the kernel, the ABI, or any service.**
 **Relates to:** **E-015** (hand-enumerated instrument scopes drifting) — E-025
 is a live instance; RFC-v0.22-001 (every instrument change demonstrated

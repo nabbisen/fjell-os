@@ -170,7 +170,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     gates.push(run_gate(
         "7",
         "ERRATA register (0 OPEN)",
-        || match std::fs::read_to_string("docs/rfcs/ERRATA.md") {
+        || match std::fs::read_to_string("rfcs/ERRATA.md") {
             Ok(src) => {
                 let rows = fjell_consistency_check::errata::parse_summary_rows(&src);
                 let n = rows
@@ -179,7 +179,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
                     .count();
                 (n == 0, format!("{} OPEN errata", n))
             }
-            Err(e) => (false, format!("cannot read docs/rfcs/ERRATA.md: {e}")),
+            Err(e) => (false, format!("cannot read rfcs/ERRATA.md: {e}")),
         },
     ));
 

@@ -170,7 +170,7 @@ pub extern "C" fn service_main() -> ! {
     // by RFC-0.27-002, which renamed the wrapper to `sys_ipc_send` and
     // corrected its doc comment to describe the blocking contract the
     // kernel actually has — see `crates/fjell-syscall/src/lib.rs` and
-    // `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md`.
+    // `rfcs/answers/RFC-0.27-002-one-way-send-contract-answer.md`.
     sys_debug_writeln("M5: semantic-stream started");
     sys_debug_writeln("M5: semantic policy loaded");
 

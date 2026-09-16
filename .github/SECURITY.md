@@ -77,7 +77,7 @@ Also out of scope:
 
 Before reporting, it is worth reading
 [`docs/release/v1-limitations.md`](../docs/release/v1-limitations.md) and the
-errata register [`docs/rfcs/ERRATA.md`](../docs/rfcs/ERRATA.md). The project
+errata register [`rfcs/ERRATA.md`](../rfcs/ERRATA.md). The project
 records what it knows is wrong, including gaps in its own verification
 instruments. A limitation already recorded there is not a vulnerability report,
 but a demonstration that one of them is *exploitable* very much is.

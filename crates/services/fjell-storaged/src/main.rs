@@ -219,7 +219,7 @@ fn send_ready() {
     // `crates/fjell-kernel/src/main.rs`'s init-CSpace bootstrap section),
     // so that send would now block forever with no receiver — reproduced
     // live as a total boot hang before this fix (see
-    // docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §0.1). Sends the
+    // rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §0.1). Sends the
     // generic `SERVICE_READY` to service-manager's dedicated endpoint
     // instead; service-manager relays it to `init` on `init`'s new relay
     // slot.

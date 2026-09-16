@@ -49,7 +49,7 @@
 //!    Ubuntu (E-037's second survivor is about the pin, not the audience).
 //!
 //! `Cargo.toml`'s `rust-version` is still not compared here: it is a floor,
-//! not a mirror. Tracked in `docs/rfcs/ERRATA.md`'s E-037 entry.
+//! not a mirror. Tracked in `rfcs/ERRATA.md`'s E-037 entry.
 //!
 //! The Verus (`1.95.0-x86_64-unknown-linux-gnu`) and `nightly` toolchains
 //! remain out of scope (RFC-0.31-002 Non-goals). A job that explicitly
@@ -77,7 +77,7 @@ const RELEASE_CHECKLIST_PATH: &str = "docs/release/release-checklist.md";
 ///
 /// **Scoped to live instruction sites, and not to the whole tree.** The
 /// RFC asks for "anywhere in the tree", and that is not implementable as
-/// written: `docs/rfcs/ERRATA.md` quotes the apt line because it is the
+/// written: `rfcs/ERRATA.md` quotes the apt line because it is the
 /// defect E-041 records, `rfcs/` quotes it in four RFCs including
 /// RFC-0.31-003 itself, this file's own fixtures must contain it to test
 /// for it, and `docs/release/v1-limitations.md` discloses it. A rule that

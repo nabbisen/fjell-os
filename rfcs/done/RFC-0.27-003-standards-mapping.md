@@ -183,7 +183,7 @@ the next line's work — but this is the implementer's to argue.
 ## Scope
 
 `docs/compliance/standards-mapping.md`; `tools/fjell-consistency-check`;
-`docs/src/release/v0-release-cycle.md`; `rfcs/README.md`; `docs/rfcs/ERRATA.md`
+`docs/src/release/v0-release-cycle.md`; `rfcs/README.md`; `rfcs/ERRATA.md`
 if the mapping surfaces a gap worth a row.
 
 ### Non-goals

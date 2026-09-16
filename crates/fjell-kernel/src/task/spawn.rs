@@ -16,7 +16,7 @@ use fjell_abi::task::TaskId;
 
 // RFC-0.26-001 (closes Errata E-018): this used to be a local `const
 // PRIORITY_USER: u8 = 2`, shadowing `task::scheduler::PRIORITY_USER` (32)
-// with a different value. See docs/rfcs/RFC-0.26-001-scheduler-priority-
+// with a different value. See rfcs/answers/RFC-0.26-001-scheduler-priority-
 // unification-investigation.md for why unifying just this constant alone
 // (without also fixing `sys_task_start`'s own separate hardcoded literal)
 // hung the M6 boot sequence, and why the two sites had to be fixed together.
@@ -204,7 +204,7 @@ pub fn spawn(
             //   10 = service-manager's readiness endpoint (RFC-0.28-001) —
             //        previously fell to the shared default (0), which is
             //        also auditd's and bootctl's own default and raced
-            //        against both; see docs/rfcs/
+            //        against both; see rfcs/answers/
             //        RFC-0.28-001-readiness-topology-answer.md §3.
             let ep_obj: u32 = match image_id {
                 fjell_abi::service::ImageId::STORAGED => 1,

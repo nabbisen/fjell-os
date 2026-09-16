@@ -1,6 +1,6 @@
 //! Slice 4 (RFC-v0.22-001): the `errata-limitations` subcheck.
 //!
-//! Every erratum in `docs/rfcs/ERRATA.md` whose `## Summary` table marks it
+//! Every erratum in `rfcs/ERRATA.md` whose `## Summary` table marks it
 //! `ACCEPTED` is, by definition, a disclosed v1.0 limitation. Gate 9
 //! (`docs/release/v1-limitations.md`) is documented as "the single
 //! authoritative list" for that release gate — an ACCEPTED erratum missing
@@ -12,7 +12,7 @@ use crate::read_file;
 use fjell_consistency_check::errata::{is_accepted, parse_summary_rows};
 use std::process::ExitCode;
 
-const ERRATA_PATH: &str = "docs/rfcs/ERRATA.md";
+const ERRATA_PATH: &str = "rfcs/ERRATA.md";
 const LIMITATIONS_PATH: &str = "docs/release/v1-limitations.md";
 
 const NAME: &str = "errata-limitations";

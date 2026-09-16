@@ -230,7 +230,7 @@ mod tests {
     fn resolving_link_that_exists_passes() {
         let files = [(Path::new("docs/a.md"), "[x](b.md)")];
         // b.md resolved relative to docs/ is docs/b.md — use the real repo
-        // file `docs/rfcs/ERRATA.md` shape by pointing at a file guaranteed
+        // file `rfcs/ERRATA.md` shape by pointing at a file guaranteed
         // to exist relative to the crate's own manifest instead.
         let files2 = [(Path::new("Cargo.toml"), "[x](src/main.rs)")];
         let _ = files; // fixture above illustrates shape; not asserted on disk

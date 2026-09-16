@@ -26,7 +26,7 @@ is itself a defect.
 2. **New status `Superseded`** added, with a required pointer to the
    successor RFC.
 
-3. **New file `docs/rfcs/ERRATA.md`** — the standing drift register. Each
+3. **New file `rfcs/ERRATA.md`** — the standing drift register. Each
    entry names the RFC, the claim, what shipped, the resolution, and the
    tracking RFC.
 
@@ -57,7 +57,7 @@ in the release notes' limitations section.
 
 ## 6. Test plan
 
-- `docs/rfcs/ERRATA.md` exists and parses as a table.
+- `rfcs/ERRATA.md` exists and parses as a table.
 - Every tracking RFC referenced by a CLOSED entry exists in `done/`
   or `proposed/`.
 - The release checklist references the errata gate.

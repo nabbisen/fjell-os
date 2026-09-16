@@ -7,7 +7,7 @@ declarations but **35 hand-rolled syscall `asm!` blocks in services**, each
 independently responsible for a register contract only `fjell-syscall` gets
 right.
 **Touches.** Eleven service crates, `tools/` or `crates/fjell-tools` for the
-guard, `docs/rfcs/ERRATA.md`. **Does not touch the kernel, the ABI, or the
+guard, `rfcs/ERRATA.md`. **Does not touch the kernel, the ABI, or the
 syscall surface.**
 **Relates to:** RFC-0.28-001 (which hit both bugs and fixed its own two
 instances); **E-013** (why the evidence must be a QEMU log); RFC-v0.22-001

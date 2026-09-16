@@ -40,7 +40,7 @@ An RFC is in exactly one of the following states at any time:
 | **Proposed** | Filed; open for review and discussion. Implementer should not yet start — the design may change. |
 | **Accepted** | Approved by the owner; implementer may begin. Design is settled but the work has not shipped. |
 | **Implemented** | Code merged; smoke tests pass; the RFC's normative text is fully satisfied by what shipped. Historical record from here. |
-| **Implemented-with-Errata** | Code merged, but the RFC's normative text claims more than what shipped. The divergence is recorded in `docs/rfcs/ERRATA.md` — see [§ The drift and errata rule](#the-drift-and-errata-rule) below. |
+| **Implemented-with-Errata** | Code merged, but the RFC's normative text claims more than what shipped. The divergence is recorded in `rfcs/ERRATA.md` — see [§ The drift and errata rule](#the-drift-and-errata-rule) below. |
 | **Superseded** | A later RFC replaces this one. The replacement's identifier is recorded in this RFC's Status field. |
 | **Withdrawn** | The owner or architect decided not to pursue this RFC. The work will not happen. |
 | **Closed** | Implemented (or Implemented-with-Errata, once its errata is tracked to closure) and documented; no further action needed. |
@@ -70,12 +70,12 @@ later if that changes.
 
 > **An RFC may not be marked Implemented if its normative text makes a claim
 > the merged code does not satisfy.** In that case it is marked
-> **Implemented-with-Errata**, and an entry is added to `docs/rfcs/ERRATA.md`
+> **Implemented-with-Errata**, and an entry is added to `rfcs/ERRATA.md`
 > naming: the RFC, the claim, what actually shipped, and the tracking RFC (if
 > any) for closure. No RFC may silently carry drift into a release.
 
 This is this project's most distinctive governance rule and the one this
-merge exists to protect. `docs/rfcs/ERRATA.md` — seventeen entries at time
+merge exists to protect. `rfcs/ERRATA.md` — seventeen entries at time
 of writing (E-001 through E-017) — exists because of it. `release-rehearsal`
 Gate 7 (errata register, zero `OPEN`) and Gate 12's `errata-limitations`
 subcheck both rest on it. The source policy has no equivalent, because most

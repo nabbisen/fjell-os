@@ -4,7 +4,7 @@
 **Milestone:** 0.27
 **Tracks.** Cross-document agreement: the errata backlog, version claims, links,
 and counts.
-**Touches.** `tools/fjell-consistency-check`, `docs/rfcs/ERRATA.md`,
+**Touches.** `tools/fjell-consistency-check`, `rfcs/ERRATA.md`,
 `ROADMAP.md`, `docs/verification/instrument-audit-closeout.md`, and whichever
 documents the new checks find wrong.
 **Relates to:** closes **E-016** and **E-023**; re-dispositions **E-014**,

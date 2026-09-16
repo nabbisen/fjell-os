@@ -109,7 +109,7 @@ order once.
    `rfcs/README.md` counts updated, keepers left in place (trap 4).
    **The move breaks every inbound link, and there are more of them than the
    RFC files** — each RFC's handoff (`**Governing RFC:**`) and each `§N
-   answer` document under `docs/rfcs/` points into `accepted/`, and each
+   answer` document under `rfcs/answers/` points into `accepted/`, and each
    handoff's own `**Status:** inherited from the governing RFC (…)` line
    still says `Accepted`. Both `doc-links` and `handoff-status` catch this,
    but only *after* the move, so expect Gate 12 red between step 7 and its

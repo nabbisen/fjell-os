@@ -152,7 +152,7 @@ subcheck implements.
 `.gitignore`; `tests/evidence/`; `crates/fjell-tools` (`qemu_run`, a new
 `evidence` subcommand); `tools/fjell-consistency-check`;
 `docs/src/release/v0-release-cycle.md`; the four existing citations;
-`docs/rfcs/ERRATA.md` (E-026 → `CLOSED`, with R6's count).
+`rfcs/ERRATA.md` (E-026 → `CLOSED`, with R6's count).
 
 ### Non-goals
 

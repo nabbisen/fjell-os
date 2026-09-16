@@ -221,7 +221,7 @@ had already blocked waiting for it (`storaged`, audit-confirmed directly,
 receive-side blocking derived from it). The negative case — blocks and is
 *never* woken — remains the pre-RFC-0.26-004 `semantic-stream`/`proxy-text`
 trace already on record
-(`docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`), cited as history,
+(`rfcs/answers/RFC-0.26-004-readiness-channel-answer.md`), cited as history,
 not re-claimed as this RFC's own live demonstration.
 
 ## Persisting this evidence — a shape to decide, not invent silently

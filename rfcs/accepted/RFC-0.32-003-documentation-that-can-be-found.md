@@ -62,9 +62,9 @@ tool writes or reads as data, not as prose (`trust-report.txt`,
 `release-handoff.md` move **into the book**, and the tools' paths follow them.
 A document does not leave the book because a program reads it.
 
-**D4 — The RFC corpus has one root.** `docs/rfcs/ERRATA.md` becomes
+**D4 — The RFC corpus has one root.** `rfcs/ERRATA.md` becomes
 `rfcs/ERRATA.md`; the eighteen `*-answer.md` documents become `rfcs/answers/`.
-`docs/rfcs/` ceases to exist.
+`rfcs/answers/` ceases to exist.
 
 **D5 — No stubs.** A page is the document. Every pointer page is either
 replaced by the document itself or deleted. The "symlinks" sentence goes with

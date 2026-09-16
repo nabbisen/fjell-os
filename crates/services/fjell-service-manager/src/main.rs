@@ -23,7 +23,7 @@ use fjell_syscall::{
 // `ep_obj` table) instead of the previous accidental default to the
 // shared object 0, which auditd and bootctl also defaulted to and raced
 // this service for (see
-// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3). The slot
+// rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3). The slot
 // *number* is unchanged; only what it now points at is.
 const SLOT_EP: u32 = 0;
 const SLOT_TASK_CONTROL: u32 = 29;
@@ -33,7 +33,7 @@ const MAX_TRACKED: usize = 32;
 // RFC-0.28-001 (D3): re-derived, not assumed. The original `10` was never
 // checked against how many images actually send `SERVICE_READY` — under
 // the old topology, at most 3 messages could ever arrive here regardless
-// (see docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3), so `10`
+// (see rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3), so `10`
 // was unreachable by construction and had been since RFC 058 shipped.
 // With every announcer now addressing this endpoint correctly (the fix
 // this RFC makes), the real count is exactly **8**:

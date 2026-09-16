@@ -148,7 +148,7 @@ both pass with the stopgap removed.
 ## 5. Collateral noted, not chased
 
 **`cargo xtask test-all` is 19/21 with the full fix applied — two profiles
-regress, filed as Errata E-019 (`docs/rfcs/ERRATA.md`).** Both were
+regress, filed as Errata E-019 (`rfcs/ERRATA.md`).** Both were
 reproduced twice (`cargo xtask qemu-run --profile ipc` /
 `--profile semantic`), deterministically failing both times — QEMU TCG is
 fully deterministic given the same binary and inputs, so this is not

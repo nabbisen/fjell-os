@@ -872,7 +872,7 @@ pub extern "C" fn service_main() -> ! {
     //
     // RFC-0.28-001: was slot 0 (this task's own identity endpoint,
     // defaulting to the contested shared object 0 — also defaulted-to by
-    // auditd and bootctl, see docs/rfcs/
+    // auditd and bootctl, see rfcs/answers/
     // RFC-0.28-001-readiness-topology-answer.md §3). Every service now
     // gets an unconditional slot dedicated to reaching service-manager
     // instead.

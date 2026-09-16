@@ -106,7 +106,7 @@ fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool 
 // triggered, because nothing besides `init`'s own wait ever sent to those
 // objects out of order. Reproduced live as a total boot hang by removing
 // just the storaged wait, before this fix (see
-// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §0.1). Both
+// rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §0.1). Both
 // functions are replaced by a single relay-receive: `init` now holds no
 // receive capability on any of storaged/measuredd/attestd/recoveryd's own
 // endpoints (narrowed to `CALL` — see `crates/fjell-kernel/src/main.rs`'s
@@ -121,7 +121,7 @@ fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool 
 /// RFC-0.28-001 found the `a6`-clobber bug here (and in
 /// `wait_relay_all_m8_ready` below) live, in a hand-rolled `IpcRecv` block
 /// each function wrote for this RFC — a permanent, non-deterministic hang,
-/// full mechanism in `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md`.
+/// full mechanism in `rfcs/answers/RFC-0.28-001-readiness-topology-answer.md`.
 /// RFC-0.28-002 (E-032, closing it structurally rather than case-by-case)
 /// deletes both hand-rolled blocks entirely: `sys_ipc_recv_msg` already
 /// declares every register the kernel writes, including `a6`.

@@ -196,7 +196,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   dropped by, anyone else. All four `semantic.toml` markers pass, with a
   causal ordering in the serial log (not just marker presence) confirming the
   wait actually executed. See
-  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
+  `rfcs/answers/RFC-0.26-004-readiness-channel-answer.md`.
 
 - **`init` no longer receives on another task's endpoint** (Errata **E-021**,
   **CLOSED** by RFC-0.26-004, cleanly, no residual hazard). `fjell-init`'s
@@ -212,7 +212,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   there would fail the rights check); its capability to object 8 is removed
   outright. **Invariant established: a service's endpoint has exactly one
   receiver — the service itself.** See
-  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`.
+  `rfcs/answers/RFC-0.26-004-readiness-channel-answer.md`.
 
 - **The one-way send wrapper's name and doc-comment described a primitive
   the kernel never implemented** (Errata **E-022**, **CLOSED** by
@@ -245,7 +245,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   should exist is answered as **a real, recurring need, not decided by
   this line** — an ABI addition requires escalation this RFC's scope does
   not authorise. See
-  `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md` for the full
+  `rfcs/answers/RFC-0.27-002-one-way-send-contract-answer.md` for the full
   audit and reasoning.
 
 - **The release tool's `RELEASE.md` generation and consistency checks were never

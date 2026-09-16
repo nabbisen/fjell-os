@@ -1,4 +1,4 @@
-//! RFC-0.29-002 §7: the one shared parser for `docs/rfcs/ERRATA.md`'s
+//! RFC-0.29-002 §7: the one shared parser for `rfcs/ERRATA.md`'s
 //! `## Summary` table.
 //!
 //! At least four instruments used to re-parse this table independently —

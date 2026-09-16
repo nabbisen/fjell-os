@@ -345,8 +345,8 @@ carry no `v` prefix, matching the release tags, which never did.
 
 | RFC | Title | Shipped |
 |-----|-------|---------|
-| 0.26-001 | [The scheduler priority defect — and what depends on it](./done/RFC-0.26-001-scheduler-priority-unification.md) — closed **E-018**; investigation at [`docs/rfcs/`](../docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md) | 0.26.0 |
-| 0.26-004 | [Readiness needs a channel of its own](./done/RFC-0.26-004-readiness-channel.md) — supersedes **0.26-002**; closed **E-020** and **E-021**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.26-004-readiness-channel-answer.md) | 0.26.0 |
+| 0.26-001 | [The scheduler priority defect — and what depends on it](./done/RFC-0.26-001-scheduler-priority-unification.md) — closed **E-018**; investigation at [`rfcs/answers/`](../rfcs/answers/RFC-0.26-001-scheduler-priority-unification-investigation.md) | 0.26.0 |
+| 0.26-004 | [Readiness needs a channel of its own](./done/RFC-0.26-004-readiness-channel.md) — supersedes **0.26-002**; closed **E-020** and **E-021**; answer at [`rfcs/answers/`](../rfcs/answers/RFC-0.26-004-readiness-channel-answer.md) | 0.26.0 |
 
 ### 0.27 — the documents start being checked
 
@@ -357,9 +357,9 @@ already existed, made visible.
 | RFC | Title | Shipped |
 |-----|-------|---------|
 | 0.27-001 | [Nothing verifies what our documents say about themselves](./done/RFC-0.27-001-document-self-verification.md) — closed **E-016** and **E-023**; four new subchecks | 0.27.0 |
-| 0.27-002 | [`try_send` does not try — the one-way send contract](./done/RFC-0.27-002-one-way-send-contract.md) — closed **E-022**, filed **E-024**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md) | 0.27.0 |
+| 0.27-002 | [`try_send` does not try — the one-way send contract](./done/RFC-0.27-002-one-way-send-contract.md) — closed **E-022**, filed **E-024**; answer at [`rfcs/answers/`](../rfcs/answers/RFC-0.27-002-one-way-send-contract-answer.md) | 0.27.0 |
 | 0.27-003 | [The standards mapping](./done/RFC-0.27-003-standards-mapping.md) — CRA Annex I clause-level, IEC 62443 structural; filed **E-028**; [`docs/compliance/`](../docs/compliance/standards-mapping.md) | 0.27.0 |
-| 0.27-004 | [Evidence that survives the run that produced it](./done/RFC-0.27-004-evidence-that-survives.md) — closed **E-026**, filed **E-029**; answer at [`docs/rfcs/`](../docs/rfcs/RFC-0.27-004-evidence-that-survives-answer.md) | 0.27.0 |
+| 0.27-004 | [Evidence that survives the run that produced it](./done/RFC-0.27-004-evidence-that-survives.md) — closed **E-026**, filed **E-029**; answer at [`rfcs/answers/`](../rfcs/answers/RFC-0.27-004-evidence-that-survives-answer.md) | 0.27.0 |
 
 ### 0.28 — five lines, each finding something below its own subject
 

@@ -43,7 +43,7 @@ Settled by the architect so they do not land on you mid-implementation:
 **In scope:** `crates/fjell-tools/src/callsite_audit.rs`,
 `crates/fjell-tools/src/release_rehearsal.rs`, `tools/fjell-abi-snapshot/`,
 `tools/fjell-consistency-check/` (new), `tests/abi/snapshot.json`,
-`docs/rfcs/ERRATA.md`, and the "eleven gates" references.
+`rfcs/ERRATA.md`, and the "eleven gates" references.
 
 **Explicitly NOT in scope:**
 

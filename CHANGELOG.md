@@ -611,7 +611,7 @@ spawned in the M4 era. Its first enqueue went through `sys_task_start`'s
 literal, every enqueue after its first yield through `spawn.rs`'s constant. Fix
 one and not the other and it occupies bucket 1 permanently, and bucket 0 is
 never reached again. Recorded at
-`docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md`.
+`rfcs/answers/RFC-0.26-001-scheduler-priority-unification-investigation.md`.
 
 Both enqueue paths now read the one surviving constant. No `PRIORITY_INIT` —
 the investigation found no reason `init` needs privilege; its former advantage
@@ -946,7 +946,7 @@ green while a documented rule went unmet.
   - `syscall-surface` — compares declared `SyscallNumber` variants,
     dispatched match arms, and a committed `tests/syscall/expected.toml`
     (35 declared, 26 dispatched, the explicit 9-name undispatched set).
-  - `errata-limitations` — every `ACCEPTED` erratum in `docs/rfcs/ERRATA.md`
+  - `errata-limitations` — every `ACCEPTED` erratum in `rfcs/ERRATA.md`
     must be referenced in `docs/release/v1-limitations.md`.
   - `rfc-status-folder` — each RFC's `Status:` field must agree with its
     `rfcs/proposed/` vs. `rfcs/done/` folder.
@@ -1103,7 +1103,7 @@ fails, so every `cargo` entry point is unreachable and no gate in this
 release can be re-run. Nothing in the tree below builds. Superseded by
 `0.21.3` (RFC-v0.21.3-001), which restores the build and re-verifies every
 mechanical gate. The tag is kept, not deleted or moved — see
-`docs/rfcs/ERRATA.md` and `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
+`rfcs/ERRATA.md` and `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
 for the full account.
 
 ### Added
@@ -1811,7 +1811,7 @@ architecture; claim validation and release closure only.
 - **RB-04 recovery drill (RFC-v0.16-003):** walked DR1/DR2/DR5 + partition
   + boot triage against real crate APIs; attestation committed.
 - **RB-05 errata governance (RFC-v0.16-004):** added
-  `Implemented-with-Errata`/`Superseded` statuses and `docs/rfcs/ERRATA.md`
+  `Implemented-with-Errata`/`Superseded` statuses and `rfcs/ERRATA.md`
   (E-001 … E-009: 8 CLOSED, 1 ACCEPTED).
 
 ### High-priority items

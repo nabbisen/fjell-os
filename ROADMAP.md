@@ -331,7 +331,7 @@ had drifted. `RFC-0.27-001` makes the backlog derivable and enforced —
 `doc-links`, and `doc-counts` — and closes **E-016** and **E-023**.
 
 **The backlog of what else is candidate or unscheduled work now lives in
-exactly one place: `docs/rfcs/ERRATA.md`'s Summary table tracking column**,
+exactly one place: `rfcs/ERRATA.md`'s Summary table tracking column**,
 enforced by `errata-tracking` so it cannot go stale silently again. This
 section is a pointer to it, not a second copy — see that file for current
 status, including **E-019** / `RFC-0.26-003` (accepted, not yet implemented),
@@ -343,7 +343,7 @@ rather than filed as a new erratum because nothing is currently misbehaving:
 **the capability rights-narrowing follow-up** — `sample-service` and
 `proxy-text` hold `RECV`-including rights on endpoints they only ever call
 into, a latent over-grant the same narrowing `init` received would close. See
-`docs/rfcs/RFC-0.26-004-readiness-channel-answer.md`'s "Follow-up recorded at
+`rfcs/answers/RFC-0.26-004-readiness-channel-answer.md`'s "Follow-up recorded at
 review" section.
 
 ### Beyond 0.27 — under discussion, not yet decided

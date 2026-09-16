@@ -258,10 +258,10 @@ time either.
 sequenced six candidates under the heading "0.25 candidates" — a heading
 that was already two releases stale by the time RFC-0.27-001 found it
 (0.25 and 0.26 had both shipped with this list unchanged), the same defect
-`docs/rfcs/ERRATA.md`'s own tracking column had. Restating a backlog in two
+`rfcs/ERRATA.md`'s own tracking column had. Restating a backlog in two
 places is how it drifted in the first place.
 
-**Current status lives in exactly one place now: `docs/rfcs/ERRATA.md`'s
+**Current status lives in exactly one place now: `rfcs/ERRATA.md`'s
 Summary table tracking column**, enforced by `fjell-consistency-check
 errata-tracking` so it cannot silently point at a shipped milestone again.
 Of the six originally listed here: item 3 (a link-and-count integrity

@@ -21,7 +21,7 @@ one that has a comment.**
 
 ```rust
 // release_rehearsal.rs:135
-let out = sh(&["grep", "-c", "| OPEN |", "docs/rfcs/ERRATA.md"]);
+let out = sh(&["grep", "-c", "| OPEN |", "rfcs/ERRATA.md"]);
 ```
 
 Demonstrated:

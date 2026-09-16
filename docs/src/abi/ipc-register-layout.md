@@ -1,7 +1,7 @@
 # Fjell OS — IPC Register Layout
 
 *Normative reference for all IPC syscall register usage.*
-*ABI fix recorded as E-010; see `docs/rfcs/ERRATA.md`.*
+*ABI fix recorded as E-010; see `rfcs/ERRATA.md`.*
 
 ---
 
@@ -164,7 +164,7 @@ until v0.20.0, when the fail-closed negative-test harness (RB-01) exposed
 that the ipc lease-revocation scenarios had been exercising an instant-failure
 path rather than the real blocking protocol.
 
-See `docs/rfcs/ERRATA.md` §E-010 for the full errata record.
+See `rfcs/ERRATA.md` §E-010 for the full errata record.
 
 ---
 

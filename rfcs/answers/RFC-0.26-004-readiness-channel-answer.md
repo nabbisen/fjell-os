@@ -24,7 +24,7 @@ service itself.**
 > narrowing this document describes (`ALL_NON_META` → `CALL`) to all four
 > remaining objects. The invariant is now true generally, not merely
 > restated — see
-> `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md`. Recorded here
+> `rfcs/answers/RFC-0.28-001-readiness-topology-answer.md`. Recorded here
 > rather than silently rewritten: this document's own claim was the thing
 > that was too broad, and erasing that would lose the record of it.
 

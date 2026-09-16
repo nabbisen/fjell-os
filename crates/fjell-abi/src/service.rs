@@ -147,7 +147,7 @@ impl ImageId {
 // turned out to have at least two other uncoordinated receivers (auditd's
 // audit-drain trigger, bootctl's own protocol) racing service-manager for
 // the same messages — see
-// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3. Defined here
+// rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3. Defined here
 // (not in `fjell-service-api`) because `spawn.rs` — kernel-side — must
 // install these capabilities, and the kernel does not depend on the
 // user-space service SDK crate.

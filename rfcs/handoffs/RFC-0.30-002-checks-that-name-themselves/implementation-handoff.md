@@ -48,8 +48,8 @@ silent one, and the erratum does not name it.
 > `handoff-status` never enumerated the lifecycle folders at all, so with
 > `rfcs/accepted/` absent it either printed that unnamed message or **passed**,
 > a false PASS worse than the silence attributed to it here. Left on the record
-> rather than edited away; see `docs/rfcs/ERRATA.md` E-038 and
-> `docs/rfcs/RFC-0.30-002-checks-that-name-themselves-answer.md`.
+> rather than edited away; see `rfcs/ERRATA.md` E-038 and
+> `rfcs/answers/RFC-0.30-002-checks-that-name-themselves-answer.md`.
 
 **Move the folder back afterwards** and confirm `git status` is clean. Do not
 delete it: it holds a tracked keeper and a tracked RFC.

@@ -1,6 +1,6 @@
 # RFC-v0.11-003 — Bundle Signing Pipeline and Key Material Management
 
-> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-002 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-006.
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-002 in `rfcs/ERRATA.md`; reconciled by RFC-v0.16-006.
 
 **Status:** Implemented-with-Errata (v0.11.0)
 **Target version:** v0.11.0

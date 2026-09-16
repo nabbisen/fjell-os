@@ -68,5 +68,5 @@ not — their originating logs are gone, overwritten by later runs, and
 **were not re-produced to stand in for them** (D4: re-manufacturing a lost
 log is a forgery, not a fix). The unresolvable ones are annotated in place
 in their citing documents and tracked to resolution in
-[`docs/rfcs/ERRATA.md`](../../docs/rfcs/ERRATA.md) — see RFC-0.27-004's own
+[`rfcs/ERRATA.md`](../../rfcs/ERRATA.md) — see RFC-0.27-004's own
 review request for the count and the reasoning behind each disposition.

@@ -101,7 +101,7 @@ exposure is the `cap_install_with_rights` rights-check that is documented but
 absent, and the risk that a future implementer trusts the documented surface.
 
 > **Errata cross-reference (2026-08-27, RFC-0.27-001).** This finding is
-> tracked as **E-011** in `docs/rfcs/ERRATA.md`, filed after this RFC was
+> tracked as **E-011** in `rfcs/ERRATA.md`, filed after this RFC was
 > written. Its durable disposition remains an open v0.22-and-later roadmap
 > item, per §Open Questions below — not decided here.
 

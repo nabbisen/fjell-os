@@ -622,7 +622,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   bucket 0 via `sys_task_start` — bucket 1, permanently occupied by a task
   that never blocks or exits, was drained on every scheduling decision, and
   bucket 0 was never reached again. Full explanation, with log evidence:
-  `docs/rfcs/RFC-0.26-001-scheduler-priority-unification-investigation.md`.
+  `rfcs/answers/RFC-0.26-001-scheduler-priority-unification-investigation.md`.
 
   The fix unifies both enqueue paths to the same value —
   `task/spawn.rs` now imports `task::scheduler::PRIORITY_USER` directly
@@ -668,7 +668,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     `proxy-text: action DENIED (capability not held)` never appear.
 
   Both are the same root cause as the M6 hang this RFC investigated and
-  fixed (docs/rfcs/RFC-0.26-001-scheduler-priority-unification-
+  fixed (rfcs/answers/RFC-0.26-001-scheduler-priority-unification-
   investigation.md) — code that assumes a specific relative scheduling
   order between concurrently-running tasks rather than synchronising on it
   explicitly — surfacing in a different shape (a silently-skipped assertion
@@ -792,7 +792,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   **Invariant established: a service's endpoint has exactly one receiver —
   the service itself.** No other task holds a receive-capable capability to
   either endpoint. See
-  `docs/rfcs/RFC-0.26-004-readiness-channel-answer.md` for the full design
+  `rfcs/answers/RFC-0.26-004-readiness-channel-answer.md` for the full design
   answer and the rejected alternatives.
 
 ## E-022 — `sys_ipc_send`'s one-way path blocks the sender against its own documented contract
@@ -869,7 +869,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   a live defect only inside the text of an erratum this RFC closes would
   leave it tracked by nothing once E-022 closes. See E-024 for the full
   finding, and
-  `docs/rfcs/RFC-0.27-002-one-way-send-contract-answer.md` for the audit and
+  `rfcs/answers/RFC-0.27-002-one-way-send-contract-answer.md` for the audit and
   the design-answer document naming this a real, six-instance, unmet
   primitive need — not decided here. May be relevant to **E-019 /
   RFC-0.26-003**'s `ipc` investigation — flagged, not absorbed. See
@@ -975,7 +975,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   independently default to the same object for their own protocols, and
   live-verified, silently won two of the three `SERVICE_READY` messages that
   should have reached service-manager under the old topology. See
-  `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md` §3 for the full
+  `rfcs/answers/RFC-0.28-001-readiness-topology-answer.md` §3 for the full
   re-derivation and how each was checked.
 - **Resolution:** **CLOSED** by RFC-0.28-001. `init` no longer holds any
   receive-capable capability on objects 1-4 (narrowed to `CALL`, the same
@@ -1306,7 +1306,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `service-manager`'s own receiving object (0) was also `auditd`'s and
   `bootctl`'s default and raced them for the same messages (found live;
   see **E-024**'s correction and
-  `docs/rfcs/RFC-0.28-001-readiness-topology-answer.md` §3). `10` was
+  `rfcs/answers/RFC-0.28-001-readiness-topology-answer.md` §3). `10` was
   unreachable by an even wider margin than this entry stated.
 - **Resolution:** **CLOSED** by RFC-0.28-001. All four SVC markers restored to
   `tests/qemu/profiles/svc.toml` and confirmed firing over repeated runs.
@@ -1599,7 +1599,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > the one command (`--generate`) that same line already needed. Full
   > argument, including why shapes 2 (cut-only) and 3 (version-stamped
   > baseline) were not built, in
-  > `docs/rfcs/RFC-0.30-002-checks-that-name-themselves-answer.md`.
+  > `rfcs/answers/RFC-0.30-002-checks-that-name-themselves-answer.md`.
   >
   > **Demonstrated failing** (D5/R4) on a deliberately un-regenerated
   > baseline — a temp copy of the real, current `snapshot.json` with 3 real
@@ -1908,7 +1908,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > the *next* accidental removal silently drift CI as well, not catch it —
   > shape 1 would have reintroduced this erratum's own failure mode one
   > layer up, not removed it. Full argument:
-  > `docs/rfcs/RFC-0.30-003-a-toolchain-that-records-itself-answer.md`.
+  > `rfcs/answers/RFC-0.30-003-a-toolchain-that-records-itself-answer.md`.
   >
   > **D1/D2 built.** All three artefact-producing paths now record the
   > *observed* toolchain (`rustc -vV`'s `release`/`commit-hash`/`host`/
@@ -2263,7 +2263,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > practice can settle it.
   >
   > **The missing handoff is written**:
-  > [`docs/release/release-handoff.md`](../release/release-handoff.md), standing
+  > [`docs/release/release-handoff.md`](../docs/release/release-handoff.md), standing
   > rather than per-cut, since the defect was that *every* cut lacked one. It
   > carries the six traps each named by the release that found it, the settled
   > decisions, the order (which is load-bearing — trap 2 exists because the
@@ -3327,7 +3327,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `docs/src/release/v1-readiness.md` states: *"This file symlinks to the live
   matrix at `docs/release/v1-readiness.md`."*
 - **Tree, observed 2026-09-16** (full audit:
-  [`docs/verification/documentation-structure-audit.md`](../verification/documentation-structure-audit.md)):
+  [`docs/verification/documentation-structure-audit.md`](../docs/verification/documentation-structure-audit.md)):
   1. **`docs/src` holds 135 `.md` files — 134 pages plus `SUMMARY.md` — and
      `SUMMARY.md` lists 59.** The other **75 pages are published nowhere**
      *(this entry said 76, counting the navigation file itself; corrected
@@ -3351,7 +3351,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
      `../../../`) — a copy made to relocate its own link.
   5. **Names that collide otherwise:** `docs/src/release/` (process) beside
      `docs/src/releases/` (session handoffs), both in `SUMMARY.md`;
-     `docs/rfcs/` (errata + 18 answer documents) beside the root `rfcs/` (224
+     `rfcs/answers/` (errata + 18 answer documents) beside the root `rfcs/` (224
      files); `ROADMAP.md` (23.8 KB) beside `docs/src/roadmap/roadmap.md`
      (16.1 KB), neither marked as superseding the other.
   6. **`docs/book/` is not in `.gitignore`**, so a local build leaves the whole

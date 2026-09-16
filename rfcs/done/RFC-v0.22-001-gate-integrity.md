@@ -5,7 +5,7 @@
 **Tracks.** Verification-instrument quality. Cross-cutting; not a feature.
 **Touches.** `crates/fjell-tools/src/callsite_audit.rs`,
 `tools/fjell-abi-snapshot/`, `tests/abi/snapshot.json`, new check(s) under
-`tools/`, `docs/rfcs/ERRATA.md`.
+`tools/`, `rfcs/ERRATA.md`.
 **Relates to:** RFC-v0.21.3-001 (which surfaced the pattern), RFC-v0.21.3-002
 (the release cycle these gates serve), architect review H-03.
 
@@ -101,7 +101,7 @@ fail is therefore a required deliverable per item — not optional coverage.
 | 5 | Record the v1.0 checklist Step 9 finding in ERRATA | Trivial | `target/release-bundles/*.bundle` appears nowhere in `crates/` or `tools/`; Steps 9–10 are the signing steps. Record only — do not investigate or fix. |
 
 > **Errata cross-reference (2026-08-27, RFC-0.27-001).** Item 5's finding is
-> tracked as **E-012** in `docs/rfcs/ERRATA.md`, filed after this RFC was
+> tracked as **E-012** in `rfcs/ERRATA.md`, filed after this RFC was
 > written and recorded per this §Scope item, not fixed here — see the entry
 > for current status.
 

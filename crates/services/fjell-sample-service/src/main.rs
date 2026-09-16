@@ -34,7 +34,7 @@ const SLOT_OWN_EP: u32 = 0;
 // (`fjell_service_api::ready::SERVICE_READY_SEND_SLOT`), routed to
 // service-manager's own dedicated object rather than the contested
 // shared object 0 (also defaulted-to by auditd and bootctl — see
-// docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3).
+// rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3).
 // semantic-stream endpoint cap (object 7), pre-installed by spawn.rs
 // (RFC-v0.23-001) so the SDK reference service can emit an intent node.
 const SEM_STREAM_EP: u32 = 3;

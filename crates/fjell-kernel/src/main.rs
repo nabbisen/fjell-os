@@ -1142,7 +1142,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // can never collide with unrelated traffic (contrast object 0,
             // which auditd and bootctl also default to and race
             // service-manager for — see
-            // docs/rfcs/RFC-0.28-001-readiness-topology-answer.md §3).
+            // rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3).
             let _ = cs.install_raw(
                 fjell_abi::service::INIT_RELAY_RECV_SLOT as usize,
                 Capability {

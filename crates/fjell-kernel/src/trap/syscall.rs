@@ -419,7 +419,7 @@ pub fn sys_task_start(
             // RFC-0.26-001 (closes E-018): the initial enqueue now uses the
             // task's own stored priority — the same source `schedule_next`'s
             // yield path already uses for every later re-enqueue — instead
-            // of a disconnected hardcoded literal. See docs/rfcs/
+            // of a disconnected hardcoded literal. See rfcs/answers/
             // RFC-0.26-001-scheduler-priority-unification-investigation.md
             // for why the previous literal happening to disagree with
             // `task/spawn.rs`'s own (also-wrong) constant was load-bearing.

@@ -11,7 +11,7 @@
 //! no-op and the "comparison" was a file against itself (0.4s per "build",
 //! measured on 2026-09-09). Re-measured after this fix, on the same machine:
 //! a genuinely independent build costs on the order of a few seconds (~2s at
-//! 8 parallel jobs, ~3.4s at 2 — see docs/rfcs/RFC-0.30-001-*-answer.md §5),
+//! 8 parallel jobs, ~3.4s at 2 — see rfcs/answers/RFC-0.30-001-*-answer.md §5),
 //! and two of them were found to be bit-for-bit identical — this project's
 //! same-machine build is, as measured, actually reproducible.
 //!

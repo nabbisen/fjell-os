@@ -1,6 +1,6 @@
 //! RFC-0.27-001: the `errata-tracking` subcheck (S1).
 //!
-//! `docs/rfcs/ERRATA.md`'s `## Summary` table has a tracking column that is
+//! `rfcs/ERRATA.md`'s `## Summary` table has a tracking column that is
 //! the only thing in this project that could serve as a scheduling source,
 //! and it was stale through two releases: E-014/E-015/E-016/E-017 all read
 //! `"0.25 candidate"` after 0.25 *and* 0.26 had shipped. Nothing read that
@@ -73,7 +73,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
 
-const ERRATA_PATH: &str = "docs/rfcs/ERRATA.md";
+const ERRATA_PATH: &str = "rfcs/ERRATA.md";
 const RECORDS_DIR: &str = "docs/release/records";
 const RFC_DIRS: &[&str] = &[
     "rfcs/proposed",

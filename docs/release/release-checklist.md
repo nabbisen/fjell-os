@@ -113,7 +113,7 @@ grep "OPEN" docs/release/v1-readiness.md
 ## Step 7b — RFC Errata gate: zero OPEN errata (RFC-v0.16-004)
 
 ```bash run-verified
-grep -E "\| (OPEN) \|" docs/rfcs/ERRATA.md
+grep -E "\| (OPEN) \|" rfcs/ERRATA.md
 # Expected: empty output. ACCEPTED items are permitted but must each
 # appear in the release notes limitations section.
 ```

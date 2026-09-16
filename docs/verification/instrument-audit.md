@@ -426,7 +426,7 @@ they still hold, not re-derived from scratch.
 ### Gate 7 — ERRATA register (0 OPEN) — **finding**
 
 - **Claim:** the errata register has zero unresolved (OPEN) entries.
-- **Actual:** `grep -c "| OPEN |" docs/rfcs/ERRATA.md` — an exact literal
+- **Actual:** `grep -c "| OPEN |" rfcs/ERRATA.md` — an exact literal
   match against the three-column summary table's status cell.
 - **Modes:** 1 / 4 — same shape as Gate 5. Additionally, the check only
   examines the **summary table**, never the per-entry prose sections above
@@ -435,7 +435,7 @@ they still hold, not re-derived from scratch.
 - **Demonstration:** appended a summary-table row with status
   `OPEN (needs owner decision)` and ran the exact gate command:
   ```
-  $ grep -c "| OPEN |" docs/rfcs/ERRATA.md
+  $ grep -c "| OPEN |" rfcs/ERRATA.md
   0
   ```
   An annotated OPEN entry is invisible to the count precisely because it is

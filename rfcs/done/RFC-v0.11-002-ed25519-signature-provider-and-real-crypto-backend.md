@@ -1,6 +1,6 @@
 # RFC-v0.11-002 — Ed25519 Signature Provider and Real Crypto Backend
 
-> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-001 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-001.
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-001 in `rfcs/ERRATA.md`; reconciled by RFC-v0.16-001.
 
 **Status:** Implemented-with-Errata (v0.11.0)
 **Target version:** v0.11.0

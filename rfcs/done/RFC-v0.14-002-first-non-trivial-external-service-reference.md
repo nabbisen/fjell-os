@@ -1,6 +1,6 @@
 # RFC-v0.14-002 — First Non-Trivial External Service (Reference)
 
-> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-006 in `docs/rfcs/ERRATA.md`; reconciled by RFC-v0.16-007.
+> **Errata:** This RFC is `Implemented-with-Errata`. Drift recorded as E-006 in `rfcs/ERRATA.md`; reconciled by RFC-v0.16-007.
 
 **Status:** Implemented-with-Errata (v0.14.0)
 **Target version:** v0.14.0
