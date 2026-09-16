@@ -412,21 +412,20 @@ closes the arc that opened at E-035.
 
 ---
 
-## Accepted (accepted/) — 1 RFC
+## Accepted (accepted/) — 2 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 
 | RFC | Title |
 |-----|-------|
 | 0.32-001 | [A fuzz harness that has never run, aimed mostly at formats with nothing to parse](./accepted/RFC-0.32-001-fuzzing-that-fuzzes.md) — accepted 2026-09-15; closes **E-043**; handoff: [`handoffs/`](./handoffs/RFC-0.32-001-fuzzing-that-fuzzes/implementation-handoff.md) |
+| 0.32-002 | [Bytes from another service are not a struct](./accepted/RFC-0.32-002-bytes-are-not-a-struct.md) — accepted 2026-09-16; closes **E-046**; handoff: [`handoffs/`](./handoffs/RFC-0.32-002-bytes-are-not-a-struct/implementation-handoff.md) |
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.32-002 | [Bytes from another service are not a struct](./proposed/RFC-0.32-002-bytes-are-not-a-struct.md) — closes **E-046** |
+No RFC is currently under review.
 
 ## Archive (archive/) — 2 RFCs
 

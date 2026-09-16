@@ -1,6 +1,6 @@
 # RFC-0.32-002: Bytes from another service are not a struct
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-16; implementation may begin (RFC 000)
 **Milestone:** 0.32
 **Tracks.** **E-046** — Rust structs are reinterpreted as raw bytes without the
 guarantees that would make it sound, including across a service boundary.
@@ -131,9 +131,12 @@ not dropped.
 
 **D5 — The checksums are computed over an explicit serialisation** of the
 named fields, shared by `seal` and `is_valid`, with no struct-memory view and
-no padding. The on-disk bytes change, so `schema_version` moves and the frozen
-schema files are updated with it (E-045's line will then have something true to
-enforce).
+no padding. The on-disk bytes change, so the on-disk version moves with them.
+*(Corrected while writing the handoff: this said "`schema_version` moves and the
+frozen schema files are updated with it". **Neither struct has either.** The
+tree holds eleven `.frozen` files and none covers `BootControlBlock` or
+`StoreSuperblock`, and the field is a plain `version: u16`. Move that field's
+constant; do not invent a frozen file here — that mechanism is E-045's line.)*
 
 **D6 — `HkdfRoundBuf` borrows with a lifetime** instead of storing a raw
 pointer.
