@@ -54,6 +54,7 @@ All four must hold before beginning:
 | 8 | Docs match reality | no doc asserts behaviour the tree does not have |
 | 9 | The release commit's CI runs read | the push run and a `workflow_dispatch` run of the release commit, each by `gh run view <id> --json jobs`: run ids and per-job conclusions, plus a `Done N runs` line per `fuzz-run` job; the latest `schedule` run's id and date as context |
 | 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
+| 11 | Advisories read | the release commit's `dependency-advisories` job: run id, conclusion, packages checked per lockfile, and the advisory database's commit and date — no more than 7 days old at the cut; the advisory register's count, from Gate 12 |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
 gate.** [`docs/src/releasing/v1-limitations.md`](./v1-limitations.md)
@@ -148,6 +149,45 @@ unanchored form returned 1. Under the rule below that a green job with no
   RFC-0.32-001 §8 sets out why those two cannot land in the same step.
 
 *Added by RFC-0.32-001 D6.*
+
+**Criterion 11 reads what is known to be wrong with the dependencies.**
+Its rule is written here, before the first cut that needs it, rather than
+decided on the day ([RFC-0.32-004 §A](https://github.com/nabbisen/fjell-os/blob/main/rfcs/answers/RFC-0.32-004-advisories-that-exist-answer.md)).
+
+- **A cut needs a green `dependency-advisories` run against the release
+  commit's exact `Cargo.lock`, whose advisory database is no more than 7 days
+  old.** Every run prints the database's commit, date and age. Record all
+  three, with the run id.
+- **If the database is unreachable on the day**, a green run from the
+  previous 7 days against an **identical** `Cargo.lock` satisfies this
+  criterion, and the record says so — naming that run. Nothing older does, and
+  nothing against a different lockfile does. **Otherwise the cut waits.** It
+  does not proceed with a note: a check that can be waived by writing that it
+  was not run is a note, not a check. The window exists only so that an outage
+  somewhere else cannot hold a release indefinitely.
+- **A red run blocks the tag**, or takes an accepted-risk statement under the
+  existing rule: the finding is an erratum, ACCEPTED by the architect, with a
+  limitation in `v1-limitations.md`. A dependency advisory takes the same path
+  as every other known defect.
+- **The run's exit status matters, not only its colour.** Exit 1 is a
+  finding. Exit 2 is a run that could not tell — including one that read a
+  stale database, which `cargo-audit` does silently when it cannot fetch. Both
+  are red; neither is read as "probably fine".
+- **Read the finding's reach before its severity.** The run states that the
+  published crates carry no third-party dependencies, and checks that it is
+  true before printing it. Its first ever run was red (E-053) — for a
+  benchmark harness and a lockfile entry compiled for no target. Record what a
+  finding reaches, not only that it exists.
+
+**The advisory register is read by Gate 12** (`security-advisories`) at
+criterion 6, and the count of published advisories is recorded here. **An
+advisory disclosed with this release is not part of the release commit.** Its
+record names the release in `Fixed in`, and Gate 12 accepts only a version
+that has been tagged — so the record is committed after the tag, which is also
+when the process allows it to be public at all
+([Security Advisory Process](../security/advisory-process.md) §4–§5).
+
+*Added by RFC-0.32-004.*
 
 **Criterion 10 exists because an exact pin goes stale by default.**
 `rust-toolchain.toml` names one version and nothing moves it; that is the

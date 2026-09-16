@@ -188,10 +188,27 @@ order once.
     moment, not a gate** — `consistency-check` stays a pure function of the
     committed tree, so that re-running it on an old tree still answers the
     question it answered then.
-15. **Clean-clone check** — clone the committed tree into a scratch directory
+15. **Read the dependency advisories** — the `dependency-advisories` job in
+    the release commit's push run (step 13). Record its run id and conclusion,
+    the packages checked per lockfile, and the advisory database's commit,
+    date and age, which the job prints (§4.12). The database must be **no more
+    than 7 days old**. If it cannot be fetched on the day, a green run from the
+    previous 7 days against an **identical** `Cargo.lock` satisfies this step,
+    named in the record; otherwise **the cut waits** — it does not proceed with
+    a note. A red run, **exit 1 or exit 2**, blocks the tag or takes an
+    accepted-risk statement under the existing rule (§4.7). Record what a
+    finding *reaches* — the job states whether the published crates carry any
+    third-party dependency — not only that it exists. The cycle document's
+    criterion 11 section has the rule in full. *(RFC-0.32-004. Its first run
+    was red, E-053, for a benchmark harness and a lockfile entry compiled for
+    no target.)*
+16. **Clean-clone check** — clone the committed tree into a scratch directory
     and run `consistency-check --all` there. This is what caught E-038, and no
     procedure required it at the time. It is required now.
-16. **Stop.** Hand over for review; do not tag.
+17. **Stop.** Hand over for review; do not tag. **An advisory disclosed with
+    this release is committed after the tag, not in the release commit** — its
+    `Fixed in` must name a tag that exists, and the process publishes nothing
+    before the fix ships.
 
 ## 2. What stays with the architect, and why you must not do it
 
@@ -246,7 +263,7 @@ The release record at `releases/<version>.md` carries:
    write one to paper over a red gate.**
 8. The **repro-baseline diff**, showing which binaries moved and why that is
    the expected set.
-9. The **clean-clone check** result (§1 step 15), and the post-record re-run of
+9. The **clean-clone check** result (§1 step 16), and the post-record re-run of
    criterion 6 (§1 step 12).
 10. **The release commit's CI runs** (§1 step 13): the **push run** and a
     **`workflow_dispatch` run of the same commit**, each with its **run id**
@@ -263,6 +280,12 @@ The release record at `releases/<version>.md` carries:
     three, either the tag is blocked or item 7 applies — and an accepted-risk
     statement here says *why staying behind is the right call for this
     release*, not that nobody got to it.
+12. **Dependency advisories** (§1 step 15): the `dependency-advisories` run id
+    and exit status, packages checked per lockfile, and the advisory
+    database's commit, date and age — or, if the database was unreachable, the
+    earlier run relied on and why its `Cargo.lock` is identical. Each finding
+    with what it reaches. The number of published security advisories, from
+    Gate 12's `security-advisories` line.
 
 Follow the shape of [`../../releases/0.29.0.md`](https://github.com/nabbisen/fjell-os/blob/main/releases/0.29.0.md); it is the most
 recent and the most complete.
