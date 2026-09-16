@@ -422,9 +422,11 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.32-002 | [Bytes from another service are not a struct](./proposed/RFC-0.32-002-bytes-are-not-a-struct.md) — closes **E-046** |
 
 ## Archive (archive/) — 2 RFCs
 

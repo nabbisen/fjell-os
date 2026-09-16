@@ -2994,11 +2994,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   none of these mentions padding, discriminant validity or `repr`. The one fuzz
   target that works exercises `fjell_semantic_v1::decode`, a different, safe
   codec; the envelope receive path has never been fuzzed or fed malformed input.
+- **Further findings, 2026-09-16, scoping RFC-0.32-002 — measured in the tree.**
+  1. **The receivers never read the length `BEGIN` declares**, and `buf` is
+     declared outside the receive loop. A sender that sends `BEGIN` then
+     `COMMIT` **with no chunks** makes the receiver reinterpret the *previous*
+     message's bytes; a short message leaves the previous tail in place; and
+     `write_chunk` silently drops anything past the buffer instead of refusing
+     it. No malice is required — any sender bug produces it.
+  2. **`validate_envelope` cannot protect the path**: it runs after
+     `reassemble` and matches on `env.payload`, reading the discriminant that
+     may already be invalid. It checks payload semantics, never framing.
+  3. **The sender publishes its own padding.** `SemanticEnvelope` is **4936
+     bytes**, `repr(Rust)`; its padding is not required to be initialised, so
+     the bytes `fjell-sample-service` ships can carry whatever was on its
+     stack — an information leak across the boundary the system exists to
+     separate. The transfer is also **155 blocking IPC calls** per envelope.
+  4. **The padding the checksums read, counted:** `BootControlBlock` is 88
+     bytes for 73 bytes of fields (**15** padding); `StoreSuperblock` 64 for 50
+     (**14**).
+  5. **A sixth site, same class:** `fjell-sxt-crypto`'s `HkdfRoundBuf` stores
+     `overflow_info: *const u8` taken from a caller's slice and rebuilds a
+     slice from it, with the lifetime argued in the SAFETY comment
+     (*"called and used within the same `hkdf_expand` iteration"*). True
+     today, enforced by nothing.
 - **Not demonstrated at runtime.** No current sender produces an invalid
-  envelope, and no misbehaviour has been observed. Miri is available for the
-  nightly toolchain; running these paths under it is the obvious first
-  demonstration.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.32**.
+  envelope, and no misbehaviour has been observed. **Miri is *not* installed**
+  (`cargo +nightly miri` → *"'cargo-miri' is not installed for the toolchain
+  'nightly-x86_64-unknown-linux-gnu'"*) — this entry said it was available,
+  which was read from the toolchain's component *list*, not from running it.
+  Installing it is part of RFC-0.32-002.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked
+  **RFC-0.32-002** (scoped 2026-09-16).
   Closing it means the envelope receive path validates rather than
   reinterprets untrusted bytes, and the checksum paths compute over explicitly
   serialised fields rather than struct memory — each demonstrated under Miri
@@ -3279,7 +3305,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
-| E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | 0.32 | ACCEPTED |
+| E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | ACCEPTED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
