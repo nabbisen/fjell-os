@@ -65,7 +65,7 @@ pub fn hkdf_expand(prk: &Sha256Digest, info: &[u8], okm: &mut [u8]) -> Result<()
 
 /// Build the HMAC data for one HKDF-Expand round.
 /// Layout: [t_prev | info | counter_byte]
-fn build_hmac_data(t_prev: &[u8], info: &[u8], counter: u8) -> HkdfRoundBuf {
+fn build_hmac_data<'info>(t_prev: &[u8], info: &'info [u8], counter: u8) -> HkdfRoundBuf<'info> {
     HkdfRoundBuf::new(t_prev, info, counter)
 }
 
@@ -77,23 +77,23 @@ fn build_hmac_data(t_prev: &[u8], info: &[u8], counter: u8) -> HkdfRoundBuf {
 // (no allocation in no_std — we split into two HMAC updates).
 const ROUND_BUF_MAX: usize = 512;
 
-struct HkdfRoundBuf {
+struct HkdfRoundBuf<'info> {
     data: [u8; ROUND_BUF_MAX],
     len: usize,
-    // If info didn't fit, these carry the overflow portion.
-    overflow_info: *const u8,
-    overflow_len: usize,
+    // If info didn't fit, this carries the overflow portion. It borrows the
+    // caller's `info`, so the compiler enforces what the old raw pointer's
+    // SAFETY comment only asserted: this buffer cannot outlive the slice.
+    overflow_info: &'info [u8],
     counter_byte: u8,
     uses_overflow: bool,
 }
 
-impl HkdfRoundBuf {
-    fn new(t_prev: &[u8], info: &[u8], counter: u8) -> Self {
+impl<'info> HkdfRoundBuf<'info> {
+    fn new(t_prev: &[u8], info: &'info [u8], counter: u8) -> Self {
         let mut buf = Self {
             data: [0u8; ROUND_BUF_MAX],
             len: 0,
-            overflow_info: core::ptr::null(),
-            overflow_len: 0,
+            overflow_info: &[],
             counter_byte: counter,
             uses_overflow: false,
         };
@@ -107,8 +107,7 @@ impl HkdfRoundBuf {
             // Overflow path: fit t_prev in buf, stream info + counter separately.
             buf.data[..prefix_len].copy_from_slice(t_prev);
             buf.len = prefix_len;
-            buf.overflow_info = info.as_ptr();
-            buf.overflow_len = info.len();
+            buf.overflow_info = info;
             buf.uses_overflow = true;
         }
         buf
@@ -119,7 +118,7 @@ impl HkdfRoundBuf {
 // We do this by providing a custom as_slice that the caller uses.
 // For the overflow case the caller falls into a two-update HMAC sequence.
 
-impl HkdfRoundBuf {
+impl HkdfRoundBuf<'_> {
     /// Returns the single-buffer slice when info fits, or None for overflow.
     pub fn as_slice_if_fits(&self) -> Option<&[u8]> {
         if !self.uses_overflow {
@@ -132,15 +131,8 @@ impl HkdfRoundBuf {
         &self.data[..self.len]
     }
     pub fn overflow_info_slice(&self) -> &[u8] {
-        if self.uses_overflow {
-            // SAFETY: category=raw-pointer-deref
-            //   overflow_info was set from info.as_ptr() in new(), which is valid for
-            //   overflow_len bytes. The lifetime of info outlives this struct because
-            //   build_hmac_data is called and used within the same hkdf_expand iteration.
-            unsafe { core::slice::from_raw_parts(self.overflow_info, self.overflow_len) }
-        } else {
-            &[]
-        }
+        // Empty unless `new` took the overflow path, and borrowed either way.
+        self.overflow_info
     }
     pub fn counter(&self) -> u8 {
         self.counter_byte
