@@ -3525,6 +3525,51 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   filesystem. Two demonstrations: a citation that resolves nowhere is still
   refused, and a converted citation is accepted.
 
+## E-053 — two published RustSec advisories applied to crates in `Cargo.lock`, and nothing in the project would have said so
+
+- **Claim:** none — which is the finding. No document claimed the dependency
+  graph was free of published advisories, and nothing checked. RFC-0.32-004's
+  third demonstration was written to *add* a vulnerable crate in a scratch
+  clone, on the assumption that the tree held none.
+- **Tree, observed 2026-09-16** by the first run of RFC-0.32-004's dependency
+  check, against the RustSec database at `e2e6404` (2026-09-14, 1,246
+  advisories):
+
+  | Advisory | Crate | Kind | Patched |
+  |---|---|---|---|
+  | **RUSTSEC-2026-0204** | `crossbeam-epoch 0.9.18` | vulnerability — *Invalid pointer dereference in `fmt::Pointer` impl for `Atomic` and `Shared`* | `>=0.9.20` |
+  | **RUSTSEC-2026-0190** | `anyhow 1.0.102` | unsound — *Unsoundness in `Error::downcast_mut()`* | `>=1.0.103` |
+
+- **Reach — narrow, and derived rather than assumed:**
+  - `crossbeam-epoch` arrives through `criterion` → `rayon` → `rayon-core` →
+    `crossbeam-deque`, and `criterion` is only a **dev-dependency of
+    `fjell-benchmarks`**.
+  - `anyhow` is in the lockfile only through `wit-bindgen` and
+    `wasm-metadata`, and `cargo tree -i anyhow --target all` resolves it into
+    **no build graph at all**: locked, never compiled for a target this project
+    builds.
+  - Neither reaches a published crate, the kernel, or a service. Both published
+    crates, `fjell-os` and `fjell-abi`, have no third-party dependencies.
+- **Resolution:** **CLOSED**, tracked **0.32** — fixed by RFC-0.32-004, the line
+  that found it, on 2026-09-16. Tracked to the milestone rather than the RFC,
+  as E-047 was: the RFC was written before this existed and does not name it.
+
+  > Fixed by patch-level lockfile updates, nothing added or removed:
+  > `anyhow 1.0.102 → 1.0.104` and `crossbeam-epoch 0.9.18 → 0.9.21`, both
+  > past their patched floors and within the 1.91 compatibility floor. The
+  > check then reports `PASS — 2 lockfile(s), no vulnerability and no
+  > unsoundness advisory`, and `fjell-benchmarks` still builds.
+  >
+  > **Shown red before the fix, locally, on the real tree** — the transcript
+  > is in RFC-0.32-004's review request. Unlike E-047, it was not first pushed
+  > red to CI: RFC-0.32-003 D24 ruled that a red `main` is not the
+  > demonstration and the transcript is.
+  >
+  > **This is what an advisory against a dependency looks like when it reaches
+  > the project mechanically**, and it is the reason D5 exists: the check went
+  > red on day one, and the correct reading of that red was "the benchmark
+  > harness and an uncompiled lockfile entry", not "Fjell OS is vulnerable".
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3581,6 +3626,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | ACCEPTED |
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
+| E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
