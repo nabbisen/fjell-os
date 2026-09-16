@@ -19,9 +19,11 @@ If you believe you have found a security issue in Fjell OS:
 
 ## What you can expect
 
-- An acknowledgement within {{ACKNOWLEDGEMENT-WINDOW}}. If you have heard nothing
-  by then, follow up on the same advisory.
-- A discussion of severity and timeline before any public disclosure.
+- An acknowledgement within 7 days. If you have heard nothing by then, follow
+  up on the same advisory.
+- A severity decision, with the reason, within 14 days of the report. The
+  severity sets the target for a fix.
+- A discussion of the timeline before any public disclosure.
 - Credit in the changelog and security advisory unless you ask for anonymity.
 
 The whole process — triage, severity, the disclosure timeline, and what the

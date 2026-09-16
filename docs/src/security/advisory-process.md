@@ -29,7 +29,7 @@ There is no security mailing address. An earlier version of the release
 checklist named `security@<domain>`, a placeholder that could not receive mail;
 it has been removed rather than filled with a second channel.
 
-**Acknowledgement:** within **{{ACKNOWLEDGEMENT-WINDOW}}** of the report. If you
+**Acknowledgement:** within **7 days** of the report. If you
 have heard nothing by then, follow up on the same advisory.
 
 Include the release tag or commit, the QEMU profile or board, the
@@ -48,7 +48,9 @@ threats in [the v1 threat model](./threat-model-v1.md):
 | **Medium** | Weakens an invariant's defence in depth; the operator-side mitigation is straightforward. |
 | **Low** | Cosmetic, denial-of-service only, or requires an unrealistic adversary. |
 
-The reporter is told the severity and the reason. The report receives an
+**Severity decision:** within **14 days** of the report. The reporter is told
+the severity and the reason — and because the fix targets below run from this
+decision, a bound on it is what makes them mean anything. The report receives an
 identifier of the form `FSAD-<year>-<seq>`, assigned in order of disclosure.
 
 ## 3. Fixing, and how long it takes
@@ -125,6 +127,14 @@ erratum's resolution names the advisory.
 **An operator** starts at the advisory: what is affected, what to upgrade to,
 what to do meanwhile. **A maintainer** starts at the erratum: what was wrong,
 how it was found, what changed.
+
+**When a defect found internally gets an advisory** (owner, 2026-09-16). An
+advisory is published when a defect reaches something a user obtains as a
+release artefact — the published crates, `fjell-os` and `fjell-abi`. A defect
+confined to code no published crate contains is recorded as an erratum only.
+The first case ruled under this is E-046, an unsound decode path in service
+code: **no advisory**. The question is asked again the first time a defect
+reaches a published crate.
 
 ## 7. Advisories against dependencies
 

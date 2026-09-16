@@ -779,8 +779,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   citation as a filesystem path, so converting the links to repository URLs
   turns Gate 12 red until those checks accept both spellings.
 
-- **The security advisory process has no acknowledgement commitment yet**
-  (Errata **E-051**, ACCEPTED, tracked to 0.32; addressed by RFC-0.32-004).
+- **The security advisory process is built, and has never been rehearsed**
+  (Errata **E-051**, CLOSED by RFC-0.32-004, with that survivor named).
   RFC-v0.15-003 specified an advisory process and a per-advisory register, was
   marked Implemented, and built neither; the release checklist meanwhile
   published an address that could not receive mail beside the working channel.
@@ -789,9 +789,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   has been reported, and checked while empty. Advisories published against
   every crate in `Cargo.lock` are found by CI on every push and weekly, and the
   first run found two (E-053, fixed). What remains:
-  - **The acknowledgement time is a placeholder** in `.github/SECURITY.md` and
-    the process document, pending the owner's choice. A reporter can reach the
-    project; they cannot yet be told when to expect a reply.
+  - **The process has never been run end to end.** RFC-v0.15-003 required a
+    rehearsal record; none exists, because a real rehearsal needs a private
+    advisory to run through. A reporter is promised acknowledgement within 7
+    days and a severity decision within 14; nothing has yet tested either.
   - **Every time in the process is a target, not a guarantee.** Fjell OS has
     one maintainer, and the process says so rather than implying a 30-day
     patch can be promised.

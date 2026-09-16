@@ -137,30 +137,45 @@ fn parse_fields(src: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The acknowledgement window a document states: the text between
-/// "acknowledgement within" and the next full stop, case-insensitive, with
-/// Markdown emphasis stripped.
-fn acknowledgement_window(src: &str) -> Option<String> {
+/// The window a document states for one step of the process: found at `label`
+/// (the process document's form, e.g. `Acknowledgement:`) or, failing that,
+/// `phrase` (SECURITY.md's form, e.g. `An acknowledgement`), then the text
+/// after "within" to the end of **that sentence** — case-insensitive, with
+/// Markdown emphasis stripped and a trailing "of the report" removed.
+///
+/// Bounded to one sentence on purpose: the process document's opening
+/// paragraph mentions "a severity decision" in a sentence with no window, and
+/// an unbounded search would read the next "within" anywhere after it as that
+/// step's promise.
+fn stated_window(src: &str, label: &str, phrase: &str) -> Option<String> {
     let flat = src.replace('\n', " ").replace("**", "");
     let lower = flat.to_lowercase();
     let at = lower
-        .find("acknowledgement:")
-        .map(|i| i + "acknowledgement:".len())
-        .or_else(|| {
-            lower
-                .find("an acknowledgement")
-                .map(|i| i + "an acknowledgement".len())
-        })?;
-    let rest = &flat[at..];
-    let within = rest.to_lowercase().find("within")? + "within".len();
-    let tail = &rest[within..];
-    let end = tail.find(['.', '\n']).unwrap_or(tail.len());
-    let window = tail[..end]
+        .find(label)
+        .map(|i| i + label.len())
+        .or_else(|| lower.find(phrase).map(|i| i + phrase.len()))?;
+    let end = flat[at..].find('.').map_or(flat.len(), |e| at + e);
+    let sentence = &flat[at..end];
+    let within = sentence.to_lowercase().find("within")? + "within".len();
+    let window = sentence[within..]
         .trim()
         .trim_end_matches(" of the report")
         .trim()
         .to_string();
     (!window.is_empty()).then_some(window)
+}
+
+/// When the reporter hears the report was received.
+fn acknowledgement_window(src: &str) -> Option<String> {
+    stated_window(src, "acknowledgement:", "an acknowledgement")
+}
+
+/// When the reporter is told the severity — the decision that starts the fix
+/// clock. Added at RFC-0.32-004's review with the owner's 14-day commitment:
+/// a second promise stated in two documents is a second place for E-051's
+/// drift, so it is compared the same way.
+fn triage_window(src: &str) -> Option<String> {
+    stated_window(src, "severity decision:", "a severity decision")
 }
 
 /// `FSAD-2026-001.md` -> `(2026, 1)`.
@@ -209,6 +224,19 @@ pub fn run_check(
         )),
         (_, None) => problems.push(format!(
             "{PROCESS_PATH} states no acknowledgement window this check can find"
+        )),
+    }
+    match (triage_window(security_md), triage_window(process_md)) {
+        (Some(a), Some(b)) if a == b => {}
+        (Some(a), Some(b)) => problems.push(format!(
+            "{SECURITY_MD_PATH} promises a severity decision within \"{a}\" but {PROCESS_PATH} \
+             says \"{b}\" — the triage window is one commitment, stated in two places"
+        )),
+        (None, _) => problems.push(format!(
+            "{SECURITY_MD_PATH} states no severity-decision window this check can find"
+        )),
+        (_, None) => problems.push(format!(
+            "{PROCESS_PATH} states no severity-decision window this check can find"
         )),
     }
 
@@ -389,8 +417,10 @@ mod tests {
     use super::*;
 
     const EMPTY_INDEX: &str = "# Security Advisories\n\n| ID | Severity |\n|---|---|\n";
-    const SEC: &str = "- An acknowledgement within 7 days. More.";
-    const PROC: &str = "**Acknowledgement:** within **7 days** of the report.";
+    const SEC: &str = "- An acknowledgement within 7 days. More.\n\
+                       - A severity decision, with the reason, within 14 days of the report.";
+    const PROC: &str = "**Acknowledgement:** within **7 days** of the report.\n\
+                        **Severity decision:** within **14 days** of the report.";
 
     fn tags() -> Option<BTreeSet<String>> {
         Some(["0.31.0", "0.32.0"].iter().map(|s| s.to_string()).collect())
@@ -598,6 +628,34 @@ mod tests {
                 PROC
             ),
             ExitCode::SUCCESS
+        );
+    }
+
+    /// The owner's second commitment, held the same way as the first.
+    #[test]
+    fn security_md_and_the_process_must_state_one_triage_window() {
+        let sec = SEC.replace("within 14 days", "within 21 days");
+        assert_ne!(
+            run_check(EMPTY_INDEX, &[], &tags(), &sec, PROC),
+            ExitCode::SUCCESS
+        );
+        let silent = "- An acknowledgement within 7 days.";
+        assert_ne!(
+            run_check(EMPTY_INDEX, &[], &tags(), silent, PROC),
+            ExitCode::SUCCESS
+        );
+    }
+
+    /// A step named in a sentence without a window must not borrow the next
+    /// sentence's "within": the process document opens with exactly that.
+    #[test]
+    fn a_window_is_read_from_its_own_sentence_only() {
+        let src = "we promise a severity decision you are told about. \
+                   Something else happens within 3 days.";
+        assert_eq!(triage_window(src), None);
+        assert_eq!(
+            triage_window("A severity decision, with the reason, within 14 days of the report."),
+            Some("14 days".to_string())
         );
     }
 

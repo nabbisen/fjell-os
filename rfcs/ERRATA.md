@@ -3484,8 +3484,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   vulnerability has been reported; zero advisories is the correct count. The
   process will otherwise first be exercised under time pressure, by one
   maintainer, on the day a real report arrives.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked
-  **RFC-0.32-004** (scoped 2026-09-16). Closing it means: one process document
+- **Resolution:** ~~**ACCEPTED**~~ **CLOSED** 2026-09-16 by **RFC-0.32-004**,
+  when the owner's acknowledgement commitment replaced the placeholder (below).
+  Originally ACCEPTED (architect, 2026-09-16). Closing it meant: one process document
   at one path, referenced rather than restated; one intake channel and one
   acknowledgement commitment; an advisory register with the errata register's
   discipline, checked — and **passing while empty**; a mechanical dependency
@@ -3518,6 +3519,25 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   >   through; the demonstrations exercise the register's shape, not intake.
   >
   > The first run of the dependency check was red: **E-053**.
+
+  > **CLOSED 2026-09-16, at the owner's decision.** The placeholder is replaced
+  > by **7 days** — and the owner, asked whether one rule was enough, added the
+  > commitment the process lacked: **a severity decision within 14 days of the
+  > report**. Severity already tiered the fix targets, but nothing bounded
+  > triage, so a reporter could be acknowledged and then wait indefinitely for
+  > the decision that starts the fix clock. Severity cannot sensibly tier the
+  > acknowledgement itself: it comes before severity is known, so a tiered
+  > window would have to trust the reporter's own claim.
+  >
+  > Both windows now stand in `.github/SECURITY.md` and the process, and
+  > **`security-advisories` compares both**, extended at review with a
+  > sentence-bounded reader and demonstrated failing on a disagreeing triage
+  > window against the real files. The owner also ruled that an internally
+  > found defect gets an advisory only when it reaches a published crate —
+  > E-046 does not.
+  >
+  > **Survivor:** the rehearsal record (RFC-v0.15-003 §3.7), never built; a real
+  > rehearsal needs a private advisory to run through.
 
 ## E-052 — eleven citations in the published book point outside the site, and two instruments require exactly that spelling
 
@@ -3651,7 +3671,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
-| E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | ACCEPTED |
+| E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
