@@ -5,7 +5,13 @@
 **Tracks.** **E-050** — 76 of the 135 files under the book root are in no book,
 the book's pages point at documents it does not contain, and four directory
 names exist twice.
-**Touches.** `docs/` (all of it), `rfcs/`, `README.md`, `.gitignore`,
+**Touches** *(indicative, not exhaustive — corrected at review: this list
+omitted `examples/`, whose tutorial README was the document a stub page
+pointed at, and D5's remedy is to replace a pointer with its document. The
+0.32-002 list omitted `ci.yml` the same way. A file list written before the
+work is a prediction; the line's scope is its decisions, and a file the
+decisions reach is in scope)*: `docs/` (all of it), `rfcs/`, `README.md`,
+`.gitignore`,
 `.github/workflows/ci.yml`, `tools/fjell-consistency-check/`, and the eighteen
 hard-coded `docs/…` paths in eight Rust files. **Does not touch kernel, ABI,
 service or format source.**

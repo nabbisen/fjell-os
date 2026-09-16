@@ -3492,6 +3492,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   advisory check that names the surface it covered; and RFC-v0.15-003
   reclassified `Implemented-with-Errata`.
 
+## E-052 — eleven citations in the published book point outside the site, and two instruments require exactly that spelling
+
+- **Claim:** RFC-0.32-003 R8 — *"no chapter links to a path the site does not
+  contain"* — and `docs/src/compliance/standards-mapping.md`'s own purpose: each
+  row cites the artefact that supports it, so a reader can check the claim.
+- **Tree and site, observed 2026-09-16, after RFC-0.32-003 shipped:** ten links
+  in `compliance/standards-mapping.md` and one in
+  `releasing/v0-release-cycle.md` are relative paths that leave the book —
+  `../../../rfcs/done/RFC-0.27-003-standards-mapping.md` and similar. On disk
+  they resolve, so `doc-links` passes. **Served, they escape the site root and
+  404**, with the extension rewritten: fetched from the live page, the hrefs
+  read `../../../rfcs/done/RFC-0.27-003-standards-mapping.html`. A reader of
+  the published book cannot follow a compliance row to its evidence.
+- **Why they were not converted, which is the part that matters:** the two
+  instruments that read those documents resolve a citation **as a filesystem
+  path**. `standards-mapping` checks every cited path exists; `evidence` matches
+  citations against promoted evidence files. Given
+  `https://github.com/nabbisen/fjell-os/blob/main/rfcs/…`, `standards-mapping`
+  resolves it to `docs/src/compliance/https:/github.com/…` and fails, and
+  `evidence` reports its logs as orphaned. **Converting the links turns Gate 12
+  red**; the implementation tried it and reported the conflict rather than
+  editing instruments its line did not own.
+- **Why nothing saw it earlier:** before this milestone the book was never
+  published (E-050), so no link had ever been resolved against a served site.
+  `doc-links` checks paths on disk and is right to; the site is a second
+  namespace, and until now there was none.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked **0.33**.
+  Closing it means both subchecks accept an absolute repository URL as a
+  citation — they already know the repository — and the eleven links are
+  converted, with the site checked for them afterwards rather than the
+  filesystem. Two demonstrations: a citation that resolves nowhere is still
+  refused, and a converted citation is accepted.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3547,6 +3580,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | unscheduled | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | ACCEPTED |
+| E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

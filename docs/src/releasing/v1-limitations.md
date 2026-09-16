@@ -772,6 +772,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `fjell-devmgr` builds its board profile in code. Boot-time validation
   belongs with hardware bring-up (E-004).
 
+- **Eleven compliance and release citations are unreachable from the published
+  book** (Errata **E-052**, ACCEPTED, tracked to 0.33). They are relative paths
+  that leave the book: correct on disk, 404 on the site. They were left that
+  way deliberately — the instruments that read those two documents resolve a
+  citation as a filesystem path, so converting the links to repository URLs
+  turns Gate 12 red until those checks accept both spellings.
+
 - **The security advisory process exists only as a description of itself**
   (Errata **E-051**, ACCEPTED, tracked to 0.32). RFC-v0.15-003 specified an
   advisory process document and a per-advisory record directory, and was marked
