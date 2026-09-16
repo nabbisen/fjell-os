@@ -191,12 +191,66 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      # Pinned in docs/MDBOOK.lock (RFC-0.32-003 D17); consistency-check's
+      # toolchain-declarations fails if this version and that file disagree.
       - name: Install mdBook
         run: |
-          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz \
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz \
             | tar -xz -C /usr/local/bin
+          mdbook --version
       - name: mdbook build
         run: cd docs && mdbook build
+
+  # RFC-0.32-003 D18 — publish the book.
+  #
+  # A built book that is thrown away cannot be "documentation that can be
+  # found", and ci-docs above builds and discards it. Pages is configured for
+  # this repository with build_type: workflow, which means nothing is served
+  # until a job deploys — a branch push will not do it.
+  #
+  # Only on `main`, and only after ci-docs has built the same book with the
+  # same pinned mdBook. `needs: ci-docs` is what stops a book that fails to
+  # build from being published over one that did.
+  ci-pages:
+    name: pages
+    runs-on: ubuntu-24.04
+    needs: [ci-docs]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    # Two pushes landing together must not race each other onto the site; the
+    # later one wins and the earlier is cancelled rather than interleaved.
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install mdBook
+        run: |
+          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C /usr/local/bin
+          mdbook --version
+      - name: Build the book
+        run: cd docs && mdbook build
+      # A positive control on the artifact: the ADRs were the 41 pages E-050
+      # found in no book, so an upload that does not contain them is not the
+      # book this line produced, whatever mdbook exited with.
+      - name: The built site contains the ADRs
+        run: |
+          count=$(ls docs/book/adr/*.html | wc -l)
+          echo "ADR pages built: $count"
+          [ "$count" -ge 30 ] || { echo "::error::only $count ADR pages in the built site"; exit 1; }
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs/book
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
 
   ci-qemu-smoke:
     name: qemu-smoke

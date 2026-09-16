@@ -1,0 +1,32 @@
+# mdBook toolchain lock — the book's build pin (RFC-0.32-003 D17).
+#
+# CI and a developer must build the same book with the same mdBook. Before
+# this file, CI installed 0.4.40 and the structure audit was written under
+# 0.5.4, with nothing stating which was correct and nothing that would notice
+# a build behaving differently under the other. That is E-037's shape — a tool
+# version declared in one place and checked nowhere — one tool over.
+#
+# Pinned 2026-09-16 to 0.5.4: the version the whole book is known to build
+# under, exit 0, with every page reachable from SUMMARY.md.
+#
+# Update by changing `version` here and the `curl` line in ci.yml's ci-docs
+# job together; `consistency-check toolchain-declarations` fails if they
+# disagree, so they cannot drift apart silently.
+
+[mdbook]
+version  = "0.5.4"
+install  = "https://github.com/rust-lang/mdBook/releases/download/v0.5.4/mdbook-v0.5.4-x86_64-unknown-linux-gnu.tar.gz"
+platform = "linux_x86_64"
+pinned   = "2026-09-16"
+
+# Known warnings under 0.5.4, recorded so a future build's output can be
+# compared against a stated baseline rather than a memory. All five are
+# placeholder angle brackets in page content that 0.5 reads as unclosed HTML
+# tags; none affects the rendered page, and this line does not edit content.
+#
+#   assurance/proofs/templates/proof-review-record-template.md   <target>
+#   assurance/proofs/templates/rfc-supplement-template.md        <rfc>
+#   assurance/proofs/templates/verus-target-proposal-template.md <target>, <describe>
+#   security/threat-model-v1.md                                  <n>
+[warnings]
+expected = 5

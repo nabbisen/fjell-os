@@ -9,7 +9,7 @@
 # hand-unpacked release zip to the package-managed AUR `verus-bin`. All 20
 # obligations re-verified unchanged, with no proof source modified. Recorded
 # proof-review re-run:
-#   docs/verification/verus/review-records/v0.21.3-prover-upgrade.md
+#   docs/src/assurance/proofs/review-records/v0.21.3-prover-upgrade.md
 
 [verus]
 release        = "release/0.2026.07.27.31579f0"
