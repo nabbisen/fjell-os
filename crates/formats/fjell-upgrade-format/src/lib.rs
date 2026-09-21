@@ -1,9 +1,11 @@
 //! A/B upgrade and boot-control block types for Fjell OS M6.
 #![no_std]
 
+pub mod boot_state;
 pub mod release_metadata;
 pub mod rollback_record;
 
+pub use boot_state::{BootError, HealthOutcome};
 pub use release_metadata::{
     Provenance, RELEASE_METADATA_DOMAIN, RELEASE_METADATA_VERSION, ReleaseMetadata,
 };

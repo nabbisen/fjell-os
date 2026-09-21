@@ -73,7 +73,23 @@ impl BootModel {
     // ── Operations ────────────────────────────────────────────────────────────
 
     pub fn set_pending(&mut self, slot: Slot) {
-        self.slot_mut(slot).installed = true;
+        // A staged image is a *fresh* one: installed, not yet booted, not
+        // confirmed, and healthy until a health check says otherwise.
+        //
+        // RFC-0.33-001 R2: this used to set only `installed` and `pending`.
+        // Slot B starts with `health_ok: false` (the `Default`), and nothing
+        // ever set it true, so a freshly staged candidate was *unhealthy* —
+        // `SetPending(B); Reboot; MarkBooted(B); Reboot` rolled B back with no
+        // health failure reported. It also left `confirmed` and `booted_once`
+        // as the slot's previous image had them, so a re-staged slot could be
+        // confirmed without its new image ever booting, which is exactly what
+        // B1 says cannot happen. Found by running the same operations through
+        // this model and through `BootControlBlock`'s state machine.
+        let s = self.slot_mut(slot);
+        s.installed = true;
+        s.confirmed = false;
+        s.booted_once = false;
+        s.health_ok = true;
         self.pending = Some(slot);
     }
 
@@ -112,10 +128,31 @@ impl BootModel {
         let active_unhealthy = !self.slot(self.active).health_ok;
         let boot_overflow = self.boot_count_since_confirm >= BOOT_COUNT_MAX;
         if active_unhealthy || boot_overflow {
+            // ADR-0009 rollback: restore the last confirmed slot AND mark the
+            // candidate unbootable.
+            //
+            // RFC-0.33-001 R2: this used to restore the slot and leave
+            // `pending` set, so the next `Reboot` selected the candidate that
+            // had just failed — a rollback loop — because the model never
+            // checked the pending slot's health. Found by running the same
+            // operations through this model and `BootControlBlock`'s state
+            // machine.
+            if let Some(p) = self.pending.take() {
+                self.slot_mut(p).health_ok = false;
+            }
             self.active = self.last_known_good;
             self.boot_count_since_confirm = 0;
         } else if let Some(p) = self.pending {
-            self.active = p;
+            if self.slot(p).health_ok && p != self.active {
+                self.active = p;
+                // RFC-0.33-001 R2: a staged image has its own tries. This
+                // counter is "boots since the last confirm", and it used to
+                // carry the outgoing slot's count into the candidate, so an
+                // image that had never run started with tries already spent.
+                // The block's `remaining_tries` are per slot and reset at
+                // staging; this makes the two say the same thing.
+                self.boot_count_since_confirm = 0;
+            }
         }
     }
 }

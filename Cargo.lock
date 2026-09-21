@@ -519,6 +519,7 @@ dependencies = [
 name = "fjell-bootctl-model"
 version = "0.32.0"
 dependencies = [
+ "fjell-upgrade-format",
  "proptest",
 ]
 

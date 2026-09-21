@@ -16,3 +16,9 @@ proptest = "1.6"
 
 [dev-dependencies]
 proptest = "1.6"
+# RFC-0.33-001 D1: the model's first dependent. `tests/refines.rs` runs the
+# same operation sequences through this model and through the state machine on
+# `BootControlBlock` and compares them after every step. It is a
+# dev-dependency because the model is a specification to check an
+# implementation against, not something a service links.
+fjell-upgrade-format = { path = "../formats/fjell-upgrade-format" }
