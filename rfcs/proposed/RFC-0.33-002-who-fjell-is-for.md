@@ -124,6 +124,35 @@ may not.
 **D8 — This RFC changes documents, not code.** The proxy work is 0.34's (a
 second presentation proxy, already approved by the owner).
 
+**D9 — v1.0 has to demonstrate inclusion, so the readiness matrix gains rows**
+(owner, 2026-09-22). The matrix's **80 rows mention ABDD, accessibility and
+proxies nowhere** — not deferred, absent — so v1.0 could be tagged with no
+inclusive capability and nothing would ask. Three rows, as release criteria:
+
+| Row | Bar |
+|---|---|
+| A second presentation modality, end to end | speech or braille, driven by the same Intent Stream as `proxy-text`, observed in a QEMU tier |
+| An input path, decided | a recorded decision — an ADR — for how a person operating through a proxy reaches the system without bypassing capability policy (§C). A decision, not necessarily an implementation |
+| Accessibility limitations, written | D6's section, kept true at each cut |
+
+**They are added as `**IN PROGRESS** → v1.x`, never `**OPEN**`.** Gate 5 blocks
+on `**OPEN**` alone, and a row that is honest about future work must not redden a
+release that never claimed it. *(That is also why this RFC states the marking:
+the last time a row's wording met an instrument by accident, it was E-014's
+family.)*
+
+**D10 — The roadmap says v1.x for richer proxies** (owner, 2026-09-22), tied to
+the second-proxy line already approved for 0.34 — which lands well before any
+v1.0 tag. This **supersedes** both untracked papers: the system proposal's
+"v2+ … richer proxies" and the deep-research report's "v1.5 Operator and proxy
+expansion". They disagreed with each other; the tree's `ROADMAP.md` is what
+counts, and it now says v1.x.
+
+**The adaptive Personal Proxy** — continuous state measurement, per-user
+optimisation — is **not** what D10 schedules, and this RFC does not schedule it.
+It stays where the requirements put it: a "Could", beyond v1.x, until the owner
+says otherwise.
+
 ## The open questions
 
 **§A — Does general-purpose *personal* computing become a long-term goal, or
@@ -174,7 +203,16 @@ shape of the question".
 **R6 — E-054 CLOSED**, or survivors named; register and `v1-limitations.md` in
 the same commit.
 
-**R7 — The gates**, each by its own exit status, the book built under the pinned
+**R7 — D9's three rows** in `v1-readiness.md`, marked `**IN PROGRESS** → v1.x`,
+each with its bar written as the row's own text rather than in a comment. Run
+`readiness-check` and quote its counts before and after: the DONE/IN PROGRESS
+totals move, and Gate 5 must stay green.
+
+**R8 — D10:** `ROADMAP.md` states v1.x for a second presentation modality and
+names the 0.34 line; the adaptive Personal Proxy is recorded as unscheduled
+rather than dated.
+
+**R9 — The gates**, each by its own exit status, the book built under the pinned
 mdBook, and the published site checked for the changed pages (R8's shape from
 RFC-0.32-003).
 
@@ -182,6 +220,8 @@ RFC-0.32-003).
 
 - **Writing a second proxy** — 0.34.
 - **Deciding §A**, whether personal computing becomes a goal.
+- **Implementing** the input path, or the second modality: D9 makes them v1.0
+  criteria and 0.34 does the proxy; this line writes the rows, not the code.
 - **Relaxing ADR-v0.5-005** or adding an input path.
 - Claiming any accessibility standard.
 - Changing FR-SEM-*, which already say what this RFC makes visible.

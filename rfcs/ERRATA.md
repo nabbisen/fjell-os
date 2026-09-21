@@ -3700,6 +3700,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   what such a person cannot do today — because a primary goal with no
   limitations section is how a goal becomes an overclaim.
 
+  > **The owner's decisions, 2026-09-22.** Asked why richer proxies sat at
+  > "v2+" and what remained for v1, two things came out of the tree. First, by
+  > the founding requirements' own priorities inclusion's v1 obligation is
+  > **already met** — GUI-independent semantic design is a *Must* (met), a
+  > sample Presentation Proxy a *Should* (met, `proxy-text`), an advanced
+  > Personal Proxy a *Could*. Second, and not expected: **the v1.0 readiness
+  > matrix's 80 rows mention ABDD, accessibility and proxies nowhere**, so v1.0
+  > could be tagged with no inclusive capability and no row would ask.
+  >
+  > The owner ruled that **v1.0 must demonstrate inclusion**: the matrix gains
+  > three rows — a second presentation modality end to end, a decided input
+  > path, and the accessibility limitations section — marked
+  > `**IN PROGRESS** → v1.x` so that Gate 5, which blocks on `**OPEN**` alone,
+  > stays green on a tree that is merely honest about future work. And the
+  > roadmap says **v1.x** for richer proxies, tied to the second-proxy line
+  > approved for 0.34, superseding the two untracked papers that said v1.5 and
+  > v2+ and disagreed with each other.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
