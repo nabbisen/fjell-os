@@ -1,6 +1,6 @@
 # RFC-0.33-001: A boot control that controls boot
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-22; implementation may begin (RFC 000)
 **Milestone:** 0.33
 **Tracks.** **E-044** — the A/B boot-control state machine has no runtime
 client, and the reboot it depends on is not dispatched.

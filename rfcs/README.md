@@ -429,19 +429,21 @@ before it was trusted.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-Signed off by the owner; implementation may begin; not yet shipped. Every
-accepted RFC shipped in 0.32.0. `accepted/README.md` keeps the folder in a
-fresh clone.
-
----
-
-## Proposed (proposed/) — 2 RFCs
+Signed off by the owner; implementation may begin; not yet shipped.
+`accepted/README.md` keeps the folder in a fresh clone.
 
 | RFC | Title |
 |-----|-------|
-| 0.33-001 | [A boot control that controls boot](./proposed/RFC-0.33-001-a-boot-control-that-controls-boot.md) — closes **E-044** |
+| 0.33-001 | [A boot control that controls boot](./accepted/RFC-0.33-001-a-boot-control-that-controls-boot.md) — accepted 2026-09-22; closes **E-044**; handoff: [`handoffs/`](./handoffs/RFC-0.33-001-a-boot-control-that-controls-boot/implementation-handoff.md) |
+
+---
+
+## Proposed (proposed/) — 1 RFC
+
+| RFC | Title |
+|-----|-------|
 | 0.33-002 | [Who Fjell is for](./proposed/RFC-0.33-002-who-fjell-is-for.md) — identity-level; closes **E-054** |
 
 ## Archive (archive/) — 2 RFCs
