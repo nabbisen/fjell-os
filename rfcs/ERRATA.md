@@ -2923,8 +2923,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Not a live hazard**, because nothing reaches rollback. It is an Accepted
   ADR describing a mechanism that exists only as parts: a model nothing uses,
   a service nothing talks to, and a reboot nothing dispatches.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.33**, with
-  the undispatched syscalls it depends on. ADR-0009 corrected in place today.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked
+  **RFC-0.33-001** (scoped 2026-09-22), with the undispatched syscalls it
+  depends on. ADR-0009 corrected in place today.
+
+  > **Re-derived while scoping, 2026-09-22 — three parts further apart than
+  > this entry recorded.** `fjell-bootctl`'s entire state is a three-state
+  > enum; it never constructs or reads a `BootControlBlock`, and **no crate
+  > does** — the A/B model has no runtime representation at all, not merely no
+  > client. There are **two** boot-control protocols: `BOOT_*`, which the
+  > service implements and nothing sends, and `fjell_service_api::bootctl`'s
+  > `READ_BCB`/`WRITE_BCB`, which nothing implements or sends. And **the kernel
+  > has no reset path to dispatch to**: no SBI call, no `syscon` or test-device
+  > write anywhere in it, so dispatching `PlatformReboot` means the kernel
+  > driving the board's reset device itself — a new MMIO site under the
+  > MMIO-ordering gate, for a device the `BoardProfile` does not list.
+  >
+  > Also observed: `fjell-bootctl-model` (tested, no dependents) and the Verus
+  > mirror-selection proof make **the best-verified component here a model of a
+  > runtime that does not exist**, while the service that does run is the least
+  > verified. And `tests/qemu/profiles/upgrade.toml` already expects
+  > `NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS`, which nothing emits.
 
 ## E-045 — the frozen wire-format schemas were never enforced, and have already drifted
 
@@ -3241,7 +3260,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `/soc` handling, virtio device identification — and whether anything should
   call it at all.
 - **Resolution:** ~~**OPEN**~~ **ACCEPTED** (architect, 2026-09-15, at
-  RFC-0.32-001's review), **unscheduled**. Verified before ruling: in a scratch
+  RFC-0.32-001's review), tracked **0.33** (owner, 2026-09-22: the deletion is
+  approved and scheduled into the milestone that does the boot-plane work). Verified before ruling: in a scratch
   crate outside the tree, `derive_board_profile` on the committed seed
   `fuzz/corpora/dtb_validate/qemu-virt-bios-none.dtb` — a real FDT
   (`d00dfeed`) carrying `riscv-virtio,qemu` and `virtio,mmio` nodes — returns
@@ -3672,11 +3692,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
-| E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | 0.33 | ACCEPTED |
+| E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | RFC-0.33-001 | ACCEPTED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
-| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | unscheduled | ACCEPTED |
+| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | 0.33 | ACCEPTED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | 0.33 | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |

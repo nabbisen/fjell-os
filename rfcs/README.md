@@ -437,9 +437,11 @@ fresh clone.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 1 RFC
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.33-001 | [A boot control that controls boot](./proposed/RFC-0.33-001-a-boot-control-that-controls-boot.md) — closes **E-044** |
 
 ## Archive (archive/) — 2 RFCs
 
