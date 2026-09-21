@@ -437,11 +437,12 @@ fresh clone.
 
 ---
 
-## Proposed (proposed/) — 1 RFC
+## Proposed (proposed/) — 2 RFCs
 
 | RFC | Title |
 |-----|-------|
 | 0.33-001 | [A boot control that controls boot](./proposed/RFC-0.33-001-a-boot-control-that-controls-boot.md) — closes **E-044** |
+| 0.33-002 | [Who Fjell is for](./proposed/RFC-0.33-002-who-fjell-is-for.md) — identity-level; closes **E-054** |
 
 ## Archive (archive/) — 2 RFCs
 

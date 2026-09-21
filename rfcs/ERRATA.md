@@ -3645,6 +3645,61 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > red on day one, and the correct reading of that red was "the benchmark
   > harness and an uncompiled lockfile entry", not "Fjell OS is vulnerable".
 
+## E-054 — the documentation cannot say who Fjell is for: inclusion is a founding pillar and absent from every page a reader meets first
+
+- **Claim:** the founding requirements
+  (`fjell-os-requirements-v1-20260504.md`, carried into the book as
+  `docs/src/requirements/requirements-definition.md`) make ABDD one of six
+  design principles (§2.6), list *"devices requiring integration with accessible
+  external UIs"* among **primary** targets (§3.1), make GUI-independent semantic
+  streams a **Must** (§8), and close by naming **inclusion** as one of four
+  things the design makes point in the same direction.
+- **Tree, observed 2026-09-22:**
+  1. **`docs/src/intro/what-is-fjell.md` and `intro/why-fjell.md` — the two
+     pages a reader meets first — do not mention accessibility, ABDD or
+     inclusion at all.** Their three archetypes are an industrial gateway, a
+     fleet node and a regulated field device.
+  2. **`v1-non-goals.md`'s N3 rationale states a narrower target set than the
+     requirements do**: *"Fjell targets headless edge/fleet nodes (A1/A2/A3)"*.
+  3. **`identity/v1-direction.md` lists "Desktop / laptop user environments"**
+     under what Fjell is not, which a reader may read as excluding a person
+     operating a node through an assistive presentation.
+  4. Meanwhile the **same book's** requirements chapter still lists accessible-UI
+     devices as a primary target, and `external-design/abdd-semantic.md` still
+     says *a screen, a screen reader and an assistive personal device run the
+     same core; only the proxy differs*. **The book contradicts itself about its
+     own audience.**
+  5. **One proxy exists** (`fjell-proxy-text`), and it is **output-only by
+     decision** (ADR-v0.5-005), while `FR-SEM-001` includes *"input requests"*
+     in the Intent Stream — so there is no path *in* for a person operating
+     through a proxy.
+  6. **No accessibility conformance is claimed anywhere** — no EN 301 549, no
+     Section 508, no WCAG — and `v1-limitations.md` has **no section** saying
+     what a person needing speech, braille or simplified presentation cannot do
+     yet.
+- **What is *not* the cause.** §4.1's *"not a general-purpose desktop OS"*
+  excludes a desktop environment, an app store, gaming, video/3D work and
+  drop-in application compatibility — and §8 labels it *"Won't (initial
+  phase)"*. It excludes no person. The architectural non-goal that does the real
+  work is §4.5, *no GUI rendering stack in the core*, which is what makes
+  presentation a proxy's job and inclusion possible at all.
+- **How it happened, dated:** the 2026-07-31 system proposal §6.3 repositioned
+  ABDD from the headline to *"the co-equal benefit it genuinely is"*, explicitly
+  *"a positioning change… not for code"*. The demotion was applied to the
+  documents; the co-equal half was never written anywhere a reader arrives.
+- **Why no instrument saw it:** the five documentation subchecks added in 0.32
+  check that a page is reachable, is not a pointer, and says whether it is
+  maintained. **None reads a page**, and none can notice that two chapters of
+  one book describe different audiences. This is the limit E-050's closure named.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-22), tracked
+  **RFC-0.33-002** — an identity-level RFC, as `v1-non-goals.md`'s own rule
+  requires. Closing it means: inclusion named a primary goal in the pages a
+  reader meets first; §4.5 untouched; §4.1 re-stated to say what it means; N3's
+  rationale and the identity list corrected; a fourth archetype for a node
+  operated through an accessible presentation; and a limitations section saying
+  what such a person cannot do today — because a primary goal with no
+  limitations section is how a goal becomes an overclaim.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3702,6 +3757,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
+| E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
