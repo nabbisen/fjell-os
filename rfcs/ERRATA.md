@@ -3118,6 +3118,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the `semantic` negative profile exercises the live path, not a hostile
   sender. The refusals are host tests.
 
+  > **Correction, 2026-09-22 (RFC-0.33-001 R1) — two statements above were
+  > false, and the second was worse than the first.**
+  >
+  > **1. "Now matches nothing" was not true of the tree.** The probe went
+  > through a `grep` that skips any file containing a NUL byte, and
+  > `crates/services/fjell-init/src/main.rs` had two (a byte-string literal
+  > written with raw NULs — now `\0\0`, binary-identical). With a NUL-safe
+  > grep the same command matches **five sites, all in `fjell-init`**, and the
+  > "control" that found the kernel's four could not have shown the probe was
+  > blind, because it ran on other files. **Four remain**: `StoreSuperblock`
+  > (two write sites), `RecordHeader` and `BootControlBlock` are viewed as
+  > bytes with `from_raw_parts` to fill sector buffers — Finding 4's class on
+  > the write side: struct padding read through a byte slice and written to
+  > disk. The CRC no longer reads it; the bytes on disk still contain it.
+  > **Not fixed; a ruling is needed on where**, because it is the on-disk twin
+  > of D5's checksum work and changes on-disk bytes.
+  >
+  > **2. "The sender encodes" was true of one sender of two.** The fifth site
+  > was `init`'s `emit_envelope`, which sent raw `SemanticEnvelope` structs to
+  > `semantic-stream` after that service began decoding the wire format. It
+  > refused all 18 of `init`'s emissions at `BEGIN`, silently — `init` does not
+  > read the reply — from `201d191` until fixed in `244c4ab`. The same command
+  > against three kernels: 0.31.0 rendered 8 `[STATE]`, 3 `[EVENT]` and 3
+  > `[INTENT]` lines; the tree with RFC-0.32-002 rendered 0, 0 and 1; the tree
+  > with the fix renders 8, 3 and 3. **This was a regression this erratum's
+  > own fix introduced**, and no tier saw it because the four `semantic`
+  > markers all come from the one sender that was converted. A fifth marker,
+  > `Verified boot status`, now comes from `init`'s.
+  >
+  > **Also wrong, in dated records that are not edited here:** the 0.32.0
+  > CHANGELOG entry and `releases/0.32.0.md` both say the non-kernel sites are
+  > gone (*"0 at this tip, re-probed"*). They are not; this note is where the
+  > correction lives.
+
 ## E-047 — `fjell-dtb-derive` adds two offsets taken from the device tree it is parsing without checking the sum
 
 - **Claim:** `docs/src/adr/ADR-v0.5-002-no-runtime-dtb-parse.md`: *"DTB
