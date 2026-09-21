@@ -2846,6 +2846,13 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > | The claims made true or corrected | ADR-v0.6-003, `v1-readiness.md`, `overview.md`, `what-is-fjell.md`, RFC-v0.6-003's status line |
 > | Not by filtering the badge | the badge is unfiltered |
 >
+> **The weekly cadence, observed 2026-09-21.** The closure above rested on a
+> dispatched run; the first *scheduled* run of the rebuilt harness has now
+> happened — run `35584998572` on `74885e8`, **45/45 green**, all seven targets
+> at `Done … 301 second(s)`, with `miri` and `dependency-advisories` green in
+> the same run. Every scheduled run from 2026-06-06 to 2026-09-14 had failed;
+> this is the first that did not.
+>
 > **Demonstrated failing on real runs** (D8): dispatch run `34975568093`
 > ran `fuzz-run` rather than skipping it; the same run and push run
 > `34975556300` went red on the crash later filed as E-047, and the crashing
