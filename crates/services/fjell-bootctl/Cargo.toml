@@ -13,7 +13,4 @@ fjell-abi               = { path = "../../fjell-abi" }
 fjell-cap               = { path = "../../fjell-cap" }
 fjell-syscall           = { path = "../../fjell-syscall" }
 fjell-service-api       = { path = "../../fjell-service-api" }
-fjell-device-format     = { path = "../../formats/fjell-device-format" }
-fjell-block-format      = { path = "../../formats/fjell-block-format" }
-fjell-store-format      = { path = "../../formats/fjell-store-format" }
 fjell-upgrade-format    = { path = "../../formats/fjell-upgrade-format" }

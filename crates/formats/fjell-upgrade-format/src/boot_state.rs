@@ -70,6 +70,20 @@ pub enum HealthOutcome {
     NothingToRollBackTo,
 }
 
+/// What a health report means for the boot, and so what the service that owns
+/// the block must do next.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HealthVerdict {
+    /// Healthy: the active slot is confirmed. Nothing further to do.
+    Confirmed,
+    /// An unconfirmed slot failed and is marked unbootable. The owner rolls
+    /// back with [`reboot`](BootControlBlock::reboot) and resets the machine.
+    MustRollBack,
+    /// The slot that failed is the last confirmed one: the block is unchanged
+    /// and **the owner must not reset** (see [`HealthOutcome`]).
+    NoFallback,
+}
+
 impl SlotId {
     /// The other slot.
     pub const fn other(self) -> SlotId {
@@ -228,6 +242,22 @@ impl BootControlBlock {
         Ok(HealthOutcome::CandidateFailed)
     }
 
+    /// A health report arrived: `healthy` says whether the boot met its health
+    /// target. The block — not the reporter — decides what that means.
+    ///
+    /// RFC-0.33-001 E: the service that *observes* health reports it and never
+    /// commands a confirm or a rollback; this is where the decision is made.
+    pub fn apply_health(&mut self, healthy: bool) -> Result<HealthVerdict, BootError> {
+        if healthy {
+            self.confirm()?;
+            return Ok(HealthVerdict::Confirmed);
+        }
+        Ok(match self.fail_health()? {
+            HealthOutcome::CandidateFailed => HealthVerdict::MustRollBack,
+            HealthOutcome::NothingToRollBackTo => HealthVerdict::NoFallback,
+        })
+    }
+
     /// Rollback, or the switch to a staged candidate: choose the slot the next
     /// boot runs, and return it.
     ///
@@ -343,6 +373,52 @@ mod tests {
         assert_eq!(b.fail_health(), Ok(HealthOutcome::CandidateFailed));
         refused(&mut b, |b| b.begin_boot(), BootError::SlotFailed);
         refused(&mut b, |b| b.confirm(), BootError::SlotFailed);
+    }
+
+    /// The decision a health report produces, for each state the block can be in.
+    #[test]
+    fn a_health_report_is_decided_by_the_block() {
+        // Confirmed slot, healthy: confirmed (and still confirmed).
+        let mut b = fresh();
+        b.begin_boot().unwrap();
+        assert_eq!(b.apply_health(true), Ok(HealthVerdict::Confirmed));
+        assert_eq!(b.slot(SlotId::A).confirmed, 1);
+
+        // Confirmed slot, unhealthy: there is nowhere to go, and nothing changes.
+        let mut b = fresh();
+        b.begin_boot().unwrap();
+        let before = b;
+        assert_eq!(b.apply_health(false), Ok(HealthVerdict::NoFallback));
+        assert_eq!(b, before);
+
+        // Candidate running, healthy: it becomes the rollback target.
+        let mut b = fresh();
+        b.set_candidate(SlotId::B, 2).unwrap();
+        b.reboot().unwrap();
+        b.begin_boot().unwrap();
+        assert_eq!(b.apply_health(true), Ok(HealthVerdict::Confirmed));
+        assert_eq!(b.last_confirmed(), Ok(SlotId::B));
+
+        // Candidate running, unhealthy: roll back — and only the caller resets.
+        let mut b = fresh();
+        b.set_candidate(SlotId::B, 2).unwrap();
+        b.reboot().unwrap();
+        b.begin_boot().unwrap();
+        assert_eq!(b.apply_health(false), Ok(HealthVerdict::MustRollBack));
+        assert_eq!(b.active(), Ok(SlotId::B), "the verdict is not the rollback");
+        assert_eq!(b.reboot(), Ok(SlotId::A));
+        assert_eq!(b.slot(SlotId::B).state, SlotState::Failed);
+    }
+
+    /// A candidate that was never booted cannot be reported healthy (B1).
+    #[test]
+    fn a_healthy_report_for_a_slot_that_never_booted_is_refused() {
+        let mut b = fresh();
+        b.set_candidate(SlotId::B, 2).unwrap();
+        b.reboot().unwrap(); // switched to B, but B has not begun a boot
+        let before = b;
+        assert_eq!(b.apply_health(true), Err(BootError::NotBooted));
+        assert_eq!(b, before);
     }
 
     /// The hazard `fail_health` exists to avoid: marking the only confirmed slot

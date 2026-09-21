@@ -506,11 +506,8 @@ name = "fjell-bootctl"
 version = "0.32.0"
 dependencies = [
  "fjell-abi",
- "fjell-block-format",
  "fjell-cap",
- "fjell-device-format",
  "fjell-service-api",
- "fjell-store-format",
  "fjell-syscall",
  "fjell-upgrade-format",
 ]

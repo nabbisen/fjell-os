@@ -23,11 +23,18 @@ pub mod tags {
     pub const SM_STATUS_REPLY: usize = 0x043;
     pub const SM_CORE_TARGET_READY: usize = 0x044;
     pub const BOOTSTRAP_COMPLETE: usize = 0x100;
-    // ── RFC 057: bootctl protocol ─────────────────────────────────────────────
+    // ── RFC 057 / RFC-0.33-001: bootctl protocol ─────────────────────────────
+    //
+    // The one protocol `bootctl` speaks. 0x071 and 0x072 were `BOOT_CONFIRM` and
+    // `BOOT_ROLLBACK`: commands that had the *sender* decide the outcome, and that
+    // nothing ever sent. A reporter reports (`BOOT_HEALTH_REPORT`); `bootctl`
+    // decides. The numbers are left unused, not reassigned.
     pub const BOOT_PENDING_QUERY: usize = 0x070;
-    pub const BOOT_CONFIRM: usize = 0x071;
-    pub const BOOT_ROLLBACK: usize = 0x072;
     pub const BOOT_STATE_REPLY: usize = 0x073;
+    /// A health report. Word 0: `0` = the boot met its health target,
+    /// `1` = it did not. Accepted only from `service-manager`, by the
+    /// kernel-attested sender identity, never by payload.
+    pub const BOOT_HEALTH_REPORT: usize = 0x074;
     pub const BOOT_SHUTDOWN: usize = 0x07F;
 
     // ── RFC 042: neg-test IPC protocol ───────────────────────────────────────
@@ -77,17 +84,11 @@ pub mod storaged {
     pub const READ_ERR: usize = 0x20D;
 }
 
-// ── RFC 019: bootctl IPC protocol ─────────────────────────────────────────────
-pub mod bootctl {
-    pub const READY: usize = 0x210;
-    /// Read the BCB; reply is READ_OK with 8-chunk transfer, then BCB_DATA.
-    pub const READ_BCB: usize = 0x211;
-    /// Write the BCB; follow with 8 WRITE_CHUNK messages then WRITE_COMMIT.
-    pub const WRITE_BCB: usize = 0x212;
-    pub const READ_OK: usize = 0x213;
-    pub const WRITE_OK: usize = 0x214;
-    pub const ERR: usize = 0x215;
-}
+// RFC-0.33-001 D2: the `bootctl` module that stood here (RFC 019 — READY,
+// READ_BCB, WRITE_BCB, READ_OK, WRITE_OK, ERR, 0x210–0x215) is retired. It was a
+// second protocol for the same service, described a whole-block transfer no
+// service implemented and no service called; `bootctl` speaks `tags::BOOT_*`.
+// The block is bootctl's private state, not something to carry over IPC.
 
 // ── M8: measuredd IPC protocol ────────────────────────────────────────────────
 pub mod measuredd {
