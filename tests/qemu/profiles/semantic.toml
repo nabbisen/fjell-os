@@ -13,10 +13,19 @@ timeout_secs     = 60
 # intent" as a marker and only 2 of 4 markers loaded silently. Kept
 # bracket-free here rather than changing the shared parser, which is out
 # of this RFC's scope and used by every other profile.
+# "Verified boot status", the fifth marker, is init's own emission — one of its
+# 18 emit_* call sites, a different sender on the same wire from the
+# sample-service path the first four exercise. RFC-0.32-002 converted
+# sample-service and both receivers and missed init's sender, so every init
+# emission was refused at BEGIN for the whole of 0.32.0's development and no
+# tier noticed. It is the text of the STATE line init's M7 section renders,
+# without the brackets. Comments must stay OUTSIDE the array below: the reader
+# takes a line inside it as a marker, which is how this note first failed.
 expected_markers = [
     "M5: semantic operations ready",
     "sample-service demo intent",
     "proxy-text: action accepted",
     "proxy-text: action DENIED (capability not held)",
+    "Verified boot status",
 ]
 extra_args       = []

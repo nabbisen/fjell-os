@@ -189,18 +189,23 @@ fn wait_relay_all_m8_ready() {
 const SEM_STREAM_EP: u32 = 6;
 
 fn emit_envelope(envelope: SemanticEnvelope) {
-    // SAFETY: category=raw-pointer-deref `SemanticEnvelope` is `Copy` with no
-    // pointers or heap allocations (every field is a fixed-size array, enum,
-    // or primitive) — reinterpreting it as a byte slice for wire transfer is
-    // sound because sender and receiver are built from the identical type
-    // definition by the identical compiler for the identical target. Same
-    // reasoning as fjell-sample-service's emission (Slice 2).
-    let bytes: &[u8] = unsafe {
-        core::slice::from_raw_parts(
-            &envelope as *const SemanticEnvelope as *const u8,
-            core::mem::size_of::<SemanticEnvelope>(),
-        )
+    // The sender encodes (RFC-0.32-002 D4); it does not publish a view of its
+    // own stack. This function was the one sender that RFC missed: it kept
+    // shipping `size_of::<SemanticEnvelope>()` raw struct bytes after
+    // semantic-stream began decoding the wire format, so every emission below
+    // was refused at BEGIN (4,936 declared against a 4,640-byte buffer) — and
+    // because the send's reply is not read here, nothing said so. 0.31.0
+    // rendered 8 [STATE], 3 [EVENT] and 3 [INTENT] lines from this path; the
+    // tree between 201d191 and the fix rendered none of init's.
+    let mut out = [0u8; wire::MAX_WIRE_BYTES];
+    let n = match wire::encode(&envelope, &mut out) {
+        Ok(n) => n,
+        Err(_) => {
+            sys_debug_writeln("init: semantic envelope encode FAILED");
+            return;
+        }
     };
+    let bytes: &[u8] = &out[..n];
     let _ = fjell_service_api::chunked::send(
         SEM_STREAM_EP,
         fjell_service_api::semantic_stream::PUBLISH_BEGIN,
