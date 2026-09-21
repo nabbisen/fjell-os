@@ -841,7 +841,7 @@ pub extern "C" fn service_main() -> ! {
     {
         let meta = BundleMetadataV2 {
             schema_version: 2,
-            release_id: *b"release-m8-dev  ",
+            release_id: *b"release-m8-dev\0\0",
             generation: 5,
             key_epoch: 3,
             issued_at_tick: 1000,
