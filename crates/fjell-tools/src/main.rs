@@ -44,6 +44,7 @@ mod provision;
 mod qemu;
 mod qemu_log_check;
 mod qemu_run;
+mod qemu_shutdown; // RFC-0.33-001: telling a machine reset from a hang
 mod registry;
 mod release_rehearsal; // RFC-v0.16-008 release gate runner
 mod sign_bundle;

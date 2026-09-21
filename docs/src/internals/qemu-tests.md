@@ -45,6 +45,43 @@ cargo xtask qemu-negative harness      # 1 marker  — CSpace layout self-check 
 A test run for a single category fails if any expected marker is absent or if
 the build produces any warning or error.
 
+### A machine that is meant to stop
+
+Most profiles end because the harness's timeout killed QEMU after the markers
+had appeared. A profile that tests a **reset** cannot work that way: a reset in
+a test looks, to a harness matching markers in a serial log, like a machine that
+stopped. Measured against a scratch probe that prints `BOOT` and then stores to
+QEMU `virt`'s `sifive_test` device:
+
+| probe | flags | exit | `BOOT` lines | QEMU's `SHUTDOWN` event |
+|---|---|---:|---:|---|
+| hang | `-no-reboot` | 124 | 1 | `guest: false`, `host-signal` |
+| reset (`0x7777`) | *(none)* | 124 | **32,086** | *(killed first)* |
+| reset (`0x7777`) | `-no-reboot` | 0 | 1 | `guest: true`, `guest-reset` |
+| power-off (`0x5555`) | `-no-reboot` | 0 | 1 | `guest: true`, `guest-shutdown` |
+
+Without `-no-reboot`, a reset is a **boot loop** that ends as a timeout kill —
+exit 124, exactly like a hang. With it, a reset and a power-off both exit 0, so
+a kernel that wrote the wrong value would read as success. QEMU itself says
+which, through the `SHUTDOWN` event on its QMP socket.
+
+A profile opts in with one key:
+
+```toml
+expect_shutdown = "guest-reset"     # or "guest-shutdown"
+```
+
+The runner then adds `-no-reboot` and a QMP socket, and the run **fails unless
+QEMU reports `SHUTDOWN` with `guest: true` and that reason, and exited by itself
+rather than being killed by the timeout**. The machine's own account is the
+evidence; no guest marker asserts a reset. The outcome is recorded in
+`runs/<run-id>/qemu-shutdown.txt`. A misspelt value is refused when the profile
+loads, and `host-signal` — what a hang looks like — is never an outcome to
+expect. Every other profile is unchanged.
+
+The same probe run through the runner *without* the key passes for both the
+reset and the hang, because `BOOT` appeared. That is the gap this closes.
+
 ## CI integration
 
 All jobs run automatically in `.github/workflows/ci.yml` on every push to

@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::qemu::{KERNEL_ELF, build_all};
+use crate::qemu_shutdown;
 
 /// One QEMU run.  Loaded from a profile file or built inline by the
 /// smoke runner.
@@ -63,6 +64,19 @@ pub struct Profile {
     pub release_gated: bool,
     /// Required, non-empty, whenever `release_gated` is `false`.
     pub not_gated_reason: Option<String>,
+    /// RFC-0.33-001 D5/R6: the way this run must *end*, as QEMU reports it —
+    /// `"guest-reset"` for a machine that reset itself, `"guest-shutdown"` for
+    /// one that powered off. `None` for every other profile, which keep the
+    /// runner's existing behaviour exactly (no QMP socket, no `-no-reboot`).
+    ///
+    /// When set, the run adds `-no-reboot` and a QMP socket and **fails
+    /// unless QEMU reports `SHUTDOWN{guest:true, reason:<this>}` and exited by
+    /// itself** rather than being killed by the timeout wrapper. Without this
+    /// a reset is a boot loop that ends as exit 124 — identical to a hang —
+    /// and even with `-no-reboot` a reset and a power-off both exit 0. The
+    /// machine's own account is the evidence, not a marker (see
+    /// `qemu_shutdown`'s module doc for the measurements).
+    pub expect_shutdown: Option<String>,
 }
 
 impl Profile {
@@ -79,6 +93,7 @@ impl Profile {
             multi_node: false,
             release_gated: true,
             not_gated_reason: None,
+            expect_shutdown: None,
         }
     }
 }
@@ -314,24 +329,70 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     ];
     argv.extend(p.extra_args.iter().cloned());
 
+    // RFC-0.33-001: a profile that expects the machine to stop is run with
+    // `-no-reboot` (so a reset ends the run instead of looping) and a QMP
+    // socket (so QEMU can say *why* it stopped). Both are part of the
+    // command written to `qemu-command.txt`, so the artefact shows what ran.
+    //
+    // The socket is a *relative* path: AF_UNIX paths are limited to ~107
+    // bytes, and an absolute path under a deep checkout blows that limit
+    // (found the hard way, measuring this).
+    let qmp_sock: Option<PathBuf> = p
+        .expect_shutdown
+        .as_ref()
+        .map(|_| art.path.join("qmp.sock"));
+    if let Some(sock) = &qmp_sock {
+        let s = sock.to_string_lossy().to_string();
+        if s.len() > 100 {
+            eprintln!(
+                "[xtask] QMP socket path `{s}` is {} bytes; AF_UNIX allows ~107. Use a shorter \
+                 profile name.",
+                s.len()
+            );
+            return ExitCode::FAILURE;
+        }
+        let _ = fs::remove_file(sock);
+        argv.push("-no-reboot".into());
+        argv.push("-qmp".into());
+        argv.push(format!("unix:{s},server=on,wait=on"));
+    }
+
     art.write_summary("qemu-command.txt", argv.join(" ").as_bytes());
     art.write_summary(
         "expected-markers.txt",
         p.expected_markers.join("\n").as_bytes(),
     );
 
-    let combined = match &p.inject_after_marker {
-        None => {
-            let output = Command::new("timeout")
-                .args(&argv[..])
-                .output()
-                .expect("failed to run qemu-system-riscv64");
-            let mut combined = output.stdout.clone();
-            combined.extend_from_slice(&output.stderr);
-            combined
-        }
-        Some((marker, inject_bytes)) => {
-            run_with_stdin_injection(&argv, marker.as_bytes(), inject_bytes)
+    // A run that expects a particular ending needs the exit status and QMP's
+    // account, which the two older paths discard. Only those profiles take
+    // this path; every other profile keeps the behaviour it had.
+    let mut outcome: Option<RunOutcome> = None;
+    let combined = if qmp_sock.is_some() {
+        let o = run_qemu(
+            &argv,
+            p.inject_after_marker
+                .as_ref()
+                .map(|(m, b)| (m.as_bytes(), b.as_slice())),
+            qmp_sock.as_deref(),
+            std::time::Duration::from_secs(p.timeout_secs as u64),
+        );
+        let out = o.output.clone();
+        outcome = Some(o);
+        out
+    } else {
+        match &p.inject_after_marker {
+            None => {
+                let output = Command::new("timeout")
+                    .args(&argv[..])
+                    .output()
+                    .expect("failed to run qemu-system-riscv64");
+                let mut combined = output.stdout.clone();
+                combined.extend_from_slice(&output.stderr);
+                combined
+            }
+            Some((marker, inject_bytes)) => {
+                run_with_stdin_injection(&argv, marker.as_bytes(), inject_bytes)
+            }
         }
     };
 
@@ -358,8 +419,9 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     );
     let _ = fs::write(run_dir.join("run-info.txt"), run_info.as_bytes());
 
-    // Empty marker list = placeholder profile (no cases registered).
-    if p.expected_markers.is_empty() {
+    // Empty marker list = placeholder profile (no cases registered) — unless
+    // it expects a particular ending, which is itself a case.
+    if p.expected_markers.is_empty() && p.expect_shutdown.is_none() {
         art.write_summary(
             "result-summary.txt",
             b"PASS (placeholder; no expected markers)\n",
@@ -374,6 +436,38 @@ pub fn run_profile(p: &Profile) -> ExitCode {
 
     // Check every expected marker.
     let mut all_ok = true;
+
+    // RFC-0.33-001 D5: how the run ended, by QEMU's own account. Recorded
+    // before it is judged, so a failure can be read without re-running.
+    if let (Some(expected), Some(o)) = (&p.expect_shutdown, &outcome) {
+        let shutdown = o.qmp.as_ref().and_then(|q| q.shutdown.as_ref());
+        let qmp_error = o.qmp.as_ref().and_then(|q| q.error.as_deref());
+        let record = format!(
+            "expected = {expected}\nobserved = {}\nguest_initiated = {}\nqemu_exit_code = {}\n\
+             qmp_events = {}\nqmp_error = {}\n",
+            shutdown.map_or("(none)".to_string(), |s| s.reason.clone()),
+            shutdown.map_or("(none)".to_string(), |s| s.guest.to_string()),
+            o.exit_code.map_or("(none)".to_string(), |c| c.to_string()),
+            o.qmp
+                .as_ref()
+                .map_or("(none)".to_string(), |q| q.events.join(",")),
+            qmp_error.unwrap_or("(none)"),
+        );
+        // Per-run only: `runs/<run-id>/` is ignored, so this leaves nothing to
+        // commit or churn, unlike the three flat summary files.
+        let _ = fs::write(run_dir.join("qemu-shutdown.txt"), &record);
+        match qemu_shutdown::judge(expected, shutdown, o.exit_code, qmp_error) {
+            Ok(()) => println!(
+                "[xtask] QEMU reported SHUTDOWN `{expected}`, guest-initiated, and exited by \
+                 itself (exit {}) ✓",
+                o.exit_code.unwrap_or(-1)
+            ),
+            Err(why) => {
+                eprintln!("[xtask] shutdown check FAILED — {why}");
+                all_ok = false;
+            }
+        }
+    }
     for marker in &p.expected_markers {
         let ok = combined
             .windows(marker.len())
@@ -467,25 +561,48 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     }
 }
 
-/// Run `timeout <argv...>` with piped stdio, writing `inject_bytes` to the
-/// child's stdin the first time `marker` appears in its combined
-/// stdout+stderr (RFC-0.25-001 Demonstration 6: simulates a character typed
-/// at the QEMU console, since `-nographic` wires UART0's RX to host stdin).
+/// Everything one QEMU run produced.
+struct RunOutcome {
+    /// stdout and stderr merged as they arrived (the serial console).
+    output: Vec<u8>,
+    /// The wrapper's exit status. **124 means `timeout` killed QEMU** — the
+    /// signature of a hang, and of a reset loop.
+    exit_code: Option<i32>,
+    /// QEMU's own account of why it stopped, when a QMP socket was requested.
+    qmp: Option<qemu_shutdown::QmpResult>,
+}
+
+/// Run `timeout <argv...>` with piped stdio.
 ///
-/// Returns the full combined output, same shape as the plain
-/// `Command::output()` path (stdout bytes followed by stderr bytes would
-/// lose ordering across the two streams; this merges them as they actually
-/// arrive instead, which is more accurate, not less).
-fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8]) -> Vec<u8> {
+/// * `inject` — write `.1` to the child's stdin the first time `.0` appears
+///   in its output (RFC-0.25-001 Demonstration 6: simulates a character typed
+///   at the QEMU console, since `-nographic` wires UART0's RX to host stdin).
+/// * `qmp_sock` — watch QEMU's QMP socket for its `SHUTDOWN` event
+///   (RFC-0.33-001): the guest's own store to a reset device is invisible to
+///   the serial log, but QEMU reports it. The socket must already be in
+///   `argv` (`-qmp unix:<sock>,server=on,wait=on`).
+///
+/// Output is merged as it arrives rather than stdout-then-stderr, which is
+/// more accurate about ordering, not less.
+fn run_qemu(
+    argv: &[String],
+    inject: Option<(&[u8], &[u8])>,
+    qmp_sock: Option<&Path>,
+    qmp_deadline: std::time::Duration,
+) -> RunOutcome {
     let mut child = Command::new("timeout")
         .args(argv)
-        .stdin(Stdio::piped())
+        .stdin(if inject.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .expect("failed to spawn qemu-system-riscv64");
 
-    let child_stdin = child.stdin.take().expect("piped stdin");
+    let child_stdin = child.stdin.take();
     let mut child_stdout = child.stdout.take().expect("piped stdout");
     let mut child_stderr = child.stderr.take().expect("piped stderr");
 
@@ -495,8 +612,7 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
     let stdout_thread = {
         let buf = Arc::clone(&buf);
         let injected = Arc::clone(&injected);
-        let marker = marker.to_vec();
-        let inject_bytes = inject_bytes.to_vec();
+        let inject = inject.map(|(m, b)| (m.to_vec(), b.to_vec()));
         let mut stdin = child_stdin;
         thread::spawn(move || {
             let mut chunk = [0u8; 256];
@@ -506,13 +622,15 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
                     Ok(n) => {
                         let mut b = buf.lock().unwrap();
                         b.extend_from_slice(&chunk[..n]);
-                        if !injected.load(Ordering::SeqCst)
-                            && !marker.is_empty()
-                            && b.windows(marker.len()).any(|w| w == marker.as_slice())
-                        {
-                            let _ = stdin.write_all(&inject_bytes);
-                            let _ = stdin.flush();
-                            injected.store(true, Ordering::SeqCst);
+                        if let (Some((marker, bytes)), Some(stdin)) = (&inject, stdin.as_mut()) {
+                            if !injected.load(Ordering::SeqCst)
+                                && !marker.is_empty()
+                                && b.windows(marker.len()).any(|w| w == marker.as_slice())
+                            {
+                                let _ = stdin.write_all(bytes);
+                                let _ = stdin.flush();
+                                injected.store(true, Ordering::SeqCst);
+                            }
                         }
                     }
                 }
@@ -533,13 +651,35 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
         })
     };
 
-    let _ = child.wait();
+    let qmp_thread = qmp_sock.map(|sock| {
+        let sock = sock.to_path_buf();
+        thread::spawn(move || qemu_shutdown::watch(&sock, qmp_deadline))
+    });
+
+    let status = child.wait();
     let _ = stdout_thread.join();
     let _ = stderr_thread.join();
+    let qmp = qmp_thread.and_then(|t| t.join().ok());
 
-    Arc::try_unwrap(buf)
-        .map(|m| m.into_inner().unwrap())
-        .unwrap_or_default()
+    RunOutcome {
+        output: Arc::try_unwrap(buf)
+            .map(|m| m.into_inner().unwrap())
+            .unwrap_or_default(),
+        exit_code: status.ok().and_then(|s| s.code()),
+        qmp,
+    }
+}
+
+/// The stdin-injection path (`uart-rx` profiles), as a wrapper over
+/// [`run_qemu`] — one runner, so the two cannot drift.
+fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8]) -> Vec<u8> {
+    run_qemu(
+        argv,
+        Some((marker, inject_bytes)),
+        None,
+        std::time::Duration::ZERO,
+    )
+    .output
 }
 
 /// Minimal TOML reader for the v0.1.x profile schema.
@@ -554,6 +694,7 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
 ///   multi_node       = true|false   (RFC-0.29-001)
 ///   release_gated    = true|false   (RFC-0.29-001; requires not_gated_reason when false)
 ///   not_gated_reason = "string"     (RFC-0.29-001)
+///   expect_shutdown  = "guest-reset" | "guest-shutdown"   (RFC-0.33-001)
 fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let path = root
         .join("tests/qemu/profiles")
@@ -572,6 +713,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut multi_node_v = false;
     let mut release_gated_v = true;
     let mut not_gated_reason_v: Option<String> = None;
+    let mut expect_shutdown_v: Option<String> = None;
 
     let mut lines = src.lines().peekable();
     while let Some(raw) = lines.next() {
@@ -627,6 +769,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
                 release_gated_v = parse_bool(v).map_err(|e| format!("bad release_gated: {e}"))?
             }
             "not_gated_reason" => not_gated_reason_v = Some(unquote(v)),
+            "expect_shutdown" => expect_shutdown_v = Some(unquote(v)),
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -638,6 +781,20 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
              already have open",
             path.display()
         ));
+    }
+
+    // RFC-0.33-001: a typo here must not silently become "no expectation" —
+    // the unknown-key arm above ignores misspelt *keys*, so a misspelt
+    // *value* is refused at load time instead.
+    if let Some(v) = &expect_shutdown_v {
+        if !qemu_shutdown::EXPECTABLE.contains(&v.as_str()) {
+            return Err(format!(
+                "{}: expect_shutdown = {v:?} is not one of {:?} (`host-signal` is what a hang \
+                 looks like, and is never an outcome to expect)",
+                path.display(),
+                qemu_shutdown::EXPECTABLE
+            ));
+        }
     }
 
     let inject_after_marker = match (inject_after_marker_v, inject_bytes_v) {
@@ -656,6 +813,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         multi_node: multi_node_v,
         release_gated: release_gated_v,
         not_gated_reason: not_gated_reason_v,
+        expect_shutdown: expect_shutdown_v,
     })
 }
 
@@ -957,5 +1115,68 @@ mod discover_tests {
             Ok(_) => panic!("release_gated=false with no reason must fail closed"),
         }
         fs::remove_dir_all(&dir).ok();
+    }
+}
+
+/// RFC-0.33-001: the `expect_shutdown` key.
+#[cfg(test)]
+mod expect_shutdown_tests {
+    use super::*;
+
+    /// A throwaway workspace root holding one profile, so the loader is
+    /// exercised on real files without touching `tests/qemu/profiles/`.
+    fn root_with(profile: &str, body: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "qemu_expect_shutdown_{}_{profile}",
+            std::process::id()
+        ));
+        let dir = root.join("tests/qemu/profiles");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(format!("{profile}.toml")), body).unwrap();
+        root
+    }
+
+    #[test]
+    fn a_profile_may_expect_a_reset() {
+        let root = root_with(
+            "reset-ok",
+            "name = \"reset-ok\"\nexpect_shutdown = \"guest-reset\"\nexpected_markers = [\n  \"a\",\n]\n",
+        );
+        let p = load_profile(&root, "reset-ok").expect("loads");
+        assert_eq!(p.expect_shutdown.as_deref(), Some("guest-reset"));
+    }
+
+    /// The default: every existing profile keeps today's behaviour exactly.
+    #[test]
+    fn a_profile_that_says_nothing_expects_nothing() {
+        let root = root_with(
+            "plain",
+            "name = \"plain\"\nexpected_markers = [\n  \"a\",\n]\n",
+        );
+        assert_eq!(load_profile(&root, "plain").unwrap().expect_shutdown, None);
+        assert_eq!(Profile::smoke("m8", "TEST:M8:PASS").expect_shutdown, None);
+    }
+
+    /// A misspelt *value* must fail at load time. The loader ignores unknown
+    /// *keys* for forward compatibility, so without this a typo would quietly
+    /// become "no expectation" and the profile would pass without checking
+    /// the ending at all.
+    #[test]
+    fn a_misspelt_expectation_is_refused() {
+        let root = root_with(
+            "typo",
+            "name = \"typo\"\nexpect_shutdown = \"guest-rest\"\nexpected_markers = [\n  \"a\",\n]\n",
+        );
+        let err = load_profile(&root, "typo").err().expect("must refuse");
+        assert!(err.contains("guest-rest"), "{err}");
+    }
+
+    #[test]
+    fn host_signal_cannot_be_expected() {
+        let root = root_with(
+            "hostsig",
+            "name = \"hostsig\"\nexpect_shutdown = \"host-signal\"\nexpected_markers = [\n  \"a\",\n]\n",
+        );
+        assert!(load_profile(&root, "hostsig").is_err());
     }
 }
