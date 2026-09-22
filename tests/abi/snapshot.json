@@ -1,5 +1,5 @@
 [
-  {"count":420},
+  {"count":422},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"5affdf9d342d6262"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_AUDIT_DRAIN","sig":"c16a6ada82892290"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
@@ -361,6 +361,7 @@
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SERVICE_READY","sig":"caf35f94ecc597e1"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SERVICE_SHUTDOWN","sig":"f79b8f21bdafa0e4"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SM_CORE_TARGET_READY","sig":"b7614be76e555937"},
+  {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SM_REGISTER_REQUIRED","sig":"eb4c8c1dfc5b8434"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SM_START_SERVICE","sig":"f8b82674907343d2"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SM_STATUS_QUERY","sig":"bb3a3c2d59cfa355"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"SM_STATUS_REPLY","sig":"060758649a6ff420"},
@@ -404,6 +405,7 @@
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_ipc_recv_msg","sig":"efb2fe929a047c9a"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_ipc_reply","sig":"61d4f8f4110ec5f6"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_ipc_send","sig":"2e2b4021e99dca61"},
+  {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_ipc_send_words","sig":"0564ae46c8017fa4"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_ipc_try_recv","sig":"e7c50b9e6f1060bb"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_irq_ack","sig":"0b4f2e8305c9c895"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_irq_bind","sig":"7e1df23b7c2dcb21"},

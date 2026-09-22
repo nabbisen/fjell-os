@@ -1184,6 +1184,27 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     lease: None,
                 },
             );
+            // Slot `SERVICE_READY_SEND_SLOT` (RFC-0.33-001 D9): init is not
+            // spawned through `spawn.rs`'s per-image loop, so it never got
+            // the SEND-only capability to service-manager's dedicated
+            // endpoint every OTHER service is installed unconditionally
+            // (`spawn.rs`). Init does not send `SERVICE_READY` — it uses this
+            // slot to send `tags::SM_REGISTER_REQUIRED` instead, the same
+            // destination object, a different tag, same as `bootctl`'s own
+            // endpoint carries three different tags on one capability.
+            let _ = cs.install_raw(
+                fjell_abi::service::SERVICE_READY_SEND_SLOT as usize,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: fjell_abi::service::SERVICE_MANAGER_EP_OBJECT,
+                    rights: CapRights::SEND,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
             // Slots 31-34: MmioRegion — one per QEMU virt MMIO region (RFC 016).
             let mmio_table = mmio_region_table();
             for (i, _region) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {

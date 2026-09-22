@@ -22,6 +22,18 @@ pub mod tags {
     pub const SM_STATUS_QUERY: usize = 0x042;
     pub const SM_STATUS_REPLY: usize = 0x043;
     pub const SM_CORE_TARGET_READY: usize = 0x044;
+    /// RFC-0.33-001 D9: `init` tells `service-manager` a task it just spawned
+    /// is required for boot health, and which task handle to watch. Word 0:
+    /// the image id. Word 1: the task handle (`init` has both immediately
+    /// after `sys_task_spawn`, before the task ever runs — no race with the
+    /// task's own `SERVICE_READY`). Accepted only from `init`, by the
+    /// kernel-attested sender identity: a required entry drives whether
+    /// `bootctl` resets, so nothing else may create one.
+    ///
+    /// One-way `sys_ipc_send` cannot carry a payload word (see
+    /// `BOOT_HEALTH_OK`'s doc comment for why), so this needs a real
+    /// word-carrying send — `fjell_syscall::sys_ipc_send_words`.
+    pub const SM_REGISTER_REQUIRED: usize = 0x045;
     pub const BOOTSTRAP_COMPLETE: usize = 0x100;
     // ── RFC 057 / RFC-0.33-001: bootctl protocol ─────────────────────────────
     //

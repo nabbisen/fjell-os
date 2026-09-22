@@ -337,6 +337,36 @@ pub fn sys_ipc_send(ep_slot: u32, label: usize) -> Result<(), SysError> {
     .map(|_| ())
 }
 
+/// One-way send carrying up to two data words. RFC-0.33-001 D9.
+///
+/// `sys_ipc_send` cannot carry one: it passes the raw `label` with no word
+/// count set, and the kernel's `build_msg` reads the word count from bits
+/// 16-23 of that same word and copies only that many words from `a2..`. This
+/// packs `tag | (2 << 16)` into `a1` and the two words into `a2`/`a3`, the
+/// same convention `sys_ipc_call_words` uses for `IpcCall`.
+pub fn sys_ipc_send_words(ep_slot: u32, tag: usize, w0: usize, w1: usize) -> Result<(), SysError> {
+    let r0: usize;
+    #[cfg(target_arch = "riscv64")]
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7")        SyscallNumber::IpcSend as usize,
+            inlateout("a0") ep_slot as usize => r0,
+            in("a1")        tag | (2usize << 16),
+            in("a2")        w0,
+            in("a3")        w1,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        let _ = (ep_slot, tag, w0, w1);
+        r0 = 0;
+    }
+    to_result(r0).map(|_| ())
+}
+
 /// RFC 048: first arg is `LeaseAdmin` cap handle; second is the lease id.
 #[inline]
 pub fn sys_lease_revoke(cap_handle: u32, lease_id: LeaseId) -> Result<LeaseEpoch, SysError> {

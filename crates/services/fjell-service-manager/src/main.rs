@@ -1,17 +1,39 @@
-//! Service lifecycle manager — RFC 058.
+//! Service lifecycle manager — RFC 058, RFC-0.33-001 D9.
 //!
 //! Tracks which services have sent SERVICE_READY within the startup window.
 //! Uses cooperative timeout: after READY_DEADLINE_YIELDS without READY from
 //! a given service, it is declared timed out.
 //!
+//! **Health, for `bootctl` (D9):** readiness alone is not health — a service
+//! that never reports and one that reports then crashes looked identical here
+//! before this line, because entries were created only on `READY`, so the
+//! fault check's `task_handle != 0` guard could never hold (RFC-0.33-001's
+//! answer doc, R1). `init` now registers a task explicitly as *required*
+//! (`tags::SM_REGISTER_REQUIRED`), with the task handle it already has from
+//! `sys_task_spawn` — before the task has run at all, so there is no race
+//! with that task's own `SERVICE_READY`. Only a required entry's fault is
+//! reported to `bootctl`; the opportunistic entries this file already tracked
+//! (whichever services happen to send `SERVICE_READY`) are unaffected and are
+//! not evaluated for health.
+//!
+//! One verdict is sent to `bootctl` and then latched: `BOOT_HEALTH_FAILED` the
+//! first time any required entry's fault is observed (which can be before or
+//! after the healthy verdict — RFC-0.33-001 D6's demonstration triggers a
+//! fault well after boot, once bootctl has already confirmed), else
+//! `BOOT_HEALTH_OK` once the pre-existing readiness threshold is met. Neither
+//! is sent twice; an unhealthy verdict, once sent, is never followed by a
+//! healthy one.
+//!
 //! Slot layout:
-//!   0  = shared endpoint (object 0) — receives SERVICE_READY messages
+//!   0  = own dedicated endpoint (`SERVICE_MANAGER_EP_OBJECT`) — receives
+//!        `SERVICE_READY` and `SM_REGISTER_REQUIRED`
 //!   29 = TaskControl cap (for sys_task_status fault checks)
+//!   `BOOTCTL_HEALTH_SEND_SLOT` = SEND cap to bootctl's endpoint (`spawn.rs`)
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_abi::service::{ImageId, TaskLifecycle};
+use fjell_abi::service::{BOOTCTL_HEALTH_SEND_SLOT, ImageId, TaskLifecycle};
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
     ipc_sender_image_id, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_send,
@@ -74,6 +96,10 @@ struct ServiceEntry {
     ready: bool,
     timed_out: bool,
     fault_emitted: bool,
+    /// RFC-0.33-001 D9: set only by `SM_REGISTER_REQUIRED`, never by a bare
+    /// `SERVICE_READY`. Only required entries are evaluated for `bootctl`'s
+    /// health verdict.
+    required: bool,
 }
 
 #[unsafe(no_mangle)]
@@ -84,6 +110,11 @@ pub extern "C" fn service_main() -> ! {
     let mut n_ready = 0u32;
     let mut ready_emitted = false;
     let mut yields: u32 = 0;
+    // RFC-0.33-001 D9: the verdict sent to bootctl, latched — see the module
+    // doc comment for why an unhealthy verdict is never followed by a
+    // healthy one.
+    let mut health_ok_sent = false;
+    let mut health_failed_sent = false;
 
     loop {
         sys_yield();
@@ -93,9 +124,50 @@ pub extern "C" fn service_main() -> ! {
         // Use sys_ipc_recv_msg which blocks — but only for a tick since every
         // service either responds quickly or times out.
         match sys_ipc_recv_msg(SLOT_EP) {
-            Ok((label, _w0, _w1, _w2, _w3, sender)) => {
+            Ok((label, w0, w1, _w2, _w3, sender)) => {
                 let tag = label & 0xFFFF;
                 let sender_img = ipc_sender_image_id(sender);
+
+                if tag == (tags::SM_REGISTER_REQUIRED & 0xFFFF) {
+                    // RFC-0.33-001 D9: only init may register a required
+                    // task — a required entry's fault drives whether
+                    // bootctl resets, so this is not a claim any service
+                    // may make about itself or another.
+                    if sender_img != ImageId::INIT.0 {
+                        sys_debug_writeln(
+                            "service-manager: SM_REGISTER_REQUIRED from a sender other than init: refused",
+                        );
+                    } else {
+                        let target_img = w0 as u16;
+                        let target_handle = w1;
+                        let mut found = false;
+                        for slot in services.iter_mut() {
+                            if let Some(e) = slot {
+                                if e.image_id == target_img {
+                                    e.task_handle = target_handle;
+                                    e.required = true;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if !found {
+                            for slot in services.iter_mut() {
+                                if slot.is_none() {
+                                    *slot = Some(ServiceEntry {
+                                        image_id: target_img,
+                                        task_handle: target_handle,
+                                        ready: false,
+                                        timed_out: false,
+                                        fault_emitted: false,
+                                        required: true,
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if tag == (tags::SERVICE_READY & 0xFFFF) {
                     // RFC-0.28-001: relay to init, if init is waiting on
@@ -130,6 +202,7 @@ pub extern "C" fn service_main() -> ! {
                                     ready: true,
                                     timed_out: false,
                                     fault_emitted: false,
+                                    required: false,
                                 });
                                 n_ready += 1;
                                 break;
@@ -143,6 +216,15 @@ pub extern "C" fn service_main() -> ! {
                     if !ready_emitted && n_ready >= READY_ACCEPTED_THRESHOLD {
                         ready_emitted = true;
                         sys_debug_writeln(M::SVC_READY_ACCEPTED);
+                        // RFC-0.33-001 D9: readiness alone is "healthy" only
+                        // if no required entry has already faulted — checked
+                        // here because a fault can be detected before this
+                        // threshold is reached (registration races ahead of
+                        // the 8 opportunistic READYs it does not depend on).
+                        if !health_ok_sent && !health_failed_sent {
+                            health_ok_sent = true;
+                            let _ = sys_ipc_send(BOOTCTL_HEALTH_SEND_SLOT, tags::BOOT_HEALTH_OK);
+                        }
                     }
 
                     // RFC 058: check for unauthorized READY claim via spoofed identity.
@@ -179,6 +261,18 @@ pub extern "C" fn service_main() -> ! {
                             if lc == TaskLifecycle::Faulted as u8 {
                                 e.fault_emitted = true;
                                 sys_debug_writeln(M::SVC_FAULT);
+                                // RFC-0.33-001 D9: only a *required* entry's
+                                // fault reaches bootctl — this loop also
+                                // watches opportunistic READY-only entries
+                                // (unchanged from before this line), and
+                                // those must not drive a reset.
+                                if e.required && !health_failed_sent {
+                                    health_failed_sent = true;
+                                    let _ = sys_ipc_send(
+                                        BOOTCTL_HEALTH_SEND_SLOT,
+                                        tags::BOOT_HEALTH_FAILED,
+                                    );
+                                }
                             }
                         }
                     }
@@ -186,7 +280,17 @@ pub extern "C" fn service_main() -> ! {
             }
         }
 
-        if yields > 2000 {
+        // RFC-0.33-001 D9: do not exit while a required entry is still
+        // unfaulted and unaccounted-for. Every existing profile registers
+        // none, so this changes nothing for them; D10's console trigger
+        // arrives late in init's boot sequence (after M6-M8), well past
+        // 2000 yields on its own, and this is what keeps service-manager
+        // alive to receive it and to notice the fault that follows.
+        let required_pending = services
+            .iter()
+            .flatten()
+            .any(|e| e.required && !e.fault_emitted);
+        if yields > 2000 && !required_pending {
             sys_exit(0);
         }
     }
