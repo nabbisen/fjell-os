@@ -1,6 +1,6 @@
 # RFC-0.33-002: Who Fjell is for
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-23; implementation may begin (RFC 000)
 **Milestone:** 0.33
 **Kind:** identity-level (required by `v1-non-goals.md`'s own rule: *"Changes
 require an identity-level RFC"*, RFC-v0.15-005).
