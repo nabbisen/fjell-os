@@ -62,9 +62,13 @@ today's spin, and replace the spin last.
 
 ## 2. The kernel part, and how not to lose a day to it
 
-- **One syscall, one MMIO write.** `PlatformReboot` (18) gets a dispatch arm
-  that checks the `Reboot` capability and its right, then performs the reset.
-  Nothing else in the kernel changes.
+- **Four kernel touches, not one syscall and one write** — corrected at the
+  mid-line ruling (D8), where this said "nothing else in the kernel changes":
+  the dispatch arm; mapping the reset page kernel-only into task address spaces
+  (else the store faults in the kernel — a hang); installing a `Reboot`
+  capability in `bootctl`'s CSpace (none is granted anywhere, and `CapInstall` is
+  undispatched); and a dedicated `bootctl` endpoint (it shares object 0 today).
+  One commit each. **Nothing else in the kernel.**
 - **The reset device is the open question (§D).** QEMU `virt` exposes one; the
   `BoardProfile` lists no such device. Propose where the address comes from —
   a profile entry is cleaner than a literal, but **do not add a profile field
@@ -81,8 +85,11 @@ today's spin, and replace the spin last.
 ## 3. §A — persistence, and the trap in it
 
 The RFC's lean: persist the block, **if the store path can be shown working
-first**. Check before you design: nothing in the tree sends `storaged` a sector
-write today.
+first**. Check before you design — and note the correction from the mid-line ruling:
+**`init` sends `storaged` six sector writes today**, and writes a
+`BootControlBlock` to both mirrors every boot. This handoff said nothing did.
+What is missing is the **read** side (`READ_CHUNK` is a placeholder), and
+`init`'s write would clobber a persisted block at the next boot.
 
 - If it works, the block survives the reset and the tier can read it back.
 - If it does not, **scope down and say so plainly**: the decision and the reset,

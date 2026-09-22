@@ -50,6 +50,15 @@ is 143 bytes in 7 IPC calls, where it was 4,936 in 157. The six raw
 reinterpretation sites the erratum found outside the kernel are gone; the
 kernel's four were out of scope and remain. Closes **E-046**.
 
+> **Correction, 2026-09-22.** "The six … outside the kernel are gone" was
+> measured with a `grep` that silently skips any file containing a NUL byte, and
+> `fjell-init/src/main.rs` contained two. It was the only tracked source file
+> that did, and it holds **five** more such sites. One went with this line's own
+> fix; **four remain**, on the write side — struct padding read through a byte
+> slice and written to disk. E-046 stays closed on what it set out to fix (the
+> cross-service receive path); the four are **E-055**. The 0.32.0 release record
+> is a dated record and is not edited.
+
 ### Fixed — documentation that could not be found (RFC-0.32-003)
 
 75 of the book's 134 pages, including all 41 architecture decision records,

@@ -3752,6 +3752,38 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > approved for 0.34, superseding the two untracked papers that said v1.5 and
   > v2+ and disagreed with each other.
 
+## E-055 — `fjell-init` writes struct padding to disk through four raw byte-slice views, and the probe that said otherwise was blind
+
+- **Claim:** E-046's closure, the 0.32.0 CHANGELOG entry and the 0.32.0 release
+  record each state that the raw reinterpretation sites outside the kernel are
+  **gone** — the record says *"0 at this tip, re-probed"*.
+- **Tree, observed 2026-09-22:** `/usr/bin/grep -a` finds **five** such sites in
+  `crates/services/fjell-init/src/main.rs`; one was removed by RFC-0.33-001's
+  correction of `init`'s emitter, and **four remain**: `StoreSuperblock` (two
+  sites), `RecordHeader` and `BootControlBlock` are viewed as byte slices with
+  `from_raw_parts` to fill sector buffers. **This is E-046 Finding 4's class on
+  the write side** — the checksums no longer read padding, but the bytes written
+  to disk still contain it, and for a `repr(Rust)`-adjacent read of struct
+  memory that padding is not required to be initialised.
+- **Why the probe was blind, exactly:** the shell's `grep` is a `ugrep` function
+  carrying `-I`, which **skips any file containing a NUL byte and says nothing**.
+  `fjell-init/src/main.rs` held two raw NULs and was the only tracked
+  `.rs`/`.md`/`.toml` file that did. The implementer's positive control passed —
+  on other files. **A control proves a probe works somewhere, not that it works
+  on the file the claim is about.** The architect's review of RFC-0.32-002 ran
+  the same command and reached the same wrong number, so the error is in both the
+  implementation's evidence and the review's.
+- **Not a live hazard today**: nothing reads a `BootControlBlock` or a
+  `StoreSuperblock` back from disk (E-044), so the padding written is never
+  interpreted. It becomes one the moment anything reads it — which is what
+  RFC-0.33-001's §A would have done had persistence stayed in scope.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-22), tracked **0.33**.
+  E-046 is **not** reopened: it shipped, it fixed the receive path it named, and
+  its resolution now records this correction and points here. Closing E-055
+  means the four sites serialise named fields — the shape RFC-0.32-002 used for
+  the checksums — and the on-disk bytes change, so it pairs naturally with
+  **E-045**'s schema work rather than being done twice.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3810,6 +3842,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | ACCEPTED |
+| E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | 0.33 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

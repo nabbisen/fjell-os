@@ -776,6 +776,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `fjell-devmgr` builds its board profile in code. Boot-time validation
   belongs with hardware bring-up (E-004).
 
+- **Struct padding is written to disk in four places** (Errata **E-055**,
+  ACCEPTED, tracked to 0.33). `fjell-init` fills sector buffers by viewing
+  `StoreSuperblock`, `RecordHeader` and `BootControlBlock` as byte slices, so
+  uninitialised padding reaches the disk image. Nothing reads either structure
+  back from disk today (E-044), so nothing interprets those bytes yet. The
+  0.32.0 CHANGELOG and release record state that no such sites remained outside
+  the kernel; that measurement was taken with a `grep` that silently skips
+  files containing NUL bytes, and `fjell-init` was the only such file.
+
 - **The documentation does not say who Fjell is for** (Errata **E-054**,
   ACCEPTED, tracked to RFC-0.33-002). Inclusion — ABDD, the separation of
   meaning from presentation — is one of the founding requirements' design

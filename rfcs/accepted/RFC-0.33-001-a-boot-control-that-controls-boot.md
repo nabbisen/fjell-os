@@ -26,7 +26,12 @@ Three of those parts are further apart than it recorded.
 enum BootState { Pending, Confirmed, Rollback }
 ```
 
-It never constructs, reads or writes a `BootControlBlock`. **No crate does**:
+It never constructs, reads or writes a `BootControlBlock`. *(Corrected at the
+mid-line ruling: **`fjell-init` does** — it constructs, seals and writes one to
+both mirrors every boot, `LBA_BOOT_CTL_A/B_START`, and sends `storaged` six
+sector writes. Nothing **reads** one back. The claim below is true of reading,
+not of writing, and the difference is why persistence is out of scope: a
+persisted block would be clobbered at the next boot.)* Of reading:
 the type, its mirrors, `active_slot`, `last_confirmed_slot`, `candidate_slot`,
 `remaining_tries` and `confirmed` exist in `fjell-upgrade-format` and are
 touched at runtime by nothing. So the A/B model has no runtime representation
@@ -67,10 +72,12 @@ exist; the service that does run is the least verified thing in it.
 ### Finding 5 — health already has a source, and no evaluator
 
 ADR-0009 says a real health check "compares running services against a
-`HealthTarget`". That type exists in `fjell-upgrade-format` with no evaluator.
-Meanwhile `fjell-service-manager` already tracks exactly this: which services
-sent `SERVICE_READY` inside a deadline, and which faulted (`sys_task_status`).
-The signal exists; nothing turns it into a confirmation.
+`HealthTarget`". *(Corrected at the mid-line ruling: **no `HealthTarget` type
+exists** — re-checked with a word boundary and a control. And
+`fjell-service-manager` tracks **readiness only**: entries are created on
+`READY` with `task_handle: 0`, so its fault branch is unreachable.)* The signal
+that does exist is readiness; faults need `init` to register task handles, which
+is D9.
 
 ### Finding 6 — a QEMU tier is already waiting for this
 
@@ -113,6 +120,65 @@ There is one kernel image in this system, so "roll back to the last confirmed
 slot" can set state, mark the candidate unbootable and reset — it cannot select
 a different slot at the next boot, because nothing chooses images. **ADR-0009
 is corrected to say which half exists.**
+
+## Settled at the mid-line ruling, 2026-09-22
+
+The implementation delivered D1, D2 and R8, stopped where the handoff said to
+stop, and asked six questions the RFC did not anticipate. **Four of my own
+figures were wrong**, corrected in the findings above. The rulings:
+
+**D8 — F1: all four kernel touches are approved**, one commit each, `test-all`
+green before any is pushed. My handoff said "one dispatch arm and one reset
+site"; that was written without knowing the other three were prerequisites, not
+extras:
+
+| Touch | Why it is not optional |
+|---|---|
+| the `PlatformReboot` dispatch arm | the syscall the line exists to make real |
+| map the reset page kernel-only into task address spaces | a store to an unmapped `0x100000` from the syscall handler faults **in the kernel** — a hang, which is the outcome D5 exists to rule out. Mirrors `plic::MAPPED_PAGES` |
+| install a `Reboot` capability in `bootctl`'s CSpace | **no `CapKind::Reboot` is granted anywhere**, and `CapInstall` is undispatched, so there is no user-space path to do it |
+| a dedicated `bootctl` endpoint | it receives on shared object 0, which other services race for — RFC-0.28-001 fixed exactly this for three services and left this one |
+
+**The boundary still holds otherwise:** nothing else in the kernel.
+
+**D9 — F2: readiness *and* faults**, with `init` registering task handles.
+`service-manager` tracks readiness only — entries are created on `READY` with
+`task_handle: 0`, and the fault check requires `task_handle != 0`, so that branch
+is unreachable. Verified at review. A health evaluator that cannot see a crash is
+not a health evaluator: a service that never sent `READY` and one that died look
+identical to it. **`HealthTarget` is retired** — it does not exist.
+
+**D10 — F3: the console-injected trigger is approved, with one hard constraint.**
+**The trigger's only power is "spawn this fault service".** It must never request
+a reset, or the profile would be testing the console rather than the system's
+decision. The reset must still be `bootctl`'s own conclusion from the health
+report. The affordance is named in `v1-limitations.md` as a test hook present in
+the shipped image — `svc-fault` and `svc-timeout` already are, so the precedent
+is the disclosure, not the hook.
+
+**D11 — F4: `service-manager` reports healthy, `bootctl` confirms and prints.**
+And **`init`'s simulated `M6:`/`M7:` markers go in this line**, once the real
+confirm path prints — not left beside it. Two sources for one fact, one of them
+hard-coded `true`, is how a confirm path stops being evidence. If removing them
+breaks a tier, file it rather than keeping both.
+
+**D12 — F5: do not reopen E-046.** It shipped, and it fixed the receive path it
+named; a shipped erratum stays closed (the register's own property 2). The four
+write-side sites are **E-055**, tracked 0.33, to be done with **E-045**'s schema
+work because both change on-disk bytes and neither should do it twice.
+
+**D13 — F6: failure on positive evidence only**, approved — and the deeper
+consequence stated: **with nothing durable, a reset cannot be bounded from
+inside.** A genuine health failure on a real node would reset, lose the
+in-memory decision, and fail again. So until the block is durable the failure
+condition must be reachable **only** through D10's trigger, and
+`v1-limitations.md` must say that a real health failure would loop. That is an
+**E-044 survivor**, not a detail.
+
+**§A (persistence) is confirmed out of scope**, on their four blockers — and the
+fourth is one of mine: `init` writes a `BootControlBlock` to both mirrors every
+boot, so a persisted block would be clobbered at the next boot. The RFC said no
+crate writes one. It does.
 
 ## The open questions
 
