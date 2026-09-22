@@ -197,10 +197,10 @@ pub const BOOTCTL_EP_OBJECT: u32 = 12;
 
 /// The CSpace slot installed only in `service-manager`'s own CSpace, pointing
 /// at `BOOTCTL_EP_OBJECT` with SEND rights, used to deliver
-/// `tags::BOOT_HEALTH_REPORT`. `bootctl` checks the sender's kernel-attested
-/// image id against `ImageId::SERVICE_MANAGER`, not this slot's existence
-/// alone, so a copy of this capability granted elsewhere would still be
-/// refused — but nothing else is granted one.
+/// `tags::BOOT_HEALTH_OK` / `tags::BOOT_HEALTH_FAILED`. `bootctl` checks the
+/// sender's kernel-attested image id against `ImageId::SERVICE_MANAGER`, not
+/// this slot's existence alone, so a copy of this capability granted
+/// elsewhere would still be refused — but nothing else is granted one.
 pub const BOOTCTL_HEALTH_SEND_SLOT: u32 = 22;
 
 #[cfg(test)]

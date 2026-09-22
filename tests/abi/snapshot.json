@@ -1,5 +1,5 @@
 [
-  {"count":419},
+  {"count":420},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"5affdf9d342d6262"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_AUDIT_DRAIN","sig":"c16a6ada82892290"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
@@ -343,7 +343,8 @@
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BIND_LEASE_AND_CALL_BACK","sig":"9cb954c6e9b673ef"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BIND_LEASE_FOR_IPC_TEST","sig":"f31dc9604bbd6dc5"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOTSTRAP_COMPLETE","sig":"635b8a8ec64c8534"},
-  {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOT_HEALTH_REPORT","sig":"d003a639ff62f786"},
+  {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOT_HEALTH_FAILED","sig":"3868237d04ff5088"},
+  {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOT_HEALTH_OK","sig":"43cb9fe912875e42"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOT_PENDING_QUERY","sig":"148acbb2401aa0ef"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOT_SHUTDOWN","sig":"8547a24c448aadcf"},
   {"crate":"fjell-service-api","module":"tags","impl_type":"","kind":"const","name":"BOOT_STATE_REPLY","sig":"12c7697e2be013d2"},

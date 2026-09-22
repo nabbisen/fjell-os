@@ -14,7 +14,8 @@
 //! * **It selects state, not an image.** There is one kernel image, so "roll
 //!   back to slot A" changes what this block says and nothing else (D7).
 //! * **It does not confirm or roll back on command.** `service-manager` *reports*
-//!   health (`BOOT_HEALTH_REPORT`); the block decides what that means (§E).
+//!   health (`BOOT_HEALTH_OK` / `BOOT_HEALTH_FAILED`); the block decides what
+//!   that means (§E).
 //!
 //! Slot layout:
 //!   0 = Endpoint — `BOOTCTL_EP_OBJECT`, its own dedicated object (RFC-0.33-001
@@ -43,8 +44,6 @@ const INITIAL_GENERATION: u64 = 1;
 const STATE_UNCONFIRMED: usize = 0;
 const STATE_CONFIRMED: usize = 1;
 const STATE_FAILED: usize = 2;
-
-const HEALTHY: usize = 0;
 
 fn state_word(bcb: &BootControlBlock) -> usize {
     let Ok(active) = bcb.active() else {
@@ -75,7 +74,7 @@ pub extern "C" fn service_main() -> ! {
     }
 
     loop {
-        let (label, w0, _, _, _, sender) = match sys_ipc_recv_msg(SLOT_OWN_EP) {
+        let (label, _, _, _, _, sender) = match sys_ipc_recv_msg(SLOT_OWN_EP) {
             Ok(m) => m,
             Err(_) => {
                 let _ = sys_ipc_reply(usize::MAX);
@@ -83,53 +82,63 @@ pub extern "C" fn service_main() -> ! {
             }
         };
         let label = label & 0xFFFF;
+        // BOOT_HEALTH_OK / BOOT_HEALTH_FAILED carry the verdict in the label
+        // itself, not in a data word: a one-way `sys_ipc_send` cannot carry
+        // one (see `tags::BOOT_HEALTH_OK`'s doc comment for why the earlier
+        // single-tag-plus-word design never worked). Checked before the
+        // per-tag `match` below so both labels share one arm.
+        let health_report = match label {
+            l if l == (tags::BOOT_HEALTH_OK & 0xFFFF) => Some(true),
+            l if l == (tags::BOOT_HEALTH_FAILED & 0xFFFF) => Some(false),
+            _ => None,
+        };
+        if let Some(healthy) = health_report {
+            // Only the service that observes health may report it. The
+            // sender is the kernel's word, not the message's.
+            if ipc_sender_image_id(sender) != fjell_abi::service::ImageId::SERVICE_MANAGER.0 {
+                sys_debug_writeln(
+                    "bootctl: health report from a sender other than service-manager: refused",
+                );
+                let _ = sys_ipc_reply(usize::MAX);
+                continue;
+            }
+            match bcb.apply_health(healthy) {
+                Ok(HealthVerdict::Confirmed) => {
+                    sys_debug_writeln("bootctl: health passed; active slot confirmed");
+                    let _ = sys_ipc_reply(0);
+                }
+                Ok(HealthVerdict::NoFallback) => {
+                    // The failing slot is the last confirmed one. A reset
+                    // would change nothing and, with no persisted try
+                    // counter, would repeat: report it, do not reset.
+                    sys_debug_writeln(
+                        "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting",
+                    );
+                    let _ = sys_ipc_reply(usize::MAX);
+                }
+                Ok(HealthVerdict::MustRollBack) => {
+                    sys_debug_writeln("bootctl: health FAILED; rolling back");
+                    let _ = sys_ipc_reply(0);
+                    let _ = bcb.reboot();
+                    // RFC-0.33-001 D8: the dispatch arm and the Reboot
+                    // capability both now exist, so this resets the machine —
+                    // it does not return on success. The `loop` below is
+                    // reached only if the device did not do what it is
+                    // documented to do (`sys_platform_reboot`'s own doc
+                    // comment), which the caller cannot repair by retrying.
+                    let _ = sys_reboot(CapHandle(SLOT_REBOOT), 0);
+                    loop {}
+                }
+                Err(_) => {
+                    sys_debug_writeln("bootctl: health report refused by the block");
+                    let _ = sys_ipc_reply(usize::MAX);
+                }
+            }
+            continue;
+        }
         match label {
             l if l == (tags::BOOT_PENDING_QUERY & 0xFFFF) => {
                 let _ = sys_ipc_reply(tags::BOOT_STATE_REPLY | (state_word(&bcb) << 16));
-            }
-            l if l == (tags::BOOT_HEALTH_REPORT & 0xFFFF) => {
-                // Only the service that observes health may report it. The
-                // sender is the kernel's word, not the message's.
-                if ipc_sender_image_id(sender) != fjell_abi::service::ImageId::SERVICE_MANAGER.0 {
-                    sys_debug_writeln(
-                        "bootctl: health report from a sender other than service-manager: refused",
-                    );
-                    let _ = sys_ipc_reply(usize::MAX);
-                    continue;
-                }
-                match bcb.apply_health(w0 == HEALTHY) {
-                    Ok(HealthVerdict::Confirmed) => {
-                        sys_debug_writeln("bootctl: health passed; active slot confirmed");
-                        let _ = sys_ipc_reply(0);
-                    }
-                    Ok(HealthVerdict::NoFallback) => {
-                        // The failing slot is the last confirmed one. A reset
-                        // would change nothing and, with no persisted try
-                        // counter, would repeat: report it, do not reset.
-                        sys_debug_writeln(
-                            "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting",
-                        );
-                        let _ = sys_ipc_reply(usize::MAX);
-                    }
-                    Ok(HealthVerdict::MustRollBack) => {
-                        sys_debug_writeln("bootctl: health FAILED; rolling back");
-                        let _ = sys_ipc_reply(0);
-                        let _ = bcb.reboot();
-                        // RFC-0.33-001 D8: the dispatch arm and the Reboot
-                        // capability both now exist, so this resets the
-                        // machine — it does not return on success. The `loop`
-                        // below is reached only if the device did not do what
-                        // it is documented to do (`sys_platform_reboot`'s own
-                        // doc comment), which the caller cannot repair by
-                        // retrying.
-                        let _ = sys_reboot(CapHandle(SLOT_REBOOT), 0);
-                        loop {}
-                    }
-                    Err(_) => {
-                        sys_debug_writeln("bootctl: health report refused by the block");
-                        let _ = sys_ipc_reply(usize::MAX);
-                    }
-                }
             }
             l if l == (tags::BOOT_SHUTDOWN & 0xFFFF) => {
                 let _ = sys_ipc_reply(0);

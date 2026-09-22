@@ -312,7 +312,7 @@ pub fn spawn(
             // Slot `BOOTCTL_HEALTH_SEND_SLOT` (RFC-0.33-001 D8/D9):
             // service-manager alone gets a SEND-only capability to
             // `bootctl`'s dedicated endpoint, to deliver
-            // `tags::BOOT_HEALTH_REPORT`.
+            // `tags::BOOT_HEALTH_OK` / `tags::BOOT_HEALTH_FAILED`.
             if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
                 let _ = cs.install_raw(
                     fjell_abi::service::BOOTCTL_HEALTH_SEND_SLOT as usize,

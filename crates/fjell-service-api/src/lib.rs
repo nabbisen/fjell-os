@@ -27,14 +27,28 @@ pub mod tags {
     //
     // The one protocol `bootctl` speaks. 0x071 and 0x072 were `BOOT_CONFIRM` and
     // `BOOT_ROLLBACK`: commands that had the *sender* decide the outcome, and that
-    // nothing ever sent. A reporter reports (`BOOT_HEALTH_REPORT`); `bootctl`
-    // decides. The numbers are left unused, not reassigned.
+    // nothing ever sent. A reporter reports; `bootctl` decides. The numbers are
+    // left unused, not reassigned.
     pub const BOOT_PENDING_QUERY: usize = 0x070;
     pub const BOOT_STATE_REPLY: usize = 0x073;
-    /// A health report. Word 0: `0` = the boot met its health target,
-    /// `1` = it did not. Accepted only from `service-manager`, by the
-    /// kernel-attested sender identity, never by payload.
-    pub const BOOT_HEALTH_REPORT: usize = 0x074;
+    /// The boot met its health target. Accepted only from `service-manager`,
+    /// by the kernel-attested sender identity.
+    ///
+    /// RFC-0.33-001 D9 correction: this and `BOOT_HEALTH_FAILED` were one tag
+    /// (`BOOT_HEALTH_REPORT`) carrying the verdict in a data word, until
+    /// building the sender showed that word could never arrive. A one-way
+    /// `sys_ipc_send` goes through the kernel's `build_msg`, which masks the
+    /// label to 16 bits and reads a word count from bits it never set, so the
+    /// data word was always `0` regardless of what the sender put there —
+    /// `sys_ipc_reply`'s reply-label path is the one that survives unmasked
+    /// (`BOOT_STATE_REPLY`'s own `| (state << 16)` relies on exactly that
+    /// difference), and this is not a reply. Two tags carry the verdict in the
+    /// label itself, which every other two-outcome protocol here already does
+    /// (`CONFIG_VALIDATED`/`CONFIG_INVALID`, `CAP_GRANTED`/`CAP_DENIED`).
+    pub const BOOT_HEALTH_OK: usize = 0x074;
+    /// The boot did not meet its health target. Same sender restriction as
+    /// [`BOOT_HEALTH_OK`].
+    pub const BOOT_HEALTH_FAILED: usize = 0x075;
     pub const BOOT_SHUTDOWN: usize = 0x07F;
 
     // ── RFC 042: neg-test IPC protocol ───────────────────────────────────────
