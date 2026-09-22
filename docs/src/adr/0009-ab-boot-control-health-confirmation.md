@@ -171,6 +171,62 @@ but not enforced at the kernel level; `upgraded` is a stub.
 >
 > The rest of E-044 is not closed by this note.
 
+> **Correction, 2026-09-23.** Everything the 2026-09-22 correction listed as
+> "does not exist" now does, except one thing this note explains was never
+> reachable to begin with — and the earlier tag name in that correction was
+> itself wrong.
+>
+> **What now exists, measured, not assumed.**
+>
+> * **The report is sent, and read.** `service-manager` tracks whichever
+>   registered task it was told is required (`init`, via
+>   `tags::SM_REGISTER_REQUIRED`, sent right after `sys_task_spawn` — before
+>   the task has run, so there is no race with its own `SERVICE_READY`) and
+>   reports one verdict to `bootctl`: `tags::BOOT_HEALTH_OK` once the existing
+>   readiness threshold is met with nothing required yet faulted, or
+>   `tags::BOOT_HEALTH_FAILED` the first time a required entry's fault is
+>   observed — whichever comes first, and never both. *(The earlier
+>   correction named this `BOOT_HEALTH_REPORT` carrying the verdict in a data
+>   word; that never worked — a one-way `sys_ipc_send` cannot carry one, only
+>   a reply can — and is two tags now.)*
+> * **`bootctl` confirms and fails for real.** `service-manager: started` used
+>   to be the last line `bootctl` ever printed. It now prints
+>   `bootctl: health passed; active slot confirmed` on every boot's happy path
+>   — confirmed live in all 19 tracked QEMU artifacts — and, on the
+>   console-triggered failure path (`tests/qemu/profiles/health-fail.toml`),
+>   `bootctl: health FAILED on the last confirmed slot ... not resetting`.
+>   `fjell-init`'s own simulated confirm/rollback markers (`health_ok = true`,
+>   `health_fail = true`, unconditional) are removed: two sources for one
+>   fact, one of them always claiming success, was how a confirm path stopped
+>   being evidence.
+> * **`PlatformReboot` is dispatched.** Capability-checked, one MMIO write, and
+>   `Reboot` (120) is retired from the enum. `bootctl` holds the `Reboot`
+>   capability it calls with; the reset device is mapped kernel-only into
+>   every task. Not yet exercised by anything real (see below).
+>
+> **What is still true, restated so it is not read as more than it is.**
+>
+> * **No reboot has actually happened.** Console-triggering `svc-fault`
+>   produces `HealthVerdict::NoFallback`, not `MustRollBack` — see next.
+> * **The block is still not durable**, for the reason §A already gives.
+>
+> **What was found reaching this point, structural, not a bug to fix here.**
+> `BootControlBlock::new` starts slot A both active *and* last-confirmed — the
+> factory image is its own fallback until something better is confirmed — and
+> this line never stages a second candidate slot (D7: no slot switching, one
+> kernel image). So the active slot **is** the last-confirmed slot here,
+> always: `fail_health()` correctly refuses to mark the system's only fallback
+> unbootable, `apply_health(false)` returns `NothingToRollBackTo`, and
+> `bootctl` does not reset — matching "fail on positive evidence only" and the
+> 2026-09-22 correction's own warning that a reset with nothing durable to
+> bound it would loop, by making the reset itself unreachable rather than by
+> bounding it. **`MustRollBack` — the verdict an actual reset follows from —
+> cannot happen in this deployment without `bootctl` staging a nominal
+> candidate slot at boot**, which is a further decision about the block's
+> operational semantics that RFC-0.33-001's mid-line ruling did not make.
+> Escalated, not decided here.
+>
+> The rest of E-044 is still not closed by this note.
 
 ## Security Boundary Impact
 
