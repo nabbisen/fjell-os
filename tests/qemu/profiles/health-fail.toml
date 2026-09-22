@@ -1,0 +1,48 @@
+# RFC-0.33-001 D5/D6: bootctl's health-decision path, demonstrated on real
+# machine behaviour -- not a marker asserting an outcome.
+#
+# 'F' injected right after "driver-uart: ready" (D10's console trigger, mid-line
+# ruling, constrained to spawning the fault service and nothing else): init
+# spawns svc-fault and registers it with service-manager as required (D9).
+# svc-fault yields once, then reads from null and faults. service-manager's
+# bounded post-registration poll detects it and reports to bootctl, which
+# decides.
+#
+# What this profile does NOT show, and could not honestly claim to: a reset.
+# BootControlBlock::new starts with slot A both active and last-confirmed (the
+# factory image is its own fallback until something better is confirmed), and
+# this line never stages a second candidate slot (D7: no slot switching).  So
+# the active slot IS the last-confirmed slot here, always -- fail_health()
+# correctly refuses to mark the system's only fallback unbootable and reports
+# NothingToRollBackTo (boot_state.rs's own tests assert this), and bootctl
+# does not reset on it, matching F6's "fail on positive evidence only" and the
+# mid-line ruling's D13: a reset with nothing durable to bound it would loop.
+# MustRollBack -- the verdict a real reset follows from -- is not reachable in
+# this deployment without staging a nominal candidate, which is a further
+# design decision beyond what D8-D13 approved. Escalated, not invented.
+#
+# So: the health DECISION is demonstrated for real (a real fault, a real
+# report, bootctl's real conclusion); the reset it would cause if there were
+# somewhere to roll back to is not, and `expect_shutdown` is deliberately
+# absent -- setting it to anything here would be exactly the marker-asserting-
+# an-outcome this line's evidence discipline exists to rule out.
+
+name                 = "health-fail"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "F"
+expected_markers = [
+    "driver-uart: ready",
+    "v0.25: uart byte='F' delivered over IPC",
+    "init: health-fail trigger received; spawning svc-fault",
+    "init: svc-fault spawned and registered as required",
+    "bootctl: health passed; active slot confirmed",
+    "bootctl: health FAILED on the last confirmed slot",
+    "not resetting",
+]
+# Note: the printed line has a comma in it, split across the two markers
+# above -- qemu_run.rs::load_profile's array reader splits on every comma,
+# including ones inside a quoted marker string (semantic.toml documents the
+# same reader's `]`-inside-a-string hazard; this is the same class of bug,
+# a different character). Found running this profile, not assumed.
+extra_args = []
