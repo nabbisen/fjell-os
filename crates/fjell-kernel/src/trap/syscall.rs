@@ -52,6 +52,8 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::IrqBind)         => sys_irq_bind(tf),
         Some(SyscallNumber::IrqWait)         => sys_irq_wait(tf),
         Some(SyscallNumber::IrqAck)          => sys_irq_ack(tf),
+        // RFC-0.33-001 D8: platform reset.
+        Some(SyscallNumber::PlatformReboot)  => sys_platform_reboot(tf),
         // DebugWrite handled before
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
@@ -995,6 +997,56 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
 /// touch the PLIC — the source's PLIC-level enable/priority is programmed
 /// once at boot (`plic::init` + `plic::enable`, `main.rs`); binding only
 /// records which task the trap handler should wake.
+/// `sys_reboot(a0=reboot_cap, a1=mode) -> a0=status`
+///
+/// RFC-0.33-001 D8. Requires a `Reboot` capability with the `REBOOT` right —
+/// today only `bootctl` holds one (`spawn.rs` slot 1). `mode` is accepted and
+/// ignored: this kernel has one reset mechanism and no distinct modes to
+/// choose between yet.
+///
+/// On success this does not return: the store below resets the board. If it
+/// *does* return, the device did not do what it is documented to do, which is
+/// a kernel-internal fact, not a caller error, so the reply is
+/// `SysError::InternalError`.
+pub fn sys_platform_reboot(tf: &mut TrapFrame) {
+    use crate::platform::qemu_virt::{RESET_DEVICE_PA, RESET_DEVICE_RESET_VALUE};
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_raw = tf.gpr[REG_A0] as u32;
+    let tidx = crate::trap::dispatch::current_task_idx();
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        fjell_cap::handle::CapHandle(cap_raw),
+        CapKind::Reboot,
+        CapRights::REBOOT,
+        None,
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
+    }
+
+    // RFC-0.33-001 §D: everything the kernel wants visible before the machine
+    // goes (UART bytes already written, the capability check above) is
+    // already ordered before this store by program order on a single hart —
+    // the same reasoning `uart::write_byte`'s `device_kick` site relies on,
+    // with no additional fence there either.
+    //
+    // SAFETY: category=mmio-access RESET_DEVICE_PA is mapped R|W, kernel-only,
+    // into every task's page table (spawn.rs, main.rs's init bootstrap); this
+    // handler runs on the calling task's page table. Single hart; no
+    // concurrent access.
+    unsafe {
+        // MMIO-ORDER: device_kick
+        (RESET_DEVICE_PA as *mut u32).write_volatile(RESET_DEVICE_RESET_VALUE);
+    }
+
+    // Reached only if the device did not reset the machine.
+    tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+}
+
 pub fn sys_irq_bind(tf: &mut TrapFrame) {
     use fjell_cap::{CapKind, CapRights};
 

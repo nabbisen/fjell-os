@@ -43,7 +43,8 @@ pub enum SyscallNumber {
     CapBindLease = 16,
     /// RFC 056: install a cap directly into another task's CSpace.
     CapInstall = 17,
-    /// RFC 057: platform reboot (alias for existing Reboot=120 — use number 18 → platform reset).
+    /// RFC 057 / RFC-0.33-001 D8: platform reset. Requires a `Reboot`
+    /// capability with the `REBOOT` right; on success does not return.
     PlatformReboot = 18,
 
     // ── M3 IPC syscalls ────────────────────────────────────────────────────
@@ -90,7 +91,10 @@ pub enum SyscallNumber {
     DmaAlloc = 110,
     DmaShare = 111,
     DmaRevoke = 112,
-    Reboot = 120,
+    // 120 was `Reboot`, an undispatched duplicate of `PlatformReboot` (18).
+    // Retired at RFC-0.33-001 D8, once 18 had a real dispatch arm: two
+    // numbers for one syscall is the thing D2 exists to not repeat. The
+    // number is retired, not reassigned.
 }
 
 impl SyscallNumber {
@@ -141,7 +145,6 @@ impl SyscallNumber {
             110 => Some(Self::DmaAlloc),
             111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
-            120 => Some(Self::Reboot),
             _ => None,
         }
     }

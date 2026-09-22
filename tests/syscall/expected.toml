@@ -11,17 +11,17 @@
 # count — a count would let one undispatched syscall silently replace
 # another and still pass.
 
-declared_count = 35
-dispatched_count = 29
+declared_count = 34
+dispatched_count = 30
 
-# RFC-0.25-001: IrqBind, IrqAck, IrqWait now have kernel dispatch arms
-# (crates/fjell-kernel/src/trap/syscall.rs). Changed in the same commit as
-# those dispatch arms, per RFC 000's drift rule.
+# RFC-0.33-001 D8/§C: PlatformReboot (18) now has a kernel dispatch arm
+# (crates/fjell-kernel/src/trap/syscall.rs::sys_platform_reboot), and its
+# undispatched duplicate Reboot (120) is retired from the enum rather than
+# left declared-but-unreachable. Changed in the same commit as the dispatch
+# arm, per RFC 000's drift rule.
 undispatched = [
     "CapInstall",
-    "PlatformReboot",
     "TaskKill",
     "MmioUnmap",
     "DmaShare",
-    "Reboot",
 ]
