@@ -591,6 +591,34 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 29: TaskControl for SERVICE_MANAGER (RFC-0.33-001 D9).
+            //
+            // Never granted before this line — service-manager's own
+            // `sys_task_status(SLOT_TASK_CONTROL, ...)` fault check
+            // (RFC 058) has called this slot since it shipped, and always
+            // got InvalidCap back from an empty slot, on top of
+            // `task_handle` always being 0 (this RFC's other finding). Two
+            // independent reasons the same branch was unreachable, found
+            // only once D9 gave it a real caller: `sys_task_status`
+            // returned an error for a task confirmed faulted in the same
+            // log, which is what surfaced this. Same shape as NEG_TEST's
+            // grant below — unscoped, because service-manager watches
+            // tasks it did not spawn itself.
+            if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
+                let _ = cs.install_raw(
+                    29,
+                    Capability {
+                        kind: CapKind::TaskControl,
+                        object_id: 0,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slots 5-6: TaskCreate + TaskControl for NEG_TEST (RFC 042 SVC tests).
             // Allows neg-test to spawn and monitor the svc-timeout/svc-fault services.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {

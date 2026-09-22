@@ -136,6 +136,25 @@ pub fn sys_ipc_recv_msg(ep: u32) -> Result<(usize, usize, usize, usize, usize, u
     Ok((label & 0xFFFF, w0, w1, w2, w3, sender))
 }
 
+// RFC-0.33-001 D9: a `sys_ipc_try_recv_msg` (non-blocking, full message —
+// `cap::syscall::sys_ipc_try_recv`'s kernel handler already calls the same
+// `deliver()` the blocking receive does, filling words and sender identity;
+// the existing `sys_ipc_try_recv` wrapper only reads the label) was added and
+// removed again in this line. It let service-manager's fault-check run on a
+// schedule independent of message arrival, which was the point — but calling
+// it on every scheduler turn, for the rest of a run, once nothing further
+// would ever be sent, was enough additional emulated work under QEMU's TCG
+// that an unrelated task stopped completing its own boot sequence within the
+// profile's timeout. Not a deadlock; a throughput regression severe enough to
+// look like one, reproduced with the syscall removed from the loop entirely
+// (isolating the cause to the always-runnable loop itself, not the
+// primitive). service-manager instead blocks in `sys_ipc_recv_msg` as its
+// normal state and only busy-polls in a bounded window right after a
+// registration (`crates/services/fjell-service-manager/src/main.rs`,
+// `REGISTER_POLL_BUDGET`). Left out of the stable surface rather than kept
+// unused: nothing here calls it, and "added but never used" is exactly what
+// the ABI-snapshot discipline (RFC-0.30-002 §5) means to catch.
+
 /// Decode the sender identity word from `sys_ipc_recv_msg`'s 6th return value.
 #[inline]
 pub fn ipc_sender_image_id(identity: usize) -> u16 {

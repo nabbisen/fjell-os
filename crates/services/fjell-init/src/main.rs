@@ -22,7 +22,8 @@ use fjell_snapshot_format::*;
 use fjell_store_format::*;
 use fjell_syscall::{
     sys_debug_write, sys_debug_write_byte, sys_debug_writeln, sys_exit, sys_ipc_call_words,
-    sys_ipc_try_recv, sys_platform_info_get, sys_task_spawn, sys_task_start, sys_yield,
+    sys_ipc_send_words, sys_ipc_try_recv, sys_platform_info_get, sys_task_spawn, sys_task_start,
+    sys_yield,
 };
 use fjell_upgrade_format::*;
 use fjell_verify_format::*;
@@ -1002,6 +1003,13 @@ pub extern "C" fn service_main() -> ! {
         use fjell_cap::CapHandle;
         const UART_RX_EP: CapHandle = CapHandle(8);
         const POLL_BUDGET: u32 = 20_000;
+        // RFC-0.33-001 D10: this byte's only power is "spawn the fault
+        // service" -- never "reset". Whether the machine resets is
+        // bootctl's own conclusion from the health report that follows
+        // (D9), not something a console byte can request directly, or this
+        // demonstration would be testing the console rather than the
+        // system's decision (the mid-line ruling's D10 constraint).
+        const HEALTH_FAIL_TRIGGER: u8 = b'F';
         let mut received = false;
         for _ in 0..POLL_BUDGET {
             match sys_ipc_try_recv(UART_RX_EP) {
@@ -1010,6 +1018,23 @@ pub extern "C" fn service_main() -> ! {
                     sys_debug_write_byte(byte as u8);
                     sys_debug_writeln("' delivered over IPC");
                     received = true;
+                    if byte as u8 == HEALTH_FAIL_TRIGGER {
+                        sys_debug_writeln("init: health-fail trigger received; spawning svc-fault");
+                        let handle = spawn(ImageId::SVC_FAULT, "");
+                        // service-manager alone decides what a fault here
+                        // means (D9); this only tells it the task exists and
+                        // is required. SERVICE_READY_SEND_SLOT already
+                        // points at service-manager's endpoint -- installed
+                        // for every service, including init, though init
+                        // sends a different tag over it than SERVICE_READY.
+                        let _ = sys_ipc_send_words(
+                            fjell_abi::service::SERVICE_READY_SEND_SLOT,
+                            fjell_service_api::tags::SM_REGISTER_REQUIRED,
+                            ImageId::SVC_FAULT.0 as usize,
+                            handle,
+                        );
+                        sys_debug_writeln("init: svc-fault spawned and registered as required");
+                    }
                     break;
                 }
                 Err(_) => sys_yield(),

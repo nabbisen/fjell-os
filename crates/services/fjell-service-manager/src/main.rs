@@ -24,6 +24,18 @@
 //! is sent twice; an unhealthy verdict, once sent, is never followed by a
 //! healthy one.
 //!
+//! **Why the main loop still blocks in `sys_ipc_recv_msg` (measured, not
+//! assumed):** a non-blocking poll here — so the fault check could run on a
+//! schedule independent of message arrival, not only in the instant after
+//! one arrives — was tried and reverted. It reproduced with the syscall
+//! removed from the loop entirely, isolating the cause to the loop itself,
+//! not to any one primitive: a task that never blocks, calling `sys_yield`
+//! every scheduler turn for the rest of a run, is enough additional emulated
+//! work under QEMU's TCG that an unrelated task (`devmgr`) stopped completing
+//! its own boot sequence within the profile's timeout — not a deadlock, a
+//! throughput regression severe enough to look like one. `REGISTER_POLL_BUDGET`
+//! below is the compromise: bounded, and only right after a registration.
+//!
 //! Slot layout:
 //!   0  = own dedicated endpoint (`SERVICE_MANAGER_EP_OBJECT`) — receives
 //!        `SERVICE_READY` and `SM_REGISTER_REQUIRED`
@@ -36,8 +48,8 @@ mod rt;
 use fjell_abi::service::{BOOTCTL_HEALTH_SEND_SLOT, ImageId, TaskLifecycle};
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    ipc_sender_image_id, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_send,
-    sys_task_status, sys_yield,
+    ipc_sender_image_id, sys_debug_writeln, sys_ipc_recv_msg, sys_ipc_send, sys_task_status,
+    sys_yield,
 };
 
 // Slot 0 is service-manager's own identity endpoint — RFC-0.28-001 gives
@@ -51,6 +63,12 @@ const SLOT_EP: u32 = 0;
 const SLOT_TASK_CONTROL: u32 = 29;
 const READY_DEADLINE_YIELDS: u32 = 100;
 const MAX_TRACKED: usize = 32;
+/// RFC-0.33-001 D9: how long to busy-poll a just-registered task for its
+/// fault, immediately after processing its `SM_REGISTER_REQUIRED` — bounded,
+/// not the loop's normal state (see the module doc comment for why). Generous
+/// for `svc-fault`, which yields once and then faults (a handful of
+/// scheduler turns): measured to detect it well within budget.
+const REGISTER_POLL_BUDGET: u32 = 2_000;
 
 // RFC-0.28-001 (D3): re-derived, not assumed. The original `10` was never
 // checked against how many images actually send `SERVICE_READY` — under
@@ -90,6 +108,32 @@ fn relay_tag_for(sender_img: u16) -> Option<usize> {
     }
 }
 
+/// Checks one entry for a fault not yet reported; if it is required, reports
+/// `BOOT_HEALTH_FAILED` to `bootctl` (once — `health_failed_sent` latches
+/// it). Shared by the periodic check and D9's post-registration poll burst,
+/// so the two cannot disagree about what counts as "newly faulted".
+fn check_fault_and_report(e: &mut ServiceEntry, health_failed_sent: &mut bool) -> bool {
+    if e.task_handle == 0 || e.fault_emitted {
+        return false;
+    }
+    let Ok(lc) = sys_task_status(SLOT_TASK_CONTROL, e.task_handle) else {
+        return false;
+    };
+    if lc != TaskLifecycle::Faulted as u8 {
+        return false;
+    }
+    e.fault_emitted = true;
+    sys_debug_writeln(M::SVC_FAULT);
+    // RFC-0.33-001 D9: only a *required* entry's fault reaches bootctl —
+    // opportunistic READY-only entries (unchanged from before this line)
+    // must not drive a reset.
+    if e.required && !*health_failed_sent {
+        *health_failed_sent = true;
+        let _ = sys_ipc_send(BOOTCTL_HEALTH_SEND_SLOT, tags::BOOT_HEALTH_FAILED);
+    }
+    true
+}
+
 struct ServiceEntry {
     image_id: u16,
     task_handle: usize,
@@ -120,9 +164,12 @@ pub extern "C" fn service_main() -> ! {
         sys_yield();
         yields += 1;
 
-        // ── Poll for READY messages (non-blocking attempt) ────────────────────
-        // Use sys_ipc_recv_msg which blocks — but only for a tick since every
-        // service either responds quickly or times out.
+        // ── Poll for READY / SM_REGISTER_REQUIRED messages ─────────────────────
+        // Blocking (see the module doc comment for why non-blocking was
+        // tried and reverted): fine here because init's SM_REGISTER_REQUIRED
+        // is exactly the kind of message this unblocks for, the same
+        // rendezvous every other one-way send in this project already
+        // relies on.
         match sys_ipc_recv_msg(SLOT_EP) {
             Ok((label, w0, w1, _w2, _w3, sender)) => {
                 let tag = label & 0xFFFF;
@@ -164,6 +211,25 @@ pub extern "C" fn service_main() -> ! {
                                     });
                                     break;
                                 }
+                            }
+                        }
+
+                        // RFC-0.33-001 D9/D10: bounded poll for this task's
+                        // fault specifically, right now — see the module doc
+                        // comment for why this is a burst and not the loop's
+                        // normal state. svc-fault yields once then faults, so
+                        // this is generous, not tight.
+                        for _ in 0..REGISTER_POLL_BUDGET {
+                            sys_yield();
+                            let done = services
+                                .iter_mut()
+                                .flatten()
+                                .find(|e| e.image_id == target_img)
+                                .is_some_and(|e| {
+                                    check_fault_and_report(e, &mut health_failed_sent)
+                                });
+                            if done {
+                                break;
                             }
                         }
                     }
@@ -249,6 +315,9 @@ pub extern "C" fn service_main() -> ! {
         }
 
         // ── Timeout and fault checks (every 50 yields) ───────────────────────
+        // Defense in depth alongside the post-registration burst above (a
+        // required entry registered but never yet caught faulted, or a
+        // fault landing exactly between checks there, is still caught here).
         if yields % 50 == 0 {
             for slot in services.iter_mut() {
                 if let Some(e) = slot {
@@ -256,42 +325,18 @@ pub extern "C" fn service_main() -> ! {
                         e.timed_out = true;
                         sys_debug_writeln(M::SVC_START_TIMEOUT);
                     }
-                    if e.task_handle != 0 && !e.fault_emitted {
-                        if let Ok(lc) = sys_task_status(SLOT_TASK_CONTROL, e.task_handle) {
-                            if lc == TaskLifecycle::Faulted as u8 {
-                                e.fault_emitted = true;
-                                sys_debug_writeln(M::SVC_FAULT);
-                                // RFC-0.33-001 D9: only a *required* entry's
-                                // fault reaches bootctl — this loop also
-                                // watches opportunistic READY-only entries
-                                // (unchanged from before this line), and
-                                // those must not drive a reset.
-                                if e.required && !health_failed_sent {
-                                    health_failed_sent = true;
-                                    let _ = sys_ipc_send(
-                                        BOOTCTL_HEALTH_SEND_SLOT,
-                                        tags::BOOT_HEALTH_FAILED,
-                                    );
-                                }
-                            }
-                        }
-                    }
+                    check_fault_and_report(e, &mut health_failed_sent);
                 }
             }
         }
 
-        // RFC-0.33-001 D9: do not exit while a required entry is still
-        // unfaulted and unaccounted-for. Every existing profile registers
-        // none, so this changes nothing for them; D10's console trigger
-        // arrives late in init's boot sequence (after M6-M8), well past
-        // 2000 yields on its own, and this is what keeps service-manager
-        // alive to receive it and to notice the fault that follows.
-        let required_pending = services
-            .iter()
-            .flatten()
-            .any(|e| e.required && !e.fault_emitted);
-        if yields > 2000 && !required_pending {
-            sys_exit(0);
-        }
+        // RFC-0.33-001 D9 correction: this used to exit unconditionally at a
+        // fixed yield count. D10's console trigger arrives near the end of
+        // init's boot sequence — past that count on its own in every run
+        // measured — so service-manager had already exited by the time the
+        // registration it depends on was ever sent. Blocking in
+        // `sys_ipc_recv_msg` (above) already removes this task from the
+        // ready queue whenever nothing is pending, at zero ongoing cost, so
+        // there is nothing here for an explicit exit to save.
     }
 }

@@ -779,6 +779,18 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let _ = service_manager_ep_id; // id=10
     let init_relay_ep_id = et.alloc().expect("alloc init-relay endpoint");
     let _ = init_relay_ep_id; // id=11
+    // RFC-0.33-001 D8: bootctl's own dedicated endpoint. Same allocation
+    // step, same reason as every comment above it — and the same mistake:
+    // `fjell_abi::service::BOOTCTL_EP_OBJECT` was defined and referenced by
+    // `spawn.rs`'s `ep_obj` table and the `BOOTCTL_HEALTH_SEND_SLOT`
+    // capability without this call, so the capability was valid (correct
+    // generation, correct rights) and the send still failed with InvalidCap
+    // — from `EndpointTable::get_mut` finding the object unallocated, not
+    // from anything wrong with the capability itself. Confirmed live: the
+    // BOOT_HEALTH_OK/BOOT_HEALTH_FAILED sends both failed with exactly this
+    // error until this line was added.
+    let bootctl_health_ep_id = et.alloc().expect("alloc bootctl endpoint");
+    let _ = bootctl_health_ep_id; // id=12
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
