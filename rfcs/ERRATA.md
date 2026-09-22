@@ -3784,6 +3784,51 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the checksums — and the on-disk bytes change, so it pairs naturally with
   **E-045**'s schema work rather than being done twice.
 
+## E-056 — the ABI snapshot hashes an enum's declaration line, so adding or removing a variant is zero drift
+
+- **Claim:** `tests/abi/snapshot.json` is the ABI baseline, and Gate 4 verifies
+  it at every cut; RFC-0.30-002 exists because *"additive drift accumulates and
+  would be absorbed unreviewed"*. The tool records `kind: fn | struct | enum |
+  trait | const | type` and flags a change when *"the whole-line hash differs"*.
+- **Tree, observed 2026-09-23:** for an `enum`, the hashed line is the
+  **declaration** (`pub enum SyscallNumber {`), not the variant list. So
+  `Reboot = 120`'s removal and `PlatformReboot = 18`'s earlier addition — both
+  changes to the syscall ABI — registered **`Added: 0, Removed: 0, Changed sig:
+  0`**. Verified against the tool's own doc comment and this line's two
+  syscall-numbering commits. New `pub fn`/`pub const` items *are* caught (five
+  in this line, each flagged correctly), so the gap is specific to enum bodies.
+- **How it surfaced:** the implementer predicted in an answer document that the
+  removal would show as `Changed sig: 1`, then checked and found it did not, and
+  reported the prediction as wrong rather than the tool as right.
+- **Why nothing saw it:** `syscall-surface` covers the syscall enum specifically
+  (declared vs dispatched vs expected), and it is what caught this ABI change —
+  so the one enum whose drift matters most is watched by a different instrument,
+  and the snapshot's blindness never showed.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **0.33**.
+  Closing it means an enum's item hash covers its variants, demonstrated by a
+  variant added and removed, and the baseline re-recorded once with the drift
+  that has accumulated invisibly named rather than absorbed.
+
+## E-057 — the QEMU profile reader splits marker strings on any comma, silently
+
+- **Claim:** `tests/qemu/profiles/*.toml`'s `expected_markers` is the list a
+  profile matches against, and RFC-0.29-001 D1 derives the negative-test scope
+  from these files.
+- **Tree, observed 2026-09-23:** `qemu_run.rs::load_profile`'s hand-rolled array
+  reader splits on **every** comma, including one inside a quoted marker, and on
+  the first `]` even inside a string — `semantic.toml` already documents the
+  bracket half in its own comment, having silently loaded **2 of 4** markers.
+  This line hit the comma half: a marker containing one was split into two
+  fragments, and the profile matched them as separate markers.
+- **Why it matters beyond a typo:** a marker that can never match reads as a
+  tier that is not gated on what its author wrote, and a split marker makes the
+  count look right while the text checked is shorter. Both fail *open*.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **0.33**. The
+  fix is a reader that respects quoting, and a check that refuses a marker
+  containing a character the reader cannot carry. The workaround in
+  `health-fail.toml` (splitting the marker deliberately, with a comment) stands
+  until then — it is honest and it is documented.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3843,6 +3888,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | ACCEPTED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | 0.33 | ACCEPTED |
+| E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | 0.33 | ACCEPTED |
+| E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | 0.33 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

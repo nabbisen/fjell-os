@@ -776,6 +776,36 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `fjell-devmgr` builds its board profile in code. Boot-time validation
   belongs with hardware bring-up (E-004).
 
+- **A health failure cannot reach a reset in this deployment** (Errata
+  **E-044**, ACCEPTED, tracked to RFC-0.33-001). `bootctl` now decides health
+  for real — `service-manager` reports a required service's fault, and the
+  decision is printed and observed in a QEMU tier. But a genuine health failure
+  on the active slot has no rollback target while that slot is also the last
+  confirmed one, which is always true here: one kernel image, no slot switching,
+  and nothing durable. `bootctl` reports it and does not reset. Reaching a real
+  reset from a health decision needs a staged candidate slot **and** a durable
+  try counter — without the counter, resetting on an organic failure would loop.
+  That is why the failure path is reachable today only through a deliberate
+  console trigger in the test profile, and by nothing a production boot can
+  encounter on its own. The reset *mechanism* is demonstrated separately.
+
+- **Two test affordances are present in the shipped image**: a console byte that
+  makes `init` spawn the fault service (RFC-0.33-001 D10), and `neg-test`'s
+  `Reboot` capability, which lets it reset the machine (D15). Both exist so that
+  a decision and a reset can be observed rather than asserted; `svc-fault` and
+  `svc-timeout` are already in the image for the same reason.
+
+- **The ABI baseline does not see enum variants** (Errata **E-056**, ACCEPTED,
+  tracked to 0.33). Gate 4 hashes an enum's declaration line, so adding or
+  removing a variant — including a syscall number — is zero drift. The syscall
+  enum specifically is covered by a different check, `syscall-surface`.
+
+- **A QEMU profile's markers can be silently split** (Errata **E-057**,
+  ACCEPTED, tracked to 0.33). The profile reader splits on every comma and the
+  first `]`, inside quoted strings too, so a marker can be shortened or halved
+  without a word of warning; both failures let a tier pass on less than its
+  author wrote.
+
 - **Struct padding is written to disk in four places** (Errata **E-055**,
   ACCEPTED, tracked to 0.33). `fjell-init` fills sector buffers by viewing
   `StoreSuperblock`, `RecordHeader` and `BootControlBlock` as byte slices, so

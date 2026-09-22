@@ -180,6 +180,46 @@ fourth is one of mine: `init` writes a `BootControlBlock` to both mirrors every
 boot, so a persisted block would be clobbered at the next boot. The RFC said no
 crate writes one. It does.
 
+## Settled at the second mid-line ruling, 2026-09-23
+
+**D14 — F7 is declined: `bootctl` does not stage a nominal candidate slot.**
+The block would then record `active = B, candidate = B, last_confirmed = A`
+while **one image exists and B holds nothing**. That is a state machine
+asserting a fact about the world that is not true — the same class as the six
+simulated markers D11 removed one commit earlier, and it would be worse for
+being inside the structure the whole line exists to make trustworthy. The
+`health-fail` profile stands as delivered, with `expect_shutdown` deliberately
+absent; **that judgement was right.**
+
+**D15 — the reset mechanism is demonstrated on its own, and honestly.** D5's
+purpose was that a reset be observed rather than claimed. With one image the
+*decision* cannot reach a reset (D14), but the *mechanism* — dispatch arm,
+capability check, MMIO write, and R6's harness — must not ship unexercised.
+So: a negative-test profile in which **`neg-test` calls `sys_reboot`**:
+
+- **with** the `Reboot` right → the machine resets, observed through QMP's
+  `SHUTDOWN{guest:true, reason:"guest-reset"}`, never through a marker;
+- **without** it → refused, with the error observed.
+
+**A fifth kernel touch is approved for this and nothing else**: granting
+`Reboot` to `NEG_TEST`, exactly as its `TaskControl` grant already is. Disclosed
+in `v1-limitations.md` beside D10's console trigger — `neg-test` is already an
+intentional test target in the shipped image, so the precedent is the
+disclosure, not the capability.
+
+**The two halves are named as two halves.** The record says: the health
+*decision* is demonstrated end to end (`health-fail`); the *reset* is
+demonstrated end to end (`reboot`); **the two are not joined in this
+deployment**, and joining them needs slot switching (D7) and a durable block
+(§A). Neither profile may imply otherwise.
+
+**D16 — R9's survivor list**, at closing: no reset from a health decision here;
+the four remaining undispatched syscalls; and the durable-counter risk — for
+which **the implementer's sentence is adopted over my D13 text**, because
+theirs describes what was measured (`NoFallback`, not a loop) and mine
+predicted a loop that this structure cannot reach. I write it into
+`v1-limitations.md`; they do not edit that file.
+
 ## The open questions
 
 **§A — Does the block survive the reset?** Persisting it means a store client:
