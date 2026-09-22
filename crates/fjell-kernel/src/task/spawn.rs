@@ -426,6 +426,25 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 1: Reboot cap — granted to bootctl only (RFC-0.33-001 D8).
+            // Before this, no `CapKind::Reboot` capability was granted
+            // anywhere: `bootctl`'s rollback arm called `sys_reboot` and was
+            // refused every time by an empty slot, not by a real decision.
+            if image_id == fjell_abi::service::ImageId::BOOTCTL {
+                let _ = cs.install_raw(
+                    1,
+                    Capability {
+                        kind: CapKind::Reboot,
+                        object_id: 0,
+                        rights: CapRights::REBOOT,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot 2: DmaRegion cap — granted to services that perform DMA
             // (storaged, driver-virtio-blk, neg-test).  RFC 017 / RFC 052.
             // Modernised from the legacy DmaAlloc alias (architect review
