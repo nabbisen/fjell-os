@@ -611,7 +611,11 @@ pub extern "C" fn service_main() -> ! {
     spawn(ImageId::UPGRADED, "");
     sys_debug_writeln("M6: inactive slot staged");
     sys_debug_writeln("M6: candidate slot set");
-    sys_debug_writeln("M6: boot confirmation simulated");
+    // RFC-0.33-001 D11: "M6: boot confirmation simulated" removed — bootctl
+    // now confirms for real (BOOT_HEALTH_OK/D9), printed once per boot in
+    // every tier ("bootctl: health passed; active slot confirmed"). Two
+    // sources for one fact, one of them always claiming success, is how a
+    // confirm path stops being evidence.
     spawn(ImageId::POWERD, "");
     sys_debug_writeln("M6: persistent store and upgrade foundation ready");
 
@@ -681,16 +685,14 @@ pub extern "C" fn service_main() -> ! {
     // Set candidate
     sys_debug_writeln("M7: candidate slot set");
 
-    // Simulate candidate boot
-    sys_debug_writeln("M7: candidate boot simulated");
-
-    // ── Health check → confirmation ───────────────────────────────────────────
-    // Health target: all required services started, store writable, bootctl ok
-    let health_ok = true; // In M7 smoke, health always passes first time
-    if health_ok {
-        sys_debug_writeln("M7: health target passed");
-        sys_debug_writeln("M7: slot confirmed after health");
-    }
+    // RFC-0.33-001 D11: "M7: candidate boot simulated", "M7: health target
+    // passed" and "M7: slot confirmed after health" removed — each was
+    // printed unconditionally (`let health_ok = true`), a second, faked
+    // source for exactly what bootctl now decides for real from
+    // service-manager's report and prints itself (D9). See the removed
+    // "M6: boot confirmation simulated" comment just above for why two
+    // sources for one fact is the thing this line's evidence discipline
+    // rules out, not a detail.
 
     // ── Post-confirmation snapshot ────────────────────────────────────────────
     let snap_post = SystemSnapshot::new(2, SnapshotReason::PostConfirmation, 1u8, 3);
@@ -756,17 +758,14 @@ pub extern "C" fn service_main() -> ! {
         sys_exit(1);
     }
 
-    // ── Health failure → rollback simulation ──────────────────────────────────
-    // Simulate: candidate boot with health check failure → rollback
-    let health_fail = true; // we're simulating failure
-    if health_fail {
-        sys_debug_writeln("M7: health failure rollback simulated");
-        // Rollback: select last confirmed slot (A)
-        let rollback_slot = SlotId::A;
-        let _ = rollback_slot;
-        sys_debug_writeln("M7: rollback selected as expected");
-        let _snap_rb = SystemSnapshot::new(3, SnapshotReason::Rollback, 0u8, 4);
-    }
+    // RFC-0.33-001 D11: "M7: health failure rollback simulated" and "M7:
+    // rollback selected as expected" removed — both were printed
+    // unconditionally (`let health_fail = true`), claiming a rollback that
+    // never happened, on every single boot. bootctl decides this for real
+    // now (D9); rfcs/../tests/qemu/profiles/health-fail.toml demonstrates
+    // the health-failure path it decides — and reports what it actually
+    // does, which is not always a rollback (see that profile's own
+    // comment).
 
     sys_debug_writeln("TEST:M7:PASS");
 
