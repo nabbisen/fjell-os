@@ -29,6 +29,17 @@ pub const MMIO_REGIONS: &[(usize, usize, &str)] = &[
     (0x1000_1000, 0x1001_0000, "virtio"),
 ];
 
+/// QEMU `virt`'s `sifive_test` device (a `syscon` in the DTB, `compatible =
+/// "sifive,test1", "sifive,test0", "syscon"`): a 32-bit store here resets or
+/// powers off the board. RFC-0.33-001 D8/§D. Confirmed with `-machine
+/// dumpdtb`; falls inside the `CLINT/boot-ROM/test` region above, already
+/// reserved from the frame allocator, so nothing further to reserve here.
+pub const RESET_DEVICE_PA: usize = 0x0010_0000;
+/// The value that resets the machine (`reboot { … value = <0x7777>; }` in the
+/// DTB). The complementary power-off value (`0x5555`) is not used by this
+/// kernel — `bootctl` only ever asks to reset.
+pub const RESET_DEVICE_RESET_VALUE: u32 = 0x7777;
+
 /// Summary of platform memory layout passed to kernel init.
 pub struct PlatformInfo {
     /// Physical address of the start of RAM.

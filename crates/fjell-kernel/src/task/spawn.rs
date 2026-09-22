@@ -80,6 +80,27 @@ pub fn spawn(
         }
     }
 
+    // RFC-0.33-001 D8: map the reset device's page kernel-only (R|W, no U)
+    // into every task's address space. `PlatformReboot`'s handler runs on the
+    // *calling* task's page table (same reasoning as the UART and PLIC
+    // mappings above), and a store to an unmapped physical address from a
+    // syscall handler faults inside the kernel — a hang, exactly the outcome
+    // R6's harness exists to tell apart from a real reset.
+    {
+        use crate::platform::qemu_virt::RESET_DEVICE_PA;
+        if let Ok(f) = PhysFrame::from_pa(RESET_DEVICE_PA) {
+            aspace
+                .map_page(
+                    VirtAddr(RESET_DEVICE_PA),
+                    f,
+                    VmPerms::R | VmPerms::W,
+                    VmRegionKind::Mmio,
+                    fa,
+                )
+                .map_err(|_| SysError::NoMemory)?;
+        }
+    }
+
     // Map all 8 virtio-mmio slots (0x10001000..0x10008000) with R|W (no U).
     // Supervisor-mode trap handlers (sys_platform_info_get, sys_mmio_map) can
     // then scan/access them.  User-mode drivers call sys_mmio_map to get U+R+W.

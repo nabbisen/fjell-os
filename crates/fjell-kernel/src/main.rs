@@ -858,6 +858,19 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             }
         }
 
+        // RFC-0.33-001 D8: same reasoning as the PLIC copy above — init is
+        // bootstrapped directly rather than via `task::spawn::spawn()`, so it
+        // needs its own copy of the reset device's page mapping too.
+        if let Ok(f) = PhysFrame::from_pa(platform::qemu_virt::RESET_DEVICE_PA) {
+            let _ = aspace.map_page(
+                VirtAddr(platform::qemu_virt::RESET_DEVICE_PA),
+                f,
+                VmPerms::R | VmPerms::W,
+                VmRegionKind::Mmio,
+                fa!(),
+            );
+        }
+
         // Map text pages (flat binary may span multiple pages)
         let pages = (init_bytes.len() + 4095) / 4096;
         for pg in 0..pages {
