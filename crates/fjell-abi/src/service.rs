@@ -182,6 +182,27 @@ pub const INIT_RELAY_SEND_SLOT: u32 = 21;
 /// (object 8) entirely.
 pub const INIT_RELAY_RECV_SLOT: u32 = 7;
 
+// ── RFC-0.33-001 D8: bootctl's own endpoint ───────────────────────────────────
+//
+// `bootctl` was one of the two extra receivers on object 0 the comment above
+// already named (the other, auditd's audit-drain trigger, was never fixed
+// either). A health report meant for `bootctl` could be received by whichever
+// other shared-object-0 service reached `ipc_recv` first. Same fix as
+// RFC-0.28-001, one object pair, applied here.
+
+/// The endpoint object `bootctl` receives `BOOT_*` messages on. Installed as
+/// `bootctl`'s own identity endpoint (`ep_obj` table, `spawn.rs`), replacing
+/// its previous default to shared object 0.
+pub const BOOTCTL_EP_OBJECT: u32 = 12;
+
+/// The CSpace slot installed only in `service-manager`'s own CSpace, pointing
+/// at `BOOTCTL_EP_OBJECT` with SEND rights, used to deliver
+/// `tags::BOOT_HEALTH_REPORT`. `bootctl` checks the sender's kernel-attested
+/// image id against `ImageId::SERVICE_MANAGER`, not this slot's existence
+/// alone, so a copy of this capability granted elsewhere would still be
+/// refused — but nothing else is granted one.
+pub const BOOTCTL_HEALTH_SEND_SLOT: u32 = 22;
+
 #[cfg(test)]
 mod image_id_v07_tests {
     use super::ImageId;

@@ -249,6 +249,10 @@ pub fn spawn(
                 fjell_abi::service::ImageId::SERVICE_MANAGER => {
                     fjell_abi::service::SERVICE_MANAGER_EP_OBJECT
                 }
+                // RFC-0.33-001 D8: bootctl's own dedicated endpoint —
+                // previously fell to the shared default (0), one of the two
+                // extra receivers RFC-0.28-001's own comment already named.
+                fjell_abi::service::ImageId::BOOTCTL => fjell_abi::service::BOOTCTL_EP_OBJECT,
                 _ => 0,
             };
             let _ = cs.install_raw(
@@ -296,6 +300,25 @@ pub fn spawn(
                     Capability {
                         kind: CapKind::Endpoint,
                         object_id: fjell_abi::service::INIT_RELAY_EP_OBJECT,
+                        rights: CapRights::SEND,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+            // Slot `BOOTCTL_HEALTH_SEND_SLOT` (RFC-0.33-001 D8/D9):
+            // service-manager alone gets a SEND-only capability to
+            // `bootctl`'s dedicated endpoint, to deliver
+            // `tags::BOOT_HEALTH_REPORT`.
+            if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
+                let _ = cs.install_raw(
+                    fjell_abi::service::BOOTCTL_HEALTH_SEND_SLOT as usize,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::BOOTCTL_EP_OBJECT,
                         rights: CapRights::SEND,
                         badge: 0,
                         scope: ObjectScope::Any,

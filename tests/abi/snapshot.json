@@ -1,5 +1,5 @@
 [
-  {"count":417},
+  {"count":419},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"5affdf9d342d6262"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_AUDIT_DRAIN","sig":"c16a6ada82892290"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
@@ -17,6 +17,8 @@
   {"crate":"fjell-abi","module":"lease","impl_type":"LeaseId","kind":"fn","name":"index","sig":"3bcb82f93055825d"},
   {"crate":"fjell-abi","module":"lease","impl_type":"LeaseId","kind":"fn","name":"is_valid","sig":"30666640bc016834"},
   {"crate":"fjell-abi","module":"lease","impl_type":"LeaseId","kind":"fn","name":"new","sig":"a4f560fda9cf1279"},
+  {"crate":"fjell-abi","module":"service","impl_type":"","kind":"const","name":"BOOTCTL_EP_OBJECT","sig":"def2df457ec3f187"},
+  {"crate":"fjell-abi","module":"service","impl_type":"","kind":"const","name":"BOOTCTL_HEALTH_SEND_SLOT","sig":"4899a422db73d461"},
   {"crate":"fjell-abi","module":"service","impl_type":"","kind":"const","name":"INIT_RELAY_EP_OBJECT","sig":"5ba4c5c8adc895f9"},
   {"crate":"fjell-abi","module":"service","impl_type":"","kind":"const","name":"INIT_RELAY_RECV_SLOT","sig":"91d4dcf63160adc4"},
   {"crate":"fjell-abi","module":"service","impl_type":"","kind":"const","name":"INIT_RELAY_SEND_SLOT","sig":"96316f8df9facd4a"},

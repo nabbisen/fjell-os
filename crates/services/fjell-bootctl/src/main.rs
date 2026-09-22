@@ -17,9 +17,10 @@
 //!   health (`BOOT_HEALTH_REPORT`); the block decides what that means (§E).
 //!
 //! Slot layout:
-//!   0 = Endpoint (shared, object 0)
-//!   1 = Reboot cap (CapKind::Reboot, REBOOT right) — not yet installed by the
-//!       kernel; see the rollback arm.
+//!   0 = Endpoint — `BOOTCTL_EP_OBJECT`, its own dedicated object (RFC-0.33-001
+//!       D8; previously the shared object 0, raced by other receivers)
+//!   1 = Reboot cap (CapKind::Reboot, REBOOT right) — installed by the kernel
+//!       (RFC-0.33-001 D8; `spawn.rs`)
 #![no_std]
 #![no_main]
 mod rt;
@@ -114,10 +115,13 @@ pub extern "C" fn service_main() -> ! {
                         sys_debug_writeln("bootctl: health FAILED; rolling back");
                         let _ = sys_ipc_reply(0);
                         let _ = bcb.reboot();
-                        // The rollback arm still ends where it always did: the
-                        // kernel dispatches no reboot yet (RFC-0.33-001 §C/§F1),
-                        // and the call below is refused. It is not reported as
-                        // a reset because none happens.
+                        // RFC-0.33-001 D8: the dispatch arm and the Reboot
+                        // capability both now exist, so this resets the
+                        // machine — it does not return on success. The `loop`
+                        // below is reached only if the device did not do what
+                        // it is documented to do (`sys_platform_reboot`'s own
+                        // doc comment), which the caller cannot repair by
+                        // retrying.
                         let _ = sys_reboot(CapHandle(SLOT_REBOOT), 0);
                         loop {}
                     }
