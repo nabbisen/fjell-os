@@ -1,6 +1,6 @@
 # RFC-0.34-001: A second presentation
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
 **Milestone:** 0.34
 **Delivers.** The first of RFC-0.33-002 **D9**'s three v1.0 release criteria — *a
 second presentation modality, end to end* — and with it the first test of the
