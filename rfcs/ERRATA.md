@@ -2976,7 +2976,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why nothing saw it:** a presence check reported as a drift check, and the
   one mechanism that would compare layouts was specified, marked implemented,
   and never written.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **0.33**, with
+- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **RFC-0.33-003** (scoped 2026-09-24), with
   the ABI work these formats belong to. Closing it means either a generated
   schema with a real comparison gate, or retiring the frozen files and the
   claims made for them; a census of all eleven files is part of that line.
@@ -3294,7 +3294,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `/soc` handling, virtio device identification — and whether anything should
   call it at all.
 - **Resolution:** ~~**OPEN**~~ **ACCEPTED** (architect, 2026-09-15, at
-  RFC-0.32-001's review), tracked **0.33** (owner, 2026-09-22: the deletion is
+  RFC-0.32-001's review), tracked **RFC-0.33-005** (scoped 2026-09-24) (owner, 2026-09-22: the deletion is
   approved and scheduled into the milestone that does the boot-plane work). Verified before ruling: in a scratch
   crate outside the tree, `derive_board_profile` on the committed seed
   `fuzz/corpora/dtb_validate/qemu-virt-bios-none.dtb` — a real FDT
@@ -3369,7 +3369,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   literal `-p ` match cannot tell a package flag from `mkdir -p` (**E-014**'s
   family).
 - **Resolution:** **ACCEPTED** (architect, 2026-09-15; re-derived and
-  re-scoped 2026-09-16), tracked **0.33** (owner, 2026-09-16: cut 0.32 now
+  re-scoped 2026-09-16), tracked **RFC-0.33-004** (scoped 2026-09-24) (owner, 2026-09-16: cut 0.32 now
   rather than hold it for this line; the design above is settled and approved). Closing it means the hand-written
   `-p` lists are gone, not that the tool that polices them is improved:
   CI runs the same workspace-derived invocations as Gate 1 and tier 1b, from
@@ -3627,7 +3627,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   published (E-050), so no link had ever been resolved against a served site.
   `doc-links` checks paths on disk and is right to; the site is a second
   namespace, and until now there was none.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked **0.33**.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked **RFC-0.33-003** (scoped 2026-09-24).
   Closing it means both subchecks accept an absolute repository URL as a
   citation — they already know the repository — and the eleven links are
   converted, with the site checked for them afterwards rather than the
@@ -3817,7 +3817,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `StoreSuperblock` back from disk (E-044), so the padding written is never
   interpreted. It becomes one the moment anything reads it — which is what
   RFC-0.33-001's §A would have done had persistence stayed in scope.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-22), tracked **0.33**.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-22), tracked **RFC-0.33-003** (scoped 2026-09-24).
   E-046 is **not** reopened: it shipped, it fixed the receive path it named, and
   its resolution now records this correction and points here. Closing E-055
   means the four sites serialise named fields — the shape RFC-0.32-002 used for
@@ -3844,7 +3844,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (declared vs dispatched vs expected), and it is what caught this ABI change —
   so the one enum whose drift matters most is watched by a different instrument,
   and the snapshot's blindness never showed.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **0.33**.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **RFC-0.33-004** (scoped 2026-09-24).
   Closing it means an enum's item hash covers its variants, demonstrated by a
   variant added and removed, and the baseline re-recorded once with the drift
   that has accumulated invisibly named rather than absorbed.
@@ -3863,7 +3863,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why it matters beyond a typo:** a marker that can never match reads as a
   tier that is not gated on what its author wrote, and a split marker makes the
   count look right while the text checked is shorter. Both fail *open*.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **0.33**. The
+- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **RFC-0.33-004** (scoped 2026-09-24). The
   fix is a reader that respects quoting, and a check that refuses a marker
   containing a character the reader cannot carry. The workaround in
   `health-fail.toml` (splitting the marker deliberately, with a comment) stands
@@ -4000,19 +4000,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | RFC-0.33-001 | ACCEPTED |
-| E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | 0.33 | ACCEPTED |
+| E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | RFC-0.33-003 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
-| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | 0.33 | ACCEPTED |
-| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | 0.33 | ACCEPTED |
+| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | RFC-0.33-005 | ACCEPTED |
+| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | RFC-0.33-004 | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
-| E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
+| E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | RFC-0.33-004 | ACCEPTED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
-| E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | 0.33 | ACCEPTED |
-| E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | 0.33 | ACCEPTED |
-| E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | 0.33 | ACCEPTED |
+| E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | ACCEPTED |
+| E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | ACCEPTED |
+| E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | ACCEPTED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | ACCEPTED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |

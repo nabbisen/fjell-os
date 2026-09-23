@@ -442,9 +442,13 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 3 RFCs
 
-No RFC is currently under review.
+| RFC | Title |
+|-----|-------|
+| 0.33-003 | [Schemas that describe the bytes](./proposed/RFC-0.33-003-schemas-that-describe-the-bytes.md) — closes **E-045**, **E-055** |
+| 0.33-004 | [Checks that cover what they claim](./proposed/RFC-0.33-004-checks-that-cover-what-they-claim.md) — closes **E-049**, **E-052**, **E-056**, **E-057** |
+| 0.33-005 | [A parser with no tree](./proposed/RFC-0.33-005-a-parser-with-no-tree.md) — closes **E-048** |
 
 ## Archive (archive/) — 2 RFCs
 
