@@ -24,6 +24,16 @@ both reverted with the worktree):
 | **V1** — the presentation never starts | `init` does not spawn `proxy-text` | **125 lines against the normal 313.** `init` stops advancing at its first semantic publish after boot: no `[STATE]`/`[EVENT]`/`[INTENT]`, no `TEST:M7:PASS`, and `driver-uart` — `init`'s last phase — never starts. Other services carry on (`NEG:SVC:*` markers still print). |
 | **V2** — the presentation crashes mid-run | `proxy-text` faults on its 40th received call | The fault is reported (`[task#9 proxy-text]: fault(LoadPageFault)`), 229 lines against 313; **`init` stops at its next publish**, again before `driver-uart`. Everything rendered before the crash is intact. |
 
+*To reproduce (a `git worktree add --detach <dir> HEAD`, then `cargo xtask build`
+and `cargo run -p fjell-tools -- qemu-run --profile semantic` inside it):* **V1**
+— replace `fjell-init/src/main.rs`'s `spawn(ImageId::PROXY_TEXT, "M5: proxy-text
+started");` with a `sys_debug_writeln`. **V2** — in `fjell-proxy-text/src/main.rs`,
+count calls at the top of the `loop { let (tag_packed, …) = recv_call(); … }` and
+`core::ptr::read_volatile(0usize as *const u8)` when the count reaches 40.
+Counts: `grep -ac` of `[STATE]`, `[EVENT]`, `[INTENT]`, `Verified boot status`,
+`TEST:M7:PASS`, `driver-uart: ready` in the run's `serial.log` (V1: 0, 0, 0, 0, 0, 0;
+V2: 3, 1, 1, 1, 1, 0; normal: 8, 3, 3, 1, 2, 1).
+
 **The mechanism is in the source, not in the experiment.** `semantic-stream`
 forwards each envelope to `proxy-text` with `chunked::send` — a blocking
 `ipc_call` — **before** it replies to the publisher

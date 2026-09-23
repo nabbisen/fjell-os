@@ -13,6 +13,86 @@ require updating the governing record first, then this page.*
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
 | 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 | 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other **5** declared-but-undispatched syscalls (`PlatformReboot`, `TaskKill`, `MmioUnmap`, `DmaShare`, `Reboot`) was deferred to v0.22 and **did not happen**; it remains open. *Corrected at the 0.27.0 cut: this read "the other 8 … deferred to v0.22", a count that had moved (35 declared / 29 dispatched / 6 undispatched) and a deferral to a milestone that shipped without it. The current figure is printed by `syscall-surface` at every release rehearsal.* | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
+| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is not: one presentation exists (text on a serial console, output-only); no speech, braille or simplified presentation; no way for a person to answer the node through any presentation; a missing or crashed presentation stalls the publisher; nothing tested against a standard or with a person. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**; **RFC-0.33-002** D6; ADR-v0.5-005 |
+
+## Accessibility and inclusion — what does not exist yet
+
+*Written first, before the pages that state the goal (RFC-0.33-002 D6): it is the
+condition on them. Everything below was checked against the tree at the commit
+that added it, and is kept true at each cut (the third of the readiness matrix's
+inclusion rows). It describes what a person who needs speech, braille or a
+simplified presentation cannot do with Fjell **today**; it is not a promise of
+when that changes.*
+
+Fjell's design rests on presentation being a proxy's job, not the OS core's
+(requirements §2.6, §4.5). That is an **architectural** property, and it is the
+only thing this project claims here. Nothing on this page has been delivered to a
+person, and the list is the reason no page says otherwise.
+
+1. **One presentation exists, and it is text.** `fjell-proxy-text` renders the
+   intent stream to a serial console. There is no speech presentation, no braille
+   presentation and no simplified presentation. The statement that a screen and an
+   assistive device would run the same core, differing only in the proxy, has
+   been exercised with **one** proxy — which is a design intention, not a
+   demonstrated boundary. A second presentation is scoped for 0.34
+   (RFC-0.34-001, proposed).
+2. **Nothing has been driven on assistive hardware, and the validated platform
+   cannot.** QEMU `virt` has no audio device and no braille display, and no
+   hardware profile has ever booted on silicon (**E-004**). A future speech or
+   braille proxy can, on the validated platform, only *emit the stream a
+   synthesiser or a display driver would consume* — not be heard or felt.
+3. **There is no way in.** A person cannot answer, choose, confirm or refuse
+   through any presentation. `proxy-text` never reads input, **by decision**
+   (ADR-v0.5-005: an input path through the proxy would bypass capability
+   policy). The ADR names the alternative — operator input through `fjell-tools`
+   over a separate capability-gated path — and **that path is not built**: no
+   `fjell-tools` command delivers anything to a running node, and the one input
+   that does reach a node (UART receive) arrives at `init` and is used for a test
+   hook. An *input request* can be represented in the intent stream
+   (FR-SEM-001); nothing can answer one. A return leg from the proxy to the
+   stream exists, but it is driven by the proxy's own code under a demonstration
+   capability, executes nothing, and carries its rights as a payload word the
+   stream cannot verify. How input should reach the system is an open design
+   decision — an ADR is a readiness-matrix row, not yet written.
+4. **A missing or crashed presentation stalls the node's publishers.**
+   Measured, by running the `semantic` profile against a scratch build with
+   `proxy-text` not started and against one where it faults mid-run: the service
+   that next publishes to the stream stops, and `init` never reaches its last
+   phase (`driver-uart` never starts) while other services carry on
+   (`rfcs/answers/RFC-0.33-002-who-fjell-is-for-answer.md` has the figures and
+   the two edits). `semantic-stream` forwards each envelope to the proxy
+   with a blocking call before it replies to the publisher, so the proxy's
+   availability gates the core it was meant to be independent of. This is a
+   defect against the design's own claim, not an accepted trade-off.
+5. **Little of the node's state reaches a presentation.** Only `init` and one
+   SDK sample service publish to the stream. Running services do not report
+   their live state through it, so what a presentation shows today is largely
+   boot-time narration, not the state of a running node.
+6. **There are no applications.** No application model exists; the only
+   application-shaped service is an SDK reference sample. That is the founding
+   requirements' own position at v1 (§4.1: not a desktop, not an application
+   ecosystem), not an oversight.
+7. **Nothing adapts to a person.** No Personal Proxy exists (FR-SEM-003 is a
+   *Could* in the requirements). The intent stream is presentation-agnostic; no
+   measurement or per-person optimisation is built on it.
+8. **No standard is claimed, and none is tested.** Fjell makes no claim of EN 301
+   549, Section 508, WCAG or any other accessibility standard, has not been
+   evaluated against one, and has not been tested with people or with assistive
+   technology. The operator tooling is a command-line program that has not been
+   evaluated with assistive technology either; nothing here says it is, or is
+   not, usable with it.
+9. **The presentation boundary is not in the threat model.** The threat model
+   (`security/threat-model-v1.md`) does not mention a proxy or a presentation, so
+   the component that receives every operator-facing byte — and the
+   malformed-payload class T17 names as adjacent to forgery — has not been
+   analysed. That needs its own amendment before an assistive presentation on a
+   separate or personal device is described as safe.
+
+**What this section does not say.** It does not say Fjell is "accessible" or
+"inclusive" as a verdict about the product — there is no such verdict to give.
+It does not date any of the above: the roadmap places a second presentation
+modality in v1.x, the adaptive Personal Proxy is unscheduled, and the
+readiness matrix carries the three inclusion rows as work in progress.
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
