@@ -523,6 +523,22 @@ and the dated execution record above is what this project has actually done.*
 | End-to-end provision + sign + verify workflow gate | Signing-side coupling closure |
 | DMA user-VA unmap re-enabled (root-cause the v0.8.x page-table corruption) | Kernel debt |
 
+## v1.x — Inclusion: a second presentation
+
+*RFC-0.33-002 D9/D10, which supersedes two untracked papers that disagreed with
+each other about where richer proxies sit (v1.5, and v2+). This is where they sit.*
+
+Inclusion is a primary goal, stated as a goal and a mechanism, not a delivery
+(see [what does not exist yet](docs/src/releasing/v1-limitations.md)). What
+turns it from a claim into evidence is a second presentation of the same
+intent stream:
+
+| Direction | Notes |
+|---|---|
+| **A second presentation modality, end to end** | Speech or braille, driven by the same Intent Stream as `proxy-text`, observed in a QEMU tier. The line is **0.34** (RFC-0.34-001, proposed) — well before any v1.0 tag. On the validated platform it can only *emit* the stream a synthesiser or display driver would consume: QEMU `virt` has no audio device or braille display. A readiness-matrix criterion (marked in progress, not blocking). |
+| **An input path, decided** | An ADR for how a person operating through a proxy reaches the system without bypassing capability policy (ADR-v0.5-005 stands). A decision, not necessarily an implementation. A readiness-matrix criterion. |
+| **Further presentations** | Richer Presentation Proxies beyond the second — the rest of speech, braille and simplified presentation — follow the 0.34 line on the same boundary. Not dated. |
+
 ## v2 and beyond — Longer-horizon directions
 
 These realize parts of the original requirements deferred as non-goals for the
@@ -534,14 +550,13 @@ initial phases (requirements §7.3, §8 "Could"):
 | **Multi-hart / SMP** | SMP scheduling, per-hart locking, IPIs. Closes v1.0 limitation item 2. |
 | **Hardware-anchored provisioning** | Trust anchor rooted in hardware (PMP/enclave), superseding dev/QEMU TOFU. |
 | **Active power-state scheduling** | Realize FR-KRN-006 fully: suspend/resume coupled to hardware C-states, beyond today's telemetry. |
-| **Personal Proxy & continuous state measurement** | The ABDD analysis's second and third shifts: proxy-side dynamic adaptation and continuous telemetry-driven adjustment (beyond the text reference proxy). |
-| **Richer Presentation Proxies** | Audio, braille, and other proxies on the existing semantic boundary. |
+| **Personal Proxy & continuous state measurement** | **Unscheduled — not dated, and not what v1.x schedules.** The ABDD analysis's second and third shifts: proxy-side dynamic adaptation and continuous telemetry-driven adjustment (beyond the text reference proxy). A *Could* in the requirements (§8); it stays beyond v1.x until the owner says otherwise. |
 | **Multi-architecture** | Bring `fjell-arch-arm64` from stub to a real target. |
 
 ## Explicit non-goals (unchanged across the roadmap)
 
 Per the requirements' "will not do" declarations, Fjell does **not** pursue:
-becoming a general-purpose desktop OS; full POSIX/Linux compatibility; a GUI
+becoming, at v1, a general-purpose desktop OS (requirements §4.1: *initially* — a statement about sequencing, not about who may operate a node); full POSIX/Linux compatibility; a GUI
 stack in the OS core; an AI-native kernel; a `root`-premised authority model;
 pulling drivers back into the kernel; cloud-mandatory operation; or a universal
 accessibility-settings collection.
