@@ -3869,6 +3869,89 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `health-fail.toml` (splitting the marker deliberately, with a comment) stands
   until then — it is honest and it is documented.
 
+## E-058 — an absent or crashed presentation stalls the publishers it was meant to be independent of
+
+- **Claim:** ADR-0005 and `external-design/abdd-semantic.md`: services emit
+  meaning and a proxy renders it, so *"a screen, a screen reader and an assistive
+  personal device run the same core; only the proxy differs"*. RFC-0.33-002's
+  archetype **A4** is a node attended through such a presentation.
+- **Tree, observed 2026-09-24:** `fjell-semantic-stream`'s `PUBLISH_COMMIT` arm
+  calls `forward_to_proxy_text` — a **blocking** `chunked::send` — **before** it
+  replies to the publisher. So the publisher's own call cannot complete until the
+  proxy has answered. Measured by the implementer in scratch builds, on the
+  `semantic` profile: with `proxy-text` never started, output falls from 313
+  lines to **125** and every semantic marker count to **0**, `init` stopping at
+  its first publish after boot; with `proxy-text` faulting mid-run, 229 lines and
+  the publisher stopping at its next publish. Other services carry on in both.
+- **Why it matters more than a hang:** the property the design claims is that the
+  core does not depend on how it is presented. **Here the presentation's
+  availability gates the core**, so the archetype that exists *because* a person
+  needs a different presentation is the archetype whose presentation can wedge
+  the node's narration. It is a defect against the design's own claim, not a
+  trade-off anyone chose.
+- **Why nothing saw it:** every tier runs with `proxy-text` present and healthy —
+  its markers are load-bearing in three profiles — so the dependency was never
+  exercised in the one configuration that would show it. Writing A4's "what it
+  does when the presentation is unavailable" sentence is what produced the
+  question.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked
+  **RFC-0.34-001**. A second presentation multiplies this — each proxy becomes
+  something a publisher can be stuck behind — so the line that adds one is the
+  line that must remove the coupling: a publisher's reply may not wait on any
+  presentation, and an unavailable or faulting proxy must be observable without
+  stalling anything.
+
+## E-059 — the action a person could take is authorised on a payload word the authoriser cannot verify
+
+- **Claim:** `fjell-semantic-stream`'s `dispatch_action_checked` doc comment:
+  *"`granted_rights` is the caller's kernel-verified rights bitmask (read via
+  `sys_cap_inspect` on the caller's side, **not self-asserted**)."*
+- **Tree, observed 2026-09-24:** the proxy's return leg sends `DISPATCH_ACTION`
+  with that bitmask as **an ordinary IPC payload word** (`granted_rights = w2 as
+  u32`), and the stream authorises the action by `required & !granted_rights ==
+  0`. The proxy does read its own rights through `sys_cap_inspect` — so the value
+  is kernel-verified **where it is read**, and **self-asserted where it is
+  used**: nothing on the receiving side can confirm that the word it got came
+  from that inspection rather than from anywhere else. The kernel attests *who*
+  sent the message, never *what the sender holds*.
+- **Not exploitable today, and the reason is not reassuring:** a permitted action
+  **executes nothing**. `dispatch_action_checked` returns `Ok` or `Denied` as a
+  message and performs no operation, so the defect is currently a false statement
+  about authority rather than a way to obtain it. **An input path would be built
+  on exactly this leg** (RFC-0.33-002 §C), which is when it would start to
+  matter.
+- **Why nothing saw it:** the comment asserts the property, the code is short and
+  reads plausibly, and no instrument checks that an authority claim crossing IPC
+  is attested rather than carried. Gate 11's callsite checks cover
+  `sys_cap_inspect`'s own use, not what a service does with the answer.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**, with
+  §C's input-path decision: either the stream inspects the caller's rights itself
+  from the kernel-attested sender identity, or the action is authorised by a
+  capability the proxy must present rather than a number it may claim. The false
+  comment goes with the fix, not before it.
+
+## E-060 — the presentation boundary is absent from the threat model
+
+- **Claim:** `docs/src/security/threat-model-v1.md` is *"Authoritative for
+  v1.0.0"* (RFC-v0.15-002) and enumerates T1–T20 with adversaries, defences and
+  residuals; the 0.32.0 cut's review added to **T17** the class adjacent to
+  sender forgery — a correctly identified sender whose payload is malformed.
+- **Tree, observed 2026-09-24:** the file contains **no proxy and no
+  presentation** (searched with a control: `T17` is found in the same file). So
+  the component that receives every operator-facing byte, that RFC-0.33-002 now
+  names in an archetype, and that E-058 shows can stall the node, has never been
+  analysed as a boundary — including the case the model does name in the
+  abstract, a legitimate sender sending something malformed.
+- **Why nothing saw it:** the model was written when `proxy-text` was a
+  demonstration of a rendering, not a component an archetype depends on. Nothing
+  re-reads a threat model when a document elsewhere starts relying on a component
+  it omits.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. The
+  model is authoritative for v1.0 and changes require their own RFC, so closing
+  this means an amendment RFC covering the presentation boundary — the proxy as a
+  sender, as a receiver, and as a component whose absence is a failure mode —
+  alongside the second-presentation line that makes the boundary real.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -3930,6 +4013,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | 0.33 | ACCEPTED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | 0.33 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | 0.33 | ACCEPTED |
+| E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | ACCEPTED |
+| E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
+| E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

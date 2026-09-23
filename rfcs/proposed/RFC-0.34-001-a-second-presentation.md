@@ -18,8 +18,11 @@ line would otherwise have to extend).
 
 ### Finding 1 — the claim has never been tested, and it is load-bearing
 
-`fjell-proxy-text` is the only proxy: **211 lines**, rendering to the serial
-console and dispatching the actions an intent offers. Every statement the project
+`fjell-proxy-text` is the only proxy: **211 lines in `main.rs`, 1,069 in the
+crate** (`renderer.rs` is 540 of them — *figure corrected at RFC-0.33-002's
+review, which re-derived it; the point stands and the renderer is larger than the
+service*), rendering to the serial console and dispatching the actions an intent
+offers. Every statement the project
 makes about inclusion — in the requirements, in ADR-0005, in
 `external-design/abdd-semantic.md` — rests on *one* renderer of the intent
 stream. **One implementation of an interface is a design intention, not a
@@ -71,6 +74,17 @@ output can only be checked by eye is not checkable.
 
 **D5 — `proxy-text` is not modified beyond what fan-out requires.** Its markers
 are load-bearing in three tiers.
+
+**D8 — No presentation may stall a publisher** (**E-058**, filed at
+RFC-0.33-002's review). `semantic-stream` forwards to the proxy with a blocking
+call *before* replying to the publisher, so today an absent or faulting
+presentation stops the emitter — measured at 313 → 125 output lines with
+`proxy-text` never started. **A second proxy multiplies it**, which is why the
+line that adds one removes the coupling: a publisher's reply may not wait on any
+presentation, and an unavailable or faulting proxy must be observable without
+stalling anything. **This is a requirement of this line, not a bonus** — and its
+demonstration is a tier that runs with one presentation deliberately absent and
+shows the node's narration continuing.
 
 **D6 — ADR-v0.5-005 stands: output only.** The input path is RFC-0.33-002 §C's
 open question and is **not** opened here.
@@ -148,8 +162,12 @@ stream is *for*, and which hardware still does not exist.
 **R8 — The prebuilt set and the repro baseline** re-recorded in the same commit
 as the rebuild — the rule E-0.33's line learned twice.
 
-**R9 — The gates**, each by its own exit status, `test-all` including the new
-tier, the ABI snapshot re-recorded for the new items, and a CI run id.
+**R9 — D8:** the coupling removed, with a tier that starts one presentation and
+not the other and shows the publisher unaffected. **E-058 CLOSED**, or its
+survivor named.
+
+**R10 — The gates**, each by its own exit status, `test-all` including the new
+tiers, the ABI snapshot re-recorded for the new items, and a CI run id.
 
 ### Non-goals
 

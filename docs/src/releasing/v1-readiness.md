@@ -3,6 +3,13 @@
 *Governed by RFC-v0.10-007. Every cell must be DONE or DEFERRED
 (with rationale) before the v1.0.0 tag. OPEN cells block the release.*
 
+*Amended 2026-09-24 (RFC-0.33-002's review): **IN PROGRESS is a transitional
+state, not a third verdict.** A row may stand at `IN PROGRESS → <version>` while
+the work is scheduled, and **must** have become DONE or DEFERRED before the
+v1.0.0 tag — the rule above is unchanged, and an in-progress cell at the tag is a
+blocked release. Only the literal blocking marker reddens Gate 5, which is why
+the distinction is written here rather than left to the tool.*
+
 *Last updated: 0.33 (three inclusion rows added, RFC-0.33-002 D9; the rest last reviewed at v0.20.0)*
 
 ---
@@ -121,7 +128,14 @@
 | DEFERRED | 3 |
 | OPEN | 0 |
 
-*v1.0.0 released. Zero OPEN cells. Zero IN PROGRESS items.*
+*Zero OPEN cells. Three IN PROGRESS items (RFC-0.33-002 D9's inclusion rows).*
+
+*Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
+PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
+`0.32.0` — and the owner's direction of 2026-07-30 is that v1.0 is explicitly not
+in view. The sentence stated a release that has not happened, in the document that
+defines what the release requires, and nothing read it. Found at RFC-0.33-002's
+review, having predated that line.*
 
 ---
 

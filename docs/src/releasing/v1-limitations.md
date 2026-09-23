@@ -13,7 +13,7 @@ require updating the governing record first, then this page.*
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
 | 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 | 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other **5** declared-but-undispatched syscalls (`PlatformReboot`, `TaskKill`, `MmioUnmap`, `DmaShare`, `Reboot`) was deferred to v0.22 and **did not happen**; it remains open. *Corrected at the 0.27.0 cut: this read "the other 8 … deferred to v0.22", a count that had moved (35 declared / 29 dispatched / 6 undispatched) and a deferral to a milestone that shipped without it. The current figure is printed by `syscall-surface` at every release rehearsal.* | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
-| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is not: one presentation exists (text on a serial console, output-only); no speech, braille or simplified presentation; no way for a person to answer the node through any presentation; a missing or crashed presentation stalls the publisher; nothing tested against a standard or with a person. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**; **RFC-0.33-002** D6; ADR-v0.5-005 |
+| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is not: one presentation exists (text on a serial console, output-only); no speech, braille or simplified presentation; no way for a person to answer the node through any presentation; a missing or crashed presentation stalls the publisher; nothing tested against a standard or with a person. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058**, **E-059**, **E-060**; **RFC-0.33-002** D6; ADR-v0.5-005 |
 
 ## Accessibility and inclusion — what does not exist yet
 
@@ -63,7 +63,9 @@ person, and the list is the reason no page says otherwise.
    the two edits). `semantic-stream` forwards each envelope to the proxy
    with a blocking call before it replies to the publisher, so the proxy's
    availability gates the core it was meant to be independent of. This is a
-   defect against the design's own claim, not an accepted trade-off.
+   defect against the design's own claim, not an accepted trade-off. **Filed as
+   E-058** at this line's review, tracked to RFC-0.34-001, which adds a second
+   presentation and would otherwise multiply it.
 5. **Little of the node's state reaches a presentation.** Only `init` and one
    SDK sample service publish to the stream. Running services do not report
    their live state through it, so what a presentation shows today is largely
@@ -86,7 +88,21 @@ person, and the list is the reason no page says otherwise.
    the component that receives every operator-facing byte — and the
    malformed-payload class T17 names as adjacent to forgery — has not been
    analysed. That needs its own amendment before an assistive presentation on a
-   separate or personal device is described as safe.
+   separate or personal device is described as safe. **Filed as E-060** at this
+   line's review, tracked 0.34; the threat model is authoritative for v1.0 and
+   changes require its own RFC.
+10. **The one action a person could take is authorised on a word the authoriser
+   cannot check** (**E-059**, filed at this line's review, tracked 0.34). The
+   presentation's return leg sends `DISPATCH_ACTION` carrying the rights it holds
+   as an ordinary payload word, and `semantic-stream` compares the action's
+   required rights against that word. The proxy does read its own rights through
+   `sys_cap_inspect`, so the value is kernel-verified **where it is read** and
+   self-asserted **where it is used** — nothing on the receiving side can confirm
+   the word came from that inspection, and the function's own comment says *"not
+   self-asserted"*. Today a permitted action **executes nothing** (the dispatch
+   returns `Ok` or `Denied` as a message), so this is a false claim about
+   authority rather than a way to exercise it — and it is what an input path
+   (item 3) would be built on.
 
 **What this section does not say.** It does not say Fjell is "accessible" or
 "inclusive" as a verdict about the product — there is no such verdict to give.
