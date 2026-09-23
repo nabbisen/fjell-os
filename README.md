@@ -36,10 +36,12 @@ Fjell is for operators who need to answer three questions about every node in th
 - **Who authorised it?** — Every capability grant has a traceable, leased provenance.
 - **How do I recover?** — Every documented failure mode has a tested playbook.
 
-Primary archetypes: industrial gateway (A1), sensor/edge fleet node (A2), regulated field device (A3).
+Primary archetypes: industrial gateway (A1), sensor/edge fleet node (A2), regulated field device (A3), and an operator-attended node with an assistive presentation (A4).
 
 Not for: general-purpose servers, desktop environments, POSIX-compatible workloads.
 See [v1.0 Non-Goals](docs/src/releasing/v1-non-goals.md).
+
+Inclusion is a primary goal, stated as a goal and a mechanism (presentation is a proxy's job, not the OS core's), **not as a delivery**: one text presentation exists, and [what does not exist yet](docs/src/releasing/v1-limitations.md) is written down.
 
 ---
 

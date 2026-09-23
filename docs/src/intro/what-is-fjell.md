@@ -33,6 +33,27 @@ Fjell is written in Rust (`no_std` kernel and services) and targets QEMU
 `virt` as the validated v1.0 profile, with real-hardware deployment tracked
 as a post-v1.0 milestone.
 
+## Inclusion is a primary goal — and this is how far it goes
+
+Alongside assurance, **inclusion is one of Fjell's primary goals.** The
+mechanism is architectural: a service does not draw pixels, it emits *meaning* —
+state, choices, warnings, the actions it offers — as a structured stream, and a
+separate **presentation proxy** renders that stream. Because rendering is not the
+OS core's job, a screen, speech, braille or a simplified summary are meant to be
+different proxies on the same core, not different products. That is also what
+keeps a GUI stack out of the core, and it is why the design does not try to
+enumerate categories of user: it makes presentation something anyone can supply.
+
+That is a **goal and a mechanism, not a delivery.** Today one presentation
+exists, and it is text on a serial console; there is no speech or braille
+presentation, no way for a person to answer the node through any presentation,
+and nothing has been tested against an accessibility standard or with people.
+The full list is on one page, beside the claim it qualifies:
+[what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
+A second presentation is proposed for the next milestone; the
+[roadmap](https://github.com/nabbisen/fjell-os/blob/main/ROADMAP.md) records the
+plan, and nothing here says it is done.
+
 For who this is for, read [Why Fjell?](why-fjell.md). For the architecture,
 start at the [Overview](../architecture/overview.md). For what Fjell
 deliberately does not do, see [v1.0 Non-Goals](../releasing/v1-non-goals.md).

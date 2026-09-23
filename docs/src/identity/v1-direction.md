@@ -17,9 +17,16 @@ machine-readable evidence record that can be independently verified.
 See [Trust Report](https://github.com/nabbisen/fjell-os/blob/main/releases/trust-report.txt) for the artefact this
 produces.
 
+Its interface is **meaning, not pixels**: services emit state, choices and
+intent as a structured stream, and a separate presentation proxy renders it
+(requirements §2.6, §4.5). That is the mechanism behind **inclusion**, a primary
+goal alongside assurance — a goal and a mechanism, not a delivery. What a person
+needing a non-visual or simplified presentation cannot do today is written down
+in [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
+
 ---
 
-## Who Fjell is for — three archetypes
+## Who Fjell is for — four archetypes
 
 ### A1: Industrial gateway
 
@@ -42,6 +49,20 @@ A device subject to certification regimes (IEC 62304, IEC 61508, ISO
 edge instruments. The compliance auditor must be able to reconstruct any
 state from recorded evidence.
 
+### A4: Operator-attended node with an assistive presentation
+
+The same kind of node as A1 — a control-network gateway, a cell controller —
+attended by a person who reads its state, warnings and offered actions through
+speech, braille or a simplified summary instead of a screen. The core, the
+capabilities and the audit trail are A1's; only the presentation proxy that
+consumes the node's intent stream differs. It is the archetype the founding
+requirements name (§3.1, devices requiring integration with accessible external
+UIs). A4 joins A1–A3 and displaces none of them. Today one presentation exists
+(text on a serial console), there is no way for the operator to answer the node
+through it, and a missing presentation stalls the publisher rather than being
+tolerated — see
+[what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
+
 ---
 
 ## What Fjell is not
@@ -51,7 +72,10 @@ The following are explicitly **not** targeted before v1.0. See
 rationale.
 
 - General-purpose servers or web hosting
-- Desktop / laptop user environments
+- A desktop or laptop *environment* — a full desktop, an application store,
+  drop-in desktop-application compatibility. This does not exclude a person
+  operating a node through an assistive presentation (A4): presentation is a
+  proxy's job, not the OS core's
 - POSIX-compatible OS
 - Container orchestration substrate
 - Package manager with dependency resolution
@@ -129,6 +153,6 @@ post-quantum hybrid mode) lives under `research/` and is not mainline.
 Promotion to `crates/` requires:
 
 - An RFC in `proposed/`.
-- Demonstration against at least one of A1, A2, A3.
+- Demonstration against at least one of A1, A2, A3, A4.
 - Passing the unsafe-audit, reproducible-build, and test-all gates.
 - No relaxation of I1–I8.

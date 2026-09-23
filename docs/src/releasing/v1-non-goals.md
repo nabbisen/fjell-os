@@ -33,7 +33,9 @@ individually justified below. Changes require an identity-level RFC.*
 
 **Fjell does not provide:** Any windowing system, GPU driver, or browser runtime.
 
-**Why rejected:** Fjell targets headless edge/fleet nodes (A1/A2/A3). A GUI stack would dwarf the kernel surface.
+**Why rejected:** Fjell targets nodes whose interface is *meaning* rather than pixels — headless industrial and fleet nodes (A1/A2/A3) **and** nodes operated through an assistive presentation (A4). A GUI stack in the core would dwarf the kernel surface, and would make presentation the OS's job instead of a proxy's.
+
+**What N3 does not exclude:** a person. It rejects hosting a windowing system, a GPU driver or a browser runtime; it says nothing against operating a node through speech, braille or a simplified presentation, which is what keeping rendering out of the core is *for*. *(RFC-0.33-002 D4. This rationale used to read "Fjell targets headless edge/fleet nodes (A1/A2/A3)", which narrowed the target set below the founding requirements' §3.1 without saying so. What N3 rejects is unchanged.)*
 
 ---
 
