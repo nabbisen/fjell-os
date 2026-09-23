@@ -53,7 +53,7 @@ presentation — the OS prescribes no display method.
 | FR-SEM-002 Presentation Proxy boundary | Stream consumed by a proxy that owns presentation | `fjell-proxy-text` (reference) |
 | FR-SEM-003 Personal Proxy support | Structured state suffices for per-user adaptation on the proxy side | schema is presentation-agnostic |
 | FR-SEM-004 Stream auth & integrity | See [Security & Trust](./security-trust.md) — signed, sequenced, per-proxy scope | `secure-transportd`, capability scope |
-| FR-SEM-005 UI-independent operation | Same operation via console, API, audit tooling, proxy | text console + structured API |
+| FR-SEM-005 UI-independent operation | Same operation via console, API, audit tooling, proxy | **Output only**: text via `proxy-text`. No input path is built (ADR-v0.5-005; [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet)), so the same *operation* cannot yet be performed through a console or a proxy |
 | NFR-ACC-001 No loss of meaning | Nodes carry severity/importance/operability, not just strings | `Severity`/`Importance`/`Status` |
 | NFR-ACC-002 Display-independence | No visual GUI dependency anywhere in core operation | proxy-side rendering only |
 | NFR-ACC-003 Extensibility | No fixed user categories in the OS; proxy extends rules | catalog is data, proxy is external |
@@ -68,6 +68,7 @@ verifiability goal (no GUI stack to verify — "will not do" 4.5), the
 sustainability goal (no rendering power in the base system), and the inclusion
 goal (unknown needs handled on the proxy side). A display-less industrial robot
 and an assistive personal device run the *same* core; only the proxy differs.
+That is the architectural claim; it has been exercised with **one** proxy (§5).
 
 ## 5. As-built scope limits & gaps
 
@@ -75,8 +76,20 @@ and an assistive personal device run the *same* core; only the proxy differs.
   input latency, mistap frequency, etc.) is a *design direction* for the proxy
   layer, not implemented in v1.0. The OS provides the semantic substrate that
   would make it possible; the adaptive proxy is future work.
-- **The reference proxy is text-only.** Audio, braille, and richer proxies are
-  out of v1.0 scope; the boundary is designed to support them.
+- **The reference proxy is text-only.** A second presentation is proposed for
+  0.34 (RFC-0.34-001) and is a v1.x readiness criterion (RFC-0.33-002 D9/D10);
+  until one exists, that the boundary supports more than one proxy is a design
+  intention, not a demonstrated fact. Audio and braille cannot be *heard or
+  felt* on the validated platform (QEMU `virt` has neither device): a proxy can
+  only emit the stream a synthesiser or display driver would consume.
+- **An unavailable proxy stalls the publisher.** `semantic-stream` forwards each
+  envelope to the proxy with a blocking call before replying to the service that
+  published it, so a proxy that never started or has crashed stops the emitting
+  service. The design intent — the proxy is downstream and the core does not
+  wait on it — is not what is built (measured; see
+  [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet)).
+- **There is no input path.** The proxy is output-only by decision
+  (ADR-v0.5-005); the `fjell-tools` route that ADR names is not built.
 - **Personal Proxy** (FR-SEM-003) is supported by the schema being
   presentation-agnostic, but no Personal Proxy implementation ships at v1.0.
 

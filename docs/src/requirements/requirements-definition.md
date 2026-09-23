@@ -117,9 +117,22 @@ transformation side of the semantic stream.
 
 To keep the purpose clear, Fjell OS explicitly will **not** do the following.
 
-**4.1 Not aim to be a general-purpose desktop OS** — no full desktop
-environment, consumer app store, gaming, high-end GUI workstation use (video
-editing, 3D), or drop-in compatibility with existing desktop apps.
+**4.1 Not initially aim to be a general-purpose desktop OS** — Fjell shall not
+initially aim to replace Windows, macOS or conventional Linux desktop
+environments: no full desktop environment, consumer app store, gaming, high-end
+GUI workstation use (video editing, 3D), or drop-in compatibility with existing
+desktop apps. This is a statement about GUI stacks, application-ecosystem
+breadth and sequencing (§8 lists it under *Won't (initial phase)*). **It
+excludes no person, and says nothing against personal or assistive use.**
+
+> *Note (RFC-0.33-002 D3).* This item used to read *"Not aim to be a
+> general-purpose desktop OS"*, without the founding document's own qualifier
+> — *"shall not **initially** aim…"*, *"not included in the **initial** goals"* —
+> which turned a statement about sequencing into a permanent one and could be
+> read as excluding personal or assistive use. The requirements never said that;
+> §3.1 lists devices integrating with accessible external UIs as a **primary**
+> target. The architectural non-goal that does the work for inclusion is §4.5
+> (no GUI rendering stack in the core), which is unchanged.
 
 **4.2 Not aim for full Linux/POSIX compatibility** — a compatibility layer may
 be considered later, but it is not a core value, and compatibility must never
