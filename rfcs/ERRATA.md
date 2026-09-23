@@ -3752,6 +3752,46 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > approved for 0.34, superseding the two untracked papers that said v1.5 and
   > v2+ and disagreed with each other.
 
+- **Resolution:** **CLOSED** 2026-09-24 by **RFC-0.33-002**. The documents now
+  say the same thing about who Fjell is for, and the limits are on the page
+  beside the goal.
+
+  | | before | after |
+  |---|---|---|
+  | intro pages that name inclusion or presentation | 0 of 3 | **3 of 3** |
+  | archetypes | A1–A3 | **A1–A4**; A4 a concrete node, in the two pages that list them |
+  | places stating the audience as A1–A3 only | 9 (the RFC named 3) | **2 left on purpose**: N10's rationale (WASM; A4 is not a use case for it) and a dated readiness row (*"Archetypes A1, A2, A3 defined"*, v0.9.4) |
+  | requirements §4.1 | *"Not aim to be a general-purpose desktop OS"* — the founding document's "initially" dropped | *"Not initially aim…"*, *"it excludes no person"*, a note recording the old wording |
+  | requirements §4.5 | — | **byte-identical** (compared, not eyeballed) |
+  | N3's rationale | *"Fjell targets headless edge/fleet nodes"* | targets nodes whose interface is meaning, incl. assistive presentations; *"What N3 does not exclude: a person"* |
+  | limitations section for a person needing speech, braille or simplified presentation | none | **nine items** in `v1-limitations.md`, a row 8 in the Gate 9 table, written **before** the pages that state the goal |
+  | readiness matrix rows that mention inclusion | 0 of 58 | **3 of 61**, each marked in progress and never blocking; `readiness-check` 55/0/3/0 → 55/3/3/0, exit 0 both, and the same row marked blocking turns it red (control) |
+  | roadmap | richer proxies at v2+ (and, in two untracked papers, v1.5 and v2+) | **v1.x**, the 0.34 line named; the adaptive Personal Proxy **unscheduled**, not dated |
+
+  **Two corrections to this entry, from implementing it.** *"80 rows"* is **80
+  table lines**: 58 are status rows. And item 4's *"a screen, a screen reader and
+  an assistive personal device run the same core"* is a paraphrase presented as
+  the text of `abdd-semantic.md`, which says *"a display-less industrial robot
+  and an assistive personal device run the same core"*. The claim stands; the
+  words were not the file's.
+
+  **What closing this did not do, named rather than implied.** It closes the
+  *contradiction between documents*, not the inclusion it describes: a second
+  presentation, a decided input path and any tested conformance are the three
+  readiness rows, in progress. **Four things found while writing it are not
+  E-054 and are not fixed here** — candidates for the architect to file:
+  (1) **an absent or crashed presentation stalls the publisher** —
+  `semantic-stream` forwards to `proxy-text` with a blocking call before
+  replying, so `init` stops at its next publish (measured: 125 and 229 lines
+  against 313 in the `semantic` profile; `rfcs/answers/RFC-0.33-002-…-answer.md`
+  has the two edits); (2) **the proxy's return leg carries its rights as a
+  payload word the stream cannot verify** and executes nothing, under a comment
+  that calls it kernel-verified; (3) **the threat model contains no proxy or
+  presentation boundary**; (4) **ADR-v0.5-005 names a `fjell-tools` input route
+  that does not exist**. And the limit E-054 itself named survives: **no
+  instrument reads a page**, so nothing would notice two chapters describing
+  different audiences again.
+
 ## E-055 — `fjell-init` writes struct padding to disk through four raw byte-slice views, and the probe that said otherwise was blind
 
 - **Claim:** E-046's closure, the 0.32.0 CHANGELOG entry and the 0.32.0 release
@@ -3886,7 +3926,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | 0.33 | ACCEPTED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
-| E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | ACCEPTED |
+| E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | 0.33 | ACCEPTED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | 0.33 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | 0.33 | ACCEPTED |

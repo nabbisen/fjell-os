@@ -895,17 +895,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   the kernel; that measurement was taken with a `grep` that silently skips
   files containing NUL bytes, and `fjell-init` was the only such file.
 
-- **The documentation does not say who Fjell is for** (Errata **E-054**,
-  ACCEPTED, tracked to RFC-0.33-002). Inclusion — ABDD, the separation of
-  meaning from presentation — is one of the founding requirements' design
-  principles and one of four pillars its closing note names, and neither page a
-  reader meets first mentions it; the non-goals' N3 rationale and the identity
-  document narrow the audience to headless industrial nodes, while the same
-  book's requirements chapter lists accessible-UI devices as a primary target.
-  What a person needing speech, braille or simplified presentation cannot do
-  today is not written down anywhere: there is one proxy, `fjell-proxy-text`, it
-  is output-only by decision (ADR-v0.5-005), and no accessibility standard is
-  claimed or tested.
+- **The documentation did not say who Fjell is for** (Errata **E-054**,
+  **CLOSED** 2026-09-24 by RFC-0.33-002). Inclusion — the separation of meaning
+  from presentation — is a founding pillar, and neither page a reader meets first
+  named it while the non-goals and identity pages narrowed the audience to
+  headless industrial nodes. The pages now name it a primary goal *as a goal and a
+  mechanism, not a delivery*, carry a fourth archetype, and the limits are in
+  [the section above](#accessibility-and-inclusion--what-does-not-exist-yet), which
+  is the condition on that claim and is kept true at each cut.
 
 - **Eleven compliance and release citations are unreachable from the published
   book** (Errata **E-052**, ACCEPTED, tracked to 0.33). They are relative paths
