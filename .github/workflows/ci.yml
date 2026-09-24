@@ -167,6 +167,7 @@ jobs:
             -p fjell-policy-format \
             -p fjell-semantic-stream \
             -p fjell-proxy-text \
+            -p fjell-semantic-fanout \
             -p fjell-ci-coverage \
             --lib
       - name: Cross-check service binaries (RISC-V)
@@ -183,6 +184,7 @@ jobs:
             -p fjell-driver-virtio-blk \
             -p fjell-driver-virtio-net -p fjell-secure-transportd \
             -p fjell-fleetd \
+            -p fjell-semantic-stream -p fjell-proxy-relay \
             --target riscv64gc-unknown-none-elf \
             -Z build-std=core,compiler_builtins
 

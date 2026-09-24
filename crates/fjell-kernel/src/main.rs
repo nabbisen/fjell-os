@@ -791,6 +791,32 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // error until this line was added.
     let bootctl_health_ep_id = et.alloc().expect("alloc bootctl endpoint");
     let _ = bootctl_health_ep_id; // id=12
+    // RFC-0.34-001 D8: each presentation's own endpoint, where the stream's
+    // wake arrives. Same allocation step, same reason as every comment above —
+    // and unlike them, **the id is asserted**: `alloc()` hands out the next
+    // free object, so a constant that names an object nobody allocated (or an
+    // allocation added above this line without moving the constant) stops the
+    // boot here, in every tier, instead of failing one IPC later with
+    // `InvalidCap` from a perfectly valid capability.
+    let proxy_relay_ep_id = et.alloc().expect("alloc proxy-relay endpoint");
+    assert_eq!(
+        proxy_relay_ep_id,
+        fjell_abi::service::PROXY_RELAY_EP_OBJECT,
+        "PROXY_RELAY_EP_OBJECT does not name the object just allocated"
+    );
+    let proxy_braille_ep_id = et.alloc().expect("alloc proxy-braille endpoint");
+    assert_eq!(
+        proxy_braille_ep_id,
+        fjell_abi::service::PROXY_BRAILLE_EP_OBJECT,
+        "PROXY_BRAILLE_EP_OBJECT does not name the object just allocated"
+    );
+    // ...and the whole table, so the total cannot drift from the constant the
+    // host test counts allocations against (`ENDPOINT_OBJECT_COUNT`).
+    assert_eq!(
+        proxy_braille_ep_id + 1,
+        fjell_abi::service::ENDPOINT_OBJECT_COUNT,
+        "ENDPOINT_OBJECT_COUNT is not one past the last endpoint allocated"
+    );
 
     // Idle task — no capabilities needed.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.

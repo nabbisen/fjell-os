@@ -15,3 +15,4 @@ fjell-abi            = { path = "../../fjell-abi" }
 fjell-syscall        = { path = "../../fjell-syscall" }
 fjell-service-api    = { path = "../../fjell-service-api" }
 fjell-semantic-format = { path = "../../formats/fjell-semantic-format" }
+fjell-semantic-fanout = { path = "../../fjell-semantic-fanout" }

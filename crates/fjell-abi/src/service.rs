@@ -203,6 +203,40 @@ pub const BOOTCTL_EP_OBJECT: u32 = 12;
 /// elsewhere would still be refused — but nothing else is granted one.
 pub const BOOTCTL_HEALTH_SEND_SLOT: u32 = 22;
 
+// ── RFC-0.34-001 D8: presentations that ask, and their endpoints ──────────────
+//
+// `semantic-stream` never initiates a blocking IPC to a presentation: each one
+// asks the stream for its next message and is answered by reply, and is woken
+// through an endpoint of its own. See `fjell-semantic-fanout` and
+// `rfcs/answers/RFC-0.34-001-a-second-presentation-answer.md`.
+
+impl ImageId {
+    /// Asks the stream for messages and forwards each to `proxy-text` with the
+    /// blocking call `proxy-text` has always answered — so `proxy-text` is
+    /// unchanged and whatever it blocks is blocked in this task, not in the
+    /// stream (RFC-0.34-001 D5/D8).
+    pub const PROXY_RELAY: ImageId = ImageId(0x1F); // 31
+    /// The second presentation: uncontracted braille cells, written to the
+    /// console as the stream a display driver would consume (RFC-0.34-001 §A).
+    pub const PROXY_BRAILLE: ImageId = ImageId(0x20); // 32
+}
+
+/// The endpoint object `proxy-relay` receives its wake on.
+pub const PROXY_RELAY_EP_OBJECT: u32 = 13;
+
+/// The endpoint object `proxy-braille` receives its wake on.
+pub const PROXY_BRAILLE_EP_OBJECT: u32 = 14;
+
+/// How many endpoint objects the kernel allocates at boot: the highest object
+/// id above, plus one. `crates/fjell-kernel/src/main.rs` asserts that each
+/// `et.alloc()` returns the object its constant names, and a host test counts
+/// the `et.alloc()` calls against this number — because a constant that names
+/// an object nobody allocated fails every IPC to it with `InvalidCap`, from a
+/// capability that is itself perfectly valid, and that mistake is recorded in
+/// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
+/// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
+pub const ENDPOINT_OBJECT_COUNT: u32 = 15;
+
 #[cfg(test)]
 mod image_id_v07_tests {
     use super::ImageId;
@@ -227,5 +261,82 @@ mod image_id_v07_tests {
         // v0.3 max was SVC_FAULT = 22 = 0x16
         assert_eq!(ImageId::SVC_FAULT.0, 22);
         assert!(ImageId::DRIVER_VIRTIO_NET.0 > ImageId::SVC_FAULT.0);
+    }
+}
+
+/// RFC-0.34-001 §B: the endpoint-allocation trap, closed by a test instead of a
+/// comment. Endpoint objects are allocated by `et.alloc()` calls in the
+/// kernel's `main.rs`; the ids they return were thrown away, so the constants
+/// above and the allocations were related only by statement order. The kernel
+/// now asserts each new id at boot; this test counts the allocations against
+/// `ENDPOINT_OBJECT_COUNT` and checks that no object id the spawn table names
+/// is beyond them — the omission that cost RFC-0.33-001 a live defect.
+///
+/// It reads two kernel source files as text. That is blunt, and it is here
+/// because the alternative is a test that cannot see the kernel at all.
+#[cfg(test)]
+mod endpoint_allocation_tests {
+    use super::*;
+
+    const KERNEL_MAIN: &str = include_str!("../../fjell-kernel/src/main.rs");
+    const SPAWN: &str = include_str!("../../fjell-kernel/src/task/spawn.rs");
+
+    #[test]
+    fn every_endpoint_object_is_allocated_at_boot() {
+        // Every allocation's `.expect("alloc ... endpoint")` line. The control
+        // is the count itself: it must be non-zero and equal the constant.
+        let allocations = KERNEL_MAIN
+            .lines()
+            .filter(|l| l.contains(".expect(\"alloc") && l.contains("endpoint"))
+            .count() as u32;
+        assert!(allocations > 0, "the pattern matched nothing in main.rs");
+        assert_eq!(
+            allocations, ENDPOINT_OBJECT_COUNT,
+            "main.rs allocates {allocations} endpoints; ENDPOINT_OBJECT_COUNT says {ENDPOINT_OBJECT_COUNT}"
+        );
+    }
+
+    #[test]
+    fn every_named_endpoint_object_is_below_the_count() {
+        for (name, id) in [
+            ("SERVICE_MANAGER_EP_OBJECT", SERVICE_MANAGER_EP_OBJECT),
+            ("INIT_RELAY_EP_OBJECT", INIT_RELAY_EP_OBJECT),
+            ("BOOTCTL_EP_OBJECT", BOOTCTL_EP_OBJECT),
+            ("PROXY_RELAY_EP_OBJECT", PROXY_RELAY_EP_OBJECT),
+            ("PROXY_BRAILLE_EP_OBJECT", PROXY_BRAILLE_EP_OBJECT),
+        ] {
+            assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
+        }
+    }
+
+    #[test]
+    fn the_spawn_tables_literal_endpoint_ids_are_allocated() {
+        // The `ep_obj` match in spawn.rs: `ImageId::X => N,` arms.
+        let start = SPAWN
+            .find("let ep_obj: u32 = match image_id {")
+            .expect("spawn.rs no longer has the ep_obj table this test reads");
+        let end = start
+            + SPAWN[start..]
+                .find("_ => 0,")
+                .expect("ep_obj has no default arm");
+        let mut seen = 0;
+        for line in SPAWN[start..end].lines() {
+            let line = line.trim();
+            if let Some(rest) = line.strip_prefix("fjell_abi::service::ImageId::") {
+                if let Some(n) = rest.split("=>").nth(1) {
+                    if let Ok(id) = n.trim().trim_end_matches(',').parse::<u32>() {
+                        seen += 1;
+                        assert!(
+                            id < ENDPOINT_OBJECT_COUNT,
+                            "spawn.rs names object {id}: `{line}`"
+                        );
+                    }
+                }
+            }
+        }
+        assert!(
+            seen >= 8,
+            "read only {seen} literal arms; the parse is not seeing the table"
+        );
     }
 }

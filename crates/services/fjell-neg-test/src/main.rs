@@ -878,32 +878,14 @@ fn test_cap_inspect_without_right() {
 // device, through the MMIO capabilities neg-test already holds. Nothing here
 // adds authority; it is an input only a profile's QEMU command line controls.
 
-const VIRTIO_MAGIC: u32 = 0x7472_6976; // "virt"
-const VIRTIO_DEVICE_ID_RNG: u32 = 4;
-
-/// Does the machine carry a virtio entropy device? Scans the eight virtio-mmio
-/// slots (region 3, `0x1000_1000..`) for its device id.
+/// Does the machine carry a virtio entropy device? See
+/// `fjell_service_api::machine` — the probe is shared with `init`'s
+/// RFC-0.34-001 D8 switch.
 fn machine_asks_for_reboot_test() -> bool {
-    let Ok(base) = sys_mmio_map(CapHandle(SLOT_MMIO_BASE + 3), 0, 0x8000) else {
-        return false;
-    };
-    for slot in 0..8usize {
-        let dev = base + slot * 0x1000;
-        // SAFETY: category=mmio-access `base` is a fresh mapping of the eight
-        // virtio-mmio slots (`sys_mmio_map`, region 3, 0x8000 bytes); each
-        // 4-byte-aligned read at offset 0 (magic) and 8 (device id) is inside it.
-        let (magic, id) = unsafe {
-            // MMIO-ORDER: status_read
-            let magic = core::ptr::read_volatile(dev as *const u32);
-            // MMIO-ORDER: status_read
-            let id = core::ptr::read_volatile((dev + 8) as *const u32);
-            (magic, id)
-        };
-        if magic == VIRTIO_MAGIC && id == VIRTIO_DEVICE_ID_RNG {
-            return true;
-        }
-    }
-    false
+    fjell_service_api::machine::has_virtio_device(
+        CapHandle(SLOT_MMIO_BASE + 3),
+        fjell_service_api::machine::virtio_device::ENTROPY,
+    )
 }
 
 fn test_reboot() {

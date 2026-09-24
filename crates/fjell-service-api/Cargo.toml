@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 fjell-abi    = { path = "../fjell-abi" }
 fjell-syscall = { path = "../fjell-syscall" }
+fjell-cap    = { path = "../fjell-cap" }
 
 [dev-dependencies]
 # For the receive-path test only (RFC-0.32-002 D3): the framing is

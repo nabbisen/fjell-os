@@ -469,6 +469,152 @@ pub mod proxy_text {
     pub const ERR: usize = 0x51F;
 }
 
+/// The machine's own configuration, read the way any driver reads a device.
+///
+/// Every QEMU profile boots the same image, so a scenario that must happen in
+/// **one** profile only (a reset; a presentation that is not started) cannot be
+/// switched by the image. It is switched by what the profile puts on the
+/// machine: a virtio device no other profile adds, found by scanning the eight
+/// virtio-mmio slots. The probe uses MMIO capabilities the caller already holds,
+/// so it adds no authority, and it is an input only a profile's QEMU command
+/// line controls. Each use is a **test affordance in the shipped image** and is
+/// listed in `docs/src/releasing/v1-limitations.md` (RFC-0.33-001 D15,
+/// RFC-0.34-001 D8).
+pub mod machine {
+    use fjell_cap::CapHandle;
+
+    const VIRTIO_MAGIC: u32 = 0x7472_6976; // "virt"
+
+    /// Virtio device ids a profile can add to switch a test affordance.
+    pub mod virtio_device {
+        /// `-device virtio-rng-device`: `neg-test` calls `sys_reboot`
+        /// (RFC-0.33-001 D15, profile `reboot`).
+        pub const ENTROPY: u32 = 4;
+        /// `-device virtio-balloon-device`: `init` does not start `proxy-text`
+        /// (RFC-0.34-001 D8, profile `semantic-absent`). Chosen because nothing
+        /// else in this system looks for it.
+        pub const BALLOON: u32 = 5;
+    }
+
+    /// Does the machine carry a virtio device with this device id? `region_3`
+    /// is the caller's MMIO-region capability for region 3 (the eight
+    /// virtio-mmio slots at `0x1000_1000`).
+    pub fn has_virtio_device(region_3: CapHandle, device_id: u32) -> bool {
+        let Ok(base) = fjell_syscall::sys_mmio_map(region_3, 0, 0x8000) else {
+            return false;
+        };
+        for slot in 0..8usize {
+            let dev = base + slot * 0x1000;
+            // SAFETY: category=mmio-access `base` is a fresh mapping of the eight
+            // virtio-mmio slots (`sys_mmio_map`, region 3, 0x8000 bytes); each
+            // 4-byte-aligned read at offset 0 (magic) and 8 (device id) is inside it.
+            let (magic, id) = unsafe {
+                // MMIO-ORDER: status_read
+                let magic = core::ptr::read_volatile(dev as *const u32);
+                // MMIO-ORDER: status_read
+                let id = core::ptr::read_volatile((dev + 8) as *const u32);
+                (magic, id)
+            };
+            if magic == VIRTIO_MAGIC && id == device_id {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+/// How a presentation gets its messages from `semantic-stream`
+/// (RFC-0.34-001 D8).
+///
+/// **The stream never sends to a presentation.** The kernel has no
+/// non-blocking send, a server holds one reply edge rather than several, and a
+/// dead receiver never releases a blocked sender, so a stream that pushed to a
+/// presentation would be one fault away from stalling every publisher
+/// (E-058). The only IPC that never blocks its issuer is a *reply*, so:
+///
+/// * the presentation **asks** — [`ask`] is a call to the stream, and the
+///   stream answers it at once, either with the next message of the oldest
+///   queued envelope (the reply's label is `RENDER_BEGIN`/`CHUNK`/`COMMIT`,
+///   its four words are that message's) or with [`EMPTY`];
+/// * after `EMPTY` the presentation blocks in `recv` on its **own** endpoint
+///   and the stream sends it one [`WAKE`] when the next envelope arrives —
+///   the one send the stream makes, into a window that is the presentation's
+///   own two instructions of glue.
+///
+/// Who is asking is never taken from a word: the stream reads the
+/// kernel-attested sender identity of the call.
+pub mod presentation {
+    /// Presentation → stream, a call with no words: "give me my next message".
+    pub const NEXT: usize = 0x520;
+    /// Stream → presentation, as the reply: nothing is queued; you are parked.
+    pub const EMPTY: usize = 0x521;
+    /// Stream → presentation, one-way, to a parked presentation: there is
+    /// something now. Carries nothing; ask.
+    pub const WAKE: usize = 0x522;
+
+    /// The stream's answer to [`ask`].
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Ask {
+        /// `tag` is `proxy_text::RENDER_BEGIN`, `RENDER_CHUNK` or
+        /// `RENDER_COMMIT`; `words` are that message's four words.
+        Message { tag: usize, words: [usize; 4] },
+        /// Nothing queued — or the call failed, which is treated the same way:
+        /// fail closed into parking rather than spinning.
+        Empty,
+    }
+
+    /// Ask the stream (through `stream_ep_slot`, a CALL capability) for the
+    /// next message. Blocks only until the stream answers, and the stream
+    /// answers every `NEXT` immediately.
+    pub fn ask(stream_ep_slot: u32) -> Ask {
+        let (status, tag, w0, w1, w2, w3): (usize, usize, usize, usize, usize, usize);
+        #[cfg(target_arch = "riscv64")]
+        // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (zero-word ipc_call whose reply carries a label and four words, as chunked::ipc_call4 documents).
+        unsafe {
+            core::arch::asm!(
+                "li a7, 22", "ecall",
+                inlateout("a0") stream_ep_slot as usize => status,
+                inlateout("a1") NEXT => tag,
+                inlateout("a2") 0usize => w0, inlateout("a3") 0usize => w1,
+                inlateout("a4") 0usize => w2, inlateout("a5") 0usize => w3,
+                lateout("a7") _,
+                options(nostack),
+            );
+        }
+        #[cfg(not(target_arch = "riscv64"))]
+        {
+            let _ = stream_ep_slot;
+            (status, tag, w0, w1, w2, w3) = (1, EMPTY, 0, 0, 0, 0);
+        }
+        let tag = tag & 0xFFFF;
+        if status != 0 || tag == EMPTY {
+            return Ask::Empty;
+        }
+        Ask::Message {
+            tag,
+            words: [w0, w1, w2, w3],
+        }
+    }
+
+    /// Reply with a label and four words (`IpcReply`, 23). `fjell-syscall`'s
+    /// reply wrappers carry fewer, and a chunk is four.
+    pub fn reply4(tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) {
+        #[cfg(target_arch = "riscv64")]
+        // SAFETY: category=raw-pointer-deref IPC reply; the kernel copies the four reply words a2..a5 to the caller unconditionally (sys_ipc_reply), and no memory is touched.
+        unsafe {
+            core::arch::asm!(
+                "li a7, 23", "ecall",
+                inlateout("a0") 0usize => _,
+                in("a1") tag, in("a2") w0, in("a3") w1, in("a4") w2, in("a5") w3,
+                lateout("a7") _,
+                options(nostack),
+            );
+        }
+        #[cfg(not(target_arch = "riscv64"))]
+        let _ = (tag, w0, w1, w2, w3);
+    }
+}
+
 /// Chunked byte transfer (RFC-v0.23-001): sends a `Copy`, no-pointer struct's
 /// raw bytes as `BEGIN(len)` / `CHUNK(4 words)` x N / `COMMIT`, 32 bytes
 /// (4 `usize` words on riscv64gc) per round trip. Modelled on `storaged`'s
@@ -498,7 +644,14 @@ pub mod chunked {
     /// Bug B, on the call side. Previously declared plain `in`, which told
     /// the compiler these registers kept their *input* values after the
     /// call.
-    fn ipc_call4(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) -> usize {
+    pub fn ipc_call4(
+        ep_slot: u32,
+        tag: usize,
+        w0: usize,
+        w1: usize,
+        w2: usize,
+        w3: usize,
+    ) -> usize {
         let reply: usize;
         #[cfg(target_arch = "riscv64")]
         // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, RFC-v0.23-001).

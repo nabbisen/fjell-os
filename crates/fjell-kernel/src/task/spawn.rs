@@ -166,9 +166,24 @@ pub fn spawn(
     // Allocate and map all stack pages (64 KiB = 16 pages).
     // The linker script places __stack_bottom = 0x80000, __stack_top = 0x90000.
     // Mapping only the top page caused StorePageFault when stack usage exceeded 4K.
-    const STACK_PAGES: usize = 16;
-    let stack_base = SERVICE_STACK_TOP - STACK_PAGES * 4096;
-    for pg in 0..STACK_PAGES {
+    //
+    // RFC-0.34-001 D8: `semantic-stream` gets twice that. A service image
+    // cannot write to a static (its whole image is mapped R|X|U), so the
+    // stream's per-presentation queues live on its stack — two rings of
+    // `fjell_semantic_fanout::RING_BYTES` — beside the envelope-sized
+    // buffers and copies it already held (a `SemanticEnvelope` is 4,936
+    // bytes). With 16 pages it faulted on its first message, `StorePageFault`
+    // below `__stack_bottom`; with 32 the deepest use measured over a full
+    // `semantic` run was 74,008 bytes, so 128 KiB leaves about 57 KB spare.
+    const STACK_PAGES_DEFAULT: usize = 16;
+    const STACK_PAGES_SEMANTIC_STREAM: usize = 32;
+    let stack_pages = if image_id == fjell_abi::service::ImageId::SEMANTIC_STREAM {
+        STACK_PAGES_SEMANTIC_STREAM
+    } else {
+        STACK_PAGES_DEFAULT
+    };
+    let stack_base = SERVICE_STACK_TOP - stack_pages * 4096;
+    for pg in 0..stack_pages {
         let sf = fa
             .alloc_frame(FrameOwner::UserStack { task: tid })
             .map_err(|_| SysError::NoMemory)?;
@@ -241,6 +256,14 @@ pub fn spawn(
                 // RFC-v0.23-001: dedicated endpoints for the ABDD live path.
                 fjell_abi::service::ImageId::SEMANTIC_STREAM => 7,
                 fjell_abi::service::ImageId::PROXY_TEXT => 8,
+                // RFC-0.34-001 D8: each presentation's own endpoint, where the
+                // stream's wake arrives. Never shared (RFC-0.28-001).
+                fjell_abi::service::ImageId::PROXY_RELAY => {
+                    fjell_abi::service::PROXY_RELAY_EP_OBJECT
+                }
+                fjell_abi::service::ImageId::PROXY_BRAILLE => {
+                    fjell_abi::service::PROXY_BRAILLE_EP_OBJECT
+                }
                 // RFC-0.25-001: driver-uart's send end of the uart-rx endpoint.
                 fjell_abi::service::ImageId::DRIVER_UART => 9,
                 // RFC-0.28-001: service-manager's own dedicated, named
@@ -691,12 +714,59 @@ pub fn spawn(
                     },
                 );
             }
-            // Slot 1: proxy-text endpoint cap (object 8) for SEMANTIC_STREAM
-            // (RFC-v0.23-001) — lets semantic-stream forward a node on to the
-            // proxy for rendering.
+            // Slots 1-2 for SEMANTIC_STREAM (RFC-0.34-001 D8): the SEND
+            // capabilities it wakes presentations through — and nothing else
+            // toward them. The stream never calls a presentation and never
+            // sends one data; it answers their `NEXT` by reply, which needs no
+            // capability of its own. Before this line, slot 1 was a full
+            // capability to proxy-text's endpoint (object 8), used for a
+            // blocking forward that could stall every publisher (E-058).
+            //   1 = proxy-relay's endpoint (object 13)
+            //   2 = proxy-braille's endpoint (object 14)
             if image_id == fjell_abi::service::ImageId::SEMANTIC_STREAM {
+                for (slot, object_id) in [
+                    (1, fjell_abi::service::PROXY_RELAY_EP_OBJECT),
+                    (2, fjell_abi::service::PROXY_BRAILLE_EP_OBJECT),
+                ] {
+                    let _ = cs.install_raw(
+                        slot,
+                        Capability {
+                            kind: CapKind::Endpoint,
+                            object_id,
+                            rights: CapRights::SEND,
+                            badge: 0,
+                            scope: ObjectScope::Any,
+                            state: CapState::Active,
+                            parent: None,
+                            lease: None,
+                        },
+                    );
+                }
+            }
+            // Slots 1-2 for PROXY_RELAY, slot 1 for PROXY_BRAILLE (RFC-0.34-001
+            // D8): a CALL capability to the stream (object 7), which they ask;
+            // and, for the relay, one to proxy-text (object 8), whose blocking
+            // protocol it speaks so that the stream does not.
+            if image_id == fjell_abi::service::ImageId::PROXY_RELAY
+                || image_id == fjell_abi::service::ImageId::PROXY_BRAILLE
+            {
                 let _ = cs.install_raw(
                     1,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: 7,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+            if image_id == fjell_abi::service::ImageId::PROXY_RELAY {
+                let _ = cs.install_raw(
+                    2,
                     Capability {
                         kind: CapKind::Endpoint,
                         object_id: 8,

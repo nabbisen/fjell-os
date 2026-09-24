@@ -844,6 +844,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-proxy-relay"
+version = "0.32.0"
+dependencies = [
+ "fjell-service-api",
+ "fjell-syscall",
+]
+
+[[package]]
 name = "fjell-proxy-text"
 version = "0.32.0"
 dependencies = [
@@ -964,6 +972,7 @@ name = "fjell-semantic-stream"
 version = "0.32.0"
 dependencies = [
  "fjell-abi",
+ "fjell-semantic-fanout",
  "fjell-semantic-format",
  "fjell-service-api",
  "fjell-syscall",
@@ -986,6 +995,7 @@ name = "fjell-service-api"
 version = "0.32.0"
 dependencies = [
  "fjell-abi",
+ "fjell-cap",
  "fjell-semantic-format",
  "fjell-syscall",
 ]

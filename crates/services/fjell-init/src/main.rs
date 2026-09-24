@@ -471,7 +471,24 @@ pub extern "C" fn service_main() -> ! {
 
     // ── M5 ───────────────────────────────────────────────────────────────────
     spawn(ImageId::SEMANTIC_STREAM, "M5: semantic-stream started");
-    spawn(ImageId::PROXY_TEXT, "M5: proxy-text started");
+    // RFC-0.34-001 D8: `proxy-relay` asks the stream on `proxy-text`'s behalf,
+    // so a `proxy-text` that blocks (or never runs) blocks only the relay —
+    // never the stream, and never a publisher (E-058).
+    spawn(ImageId::PROXY_RELAY, "M5: proxy-relay started");
+    // RFC-0.34-001 D8's demonstration needs a presentation that is *absent*, in
+    // the shipped image, from boot. The switch is the machine's configuration:
+    // a virtio balloon device, which only the `semantic-absent` profile adds
+    // (`fjell_service_api::machine`). It is a test affordance, disclosed in
+    // `v1-limitations.md` beside D10's console byte and D15's `Reboot`
+    // capability, and its only power is to *not start* a presentation.
+    if fjell_service_api::machine::has_virtio_device(
+        CapHandle::new(34, 0),
+        fjell_service_api::machine::virtio_device::BALLOON,
+    ) {
+        sys_debug_writeln("init: presentation-absent test configuration; proxy-text not started");
+    } else {
+        spawn(ImageId::PROXY_TEXT, "M5: proxy-text started");
+    }
     // RFC-0.26-004 (closes E-020/E-021): this used to block here on
     // `wait_ready_exact(6/7, ...)`, receiving on the same endpoint objects
     // (7, 8) that `semantic-stream`/`proxy-text` themselves receive real

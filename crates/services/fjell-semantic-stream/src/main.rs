@@ -7,8 +7,10 @@
 #![no_main]
 mod rt;
 
+use fjell_semantic_fanout::{Fanout, Kind, Next, Offer, RING_BYTES, Report};
 use fjell_semantic_format::*;
-use fjell_syscall::sys_debug_writeln;
+use fjell_service_api::presentation;
+use fjell_syscall::{ipc_sender_image_id, sys_debug_write, sys_debug_writeln};
 
 // ── Validation ────────────────────────────────────────────────────────────────
 //
@@ -94,8 +96,33 @@ fn dispatch_action_checked(
 use fjell_service_api::semantic_stream as proto;
 
 const EP_SLOT: u32 = 0;
-// proxy-text endpoint cap (object 8), pre-installed by spawn.rs.
-const PROXY_TEXT_EP: u32 = 1;
+
+/// One presentation this stream serves: who it is (by the kernel-attested image
+/// id of its `NEXT` call — never by a word it sends), the CSpace slot holding
+/// the send capability to its own endpoint (used only for the wake), and the
+/// name the node's output uses for it.
+struct PresentationSlot {
+    image_id: u16,
+    wake_slot: u32,
+    name: &'static str,
+}
+
+/// The presentations, in fan-out order. Adding one is a row here, a spawn-table
+/// entry and an endpoint — no decoding, validation or envelope content changes
+/// (RFC-0.34-001 D2). `proxy-text` is served through `proxy-relay`, which asks
+/// on its behalf (RFC-0.34-001 D5).
+const PRESENTATIONS: [PresentationSlot; 2] = [
+    PresentationSlot {
+        image_id: fjell_abi::service::ImageId::PROXY_RELAY.0,
+        wake_slot: 1,
+        name: "text",
+    },
+    PresentationSlot {
+        image_id: fjell_abi::service::ImageId::PROXY_BRAILLE.0,
+        wake_slot: 2,
+        name: "braille",
+    },
+];
 
 /// Receive-buffer size: the widest envelope the wire format can carry
 /// (RFC-0.32-002 D1), rounded up to a whole number of 32-byte chunks. It is
@@ -104,12 +131,13 @@ const PROXY_TEXT_EP: u32 = 1;
 /// other.
 const ENV_BUF_SIZE: usize = wire::MAX_WIRE_BYTES.div_ceil(32) * 32;
 
-fn recv_call() -> (usize, usize, usize, usize, usize) {
+fn recv_call() -> (usize, usize, usize, usize, usize, usize) {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
-    // is a correct superset (also returns the sender identity, unused here).
+    // is a correct superset. The sender identity (kernel-attested) is kept
+    // now: `PRESENT_NEXT` is keyed by it (RFC-0.34-001 D8).
     match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
-        Ok((t, w0, w1, w2, w3, _sender)) => (t, w0, w1, w2, w3),
-        Err(_) => (0, 0, 0, 0, 0),
+        Ok((t, w0, w1, w2, w3, sender)) => (t, w0, w1, w2, w3, sender),
+        Err(_) => (0, 0, 0, 0, 0, 0),
     }
 }
 
@@ -123,22 +151,70 @@ fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
     }
 }
 
-/// Forward an encoding of `envelope` on to proxy-text.
-///
-/// RFC-0.32-002 §2: this re-encodes what it forwards. It does **not** pass
-/// the received bytes through. A proxy that forwards untrusted bytes as
-/// "already checked" makes the receiver reinterpret them a second time, which
-/// is how one malformed message from sample-service used to be decoded twice,
-/// in two services.
-fn forward_to_proxy_text(bytes: &[u8]) -> usize {
-    use fjell_service_api::proxy_text as pt_proto;
-    fjell_service_api::chunked::send(
-        PROXY_TEXT_EP,
-        pt_proto::RENDER_BEGIN,
-        pt_proto::RENDER_CHUNK,
-        pt_proto::RENDER_COMMIT,
-        bytes,
-    )
+fn write_u64(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    if n == 0 {
+        sys_debug_write("0");
+        return;
+    }
+    while n > 0 {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
+}
+
+/// Say, on the node's own output, what happened to a presentation. This is how
+/// an absent or slow presentation stays observable without stalling anything
+/// (RFC-0.34-001 D8): a line at the first drop and at each power of two.
+fn say(name: &str, report: Report) {
+    sys_debug_write("semantic-stream: presentation ");
+    sys_debug_write(name);
+    match report {
+        Report::Behind {
+            unasked,
+            never_asked,
+        } => {
+            sys_debug_write(if never_asked {
+                " has not asked for anything; "
+            } else {
+                " has stopped asking; "
+            });
+            write_u64(unasked);
+            sys_debug_writeln(" envelopes waiting");
+        }
+        Report::NotTaking {
+            dropped,
+            never_asked,
+        } => {
+            sys_debug_write(if never_asked {
+                " has not asked for anything; "
+            } else {
+                " is not taking envelopes; "
+            });
+            write_u64(dropped);
+            sys_debug_writeln(" dropped");
+        }
+        Report::Resumed { dropped } => {
+            sys_debug_write(" caught up");
+            if dropped > 0 {
+                sys_debug_write("; ");
+                write_u64(dropped);
+                sys_debug_write(" dropped while it was away");
+            }
+            sys_debug_writeln("");
+        }
+    }
+}
+
+/// Which presentation is asking, by the kernel-attested sender identity.
+fn presentation_of(sender: usize) -> Option<usize> {
+    let id = ipc_sender_image_id(sender);
+    PRESENTATIONS.iter().position(|p| p.image_id == id)
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -180,9 +256,12 @@ pub extern "C" fn service_main() -> ! {
     // the only thing that ever touches them, so no static/UnsafeCell needed.
     let mut frames = fjell_service_api::chunked::Reassembler::<ENV_BUF_SIZE>::new();
     let mut last_intent: Option<IntentNode> = None;
+    // RFC-0.34-001 D8: what is queued for each presentation. On this stack, not
+    // a static: a service image cannot write to one.
+    let mut fanout: Fanout<2, RING_BYTES> = Fanout::new();
 
     loop {
-        let (tag_packed, w0, w1, w2, w3) = recv_call();
+        let (tag_packed, w0, w1, w2, w3, sender) = recv_call();
         let tag = tag_packed & 0xFFFF;
         match tag {
             t if t == proto::PUBLISH_BEGIN => {
@@ -212,6 +291,12 @@ pub extern "C" fn service_main() -> ! {
                 };
                 frames.reset();
 
+                // Which presentations must be woken once the publisher has been
+                // answered. Sending a wake can block the stream for as long as
+                // the presentation takes to reach its `recv` (its own two
+                // instructions of glue), so it happens *after* the reply: the
+                // publisher never waits on a presentation, even for that.
+                let mut wake = [false; PRESENTATIONS.len()];
                 let ok = match decoded {
                     Some(envelope) if validate_envelope(&envelope) => {
                         if let SemanticPayload::Intent(n) = &envelope.payload {
@@ -222,7 +307,21 @@ pub extern "C" fn service_main() -> ! {
                         let mut out = [0u8; ENV_BUF_SIZE];
                         match wire::encode(&envelope, &mut out) {
                             Ok(n) => {
-                                let _ = forward_to_proxy_text(&out[..n]);
+                                for (i, pres) in PRESENTATIONS.iter().enumerate() {
+                                    match fanout.offer(i, &out[..n]) {
+                                        Offer::Queued { wake: w, report } => {
+                                            wake[i] = w;
+                                            if let Some(r) = report {
+                                                say(pres.name, r);
+                                            }
+                                        }
+                                        Offer::Dropped { report } => {
+                                            if let Some(r) = report {
+                                                say(pres.name, r);
+                                            }
+                                        }
+                                    }
+                                }
                                 true
                             }
                             Err(_) => false,
@@ -240,6 +339,42 @@ pub extern "C" fn service_main() -> ! {
                     0,
                     0,
                 );
+                for (i, pres) in PRESENTATIONS.iter().enumerate() {
+                    if wake[i] {
+                        let _ = fjell_syscall::sys_ipc_send(pres.wake_slot, presentation::WAKE);
+                    }
+                }
+            }
+            t if t == presentation::NEXT => {
+                // Answered at once, always: a reply is the one IPC that never
+                // blocks its issuer. Who is asking comes from the kernel, not
+                // from a word.
+                match presentation_of(sender) {
+                    Some(i) => {
+                        let (next, report) = fanout.next(i);
+                        if let Some(r) = report {
+                            say(PRESENTATIONS[i].name, r);
+                        }
+                        match next {
+                            Next::Message(m) => {
+                                let tag = match m.kind {
+                                    Kind::Begin => fjell_service_api::proxy_text::RENDER_BEGIN,
+                                    Kind::Chunk => fjell_service_api::proxy_text::RENDER_CHUNK,
+                                    Kind::Commit => fjell_service_api::proxy_text::RENDER_COMMIT,
+                                };
+                                presentation::reply4(
+                                    tag,
+                                    m.words[0] as usize,
+                                    m.words[1] as usize,
+                                    m.words[2] as usize,
+                                    m.words[3] as usize,
+                                );
+                            }
+                            Next::Empty => presentation::reply4(presentation::EMPTY, 0, 0, 0, 0),
+                        }
+                    }
+                    None => reply(proto::ERR, 0, 0, 0),
+                }
             }
             t if t == proto::DISPATCH_ACTION => {
                 let correlation_id = CorrelationId(w0 as u64);

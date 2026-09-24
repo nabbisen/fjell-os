@@ -1,0 +1,38 @@
+# RFC-0.34-001 D8 / E-058: one presentation deliberately absent, and the node's
+# narration continuing.
+#
+# Before this line, `semantic-stream` forwarded every envelope to proxy-text with
+# a blocking call before it replied to the publisher, so a proxy-text that never
+# started stopped `init` at its first publish: on the `semantic` profile, 314
+# output lines fell to 124, every semantic marker to zero, and `init` never
+# reached `driver-uart`. That is measured, on this tree, in the RFC's answer
+# document.
+#
+# Here proxy-text is not started. The switch is the machine's configuration: a
+# virtio balloon device, which no other profile adds, makes `init` skip
+# proxy-text (a test affordance in the shipped image, disclosed in
+# v1-limitations.md beside the console byte and neg-test's Reboot capability; its
+# only power is to *not start* a presentation). `proxy-relay` still runs: it asks
+# the stream for the first message, forwards it to a proxy-text that does not
+# exist, and blocks there for good. Nothing else waits on it.
+#
+# What is asserted, and what it means:
+#   * the intention line is printed by init BEFORE it skips proxy-text -- an
+#     intention, not an outcome;
+#   * `TEST:M7:PASS` and `driver-uart: ready` are init's LAST phase. They are
+#     reached only if every publish before them was answered, which is exactly
+#     what a presentation stall used to prevent;
+#   * the stream's own line saying the presentation stopped asking: absence is
+#     visible in the node's output, not silently tolerated.
+# No marker here says "the publisher was unaffected"; that is the conjunction of
+# the first three, and the run's tail.
+
+name             = "semantic-absent"
+timeout_secs     = 60
+extra_args       = ["-device", "virtio-balloon-device"]
+expected_markers = [
+    "init: presentation-absent test configuration; proxy-text not started",
+    "semantic-stream: presentation text has stopped asking; 8 envelopes waiting",
+    "TEST:M7:PASS",
+    "driver-uart: ready",
+]

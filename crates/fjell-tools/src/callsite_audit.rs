@@ -237,7 +237,7 @@ fn bcb_pattern_present(src: &str) -> bool {
 // is refused unless its `(file, enclosing function)` is named here, and an
 // allowlisted site must still declare every register the kernel writes for
 // that syscall as a correct clobber. Adding a 36th hand-rolled block, or
-// weakening one of the seven kept here, means editing this list — a
+// weakening one of the nine kept here, means editing this list — a
 // reviewed, two-line diff, not a comment convention anyone could add next
 // to their own new block.
 //
@@ -249,6 +249,11 @@ fn bcb_pattern_present(src: &str) -> bool {
 const ALLOWED_RAW_SYSCALL_SITES: &[(&str, &str)] = &[
     // 4-word IpcCall (22): sys_ipc_call_words only covers 3 words.
     ("crates/fjell-service-api/src/lib.rs", "ipc_call4"),
+    // RFC-0.34-001 D8: a zero-word IpcCall whose *reply* carries a label and
+    // four words (a chunk). `sys_ipc_call` returns the tag alone and
+    // `sys_ipc_call_words` returns one result word; neither hands back the
+    // other three, which is the whole point of `presentation::ask`.
+    ("crates/fjell-service-api/src/lib.rs", "ask"),
     ("crates/services/fjell-init/src/main.rs", "ipc_call"),
     (
         "crates/services/fjell-proxy-text/src/main.rs",
@@ -259,6 +264,11 @@ const ALLOWED_RAW_SYSCALL_SITES: &[(&str, &str)] = &[
     ("crates/services/fjell-proxy-text/src/main.rs", "reply"),
     ("crates/services/fjell-recoveryd/src/main.rs", "reply"),
     ("crates/services/fjell-semantic-stream/src/main.rs", "reply"),
+    // RFC-0.34-001 D8: a four-word IpcReply. The stream answers a
+    // presentation's `NEXT` with one 32-byte chunk as the reply's words; the
+    // three-word `reply` above cannot carry it. Reply is the one IPC that never
+    // blocks its issuer, which is why the stream uses it and nothing else.
+    ("crates/fjell-service-api/src/lib.rs", "reply4"),
 ];
 
 /// Directories this check does not scan: `fjell-syscall` is where raw
