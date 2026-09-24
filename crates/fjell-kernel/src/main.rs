@@ -539,13 +539,13 @@ pub extern "C" fn kmain() -> ! {
 
 /// The device tree firmware passed, if what it points at *is* one: its address
 /// and its size in bytes. The pointer must lie in RAM and the bytes there must
-/// be a flattened-device-tree header (`fjell_dtb_validate::fdt_extent`).
+/// be a flattened-device-tree header (`fjell_fdt_header::fdt_extent`).
 #[cfg(target_arch = "riscv64")]
 fn firmware_dtb(dtb_pa: usize) -> Result<(usize, usize), DtbRefusal> {
     if dtb_pa == 0 {
         return Err(DtbRefusal::NoPointer);
     }
-    let probe = fjell_dtb_validate::FDT_HEADER_PROBE_BYTES;
+    let probe = fjell_fdt_header::FDT_HEADER_PROBE_BYTES;
     if dtb_pa < RAM_BASE || dtb_pa.saturating_add(probe) > RAM_END {
         return Err(DtbRefusal::OutsideRam);
     }
@@ -553,7 +553,7 @@ fn firmware_dtb(dtb_pa: usize) -> Result<(usize, usize), DtbRefusal> {
     // to lie inside RAM, which is identity-mapped by the boot environment
     // (satp = 0); only 8 bytes are read, as plain bytes.
     let head = unsafe { core::slice::from_raw_parts(dtb_pa as *const u8, probe) };
-    let len = fjell_dtb_validate::fdt_extent(head).map_err(DtbRefusal::Header)?;
+    let len = fjell_fdt_header::fdt_extent(head).map_err(DtbRefusal::Header)?;
     if dtb_pa.saturating_add(len) > RAM_END {
         return Err(DtbRefusal::OutsideRam);
     }
@@ -567,7 +567,7 @@ fn firmware_dtb(dtb_pa: usize) -> Result<(usize, usize), DtbRefusal> {
 enum DtbRefusal {
     NoPointer,
     OutsideRam,
-    Header(fjell_dtb_validate::FdtHeaderError),
+    Header(fjell_fdt_header::FdtHeaderError),
 }
 
 // ── Kernel main ───────────────────────────────────────────────────────────────

@@ -1,0 +1,17 @@
+[package]
+name = "fjell-fdt-header"
+description = "The flattened-device-tree header check the kernel makes on every boot, and nothing else (RFC-0.33-005 D6)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_fdt_header"
+path = "src/lib.rs"
+
+# No dependencies, on purpose: the kernel depends on this crate, and the most
+# privileged component should carry 14 lines and a constant, not a validator and
+# the format crates it happens to sit beside.
+[dependencies]
