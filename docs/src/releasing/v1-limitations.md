@@ -1169,3 +1169,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `init: spawn error`. Which limits a new service consumes — the task table,
   its stack, an endpoint slot, the callsite budget — is discoverable only by
   reading the kernel, not from the error or from any document.
+- **The kernel has never seen a real device tree** (Erratum **E-064**, filed
+  2026-09-24, tracked 0.34). The boot shim's BSS zero-fill overwrites `a1`, the
+  DTB pointer firmware passes, three lines above the comment saying it does not,
+  so `kmain` receives `__bss_end` instead. Nothing has a symptom today because
+  `platform::detect` ignores the tree and returns a hard-coded `qemu-virt`
+  profile — but the reserve that exists to keep firmware's device tree out of the
+  free pool fails on its first frame and its error is discarded, so **the real
+  DTB page is allocatable**, and any future reader of `PlatformInfo.dtb_pa` would
+  parse the kernel's own BSS tail. It is also why no DTB path here has ever run
+  on a real device tree (E-048).

@@ -157,6 +157,42 @@ tests (the boot-time assertion is the real one; the text scan is a cheap early
 warning — keep both), the three kernel touches you flagged for veto, the task
 labels by `ImageId`, and every figure you re-derived against mine.
 
+## Settled at the second review, 2026-09-24
+
+**D15 — the dormant row is the right mechanism and the wrong encoding.** Keep it.
+It records a real distinction that the alternative erases: a presentation the
+image **expects** must accumulate and be reported when it never starts (that is
+E-058's whole point), while one only a test starts must cost the other profiles
+nothing. Your alternative — a queue on first ask for everybody — would make a
+late-starting production presentation lose what was published before it, which
+D2 is there to prevent. Nothing about the flag is awkward; it is the fact.
+
+**What is refused is `const DORMANT: [bool; PRESENTATIONS.len()] = [false, false,
+true]`** — a hand-maintained array parallel to `PRESENTATIONS`, where inserting a
+row silently shifts every flag onto the wrong presentation. That is E-014's family
+in a data structure. **Put the flag on the row**, named for which kind of
+presentation it is rather than for what the engine does with it, and derive
+dormancy from it; then add the assertion that the production rows are not marked.
+One field, one constructor change, and the two facts can no longer drift apart.
+
+**D16 — the readiness row is right as updated.** The run id now names the run at
+the final code and nothing else changed. No further edit.
+
+**D17 — E-061 to E-064 need a line, and it is not this one.** All four are
+tracked 0.34 and none belongs to a presentation: a spawn failure that cannot say
+which limit it hit; a console buffer that prefixes a dead task's bytes onto a live
+one's line and splits long lines silently; a marker two tasks print; and a boot
+shim that destroys the DTB pointer. They are one subject — **what the machine
+tells a person, and whether it is true** — and they deserve one RFC rather than
+being appended to a presentation line. Scoped, not started: the owner decides.
+
+**Accepted at this review:** the relay gone with `proxy-text` asking and the
+`semantic` counts identical either side of the change; `semantic-crash` as a
+committed tier with its control and its hand-derived braille line; the committed
+evidence artefacts for all five new profiles (`fleet-demo` remains the only
+profile with none, and it is not a gated tier); and the `(ends by machine reset)`
+label, which removes the misreading I made myself.
+
 ## The open questions
 
 **§A — Which modality?** Candidates:

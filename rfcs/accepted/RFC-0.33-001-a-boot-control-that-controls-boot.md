@@ -285,6 +285,56 @@ the entropy device keeps the reset out of the other eighteen profiles. D17
 refuses the trigger on the machine it would meet outside QEMU, not on
 cross-profile leakage — and that comment changes with the trigger.
 
+## Settled at the fourth ruling, 2026-09-24 (D17–D19's review)
+
+**D20 — `ce37be9` is ratified, and the class it belongs to is named.** Clearing
+`satp` at entry is right, minimal and in the right place: after the hart check and
+**before** the first store, which is what the BSS fill is. Finding it by running
+the reset without `-no-reboot` is the better half of the work — it is the failure
+case run, not the absence observed, and it turned my D17 prediction (a reboot
+loop) into the truth (a reset into a hung machine). That correction stands in the
+record.
+
+**But `satp` is not the only supervisor CSR a reset leaves behind, and the fix
+must say why the others need nothing.** Read out of the tree, not assumed:
+`m_mode_setup` writes `mstatus = 1 << 11` **wholesale**, which clears `MIE` and
+`MPIE`, so `mret` leaves S-mode interrupts disabled and no stale `sie` or `stvec`
+can be reached through an interrupt before the kernel installs its own; PMP is
+rewritten every boot. What survives unexamined is `sie`, `stvec`, `sscratch`,
+`sepc`, `scause` — and `stimecmp` if SSTC is ever used. They are harmless only
+while **no exception** occurs between `mret` and the kernel's own `stvec` write,
+which holds today precisely because `satp` is now zero and PMP is permissive.
+**Put that paragraph beside the `satp` clear** — one comment naming each CSR and
+why it needs no instruction. Not more instructions: clearing a register blindly is
+not better than knowing why it does not need clearing, and the next person to add
+an early store deserves the reasoning, not the list.
+
+**D21 — yes: "the machine boots again after its own reset" becomes a gate.** Your
+question answers itself. The defect lived exactly where no gate looked, and a
+script run by hand is the instrument class this project refuses to count — the
+same shape as a skipped job read as a pass (E-041) and a green job that fuzzed
+nothing (E-043). Two further reasons: E-044's survivor list now carries *"no tier
+boots the machine a second time"*, and a survivor that a day's work can retire
+should not be carried into v1; and the trigger is already there — the `R` byte —
+so this needs **no new affordance**.
+
+Shape, so it is not larger than it must be: a profile field (`expect_boots = 2`
+or equivalent) that makes the harness run **without** `-no-reboot`, inject once,
+count the boot banner and judge the count. Two controls, both required in the
+evidence: **no byte → one boot**, and **`ce37be9` reverted → the tier red**. The
+second is the one that matters; a gate that has never been seen failing is not
+yet a gate.
+
+**D22 — E-064, filed at this review, belongs to this line's boot path.** The BSS
+zero-fill overwrites `a1` — the DTB pointer firmware passes — three lines above
+the comment saying it does not, so `kmain` receives `__bss_end` (`0x8007ccb8`
+here). Nothing has a symptom because `platform::detect` ignores the tree, and the
+reserve that exists to keep firmware's device tree out of the free pool fails on
+its first frame and has its error discarded — so **the real DTB page is
+allocatable**. Same file, same twenty instructions, same class as the comment that
+was true until the machine could reset itself. Fix it with D20's comment, and show
+the received value first.
+
 ## The open questions
 
 **§A — Does the block survive the reset?** Persisting it means a store client:

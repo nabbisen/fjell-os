@@ -4098,6 +4098,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   writer per marker, or markers that name their writer. This is the
   weak-predicate class the project polices, in the evidence base itself.
 
+## E-064 — the boot shim destroys the DTB pointer three lines above the comment saying it does not
+
+- **Claim:** `crates/fjell-kernel/src/boot.rs`'s own module doc — *"S-mode
+  receives `hart_id` (a0) and `dtb_pa` (a1) forwarded from firmware"* — and the
+  comment at step 3, *"dtb_pa is in a1 from firmware — we do not touch it"*. In
+  `kmain`, the DTB page is reserved so firmware's device tree is not handed out
+  as free memory: `reserve_range(dtb_pa, dtb_pa + 4096, FrameOwner::Dtb)`.
+- **Tree, observed 2026-09-24:** step 2's BSS zero-fill does
+  `la a1, __bss_end`, **overwriting the DTB pointer**, and nothing restores it —
+  `a0` is reloaded from `mhartid`, `a1` is not. So `m_mode_setup` forwards, and
+  `kmain` receives, `dtb_pa = __bss_end` (**0x8007ccb8** in the current build,
+  from the kernel's own symbol table). Two consequences, both traced to their
+  end:
+  - `platform::detect` stores it: `PlatformInfo.dtb_pa` holds a kernel address
+    labelled as the device tree. It is otherwise unused today because `detect`
+    ignores the tree and returns the hard-coded `qemu_virt` profile.
+  - The reserve's first frame (pfn `0x8007c`) is already inside the kernel range
+    `[RAM_BASE, kernel_end_pa() = 0x8007d000)`, so `reserve_range` returns
+    `AlreadyReserved` **at its first frame** and the error is discarded by
+    `let _`. **The real DTB page QEMU placed in RAM is therefore never reserved
+    and is allocatable** — the one thing that call exists to prevent.
+- **Why nothing saw it:** nothing reads the device tree, so a wrong pointer has
+  no symptom; the reserve is deliberately written to swallow its own failure; and
+  no test asserts what `dtb_pa` is. The comment asserts the invariant that the
+  instruction three lines above it breaks — the claim-versus-mechanism class, in
+  the first twenty instructions the machine executes.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**.
+  Preserve `a1` across the BSS clear; validate the tree's magic before storing or
+  reserving anything from it (`fjell-dtb-validate` exists); and let the reserve's
+  failure be heard rather than discarded. Closing it needs the failing case shown
+  first — the value the kernel receives, printed at boot, equal to `__bss_end` —
+  then the real page reserved. It is also the reason no DTB path in this tree has
+  ever run on a real device tree, which bears on E-048.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4165,6 +4199,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | ACCEPTED |
 | E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | ACCEPTED |
+| E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the
