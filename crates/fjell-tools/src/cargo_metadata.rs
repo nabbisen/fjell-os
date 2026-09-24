@@ -284,6 +284,48 @@ pub fn bare_metal_crate_names() -> Result<Vec<String>, String> {
     bare_metal_crate_names_from(Path::new("."))
 }
 
+/// The single `cargo test` invocation for every crate's **lib** tests
+/// (RFC-0.33-004 D1, E-049) — shared by `test_all`'s tier 1, by
+/// `cargo xtask host-lib-tests` (CI's `ci-test-lib` job) and by the release
+/// checklist's Gate 1 step, so the three cannot name different sets.
+///
+/// **The set is the workspace's**, not a list: a crate that gains a lib target is
+/// tested the day it is added, with no CI edit. (The hand-written `-p` lists this
+/// replaced had left fourteen crates' tests running nowhere in CI, two of them
+/// added by the line before this one.) `fjell-proptest` is excluded because it
+/// runs in its own tier and job (`--release`, its tests live in `tests/`).
+///
+/// **The feature is passed explicitly**, as `host_bin_test_argv` does. Left to
+/// feature unification it is enabled only because `fjell-secure-transportd` asks for
+/// it, and `cargo test -p fjell-sxt-crypto --lib` alone fails its own
+/// `compile_error!` guard. Measured: of the 54 lib crates, that is the only one that
+/// fails when run alone.
+pub fn host_lib_test_argv() -> Vec<String> {
+    [
+        "cargo",
+        "test",
+        "--workspace",
+        "--lib",
+        "--exclude",
+        "fjell-proptest",
+        "--features",
+        "fjell-sxt-crypto/crypto-profile-development",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
+}
+
+/// `cargo xtask host-lib-tests` — the entry point CI's `ci-test-lib` job runs,
+/// and the one command Gate 1 names; inherits stdio like `host-bin-tests`.
+pub fn cmd_host_lib_tests() -> std::process::ExitCode {
+    let argv = host_lib_test_argv();
+    match Command::new(&argv[0]).args(&argv[1..]).status() {
+        Ok(s) if s.success() => std::process::ExitCode::SUCCESS,
+        _ => std::process::ExitCode::FAILURE,
+    }
+}
+
 /// The single `cargo test` invocation for "everything `--lib` cannot reach"
 /// (RFC-0.29-001 R1) — shared by `test_all`'s own tier and
 /// `cargo xtask host-bin-tests` (CI's `ci-host-bins` job), so the flag
@@ -429,5 +471,60 @@ mod tests {
         assert!(!names.contains(&"fjell-tools".to_string()));
         assert!(!names.contains(&"fjell-consistency-check".to_string()));
         assert!(!names.contains(&"fjell-unsafe-audit".to_string()));
+    }
+
+    // ── RFC-0.33-004 D1 (E-049): one definition of "every crate's lib tests" ──
+
+    #[test]
+    fn the_lib_argv_is_the_workspace_and_names_no_package() {
+        let argv = host_lib_test_argv();
+        assert!(argv.contains(&"--workspace".to_string()));
+        assert!(argv.contains(&"--lib".to_string()));
+        assert!(
+            !argv.iter().any(|a| a == "-p" || a == "--package"),
+            "a hand-picked package is what left fourteen crates untested: {argv:?}"
+        );
+        // The only crate the workspace run leaves out is the one with its own tier.
+        let excluded: Vec<&String> = argv
+            .iter()
+            .zip(argv.iter().skip(1))
+            .filter(|(a, _)| *a == "--exclude")
+            .map(|(_, b)| b)
+            .collect();
+        assert_eq!(excluded, ["fjell-proptest"]);
+    }
+
+    /// Not optional (the RFC's Risks): the feature `fjell-sxt-crypto`'s guard needs
+    /// is passed, not inherited from a neighbour.
+    #[test]
+    fn the_lib_argv_passes_the_crypto_feature_explicitly() {
+        let argv = host_lib_test_argv();
+        let i = argv
+            .iter()
+            .position(|a| a == "--features")
+            .expect("--features");
+        assert_eq!(argv[i + 1], "fjell-sxt-crypto/crypto-profile-development");
+    }
+
+    /// Three consumers, one definition: `test-all`'s tier 1 calls the function
+    /// rather than spelling the command, and the release checklist's Gate 1 step is
+    /// the subcommand that calls it.
+    #[test]
+    fn test_all_and_the_release_checklist_use_the_shared_definition() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let test_all =
+            std::fs::read_to_string(root.join("crates/fjell-tools/src/test_all.rs")).unwrap();
+        assert!(test_all.contains("host_lib_test_argv()"));
+        assert!(
+            !test_all.contains("\"--lib\","),
+            "test-all spells its own lib command again"
+        );
+        let checklist =
+            std::fs::read_to_string(root.join("docs/src/releasing/release-checklist.md")).unwrap();
+        assert!(checklist.contains("cargo xtask host-lib-tests"));
+        assert!(
+            !checklist.contains("cargo test --workspace --lib"),
+            "the checklist spells its own lib command again"
+        );
     }
 }

@@ -31,8 +31,9 @@ rustc --version | grep "1.98.1"
 ## Step 1 — Host test suite
 
 ```bash run-verified
-cargo test --workspace --lib --exclude fjell-proptest
-# Expected: test result: ok. N passed; 0 failed
+cargo xtask host-lib-tests
+# Expected: test result: ok. N passed; 0 failed  (the workspace's lib tests: the
+# one definition test-all and CI also run — cargo_metadata::host_lib_test_argv)
 ```
 
 ---

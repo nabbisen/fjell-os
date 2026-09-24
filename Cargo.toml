@@ -82,7 +82,6 @@ members = [
     "tools/fjell-readiness-check",
     "tools/fjell-consistency-check",
     "benches",
-    "tools/fjell-ci-coverage",
     "crates/services/fjell-fleetd",
     "crates/formats/fjell-policy-format",
     "crates/formats/fjell-remote-diag-format",
@@ -154,7 +153,6 @@ default-members = [
     "crates/formats/fjell-upgrade-format",
     "crates/formats/fjell-verify-format",
     "crates/services/fjell-fleetd",
-    "tools/fjell-ci-coverage",
     "tools/fjell-unsafe-audit",
 ]
 
@@ -188,12 +186,6 @@ edition         = "2024"
 authors         = ["nabbisen"]
 license         = "Apache-2.0"
 repository      = "https://github.com/nabbisen/fjell-os"
-
-[workspace.metadata.fjell.ci_excluded]
-"fjell-kernel"          = { reason = "cross-compile only; no-std bare-metal; use cargo xtask qemu" }
-"fjell-svc-fault"       = { reason = "intentional fault-test target; covered by QEMU smoke" }
-"fjell-svc-timeout"     = { reason = "intentional timeout-test target; covered by QEMU smoke" }
-"fjell-neg-test"        = { reason = "negative-test smoke binary; covered by QEMU smoke" }
 
 [workspace.dependencies]
 criterion               = { version = "0.5", features = ["html_reports"] }

@@ -47,6 +47,7 @@ use std::fs;
 use std::process::ExitCode;
 
 mod book_structure;
+mod ci_test_jobs;
 mod citation;
 mod doc_counts;
 mod doc_links;
@@ -110,6 +111,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
         book_structure::historical_status_lines,
     ), // RFC-0.32-004 D3: the advisory register, valid while empty.
     ("security-advisories", security_advisories::check),
+    // RFC-0.33-004 D2: a CI test job may not hand-list packages.
+    ("ci-test-jobs", ci_test_jobs::check),
 ];
 
 #[cfg(test)]

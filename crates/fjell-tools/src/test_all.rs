@@ -6,7 +6,7 @@
 //!
 //! ## Tier order
 //!
-//! 1. **host-lib**   — `cargo test --workspace --lib --exclude fjell-proptest`
+//! 1. **host-lib**   — `cargo_metadata::host_lib_test_argv` (the workspace's lib tests)
 //! 1b. **host-bins** — `cargo test --workspace --bins --tests --exclude
 //!     fjell-proptest --exclude <bare-metal crates>` (RFC-0.29-001 R1:
 //!     `--lib` alone leaves every crate with no lib target — the gate
@@ -75,18 +75,13 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     let mut results: Vec<TierResult> = Vec::new();
 
     // ── Tier 1: host lib tests ────────────────────────────────────────────────
-    results.push(run_tier(
+    // RFC-0.33-004 D1: the shared definition, the same one `cargo xtask
+    // host-lib-tests` (CI's `ci-test-lib`) and the release checklist run.
+    results.push(run_tier_owned(
         &run_dir,
         "01-host-lib",
         "Host library tests",
-        &[
-            "cargo",
-            "test",
-            "--workspace",
-            "--lib",
-            "--exclude",
-            "fjell-proptest",
-        ],
+        &cargo_metadata::host_lib_test_argv(),
     ));
 
     // ── Tier 1b: host bin/integration tests (RFC-0.29-001 R1, E-013) ────────

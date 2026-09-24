@@ -42,4 +42,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "unique-doc-directory-names",
     "historical-status-lines",
     "security-advisories",
+    "ci-test-jobs",
 ];

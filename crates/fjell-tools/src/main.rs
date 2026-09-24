@@ -17,6 +17,8 @@
 //!   release-rehearsal                  — run v1.0 tag gates (RFC-v0.16-008)
 //!   consistency-check [<subcheck>|--all] — declared vs. actual state
 //!                                        checks  (RFC-v0.22-001, Gate 12)
+//!   host-lib-tests                     — every crate's lib tests, workspace-derived;
+//!                                        the one definition test-all, CI and Gate 1 share
 //!   test-all [--no-qemu]              — run every test tier; write
 //!                                        dated log bundle to tests/runs/
 //!   evidence promote ...               — promote a QEMU serial log into
@@ -76,6 +78,7 @@ fn main() -> ExitCode {
         Some("qemu-test") => smoke::cmd_qemu_test(args.get(1).map(String::as_str)),
         Some("qemu-negative") => negative::cmd_qemu_negative(args.get(1).map(String::as_str)),
         Some("list-negative-categories") => negative::cmd_list_negative_categories(),
+        Some("host-lib-tests") => cargo_metadata::cmd_host_lib_tests(),
         Some("host-bin-tests") => cargo_metadata::cmd_host_bin_tests(),
         Some("qemu-log-check") => qemu_log_check::cmd_qemu_log_check(
             args.get(1).map(String::as_str),

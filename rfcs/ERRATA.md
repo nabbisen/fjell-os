@@ -3445,7 +3445,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why nothing saw it:** an instrument nobody runs cannot fail anyone, and a
   literal `-p ` match cannot tell a package flag from `mkdir -p` (**E-014**'s
   family).
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15; re-derived and
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-15; re-derived and
   re-scoped 2026-09-16), tracked **RFC-0.33-004** (scoped 2026-09-24) (owner, 2026-09-16: cut 0.32 now
   rather than hold it for this line; the design above is settled and approved). Closing it means the hand-written
   `-p` lists are gone, not that the tool that polices them is improved:
@@ -3456,6 +3456,54 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `fjell-ci-coverage` — with `[workspace.metadata.fjell.ci_excluded]`, which
   nothing else reads — is deleted, because a tool that checks a list that no
   longer exists is one more thing to keep true.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.33-004 D1, D2, D3**, with a CI run
+  owed (nothing is pushed).
+  CI's lib tests are one job, `ci-test-lib`, running `cargo xtask host-lib-tests` —
+  `cargo_metadata::host_lib_test_argv()`: `cargo test --workspace --lib --exclude
+  fjell-proptest --features fjell-sxt-crypto/crypto-profile-development`. **One
+  definition, three consumers:** `test-all`'s tier 1 calls the function, the release
+  checklist's Gate 1 step is the subcommand, and CI runs the subcommand; a test
+  asserts none spells its own command. It replaced `ci-test-host`, the test step of
+  `ci-test-services` (that job is now `ci-cross-check-services`, its `cargo check`
+  unchanged) and `ci-test-v07-formats`, and two `--lib` lines in `ci-proptest`.
+  A new consistency subcheck, **`ci-test-jobs`** (the eighteenth), refuses a `-p` on
+  a `cargo test` command in any job, printing the rule in the failure itself, with
+  one allowance (`-p fjell-proptest`, which the derived runs exclude by name).
+  `fjell-ci-coverage` and `[workspace.metadata.fjell.ci_excluded]` are **deleted**
+  (nothing else read the metadata).
+
+  **Re-derived at this tip, not the RFC's or the register's figures** (§0.1 of the
+  handoff: the count grew while this waited): the hand lists were **101 occurrences on
+  88 lines naming 73 crates**, and **14 lib crates were in none of them** — the ten
+  of this entry, plus `fjell-consistency-check`, `fjell-os`, and **`fjell-canon`
+  and `fjell-schema`, added by the previous line and named in no CI list**.
+
+  | | before | after |
+  |---|---|---|
+  | crates whose `--lib` tests CI ran | 35 crates, 504 tests (measured by running the three jobs' commands, `--lib`) | **54 crates, 706 tests** |
+  | newly run | | **19 crates, 202 tests** — 17 crates / **190 tests** that ran in no CI job (incl. `fjell-driver-virtio-net` **49**, `fjell-semantic-toolkit` 27, `fjell-canon` 7, the ten of this entry), and the two model crates' 12 that `ci-proptest` ran and the derived job now covers too. Three of the 19 have 0 lib tests (`fjell-arch-arm64`, `fjell-os`, `fjell-schema`, whose tests are integration tests run by `ci-host-bins`) |
+  | `cargo test` commands in CI that name a package | 3 hand lists + 2 `-p` lines | **0** except `-p fjell-proptest` |
+  | wall-clock, cold, this machine | 2.7 s + 0.6 s + 0.4 s (three parallel jobs) | 4.8 s (one job); one job also pays one checkout + toolchain install, not three |
+
+  **Feature unification, measured (§A):** of the 54 lib crates run *alone*
+  (`cargo test -p <crate> --lib`), **53 pass and one fails — `fjell-sxt-crypto`**, on
+  its own `compile_error!`, the only guard in the workspace; the explicit `--features`
+  keeps it exercised. Nothing else passes only because a neighbour enables something.
+  What stays untested: that guard's *failure* path (the crate alone, feature absent)
+  is a compile-time refusal no test builds.
+
+  **Demonstrated (D7):** a new crate added to the workspace with **no** CI entry and a
+  failing test — the derived run **failed (exit 101), naming it**; the old hand lists
+  contain no such name and could not have run it. And the new subcheck run on the old
+  workflow: **exit 1, five refusals**, each naming job and line (`ci-test-host` :134,
+  `ci-test-services` :164, `ci-test-v07-formats` :416, and two in `ci-proptest`), with
+  the rule printed; on the new workflow, PASS.
+
+  **Not done, and named:** `cargo check`'s lists (`ci-check`, `ci-cross-check`) are still
+  hand-written — legitimately a subset by the RFC's §B — and nothing checks them
+  against the workspace. **Owed:** a CI run id (nothing pushed); the new jobs have
+  run only as the same commands locally.
 
 ## E-050 — 76 files under the book root are in no book, and the book's own pages point at documents it does not contain
 
@@ -4450,7 +4498,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | RFC-0.33-005 | ACCEPTED |
-| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | RFC-0.33-004 | ACCEPTED |
+| E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | RFC-0.33-004 | CLOSED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | RFC-0.33-004 | CLOSED |

@@ -90,7 +90,7 @@ All jobs run automatically in `.github/workflows/ci.yml` on every push to
 - `ci-format` — `cargo fmt --check`
 - `ci-check` — host-buildable crates (format, cap, ipc, syscall, tools, ...)
 - `ci-cross-check` — RISC-V cross-build check (kernel + service binaries)
-- `ci-test-host` — host unit tests (14 policy + 16 cap + 10 ipc)
+- `ci-test-lib` — every crate's lib tests, workspace-derived (`cargo xtask host-lib-tests`)
 - `ci-docs` — `mdbook build`
 - `ci-qemu-smoke` — all 8 milestone smoke tests in parallel
 - `ci-qemu-negative` — all 9 negative-test categories in parallel

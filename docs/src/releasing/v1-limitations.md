@@ -1065,17 +1065,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
     reachable, is not a pointer, and says whether it is maintained. None of
     them reads it.
 
-- **Ten crates' unit tests do not run in CI** (Errata **E-049**, ACCEPTED, tracked to
-  0.33). CI names test packages in hand-written `-p` lists, and ten
-  crates appear in none of them — 118 tests, including `fjell-sig-ed25519`
-  and `fjell-replay-cache`. They do run locally at every cut (Gate 1 is
-  `cargo test --workspace --lib`), so this is a CI gap, not untested code.
-  Some `-p` entries in those lists also test nothing: a service crate with no
-  lib target, passed with `--lib` alongside crates that have one, is skipped
-  silently. The tool meant to catch this, `fjell-ci-coverage`, runs nowhere,
-  and its report is wrong in both directions — it cannot see the
-  workspace-wide `--bins --tests` job that covers every gate tool, and it
-  counts `mkdir -p "<path>"` as a package.
+- **Fourteen crates' unit tests did not run in CI** (Errata **E-049**, **CLOSED**
+  2026-09-25 by RFC-0.33-004, with a CI run owed). CI named test packages in
+  hand-written `-p` lists (101 entries when re-measured), and fourteen lib crates
+  appeared in none of them — the ten the entry first named, plus two the previous
+  line had added; **190 tests in 17 crates** ran in no CI job. CI's lib tests are now
+  one workspace-derived job (`cargo xtask host-lib-tests`), the same command
+  `test-all` and the release checklist run, so a crate is tested the day it is
+  added; a consistency subcheck (`ci-test-jobs`) refuses a hand-written package
+  list on a `cargo test` command, and `fjell-ci-coverage` is deleted. **Survivors:**
+  the `cargo check` lists are still hand-written; `fjell-sxt-crypto`'s guard failure
+  path is exercised by nothing; and **the new job has not yet run on CI** — nothing
+  is pushed.
 
 - **A/B boot confirmation and rollback** (Errata **E-044**, **CLOSED** by
   RFC-0.33-001). ADR-0009's state machine now has a runtime: `bootctl` owns the
