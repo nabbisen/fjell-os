@@ -23,6 +23,17 @@ _start:
     csrr    t0, mhartid
     bnez    t0, park
 
+    # ── 1b. Translation off ──────────────────────────────────────────────
+    # A cold boot starts with satp = 0, so this was never needed until the
+    # machine could reset itself (RFC-0.33-001 D15). QEMU's system reset leaves
+    # satp as the previous boot set it, so the second boot's first page-table
+    # write faulted with the previous kernel's mapping still live, and the trap
+    # handler then faulted on its own first store: a silent storm, six lines of
+    # output and nothing more. Found by running the reset WITHOUT -no-reboot; the
+    # harness passes -no-reboot, which is why no tier ever booted a second time.
+    csrw    satp, zero
+    sfence.vma
+
     # ── 2. BSS zero-fill ─────────────────────────────────────────────────
     la      a0, __bss_start
     la      a1, __bss_end
