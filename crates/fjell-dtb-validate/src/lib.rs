@@ -524,4 +524,120 @@ mod tests {
         // May be R4 (missing PLIC device) or R6 (no interrupt controller)
         assert!(result.is_err());
     }
+
+    // ── RFC-0.33-005 D2 / E-048: the committed QEMU tree, against the declared board ──
+
+    /// **The one committed device tree.** `fuzz/corpora/dtb_validate/qemu-virt-bios-none.dtb`
+    /// is a dump of the tree QEMU's `virt` machine (`-machine virt -bios none`, the
+    /// configuration every QEMU tier boots) hands the kernel, 5,044 bytes. It has three
+    /// readers and this is the *same file* for each, not a copy: the `dtb_validate` fuzz
+    /// target seeds from it, this test validates it, and it is the shape of the tree the
+    /// kernel checks the header of on every boot (`fjell-fdt-header`).
+    const QEMU_TREE: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fuzz/corpora/dtb_validate/qemu-virt-bios-none.dtb"
+    ));
+
+    fn declared_board() -> BoardProfile {
+        let platform = fjell_platform_format::PlatformProfile::qemu_virt_default();
+        BoardProfile::qemu_virt_default(fjell_platform_format::platform_digest(&platform))
+    }
+
+    /// The test this crate never had. *A crate that works and is never exercised is how
+    /// `fjell-dtb-derive` got where it did.*
+    ///
+    /// **What it shows, exactly:** every device class the declared QEMU `virt` board
+    /// lists has a node in the real tree with a matching `compatible`; the tree has
+    /// memory covering the declared RAM and a PLIC; nothing declared overlaps; and the
+    /// digest returned is the SHA-256 of the file. **What it does not show:** that each
+    /// device sits at its *declared address* (R4 matches `compatible`, not `reg`), or
+    /// which of QEMU's eight identical `virtio,mmio` nodes is the network device, the
+    /// block device or the console — that lives in each device's own register, not in the
+    /// tree (E-048). "The declared profile still matches the machine we boot" is
+    /// therefore **compatible strings present**, not more.
+    #[test]
+    fn the_committed_qemu_tree_validates_against_the_declared_board() {
+        let digest = validate_dtb(QEMU_TREE, &declared_board()).expect("QEMU's own tree validates");
+        assert_eq!(digest, Digest32::of(QEMU_TREE));
+    }
+
+    /// Ties the file to the kernel's claim: `fdt_extent` of the committed tree is its own
+    /// length, the 5,044 bytes E-064 reserves (two frames) on every boot. Replacing the
+    /// file with another tree fails here, before it silently changes what three readers see.
+    #[test]
+    fn the_committed_tree_is_the_extent_the_kernel_reserves() {
+        assert_eq!(fjell_fdt_header::fdt_extent(QEMU_TREE), Ok(QEMU_TREE.len()));
+        assert_eq!(QEMU_TREE.len(), 5044);
+    }
+
+    // The same test must be *able to fail*: each of these breaks something real about
+    // the same tree or board, and each is refused with the check that names it.
+
+    #[test]
+    fn control_a_tree_with_the_uart_renamed_fails_r4() {
+        let mut t = QEMU_TREE.to_vec();
+        let at = t
+            .windows(8)
+            .position(|w| w == b"ns16550a")
+            .expect("the UART node");
+        t[at + 7] = b'b'; // "ns16550b": no such device
+        let e = validate_dtb(&t, &declared_board()).unwrap_err();
+        assert_eq!(e.check, ValidationCheck::R4RequiredDeviceMissing);
+        assert_eq!(e.detail, declared_board().devices[0].mmio_base);
+    }
+
+    #[test]
+    fn control_a_tree_without_its_interrupt_controller_fails() {
+        let mut t = QEMU_TREE.to_vec();
+        let at = t
+            .windows(11)
+            .position(|w| w == b"riscv,plic0")
+            .expect("the PLIC node");
+        t[at + 10] = b'9'; // "riscv,plic9"
+        let e = validate_dtb(&t, &declared_board()).unwrap_err();
+        assert!(
+            matches!(
+                e.check,
+                ValidationCheck::R4RequiredDeviceMissing | ValidationCheck::R6NoInterruptController
+            ),
+            "{e:?}"
+        );
+    }
+
+    #[test]
+    fn control_a_wrong_magic_fails_r1() {
+        let mut t = QEMU_TREE.to_vec();
+        t[0] ^= 0xFF;
+        assert_eq!(
+            validate_dtb(&t, &declared_board()).unwrap_err().check,
+            ValidationCheck::R1BadMagic
+        );
+    }
+
+    #[test]
+    fn control_a_truncated_tree_is_refused_not_read_past() {
+        for keep in [
+            0usize,
+            39,
+            40,
+            200,
+            QEMU_TREE.len() / 2,
+            QEMU_TREE.len() - 1,
+        ] {
+            assert!(
+                validate_dtb(&QEMU_TREE[..keep], &declared_board()).is_err(),
+                "a tree cut to {keep} bytes validated"
+            );
+        }
+    }
+
+    #[test]
+    fn control_a_board_with_two_devices_at_one_address_fails_r5() {
+        let mut b = declared_board();
+        b.devices[2].mmio_base = b.devices[1].mmio_base;
+        assert_eq!(
+            validate_dtb(QEMU_TREE, &b).unwrap_err().check,
+            ValidationCheck::R5MmioOverlap
+        );
+    }
 }
