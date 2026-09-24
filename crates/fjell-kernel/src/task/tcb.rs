@@ -191,7 +191,7 @@ impl Task {
 // ── TaskTable ─────────────────────────────────────────────────────────────────
 
 /// Maximum number of concurrent tasks (including idle).
-pub const MAX_TASKS: usize = 32;
+pub const MAX_TASKS: usize = 40;
 
 struct TaskSlot {
     generation: u16,

@@ -155,7 +155,7 @@ fn sys_exit(tf: &mut TrapFrame) {
 // (interrupts masked) when a newline arrives or the line buffer fills.
 // Single-hart Cell/UnsafeCell pattern, same as `Flag` below.
 
-const DBG_TASKS: usize = 32;
+const DBG_TASKS: usize = crate::task::tcb::MAX_TASKS;
 const DBG_LINE: usize = 160;
 
 struct DebugLineBufs {
