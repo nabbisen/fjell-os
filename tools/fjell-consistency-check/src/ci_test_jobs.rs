@@ -54,6 +54,10 @@ pub struct Violation {
 /// route around it. So `name:`, `if:`, `env:` and comments are never scanned; the body
 /// of a `run:` is — inline (`run: cmd`) or a block (`run: |`, every following line
 /// indented deeper than the key).
+/// Only the tests call this; `check` uses [`scan`] directly, so outside `cfg(test)`
+/// it is dead and warned about on every build of this tool (found at review, the
+/// class RFC-0.33-003 fixed in `fjell-dtb-validate`).
+#[cfg(test)]
 pub fn violations(ci: &str) -> Vec<Violation> {
     scan(ci).0
 }
