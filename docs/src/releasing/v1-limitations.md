@@ -982,9 +982,10 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   and closed an array at the first `]`, inside quoted strings too, so a marker could
   be shortened or halved without a word; both failures let a tier pass on less than
   its author wrote. It now respects quoting and **refuses at load** what it cannot
-  carry (an unterminated string, a bare word, an empty marker). Three profiles
-  (`semantic`, `uart-rx`, `semantic-braille`) still assert the bracket-free text
-  they were written with to avoid the old reader; nothing has been strengthened.
+  carry (an unterminated string, a bare word, an empty marker). `semantic` asserts its
+  bracketed marker whole again (restored at review); two profiles (`uart-rx`,
+  `semantic-braille`) still assert the bracket-free text they were written with to
+  avoid the old reader — nothing else has been strengthened.
 
 - **Struct padding was written to disk in four places** (Errata **E-055**,
   **CLOSED** 2026-09-24 by RFC-0.33-003). `fjell-init` filled sector buffers by

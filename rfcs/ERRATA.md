@@ -3533,6 +3533,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   one allowance (`-p fjell-proptest`, which the derived runs exclude by name).
   `fjell-ci-coverage` and `[workspace.metadata.fjell.ci_excluded]` are **deleted**
   (nothing else read the metadata).
+  **At review (RFC-0.33-004 D8, D11):** the subcheck scanned every line containing
+  `cargo test`, so a step whose `name:` read *"… (was: cargo test -p fjell-abi --lib)"*
+  was refused although its `run:` was correct. It now scans `run:` bodies only (inline
+  and block; `name:`, `if:`, `env:` and comments are never commands) — the refusals
+  demonstrated above still stand (the old workflow: still five) — and the one
+  allowance, `-p fjell-proptest`, is now a single constant
+  (`fjell_consistency_check::UNDERIVED_TEST_PACKAGE`) that the subcheck allows **and**
+  both derived argvs exclude, with a test asserting so and that `test-all`'s tier 2
+  runs exactly that package.
 
   **Re-derived at this tip, not the RFC's or the register's figures** (§0.1 of the
   handoff: the count grew while this waited): the hand lists were **101 occurrences on
@@ -4166,10 +4175,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   A test also loads every committed profile (they all still load) and asserts
   `health-fail`'s marker is the printed line whole. The old test that **asserted the
   bug** (`multiline_array_still_closes_early_on_a_bracket_inside_a_marker_string`,
-  "still live") now asserts the fix. **Not done, deliberately:** `semantic.toml`,
-  `uart-rx.toml` and `semantic-braille.toml` were written bracket-free to avoid this;
-  their markers are unchanged (changing what a tier asserts is not this fix's to
-  do) and their stale notes now say so. E-014's surviving instance, which that test
+  "still live") now asserts the fix. **Not done, deliberately:** `uart-rx.toml` and
+  `semantic-braille.toml` were written bracket-free to avoid this; their markers are
+  unchanged (changing what a tier asserts is not this fix's to do) and their stale notes
+  now say so. **`semantic.toml` is restored** (RFC-0.33-004 D12, at review): its marker
+  had been *weakened to suit the old reader*, so `[INTENT][Normal] sample-service demo
+  intent` is asserted whole again, PASS, and a control with the wrong tag
+  (`[Critical]`) FAILS with `missing marker` — a live profile carrying a real
+  bracketed marker, not only the reader's unit tests. E-014's surviving instance, which that test
   recorded, is closed with it. It is not a TOML parser and is not meant to become
   one.
 

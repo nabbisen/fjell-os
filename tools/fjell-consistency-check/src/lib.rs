@@ -11,6 +11,13 @@
 //! built this" function, reused by `tools/fjell-repro-check` and
 //! `crates/fjell-tools` — three artefact-producing paths, one observation.
 
+/// The one package a `cargo test` in CI may name with `-p`: the package the
+/// workspace-derived test runs **exclude by name** (`fjell-proptest`: its own tier and
+/// job, `--release`, its tests in `tests/`). One fact, one place: the `ci-test-jobs`
+/// subcheck allows it and `crates/fjell-tools`' shared test argv excludes it, both
+/// reading this, so a change moves both or a test fails (RFC-0.33-004 D11).
+pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
+
 pub mod errata;
 pub mod toolchain;
 

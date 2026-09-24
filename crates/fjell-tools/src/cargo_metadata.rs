@@ -307,7 +307,9 @@ pub fn host_lib_test_argv() -> Vec<String> {
         "--workspace",
         "--lib",
         "--exclude",
-        "fjell-proptest",
+        // The one package the `ci-test-jobs` subcheck allows a `-p` for is this
+        // one (RFC-0.33-004 D11): one definition, read by both.
+        fjell_consistency_check::UNDERIVED_TEST_PACKAGE,
         "--features",
         "fjell-sxt-crypto/crypto-profile-development",
     ]
@@ -340,7 +342,7 @@ pub fn host_bin_test_argv() -> Result<Vec<String>, String> {
         "--bins".into(),
         "--tests".into(),
         "--exclude".into(),
-        "fjell-proptest".into(),
+        fjell_consistency_check::UNDERIVED_TEST_PACKAGE.into(),
         // See `test_all`'s own comment at its tier-1b call site for why
         // this is here: excluding the bare-metal crates above removes
         // fjell-secure-transportd, which was the dependency edge quietly
@@ -491,7 +493,7 @@ mod tests {
             .filter(|(a, _)| *a == "--exclude")
             .map(|(_, b)| b)
             .collect();
-        assert_eq!(excluded, ["fjell-proptest"]);
+        assert_eq!(excluded, [fjell_consistency_check::UNDERIVED_TEST_PACKAGE]);
     }
 
     /// Not optional (the RFC's Risks): the feature `fjell-sxt-crypto`'s guard needs
@@ -525,6 +527,32 @@ mod tests {
         assert!(
             !checklist.contains("cargo test --workspace --lib"),
             "the checklist spells its own lib command again"
+        );
+    }
+
+    /// D11: the package `ci-test-jobs` lets a CI `cargo test` name with `-p` is the
+    /// package **both** derived argvs exclude — one constant, and this test fails if
+    /// either drifts from it.
+    #[test]
+    fn both_derived_runs_exclude_exactly_the_package_the_gate_allows() {
+        let allowed = fjell_consistency_check::UNDERIVED_TEST_PACKAGE;
+        let lib = host_lib_test_argv();
+        assert!(
+            lib.windows(2)
+                .any(|w| w[0] == "--exclude" && w[1] == allowed)
+        );
+        let bins = host_bin_test_argv().unwrap();
+        assert!(
+            bins.windows(2)
+                .any(|w| w[0] == "--exclude" && w[1] == allowed)
+        );
+        // and test-all's tier 2 runs exactly that package
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let test_all =
+            std::fs::read_to_string(root.join("crates/fjell-tools/src/test_all.rs")).unwrap();
+        assert!(
+            test_all.contains(&format!("\"-p\", \"{allowed}\", \"--release\"")),
+            "tier 2 no longer runs the package the derived runs exclude"
         );
     }
 }

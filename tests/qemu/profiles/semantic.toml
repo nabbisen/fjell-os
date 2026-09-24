@@ -13,15 +13,16 @@ timeout_secs     = 60
 # tier noticed. It is the text of the STATE line init's M7 section renders,
 # without the brackets.
 #
-# History (E-057, closed by RFC-0.33-004 D6): the profile reader used to close the
-# array at the first `]` and split on every comma, so a marker like
-# "[INTENT][Normal] sample-service demo intent" silently cost this tier 2 of its 4
-# markers, and these markers were written bracket-free to avoid it. The reader now
-# respects quoting, so the bracketed form would load whole; the markers here were
-# left as they are because changing what a tier asserts is not this fix's to do.
+# History (E-057, closed by RFC-0.33-004 D6; RFC-0.33-004 D12): the profile reader
+# used to close the array at the first `]`, so the marker below --
+# "[INTENT][Normal] sample-service demo intent" -- silently cost this tier 2 of its
+# 4 markers, and it was weakened to the bracket-free "sample-service demo intent" to
+# suit the reader. The reader carries it whole now, and the author's text is back:
+# this profile is the live one asserting a real bracketed marker, not only the
+# reader's unit tests.
 expected_markers = [
     "M5: semantic operations ready",
-    "sample-service demo intent",
+    "[INTENT][Normal] sample-service demo intent",
     "proxy-text: action accepted",
     "proxy-text: action DENIED (capability not held)",
     "Verified boot status",

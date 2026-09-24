@@ -24,8 +24,9 @@ use std::process::ExitCode;
 const NAME: &str = "ci-test-jobs";
 const CI_PATH: &str = ".github/workflows/ci.yml";
 
-/// The one package a `cargo test` line may name.
-const ALLOWED_PACKAGE: &str = "fjell-proptest";
+/// The one package a `cargo test` line may name — read from the definition the
+/// derived runs' `--exclude` also reads (RFC-0.33-004 D11), not spelled again.
+const ALLOWED_PACKAGE: &str = fjell_consistency_check::UNDERIVED_TEST_PACKAGE;
 
 /// The rule, stated in the failure itself so a reader who trips it learns why from
 /// the message and not from a handoff.
@@ -44,12 +45,27 @@ pub struct Violation {
     pub command: String,
 }
 
-/// Every `cargo test` command in the workflow that names a package it may not.
+/// Every `cargo test` command in a step's **`run:` body** that names a package it
+/// may not.
+///
+/// Only a `run:` value is a command. A step's `name:` is not (RFC-0.33-004 D8): the
+/// honest name for a step that replaced a hand list — *"was: cargo test -p …"* — is what
+/// a careful author writes, and a gate that refuses correct input teaches people to
+/// route around it. So `name:`, `if:`, `env:` and comments are never scanned; the body
+/// of a `run:` is — inline (`run: cmd`) or a block (`run: |`, every following line
+/// indented deeper than the key).
 pub fn violations(ci: &str) -> Vec<Violation> {
+    scan(ci).0
+}
+
+/// The violations, and how many `cargo test` commands the `run:` bodies hold.
+fn scan(ci: &str) -> (Vec<Violation>, usize) {
     let mut out = Vec::new();
+    let mut commands = 0usize;
     let mut job = String::from("(before any job)");
     let mut in_jobs = false;
     let lines: Vec<&str> = ci.lines().collect();
+    let indent = |l: &str| l.len() - l.trim_start().len();
     let mut i = 0;
     while i < lines.len() {
         let raw = lines[i];
@@ -63,34 +79,60 @@ pub fn violations(ci: &str) -> Vec<Violation> {
         {
             job = trimmed.trim_end_matches(':').to_string();
         }
-        if trimmed.starts_with('#') || trimmed.is_empty() {
+        // A step's `run:` key: `- run: …` or `run: …`.
+        let after_dash = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        let Some(value) = after_dash.strip_prefix("run:") else {
             i += 1;
             continue;
-        }
-        // Join backslash continuations into one logical command.
-        let start = i;
-        let mut cmd = trimmed.trim_end_matches('\\').trim().to_string();
-        while lines[i].trim_end().ends_with('\\') && i + 1 < lines.len() {
+        };
+        let key_indent = indent(raw) + (trimmed.len() - after_dash.len());
+        let value = value.trim();
+        // The command text: (starting line, text) pairs.
+        let mut body: Vec<(usize, String)> = Vec::new();
+        if value.is_empty() || value.starts_with('|') || value.starts_with('>') {
+            let mut j = i + 1;
+            while j < lines.len() && (lines[j].trim().is_empty() || indent(lines[j]) > key_indent) {
+                body.push((j, lines[j].trim().to_string()));
+                j += 1;
+            }
+            i = j;
+        } else {
+            body.push((i, value.to_string()));
             i += 1;
-            let next = lines[i].trim();
-            if next.starts_with('#') {
+        }
+        // Join backslash continuations into logical commands; skip comments.
+        let mut k = 0;
+        while k < body.len() {
+            let (start, text) = &body[k];
+            k += 1;
+            if text.starts_with('#') || text.is_empty() {
                 continue;
             }
-            cmd.push(' ');
-            cmd.push_str(next.trim_end_matches('\\').trim());
-        }
-        i += 1;
-        if let Some(rest) = cmd.find("cargo test").map(|p| &cmd[p..]) {
-            if names_a_forbidden_package(rest) {
-                out.push(Violation {
-                    job: job.clone(),
-                    line: start + 1,
-                    command: cmd.clone(),
-                });
+            let mut cmd = text.trim_end_matches('\\').trim().to_string();
+            let mut cont = text.ends_with('\\');
+            while cont && k < body.len() {
+                let (_, next) = &body[k];
+                k += 1;
+                if next.starts_with('#') {
+                    continue;
+                }
+                cmd.push(' ');
+                cmd.push_str(next.trim_end_matches('\\').trim());
+                cont = next.ends_with('\\');
+            }
+            if let Some(rest) = cmd.find("cargo test").map(|p| &cmd[p..]) {
+                commands += 1;
+                if names_a_forbidden_package(rest) {
+                    out.push(Violation {
+                        job: job.clone(),
+                        line: start + 1,
+                        command: cmd.clone(),
+                    });
+                }
             }
         }
     }
-    out
+    (out, commands)
 }
 
 /// Does a `cargo test …` command name a package other than the allowed one?
@@ -123,13 +165,11 @@ fn names_a_forbidden_package(cmd: &str) -> bool {
 }
 
 pub fn run_check(ci: &str) -> ExitCode {
-    let v = violations(ci);
+    let (v, n) = scan(ci);
     if v.is_empty() {
-        let n = ci
-            .lines()
-            .filter(|l| !l.trim().starts_with('#') && l.contains("cargo test"))
-            .count();
-        println!("{NAME}: PASS ({n} `cargo test` command(s) in {CI_PATH}, none names a package)");
+        println!(
+            "{NAME}: PASS ({n} `cargo test` command(s) in {CI_PATH}'s `run:` bodies, none names a package)"
+        );
         ExitCode::SUCCESS
     } else {
         eprintln!("{NAME}: FAIL");
@@ -236,5 +276,52 @@ mod tests {
         assert!(v.is_empty(), "{v:#?}");
         // and it does contain `cargo test` commands, so passing is not vacuous
         assert!(ci.contains("cargo test -p fjell-proptest"));
+    }
+
+    // ── RFC-0.33-004 D8: a step's name is not its command ───────────────────
+
+    /// The case the review reproduced: the `run:` is correct and only the `name:`
+    /// says what it replaced. It must pass.
+    #[test]
+    fn a_step_name_quoting_the_old_command_is_not_a_command() {
+        let ci = "jobs:\n  ci-t:\n    steps:\n      - name: cargo xtask host-lib-tests (was: cargo test -p fjell-abi --lib)\n        run: cargo xtask host-lib-tests\n";
+        assert!(violations(ci).is_empty(), "{:?}", violations(ci));
+        assert_eq!(run_check(ci), ExitCode::SUCCESS);
+    }
+
+    /// `if:`, `env:`, `with:` values and a `name:` on a *list-item* line are also not
+    /// commands — while the same text in a `run:` is refused (the refusal survives).
+    #[test]
+    fn only_a_run_body_is_scanned_and_it_still_refuses() {
+        let benign = "jobs:\n  ci-t:\n    steps:\n      - name: cargo test -p fjell-cap\n        if: contains('cargo test -p x', 'y')\n        env:\n          NOTE: cargo test -p fjell-cap\n        run: cargo xtask host-lib-tests\n";
+        assert!(violations(benign).is_empty(), "{:?}", violations(benign));
+        // the same command in a run body, inline and block
+        for run in [
+            "        run: cargo test -p fjell-cap\n",
+            "        run: |\n          echo hi\n          cargo test -p fjell-cap --lib\n",
+        ] {
+            let ci = format!("jobs:\n  ci-t:\n    steps:\n      - name: ok\n{run}");
+            assert_eq!(violations(&ci).len(), 1, "{run}");
+        }
+    }
+
+    #[test]
+    fn a_run_block_ends_where_its_indentation_does() {
+        // The line after the block is a `name:` at the step's indent — not part of it.
+        let ci = "jobs:\n  ci-t:\n    steps:\n      - run: |\n          cargo xtask host-lib-tests\n      - name: cargo test -p fjell-cap\n        run: echo done\n";
+        assert!(violations(ci).is_empty(), "{:?}", violations(ci));
+    }
+
+    // ── RFC-0.33-004 D11: the allowance IS the derived runs' exclusion ───────
+
+    #[test]
+    fn the_one_allowed_package_is_the_shared_underived_package() {
+        assert_eq!(
+            ALLOWED_PACKAGE,
+            fjell_consistency_check::UNDERIVED_TEST_PACKAGE
+        );
+        let ok =
+            format!("jobs:\n  ci-p:\n    steps:\n      - run: cargo test -p {ALLOWED_PACKAGE}\n");
+        assert!(violations(&ok).is_empty());
     }
 }
