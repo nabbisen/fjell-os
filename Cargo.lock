@@ -1084,6 +1084,9 @@ dependencies = [
 [[package]]
 name = "fjell-store-format"
 version = "0.32.0"
+dependencies = [
+ "fjell-canon",
+]
 
 [[package]]
 name = "fjell-store-model"
@@ -1195,6 +1198,7 @@ version = "0.32.0"
 name = "fjell-upgrade-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-keyring",
  "fjell-measure-format",
  "fjell-trust-provider",

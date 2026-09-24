@@ -1,6 +1,8 @@
 //! A/B upgrade and boot-control block types for Fjell OS M6.
 #![no_std]
 
+use fjell_canon::{BufSink, Canon};
+
 pub mod boot_state;
 pub mod release_metadata;
 pub mod rollback_record;
@@ -36,7 +38,15 @@ pub const BOOT_CTL_MAGIC: [u8; 8] = *b"FJBOOT\0\0";
 /// 2 (RFC-0.32-002): the CRC is computed over an explicit field serialisation
 /// rather than over the struct's memory, so the checksum bytes differ from
 /// version 1's for an otherwise identical block.
-pub const BOOT_CONTROL_VERSION: u16 = 2;
+///
+/// 3 (RFC-0.33-003 D5, E-055): **the bytes written to the sector are that same
+/// serialisation**, not a view of the struct's memory. Through version 2 `init`
+/// wrote `size_of::<BootControlBlock>()` bytes, of which the padding — twelve in
+/// each `SlotInfo` and more between the block's own fields — was whatever the
+/// compiler left; the block is now 49 named, little-endian bytes
+/// (`BCB_BYTES`) and the rest of the sector is zero. Nothing reads a boot-control
+/// block back from disk (RFC-0.33-001 §A), so no data is migrated.
+pub const BOOT_CONTROL_VERSION: u16 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlotId {
@@ -73,8 +83,27 @@ const SLOT_INFO_CHECKSUM_BYTES: usize = 1 + 8 + 1 + 1 + 1;
 
 /// Width of `BootControlBlock`'s checksum serialisation: every field except
 /// `crc32`, summed by hand so a field added without a line in
-/// `checksum_input` fails the `debug_assert_eq!` there.
+/// `write_covered` fails the `debug_assert_eq!` there.
 const BCB_CHECKSUM_BYTES: usize = 8 + 2 + 8 + 1 + 1 + 1 + SLOT_INFO_CHECKSUM_BYTES * 2;
+
+/// Width of a serialised `BootControlBlock`: the checksummed fields and `crc32`.
+pub const BCB_BYTES: usize = BCB_CHECKSUM_BYTES + 4;
+
+/// The names of one slot's five fields inside the block's stream.
+const SLOT_A_FIELDS: [&str; 5] = [
+    "slot_a.state",
+    "slot_a.image_generation",
+    "slot_a.confirmed",
+    "slot_a.tries_allowed",
+    "slot_a.remaining_tries",
+];
+const SLOT_B_FIELDS: [&str; 5] = [
+    "slot_b.state",
+    "slot_b.image_generation",
+    "slot_b.confirmed",
+    "slot_b.tries_allowed",
+    "slot_b.remaining_tries",
+];
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -96,15 +125,14 @@ impl SlotInfo {
             remaining_tries: 3,
         }
     }
-    /// This slot's fields, named, little-endian, in declaration order.
-    fn checksum_input(&self) -> [u8; SLOT_INFO_CHECKSUM_BYTES] {
-        let mut out = [0u8; SLOT_INFO_CHECKSUM_BYTES];
-        out[0] = self.state.as_u8();
-        out[1..9].copy_from_slice(&self.image_generation.to_le_bytes());
-        out[9] = self.confirmed;
-        out[10] = self.tries_allowed;
-        out[11] = self.remaining_tries;
-        out
+    /// This slot's fields, named `names[0..5]`, little-endian, in declaration
+    /// order. The names are the caller's because one block holds two slots.
+    fn write_named(&self, c: &mut dyn Canon, names: &[&'static str; 5]) {
+        c.u8(names[0], self.state.as_u8());
+        c.u64(names[1], self.image_generation);
+        c.u8(names[2], self.confirmed);
+        c.u8(names[3], self.tries_allowed);
+        c.u8(names[4], self.remaining_tries);
     }
 
     pub const fn bootable(image_gen: u64) -> Self {
@@ -149,34 +177,50 @@ impl BootControlBlock {
         }
     }
 
-    /// The bytes the CRC is computed over: each field, named, little-endian,
-    /// in declaration order, with `crc32` itself excluded.
+    /// Every field the CRC covers, named, little-endian, in declaration order,
+    /// with `crc32` itself excluded.
     ///
     /// This is the serialisation, not a view of the struct's memory. It
     /// contains no padding — `SlotInfo` alone carries twelve bytes of it — so
     /// it does not depend on the layout the compiler chose, and `seal` and
     /// `is_valid` cannot disagree about what it holds.
+    pub fn write_covered(&self, c: &mut dyn Canon) {
+        c.bytes("magic", &self.magic);
+        c.u16("version", self.version);
+        c.u64("generation", self.generation);
+        c.u8("active_slot", self.active_slot);
+        c.u8("last_confirmed_slot", self.last_confirmed_slot);
+        c.u8("candidate_slot", self.candidate_slot);
+        self.slot_a.write_named(c, &SLOT_A_FIELDS);
+        self.slot_b.write_named(c, &SLOT_B_FIELDS);
+    }
+
+    /// The whole on-disk block: [`Self::write_covered`], then `crc32`. **The
+    /// function the sector is written from and the frozen schema is generated
+    /// from** — one description, read two ways.
+    pub fn write_canonical(&self, c: &mut dyn Canon) {
+        self.write_covered(c);
+        c.u32("crc32", self.crc32);
+    }
+
+    /// The bytes to put on disk: every field, named, no padding. The caller
+    /// zero-fills the rest of the sector explicitly.
+    pub fn encode(&self) -> [u8; BCB_BYTES] {
+        let mut sink = BufSink::<BCB_BYTES>::new();
+        self.write_canonical(&mut sink);
+        debug_assert_eq!(sink.len(), BCB_BYTES);
+        *sink.bytes().first_chunk::<BCB_BYTES>().expect("full")
+    }
+
+    /// The bytes the CRC is computed over.
     fn checksum_input(&self) -> [u8; BCB_CHECKSUM_BYTES] {
-        let mut out = [0u8; BCB_CHECKSUM_BYTES];
-        let mut at = 0usize;
-        {
-            let mut put = |bytes: &[u8]| {
-                out[at..at + bytes.len()].copy_from_slice(bytes);
-                at += bytes.len();
-            };
-            put(&self.magic);
-            put(&self.version.to_le_bytes());
-            put(&self.generation.to_le_bytes());
-            put(&[
-                self.active_slot,
-                self.last_confirmed_slot,
-                self.candidate_slot,
-            ]);
-            put(&self.slot_a.checksum_input());
-            put(&self.slot_b.checksum_input());
-        }
-        debug_assert_eq!(at, BCB_CHECKSUM_BYTES);
-        out
+        let mut sink = BufSink::<BCB_CHECKSUM_BYTES>::new();
+        self.write_covered(&mut sink);
+        debug_assert_eq!(sink.len(), BCB_CHECKSUM_BYTES);
+        *sink
+            .bytes()
+            .first_chunk::<BCB_CHECKSUM_BYTES>()
+            .expect("full")
     }
 
     /// Compute and store CRC32 (RFC 008).  Call before writing to disk.
@@ -335,12 +379,12 @@ fn every_flipped_field_fails_the_crc() {
 /// §C, second test: a block sealed by this code validates under this code,
 /// and carries the version the bytes belong to.
 #[test]
-fn bcb_sealed_by_new_code_validates_and_states_version_2() {
+fn bcb_sealed_by_new_code_validates_and_states_its_version() {
     let mut bcb = BootControlBlock::new(9);
     bcb.seal();
     assert!(bcb.is_valid());
     assert_eq!(bcb.version, BOOT_CONTROL_VERSION);
-    assert_eq!(BOOT_CONTROL_VERSION, 2);
+    assert_eq!(BOOT_CONTROL_VERSION, 3);
 }
 
 /// §C, third test: the old defect's exact shape. `is_valid` used to checksum
@@ -425,3 +469,70 @@ fn select_bcb_mirror_equal_generation_selects_a() {
 
 #[cfg(test)]
 mod tests_v03;
+
+#[cfg(test)]
+mod disk_bytes_tests {
+    //! RFC-0.33-003 D5 / E-055: the bytes `init` writes for a boot-control block.
+    use super::*;
+
+    /// **No byte of the block is indeterminate**: the same serialiser run into a
+    /// buffer pre-filled with `0x00` and one pre-filled with `0xFF` must agree
+    /// everywhere. A byte no named field wrote — struct padding — would show the
+    /// fill and make them differ.
+    #[test]
+    fn no_byte_of_the_boot_control_block_is_indeterminate() {
+        let mut bcb = BootControlBlock::new(0x0102_0304_0506_0708);
+        bcb.slot_b = SlotInfo {
+            state: SlotState::Candidate,
+            image_generation: 0x1112_1314_1516_1718,
+            confirmed: 1,
+            tries_allowed: 5,
+            remaining_tries: 4,
+        };
+        bcb.candidate_slot = 1;
+        bcb.seal();
+        let (mut a, mut b) = (
+            BufSink::<BCB_BYTES>::filled(0x00),
+            BufSink::<BCB_BYTES>::filled(0xFF),
+        );
+        bcb.write_canonical(&mut a);
+        bcb.write_canonical(&mut b);
+        assert_eq!(
+            a.bytes().len(),
+            BCB_BYTES,
+            "every byte of the block is written"
+        );
+        assert_eq!(a.bytes(), b.bytes());
+    }
+
+    /// What E-055 was, for this structure: the struct is larger than its fields.
+    #[test]
+    fn the_struct_has_padding_the_serialisation_does_not() {
+        assert_eq!(BCB_BYTES, 49);
+        assert!(core::mem::size_of::<BootControlBlock>() > BCB_BYTES);
+        // `SlotInfo` alone: 12 field bytes in a 24-byte struct.
+        assert_eq!(SLOT_INFO_CHECKSUM_BYTES, 12);
+        assert!(core::mem::size_of::<SlotInfo>() > SLOT_INFO_CHECKSUM_BYTES);
+    }
+
+    /// The CRC covers exactly the bytes written before it, and `crc32` is the
+    /// last four: the checksum and the sector are one function.
+    #[test]
+    fn the_crc_covers_exactly_the_bytes_written_before_it() {
+        let mut bcb = BootControlBlock::new(3);
+        bcb.seal();
+        let e = bcb.encode();
+        assert_eq!(&e[..BCB_CHECKSUM_BYTES], &bcb.checksum_input());
+        assert_eq!(&e[BCB_CHECKSUM_BYTES..], &bcb.crc32.to_le_bytes());
+        assert_eq!(crc32(&e[..BCB_CHECKSUM_BYTES]), bcb.crc32);
+    }
+
+    #[test]
+    fn the_version_moved_with_the_bytes() {
+        assert_eq!(BootControlBlock::new(1).version, 3);
+        assert_eq!(
+            &BootControlBlock::new(1).encode()[8..10],
+            &3u16.to_le_bytes()
+        );
+    }
+}

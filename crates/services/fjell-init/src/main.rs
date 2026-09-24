@@ -591,15 +591,13 @@ pub extern "C" fn service_main() -> ! {
     // Write superblock A (LBA 65)
     let mut sb = StoreSuperblock::new(1);
     sb.seal(); // RFC 008: compute CRC32 before writing
-    // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-    let sb_b = unsafe {
-        core::slice::from_raw_parts(
-            &sb as *const _ as *const u8,
-            core::mem::size_of::<StoreSuperblock>(),
-        )
-    };
+    // RFC-0.33-003 D5 / E-055: the sector is written from the block's
+    // serialisation -- every field, named, no padding -- not from a view of the
+    // struct's memory, which copied the compiler's padding to the disk. The rest
+    // of the sector is an explicit zero fill.
+    let sb_b = sb.encode();
     let mut s = [0u8; 512];
-    s[..sb_b.len()].copy_from_slice(sb_b);
+    s[..sb_b.len()].copy_from_slice(&sb_b);
     if !storaged_write(storaged_ep, LBA_SUPERBLOCK_A, &s) {
         sys_debug_writeln("M6: block I/O error");
         sys_exit(1);
@@ -608,15 +606,9 @@ pub extern "C" fn service_main() -> ! {
 
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let rec = RecordHeader::new(RecordKind::ServiceState, 1, 0);
-    // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-    let rec_b = unsafe {
-        core::slice::from_raw_parts(
-            &rec as *const _ as *const u8,
-            core::mem::size_of::<RecordHeader>(),
-        )
-    };
+    let rec_b = rec.encode(); // named fields, no padding (RFC-0.33-003 D5)
     let mut r = [0u8; 512];
-    r[..rec_b.len()].copy_from_slice(rec_b);
+    r[..rec_b.len()].copy_from_slice(&rec_b);
     if !storaged_write(storaged_ep, LBA_LOG_START, &r) {
         sys_debug_writeln("M6: block I/O error");
         sys_exit(1);
@@ -628,15 +620,9 @@ pub extern "C" fn service_main() -> ! {
     sb2.log_tail_seq = 1;
     sb2.active_checkpoint_seq = 1;
     sb2.seal(); // RFC 008
-    // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-    let sb2_b = unsafe {
-        core::slice::from_raw_parts(
-            &sb2 as *const _ as *const u8,
-            core::mem::size_of::<StoreSuperblock>(),
-        )
-    };
+    let sb2_b = sb2.encode(); // named fields, no padding (RFC-0.33-003 D5)
     let mut cs = [0u8; 512];
-    cs[..sb2_b.len()].copy_from_slice(sb2_b);
+    cs[..sb2_b.len()].copy_from_slice(&sb2_b);
     if !storaged_write(storaged_ep, LBA_SUPERBLOCK_A, &cs) {
         sys_debug_writeln("M6: block I/O error");
         sys_exit(1);
@@ -647,15 +633,9 @@ pub extern "C" fn service_main() -> ! {
     // base is still valid (RFC 001: t5/t6 correctly saved; no re-read needed).
     let mut bcb = BootControlBlock::new(1);
     bcb.seal(); // RFC 008: compute CRC32 before writing
-    // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-    let bcb_b = unsafe {
-        core::slice::from_raw_parts(
-            &bcb as *const _ as *const u8,
-            core::mem::size_of::<BootControlBlock>().min(512),
-        )
-    };
+    let bcb_b = bcb.encode(); // named fields, no padding (RFC-0.33-003 D5)
     let mut bs = [0u8; 512];
-    bs[..bcb_b.len()].copy_from_slice(bcb_b);
+    bs[..bcb_b.len()].copy_from_slice(&bcb_b);
     if !storaged_write(storaged_ep, LBA_BOOT_CTL_A_START, &bs) {
         sys_debug_writeln("M6: block I/O error");
         sys_exit(1);
