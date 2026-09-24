@@ -10,10 +10,9 @@
 # captured output — simulating a real keystroke, not a kernel-internal
 # shortcut. See qemu_run.rs::run_with_stdin_injection.
 #
-# Note: markers must not contain `]` — the hand-rolled TOML array reader
-# (qemu_run.rs::load_profile) treats the first `]` in any accumulated line
-# as the array's closing bracket (see semantic.toml for the live incident
-# this note documents). Kept bracket-free here for the same reason.
+# (Markers used to have to be bracket-free because the profile reader closed an
+# array at the first `]` inside a string -- E-057, closed by RFC-0.33-004 D6; see
+# semantic.toml. They are left as they were.)
 
 name                 = "uart-rx"
 timeout_secs         = 60

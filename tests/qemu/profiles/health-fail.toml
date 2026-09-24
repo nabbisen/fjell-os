@@ -37,12 +37,6 @@ expected_markers = [
     "init: health-fail trigger received; spawning svc-fault",
     "init: svc-fault spawned and registered as required",
     "bootctl: health passed; active slot confirmed",
-    "bootctl: health FAILED on the last confirmed slot",
-    "not resetting",
+    "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting",
 ]
-# Note: the printed line has a comma in it, split across the two markers
-# above -- qemu_run.rs::load_profile's array reader splits on every comma,
-# including ones inside a quoted marker string (semantic.toml documents the
-# same reader's `]`-inside-a-string hazard; this is the same class of bug,
-# a different character). Found running this profile, not assumed.
 extra_args = []

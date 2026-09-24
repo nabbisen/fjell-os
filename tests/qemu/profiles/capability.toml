@@ -3,15 +3,11 @@
 # RFC 049: COPY/MINT/REVOKE/INSPECT management rights.
 
 # RFC-0.25-001 Demonstration 4 adds NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED: a
-# task without IRQ_BIND is refused. Note: qemu_run.rs::load_profile's
-# multi-line array reader accumulates every line until it sees `]` and does
-# NOT skip `#` comments inside the array — a comment placed *inside* the
-# brackets (tried first, reverted) gets concatenated into the array content
-# itself and corrupts the last entry. Confirmed live: the run passed every
-# individual marker check via a raw log grep, but qemu_run's own check
-# still reported FAIL, because expected-markers.txt showed the comment text
-# merged onto the marker string. Same class of hazard `semantic.toml`
-# documents for `]` inside a marker; here it is `#` inside the array block.
+# task without IRQ_BIND is refused.
+#
+# (History: the profile reader used to fold a `#` comment placed inside the array
+# into the last marker; a comment between entries is now ignored -- E-057, closed
+# by RFC-0.33-004 D6. See semantic.toml.)
 
 name             = "capability"
 timeout_secs     = 90

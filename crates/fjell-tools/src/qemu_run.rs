@@ -23,6 +23,7 @@ use crate::qemu_shutdown;
 
 /// One QEMU run.  Loaded from a profile file or built inline by the
 /// smoke runner.
+#[derive(Debug)]
 pub struct Profile {
     pub name: String,
     /// Path to the kernel ELF, relative to the workspace root.
@@ -761,8 +762,8 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_boots_v: Option<u32> = None;
     let mut boot_banner_v: Option<String> = None;
 
-    let mut lines = src.lines().peekable();
-    while let Some(raw) = lines.next() {
+    let mut lines = src.lines().enumerate().peekable();
+    while let Some((idx, raw)) = lines.next() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -771,19 +772,36 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             Some((k, v)) => (k.trim(), v.trim()),
             None => continue,
         };
-        // Multi-line array support: `key = [` opens an array that is closed
-        // by a line whose content is `]`. (The original single-line reader
-        // silently parsed these as empty lists, which degraded every real
-        // negative profile to a placeholder — architect review v0.18
-        // follow-up.)
-        let v_owned: String = if v.starts_with('[') && !v.contains(']') {
+        // An array (`key = [ ... ]`, on one line or several) is read by a
+        // quote-aware reader (RFC-0.33-004 D6, E-057): the array ends at the
+        // first `]` **outside a string**, a comma or bracket inside a marker is
+        // part of the marker, and a `#` comment outside a string is ignored.
+        // What it cannot carry is refused here, with the line, instead of being
+        // reshaped — the old reader split on every comma and closed at the first
+        // `]` anywhere, so a marker could be shortened without a word.
+        let v_owned: String = if v.starts_with('[') {
             let mut acc = String::from(v);
-            for cont in lines.by_ref() {
-                let c = cont.trim();
-                acc.push(' ');
-                acc.push_str(c);
-                if c.contains(']') {
-                    break;
+            loop {
+                match scan_array(&acc) {
+                    Scan::Done(_) => break,
+                    Scan::Bad(msg, at) => {
+                        return Err(format!(
+                            "{}: `{k}` (line {}): {msg}",
+                            path.display(),
+                            idx + 1 + acc[..at].matches('\n').count()
+                        ));
+                    }
+                    Scan::Incomplete => {
+                        let Some((_, cont)) = lines.next() else {
+                            return Err(format!(
+                                "{}: `{k}` (line {}): the array is never closed",
+                                path.display(),
+                                idx + 1
+                            ));
+                        };
+                        acc.push('\n');
+                        acc.push_str(cont);
+                    }
                 }
             }
             acc
@@ -800,8 +818,8 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
                     .parse::<u32>()
                     .map_err(|e| format!("bad timeout_secs: {e}"))?
             }
-            "expected_markers" => markers = parse_list(v),
-            "extra_args" => extra = parse_list(v),
+            "expected_markers" => markers = array_items(&path, k, idx, v)?,
+            "extra_args" => extra = array_items(&path, k, idx, v)?,
             // RFC-0.25-001 (Demonstration 6): a byte is written to QEMU's
             // stdin once `inject_after_marker` appears in the output.
             // `inject_bytes` is the literal string whose bytes are sent —
@@ -995,14 +1013,135 @@ fn unquote(s: &str) -> String {
     }
 }
 
-fn parse_list(v: &str) -> Vec<String> {
-    let t = v.trim();
-    let t = t.strip_prefix('[').unwrap_or(t);
-    let t = t.strip_suffix(']').unwrap_or(t);
-    t.split(',')
-        .map(|item| unquote(item.trim()))
-        .filter(|s| !s.is_empty())
-        .collect()
+/// The result of reading a (possibly partial) array value.
+enum Scan {
+    /// The array closed; the items, in order.
+    Done(Vec<String>),
+    /// The text ended outside a string with no closing `]`: more lines may follow.
+    Incomplete,
+    /// The text cannot be read as an array of strings: what is wrong, and the
+    /// byte offset it is at.
+    Bad(&'static str, usize),
+}
+
+/// Read a TOML-style array of strings: `["a", 'b', ...]`, across any number of
+/// lines (`s` holds them joined with `\n`).
+///
+/// Supported, deliberately little: basic strings with the escapes `\"` and `\\`,
+/// literal `'...'` strings, `#` comments outside strings, a trailing comma.
+/// Everything else — a bare word, an unknown escape, a string that runs to the
+/// end of its line, an empty marker (which matches every output), a missing
+/// comma, text after the `]` — is [`Scan::Bad`]. Not a TOML parser; the profile
+/// schema needs no more than this.
+fn scan_array(s: &str) -> Scan {
+    let b = s.as_bytes();
+    debug_assert_eq!(b.first(), Some(&b'['));
+    let mut i = 1;
+    let mut items: Vec<String> = Vec::new();
+    let mut want_item = true; // false after an item: a comma or `]` must follow
+    while i < b.len() {
+        match b[i] {
+            b' ' | b'\t' | b'\r' | b'\n' => i += 1,
+            b'#' => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b',' => {
+                if want_item {
+                    return Scan::Bad("a comma with no marker before it", i);
+                }
+                want_item = true;
+                i += 1;
+            }
+            b']' => {
+                // Only whitespace or a comment may follow the closing bracket.
+                let mut j = i + 1;
+                while j < b.len() {
+                    match b[j] {
+                        b' ' | b'\t' | b'\r' | b'\n' => j += 1,
+                        b'#' => {
+                            while j < b.len() && b[j] != b'\n' {
+                                j += 1;
+                            }
+                        }
+                        _ => return Scan::Bad("text after the closing `]`", j),
+                    }
+                }
+                return Scan::Done(items);
+            }
+            q @ (b'"' | b'\'') => {
+                if !want_item {
+                    return Scan::Bad("expected a comma between two markers", i);
+                }
+                let start = i;
+                i += 1;
+                let mut item: Vec<u8> = Vec::new();
+                loop {
+                    match b.get(i) {
+                        None | Some(b'\n') => return Scan::Bad("unterminated string", start),
+                        Some(&c) if c == q => {
+                            i += 1;
+                            break;
+                        }
+                        Some(b'\\') if q == b'"' => match b.get(i + 1) {
+                            Some(b'"') => {
+                                item.push(b'"');
+                                i += 2;
+                            }
+                            Some(b'\\') => {
+                                item.push(b'\\');
+                                i += 2;
+                            }
+                            _ => {
+                                return Scan::Bad(
+                                    "unsupported escape (only \\\" and \\\\ are carried)",
+                                    i,
+                                );
+                            }
+                        },
+                        Some(&c) => {
+                            item.push(c);
+                            i += 1;
+                        }
+                    }
+                }
+                if item.is_empty() {
+                    return Scan::Bad("an empty marker matches every output", start);
+                }
+                // The bytes came from a `&str` and only whole ASCII escapes were
+                // substituted, so this is valid UTF-8.
+                items.push(String::from_utf8(item).expect("utf-8 preserved"));
+                want_item = false;
+            }
+            _ => return Scan::Bad("expected a quoted string", i),
+        }
+    }
+    Scan::Incomplete
+}
+
+/// The items of the array a key holds, or the reason the profile is refused.
+fn array_items(path: &Path, key: &str, idx: usize, v: &str) -> Result<Vec<String>, String> {
+    if !v.starts_with('[') {
+        return Err(format!(
+            "{}: `{key}` (line {}): expected an array `[...]`",
+            path.display(),
+            idx + 1
+        ));
+    }
+    match scan_array(v) {
+        Scan::Done(items) => Ok(items),
+        Scan::Bad(msg, at) => Err(format!(
+            "{}: `{key}` (line {}): {msg}",
+            path.display(),
+            idx + 1 + v[..at].matches('\n').count()
+        )),
+        Scan::Incomplete => Err(format!(
+            "{}: `{key}` (line {}): the array is never closed",
+            path.display(),
+            idx + 1
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -1030,33 +1169,184 @@ mod forbidden_tests {
     fn matches_any_milestone_token() {
         assert!(contains_test_fail_marker(b"TEST:V0.5-PLATFORM:FAIL"));
     }
+}
 
-    /// E-014's own originally-filed instance, checked rather than assumed
-    /// fixed: `load_profile`'s multi-line-array joiner closes the array at
-    /// the first line *containing* `]`, not the first unquoted `]` — a
-    /// marker string with a literal `]` in it (e.g. `"[INTENT] ..."`)
-    /// truncates the array early and silently drops every later marker.
-    /// **Still live** — not this RFC's R3 (which names five specific
-    /// instruments, not this one) to fix; recorded as E-014's surviving
-    /// instance instead.
-    #[test]
-    fn multiline_array_still_closes_early_on_a_bracket_inside_a_marker_string() {
-        let dir = std::env::temp_dir().join(format!("qemu_run_toml_demo_{}", std::process::id()));
-        let profiles_dir = dir.join("tests/qemu/profiles");
-        fs::create_dir_all(&profiles_dir).unwrap();
-        fs::write(
-            profiles_dir.join("demo.toml"),
-            "name = \"demo\"\nexpected_markers = [\n    \"[INTENT] marker one\",\n    \"marker two\",\n    \"marker three\",\n]\n",
-        )
-        .unwrap();
-        let profile = load_profile(&dir, "demo").expect("should still parse, just wrong");
-        assert_eq!(
-            profile.expected_markers.len(),
-            1,
-            "the array closed at the `]` inside the first marker string, dropping the other two -- \
-             still the live E-014 instance, not fixed by this line"
-        );
+/// RFC-0.33-004 D6 / E-057: the profile reader respects quoting. Each test loads a
+/// real file through `load_profile`, so it exercises the reader as `qemu-negative`
+/// does, not a helper beside it.
+#[cfg(test)]
+mod array_reader_tests {
+    use super::*;
+
+    fn load(body: &str) -> Result<Profile, String> {
+        static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = N.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let dir = std::env::temp_dir().join(format!("qemu_run_array_{}_{n}", std::process::id()));
+        let profiles = dir.join("tests/qemu/profiles");
+        fs::create_dir_all(&profiles).unwrap();
+        fs::write(profiles.join("p.toml"), format!("name = \"p\"\n{body}")).unwrap();
+        let r = load_profile(&dir, "p");
         fs::remove_dir_all(&dir).ok();
+        r
+    }
+
+    fn markers(body: &str) -> Vec<String> {
+        load(body).expect("loads").expected_markers
+    }
+
+    /// E-014's originally-filed instance and E-057's bracket half: a `]` inside a
+    /// marker string is part of the marker. (This test used to assert the *bug*,
+    /// "still live"; it now asserts the fix.)
+    #[test]
+    fn a_bracket_inside_a_marker_is_part_of_the_marker() {
+        let m = markers(
+            "expected_markers = [\n    \"[INTENT] marker one\",\n    \"marker two\",\n    \"marker three\",\n]\n",
+        );
+        assert_eq!(m, ["[INTENT] marker one", "marker two", "marker three"]);
+    }
+
+    /// E-057's comma half: `health-fail.toml` had to split one printed line in two.
+    #[test]
+    fn a_comma_inside_a_marker_is_part_of_the_marker() {
+        let m = markers("expected_markers = [\"one, two\", \"three\"]\n");
+        assert_eq!(m, ["one, two", "three"]);
+    }
+
+    #[test]
+    fn both_at_once_on_one_line_and_across_lines() {
+        assert_eq!(
+            markers("expected_markers = [\"[A] x, y ]\", \"z\"]\n"),
+            ["[A] x, y ]", "z"]
+        );
+        assert_eq!(
+            markers("expected_markers = [\n  \"[A] x, y ]\",\n  \"z\",\n]\n"),
+            ["[A] x, y ]", "z"]
+        );
+    }
+
+    #[test]
+    fn a_comment_inside_an_array_is_not_a_marker() {
+        let m = markers(
+            "expected_markers = [\n  # a note, with a comma and a ] bracket\n  \"a\", # trailing, note ]\n  \"b\",\n]\n",
+        );
+        assert_eq!(m, ["a", "b"]);
+    }
+
+    #[test]
+    fn a_hash_inside_a_string_is_not_a_comment() {
+        assert_eq!(markers("expected_markers = [\"a # b\"]\n"), ["a # b"]);
+    }
+
+    #[test]
+    fn escaped_quote_and_backslash_are_carried() {
+        assert_eq!(
+            markers("expected_markers = [\"say \\\"hi\\\" and \\\\ done\"]\n"),
+            [r#"say "hi" and \ done"#]
+        );
+    }
+
+    #[test]
+    fn single_quoted_literal_strings_are_carried_verbatim() {
+        assert_eq!(
+            markers("expected_markers = ['a, \"b\" ]']\n"),
+            ["a, \"b\" ]"]
+        );
+    }
+
+    #[test]
+    fn a_trailing_comma_and_an_empty_array_are_fine() {
+        assert_eq!(markers("expected_markers = [\"a\",]\n"), ["a"]);
+        assert!(
+            load("expected_markers = []\nrelease_gated = false\nnot_gated_reason = \"x\"\n")
+                .unwrap()
+                .expected_markers
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn extra_args_use_the_same_reader() {
+        let p = load("expected_markers = [\"a\"]\nextra_args = [\"-d\", \"trace:a,b\"]\n").unwrap();
+        assert_eq!(p.extra_args, ["-d", "trace:a,b"]);
+    }
+
+    // ── What the reader cannot carry is refused, not silently reshaped ────────
+
+    fn refused(body: &str, needle: &str) {
+        let e = load(body).expect_err("should be refused");
+        assert!(
+            e.contains(needle),
+            "the refusal should mention {needle:?}: {e}"
+        );
+        assert!(
+            e.contains("expected_markers") || e.contains("extra_args"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn an_unterminated_string_is_refused_naming_the_line() {
+        refused(
+            "expected_markers = [\n  \"a\",\n  \"b,\n]\n",
+            "unterminated string",
+        );
+    }
+
+    #[test]
+    fn an_unterminated_array_is_refused() {
+        refused("expected_markers = [\n  \"a\",\n", "never closed");
+    }
+
+    #[test]
+    fn a_bare_word_is_refused() {
+        refused("expected_markers = [a, b]\n", "quoted string");
+    }
+
+    #[test]
+    fn an_unsupported_escape_is_refused() {
+        refused("expected_markers = [\"a\\qb\"]\n", "escape");
+    }
+
+    #[test]
+    fn an_empty_marker_is_refused_because_it_matches_everything() {
+        refused("expected_markers = [\"\"]\n", "empty");
+    }
+
+    #[test]
+    fn text_after_the_closing_bracket_is_refused() {
+        refused("expected_markers = [\"a\"] junk\n", "after the closing");
+    }
+
+    #[test]
+    fn a_missing_comma_between_two_markers_is_refused() {
+        refused("expected_markers = [\"a\" \"b\"]\n", "comma");
+    }
+
+    /// The committed profiles all still load, and `health-fail`'s marker is the
+    /// printed line whole, comma and all — the workaround is gone.
+    #[test]
+    fn every_committed_profile_loads_and_health_fail_has_its_line_whole() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut n = 0;
+        for e in fs::read_dir(root.join("tests/qemu/profiles"))
+            .unwrap()
+            .flatten()
+        {
+            let file = e.file_name().to_string_lossy().to_string();
+            let Some(name) = file.strip_suffix(".toml") else {
+                continue; // the directory's README
+            };
+            load_profile(&root, name).unwrap_or_else(|err| panic!("{name}: {err}"));
+            n += 1;
+        }
+        assert!(n >= 14, "expected the committed profiles, found {n}");
+        let hf = load_profile(&root, "health-fail").unwrap();
+        assert!(
+            hf.expected_markers.iter().any(|m| m
+                == "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting"),
+            "{:?}",
+            hf.expected_markers
+        );
     }
 }
 

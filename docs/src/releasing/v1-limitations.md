@@ -969,11 +969,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   removing a variant — including a syscall number — is zero drift. The syscall
   enum specifically is covered by a different check, `syscall-surface`.
 
-- **A QEMU profile's markers can be silently split** (Errata **E-057**,
-  ACCEPTED, tracked to 0.33). The profile reader splits on every comma and the
-  first `]`, inside quoted strings too, so a marker can be shortened or halved
-  without a word of warning; both failures let a tier pass on less than its
-  author wrote.
+- **A QEMU profile's markers could be silently split** (Errata **E-057**,
+  **CLOSED** 2026-09-25 by RFC-0.33-004). The profile reader split on every comma
+  and closed an array at the first `]`, inside quoted strings too, so a marker could
+  be shortened or halved without a word; both failures let a tier pass on less than
+  its author wrote. It now respects quoting and **refuses at load** what it cannot
+  carry (an unterminated string, a bare word, an empty marker). Three profiles
+  (`semantic`, `uart-rx`, `semantic-braille`) still assert the bracket-free text
+  they were written with to avoid the old reader; nothing has been strengthened.
 
 - **Struct padding was written to disk in four places** (Errata **E-055**,
   **CLOSED** 2026-09-24 by RFC-0.33-003). `fjell-init` filled sector buffers by

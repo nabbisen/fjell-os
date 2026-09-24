@@ -288,6 +288,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   not one of them) — left open rather than closed around, per R6's
   instruction for a surviving instance.
 
+  **Update 2026-09-25: that surviving instance is fixed** by RFC-0.33-004 D6 (E-057):
+  the reader now closes an array at the first `]` outside a string. The test named
+  above was renamed `a_bracket_inside_a_marker_is_part_of_the_marker` and asserts the
+  fix, no longer the bug. E-014's other instances and status are unchanged.
+
   **Two more instances found inside `errata-tracking` itself** while
   retracking E-015 below, in the same instrument that guards the
   register's tracking column:
@@ -3950,11 +3955,38 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why it matters beyond a typo:** a marker that can never match reads as a
   tier that is not gated on what its author wrote, and a split marker makes the
   count look right while the text checked is shorter. Both fail *open*.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **RFC-0.33-004** (scoped 2026-09-24). The
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **RFC-0.33-004** (scoped 2026-09-24). The
   fix is a reader that respects quoting, and a check that refuses a marker
   containing a character the reader cannot carry. The workaround in
   `health-fail.toml` (splitting the marker deliberately, with a comment) stands
   until then — it is honest and it is documented.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.33-004 D6**, failing case first.
+  `qemu_run.rs` reads an array with a quote-aware scanner (`scan_array`): it ends at
+  the first `]` **outside a string**, a comma or bracket inside a marker belongs to
+  it, `#` comments outside strings are ignored, `"…"` carries `\"` and `\\` and
+  `'…'` is literal. What it cannot carry is **refused at load**, naming the profile,
+  key and line: an unterminated string or array, a bare word, an unknown escape, a
+  missing comma, text after the `]`, and an **empty marker** (which would match
+  every output — a fail-open the old reader shared silently).
+
+  | | before | after |
+  |---|---|---|
+  | `["…slot, not resetting", "b"]` | 3 items, `"…slot` and `not resetting"` with **stray quotes** | 2 items, the marker whole |
+  | a `]` inside a marker on a multi-line array | array closed at that line; later markers dropped (`semantic.toml`: 2 of 4) | carried |
+  | a `#` comment inside the array | folded into the last marker (`capability.toml`) | ignored |
+  | the reader's unit tests, run against the **unmodified** reader | **15 of 17 fail** | 17 pass |
+  | `health-fail` | 7 markers, one printed line split in two, with a comment explaining the workaround | **6**; the line whole (`…slot; no fallback, not resetting`), workaround removed; PASS, and a control with a wrong tail (`…resettingX`) **FAILS** with `missing marker` |
+
+  A test also loads every committed profile (they all still load) and asserts
+  `health-fail`'s marker is the printed line whole. The old test that **asserted the
+  bug** (`multiline_array_still_closes_early_on_a_bracket_inside_a_marker_string`,
+  "still live") now asserts the fix. **Not done, deliberately:** `semantic.toml`,
+  `uart-rx.toml` and `semantic-braille.toml` were written bracket-free to avoid this;
+  their markers are unchanged (changing what a tier asserts is not this fix's to
+  do) and their stale notes now say so. E-014's surviving instance, which that test
+  recorded, is closed with it. It is not a TOML parser and is not meant to become
+  one.
 
 ## E-058 — an absent or crashed presentation stalls the publishers it was meant to be independent of
 
@@ -4331,7 +4363,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | ACCEPTED |
-| E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | ACCEPTED |
+| E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
