@@ -695,6 +695,14 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
 ///   release_gated    = true|false   (RFC-0.29-001; requires not_gated_reason when false)
 ///   not_gated_reason = "string"     (RFC-0.29-001)
 ///   expect_shutdown  = "guest-reset" | "guest-shutdown"   (RFC-0.33-001)
+/// Does this profile end by the machine's own reset (`expect_shutdown`)? Such a
+/// tier finishes in well under a second while its neighbours wait out a
+/// 60-second timeout, which reads like a skipped run in a summary table; the
+/// summary says what it is instead (RFC-0.33-001's D15 review).
+pub(crate) fn profile_ends_by_machine_shutdown(root: &Path, name: &str) -> bool {
+    load_profile(root, name).is_ok_and(|p| p.expect_shutdown.is_some())
+}
+
 fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let path = root
         .join("tests/qemu/profiles")
@@ -994,6 +1002,17 @@ mod discover_tests {
     /// xtask` invocation always uses.
     fn test_workspace_root() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    #[test]
+    fn a_profile_that_ends_by_machine_reset_is_recognised_and_others_are_not() {
+        let root = test_workspace_root();
+        // `reboot` sets `expect_shutdown`, so it ends by the machine's own reset.
+        assert!(profile_ends_by_machine_shutdown(&root, "reboot"));
+        // Controls: profiles that wait out their timeout, and one that does not exist.
+        assert!(!profile_ends_by_machine_shutdown(&root, "semantic"));
+        assert!(!profile_ends_by_machine_shutdown(&root, "health-fail"));
+        assert!(!profile_ends_by_machine_shutdown(&root, "no-such-profile"));
     }
 
     #[test]

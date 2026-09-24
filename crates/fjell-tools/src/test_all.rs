@@ -223,7 +223,16 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
             // ── Tier 5: QEMU negative ─────────────────────────────────────
             for cat in &neg_categories {
                 let id = format!("05-qemu-neg-{}", cat.name);
-                let label = format!("QEMU negative: {}", cat.name);
+                // A tier that ends by the machine's own reset finishes in a
+                // fraction of a second while its neighbours wait out their
+                // timeouts; say so in the row rather than let it read as a skip.
+                let ends_by_reset =
+                    crate::qemu_run::profile_ends_by_machine_shutdown(Path::new("."), &cat.name);
+                let label = if ends_by_reset {
+                    format!("QEMU negative: {} (ends by machine reset)", cat.name)
+                } else {
+                    format!("QEMU negative: {}", cat.name)
+                };
                 let argv = ["cargo", "xtask", "qemu-negative", &cat.name];
                 match &cat.not_gated_reason {
                     None => results.push(run_tier(&run_dir, &id, &label, &argv)),
