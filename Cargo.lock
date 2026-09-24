@@ -948,6 +948,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-semantic-fanout"
+version = "0.32.0"
+dependencies = [
+ "fjell-semantic-format",
+ "fjell-service-api",
+]
+
+[[package]]
 name = "fjell-semantic-format"
 version = "0.32.0"
 

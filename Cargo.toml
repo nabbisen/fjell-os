@@ -68,6 +68,7 @@ members = [
     "crates/arch/fjell-arch-arm64",
     "crates/fjell-proptest",
     "crates/fjell-bootctl-model",
+    "crates/fjell-semantic-fanout",
     "tools/fjell-unsafe-audit",
     "tools/fjell-abi-snapshot",
     "tools/fjell-repro-check",
@@ -112,6 +113,7 @@ members = [
 default-members = [
     # format crates (host-testable)
     "crates/fjell-bootctl-model",
+    "crates/fjell-semantic-fanout",
     "crates/fjell-cap",
     "crates/fjell-dtb-derive",
     "crates/fjell-ipc",

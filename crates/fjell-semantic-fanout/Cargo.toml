@@ -1,0 +1,22 @@
+[package]
+name = "fjell-semantic-fanout"
+description = "Per-presentation queue and credit engine for the semantic stream (RFC-0.34-001 D8): pure, no syscalls, so its bound and its drop policy run on the host."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_semantic_fanout"
+path = "src/lib.rs"
+
+[dependencies]
+
+[dev-dependencies]
+# The tests reassemble what the engine hands out with the same framing the
+# real presentations use, so "the bytes came out intact" is checked against
+# the receiver, not against the engine's own idea of its output.
+fjell-service-api = { path = "../fjell-service-api" }
+# `RING_BYTES` is checked against the widest envelope the format can produce.
+fjell-semantic-format = { path = "../formats/fjell-semantic-format" }

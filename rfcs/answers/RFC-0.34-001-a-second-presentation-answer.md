@@ -152,9 +152,11 @@ questions, while publishers keep publishing — so dropping whenever it is busy
 would lose renderings in **normal** operation and break the three tiers whose
 markers depend on them. The queue is what makes "busy" and "gone" look
 different. Why **8 KiB**: the widest envelope the wire format can produce is
-`MAX_WIRE_BYTES` (a little over 4 KiB), so 8 KiB always holds at least one worst
-case and typically dozens of ordinary ones (the sample intent encodes in a few
-hundred bytes); two rings cost 16 KiB of the service's 64 KiB stack (16 pages,
+`MAX_WIRE_BYTES` — **4,624 bytes**, as the crate's test measured it; I first wrote
+"a little over 4 KiB" and the test's first run, which asserted room for *two*, is
+what corrected me — so 8 KiB holds one worst case with room to spare but **not two**,
+and typically dozens of ordinary ones (the sample intent encodes in a few hundred
+bytes — to be confirmed by the tier); two rings cost 16 KiB of the service's 64 KiB stack (16 pages,
 `spawn.rs`), which I will measure rather than assume. A queue with no bound is
 the handoff's "third failure mode"; this one has exactly one number, in one
 constant, with a test that overflows it.
