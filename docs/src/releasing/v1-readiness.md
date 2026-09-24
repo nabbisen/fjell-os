@@ -22,7 +22,7 @@ the distinction is written here rather than left to the tool.*
 | Archetypes A1, A2, A3 defined | RFC 061 §3 | **DONE** (v0.9.4) |
 | Non-goals explicitly listed | RFC 061 §3.4, §7 | **DONE** (v0.9.4) |
 | Identity guide published (`docs/src/identity/`) | RFC-v0.10-006 | **DONE** (v0.9.4) |
-| A second presentation modality, end to end — speech or braille output driven by the same Intent Stream as `proxy-text`, observed in a QEMU tier | RFC-0.33-002 D9; RFC-0.34-001 | **DONE** (0.34 line, unreleased: braille **cells on a serial console**, asserted by content in `semantic-braille`; `test-all` run `20260924-023759`. **Driven on no braille device and read by no braille reader** — QEMU `virt` has none; see the accessibility section of `v1-limitations.md`) |
+| A second presentation modality, end to end — speech or braille output driven by the same Intent Stream as `proxy-text`, observed in a QEMU tier | RFC-0.33-002 D9; RFC-0.34-001 | **DONE** (0.34 line, unreleased: braille **cells on a serial console**, asserted by content in `semantic-braille`; `test-all` run `20260924-104654`. **Driven on no braille device and read by no braille reader** — QEMU `virt` has none; see the accessibility section of `v1-limitations.md`) |
 | An input path, decided — a recorded decision (an ADR) for how a person operating through a proxy reaches the system without bypassing capability policy; a decision, not necessarily an implementation | RFC-0.33-002 D9, §C; ADR-v0.5-005 | **IN PROGRESS** → v1.x |
 | Accessibility limitations, written — the section of `v1-limitations.md` saying what a person needing speech, braille or a simplified presentation cannot do today, kept true at each cut | RFC-0.33-002 D6, D9 | **IN PROGRESS** → v1.x |
 
