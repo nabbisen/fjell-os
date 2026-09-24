@@ -57,10 +57,10 @@ speech, braille or a simplified summary instead of a screen. The core, the
 capabilities and the audit trail are A1's; only the presentation proxy that
 consumes the node's intent stream differs. It is the archetype the founding
 requirements name (§3.1, devices requiring integration with accessible external
-UIs). A4 joins A1–A3 and displaces none of them. Today one presentation exists
-(text on a serial console), there is no way for the operator to answer the node
-through it, and a missing presentation stalls the publisher rather than being
-tolerated — see
+UIs). A4 joins A1–A3 and displaces none of them. Today two presentations exist
+(text, and braille cells, both on a serial console, on no display), there is no
+way for the operator to answer the node through either, and a missing presentation
+no longer stalls the publisher — with survivors named; see
 [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
 
 ---

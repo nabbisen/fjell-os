@@ -535,7 +535,7 @@ intent stream:
 
 | Direction | Notes |
 |---|---|
-| **A second presentation modality, end to end** | Speech or braille, driven by the same Intent Stream as `proxy-text`, observed in a QEMU tier. The line is **0.34** (RFC-0.34-001, proposed) — well before any v1.0 tag. On the validated platform it can only *emit* the stream a synthesiser or display driver would consume: QEMU `virt` has no audio device or braille display. A readiness-matrix criterion (marked in progress, not blocking). |
+| **A second presentation modality, end to end** | Speech or braille, driven by the same Intent Stream as `proxy-text`, observed in a QEMU tier. Delivered on the **0.34** line (RFC-0.34-001; unreleased until it is cut): uncontracted braille cells, asserted by content in a QEMU tier — well before any v1.0 tag. On the validated platform it can only *emit* the stream a synthesiser or display driver would consume: QEMU `virt` has no audio device or braille display. A readiness-matrix criterion (marked in progress, not blocking). |
 | **An input path, decided** | An ADR for how a person operating through a proxy reaches the system without bypassing capability policy (ADR-v0.5-005 stands). A decision, not necessarily an implementation. A readiness-matrix criterion. |
 | **Further presentations** | Richer Presentation Proxies beyond the second — the rest of speech, braille and simplified presentation — follow the 0.34 line on the same boundary. Not dated. |
 

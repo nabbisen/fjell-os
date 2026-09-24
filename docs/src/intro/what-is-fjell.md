@@ -44,15 +44,16 @@ different proxies on the same core, not different products. That is also what
 keeps a GUI stack out of the core, and it is why the design does not try to
 enumerate categories of user: it makes presentation something anyone can supply.
 
-That is a **goal and a mechanism, not a delivery.** Today one presentation
-exists, and it is text on a serial console; there is no speech or braille
-presentation, no way for a person to answer the node through any presentation,
-and nothing has been tested against an accessibility standard or with people.
+That is a **goal and a mechanism, not a delivery.** Today two presentations
+exist, both text on a serial console — `proxy-text`, and `proxy-braille`, which
+writes braille cells to the console (no braille display has been driven); there
+is no speech presentation, no way for a person to answer the node through any
+presentation, and nothing has been tested against an accessibility standard or
+with people.
 The full list is on one page, beside the claim it qualifies:
 [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
-A second presentation is proposed for the next milestone; the
-[roadmap](https://github.com/nabbisen/fjell-os/blob/main/ROADMAP.md) records the
-plan, and nothing here says it is done.
+The [roadmap](https://github.com/nabbisen/fjell-os/blob/main/ROADMAP.md) records
+what follows, and nothing here says more is done than is listed.
 
 For who this is for, read [Why Fjell?](why-fjell.md). For the architecture,
 start at the [Overview](../architecture/overview.md). For what Fjell

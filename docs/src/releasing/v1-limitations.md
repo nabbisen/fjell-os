@@ -13,7 +13,7 @@ require updating the governing record first, then this page.*
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
 | 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 | 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other **5** declared-but-undispatched syscalls (`PlatformReboot`, `TaskKill`, `MmioUnmap`, `DmaShare`, `Reboot`) was deferred to v0.22 and **did not happen**; it remains open. *Corrected at the 0.27.0 cut: this read "the other 8 … deferred to v0.22", a count that had moved (35 declared / 29 dispatched / 6 undispatched) and a deferral to a milestone that shipped without it. The current figure is printed by `syscall-surface` at every release rehearsal.* | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
-| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is not: one presentation exists (text on a serial console, output-only); no speech, braille or simplified presentation; no way for a person to answer the node through any presentation; a missing or crashed presentation stalls the publisher; nothing tested against a standard or with a person. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058**, **E-059**, **E-060**; **RFC-0.33-002** D6; ADR-v0.5-005 |
+| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is partial: two presentations exist, both text on a serial console and both output-only — `proxy-text`, and `proxy-braille`, which writes braille cells (the stream a braille display driver would consume) that no braille reader has read and no device has displayed; no speech or simplified presentation; no way for a person to answer the node through any presentation; nothing tested against a standard or with a person. A missing or crashed presentation no longer stalls a publisher (E-058, **closed**), with survivors named. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058** (closed), **E-059**, **E-060**; **RFC-0.33-002** D6; **RFC-0.34-001**; ADR-v0.5-005 |
 
 ## Accessibility and inclusion — what does not exist yet
 
@@ -29,18 +29,27 @@ Fjell's design rests on presentation being a proxy's job, not the OS core's
 only thing this project claims here. Nothing on this page has been delivered to a
 person, and the list is the reason no page says otherwise.
 
-1. **One presentation exists, and it is text.** `fjell-proxy-text` renders the
-   intent stream to a serial console. There is no speech presentation, no braille
-   presentation and no simplified presentation. The statement that a screen and an
-   assistive device would run the same core, differing only in the proxy, has
-   been exercised with **one** proxy — which is a design intention, not a
-   demonstrated boundary. A second presentation is scoped for 0.34
-   (RFC-0.34-001, proposed).
+1. **Two presentations exist, both text, both on a serial console.**
+   `fjell-proxy-text` renders the intent stream as text; `fjell-proxy-braille`
+   renders the same envelopes as lines of uncontracted braille cells — the
+   stream a braille display driver would consume — and is asserted **by content**
+   in the `semantic-braille` tier, from a committed vector. There is no speech
+   presentation and no simplified presentation. The statement that a screen and
+   an assistive device would run the same core, differing only in the proxy, has
+   now been exercised with **two** proxies, one decoder (`wire::decode_exact`
+   behind the same reassembler; no decoding logic is copied) and one envelope
+   rendered twice in one run. That is a demonstrated boundary between two
+   presentations *of text on a console*. It is not a demonstration with a person,
+   a device or a screen reader, and **the braille is not a braille standard**: it
+   is a small, documented, uncontracted rule set (`crates/fjell-braille`) that
+   **no braille reader has read**. What it leaves out is item 11.
 2. **Nothing has been driven on assistive hardware, and the validated platform
    cannot.** QEMU `virt` has no audio device and no braille display, and no
    hardware profile has ever booted on silicon (**E-004**). A future speech or
    braille proxy can, on the validated platform, only *emit the stream a
-   synthesiser or a display driver would consume* — not be heard or felt.
+   synthesiser or a display driver would consume* — not be heard or felt. The
+   braille presentation of item 1 does exactly that, to the console; no display
+   was driven.
 3. **There is no way in.** A person cannot answer, choose, confirm or refuse
    through any presentation. `proxy-text` never reads input, **by decision**
    (ADR-v0.5-005: an input path through the proxy would bypass capability
@@ -54,18 +63,41 @@ person, and the list is the reason no page says otherwise.
    capability, executes nothing, and carries its rights as a payload word the
    stream cannot verify. How input should reach the system is an open design
    decision — an ADR is a readiness-matrix row, not yet written.
-4. **A missing or crashed presentation stalls the node's publishers.**
-   Measured, by running the `semantic` profile against a scratch build with
-   `proxy-text` not started and against one where it faults mid-run: the service
-   that next publishes to the stream stops, and `init` never reaches its last
-   phase (`driver-uart` never starts) while other services carry on
-   (`rfcs/answers/RFC-0.33-002-who-fjell-is-for-answer.md` has the figures and
-   the two edits). `semantic-stream` forwards each envelope to the proxy
-   with a blocking call before it replies to the publisher, so the proxy's
-   availability gates the core it was meant to be independent of. This is a
-   defect against the design's own claim, not an accepted trade-off. **Filed as
-   E-058** at this line's review, tracked to RFC-0.34-001, which adds a second
-   presentation and would otherwise multiply it.
+4. **A missing or crashed presentation no longer stalls the node's
+   publishers — with survivors** (Errata **E-058**, **CLOSED** by RFC-0.34-001).
+   It used to: `semantic-stream` forwarded each envelope to the proxy with a
+   blocking call before replying to the publisher, and with `proxy-text` not
+   started the `semantic` profile fell from 314 lines to 124 and `init` never
+   reached its last phase (measured; `rfcs/answers/RFC-0.34-001-…-answer.md`).
+   The kernel has no non-blocking send, a server holds one reply edge, and a dead
+   receiver never releases a blocked sender, so the fix is not a reordering: the
+   stream **never initiates a blocking call to a presentation**. Each presentation
+   *asks* the stream and is answered by reply, and is woken through an endpoint
+   of its own; `proxy-text`, whose protocol is blocking, is served through
+   `proxy-relay`, which absorbs the block, so `proxy-text`'s source is unchanged.
+   The `semantic-absent` tier starts the node without `proxy-text` and `init`
+   reaches its last phase (270 lines in the tier, with the braille presentation
+   still running; the same absence stopped the node at 124 lines before), and the
+   stream says on its own output that the presentation stopped asking. The other
+   case E-058 measured — `proxy-text` **faulting mid-run** — was re-run against
+   the new code in a scratch build with the fault injected (**not** a committed
+   tier): `init` reaches its last phase (313 lines against the 229 it stopped at),
+   the braille presentation keeps rendering, and the stream reports the text
+   presentation as no longer asking. **What survives**, named:
+   (a) a presentation that is *alive but never asks again* is not detected as
+   dead — there is no wall-clock timer, only the stream's own activity to count.
+   While it has work queued it is reported (`has stopped asking`) after 64 of the
+   stream's calls and at each doubling; a silent presentation with **nothing**
+   queued is idle by design and never reported;
+   (b) a presentation that faults in the two instructions between being told
+   "parked" and reaching `recv` would still block the stream on its next wake —
+   the one place the stream can wait on one, and it is code this project wrote;
+   (c) envelopes a presentation cannot take are queued to **8 KiB and then
+   dropped**, newest first, so a presentation that starts late or falls further
+   behind shows a **gap**, and the gap is reported on the node's own console line,
+   **not through the presentation** — a person reading only the braille is not
+   told that something was skipped;
+   (d) nothing restarts a stuck presentation.
 5. **Little of the node's state reaches a presentation.** Only `init` and one
    SDK sample service publish to the stream. Running services do not report
    their live state through it, so what a presentation shows today is largely
@@ -104,11 +136,26 @@ person, and the list is the reason no page says otherwise.
    authority rather than a way to exercise it — and it is what an input path
    (item 3) would be built on.
 
+11. **The braille presentation shows the producer's English sentence, and leaves
+   out what a person deciding whether to act would need.** A `TextToken` carries
+   an id and a fallback string; no catalogue exists, so the renderer **ignores the
+   id** and uses the fallback. The architecture's claim that *meaning, not text,
+   crosses the boundary* therefore holds for the structure around the text — kind,
+   severity, the set of actions, the capability an action needs — and **not for
+   the text itself**: a person who needs simplified language gets the same
+   sentence, in cells. The rendering also omits each action's required
+   capability, reversibility and confirmation policy, an intent's expiry, a
+   state's facts beyond their count, and an event's subject and audit sequence.
+   Nothing can be acted on through any presentation (item 3), which is why the
+   omission is not a live risk today and is exactly what an input path would make
+   one.
+
 **What this section does not say.** It does not say Fjell is "accessible" or
 "inclusive" as a verdict about the product — there is no such verdict to give.
-It does not date any of the above: the roadmap places a second presentation
-modality in v1.x, the adaptive Personal Proxy is unscheduled, and the
-readiness matrix carries the three inclusion rows as work in progress.
+It does not date any of the above: a second presentation modality is now in the
+tree (the 0.34 line, unreleased until it is cut) and has been driven on no device,
+the adaptive Personal Proxy is unscheduled, and the readiness matrix carries two
+of the three inclusion rows as work in progress.
 
 Additional operational notes (not Gate 9 items, listed for completeness):
 
@@ -885,10 +932,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   console trigger in the test profile, and by nothing a production boot can
   encounter on its own. The reset *mechanism* is demonstrated separately.
 
-- **Two test affordances are present in the shipped image**: a console byte that
-  makes `init` spawn the fault service (RFC-0.33-001 D10), and `neg-test`'s
-  `Reboot` capability, which lets it reset the machine (D15). Both exist so that
-  a decision and a reset can be observed rather than asserted; `svc-fault` and
+- **Three test affordances are present in the shipped image**: a console byte that
+  makes `init` spawn the fault service (RFC-0.33-001 D10); `neg-test`'s `Reboot`
+  capability, which lets it reset the machine (D15), and which it uses only when
+  the machine carries a virtio entropy device; and a switch that makes `init` **not
+  start `proxy-text`** when the machine carries a virtio balloon device
+  (RFC-0.34-001 D8). The last two are read the same way, through
+  `fjell_service_api::machine`, from MMIO capabilities the reader already holds:
+  the machine's configuration — which only a profile's QEMU command line controls
+  — is the switch, because every profile boots the same image. Each exists so
+  that a decision, a reset or an absence can be observed rather than asserted;
+  the balloon switch's only power is to *not start* a presentation. `svc-fault` and
   `svc-timeout` are already in the image for the same reason.
 
 - **The ABI baseline does not see enum variants** (Errata **E-056**, ACCEPTED,

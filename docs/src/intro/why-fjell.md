@@ -37,14 +37,15 @@ node's intent stream differs. That is the archetype the founding requirements
 name (§3.1, *devices requiring integration with accessible external UIs*) and
 this book had not carried. A4 joins A1–A3; it does not displace them.
 
-What A4 is **today**, without rounding up: the presentation is text on a serial
-console (`fjell-proxy-text`), and nothing has been tested with assistive
-technology; speech and braille presentations do not exist (a second presentation
-is proposed for the next milestone); the operator cannot answer the node through
-any presentation;
-and **if the presentation is unavailable, the service that was publishing waits
-— measured, and a defect against the design, whose intent is that the node keeps
-operating and the operator loses only the view.** The audit trail is produced by
+What A4 is **today**, without rounding up: the presentations are text on a serial
+console (`fjell-proxy-text`) and braille cells on the same console
+(`fjell-proxy-braille` — the stream a braille display driver would consume, driven
+on no display), and nothing has been tested with assistive technology; there is no
+speech presentation; the operator cannot answer the node through any
+presentation; and **if a presentation is unavailable the node keeps operating and
+the operator loses only that view** — which was the design's intent and, until
+Errata E-058 was closed, not what was built. What still survives of that is
+listed beside the claim. The audit trail is produced by
 the core, not the presentation. The list of what a person needing a presentation
 cannot do today is in [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
 

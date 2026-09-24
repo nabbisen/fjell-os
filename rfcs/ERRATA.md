@@ -3901,6 +3901,50 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   presentation, and an unavailable or faulting proxy must be observable without
   stalling anything.
 
+- **Resolution:** **CLOSED** 2026-09-24 by **RFC-0.34-001**. The stream never
+  initiates a blocking IPC to a presentation: each one asks and is answered by
+  reply (the only IPC that never blocks its issuer — the kernel has no
+  non-blocking send, a server holds one reply edge, and a dead receiver never
+  releases a blocked sender, so reordering the forward would only have moved the
+  stall to the next publish). `proxy-text`'s protocol is blocking, so a new
+  `proxy-relay` asks on its behalf and `proxy-text`'s **source** is untouched.
+
+  | | before | after |
+  |---|---|---|
+  | `semantic` profile, `proxy-text` never started | **124** lines (this entry said 125), every semantic count 0; `init` stops at its first publish and never reaches `driver-uart` | tier **`semantic-absent`**: **270** lines with braille still running; `TEST:M7:PASS` and `driver-uart: ready` reached; the stream prints `presentation text has stopped asking` |
+  | control: the *old* stream on that same profile | — | **124** lines, `TEST:M7:PASS`, `driver-uart: ready` and the stream's line all missing, exit 1 |
+  | `proxy-text` faulting on its 40th call (scratch build, fault injected) | **229** lines; 3 `[STATE]` / 1 `[EVENT]` / 1 `[INTENT]`; `init` stops at its next publish | **313** lines; `TEST:M7:PASS` twice, `driver-uart: ready` once; braille keeps rendering (56 lines); the stream reports `presentation text has stopped asking; 9 envelopes waiting` |
+  | presentations that exist | one | two: `proxy-braille` renders the same envelope, asserted by content in `semantic-braille` |
+
+  **Two corrections to this entry**, from measuring it: the figures were **313 →
+  125**; on this tree they are **314 → 124** (each off by one). And the first
+  design of the absence *report* was wrong: it counted envelopes offered, so a
+  presentation that died after the publishers had finished — which is what the
+  mid-run case is — was never reported. The report is now driven by the stream's
+  own calls (`fjell-semantic-fanout`, 27 host tests, one of them that shape).
+
+  **What closing this does not do, named rather than implied.** Four survivors,
+  all also in `v1-limitations.md`: (a) a presentation that is alive but silent is
+  not detected as dead — there is no wall-clock timer, only the stream's own
+  activity, and one with **nothing** queued is never reported; (b) a presentation
+  that faults in the two instructions between being told "parked" and reaching
+  `recv` would still block the stream on its next wake — the one place it can
+  wait on one, in code this project wrote; (c) envelopes a presentation cannot
+  take are queued to **8 KiB and then dropped**, newest first, and the gap is
+  reported on the node's console line, **not through the presentation**; (d)
+  nothing restarts a stuck presentation, and the relay stays blocked. **The
+  mid-run crash is not a committed tier** — the committed tier is
+  absence-from-boot; the crash case was a scratch build. And **E-059 and E-060
+  are unchanged**: the stream now keys a presentation by the kernel-attested
+  sender identity, but `DISPATCH_ACTION` still authorises on a payload word it
+  cannot verify, and the threat model still has no presentation boundary.
+
+  **Found while closing it, fixed rather than flagged** (each its own commit):
+  the kernel's task table was full (`MAX_TASKS` 32 → 40, and the per-task debug
+  buffer was sized by its own constant and would have aliased); and the kernel
+  named a faulting task by **table index**, so `proxy-text` faulted as
+  `virtio-blk` — it now names it by `ImageId`.
+
 ## E-059 — the action a person could take is authorised on a payload word the authoriser cannot verify
 
 - **Claim:** `fjell-semantic-stream`'s `dispatch_action_checked` doc comment:
@@ -4013,7 +4057,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | ACCEPTED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | ACCEPTED |
-| E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | ACCEPTED |
+| E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and

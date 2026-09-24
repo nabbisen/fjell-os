@@ -68,7 +68,7 @@ verifiability goal (no GUI stack to verify — "will not do" 4.5), the
 sustainability goal (no rendering power in the base system), and the inclusion
 goal (unknown needs handled on the proxy side). A display-less industrial robot
 and an assistive personal device run the *same* core; only the proxy differs.
-That is the architectural claim; it has been exercised with **one** proxy (§5).
+That is the architectural claim; it has been exercised with **two** proxies, on one decoder, one of them rendering braille cells (§5).
 
 ## 5. As-built scope limits & gaps
 
@@ -76,18 +76,28 @@ That is the architectural claim; it has been exercised with **one** proxy (§5).
   input latency, mistap frequency, etc.) is a *design direction* for the proxy
   layer, not implemented in v1.0. The OS provides the semantic substrate that
   would make it possible; the adaptive proxy is future work.
-- **The reference proxy is text-only.** A second presentation is proposed for
-  0.34 (RFC-0.34-001) and is a v1.x readiness criterion (RFC-0.33-002 D9/D10);
-  until one exists, that the boundary supports more than one proxy is a design
-  intention, not a demonstrated fact. Audio and braille cannot be *heard or
-  felt* on the validated platform (QEMU `virt` has neither device): a proxy can
-  only emit the stream a synthesiser or display driver would consume.
-- **An unavailable proxy stalls the publisher.** `semantic-stream` forwards each
-  envelope to the proxy with a blocking call before replying to the service that
-  published it, so a proxy that never started or has crashed stops the emitting
-  service. The design intent — the proxy is downstream and the core does not
-  wait on it — is not what is built (measured; see
-  [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet)).
+- **Two presentations exist, and both are text on a console.** `proxy-text`
+  renders the stream as text; `proxy-braille` (RFC-0.34-001) renders the same
+  envelopes as lines of **uncontracted braille cells** — the stream a braille
+  display driver would consume — through the same decoder, asserted by content
+  from a committed vector. It is a small documented rule set, **not a braille
+  standard**, read by no braille reader and driven on no display: QEMU `virt` has
+  neither an audio device nor a braille display, so a proxy can only emit the
+  stream a synthesiser or display driver would consume. It shows the producer's
+  fallback text (a `TextToken`'s id is ignored — no catalogue exists), which
+  means the claim above holds for the structure around the text and not for the
+  text; and it omits an action's capability, reversibility and confirmation. See
+  [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
+- **An unavailable proxy no longer stalls the publisher, with survivors.**
+  `semantic-stream` never initiates a blocking call to a presentation: each
+  presentation asks the stream and is answered by reply (an 8 KiB queue each,
+  dropping the newest when full, reported on the node's own output); `proxy-text`
+  is served through `proxy-relay`. Errata E-058 is closed. What survives — a
+  presentation that is alive but silent is not detected as dead, a short window
+  in which a faulting presentation could still hold the stream, gaps that are
+  reported on the console and not through the presentation, and nothing that
+  restarts a stuck one — is listed at
+  [what does not exist yet](../releasing/v1-limitations.md#accessibility-and-inclusion--what-does-not-exist-yet).
 - **There is no input path.** The proxy is output-only by decision
   (ADR-v0.5-005); the `fjell-tools` route that ADR names is not built.
 - **Personal Proxy** (FR-SEM-003) is supported by the schema being

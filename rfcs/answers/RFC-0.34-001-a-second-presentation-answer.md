@@ -344,3 +344,59 @@ and `v1-limitations.md` in one commit) → evidence and the review request.
 
 I will not touch `proxy-text`'s source, ADR-v0.5-005, `BoardProfile`, any audio
 or display device, or `v1-limitations.md` beyond what R6/R9 direct.
+
+---
+
+## Afterword — what survived contact with the code (written after it)
+
+Everything above this line was written before any code and is left as it was.
+This is what the running system did to it.
+
+**Kept, and shown to work:** the D8 mechanism (the stream never initiates a
+blocking IPC to a presentation: presentations ask, are answered by reply, and are
+woken through an endpoint of their own); the relay, so that `proxy-text`'s source
+is untouched (`git diff` over `crates/services/fjell-proxy-text/` is empty and its
+prebuilt is byte-identical); the 8 KiB drop-newest queue; the machine-configuration
+switch for the absent tier with **no new kernel grant** (`init` already held the MMIO
+region capabilities); grade-1-style braille as a small documented rule set; the
+renderer as a pure crate; the committed vector as one thing with the QEMU assertion.
+
+**Changed, and why:**
+
+- **The absence report was wrong the first time.** I designed it as "not asked for 8
+  *offers*". Running the mid-run crash case showed the node survived and braille kept
+  rendering, but the stream said *nothing*: the publishers had finished before the text
+  presentation died, so no further offer ever came. It is now a logical clock — every
+  call the stream serves ticks the engine, and a presentation with work queued that has
+  not asked for 64 ticks is reported. That the first design needed a real run to fail is
+  the reason the crash case was run at all.
+- **The bound.** "8 KiB holds two worst-case envelopes" was false: `MAX_WIRE_BYTES` is
+  4,624, so it holds one with room to spare. The test I wrote to assert the wrong thing
+  refused it.
+- **The stack.** With 16 pages the stream faulted on its first message: two 8 KiB rings
+  beside envelope-sized buffers exceeded 64 KiB. Measured deepest use with 32 pages:
+  74,008 bytes. This is a kernel touch the RFC's list did not name.
+- **The task table.** "29 → 30 prebuilts" was 29 → **31** (a relay and a presentation),
+  and two more tasks filled a table with exactly two free slots: `health-fail` printed
+  `init: spawn error`. `MAX_TASKS` 32 → 40, and the kernel's per-task debug buffer, sized
+  by its own hard-coded 32, is now tied to it. Another kernel touch the RFC's list did not
+  name; its own commit.
+- **Braille expectations.** The six-line rendering of the sample intent, derived by hand,
+  matched on the first run and on a real QEMU run. Three *other* expectations of mine were
+  wrong (a forgotten capital sign, twice, and a miscounted wrap total) and were corrected
+  by re-deriving them, not by pasting the output.
+
+**Found in passing, fixed:** the kernel named a faulting task by **table index** from a
+hard-coded list, so `proxy-text` faulted as `virtio-blk`; it now uses the task's `ImageId`.
+The `SYSCALL-CALLSITE-001` audit (Gate 11) refused my two new raw `asm!` blocks until each
+was allowlisted with a reason, which is the gate working.
+
+**Figures that differed from the RFC or handoff:** the last `ImageId` was `0x1E`, not
+`0x1D`; the prebuilt count goes 29 → 31, not 30; the `semantic` profile is 314/124 lines,
+not 313/125; E-049 has not landed, so CI's package lists were extended by hand;
+`MAX_WIRE_BYTES` is 4,624.
+
+**Not verified, and said so:** the latent deadlock I described in the stream's old loop (a
+forward while `proxy-text` is blocked in its own `DISPATCH_ACTION` call) was never
+triggered; the new topology cannot have it, but I did not demonstrate the old one. The
+mid-run crash is a scratch build with a fault injected, not a committed tier.
