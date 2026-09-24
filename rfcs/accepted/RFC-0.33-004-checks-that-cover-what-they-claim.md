@@ -179,8 +179,16 @@ this line; the quote-aware reader with an **empty marker refused at load** (a
 fail-open the old reader shared silently); and E-014's old test, which asserted
 the bug, now asserting the fix with a dated register update.
 
-**Still owed, and not a defect:** the served site. Follow a converted citation
-from the published page after the push — I will do the same independently.
+**D13 — the served site: done at review, and it is what E-052 claimed.** Fetched
+after the push, from `https://nabbisen.github.io/fjell-os/compliance/standards-mapping.html`
+(HTTP 200, 60,242 bytes): **zero** links of the `href="../../../…"` form the register
+described as 404ing, and **32** absolute repository citations served. Three followed
+with `curl -L`: **200** each
+(`crates/fjell-kernel/src/audit/ring.rs`, `crates/fjell-sxt-crypto/src/lib.rs`,
+`crates/fjell-tools/src/release_rehearsal.rs`); the control, a citation naming a
+file that does not exist, **404**. That is the shape RFC-0.32-003 R8 established —
+the page as served, followed, with a negative control — and E-052's closure can
+stand on it rather than on a local build.
 
 ## Requirements
 
