@@ -1,0 +1,14 @@
+[package]
+name = "fjell-canon"
+description = "The one trait a byte-producing function writes through, so a layout description is the encoder read a second way (RFC-0.33-003)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_canon"
+path = "src/lib.rs"
+
+[dependencies]

@@ -536,6 +536,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-canon"
+version = "0.32.0"
+
+[[package]]
 name = "fjell-cap"
 version = "0.32.0"
 dependencies = [
@@ -939,6 +943,25 @@ dependencies = [
  "fjell-semantic-format",
  "fjell-service-api",
  "fjell-syscall",
+]
+
+[[package]]
+name = "fjell-schema"
+version = "0.32.0"
+dependencies = [
+ "fjell-attestation-format",
+ "fjell-canon",
+ "fjell-diag-format",
+ "fjell-identity-format",
+ "fjell-keyring",
+ "fjell-measure-format",
+ "fjell-platform-format",
+ "fjell-semantic-v1",
+ "fjell-snapshot-format",
+ "fjell-store-format",
+ "fjell-summary-format",
+ "fjell-trust-provider",
+ "fjell-upgrade-format",
 ]
 
 [[package]]

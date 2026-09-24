@@ -1,0 +1,27 @@
+[package]
+name = "fjell-schema"
+description = "Generates the .frozen schema files from the encoders themselves and fails when a committed file drifts (RFC-0.33-003, E-045)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_schema"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-canon               = { path = "../fjell-canon" }
+fjell-measure-format      = { path = "../formats/fjell-measure-format" }
+fjell-upgrade-format      = { path = "../formats/fjell-upgrade-format" }
+fjell-attestation-format  = { path = "../formats/fjell-attestation-format" }
+fjell-diag-format         = { path = "../formats/fjell-diag-format" }
+fjell-identity-format     = { path = "../formats/fjell-identity-format" }
+fjell-platform-format     = { path = "../formats/fjell-platform-format" }
+fjell-summary-format      = { path = "../formats/fjell-summary-format" }
+fjell-snapshot-format     = { path = "../formats/fjell-snapshot-format" }
+fjell-store-format        = { path = "../formats/fjell-store-format" }
+fjell-keyring             = { path = "../fjell-keyring" }
+fjell-semantic-v1         = { path = "../fjell-semantic-v1" }
+fjell-trust-provider      = { path = "../fjell-trust-provider" }
