@@ -521,6 +521,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-braille"
+version = "0.32.0"
+dependencies = [
+ "fjell-semantic-format",
+]
+
+[[package]]
 name = "fjell-bundle-format"
 version = "0.32.0"
 dependencies = [

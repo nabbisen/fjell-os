@@ -1,0 +1,15 @@
+[package]
+name = "fjell-braille"
+description = "Pure renderer from a semantic envelope to uncontracted braille cells (RFC-0.34-001 D4): envelope in, bytes out, testable on the host."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "fjell_braille"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-semantic-format = { path = "../formats/fjell-semantic-format" }
