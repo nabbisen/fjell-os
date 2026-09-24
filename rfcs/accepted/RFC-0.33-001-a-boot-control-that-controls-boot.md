@@ -266,6 +266,25 @@ that lands D17's trigger, with these survivors — my text, for the register, si
 - **nothing durable bounds a reset**, so an organic health failure would loop —
   which is why the failure path is reachable only through a deliberate trigger.
 
+**D19 — the four new evidence tiers leave nothing committed behind, and the
+harness says so on every run.** `health-fail`, `reboot`, `semantic-absent` and
+`semantic-braille` are the only profiles with no committed
+`tests/qemu/artifacts/<name>/expected-markers.txt`; the other fourteen have one,
+and the runner prints *"if `reboot` is meant to be a gated profile, commit its
+expected-markers.txt deliberately"* each time. The **specification** is safe —
+it is `expected_markers` in the committed profile — so this is not a fail-open;
+what is missing is the **evidence artefact** a reader or a citation can reach.
+Commit all four deliberately, in the commits that land D17's trigger and
+RFC-0.34-001's crash tier.
+
+*Two things checked here that turned out to be sound, recorded so they are not
+re-checked:* the `reboot` tier finishing in under a second is **real** — the
+guest resets and QEMU exits, while the 60-second tiers are waiting out their
+timeout (controlled against `dma`: 60s). And your profile comment is right that
+the entropy device keeps the reset out of the other eighteen profiles. D17
+refuses the trigger on the machine it would meet outside QEMU, not on
+cross-profile leakage — and that comment changes with the trigger.
+
 ## The open questions
 
 **§A — Does the block survive the reset?** Persisting it means a store client:
