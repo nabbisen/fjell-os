@@ -33,6 +33,54 @@
 use fjell_measure_format::Digest32;
 use fjell_platform_format::{BoardProfile, DeviceClass};
 
+// ── Header extent (RFC-0.33-001 D22, E-064) ───────────────────────────────────
+
+/// The flattened-device-tree magic, big-endian on the wire.
+pub const FDT_MAGIC: u32 = 0xD00D_FEED;
+
+/// Bytes of the fixed FDT header: enough to read the magic and `totalsize`.
+pub const FDT_HEADER_PROBE_BYTES: usize = 8;
+
+/// The smallest a real FDT can be: its own header (40 bytes, version 17).
+const FDT_MIN_TOTALSIZE: u32 = 40;
+
+/// A generous ceiling on `totalsize`. QEMU's `virt` tree is a few KiB; a value
+/// beyond this is a wrong pointer, not a bigger tree.
+pub const FDT_MAX_TOTALSIZE: u32 = 1 << 20;
+
+/// Why the bytes at a claimed DTB pointer are not a device tree.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FdtHeaderError {
+    /// Fewer than [`FDT_HEADER_PROBE_BYTES`] bytes were supplied.
+    Short,
+    /// The first four bytes are not the FDT magic. The value read is kept so a
+    /// boot log can say what was there instead.
+    BadMagic { found: u32 },
+    /// `totalsize` is smaller than the header or larger than any tree we accept.
+    BadTotalSize { found: u32 },
+}
+
+/// The extent, in bytes, of the device tree whose first bytes are `header` —
+/// after checking that they *are* a device tree.
+///
+/// This is the check the kernel makes **before storing or reserving anything**
+/// from the pointer firmware passes. Until E-064 was found the pointer was
+/// `__bss_end`, a kernel address, and nothing looked at what it pointed to.
+pub fn fdt_extent(header: &[u8]) -> Result<usize, FdtHeaderError> {
+    let Some(head) = header.get(..FDT_HEADER_PROBE_BYTES) else {
+        return Err(FdtHeaderError::Short);
+    };
+    let magic = u32::from_be_bytes([head[0], head[1], head[2], head[3]]);
+    if magic != FDT_MAGIC {
+        return Err(FdtHeaderError::BadMagic { found: magic });
+    }
+    let total = u32::from_be_bytes([head[4], head[5], head[6], head[7]]);
+    if !(FDT_MIN_TOTALSIZE..=FDT_MAX_TOTALSIZE).contains(&total) {
+        return Err(FdtHeaderError::BadTotalSize { found: total });
+    }
+    Ok(total as usize)
+}
+
 // ── Error type ────────────────────────────────────────────────────────────────
 
 /// Which check failed during DTB validation.
@@ -70,23 +118,7 @@ pub type DtbDigest = Digest32;
 
 // ── DTB wire constants ────────────────────────────────────────────────────────
 
-const DTB_MAGIC: u32 = 0xd00dfeed;
 const DTB_MIN_VERSION: u32 = 17;
-
-/// Minimal DTB header (first 40 bytes per spec §5.2).
-#[repr(C)]
-struct DtbHeader {
-    magic: u32,
-    totalsize: u32,
-    off_dt_struct: u32,
-    off_dt_strings: u32,
-    off_mem_rsvmap: u32,
-    version: u32,
-    last_comp_version: u32,
-    boot_cpuid_phys: u32,
-    size_dt_strings: u32,
-    size_dt_struct: u32,
-}
 
 fn read_be32(bytes: &[u8], offset: usize) -> Option<u32> {
     let s = bytes.get(offset..offset + 4)?;
@@ -127,7 +159,7 @@ pub fn validate_dtb(
     // R1: magic and version
     let magic = read_be32(dtb_bytes, 0)
         .ok_or_else(|| DtbValidationError::check(ValidationCheck::R1BadMagic))?;
-    if magic != DTB_MAGIC {
+    if magic != FDT_MAGIC {
         return Err(DtbValidationError::check(ValidationCheck::R1BadMagic));
     }
     let version = read_be32(dtb_bytes, 20)
@@ -536,5 +568,78 @@ mod tests {
         let result = validate_dtb(&dtb, &profile);
         // May be R4 (missing PLIC device) or R6 (no interrupt controller)
         assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+mod fdt_extent_tests {
+    use super::*;
+
+    fn header(magic: u32, total: u32) -> [u8; 8] {
+        let mut h = [0u8; 8];
+        h[..4].copy_from_slice(&magic.to_be_bytes());
+        h[4..].copy_from_slice(&total.to_be_bytes());
+        h
+    }
+
+    #[test]
+    fn a_real_header_gives_its_total_size() {
+        assert_eq!(fdt_extent(&header(FDT_MAGIC, 4096)), Ok(4096));
+        assert_eq!(fdt_extent(&header(FDT_MAGIC, 40)), Ok(40));
+        assert_eq!(
+            fdt_extent(&header(FDT_MAGIC, FDT_MAX_TOTALSIZE)),
+            Ok(FDT_MAX_TOTALSIZE as usize)
+        );
+    }
+
+    #[test]
+    fn the_byte_order_is_big_endian() {
+        // The magic as it is laid out in memory: d0 0d fe ed.
+        let mut h = [0u8; 8];
+        h[..4].copy_from_slice(&[0xD0, 0x0D, 0xFE, 0xED]);
+        h[4..].copy_from_slice(&[0, 0, 0x10, 0]);
+        assert_eq!(fdt_extent(&h), Ok(0x1000));
+        // Little-endian magic is not a device tree.
+        h[..4].copy_from_slice(&[0xED, 0xFE, 0x0D, 0xD0]);
+        assert!(matches!(
+            fdt_extent(&h),
+            Err(FdtHeaderError::BadMagic { .. })
+        ));
+    }
+
+    #[test]
+    fn the_value_the_kernel_used_to_receive_is_refused() {
+        // E-064: dtb_pa was `__bss_end`, so what it pointed at was BSS — zeros.
+        assert_eq!(
+            fdt_extent(&[0u8; 8]),
+            Err(FdtHeaderError::BadMagic { found: 0 })
+        );
+    }
+
+    #[test]
+    fn a_wrong_total_size_is_refused() {
+        assert_eq!(
+            fdt_extent(&header(FDT_MAGIC, 39)),
+            Err(FdtHeaderError::BadTotalSize { found: 39 })
+        );
+        assert_eq!(
+            fdt_extent(&header(FDT_MAGIC, FDT_MAX_TOTALSIZE + 1)),
+            Err(FdtHeaderError::BadTotalSize {
+                found: FDT_MAX_TOTALSIZE + 1
+            })
+        );
+        assert_eq!(
+            fdt_extent(&header(FDT_MAGIC, 0)),
+            Err(FdtHeaderError::BadTotalSize { found: 0 })
+        );
+    }
+
+    #[test]
+    fn a_short_slice_is_refused_not_read_past() {
+        assert_eq!(fdt_extent(&[]), Err(FdtHeaderError::Short));
+        assert_eq!(
+            fdt_extent(&[0xD0, 0x0D, 0xFE, 0xED, 0, 0, 0]),
+            Err(FdtHeaderError::Short)
+        );
     }
 }

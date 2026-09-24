@@ -14,4 +14,5 @@ path = "src/main.rs"
 fjell-audit-format = { path = "../formats/fjell-audit-format" }
 fjell-abi = { path = "../fjell-abi" }
 fjell-cap = { path = "../fjell-cap" }
+fjell-dtb-validate = { path = "../fjell-dtb-validate" }
 fjell-ipc = { path = "../fjell-ipc" }

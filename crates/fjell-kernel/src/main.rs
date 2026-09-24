@@ -537,6 +537,39 @@ pub extern "C" fn kmain() -> ! {
     loop {}
 }
 
+/// The device tree firmware passed, if what it points at *is* one: its address
+/// and its size in bytes. The pointer must lie in RAM and the bytes there must
+/// be a flattened-device-tree header (`fjell_dtb_validate::fdt_extent`).
+#[cfg(target_arch = "riscv64")]
+fn firmware_dtb(dtb_pa: usize) -> Result<(usize, usize), DtbRefusal> {
+    if dtb_pa == 0 {
+        return Err(DtbRefusal::NoPointer);
+    }
+    let probe = fjell_dtb_validate::FDT_HEADER_PROBE_BYTES;
+    if dtb_pa < RAM_BASE || dtb_pa.saturating_add(probe) > RAM_END {
+        return Err(DtbRefusal::OutsideRam);
+    }
+    // SAFETY: category=phys-id-map-assumption dtb_pa..dtb_pa+8 was just checked
+    // to lie inside RAM, which is identity-mapped by the boot environment
+    // (satp = 0); only 8 bytes are read, as plain bytes.
+    let head = unsafe { core::slice::from_raw_parts(dtb_pa as *const u8, probe) };
+    let len = fjell_dtb_validate::fdt_extent(head).map_err(DtbRefusal::Header)?;
+    if dtb_pa.saturating_add(len) > RAM_END {
+        return Err(DtbRefusal::OutsideRam);
+    }
+    Ok((dtb_pa, len))
+}
+
+/// Why the pointer firmware passed was not used as a device tree.
+#[cfg(target_arch = "riscv64")]
+#[derive(Debug, Clone, Copy)]
+#[allow(dead_code)] // read through `Debug` in the boot log
+enum DtbRefusal {
+    NoPointer,
+    OutsideRam,
+    Header(fjell_dtb_validate::FdtHeaderError),
+}
+
 // ── Kernel main ───────────────────────────────────────────────────────────────
 
 #[cfg(target_arch = "riscv64")]
@@ -544,7 +577,15 @@ pub extern "C" fn kmain() -> ! {
 fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     kprintln!("platform: qemu-virt");
 
-    let platform = platform::detect(dtb_pa);
+    // RFC-0.33-001 D22 / E-064: what firmware passed as the device-tree pointer
+    // is checked BEFORE anything is stored or reserved from it. (Until that was
+    // found it was `__bss_end`, a kernel address, and nothing looked.)
+    let dtb = firmware_dtb(dtb_pa);
+    match dtb {
+        Ok((pa, len)) => kprintln!("mm: device tree at {:#x} ({} bytes)", pa, len),
+        Err(why) => kprintln!("mm: no usable device tree at {:#x}: {:?}", dtb_pa, why),
+    }
+    let platform = platform::detect(dtb.map_or(0, |(pa, _)| pa));
     kprintln!(
         "memory: detected ({} MiB)",
         platform.ram_size / (1024 * 1024)
@@ -589,11 +630,15 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     fa!()
         .reserve_range(boot_start, boot_end, FrameOwner::ReservedBoot)
         .expect("rsv boot");
-    if dtb_pa != 0 {
-        // DTB may be placed anywhere in RAM by firmware/QEMU.  If the region
-        // overlaps an already-reserved range (e.g. it sits inside the kernel
-        // image), treat it as already accounted for rather than panicking.
-        let _ = fa!().reserve_range(dtb_pa, dtb_pa + 4096, FrameOwner::Dtb);
+    if let Ok((pa, len)) = dtb {
+        // Keep firmware's device tree out of the free pool: its real extent,
+        // not a fixed page. A failure here is HEARD — this call used to have its
+        // error discarded, and with a wrong pointer it failed on its very first
+        // frame, so the real tree's page stayed allocatable and nobody knew.
+        match fa!().reserve_range(pa, pa + len, FrameOwner::Dtb) {
+            Ok(()) => kprintln!("mm: device tree reserved"),
+            Err(e) => kprintln!("mm: device tree NOT reserved: {:?}", e),
+        }
     }
     for &(start, end, _) in MMIO_REGIONS {
         if start < RAM_BASE {
