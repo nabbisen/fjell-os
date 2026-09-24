@@ -124,6 +124,64 @@ the evidence is that one — not 85, and not 101. Finding 2's 23 + 1 citations a
 Finding 4's comma split are unchanged; `health-fail.toml` still carries its
 workaround comment, so D6's removal of it still applies.
 
+## Settled at the review, 2026-09-25
+
+**D8 — the subcheck refuses a step whose command is correct, and that is the one
+thing to fix.** Reproduced here: with `run: cargo xtask host-lib-tests` untouched
+and only the step's `name:` mentioning `cargo test -p fjell-abi --lib`,
+`ci-test-jobs` fails and quotes the name line. A `name:` is not a command. The
+honest name for a step that replaced a hand list — *"was: cargo test -p …"* — is
+exactly what a careful author writes, and this gate refuses it. **Match the step's
+`run:` body only**, with a test for the name-only case, keeping every refusal you
+demonstrated. A gate that refuses correct input teaches people to route around it,
+and the routing is silent.
+
+**D9 — E-067 gets its own line, and it is ACCEPTED, tracked 0.34.** Not extended
+into D5: re-recording every struct and trait needs the drift read that §C
+demanded for enums, and a baseline regenerated without reading it is the
+instrument this project has twice found reporting on nothing. Your handling of
+E-056 is the standard I am holding E-067 to — running the new scanner over every
+tag from `0.10.0` and diffing consecutive variant lists is more than the RFC asked
+for, and finding that **across twenty-two releases the only variant removed from a
+pre-existing enum was `SyscallNumber::Reboot`, deliberately, by a commit this
+line's neighbour made**, is the answer §C wanted. The register says there was less
+drift than feared rather than adjusting the expectation.
+
+**D10 — the `doc-links` book-boundary guard stays.** It is not scope creep; it is
+E-052's cause. A book page linking outside `docs/src` resolves on disk and 404s on
+the site, which is why three files carried it for three months and two subchecks
+agreed with them. Keeping the guard here, where the defect is understood, is the
+opposite of how E-052 survived. Pages outside the book keep relative links.
+
+**D11 — the `-p fjell-proptest` allowance is accepted, with one binding.** The
+allowance and the derived runs' exclusion are the same fact written twice, which
+is the shape this whole line is about. **Bind them in a test**: the one package the
+subcheck allows must be the package the derived argv excludes, read from the
+shared definition, not spelled again. Then a change to either moves both or fails.
+
+**D12 — restore `semantic.toml`'s bracketed marker.** You were right that changing
+what a tier asserts is not a reader fix's business, and right to leave the other
+two profiles' markers alone. This one is different: the marker was **weakened to
+suit the old reader**, and restoring the author's text strengthens the assertion
+back to what it was meant to be — with the reader now carrying it whole. It is
+also the last piece of E-057's evidence: a live profile asserting a real bracketed
+marker, not only 17 reader tests. `health-fail.toml`'s whole-line marker is the
+same win and already in the tree: the two workaround markers never asserted
+`; no fallback,` between them.
+
+**Accepted as delivered:** the 54-crate / 706-test derived run (`host-lib-tests`
+exit 0 here, 54 crates counted); measuring **every** lib crate alone rather than
+asserting feature independence, and naming the one guard whose failure path no
+test builds; the wall-clock figures with the note that a runner's are different;
+the E-052 conversion, whose arithmetic I checked against the commit itself — 32 +
+1 + 1 = 34 converted, the second URL in `v0-release-cycle.md` having pre-existed
+this line; the quote-aware reader with an **empty marker refused at load** (a
+fail-open the old reader shared silently); and E-014's old test, which asserted
+the bug, now asserting the fix with a dated register update.
+
+**Still owed, and not a defect:** the served site. Follow a converted citation
+from the published page after the push — I will do the same independently.
+
 ## Requirements
 
 **R1 — Re-derive** all four findings, with `/usr/bin/grep -a` and a control per

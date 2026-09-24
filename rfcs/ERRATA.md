@@ -4444,8 +4444,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     `#[repr(C)]`, and nothing outside the crate uses either.
 - **Why nothing saw it:** the eleven files were the census, and a format outside
   the census had no reason to be counted.
-- **Resolution:** **OPEN** — found while implementing RFC-0.33-003; not scoped. What
-  closing it needs, so it is not re-derived: the three digest streams move onto
+- **Resolution:** **ACCEPTED** (architect, 2026-09-25), tracked **0.34** for the
+  semantic wire codec; the other four remain **unscheduled survivors** with the
+  reasons above, and all five are in `v1-limitations.md`. Ruled ACCEPTED rather
+  than OPEN because each of the five has a real reason not to have been converted
+  in RFC-0.33-003's line, and an unsized fix must not block a cut — what OPEN
+  would do. **The semantic codec is scheduled first** because it is the only one on
+  a live cross-service boundary: it is the format the presentations and every
+  publisher exchange (RFC-0.32-002 D1, RFC-0.34-001), so a description of its bytes
+  is worth more than four descriptions of formats nothing outside their crate
+  reads. What closing it needs, so it is not re-derived: the three digest streams move onto
   `Canon` against goldens captured first (as RFC-0.33-003 did for eleven), `Canon`
   gaining a big-endian integer for the bundle; the semantic wire codec is its own
   line; and the `#[repr(C)]` layouts get named-field serialisers **with the same
@@ -4505,7 +4513,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   struct and trait needs its own drift reading (§C's discipline: name every change)
   that the line was not sized for. The mechanism is the same — one condition beside
   the enum's — so the fix is small and the review is the cost.
-- **Resolution:** **OPEN**, unscheduled — found while implementing RFC-0.33-004.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-25), tracked **0.34**, and in
+  `v1-limitations.md`. The mechanism is one condition beside the enum's; the cost is
+  reading the drift across the scanned set with §C's discipline, which is exactly
+  why it does not belong inside RFC-0.33-004 — a baseline re-recorded without its
+  drift read is the instrument this project has twice found reporting on nothing.
+  ACCEPTED rather than OPEN for the same reason as E-065: it must be visible in the
+  limitations and it must not block a cut. It is the last known blind spot in Gate
+  4, and a v1.0 that ships with it ships a baseline that cannot see a field added
+  to `AuditRecordBin`.
 
 ## Summary
 
@@ -4567,7 +4583,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | CLOSED |
-| E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | unscheduled | OPEN |
+| E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
@@ -4576,7 +4592,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | ACCEPTED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
-| E-065 five format crates that produce bytes (the semantic wire codec, the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) have no generated description — named survivors of E-045's census | unscheduled | OPEN |
+| E-065 five format crates that produce bytes (the semantic wire codec, the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) have no generated description — named survivors of E-045's census | 0.34 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

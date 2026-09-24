@@ -116,6 +116,50 @@ What that changes for this line:
   instead. It belongs here because it is this crate, and because doing it twice
   is worse than doing it once.
 
+## Settled at the review, 2026-09-25
+
+**D7 — D6 is accepted, and the figure in it is off by one.** `crates/fjell-fdt-header/`
+is the right placement and the right name, and the crate is what it should be: no
+dependencies, `no_std`, `forbid(unsafe_code)`, the five header tests **moved, not
+rewritten**, nothing re-exported. Counted here with `cargo tree -p fjell-kernel
+--target riscv64gc-unknown-none-elf`, the kernel's distinct dependencies are
+**five** — `fjell-abi`, `fjell-audit-format`, `fjell-cap`, `fjell-fdt-header`,
+`fjell-ipc` — not six. Your *before* figure of eight is right. **Correct the
+closure to five**, because the number is a statement about the trusted base.
+
+**And the finding inside it is the best thing in this line.** `fjell-canon` had
+entered the kernel's graph one line earlier — RFC-0.33-003 made
+`fjell-platform-format` depend on it, and that crate reached the kernel only
+through the validator — so the kernel's trusted base grew through a route neither
+line was watching. You found it in your own previous line and said so before the
+code. **That is the standard: a line that audits its predecessor.**
+
+**D8 — the readiness row does not wait, and the run is owed.** A row that states
+what was true at the cut, plus what is owed, is honest; a row held blank until a
+run exists tells a reader nothing. Your handling of the count is the part that
+matters: the row *already* said six, wrongly, for a different six, and the
+tempting move was to leave it alone because the deletion made it read correctly.
+Recording that the count went **six → seven → six, and not the same six** is
+exactly what the handoff's prohibition was about. **I repaired one thing in that
+row at review**: inserting the new note split the sentence *"Decoders a host fuzz
+crate cannot reach are named in E-043's closure, not counted"*, leaving a fragment
+mid-row. The sentence is whole again; the substance is yours.
+
+**D9 — the fuzz run: I will dispatch it.** The target changed, so the row's citation
+should name a run of the changed target. That is a push-and-dispatch, which is
+mine, and the row gains the id when it exists.
+
+**Accepted as delivered:** the deletion, complete (no tracked file, no manifest,
+no fuzz, no CI entry; the ADRs, the limitations and the readiness row keep the
+record, which is D4's whole point); the per-function caller table with its
+control; D2's test bound to the **one** committed tree by SHA-256 and to
+`fdt_extent(file) == Ok(5044)`, with five controls that each break the tree or the
+board and are refused by the check that names them; keeping the fuzz target and
+extending it to the header reader rather than adding one to protect a count; and
+stating plainly that R4 matches `compatible` strings, not `reg`, so *"the declared
+profile still matches the machine we boot"* is weaker than my own phrasing in the
+register. **That correction of my wording is right.**
+
 ## Requirements
 
 **R1 — Re-derive** Finding 2 and every figure in Finding 3, with `/usr/bin/grep

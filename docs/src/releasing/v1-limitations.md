@@ -1218,3 +1218,25 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   profile, and `fjell-dtb-validate`'s full validation is still not wired into boot
   (E-048; hardware bring-up, E-004) — so no path here has run on a real board's
   tree, and this line says nothing about one.
+- **Five formats that produce bytes still have no generated description**
+  (Erratum **E-065**, ACCEPTED 2026-09-25, the semantic codec tracked 0.34, the
+  rest unscheduled). RFC-0.33-003 gave nine formats a description generated from
+  the encoder that writes them, and a check that fails on drift. Five were not
+  converted, each for a stated reason: **`fjell-semantic-format`'s `wire`** — the
+  IPC codec every publisher and presentation exchanges, and the largest byte format
+  in the tree — because it is its own line; `fjell-measure-format`'s chain digest
+  and `fjell-bundle-format`'s bundle digest because the latter is big-endian, which
+  `Canon` cannot yet express; and `fjell-audit-format` and `fjell-net-format`
+  because their `#[repr(C)]` layouts *are* the description and one of them is
+  written raw by the kernel, so converting them is a kernel-side change. **What
+  this means for a reader:** for those five, the bytes on the wire are described by
+  nothing a gate compares, and the semantic codec is the one that matters —
+  which is why it is scheduled first.
+- **Gate 4 cannot see a field added to a struct, or a method added to a trait**
+  (Erratum **E-067**, ACCEPTED 2026-09-25, tracked 0.34). RFC-0.33-004 made the ABI
+  snapshot's hash cover an enum's variants, which is how `SyscallNumber::Reboot`'s
+  removal became visible. A braced struct and a trait are still hashed by their
+  declaration line alone, so adding a field to `AuditRecordBin` — a `#[repr(C)]`
+  layout the kernel writes raw — registers zero drift. The mechanism of the fix is
+  one condition beside the enum's; the work is reading the drift the re-record
+  reveals, which is why it is its own line rather than absorbed into that one.

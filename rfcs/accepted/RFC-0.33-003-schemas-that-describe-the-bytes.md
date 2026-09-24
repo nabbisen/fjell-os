@@ -128,6 +128,65 @@ between and this RFC's own Risks section said that line would close the window:
   for doing this line before the persistence line, not after.**
 - R1 re-derives both of these rather than trusting this note.
 
+## Settled at the review, 2026-09-25
+
+**D8 — §A's answer is better than the question, and D7's wording is corrected to
+match it.** *"The encoder is the description"* is right, and it is right for the
+reason you gave in writing before any code: a struct says what a value holds; the
+bytes are decided by the function that writes them. One trait, two sinks, one
+function — there is no second list of fields because there is no second list. The
+golden digests captured from the **unmodified** encoders before the refactor are
+the safety net this needed, and no digest moved.
+
+**D7's sentence — *"a field renamed in a struct turns the comparison test red"* —
+was written before that answer existed, and is superseded.** In this design a
+struct rename changes no byte and no wire name, and a check that fires when
+nothing changed costs the same trust as one that stays silent when bytes change.
+What replaces it is better: the compiler forces whoever renames the field to open
+the encoder, which is where the wire name lives, and a rename **of the wire name**
+is red and names both sides. Your (a)/(b)/(c) transcript is exactly the right
+evidence, and putting struct names in the file — the alternative reading of D7 —
+would rebuild the second description §A rules out.
+
+**D9 — E-066 is closed here, and closing it here was right.** A digest built in a
+512-byte buffer by a writer that clamps `n = src.len().min(buf.len() - *pos)`
+covers 77 + 8 × 54 = 509 bytes of a roster that holds 64 members, so the ninth
+member's bytes fell off the end and two rosters differing only there agreed. I
+read the pre-change source to confirm the mechanism rather than take the report:
+it is exactly as described. The failing case was run first, on the unmodified
+code; digests for ≤ 8 members and every policy are unchanged, from goldens; and
+nothing outside the crate's tests calls `add_member`, so it was latent. **A defect
+found by this line's own coverage survey, fixed with its failing case, belongs in
+this line** — a separate line for an already-fixed defect is bookkeeping.
+
+**D10 — E-065's five survivors: ACCEPTED, and the semantic codec is scheduled.**
+Not OPEN: each of the five has a real reason for not having been converted here,
+and an unsized fix must not block a cut. The wire codec is scheduled first because
+it is the only one on a live cross-service boundary — the format every publisher
+and presentation exchanges — and a description of *its* bytes is worth more than
+four descriptions of formats nothing outside their crate reads. The register and
+`v1-limitations.md` carry all five with their reasons.
+
+**D11 — the version header says the wrong version.** `v0.33.0 (first generated;
+on-disk version in the body)` reads as *the format's* version, which is the
+confusion the file exists to prevent: a reader consulting
+`store-superblock.frozen` wants **v3**, not the release the file was generated in.
+Put the on-disk version in the header where a format has one, and keep the
+generated-in note beside it. Everything else about the header is right, including
+that nothing enforces a version bump and that ADR-v0.6-003 now says so instead of
+promising more.
+
+**Accepted as delivered:** `fjell-canon` (no dependencies, `no_std`,
+`forbid(unsafe_code)` — checked) and `fjell-schema`; the per-format drift table,
+measured before anything was regenerated, which found six formats worse than the
+RFC's one example; the indeterminate-byte tests, which run the same serialiser
+into `0x00`- and `0xFF`-filled buffers and are therefore not round-trips; the four
+raw views gone (re-probed at the tip with `/usr/bin/grep -a`, 0 in `fjell-init`
+with a control of 2 in the same file and 0 NUL bytes, 0 outside the kernel, 3
+kernel files as the positive control); `schema dump` leaving the tree
+byte-identical and `schema check` reporting 17 files matching their encoders;
+`ci-schema-gate` retired to a comment that records why.
+
 ## Requirements
 
 **R1 — Re-derive** Findings 1–4: the eleven files, the absent generator, the
