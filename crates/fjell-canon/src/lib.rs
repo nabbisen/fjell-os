@@ -45,6 +45,12 @@ pub trait Canon {
     /// recorded as `magic "…"`.
     fn magic(&mut self, tag: &[u8]);
     fn u8(&mut self, name: &'static str, v: u8);
+    /// A `u8` whose value is fixed by the format (a sentinel, a marker). Written
+    /// exactly as `u8`; the recording sink also states the value, because for a
+    /// constant the value is part of the layout.
+    fn constant(&mut self, name: &'static str, v: u8) {
+        self.u8(name, v);
+    }
     fn u16(&mut self, name: &'static str, v: u16);
     fn u32(&mut self, name: &'static str, v: u32);
     fn u64(&mut self, name: &'static str, v: u64);

@@ -22,6 +22,8 @@
 //!   evidence promote ...               — promote a QEMU serial log into
 //!                                        tests/evidence/ with provenance
 //!                                        (RFC-0.27-004)
+//!   schema dump|check|show <id>        — the .frozen files are generated from the
+//!                                        encoders; check fails on drift (RFC-0.33-003)
 //!   repro-check                        — fast staleness check: committed
 //!                                        prebuilts vs. recorded baseline
 //!                                        (--skip-build, no build)
@@ -47,6 +49,7 @@ mod qemu_run;
 mod qemu_shutdown; // RFC-0.33-001: telling a machine reset from a hang
 mod registry;
 mod release_rehearsal; // RFC-v0.16-008 release gate runner
+mod schema; // RFC-0.33-003: generated .frozen files
 mod sign_bundle;
 mod smoke;
 mod test_all; // full test-all runner with log bundle
@@ -222,6 +225,7 @@ fn main() -> ExitCode {
         Some("provision-dev") => provision::cmd_provision_dev(&args[1..]),
         Some("verus-check") => verus_check::cmd_verus_check(&args[1..]),
         Some("release-rehearsal") => release_rehearsal::cmd_release_rehearsal(&args[1..]),
+        Some("schema") => schema::cmd_schema(&args[1..]),
         Some("test-all") => test_all::cmd_test_all(&args[1..]),
         Some("evidence") => evidence::cmd_evidence(&args[1..]),
         Some(other) => {

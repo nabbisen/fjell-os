@@ -97,7 +97,7 @@ pub fn write_canonical(snap: &KeyringSnapshot, c: &mut dyn Canon) {
                 c.u8("algorithm", a.algorithm.tag());
                 c.u8("authority", a.authority.tag());
                 c.u32("epoch", a.epoch.raw());
-                c.u8("reserved", 0);
+                c.zeros("reserved", 1);
                 c.u8("key_len", a.key_len);
                 c.var_bytes("key_bytes", &a.key_bytes[..a.key_len as usize], "key_len");
             }
@@ -107,7 +107,7 @@ pub fn write_canonical(snap: &KeyringSnapshot, c: &mut dyn Canon) {
                 c.u8("algorithm", 0);
                 c.u8("authority", 0);
                 c.u32("epoch", 0);
-                c.u8("reserved", 0);
+                c.zeros("reserved", 1);
                 c.u8("key_len", 0);
                 c.var_bytes("key_bytes", &[], "key_len");
             }

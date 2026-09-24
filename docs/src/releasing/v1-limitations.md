@@ -975,14 +975,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   without a word of warning; both failures let a tier pass on less than its
   author wrote.
 
-- **Struct padding is written to disk in four places** (Errata **E-055**,
-  ACCEPTED, tracked to 0.33). `fjell-init` fills sector buffers by viewing
-  `StoreSuperblock`, `RecordHeader` and `BootControlBlock` as byte slices, so
-  uninitialised padding reaches the disk image. Nothing reads either structure
-  back from disk today (E-044), so nothing interprets those bytes yet. The
-  0.32.0 CHANGELOG and release record state that no such sites remained outside
-  the kernel; that measurement was taken with a `grep` that silently skips
-  files containing NUL bytes, and `fjell-init` was the only such file.
+- **Struct padding was written to disk in four places** (Errata **E-055**,
+  **CLOSED** 2026-09-24 by RFC-0.33-003). `fjell-init` filled sector buffers by
+  viewing `StoreSuperblock`, `RecordHeader` and `BootControlBlock` as byte slices,
+  so uninitialised padding reached the disk image. Each now serialises its named
+  fields and nothing else, `fjell-init` zero-fills the rest of the sector
+  explicitly, and a test runs the serialiser into a `0x00`-filled and an
+  `0xFF`-filled buffer and requires identical output. Nothing reads any of them
+  back yet (E-044), so this was not a migration — **and that stops being true at
+  the first read-back**. The 0.32.0 CHANGELOG and release record state that no
+  such sites remained outside the kernel; that measurement was taken with a `grep`
+  that silently skips files containing NUL bytes, and `fjell-init` was the only
+  such file.
 
 - **The documentation did not say who Fjell is for** (Errata **E-054**,
   **CLOSED** 2026-09-24 by RFC-0.33-002). Inclusion — the separation of meaning
@@ -1069,13 +1073,31 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   health decision, four syscalls undispatched, nothing durable, a second boot no
   tier observes — is the *A health failure cannot reach a reset* item above.
 
-- **The frozen wire-format schemas are neither frozen nor accurate** (Errata
-  **E-045**, ACCEPTED, tracked to 0.33). Eleven `.frozen` files are described
-  as the authoritative layout of formats that cross service boundaries, and CI
-  is said to reject layout changes. CI only checks that the files exist and
-  are not empty; the generator their headers name was never built; and in both
-  formats checked, the described layout no longer matches the code, with no
-  schema version bumped.
+- **The frozen wire-format schemas were neither frozen nor accurate** (Errata
+  **E-045**, **CLOSED** 2026-09-24 by RFC-0.33-003, with survivors). The eleven
+  `.frozen` files were hand-written, checked by a CI job that only confirmed they
+  were non-empty, and — measured for all eleven — **three agreed with the code, one
+  differed by spelling and seven described something other than what is hashed**.
+  They are now **generated** by `cargo xtask schema dump` from the same functions
+  that produce the bytes, compared with the code in Gate 1 (the comparison names
+  the field that drifted), and there are seventeen. **What this does and does not
+  guarantee:** a change to a covered format's field names, types, widths, order or
+  group capacity cannot be committed without its file changing; it does *not* see
+  the *values* of ordinary fields (the golden digests hold those for the fourteen
+  digest and codec formats they cover, and the three disk structures' own tests
+  hold theirs), and a version bump is something the diff makes visible to a
+  reviewer, not something a check enforces. **Survivors — Errata E-065 (OPEN,
+  unscheduled):** five format crates produce bytes and still have no generated
+  description — the semantic wire codec that services exchange over IPC, the
+  measurement chain digest, the bundle digest, and the audit and net `#[repr(C)]`
+  layouts.
+
+- **A fleet roster's digest covered only its first eight members** (Errata
+  **E-066**, **CLOSED** 2026-09-24, found and fixed inside RFC-0.33-003). The
+  digest stream was built in a 512-byte buffer by a writer that truncates silently,
+  so two rosters differing only in their ninth member had the same digest.
+  Nothing in the tree builds a roster of more than a few members, so it was never
+  live; digests of eight members or fewer, and of every policy, are unchanged.
 
 - **Two code paths treated Rust structs as raw bytes unsoundly** (Errata
   **E-046**, **CLOSED** 2026-09-16 by RFC-0.32-002). The semantic-stream and

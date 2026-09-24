@@ -265,7 +265,22 @@ pub fn snapshot_envelope(version: u16) -> fjell_snapshot_format::SnapshotEnvelop
 /// declared kind, and the **last optional** field, if any, is left absent so the
 /// `present = 0` branch is in the bytes too.
 pub fn semantic_intent() -> (u16, Vec<u8>) {
-    use fjell_semantic_v1::{CATALOG_V1, FieldValue, encode};
+    use fjell_semantic_v1::encode;
+    let (entry, values) = semantic_widest();
+    let mut out = [0u8; 256];
+    let n = encode(entry.tag, SEMANTIC_TICK, &values, &mut out).expect("encodes");
+    (entry.tag, out[..n].to_vec())
+}
+
+/// `created_tick` of the semantic sample.
+pub const SEMANTIC_TICK: u64 = 0x1112_1314_1516_1718;
+
+/// The widest catalogue entry and a distinct value for each of its fields.
+pub fn semantic_widest() -> (
+    &'static fjell_semantic_v1::IntentEntry,
+    Vec<fjell_semantic_v1::FieldValue>,
+) {
+    use fjell_semantic_v1::{CATALOG_V1, FieldValue};
     // The entry with the most fields (the first of them, on a tie).
     let entry = CATALOG_V1
         .iter()
@@ -300,7 +315,70 @@ pub fn semantic_intent() -> (u16, Vec<u8>) {
             }
         })
         .collect();
-    let mut out = [0u8; 256];
-    let n = encode(entry.tag, 0x1112_1314_1516_1718, &values, &mut out).expect("encodes");
-    (entry.tag, out[..n].to_vec())
+    (entry, values)
+}
+
+pub fn store_superblock() -> fjell_store_format::StoreSuperblock {
+    let mut sb = fjell_store_format::StoreSuperblock::new(0x0102_0304_0506_0708);
+    sb.log_tail_seq = 0x1112_1314_1516_1718;
+    sb.active_checkpoint_seq = 0x2122_2324_2526_2728;
+    sb.seal();
+    sb
+}
+
+pub fn record_header() -> fjell_store_format::RecordHeader {
+    let mut h = fjell_store_format::RecordHeader::new(
+        fjell_store_format::RecordKind::ServiceState,
+        0x0102_0304_0506_0708,
+        0x2000,
+    );
+    h.crc32 = 0;
+    h
+}
+
+pub fn boot_control_block() -> fjell_upgrade_format::BootControlBlock {
+    let mut b = fjell_upgrade_format::BootControlBlock::new(0x0102_0304_0506_0708);
+    b.seal();
+    b
+}
+
+/// A three-member roster, every field distinct.
+pub fn fleet_roster() -> fjell_fleet_format::NodeRoster {
+    use fjell_fleet_format::roster::{NodeRoster, RosterEntry, TrustProfileTag};
+    use fjell_identity_format::NodeId;
+    let mut r = NodeRoster::new([0x71; 16], [0x72; 32]);
+    r.generation = 0x0102_0304;
+    for i in 0..3u8 {
+        r.add_member(RosterEntry {
+            identity_digest: digest(0x80 + i),
+            node_id: NodeId([0x90 + i; 16]),
+            trust_profile_tag: TrustProfileTag(0xA0 + i),
+            active: i != 1,
+            generation: 0x0B0C_0D00 + i as u32,
+        })
+        .expect("room");
+    }
+    r
+}
+
+/// A three-statement policy, every field distinct.
+pub fn fleet_policy() -> fjell_fleet_format::FleetPolicy {
+    use fjell_fleet_format::{FleetPolicy, PolicyAction, PolicyCondition, PolicyStatement};
+    let mut p = FleetPolicy::new([0x71; 16], digest(0xC0));
+    p.policy_generation = 0x1112_1314;
+    let acts = [
+        PolicyAction::ReplaceProvider,
+        PolicyAction::InitiateRollout,
+        PolicyAction::RemoteDiag,
+    ];
+    for (i, a) in acts.into_iter().enumerate() {
+        p.add_statement(PolicyStatement {
+            action: a,
+            condition: PolicyCondition::Always,
+            allow: i != 1,
+            audit_tag: 0x0D00 + i as u16,
+        })
+        .expect("room");
+    }
+    p
 }

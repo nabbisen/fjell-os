@@ -76,3 +76,16 @@ Fuzzing runs nightly with the seeded corpora as starting points.
 > empty; the `fjell-tools schema dump` generator and the comparison test that
 > RFC-v0.6-003 specified were never built; and in both formats checked, the
 > frozen description no longer matches the code, with no schema version bumped.
+
+> **Correction, 2026-09-24 (RFC-0.33-003).** The two schema consequences now hold,
+> in a narrower form than they were first written. The frozen files are
+> **generated** by `cargo xtask schema dump` from the functions that produce each
+> format's bytes — not by a generator that knows the fields, which would have been
+> a second description — and a test in Gate 1 fails, naming the field, when a
+> committed file differs from what its encoder writes; `ci-schema-gate` was
+> retired in its favour. So an accidental field reorder, re-widthing or rename is
+> caught per-PR **for the seventeen formats that have a file**. It does not enforce
+> the BREAKING-SCHEMA commit, the version bump or the ADR: the regenerated file's
+> diff makes the change visible to the reviewer, and the process consequence stays
+> a review obligation. Five format crates that produce bytes have no generated
+> description yet (Errata E-065).

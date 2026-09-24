@@ -143,7 +143,7 @@ pub fn write_canonical(
             }
         }
     }
-    c.u8("sentinel", SENTINEL);
+    c.constant("sentinel", SENTINEL);
 }
 
 /// Decode a v1 intent envelope.

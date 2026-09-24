@@ -209,3 +209,62 @@ fn fleet_action_error_no_remote_shell() {
     assert_eq!(FleetActionKind::from_u8(0x08), None); // 0x08 is unassigned
     assert_eq!(FleetActionKind::from_u8(0xFF), None);
 }
+
+// ── The digest covers the whole roster (E-066) ────────────────────────────────
+
+/// A roster of `n` members, each with a distinct identity digest.
+fn roster_of(n: usize, last_active: bool) -> NodeRoster {
+    let mut r = NodeRoster::new(sample_fleet_id(), [0xBBu8; 32]);
+    for i in 0..n {
+        r.add_member(RosterEntry {
+            identity_digest: Digest32([i as u8 + 1; 32]),
+            node_id: NodeId([i as u8 + 1; 16]),
+            trust_profile_tag: TrustProfileTag(1),
+            active: if i + 1 == n { last_active } else { true },
+            generation: 1,
+        })
+        .unwrap();
+    }
+    r
+}
+
+/// The digest of a roster must change when **any** member changes — including the
+/// last of a full roster. The digest stream was once built in a 512-byte buffer
+/// whose writer silently dropped what did not fit, so rosters that differed only
+/// after the eighth member had the same digest, and a signature over it covered
+/// less than the roster.
+#[test]
+fn a_change_to_the_last_member_of_a_full_roster_changes_the_digest() {
+    for n in [8usize, 9, 20, MAX_ROSTER_ENTRIES] {
+        let a = roster_of(n, true);
+        let b = roster_of(n, false); // only the last member differs (revoked)
+        assert_ne!(
+            roster_digest(&a).0,
+            roster_digest(&b).0,
+            "{n}-member rosters differing only in the last member share a digest"
+        );
+    }
+}
+
+/// Every statement of a full policy is covered too.
+#[test]
+fn a_change_to_the_last_statement_of_a_full_policy_changes_the_digest() {
+    let mk = |allow: bool| {
+        let mut p = FleetPolicy::new(sample_fleet_id(), sample_digest());
+        for i in 0..MAX_POLICY_STATEMENTS {
+            p.add_statement(PolicyStatement {
+                action: PolicyAction::InitiateRollout,
+                condition: PolicyCondition::Always,
+                allow: if i + 1 == MAX_POLICY_STATEMENTS {
+                    allow
+                } else {
+                    true
+                },
+                audit_tag: i as u16,
+            })
+            .unwrap();
+        }
+        p
+    };
+    assert_ne!(policy_digest(&mk(true)).0, policy_digest(&mk(false)).0);
+}

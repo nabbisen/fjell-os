@@ -16,6 +16,7 @@ fjell-canon               = { path = "../fjell-canon" }
 fjell-measure-format      = { path = "../formats/fjell-measure-format" }
 fjell-upgrade-format      = { path = "../formats/fjell-upgrade-format" }
 fjell-attestation-format  = { path = "../formats/fjell-attestation-format" }
+fjell-fleet-format        = { path = "../formats/fjell-fleet-format" }
 fjell-diag-format         = { path = "../formats/fjell-diag-format" }
 fjell-identity-format     = { path = "../formats/fjell-identity-format" }
 fjell-platform-format     = { path = "../formats/fjell-platform-format" }

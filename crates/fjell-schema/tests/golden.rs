@@ -132,6 +132,28 @@ fn snapshot_v2_has_the_domain_byte() {
     );
 }
 
+/// The fleet roster digest, captured from the unmodified encoder on a
+/// three-member roster (which fits the old 512-byte buffer, so the rewrite that
+/// removed the buffer limit must not move it — E-066 changed only what happens
+/// beyond eight members).
+#[test]
+fn fleet_roster() {
+    check(
+        "fleet_roster",
+        &fjell_fleet_format::roster_digest(&s::fleet_roster()).0,
+        "604ef51fd0d3e9a0bd0671f0554bd4956a209bb11da2cc73284621ce5b50f49e",
+    );
+}
+
+#[test]
+fn fleet_policy() {
+    check(
+        "fleet_policy",
+        &fjell_fleet_format::policy_digest(&s::fleet_policy()).0,
+        "fb1580eef92622b18d71ffa24fa94be931c228ce843b5f129b32be622a9c025a",
+    );
+}
+
 /// The semantic intent codec's bytes, captured from `encode` before it was
 /// rewritten to write through `Canon`. (No catalogue entry has an optional field,
 /// so every `present` byte here is `01`.)

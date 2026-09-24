@@ -3016,12 +3016,44 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why nothing saw it:** a presence check reported as a drift check, and the
   one mechanism that would compare layouts was specified, marked implemented,
   and never written.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **RFC-0.33-003** (scoped 2026-09-24), with
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-15), tracked **RFC-0.33-003** (scoped 2026-09-24), with
   the ABI work these formats belong to. Closing it means either a generated
   schema with a real comparison gate, or retiring the frozen files and the
   claims made for them; a census of all eleven files is part of that line.
   RFC-v0.6-003 reclassified `Implemented-with-Errata`; ADR-v0.6-003 corrected in
   place today.
+
+- **Resolution:** **CLOSED** 2026-09-24 by **RFC-0.33-003**, with survivors named.
+  The premise of the RFC's own question — *can a generator learn a layout from a
+  struct?* — was **no**: a struct says what a value holds, and the bytes are decided
+  by the function that writes them. So the encoders were rewritten to write through
+  one small trait (`fjell-canon`'s `Canon`), each byte-producing function is
+  **both** what the digest or sector is computed from **and** what the description
+  is generated from, and every rewrite is held bit-identical by golden digests
+  captured from the unmodified code first.
+
+  | | before | after |
+  |---|---|---|
+  | who writes a `.frozen` file | a person; the header named `fjell-tools schema dump`, which did not exist | `cargo xtask schema dump`, from the encoder |
+  | what compares one with the code | nothing; `ci-schema-gate` checked eleven paths were non-empty and said it could not detect drift | `fjell-schema`'s test, naming the field (`field min_counter: the committed file says u32 LE, the encoder writes u64 LE`), in `ci-host-bins` and `test-all` tier 1b; `ci-schema-gate` **retired** |
+  | files | 11, hand-written | **17**, generated (11 + `platform-v1` + `store-superblock`, `record-header`, `boot-control-block` + `fleet-roster-v1`, `fleet-policy-v1`) |
+  | agreed with the code | 3 of 11 | all 17 |
+
+  **What the census found, that the two formats the finding measured did not
+  show:** of the eleven, **three agreed, one differed by spelling, and seven
+  described something other than what is hashed** — `release-metadata` a different
+  structure altogether, `attestation v2` sixteen fields for a stream of about fifty.
+  Each corrected file carries a dated note of what it used to claim. No digest
+  moved (17 golden digests); no version line moved, because no byte did. **What a
+  description does not carry:** the *values* of ordinary fields — it records names,
+  types, widths, order, counted groups with their capacity, and constants where the
+  encoder marks one — and a version bump is a review obligation the file's diff
+  makes visible, not a check.
+
+  **Survivors:** five format crates produce bytes and still have no generated
+  description — **E-065**. Registering them is now a test failure rather than a
+  choice: a crate under `crates/formats/` must have a file or a stated reason, and
+  the reasons are re-checked.
 
 ## E-046 — Rust structs are reinterpreted as raw bytes without the guarantees that would make it sound, including across a service boundary
 
@@ -3857,12 +3889,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `StoreSuperblock` back from disk (E-044), so the padding written is never
   interpreted. It becomes one the moment anything reads it — which is what
   RFC-0.33-001's §A would have done had persistence stayed in scope.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-22), tracked **RFC-0.33-003** (scoped 2026-09-24).
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-22), tracked **RFC-0.33-003** (scoped 2026-09-24).
   E-046 is **not** reopened: it shipped, it fixed the receive path it named, and
   its resolution now records this correction and points here. Closing E-055
   means the four sites serialise named fields — the shape RFC-0.32-002 used for
   the checksums — and the on-disk bytes change, so it pairs naturally with
   **E-045**'s schema work rather than being done twice.
+
+- **Resolution:** **CLOSED** 2026-09-24 by **RFC-0.33-003 D5**. `StoreSuperblock`,
+  `RecordHeader` and `BootControlBlock` each have a `write_canonical` that writes
+  every field, named and little-endian, and **nothing else**; `fjell-init` fills a
+  sector from `encode()` and zero-fills the rest **explicitly**, and the four
+  `from_raw_parts` views are gone (re-probed with `/usr/bin/grep -a`, controlled on
+  the file itself). The test is not that the sector round-trips: the same serialiser is run into a buffer pre-filled with
+  `0x00` and into one pre-filled with `0xFF`, and the two outputs must agree
+  everywhere — a byte no named field wrote would show the fill (`fjell-canon` holds
+  the control that proves it would). `StoreSuperblock` (now v3: 14 of its 64
+  in-memory bytes were padding; the block is the 50 that are fields) and
+  `BootControlBlock` (now v3, 49 bytes) moved on disk; `RecordHeader` did not (it
+  has no padding) and stays v1. Nothing reads any
+  of them back, so this was not a migration — and that window closes at the first
+  read-back.
 
 ## E-056 — the ABI snapshot hashes an enum's declaration line, so adding or removing a variant is zero drift
 
@@ -4153,6 +4200,77 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   a real board's tree. Also fixed along the way: a dead `DtbHeader` struct and a
   duplicate copy of the magic constant in that crate.
 
+## E-065 — five format crates produce bytes and still have no generated description
+
+- **Claim:** RFC-0.33-003 D6 — *"every format written to disk or sent over IPC has a
+  file or a recorded reason; 'nobody wrote one' is not a reason."*
+- **Tree, observed 2026-09-24**, by the coverage registry that RFC added
+  (`fjell_schema::registry::EXCLUSIONS`, re-checked by `crates/fjell-schema/tests/frozen.rs`):
+  of the 22 crates under `crates/formats/`, **nine** define no function that turns a
+  value into bytes (probed with the fixed-string list in that test, with a positive
+  control that finds producers in three crates known to have them) and are excused
+  as in-memory only; **nine** have a generated file (RFC-0.33-003 gave them one);
+  and **five produce bytes and have none** — named here so each is a survivor and
+  not a gap nobody noticed:
+  - **`fjell-semantic-format`** — `wire`, the IPC codec for `SemanticEnvelope`
+    (RFC-0.32-002 D1): the format services exchange, an encoder and decoder whose
+    writer calls carry no field names. The largest byte format in the tree.
+  - **`fjell-measure-format`** — `MeasurementEvent::compute_chain_digest`, the
+    measurement chain's digest stream (`of_parts`).
+  - **`fjell-bundle-format`** — `compute_bundle_digest`, an `of_parts` stream of
+    **big-endian** integers, which `Canon` does not yet express.
+  - **`fjell-audit-format`** — `AuditRecordBin` (written raw by the kernel's
+    `sys_audit_drain`), `AuditPersistRecord` and `AuditLogHeader`: `#[repr(C)]`
+    layouts, padding-free with compile-time size assertions, and **no encoder to
+    record** — the layout *is* the struct.
+  - **`fjell-net-format`** — `NetDescriptorHeader` and `NetDriverPacket`:
+    `#[repr(C)]`, and nothing outside the crate uses either.
+- **Why nothing saw it:** the eleven files were the census, and a format outside
+  the census had no reason to be counted.
+- **Resolution:** **OPEN** — found while implementing RFC-0.33-003; not scoped. What
+  closing it needs, so it is not re-derived: the three digest streams move onto
+  `Canon` against goldens captured first (as RFC-0.33-003 did for eleven), `Canon`
+  gaining a big-endian integer for the bundle; the semantic wire codec is its own
+  line; and the `#[repr(C)]` layouts get named-field serialisers **with the same
+  bytes** (possible because they are padding-free, unlike E-055's), after which the
+  kernel's raw write of `AuditRecordBin` is a separate, kernel-side change.
+
+## E-066 — a fleet roster's digest covered only its first eight members
+
+- **Claim:** `fjell-fleet-format`'s `roster_digest` is *"the canonical digest of a
+  `NodeRoster`"*, and `roster.rs`: *"Opaque reference to a fleet roster (hash of the
+  canonical encoding)"*; a roster holds up to `MAX_ROSTER_ENTRIES` = **64** members
+  and is what a fleet's policy commits to (`FleetPolicy.roster_digest`).
+- **Tree, observed 2026-09-24**, found while surveying the byte producers for
+  E-065: the digest stream was built in a fixed **512-byte** buffer by a local
+  `write_bytes` that copies `src.len().min(buf.len() - pos)` bytes — **it truncates
+  silently**. The stream is 77 bytes of header plus 54 per member, so it holds
+  eight members (509 bytes) and drops the rest. **Two rosters that differ only in
+  their ninth member had the same digest**, and a signature or policy commitment
+  over that digest covered less than the roster. (`policy_digest` had the same
+  pattern in a 256-byte buffer, which its maximum, 32 statements = 237 bytes, fits,
+  so it was never truncated.) This is the failure `RFC-v0.7.2-002` (C-RB-02) fixed
+  in `fjell-snapshot-format` by streaming the digest, left in place here.
+- **Failing case first**, on the unmodified digest code
+  (`a_change_to_the_last_member_of_a_full_roster_changes_the_digest`):
+  `assertion left != right failed: 9-member rosters differing only in the last member share a digest`.
+  Eight members passed; nine failed.
+- **Not a live hazard today:** nothing outside the crate's own tests calls
+  `add_member` (`/usr/bin/grep -a -rn add_member` over `crates` and `tools`,
+  controlled against the crate's own hits), and `fjell-fleetd`'s roster self-check
+  digests an empty roster. It would have been live at the first fleet of nine.
+- **Resolution:** **CLOSED** 2026-09-24, found and fixed inside RFC-0.33-003 — which
+  did not name it, so it is flagged there. Both digests are now written through
+  `Canon` into a buffer sized from the capacity constants
+  (`ROSTER_STREAM_MAX` = 3,533 bytes, `POLICY_STREAM_MAX` = 237), so nothing can fall
+  outside them and an overrun would panic instead of truncating. Digests of rosters
+  of eight members or fewer and of every policy are **unchanged** (golden digests
+  captured from the unmodified encoder on three-member/three-statement samples
+  still pass); only rosters of nine or more, whose digest was wrong, change. Nothing
+  persisted such a digest (E-044/E-055: nothing reads these formats back), so no
+  stored value is invalidated. The two streams now have generated descriptions
+  (`fleet-roster-v1.frozen`, `fleet-policy-v1.frozen`).
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4201,7 +4319,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
 | E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | RFC-0.33-001 | CLOSED |
-| E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | RFC-0.33-003 | ACCEPTED |
+| E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | RFC-0.33-003 | CLOSED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
 | E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | RFC-0.33-005 | ACCEPTED |
@@ -4211,7 +4329,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | RFC-0.33-004 | ACCEPTED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
-| E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | ACCEPTED |
+| E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | ACCEPTED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
@@ -4221,6 +4339,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | ACCEPTED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
+| E-065 five format crates that produce bytes (the semantic wire codec, the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) have no generated description — named survivors of E-045's census | unscheduled | OPEN |
+| E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

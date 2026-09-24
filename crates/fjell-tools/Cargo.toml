@@ -21,6 +21,7 @@ fjell-sig-ed25519       = { path = "../fjell-sig-ed25519" }
 # the same structure `errata-tracking`/`errata-limitations` do instead of
 # carrying its own copy (or, worse, its own `grep`).
 fjell-consistency-check = { path = "../../tools/fjell-consistency-check" }
+fjell-schema           = { path = "../fjell-schema" }
 getrandom           = { version = "0.2", features = ["std"] }
 argon2              = "0.5"
 aes-gcm             = "0.10"

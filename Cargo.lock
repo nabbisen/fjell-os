@@ -689,6 +689,7 @@ dependencies = [
 name = "fjell-fleet-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-identity-format",
  "fjell-measure-format",
 ]
@@ -957,6 +958,7 @@ dependencies = [
  "fjell-attestation-format",
  "fjell-canon",
  "fjell-diag-format",
+ "fjell-fleet-format",
  "fjell-identity-format",
  "fjell-keyring",
  "fjell-measure-format",
@@ -1189,6 +1191,7 @@ dependencies = [
  "fjell-cap-manifest",
  "fjell-consistency-check",
  "fjell-dev-harness",
+ "fjell-schema",
  "fjell-sig-ed25519",
  "getrandom 0.2.17",
 ]
