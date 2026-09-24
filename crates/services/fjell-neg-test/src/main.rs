@@ -30,7 +30,7 @@ use fjell_syscall::{
     ipc_sender_tid, sys_audit_drain, sys_cap_bind_lease, sys_cap_copy,
     sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_mint, sys_cap_revoke,
     sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv,
-    sys_ipc_recv_msg, sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_task_spawn,
+    sys_ipc_recv_msg, sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_reboot, sys_task_spawn,
     sys_task_start, sys_task_status, sys_yield,
 };
 
@@ -47,6 +47,8 @@ const SLOT_TASK_CREATE: u32 = 5; // TaskCreate cap (used by sys_task_spawn)
 #[allow(dead_code)]
 const SLOT_TASK_CONTROL: u32 = 6; // TaskControl cap (used by sys_task_start/status)
 const SLOT_SAMPLE_EP: u32 = 7; // Endpoint cap to sample-service (object 6, RFC 042)
+const SLOT_REBOOT: u32 = 16; // Reboot cap, full rights (RFC-0.33-001 D15)
+const SLOT_REBOOT_NARROW: u32 = 17; // scratch: the Reboot cap minted down to no REBOOT right
 const SLOT_IRQ: u32 = 9; // Interrupt cap, IRQ_ACK only, no IRQ_BIND (RFC-0.25-001)
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
@@ -856,6 +858,78 @@ fn test_cap_inspect_without_right() {
 
 // ── Service entry point ───────────────────────────────────────────────────────
 
+// ── RFC-0.33-001 D15: the reset mechanism, exercised on its own ──────────────
+//
+// `bootctl`'s health decision cannot reach a reset in this deployment (one
+// image, no slot switching — D14), so the mechanism it would use — the
+// `PlatformReboot` dispatch arm, its capability check, the MMIO write — is
+// exercised here instead, and the two are not joined. Two halves:
+//
+// * **without the right** — a `Reboot` capability minted down to lack `REBOOT`
+//   is refused, exactly, with `PermissionDenied`. Marker: refused, observed.
+// * **with the right** — the machine resets. **No marker says so.** The harness
+//   passes the run only if QEMU itself reports `SHUTDOWN` with
+//   `reason: "guest-reset"` and exited by itself (`expect_shutdown`).
+//
+// Neither runs unless the machine is configured for it: every profile boots
+// this same image, and a reset in all of them would end them all. The switch is
+// the machine's own configuration — a virtio entropy device (`virtio-rng`,
+// device id 4), which no other profile adds — read the way any driver reads a
+// device, through the MMIO capabilities neg-test already holds. Nothing here
+// adds authority; it is an input only a profile's QEMU command line controls.
+
+const VIRTIO_MAGIC: u32 = 0x7472_6976; // "virt"
+const VIRTIO_DEVICE_ID_RNG: u32 = 4;
+
+/// Does the machine carry a virtio entropy device? Scans the eight virtio-mmio
+/// slots (region 3, `0x1000_1000..`) for its device id.
+fn machine_asks_for_reboot_test() -> bool {
+    let Ok(base) = sys_mmio_map(CapHandle(SLOT_MMIO_BASE + 3), 0, 0x8000) else {
+        return false;
+    };
+    for slot in 0..8usize {
+        let dev = base + slot * 0x1000;
+        // SAFETY: category=mmio-access `base` is a fresh mapping of the eight
+        // virtio-mmio slots (`sys_mmio_map`, region 3, 0x8000 bytes); each
+        // 4-byte-aligned read at offset 0 (magic) and 8 (device id) is inside it.
+        let (magic, id) = unsafe {
+            // MMIO-ORDER: status_read
+            let magic = core::ptr::read_volatile(dev as *const u32);
+            // MMIO-ORDER: status_read
+            let id = core::ptr::read_volatile((dev + 8) as *const u32);
+            (magic, id)
+        };
+        if magic == VIRTIO_MAGIC && id == VIRTIO_DEVICE_ID_RNG {
+            return true;
+        }
+    }
+    false
+}
+
+fn test_reboot() {
+    if !machine_asks_for_reboot_test() {
+        return;
+    }
+    // Without the right: mint the full capability down to one with no REBOOT.
+    match sys_cap_mint(
+        CapHandle(SLOT_REBOOT),
+        SLOT_REBOOT_NARROW,
+        fjell_cap::CapRights::SEND.0 as u64,
+    ) {
+        Ok(narrow) => check_err(
+            sys_reboot(narrow, 0),
+            fjell_abi::error::SysError::PermissionDenied,
+            M::REBOOT_WITHOUT_RIGHT,
+        ),
+        Err(_) => sys_debug_writeln("NEG:HARNESS:REBOOT_NARROW_MINT_FAILED"),
+    }
+    // With the right. This line states an intention, not an outcome.
+    sys_debug_writeln("neg-test: calling sys_reboot with the Reboot right");
+    let _ = sys_reboot(CapHandle(SLOT_REBOOT), 0);
+    // Reaching here means the reset did not happen: fail closed.
+    sys_debug_writeln("NEG:HARNESS:REBOOT_RETURNED");
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // Yield briefly so the rest of the system (cap-broker Enforcing handoff,
@@ -935,5 +1009,9 @@ pub extern "C" fn service_main() -> ! {
     test_ipc_blocked_call_and_late_reply();
 
     sys_debug_writeln("neg-test: all scenarios complete");
+
+    // RFC-0.33-001 D15: the reset mechanism, last, and only where the machine
+    // asks for it. In every other profile this returns immediately.
+    test_reboot();
     sys_exit(0)
 }

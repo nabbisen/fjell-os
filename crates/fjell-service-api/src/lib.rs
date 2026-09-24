@@ -326,6 +326,13 @@ pub mod negative_markers {
     pub const CAP_REVOKE_WITHOUT_RIGHT: &str = "NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS";
     pub const CAP_INSPECT_WITHOUT_RIGHT: &str = "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS";
 
+    // ── RFC-0.33-001 D15: the reset mechanism, on its own ────────────────────
+    /// `sys_reboot` through a `Reboot`-kind capability minted down to lack the
+    /// `REBOOT` right is refused with `PermissionDenied`. The machine reset the
+    /// *with*-the-right call causes is never asserted by a marker: the harness
+    /// reads it from QEMU's own `SHUTDOWN` event.
+    pub const REBOOT_WITHOUT_RIGHT: &str = "NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS";
+
     // ── blocked IPC revocation (RFC 034) ─────────────────────────────────────
     /// A task blocked in `ipc_call` is woken with `LeaseRevoked` when its
     /// endpoint cap's lease is revoked.

@@ -1,0 +1,37 @@
+# RFC-0.33-001 D15: the reset mechanism, demonstrated on its own.
+#
+# bootctl's health decision cannot reach a reset in this deployment (health-fail
+# shows why: one image, no slot switching, the active slot is also the last
+# confirmed one -- D14), so the mechanism it would use is exercised here by
+# neg-test instead: the PlatformReboot dispatch arm, its capability check, the
+# MMIO write, and R6's harness. THE TWO ARE NOT JOINED. The health *decision* is
+# demonstrated end to end by `health-fail`; the *reset* is demonstrated end to
+# end by this profile; joining them needs slot switching (D7) and a durable
+# block (section A). Neither profile implies otherwise.
+#
+# What is asserted, and how:
+#   * WITHOUT the right: neg-test mints its Reboot capability down to one with no
+#     REBOOT right and calls sys_reboot -- refused with PermissionDenied, exactly.
+#     That refusal has a marker, because it is a return value neg-test observes.
+#   * WITH the right: the machine resets. NO MARKER SAYS SO. `expect_shutdown`
+#     makes the harness pass this run only if QEMU's own SHUTDOWN event reports
+#     guest-initiated `guest-reset` and QEMU exited by itself, not by the
+#     timeout wrapper -- the machine's behaviour is the evidence. A reset that
+#     did not happen is a hang or a power-off, and both fail the run
+#     (tests/qemu_shutdown.rs, five refusals with tests).
+#   * If sys_reboot *returns*, neg-test prints NEG:HARNESS:REBOOT_RETURNED, a
+#     forbidden harness marker, and the run fails closed.
+#
+# The switch is the machine's configuration: neg-test runs this scenario only if
+# it finds a virtio entropy device, which no other profile adds. Every profile
+# boots this same image, and a reset in all of them would end them all.
+
+name             = "reboot"
+timeout_secs     = 60
+expect_shutdown  = "guest-reset"
+extra_args       = ["-device", "virtio-rng-device"]
+expected_markers = [
+    "neg-test: all scenarios complete",
+    "NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS",
+    "neg-test: calling sys_reboot with the Reboot right",
+]

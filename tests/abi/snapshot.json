@@ -1,5 +1,5 @@
 [
-  {"count":422},
+  {"count":423},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"5affdf9d342d6262"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_AUDIT_DRAIN","sig":"c16a6ada82892290"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
@@ -283,6 +283,7 @@
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"POLICY_DEFAULT_DENY","sig":"2527e171966c2fea"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"POLICY_DENY_PRIORITY","sig":"2e34487b8ba8cf9e"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"POLICY_IDENTITY_SPOOFING_REJECTED","sig":"b7ded5eb111d9fb7"},
+  {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"REBOOT_WITHOUT_RIGHT","sig":"98df60508dea6b57"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"SVC_FAULT","sig":"18e57f5c24e00f5d"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"SVC_READY_ACCEPTED","sig":"d976981c56e33d78"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"SVC_START_TIMEOUT","sig":"8678c923ec3af229"},
