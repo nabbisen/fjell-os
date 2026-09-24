@@ -1,0 +1,37 @@
+# RFC-0.34-001 D3/§C: ONE published envelope, TWO presentations, in one run, both
+# asserted by their CONTENT -- not by a marker saying "rendered".
+#
+# The envelope is the one sample-service publishes: title "sample-service demo
+# intent", severity Normal, description "RFC-v0.23-001 ABDD live path
+# demonstration", two actions (acknowledge, remap-device).
+#
+#   * proxy-text renders it as text (its own lines, unchanged);
+#   * proxy-braille renders it as braille cells. The six `proxy-braille:` lines
+#     below are the COMMITTED VECTOR: character for character the array
+#     SAMPLE_INTENT_LINES in crates/fjell-braille/src/tests.rs, whose cells were
+#     derived by hand from the dot patterns, not produced by running the
+#     renderer. A host test in that crate reads THIS file and checks each line is
+#     here, so the vector cannot drift from the assertion in either direction.
+#
+# Read them in this order and the difference between the two modalities is
+# visible: braille leads with the severity, as a word; the text leads with
+# bracketed tags. Neither line says "rendered". What is being claimed is a stream
+# a braille display driver would consume, written to the console. QEMU virt has no
+# braille display and none was driven (E-004).
+#
+# The markers contain no comma and no closing bracket: the profile reader splits
+# on both, silently (E-057).
+
+name             = "semantic-braille"
+timeout_secs     = 60
+expected_markers = [
+    "sample-service demo intent",
+    "RFC-v0.23-001 ABDD live path demonstration",
+    "remap-device",
+    "proxy-braille: ⠝⠕⠗⠍⠁⠇⠒⠀⠎⠁⠍⠏⠇⠑⠤⠎⠑⠗⠧⠊⠉⠑⠀⠙⠑⠍⠕⠀⠊⠝⠞⠑⠝⠞",
+    "proxy-braille: ⠠⠗⠠⠋⠠⠉⠤⠧⠼⠚⠲⠃⠉⠤⠼⠚⠚⠁⠀⠠⠁⠠⠃⠠⠙⠠⠙⠀⠇⠊⠧⠑⠀⠏⠁⠞⠓",
+    "proxy-braille: ⠙⠑⠍⠕⠝⠎⠞⠗⠁⠞⠊⠕⠝",
+    "proxy-braille: ⠁⠉⠞⠊⠕⠝⠎⠒⠀⠼⠃",
+    "proxy-braille: ⠼⠁⠀⠁⠉⠅⠝⠕⠺⠇⠑⠙⠛⠑",
+    "proxy-braille: ⠼⠃⠀⠗⠑⠍⠁⠏⠤⠙⠑⠧⠊⠉⠑",
+]

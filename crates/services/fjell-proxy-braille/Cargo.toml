@@ -1,0 +1,18 @@
+[package]
+name = "fjell-proxy-braille"
+description = "The second presentation (RFC-0.34-001): renders each envelope as uncontracted braille cells on the console, the stream a braille display driver would consume."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-proxy-braille"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall         = { path = "../../fjell-syscall" }
+fjell-service-api     = { path = "../../fjell-service-api" }
+fjell-semantic-format = { path = "../../formats/fjell-semantic-format" }
+fjell-braille         = { path = "../../fjell-braille" }

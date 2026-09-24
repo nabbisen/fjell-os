@@ -414,3 +414,28 @@ fn render_into_never_writes_a_partial_line() {
         }
     }
 }
+
+// ── The QEMU tier's assertion is this vector ─────────────────────────────────
+
+/// `tests/qemu/profiles/semantic-braille.toml` asserts these lines, prefixed
+/// `proxy-braille: `, against a real run. Reading the file here makes the
+/// committed vector and the QEMU assertion one thing: editing either without the
+/// other fails this test.
+#[test]
+fn the_qemu_profile_asserts_exactly_the_committed_vector() {
+    const PROFILE: &str = include_str!("../../../tests/qemu/profiles/semantic-braille.toml");
+    assert!(PROFILE.contains("expected_markers"), "read the wrong file?");
+    for line in SAMPLE_INTENT_LINES {
+        let marker = std::format!("\"proxy-braille: {line}\"");
+        assert!(
+            PROFILE.contains(&marker),
+            "the profile does not assert: {marker}"
+        );
+    }
+    // ...and asserts nothing braille that is not in the vector.
+    let asserted = PROFILE
+        .lines()
+        .filter(|l| l.trim_start().starts_with("\"proxy-braille: "))
+        .count();
+    assert_eq!(asserted, SAMPLE_INTENT_LINES.len());
+}

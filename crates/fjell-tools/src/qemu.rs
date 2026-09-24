@@ -46,6 +46,7 @@ pub const SERVICES: &[&str] = &[
     "fjell-driver-uart",
     // RFC-0.34-001: presentations that ask the stream (D8).
     "fjell-proxy-relay",
+    "fjell-proxy-braille",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.

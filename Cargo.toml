@@ -28,6 +28,7 @@ members = [
     "crates/services/fjell-configd",
     "crates/services/fjell-proxy-text",
     "crates/services/fjell-proxy-relay",
+    "crates/services/fjell-proxy-braille",
     "crates/services/fjell-neg-test",
     "crates/services/fjell-svc-timeout",
     "crates/services/fjell-svc-fault",

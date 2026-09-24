@@ -851,6 +851,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-proxy-braille"
+version = "0.32.0"
+dependencies = [
+ "fjell-braille",
+ "fjell-semantic-format",
+ "fjell-service-api",
+ "fjell-syscall",
+]
+
+[[package]]
 name = "fjell-proxy-relay"
 version = "0.32.0"
 dependencies = [
