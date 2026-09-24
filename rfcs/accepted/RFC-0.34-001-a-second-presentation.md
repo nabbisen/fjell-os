@@ -93,6 +93,70 @@ open question and is **not** opened here.
 synthesiser would consume — never "Fjell supports braille" or "Fjell speaks".
 The limitations section says which hardware does not exist.
 
+## Settled at the review, 2026-09-24
+
+**D9 — the relay goes, and `proxy-text` speaks the ask protocol. D5 was the wrong
+instruction and this corrects it.** `proxy-relay` exists to hold the blocking call
+`proxy-text` has always answered, away from the stream. That is a faithful reading
+of D5 — *"`proxy-text` is not modified beyond what fan-out requires"* — and D5
+bought a permanent shim, an extra image, an extra endpoint and a thirty-first
+prebuilt to avoid roughly ten lines in one service. **A workaround kept in the
+architecture is not what "clean" means.** Convert `proxy-text` to ask, delete the
+relay, and let the tiers that assert its markers be the check that its behaviour
+did not change. *(The parked-to-`recv` window survives in whichever task asks —
+removing the relay does not fix it, and it stays a named survivor.)*
+
+**D10 — the absence switch stays, on severity grounds, and the contrast with the
+reset trigger is the rule.** A balloon device makes `init` skip `proxy-text`, and
+`init` **says so on the console** — *"presentation-absent test configuration;
+proxy-text not started"*. Worst case on a real node: the text presentation does
+not start, the line says why, and the stream now reports the absence. Visible,
+recoverable, self-explaining. Contrast D17's refused trigger, whose worst case is
+an unbreakable reboot loop and which is silent by construction. **Severity and
+recurrence decide whether a hardware-presence switch is acceptable, not
+convenience.**
+
+**D11 — the mid-run crash tier is required.** It is the case that found the
+counting defect in your own absence report, and it is the case you trust least;
+leaving it to a scratch build leaves the weakest evidence uncommitted.
+**Constraint: no new device-presence trigger.** Use the console-byte channel; a
+small test-only service that registers as a presentation and then faults is
+acceptable, as `svc-fault` already is.
+
+**D12 — `MAX_TASKS` 40 is accepted**, with its measured `.bss` cost, and the
+debug-buffer fix that had to go with it. But **a full table reporting `NoMemory`
+is a defect in its own right**: three different allocation failures in `spawn.rs`
+return the same value, so `init` cannot say which limit it hit, and the symptom
+was a bare `init: spawn error`. Filed as **E-061**. The table's size is not worth
+its own decision; the error that hides the reason is.
+
+**D13 — the readiness row is amended, not re-graded.** DONE is right: a second
+modality is driven end to end from the same stream and asserted by content. The
+row must say **what** was observed — braille cells on a serial console, read by no
+braille reader and driven on no braille device — because a reader of that row is
+being told a v1.0 criterion is met.
+
+**D14 — the garbled line you reported is real, and it is worse than a cosmetic
+one. Located, mechanism named, filed.** It is in
+`tests/qemu/artifacts/*/serial.log` in **every** profile, and in archived runs
+back to 2026-09-02: eight non-printing bytes (`90 90 90 90 90 90 90 92`)
+immediately after `devmgr: profiles verified`. The kernel's per-task console
+buffer flushes on a newline or at 160 bytes and **never when a task leaves**, so
+a task that exits mid-line has its bytes emitted in front of the next line from
+that slot — filed as **E-062**, together with the silent 160-byte split, which
+matters here because a braille line is already 136 bytes at the sizes you tested.
+And the line that follows it, `M6: storaged ready`, is printed by **`storaged`
+and `init` both** — so the tiers asserting it pass on `init`'s line alone. Filed
+as **E-063**. You were right to report it rather than patch it; closing E-062
+needs the failing case shown, a task exiting mid-line and the leftover appearing
+on the next task's, not the bytes merely going away.
+
+**Accepted as delivered:** the queue-and-credit policy with its bound argued from
+`MAX_WIRE_BYTES`, the logical clock that replaced the offer count, both endpoint
+tests (the boot-time assertion is the real one; the text scan is a cheap early
+warning — keep both), the three kernel touches you flagged for veto, the task
+labels by `ImageId`, and every figure you re-derived against mine.
+
 ## The open questions
 
 **§A — Which modality?** Candidates:

@@ -3996,6 +3996,68 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   sender, as a receiver, and as a component whose absence is a failure mode —
   alongside the second-presentation line that makes the boundary real.
 
+## E-061 — a full task table and three other failures report `NoMemory`
+
+- **Claim:** `init` reports why a service did not start; `SysError::NoMemory`
+  names a memory exhaustion.
+- **Tree, observed 2026-09-24:** `crates/fjell-kernel/src/task/spawn.rs` returns
+  `SysError::NoMemory` from **four distinct failures** (lines 41, 48, 62, 79),
+  one of which is *the task table is full*. When RFC-0.34-001's two new services
+  overflowed the 32-entry table, the whole diagnosis a reader got was
+  `init: spawn error` — the caller cannot distinguish an exhausted table from an
+  exhausted allocator, and the table's own limit has no error value.
+- **Why nothing saw it:** no test asserts *which* error a failed spawn returns;
+  every tier asserts the success markers. The value is only read by a human, and
+  only when something has already gone wrong.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. A
+  distinct error for a full table, and `init` naming the image it could not
+  spawn. An error a person reads is user surface: a value that cannot say which
+  limit was hit is a defect, not polish.
+
+## E-062 — the console line buffer prefixes a task's first line with a dead task's bytes
+
+- **Claim:** `sys_debug_write`'s per-task line buffering exists so that
+  *"a timer preemption between two bytes"* cannot interleave output; lines are
+  *"flushed as one atomic UART write"*
+  (`crates/fjell-kernel/src/trap/syscall.rs`, the line-buffering comment).
+- **Tree, observed 2026-09-24:** the buffer is indexed by
+  `current_task_idx() % DBG_TASKS` and is **flushed only on a newline or at 160
+  bytes** — never when a task exits. A task that dies or exits mid-line leaves
+  its bytes in the slot, and the next task to take that index has them **emitted
+  in front of its first line**. Observed in every profile's serial log at the
+  same point: eight non-printing bytes (`90 90 90 90 90 90 90 92`; `…94` under
+  `reboot`) between `devmgr: profiles verified` and the next line, present in
+  `tests/qemu/artifacts/*/serial.log` and in archived runs back to
+  **2026-09-02**. Two further defects in the same path: `DBG_LINE = 160` splits
+  any longer line **silently**, and a braille presentation line is already 136
+  bytes at this input size; and the `% DBG_TASKS` masks an out-of-range task
+  index into an alias rather than failing, the class of E-014.
+- **Why nothing saw it:** every tier asserts markers with a substring match, and
+  a prefix of junk in front of a marker still contains the marker. The one
+  surface a person actually reads is the one nothing asserts the shape of.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. Flush
+  or clear a slot when its task leaves; mark a split line as split; make the
+  index out of range fail rather than alias. Closing it needs the failing case
+  demonstrated — a task exiting mid-line, and the leftover appearing on the next
+  task's line — not only the corrupted bytes disappearing.
+
+## E-063 — `M6: storaged ready` is printed by two tasks, and every tier asserts it
+
+- **Claim:** the marker `M6: storaged ready` records that `storaged` came up;
+  QEMU profiles and archived evidence assert it.
+- **Tree, observed 2026-09-24:** it is printed by **`storaged`**
+  (`crates/services/fjell-storaged/src/main.rs:334`) **and by `init`**
+  (`crates/services/fjell-init/src/main.rs:533`, after its relay wait). Both
+  lines appear in every serial log. A profile asserting the marker therefore
+  passes on `init`'s line alone — the assertion does not identify its writer,
+  and would survive `storaged` never printing anything.
+- **Why nothing saw it:** the duplicate reads as an echo. The marker has been
+  present twice for as long as the archived logs go back, and a passing
+  assertion never prompts anyone to ask which task satisfied it.
+- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. One
+  writer per marker, or markers that name their writer. This is the
+  weak-predicate class the project polices, in the evidence base itself.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4060,6 +4122,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
+| E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | ACCEPTED |
+| E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
+| E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | ACCEPTED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

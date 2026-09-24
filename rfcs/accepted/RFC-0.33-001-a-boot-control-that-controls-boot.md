@@ -220,6 +220,52 @@ theirs describes what was measured (`NoFallback`, not a loop) and mine
 predicted a loop that this structure cannot reach. I write it into
 `v1-limitations.md`; they do not edit that file.
 
+## Settled at the third mid-line ruling, 2026-09-24 (D15's review)
+
+**D17 — the reset trigger is refused, and a sixth kernel touch is approved to
+replace it.** `neg-test` resets the machine when it finds a virtio **entropy**
+device among the MMIO slots, and the profile supplies one. Three facts decide
+this:
+
+1. **`neg-test` is spawned unconditionally** — `init` line 469, no condition — so
+   the scenario ships in every boot.
+2. **The trigger survives the reset.** The device is still attached afterwards, so
+   a machine that has one resets, boots, resets again: **a reboot loop**, on
+   hardware whose only fault is having an entropy source.
+3. **The tier passes only because `-no-reboot` is set.** QEMU exits instead of
+   rebooting, so the loop is invisible exactly where it would be observed.
+
+An entropy device is ordinary hardware. A node that power-cycles because one is
+attached is not a test affordance; it is a trap, and the loop cannot be broken
+from inside because nothing is durable (D13, F6).
+
+**The rule this establishes: a trigger for a reset must not survive the reset.**
+The console byte does not — it is injected once, by an external agent, and is
+absent on the next boot. So: **`neg-test` gets its own endpoint object and `init`
+a send capability to it** — the sixth kernel touch, mirroring `bootctl`'s from
+D8 — and the reboot scenario runs on an injected byte, as D10's does. The shared
+object 0 they rightly rejected is what the new endpoint removes.
+
+*Everything else in D15 stands and is accepted*: the grant confined to one slot,
+the `PermissionDenied` case with its marker, the harness judging QEMU's own
+`SHUTDOWN{guest-reset}` with a live control that a reset which did not happen
+fails, the forbidden `REBOOT_RETURNED` marker, and the two halves named as two
+halves.
+
+**D18 — E-044 is not closed yet, and this is why.** Its closure would record a
+demonstrated reset armed by a trigger I have just refused. Close it in the commit
+that lands D17's trigger, with these survivors — my text, for the register, since
+`v1-limitations.md` is mine and already carries them:
+
+- **no reset follows a health decision in this deployment** — the active slot is
+  also the last confirmed one, so `fail_health` correctly refuses to strand the
+  system; joining the decision to the reset needs slot switching (D7) and a
+  durable block (§A);
+- **four syscalls remain undispatched** (`CapInstall`, `TaskKill`, `MmioUnmap`,
+  `DmaShare`);
+- **nothing durable bounds a reset**, so an organic health failure would loop —
+  which is why the failure path is reachable only through a deliberate trigger.
+
 ## The open questions
 
 **§A — Does the block survive the reset?** Persisting it means a store client:

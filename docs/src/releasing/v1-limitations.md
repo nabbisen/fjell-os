@@ -1130,3 +1130,25 @@ Additional operational notes (not Gate 9 items, listed for completeness):
 - The repro-check baseline (`tests/repro/baseline-digests.txt`) tracks the
   committed `prebuilt/*.bin` artefacts and must be re-recorded whenever the
   prebuilt service binaries are rebuilt — see `tools/fjell-repro-check`.
+
+- **The console a person reads is the one surface nothing asserts the shape
+  of** (Errata **E-062**, **E-063**, filed 2026-09-24 at RFC-0.34-001's review,
+  both tracked 0.34). The kernel buffers `sys_debug_write` per task and flushes
+  on a newline — but **not when a task leaves**, so a task that exits mid-line
+  leaves its bytes in its slot and the next task to take that slot has them
+  emitted in front of its first line. It is in every profile's serial log and in
+  archived runs back to 2026-09-02: eight non-printing bytes ahead of
+  `M6: storaged ready`. Lines longer than 160 bytes are also split with nothing
+  marking the split, and a braille presentation line is already 136 bytes at the
+  sizes tested — so the second presentation's own output can be cut without a
+  reader or a check being told. Separately, `M6: storaged ready` is printed by
+  **both `storaged` and `init`**, so every tier that asserts it passes on
+  `init`'s line alone. Marker assertions match substrings, which is why a junk
+  prefix and a duplicate writer both survived.
+- **A failed spawn does not say what ran out** (Erratum **E-061**, filed
+  2026-09-24, tracked 0.34). Four distinct failures in `spawn.rs` — including
+  *the task table is full* — all return `SysError::NoMemory`, so the symptom of
+  the full table that RFC-0.34-001's two new services caused was a bare
+  `init: spawn error`. Which limits a new service consumes — the task table,
+  its stack, an endpoint slot, the callsite budget — is discoverable only by
+  reading the kernel, not from the error or from any document.
