@@ -263,7 +263,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     if let Some(id) = current_id {
         if let Some(task) = table.get_mut(id) {
             if let Some(code) = super::syscall::take_exit() {
-                let _label = task_label(id);
+                let _label = task_label(id, task.image_id);
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task exit.
@@ -276,7 +276,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 sched.on_exit();
                 check_smoke_pass(table);
             } else if let Some(fault) = super::fault::take_fault() {
-                let label = task_label(id);
+                let label = task_label(id, task.image_id);
                 // RISC-V ABI: x14=a4, x29=t4, x30=t5 — the registers used
                 // by the LBU string-print loop at the observed fault sites.
                 crate::kprintln!(
@@ -298,7 +298,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 sched.on_fault();
                 check_smoke_pass(table);
             } else if super::syscall::take_yield() {
-                let _label = task_label(id);
+                let _label = task_label(id, task.image_id);
                 task.state = TaskState::Runnable;
                 // Voluntary yield: reset quantum violation counter (RFC 037).
                 task.accounting.quantum_violations = 0;
@@ -360,7 +360,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
             crate::kprintln!(
                 "[sched] BUG: dispatched dead task #{} {} state={:?}",
                 next_id.index,
-                task_label(next_id),
+                task_label(next_id, task.image_id),
                 task.state
             );
             return current_tf;
@@ -405,26 +405,55 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
     next_tf
 }
 
-fn task_label(id: crate::task::TaskId) -> &'static str {
-    // Slots confirmed from live logs (spawn order depends on ImageId ordering
-    // in fjell-abi, which may differ across builds).
-    // Kernel-side labels are best-effort for diagnostics only.
-    match id.index {
-        0 => "idle",
-        1 => "init",
-        2 => "configd",
-        3 => "cap-broker",
-        4 => "auditd",
-        5 => "svc-manager",
-        6 => "sample",
-        7 => "neg-test",
-        8 => "sem-stream",
-        9 => "proxy-text",
-        10 => "devmgr",
-        11 => "virtio-blk",
-        12 => "storaged",
-        13 => "bootctl",
-        14 => "upgraded",
+/// A task's name for diagnostics, from what actually identifies it: its
+/// `ImageId`. This used to be a hard-coded list keyed by **table index**, whose
+/// own comment admitted that spawn order shifts — so every service added after
+/// the list was written was reported under another service's name (RFC-0.34-001
+/// found `proxy-text` faulting as `virtio-blk`). A fault report that names the
+/// wrong service is worse than one that names none. Nothing matches on these
+/// labels (no profile, tool or page does); they are for a person reading a log.
+fn task_label(id: crate::task::TaskId, image_id: ImageId) -> &'static str {
+    if id.index == 0 {
+        return "idle";
+    }
+    image_label(image_id)
+}
+
+fn image_label(image_id: ImageId) -> &'static str {
+    match image_id {
+        ImageId::INIT => "init",
+        ImageId::CONFIGD => "configd",
+        ImageId::CAP_BROKER => "cap-broker",
+        ImageId::AUDITD => "auditd",
+        ImageId::SERVICE_MANAGER => "service-manager",
+        ImageId::SAMPLE_SERVICE => "sample-service",
+        ImageId::SEMANTIC_STREAM => "semantic-stream",
+        ImageId::PROXY_TEXT => "proxy-text",
+        ImageId::DEVMGR => "devmgr",
+        ImageId::DRIVER_VIRTIO_BLK => "driver-virtio-blk",
+        ImageId::STORAGED => "storaged",
+        ImageId::BOOTCTL => "bootctl",
+        ImageId::UPGRADED => "upgraded",
+        ImageId::POWERD => "powerd",
+        ImageId::VERIFYD => "verifyd",
+        ImageId::ROOTFSD => "rootfsd",
+        ImageId::SNAPSHOTD => "snapshotd",
+        ImageId::MEASUREDD => "measuredd",
+        ImageId::ATTESTD => "attestd",
+        ImageId::RECOVERYD => "recoveryd",
+        ImageId::NEG_TEST => "neg-test",
+        ImageId::SVC_TIMEOUT => "svc-timeout",
+        ImageId::SVC_FAULT => "svc-fault",
+        ImageId::DRIVER_VIRTIO_NET => "driver-virtio-net",
+        ImageId::NETD => "netd",
+        ImageId::SECURE_TRANSPORTD => "secure-transportd",
+        ImageId::DIAGNOSTICSD => "diagnosticsd",
+        ImageId::IDENTITYD => "identityd",
+        ImageId::SUMMARYD => "summaryd",
+        ImageId::SYNCD => "syncd",
+        ImageId::DRIVER_UART => "driver-uart",
+        ImageId::PROXY_RELAY => "proxy-relay",
+        ImageId::PROXY_BRAILLE => "proxy-braille",
         _ => "task",
     }
 }
