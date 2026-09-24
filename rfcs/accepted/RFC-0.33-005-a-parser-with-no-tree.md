@@ -1,6 +1,6 @@
 # RFC-0.33-005: A parser with no tree
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
 **Milestone:** 0.33
 **Tracks.** **E-048** — `fjell-dtb-derive` has never derived a board profile from
 a real device tree, nothing uses it, and the documents that described its callers
@@ -89,6 +89,32 @@ published and has no `pub` surface in the snapshot's scanned set. **Verify rathe
 than assume** — that is R1.
 
 **Answer all four in writing before implementing.**
+
+## Amended at acceptance, 2026-09-24 — `fjell-dtb-validate` now has a caller, and it is the kernel
+
+Finding 2 said the crate *"has no caller, and the kernel's DTB parser is a stub"*,
+and **D5** said boot-time validation was not built here. **Both are superseded by
+what landed in between** (RFC-0.33-001 D22, erratum E-064): the boot shim used to
+destroy the DTB pointer, and the kernel now validates the header — via
+`fjell_dtb_validate::fdt_extent` and `FDT_HEADER_PROBE_BYTES` — before it stores
+or reserves anything, on **every boot** of every tier.
+
+What that changes for this line:
+
+- **D2's premise is half retired.** The crate is exercised at boot now, but only
+  its 14-line header reader; the 645-line validator it lives beside is still
+  called by nothing. D2's Gate 1 test is therefore still required, and R1 says
+  which functions have a caller and which do not.
+- **D5 stands as written for *full* validation** — a board profile checked against
+  a real tree at boot is still hardware bring-up (E-004) — and no longer stands
+  for the header.
+- **D6 (new): RFC-0.33-001 D24's split lands on this line.** `fdt_extent` uses
+  neither of the crate's two dependencies, and the kernel should not carry a
+  645-line boot-handoff validator plus `fjell-platform-format` and
+  `fjell-measure-format` to read eight bytes. Move those 14 lines, their
+  constants and their tests into a dependency-free leaf the kernel depends on
+  instead. It belongs here because it is this crate, and because doing it twice
+  is worse than doing it once.
 
 ## Requirements
 

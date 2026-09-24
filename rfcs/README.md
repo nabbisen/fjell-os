@@ -429,7 +429,7 @@ before it was trusted.
 
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — 6 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 `accepted/README.md` keeps the folder in a fresh clone.
@@ -439,16 +439,16 @@ Signed off by the owner; implementation may begin; not yet shipped.
 | 0.33-001 | [A boot control that controls boot](./accepted/RFC-0.33-001-a-boot-control-that-controls-boot.md) — accepted 2026-09-22; closes **E-044**; handoff: [`handoffs/`](./handoffs/RFC-0.33-001-a-boot-control-that-controls-boot/implementation-handoff.md) |
 | 0.33-002 | [Who Fjell is for](./accepted/RFC-0.33-002-who-fjell-is-for.md) — identity-level; accepted 2026-09-23; closes **E-054**; handoff: [`handoffs/`](./handoffs/RFC-0.33-002-who-fjell-is-for/implementation-handoff.md) |
 | 0.34-001 | [A second presentation](./accepted/RFC-0.34-001-a-second-presentation.md) — accepted 2026-09-24; closes **E-058**; delivers RFC-0.33-002 D9's first v1.0 criterion; handoff: [`handoffs/`](./handoffs/RFC-0.34-001-a-second-presentation/implementation-handoff.md) |
+| 0.33-003 | [Schemas that describe the bytes](./accepted/RFC-0.33-003-schemas-that-describe-the-bytes.md) — accepted 2026-09-24; closes **E-045**, **E-055**; handoff: [`handoffs/`](./handoffs/RFC-0.33-003-schemas-that-describe-the-bytes/implementation-handoff.md) |
+| 0.33-004 | [Checks that cover what they claim](./accepted/RFC-0.33-004-checks-that-cover-what-they-claim.md) — accepted 2026-09-24; closes **E-049**, **E-052**, **E-056**, **E-057**; handoff: [`handoffs/`](./handoffs/RFC-0.33-004-checks-that-cover-what-they-claim/implementation-handoff.md) |
+| 0.33-005 | [A parser with no tree](./accepted/RFC-0.33-005-a-parser-with-no-tree.md) — accepted 2026-09-24; closes **E-048**; carries RFC-0.33-001 D24; handoff: [`handoffs/`](./handoffs/RFC-0.33-005-a-parser-with-no-tree/implementation-handoff.md) |
 
 ---
 
-## Proposed (proposed/) — 3 RFCs
+## Proposed (proposed/) — none
 
-| RFC | Title |
-|-----|-------|
-| 0.33-003 | [Schemas that describe the bytes](./proposed/RFC-0.33-003-schemas-that-describe-the-bytes.md) — closes **E-045**, **E-055** |
-| 0.33-004 | [Checks that cover what they claim](./proposed/RFC-0.33-004-checks-that-cover-what-they-claim.md) — closes **E-049**, **E-052**, **E-056**, **E-057** |
-| 0.33-005 | [A parser with no tree](./proposed/RFC-0.33-005-a-parser-with-no-tree.md) — closes **E-048** |
+Nothing is awaiting the owner's decision. `proposed/README.md` keeps the folder in
+a fresh clone.
 
 ## Archive (archive/) — 2 RFCs
 

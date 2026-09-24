@@ -1,6 +1,6 @@
 # RFC-0.33-004: Checks that cover what they claim
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
 **Milestone:** 0.33
 **Tracks.** Four instruments that report success over less than they claim:
 **E-049** (CI names test packages by hand and misses ten crates), **E-052**
@@ -110,6 +110,19 @@ fix across lines is how it stayed unfixed — but say what their tests now asser
 smallest and most independent first, so a red gate is always attributable.
 
 **Answer all five in writing before implementing.**
+
+## Amended at acceptance, 2026-09-24 — the hand list grew while this waited
+
+Finding 1 counted **85** `-p fjell-…` entries in `ci.yml`. At the tip this was
+accepted on there are **101** occurrences across **88** lines: the 0.34 line added
+two services and extended the lists **by hand**, exactly as the finding predicts,
+because nothing refuses a hand-written package list (D2 is what stops it).
+
+**The figure is not the point and must not be quoted as one.** R1 re-derives it
+with the original probe at the tip the implementer starts from, and the count in
+the evidence is that one — not 85, and not 101. Finding 2's 23 + 1 citations and
+Finding 4's comma split are unchanged; `health-fail.toml` still carries its
+workaround comment, so D6's removal of it still applies.
 
 ## Requirements
 

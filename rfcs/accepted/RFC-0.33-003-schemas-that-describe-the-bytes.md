@@ -1,6 +1,6 @@
 # RFC-0.33-003: Schemas that describe the bytes
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
 **Milestone:** 0.33
 **Tracks.** **E-045** — the frozen wire-format schemas were never enforced and
 have drifted — and **E-055**, struct padding written to disk through four raw
@@ -111,6 +111,22 @@ If any does, that format's byte change is a migration and this RFC does not cove
 migrations.
 
 **Answer all five in writing before implementing.**
+
+## Amended at acceptance, 2026-09-24 — the window §E depends on is still open
+
+Re-derived at the tip this was accepted on, because RFC-0.33-001 landed in
+between and this RFC's own Risks section said that line would close the window:
+
+- **Nothing reads any of these formats back from disk.** `storaged`'s
+  `READ_CHUNK` arm is still `reply(READ_CHUNK); // placeholder`, and `bootctl`
+  builds its block in memory (`BootControlBlock::new`) rather than reading one —
+  RFC-0.33-001 deliberately left persistence out (its §A). So **§E's answer is
+  still "nothing", and the byte change in D5 is still free.**
+- **It stops being free at the first read-back.** `init` writes a
+  `BootControlBlock` to both mirrors today; the moment anything parses one, D5
+  becomes a migration, which this RFC's Non-goals exclude. **That is the argument
+  for doing this line before the persistence line, not after.**
+- R1 re-derives both of these rather than trusting this note.
 
 ## Requirements
 
