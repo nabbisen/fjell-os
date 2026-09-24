@@ -30,10 +30,14 @@
 //!   partly handed out) and counted. A queue with no bound would be a third
 //!   failure mode, so there is exactly one number and one place it is
 //!   enforced.
-//! * **Absence stays observable.** Drops are reported as [`Report`]s — at the
-//!   first drop and at each power of two after it, so an unbounded fault
-//!   costs `log2(n)` lines — and a presentation that has emptied its queue
-//!   after dropping reports [`Report::Resumed`].
+//! * **Absence stays observable, before anything is lost.** A queue that holds
+//!   a whole boot's traffic would make a presentation that is gone silent until
+//!   the bound is hit, so the engine reports two things as [`Report`]s: a
+//!   presentation that has not asked for [`BEHIND_AFTER`] envelopes
+//!   ([`Report::Behind`], then at each doubling), and drops
+//!   ([`Report::NotTaking`], at the first and at each power of two after it).
+//!   An unbounded fault costs `log2(n)` lines. A presentation that then empties
+//!   its queue reports [`Report::Resumed`].
 //!
 //! # What this does not do
 //!
@@ -47,6 +51,13 @@
 
 /// Bytes of an envelope carried by one `Chunk` message: four 8-byte words.
 pub const CHUNK_BYTES: usize = 32;
+
+/// A presentation that has not asked for this many envelopes is reported
+/// [`Report::Behind`]. Chosen so that a presentation busy between two questions
+/// is not reported (cooperative scheduling means nothing is offered while it
+/// runs) and one that has stopped is, well inside the queue's bound: a typical
+/// envelope is a few hundred bytes, so eight is far short of overflowing 8 KiB.
+pub const BEHIND_AFTER: u64 = 8;
 
 /// Bytes of length prefix in front of each queued envelope.
 const LEN_PREFIX: usize = 2;
@@ -86,6 +97,10 @@ pub struct Msg {
 /// Something worth saying on the node's own output about one presentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Report {
+    /// `unasked` envelopes have been offered since the presentation last asked
+    /// (the [`BEHIND_AFTER`]th, and each doubling after it). Nothing has been
+    /// lost yet. `never_asked` is true if it has not asked for anything at all.
+    Behind { unasked: u64, never_asked: bool },
     /// `dropped` envelopes have been dropped in this run (the first, and each
     /// power of two after it). `never_asked` is true if the presentation has
     /// not asked for anything yet — it may not exist.
@@ -100,8 +115,9 @@ pub enum Report {
 pub enum Offer {
     /// It is queued. `wake` is true exactly when the presentation was parked
     /// and must now be woken (once): the caller sends the wake, and it is the
-    /// only send the stream ever makes to a presentation.
-    Queued { wake: bool },
+    /// only send the stream ever makes to a presentation. `report` is set when
+    /// the presentation has become [`Report::Behind`].
+    Queued { wake: bool, report: Option<Report> },
     /// It did not fit and was dropped. `report` is set when this drop is the
     /// first, or a power of two, of the current run.
     Dropped { report: Option<Report> },
@@ -178,6 +194,11 @@ pub struct Presentation<const N: usize> {
     dropped_total: u64,
     dropped_run: u64,
     next_report_at: u64,
+    /// Envelopes offered since the presentation last asked.
+    unasked: u64,
+    next_behind_at: u64,
+    /// A `Behind` was reported and has not been answered by catching up.
+    reported_behind: bool,
     high_water: usize,
 }
 
@@ -191,18 +212,39 @@ impl<const N: usize> Presentation<N> {
             dropped_total: 0,
             dropped_run: 0,
             next_report_at: 1,
+            unasked: 0,
+            next_behind_at: BEHIND_AFTER,
+            reported_behind: false,
             high_water: 0,
         }
     }
 
+    /// Count an offer; the `Behind` report it triggers, if any.
+    fn count_unasked(&mut self) -> Option<Report> {
+        self.unasked += 1;
+        if self.unasked == self.next_behind_at {
+            self.next_behind_at = self.next_behind_at.saturating_mul(2);
+            self.reported_behind = true;
+            return Some(Report::Behind {
+                unasked: self.unasked,
+                never_asked: !self.asked,
+            });
+        }
+        None
+    }
+
     fn offer(&mut self, env: &[u8]) -> Offer {
+        let behind = self.count_unasked();
         if self.ring.push(env) {
             if self.ring.used > self.high_water {
                 self.high_water = self.ring.used;
             }
             let wake = self.parked;
             self.parked = false;
-            return Offer::Queued { wake };
+            return Offer::Queued {
+                wake,
+                report: behind,
+            };
         }
         self.dropped_total += 1;
         self.dropped_run += 1;
@@ -213,23 +255,30 @@ impl<const N: usize> Presentation<N> {
                 never_asked: !self.asked,
             })
         } else {
+            // Once envelopes are being lost, the drop reports say more than a
+            // `Behind` at every doubling would; do not say both.
             None
         };
+        let _ = behind;
         Offer::Dropped { report }
     }
 
     fn next(&mut self) -> (Next, Option<Report>) {
         self.asked = true;
+        self.unasked = 0;
+        self.next_behind_at = BEHIND_AFTER;
         let Some(len) = self.ring.front_len() else {
             self.parked = true;
             self.sent = 0;
-            // Empty after dropping: the presentation has caught up.
-            let report = if self.dropped_run > 0 {
+            // Empty after falling behind or dropping: the presentation has
+            // caught up.
+            let report = if self.dropped_run > 0 || self.reported_behind {
                 let r = Report::Resumed {
                     dropped: self.dropped_run,
                 };
                 self.dropped_run = 0;
                 self.next_report_at = 1;
+                self.reported_behind = false;
                 Some(r)
             } else {
                 None

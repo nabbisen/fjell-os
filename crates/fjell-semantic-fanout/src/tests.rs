@@ -22,7 +22,7 @@ fn drain<const P: usize, const M: usize>(
     f: &mut Fanout<P, M>,
     p: usize,
 ) -> (Vec<Vec<u8>>, Vec<Report>) {
-    let mut frames = Reassembler::<{ 8192 }>::new();
+    let mut frames = Reassembler::<8192>::new();
     let mut got = Vec::new();
     let mut reports = Vec::new();
     loop {
@@ -54,7 +54,7 @@ fn an_envelope_comes_out_as_begin_chunks_commit_and_reassembles() {
     for len in [1usize, 31, 32, 33, 64, 100, 250] {
         let mut f = One::new();
         let e = env(len, 7);
-        assert!(matches!(f.offer(0, &e), Offer::Queued { wake: false }));
+        assert!(matches!(f.offer(0, &e), Offer::Queued { wake: false, .. }));
         let (got, _) = drain(&mut f, 0);
         assert_eq!(got, std::vec![e], "len {len}");
     }
@@ -70,7 +70,13 @@ fn the_message_sequence_is_exactly_begin_then_ceil_chunks_then_commit() {
     }
     assert_eq!(
         kinds,
-        std::vec![Kind::Begin, Kind::Chunk, Kind::Chunk, Kind::Chunk, Kind::Commit]
+        std::vec![
+            Kind::Begin,
+            Kind::Chunk,
+            Kind::Chunk,
+            Kind::Chunk,
+            Kind::Commit
+        ]
     );
 }
 
@@ -105,15 +111,33 @@ fn asking_with_nothing_queued_parks_and_the_next_offer_wakes_once() {
     assert_eq!(f.next(0).0, Next::Empty);
     assert!(f.presentation(0).unwrap().is_parked());
     // The first offer wakes it; the second finds it already woken.
-    assert_eq!(f.offer(0, &env(10, 0)), Offer::Queued { wake: true });
-    assert_eq!(f.offer(0, &env(10, 1)), Offer::Queued { wake: false });
+    assert_eq!(
+        f.offer(0, &env(10, 0)),
+        Offer::Queued {
+            wake: true,
+            report: None
+        }
+    );
+    assert_eq!(
+        f.offer(0, &env(10, 1)),
+        Offer::Queued {
+            wake: false,
+            report: None
+        }
+    );
     assert!(!f.presentation(0).unwrap().is_parked());
 }
 
 #[test]
 fn an_offer_to_a_presentation_that_never_asked_needs_no_wake() {
     let mut f = One::new();
-    assert_eq!(f.offer(0, &env(10, 0)), Offer::Queued { wake: false });
+    assert_eq!(
+        f.offer(0, &env(10, 0)),
+        Offer::Queued {
+            wake: false,
+            report: None
+        }
+    );
 }
 
 // ── The bound ────────────────────────────────────────────────────────────────
@@ -124,7 +148,10 @@ fn the_bound_holds_the_widest_envelope() {
     // widest envelope the format can produce is deliverable into an empty
     // queue, with room to spare. (It is *not* room for two of them.)
     let widest = fjell_semantic_format::wire::MAX_WIRE_BYTES;
-    assert!(RING_BYTES >= widest + LEN_PREFIX, "{RING_BYTES} vs {widest}");
+    assert!(
+        RING_BYTES >= widest + LEN_PREFIX,
+        "{RING_BYTES} vs {widest}"
+    );
     let mut f: Fanout<1, RING_BYTES> = Fanout::new();
     assert!(matches!(
         f.offer(0, &std::vec![0u8; widest]),
@@ -143,14 +170,22 @@ fn a_full_queue_drops_the_newest_and_keeps_the_rest_intact() {
     // 256 / (2 + 60) = 4 fit.
     let es: Vec<_> = (0..6).map(|i| env(60, i as u8)).collect();
     let results: Vec<_> = es.iter().map(|e| f.offer(0, e)).collect();
-    assert!(results[..4]
-        .iter()
-        .all(|r| matches!(r, Offer::Queued { .. })));
-    assert!(results[4..]
-        .iter()
-        .all(|r| matches!(r, Offer::Dropped { .. })));
+    assert!(
+        results[..4]
+            .iter()
+            .all(|r| matches!(r, Offer::Queued { .. }))
+    );
+    assert!(
+        results[4..]
+            .iter()
+            .all(|r| matches!(r, Offer::Dropped { .. }))
+    );
     assert_eq!(f.presentation(0).unwrap().dropped_total(), 2);
-    assert_eq!(drain(&mut f, 0).0, es[..4], "the first four, in order, whole");
+    assert_eq!(
+        drain(&mut f, 0).0,
+        es[..4],
+        "the first four, in order, whole"
+    );
 }
 
 #[test]
@@ -200,7 +235,10 @@ fn a_presentation_that_never_asks_never_stops_an_offer() {
     assert!(p.queued_bytes() <= N);
     let expected_drops = 100_000 - (N / 42) as u64;
     assert_eq!(p.dropped_total(), expected_drops);
-    assert!(reports <= 20, "{reports} reports for {expected_drops} drops");
+    assert!(
+        reports <= 20,
+        "{reports} reports for {expected_drops} drops"
+    );
     assert!(reports >= 10);
 }
 
@@ -346,7 +384,7 @@ fn the_engine_agrees_with_a_plain_queue_over_many_operations() {
     };
     let mut f: Fanout<1, 300> = Fanout::new();
     let mut model: VecDeque<Vec<u8>> = VecDeque::new();
-    let mut out_frames = Reassembler::<{ 8192 }>::new();
+    let mut out_frames = Reassembler::<8192>::new();
     let mut delivered: Vec<Vec<u8>> = Vec::new();
     let mut expected: Vec<Vec<u8>> = Vec::new();
     for step in 0..20_000usize {
@@ -384,6 +422,104 @@ fn the_engine_agrees_with_a_plain_queue_over_many_operations() {
         }
         assert!(f.presentation(0).unwrap().queued_bytes() <= 300);
     }
-    assert!(delivered.len() > 500, "the run must actually deliver things");
+    assert!(
+        delivered.len() > 500,
+        "the run must actually deliver things"
+    );
     assert_eq!(delivered, expected);
+}
+
+// ── Behind: absence is visible before anything is lost ──────────────────────
+
+/// Offer `n` small envelopes to a roomy presentation and collect the reports.
+fn offer_many(f: &mut Fanout<1, 4096>, n: usize) -> Vec<Report> {
+    let mut reports = Vec::new();
+    for i in 0..n {
+        match f.offer(0, &env(20, i as u8)) {
+            Offer::Queued { report, .. } | Offer::Dropped { report } => reports.extend(report),
+        }
+    }
+    reports
+}
+
+#[test]
+fn a_presentation_that_never_asks_is_reported_behind_long_before_anything_drops() {
+    let mut f: Fanout<1, 4096> = Fanout::new();
+    let reports = offer_many(&mut f, 40);
+    assert_eq!(
+        f.presentation(0).unwrap().dropped_total(),
+        0,
+        "nothing lost"
+    );
+    assert_eq!(
+        reports,
+        std::vec![
+            Report::Behind {
+                unasked: 8,
+                never_asked: true
+            },
+            Report::Behind {
+                unasked: 16,
+                never_asked: true
+            },
+            Report::Behind {
+                unasked: 32,
+                never_asked: true
+            },
+        ]
+    );
+}
+
+#[test]
+fn one_that_asked_once_and_stopped_is_reported_behind_as_having_asked() {
+    let mut f: Fanout<1, 4096> = Fanout::new();
+    f.offer(0, &env(20, 0));
+    f.next(0); // one message taken, then it stops (the relay blocked on a dead peer)
+    let reports = offer_many(&mut f, 8);
+    assert_eq!(
+        reports,
+        std::vec![Report::Behind {
+            unasked: 8,
+            never_asked: false
+        }]
+    );
+}
+
+#[test]
+fn a_presentation_that_keeps_asking_is_never_reported_behind() {
+    let mut f: Fanout<1, 4096> = Fanout::new();
+    for i in 0..1000usize {
+        match f.offer(0, &env(20, i as u8)) {
+            Offer::Queued { report, .. } | Offer::Dropped { report } => assert_eq!(report, None),
+        }
+        // It asks between offers, as a busy-but-alive one does, and takes
+        // everything queued each time.
+        let (_, reports) = drain(&mut f, 0);
+        assert_eq!(reports, Vec::<Report>::new());
+    }
+}
+
+#[test]
+fn a_presentation_that_falls_behind_then_drains_reports_resumed_once() {
+    let mut f: Fanout<1, 4096> = Fanout::new();
+    let behind = offer_many(&mut f, 10);
+    assert_eq!(behind.len(), 1);
+    let (got, reports) = drain(&mut f, 0);
+    assert_eq!(got.len(), 10, "nothing was lost");
+    assert_eq!(reports, std::vec![Report::Resumed { dropped: 0 }]);
+    assert_eq!(drain(&mut f, 0).1, Vec::<Report>::new(), "and only once");
+}
+
+#[test]
+fn a_late_starting_presentation_is_reported_behind_then_resumed_and_gets_everything() {
+    // The boot case: the stream runs and publishes before a presentation has
+    // started. Everything queued is delivered once it does.
+    let mut f: Fanout<1, 4096> = Fanout::new();
+    let es: Vec<_> = (0..14).map(|i| env(60 + i, i as u8)).collect();
+    for e in &es {
+        f.offer(0, e);
+    }
+    let (got, reports) = drain(&mut f, 0);
+    assert_eq!(got, es);
+    assert!(reports.contains(&Report::Resumed { dropped: 0 }));
 }
