@@ -64,6 +64,11 @@ struct AbiItem {
     kind: String, // fn | struct | enum | trait | const | type
     name: String,
     sig_hash: String, // first 16 hex chars of SHA-256-like hash of full sig line
+    /// RFC-0.33-004 D5 (E-056): for an `enum`, its variants in source order, each
+    /// whitespace-normalised with its attributes, discriminant and payload; empty
+    /// for every other kind. The hash covers these (the snapshot stores only the
+    /// hash), and `--dump-enums` prints them so a change can be *named*.
+    variants: Vec<String>,
 }
 
 fn main() -> ExitCode {
@@ -79,11 +84,33 @@ fn main() -> ExitCode {
     match mode {
         "--generate" => generate(snapshot_path),
         "--verify" => verify(snapshot_path),
+        "--dump-enums" => dump_enums(),
         _ => {
-            eprintln!("Usage: fjell-abi-snapshot --generate|--verify [--snapshot <path>]");
+            eprintln!(
+                "Usage: fjell-abi-snapshot --generate|--verify|--dump-enums [--snapshot <path>]"
+            );
             ExitCode::FAILURE
         }
     }
+}
+
+/// `--dump-enums`: every scanned enum and its variants, one `crate::module::Enum`
+/// header and one indented line per variant. Not a gate: it exists so that when
+/// the enum hash changes, *what* changed can be named by diffing two dumps (the
+/// snapshot itself stores only the hash).
+fn dump_enums() -> ExitCode {
+    for it in scan_all().iter().filter(|i| i.kind == "enum") {
+        let module = if it.module.is_empty() {
+            String::new()
+        } else {
+            format!("::{}", it.module)
+        };
+        println!("{}{}::{}", it.crate_name, module, it.name);
+        for v in &it.variants {
+            println!("    {v}");
+        }
+    }
+    ExitCode::SUCCESS
 }
 
 // ── Generate ─────────────────────────────────────────────────────────────────
@@ -282,6 +309,13 @@ fn verify(snapshot_path: &str) -> ExitCode {
                     &c.sig_hash[..8]
                 );
             }
+            if changed.iter().any(|(_, c)| c.kind == "enum") {
+                eprintln!(
+                    "\nAn enum's hash covers its variants (RFC-0.33-004 D5): a change above may be a \
+                     variant added, removed, renumbered or reordered. The snapshot stores only the \
+                     hash; `--dump-enums` at the baseline's commit and now, diffed, names which."
+                );
+            }
         }
         if added_count > 0 {
             eprintln!(
@@ -395,6 +429,7 @@ fn load_snapshot(path: &str) -> io::Result<LoadedSnapshot> {
                 kind: ki,
                 name: na,
                 sig_hash: sig,
+                variants: Vec::new(),
             });
         }
     }
@@ -609,10 +644,37 @@ fn scan_content_into(
         // never runs on into a struct/enum/trait body: the join stops at
         // the declaration's own parens even when the same line also opens
         // a body brace (e.g. `) -> Foo {`).
+        let decl_start = i;
         let (full_decl, last_index) = join_wrapped_declaration(&lines, i);
         i = last_index;
 
-        let sig_hash = simple_hash(&normalize_signature(&full_decl));
+        // RFC-0.33-004 D5 (E-056): an enum's declaration line is
+        // `pub enum SyscallNumber {`, which says nothing about its variants, so
+        // adding or retiring one — a syscall number among them — was zero drift.
+        // The hash now covers the variant list (comments removed, whitespace
+        // normalised, order kept: reordering variants without explicit
+        // discriminants renumbers them).
+        let mut variants: Vec<String> = Vec::new();
+        let mut hashed = normalize_signature(&full_decl);
+        if kind == "enum" {
+            if let Some((vs, end)) = enum_variants(&stripped_lines, decl_start) {
+                // The declaration is what precedes the opening brace, so a
+                // one-line `pub enum E { A, B }` and the same enum laid out over
+                // several lines hash alike.
+                let head = full_decl.split('{').next().unwrap_or(&full_decl);
+                hashed = normalize_signature(head);
+                hashed.push_str(" {");
+                for v in &vs {
+                    hashed.push(' ');
+                    hashed.push_str(v);
+                    hashed.push(',');
+                }
+                hashed.push_str(" }");
+                variants = vs;
+                i = i.max(end);
+            }
+        }
+        let sig_hash = simple_hash(&hashed);
         items.push(AbiItem {
             crate_name: crate_name.to_string(),
             module: module.to_string(),
@@ -620,6 +682,7 @@ fn scan_content_into(
             kind: kind.to_string(),
             name,
             sig_hash,
+            variants,
         });
 
         i += 1;
@@ -915,6 +978,76 @@ fn char_literal_len(bytes: &[u8]) -> Option<usize> {
     }
 }
 
+/// The variants of the `enum` whose declaration starts at `stripped[start]`,
+/// read from the comment-and-string-blanked lines: the text between the enum's
+/// own braces, split at commas that are not inside `()`, `{}` or `[]`, each piece
+/// whitespace-normalised. Also returns the line the closing brace is on.
+/// `None` if no braced body is found (which no `pub enum` has).
+fn enum_variants(stripped: &[&str], start: usize) -> Option<(Vec<String>, usize)> {
+    let mut text = String::new();
+    let mut depth = 0i32;
+    let mut opened = false;
+    let mut end = start;
+    'lines: for (k, line) in stripped.iter().enumerate().skip(start) {
+        for c in line.chars() {
+            match c {
+                '{' => {
+                    depth += 1;
+                    if depth == 1 {
+                        opened = true;
+                        continue;
+                    }
+                }
+                '}' => {
+                    depth -= 1;
+                    if opened && depth == 0 {
+                        end = k;
+                        break 'lines;
+                    }
+                }
+                _ => {}
+            }
+            if opened {
+                text.push(c);
+            }
+        }
+        if opened {
+            text.push('\n');
+        }
+    }
+    if !opened || depth != 0 {
+        return None;
+    }
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut nest = 0i32;
+    for c in text.chars() {
+        match c {
+            '(' | '{' | '[' => {
+                nest += 1;
+                cur.push(c);
+            }
+            ')' | '}' | ']' => {
+                nest -= 1;
+                cur.push(c);
+            }
+            ',' if nest == 0 => {
+                let v = normalize_signature(&cur);
+                if !v.is_empty() {
+                    out.push(v);
+                }
+                cur.clear();
+            }
+            _ => cur.push(c),
+        }
+    }
+    let v = normalize_signature(&cur);
+    if !v.is_empty() {
+        out.push(v);
+    }
+    Some((out, end))
+}
+
 /// Starting at `lines[start]`, join subsequent lines while the declaration
 /// has more `(` than `)` so far. Returns the joined text and the index of
 /// the last line consumed (so the caller resumes scanning after it).
@@ -1076,6 +1209,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "z".into(),
                 sig_hash: "0".into(),
+                variants: Vec::new(),
             },
             AbiItem {
                 crate_name: "a".into(),
@@ -1084,6 +1218,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "a".into(),
                 sig_hash: "0".into(),
+                variants: Vec::new(),
             },
         ];
         items.sort();
@@ -1313,6 +1448,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "1".into(),
+                variants: Vec::new(),
             },
             AbiItem {
                 crate_name: "c".into(),
@@ -1321,6 +1457,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "2".into(),
+                variants: Vec::new(),
             },
         ];
         let err = build_identity_map(&items).unwrap_err();
@@ -1348,6 +1485,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "1".into(),
+                variants: Vec::new(),
             },
             AbiItem {
                 crate_name: "c".into(),
@@ -1356,6 +1494,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "2".into(),
+                variants: Vec::new(),
             },
         ];
         assert!(build_identity_map(&items).is_ok());
@@ -1457,6 +1596,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "new".into(),
                 sig_hash: "1".into(),
+                variants: Vec::new(),
             },
             AbiItem {
                 crate_name: "c".into(),
@@ -1465,8 +1605,99 @@ mod tests {
                 kind: "fn".into(),
                 name: "new".into(),
                 sig_hash: "2".into(),
+                variants: Vec::new(),
             },
         ];
         assert!(build_identity_map(&items).is_ok());
+    }
+
+    // ── RFC-0.33-004 D5 / E-056: an enum's hash covers its variants ───────────
+
+    fn enum_hash(src: &str) -> String {
+        let items = scan_content(src, "c", "m");
+        assert_eq!(items.len(), 1, "{src}");
+        items[0].sig_hash.clone()
+    }
+
+    const BASE: &str = "pub enum E {\n    A = 0,\n    B = 1,\n}\n";
+
+    /// The finding, demonstrated: with the declaration line alone, all of these
+    /// were the same item. Each must now differ from the base.
+    #[test]
+    fn a_variant_added_removed_renumbered_or_reordered_changes_the_hash() {
+        let base = enum_hash(BASE);
+        for (what, src) in [
+            (
+                "added",
+                "pub enum E {\n    A = 0,\n    B = 1,\n    C = 2,\n}\n",
+            ),
+            ("removed", "pub enum E {\n    A = 0,\n}\n"),
+            ("renumbered", "pub enum E {\n    A = 0,\n    B = 7,\n}\n"),
+            ("reordered", "pub enum E {\n    B = 1,\n    A = 0,\n}\n"),
+            ("renamed", "pub enum E {\n    A = 0,\n    Bee = 1,\n}\n"),
+            (
+                "payload changed",
+                "pub enum E {\n    A = 0,\n    B(u8) = 1,\n}\n",
+            ),
+        ] {
+            assert_ne!(
+                enum_hash(src),
+                base,
+                "a variant {what} must change the hash"
+            );
+        }
+    }
+
+    /// What must **not** change it: comments, doc comments, whitespace and layout.
+    #[test]
+    fn comments_whitespace_and_layout_do_not_change_an_enum_hash() {
+        let base = enum_hash(BASE);
+        for src in [
+            "pub enum E {\n    /// doc\n    A = 0, // trailing\n    /* block */ B = 1,\n}\n",
+            "pub enum E { A = 0, B = 1 }\n",
+            "pub enum E {\n        A   =   0,\n\n        B = 1,\n    }\n",
+            "pub enum E {\n    A = 0,\n    B = 1\n}\n", // no trailing comma
+        ] {
+            assert_eq!(enum_hash(src), base, "{src}");
+        }
+    }
+
+    #[test]
+    fn struct_variants_with_commas_inside_are_one_variant() {
+        let a = "pub enum E {\n    M { tag: usize, words: [usize; 4] },\n    N,\n}\n";
+        let b = "pub enum E {\n    M { tag: usize, words: [usize; 5] },\n    N,\n}\n";
+        assert_ne!(enum_hash(a), enum_hash(b));
+        let items = scan_content(a, "c", "m");
+        assert_eq!(
+            items[0].variants,
+            ["M { tag: usize, words: [usize; 4] }", "N"]
+        );
+    }
+
+    /// An enum that is not the last item, and the item after it, are both still
+    /// found: reading the body must not swallow what follows.
+    #[test]
+    fn the_item_after_an_enum_is_still_scanned() {
+        let items = scan_content(
+            "pub enum E {\n    A,\n    B,\n}\npub fn after() {}\npub const C: u8 = 1;\n",
+            "c",
+            "m",
+        );
+        let names: Vec<_> = items.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, ["E", "after", "C"]);
+    }
+
+    /// The control: what this line did *not* change. A braced struct's fields are
+    /// still not in its hash (E-056's class, filed separately) — stated in a test
+    /// so it is a known boundary and not a surprise.
+    #[test]
+    fn a_braced_structs_fields_are_still_outside_its_hash() {
+        let a = scan_content("pub struct S {\n    pub a: u8,\n}\n", "c", "m");
+        let b = scan_content(
+            "pub struct S {\n    pub a: u8,\n    pub b: u8,\n}\n",
+            "c",
+            "m",
+        );
+        assert_eq!(a[0].sig_hash, b[0].sig_hash);
     }
 }

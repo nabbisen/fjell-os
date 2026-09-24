@@ -964,10 +964,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   observed rather than asserted. `svc-fault` and `svc-timeout` are already in the
   image for the same reason.
 
-- **The ABI baseline does not see enum variants** (Errata **E-056**, ACCEPTED,
-  tracked to 0.33). Gate 4 hashes an enum's declaration line, so adding or
-  removing a variant — including a syscall number — is zero drift. The syscall
-  enum specifically is covered by a different check, `syscall-surface`.
+- **The ABI baseline did not see enum variants** (Errata **E-056**, **CLOSED**
+  2026-09-25 by RFC-0.33-004). Gate 4 hashed an enum's declaration line, so adding
+  or removing a variant — a syscall number among them — was zero drift. The hash now
+  covers the variants, and the re-record was read: across twenty-two releases the only
+  variant removed from an existing enum was `Reboot = 120`, deliberately, in
+  RFC-0.33-001. **It still does not see a braced struct's fields or a trait's items**
+  (Errata **E-067**, OPEN, unscheduled) — adding a field to an ABI struct such as
+  `AuditRecordBin` is zero drift. The syscall enum is also covered by
+  `syscall-surface`.
 
 - **A QEMU profile's markers could be silently split** (Errata **E-057**,
   **CLOSED** 2026-09-25 by RFC-0.33-004). The profile reader split on every comma

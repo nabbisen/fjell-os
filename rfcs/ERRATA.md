@@ -3936,10 +3936,49 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   (declared vs dispatched vs expected), and it is what caught this ABI change —
   so the one enum whose drift matters most is watched by a different instrument,
   and the snapshot's blindness never showed.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **RFC-0.33-004** (scoped 2026-09-24).
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-23), tracked **RFC-0.33-004** (scoped 2026-09-24).
   Closing it means an enum's item hash covers its variants, demonstrated by a
   variant added and removed, and the baseline re-recorded once with the drift
   that has accumulated invisibly named rather than absorbed.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.33-004 D5**, with a survivor (E-067).
+  The scanner's hash for an `enum` covers its **variants** — the text between the
+  enum's braces, comments removed, whitespace normalised, split at top-level commas,
+  **order kept** (reordering variants without explicit discriminants renumbers
+  them). `--dump-enums` prints them, so a change to the hash can be *named*: the
+  snapshot itself still stores only the hash.
+
+  | Demonstration in a scratch tree, `--verify`'s exit status | `Changed sig` | before this line | after |
+  |---|---|---|---|
+  | variant **added** to `SyscallNumber` | 1 (`~ fjell-abi::syscall enum SyscallNumber`) | 0, PASS | **FAIL** |
+  | variant **removed** | 1 | 0, PASS | **FAIL** |
+  | variant **renumbered** (`Exit = 1` → `2`) | 1 | — | **FAIL** |
+  | after reverting | 0 | | PASS |
+
+  **What the re-record revealed (§C).** `--verify` *before* regenerating: **19 enums
+  changed hash — every enum in the scanned set, by construction** (the hash algorithm
+  changed; nothing else moved: 19 lines changed in `tests/abi/snapshot.json`, all
+  enums, none of the other 423 items). So the *content* of the drift was named by
+  running the new scanner over every release tag from `0.10.0` (the first release
+  tag that contains the snapshot; absent at `0.9.1`) to the tip and diffing consecutive variant lists:
+
+  | Between | What changed in an enum |
+  |---|---|
+  | `0.18.0` → `0.18.1` | `fjell-abi::lease::RevokeOutcome` **appears** (`Advanced(u32)`, `MustRetire`) — a new enum, not a change to one |
+  | `0.20.2` → `0.21.0` | `fjell-audit-format::AuditKind` (22 variants), `fjell-bundle-format::BundleError` (3), `BundleLifecycle` (6) **appear** — the two crates joined the scanned set |
+  | `0.21.2` → `0.21.3` | `SemanticError::InvalidPresentByte= 0x15` → `InvalidPresentByte = 0x15`: **formatting only** (RFC-v0.21.3-001's `cargo fmt`) |
+  | `0.31.0` → `0.32.0` | `fjell-service-api::chunked::FrameError` **appears** (4 variants) |
+  | `0.32.0` → tip | **`SyscallNumber::Reboot = 120` REMOVED** (commit `3dd3bc6`, 2026-09-22, RFC-0.33-001 D8 (1/4): *"undispatched duplicate of `PlatformReboot` (18)"*); `fjell-service-api::presentation::Ask` **appears** (`Message { tag, words }`, `Empty`; RFC-0.34-001) |
+
+  **So: across twenty-two releases no variant was added to, or removed from, a
+  pre-existing enum except one — `Reboot = 120`, removed deliberately and
+  documented at the time, and covered by `syscall-surface`.** No variant was removed
+  that nobody noticed; nothing needed escalating. (The RFC and this register
+  expected drift; there was less than feared. That is a finding, and it is stated as
+  one, not adjusted.) Each new enum was already visible as an added *item*.
+
+  **Survivor — E-067:** the same blindness holds for a braced `struct`'s fields and
+  a `trait`'s items; a test states the boundary (`a_braced_structs_fields_are_still_outside_its_hash`).
 
 ## E-057 — the QEMU profile reader splits marker strings on any comma, silently
 
@@ -4303,6 +4342,25 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   stored value is invalidated. The two streams now have generated descriptions
   (`fleet-roster-v1.frozen`, `fleet-policy-v1.frozen`).
 
+## E-067 — the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift
+
+- **Claim:** `tests/abi/snapshot.json` is the ABI baseline (Gate 4); RFC-0.33-004 D5
+  made an enum's hash cover its variants and said why: *"the declaration line says
+  nothing about the body"*.
+- **Tree, observed 2026-09-25**, while closing E-056: the scanner hashes
+  `pub struct AuditRecordBin {` — not its fields — and does not descend into a
+  `trait`'s items at all. A test (`a_braced_structs_fields_are_still_outside_its_hash`)
+  shows two structs differing by a field hashing alike, against the enum control
+  that now differs. Tuple and unit structs are unaffected (their fields are on the
+  declaration line). Among the scanned crates are `fjell-abi`, `fjell-audit-format`
+  (`#[repr(C)]` layouts, one written raw by the kernel), `fjell-cap` and
+  `fjell-service-api` — the surface the baseline exists for.
+- **Not fixed here, and why:** the RFC's D5 is about enums, and re-recording every
+  struct and trait needs its own drift reading (§C's discipline: name every change)
+  that the line was not sized for. The mechanism is the same — one condition beside
+  the enum's — so the fix is small and the review is the cost.
+- **Resolution:** **OPEN**, unscheduled — found while implementing RFC-0.33-004.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4362,7 +4420,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
-| E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | ACCEPTED |
+| E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | CLOSED |
+| E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | unscheduled | OPEN |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
