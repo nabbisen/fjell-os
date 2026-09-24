@@ -176,7 +176,7 @@ fn say(name: &str, report: Report) {
     sys_debug_write(name);
     match report {
         Report::Behind {
-            unasked,
+            waiting,
             never_asked,
         } => {
             sys_debug_write(if never_asked {
@@ -184,7 +184,7 @@ fn say(name: &str, report: Report) {
             } else {
                 " has stopped asking; "
             });
-            write_u64(unasked);
+            write_u64(waiting);
             sys_debug_writeln(" envelopes waiting");
         }
         Report::NotTaking {
@@ -262,6 +262,15 @@ pub extern "C" fn service_main() -> ! {
 
     loop {
         let (tag_packed, w0, w1, w2, w3, sender) = recv_call();
+        // The stream's own activity is the only clock there is: every call it
+        // serves ticks it, and a presentation with work queued that has not
+        // asked for a while is reported (RFC-0.34-001 D8 -- absence must be
+        // visible without any timer, and without any further publish).
+        for (i, report) in fanout.tick().into_iter().enumerate() {
+            if let Some(r) = report {
+                say(PRESENTATIONS[i].name, r);
+            }
+        }
         let tag = tag_packed & 0xFFFF;
         match tag {
             t if t == proto::PUBLISH_BEGIN => {
@@ -309,12 +318,7 @@ pub extern "C" fn service_main() -> ! {
                             Ok(n) => {
                                 for (i, pres) in PRESENTATIONS.iter().enumerate() {
                                     match fanout.offer(i, &out[..n]) {
-                                        Offer::Queued { wake: w, report } => {
-                                            wake[i] = w;
-                                            if let Some(r) = report {
-                                                say(pres.name, r);
-                                            }
-                                        }
+                                        Offer::Queued { wake: w } => wake[i] = w,
                                         Offer::Dropped { report } => {
                                             if let Some(r) = report {
                                                 say(pres.name, r);

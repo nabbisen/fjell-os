@@ -111,33 +111,15 @@ fn asking_with_nothing_queued_parks_and_the_next_offer_wakes_once() {
     assert_eq!(f.next(0).0, Next::Empty);
     assert!(f.presentation(0).unwrap().is_parked());
     // The first offer wakes it; the second finds it already woken.
-    assert_eq!(
-        f.offer(0, &env(10, 0)),
-        Offer::Queued {
-            wake: true,
-            report: None
-        }
-    );
-    assert_eq!(
-        f.offer(0, &env(10, 1)),
-        Offer::Queued {
-            wake: false,
-            report: None
-        }
-    );
+    assert_eq!(f.offer(0, &env(10, 0)), Offer::Queued { wake: true });
+    assert_eq!(f.offer(0, &env(10, 1)), Offer::Queued { wake: false });
     assert!(!f.presentation(0).unwrap().is_parked());
 }
 
 #[test]
 fn an_offer_to_a_presentation_that_never_asked_needs_no_wake() {
     let mut f = One::new();
-    assert_eq!(
-        f.offer(0, &env(10, 0)),
-        Offer::Queued {
-            wake: false,
-            report: None
-        }
-    );
+    assert_eq!(f.offer(0, &env(10, 0)), Offer::Queued { wake: false });
 }
 
 // ── The bound ────────────────────────────────────────────────────────────────
@@ -431,21 +413,24 @@ fn the_engine_agrees_with_a_plain_queue_over_many_operations() {
 
 // ── Behind: absence is visible before anything is lost ──────────────────────
 
-/// Offer `n` small envelopes to a roomy presentation and collect the reports.
-fn offer_many(f: &mut Fanout<1, 4096>, n: usize) -> Vec<Report> {
-    let mut reports = Vec::new();
-    for i in 0..n {
-        match f.offer(0, &env(20, i as u8)) {
-            Offer::Queued { report, .. } | Offer::Dropped { report } => reports.extend(report),
+/// Tick `n` times, collecting every report from every presentation.
+fn tick_many<const P: usize, const M: usize>(f: &mut Fanout<P, M>, n: u64) -> Vec<(usize, Report)> {
+    let mut v = Vec::new();
+    for _ in 0..n {
+        for (i, r) in f.tick().into_iter().enumerate() {
+            v.extend(r.map(|r| (i, r)));
         }
     }
-    reports
+    v
 }
 
 #[test]
-fn a_presentation_that_never_asks_is_reported_behind_long_before_anything_drops() {
+fn a_presentation_with_work_queued_that_never_asks_is_reported_behind_and_then_at_each_doubling() {
     let mut f: Fanout<1, 4096> = Fanout::new();
-    let reports = offer_many(&mut f, 40);
+    for i in 0..3 {
+        f.offer(0, &env(20, i));
+    }
+    let reports = tick_many(&mut f, 4 * BEHIND_AFTER_TICKS);
     assert_eq!(
         f.presentation(0).unwrap().dropped_total(),
         0,
@@ -454,72 +439,147 @@ fn a_presentation_that_never_asks_is_reported_behind_long_before_anything_drops(
     assert_eq!(
         reports,
         std::vec![
-            Report::Behind {
-                unasked: 8,
-                never_asked: true
-            },
-            Report::Behind {
-                unasked: 16,
-                never_asked: true
-            },
-            Report::Behind {
-                unasked: 32,
-                never_asked: true
-            },
-        ]
+            (
+                0,
+                Report::Behind {
+                    waiting: 3,
+                    never_asked: true
+                }
+            ),
+            (
+                0,
+                Report::Behind {
+                    waiting: 3,
+                    never_asked: true
+                }
+            ),
+            (
+                0,
+                Report::Behind {
+                    waiting: 3,
+                    never_asked: true
+                }
+            ),
+        ],
+        "at 64, 128 and 256 ticks"
     );
 }
 
 #[test]
-fn one_that_asked_once_and_stopped_is_reported_behind_as_having_asked() {
+fn one_that_asked_and_stopped_is_reported_as_having_asked() {
     let mut f: Fanout<1, 4096> = Fanout::new();
     f.offer(0, &env(20, 0));
-    f.next(0); // one message taken, then it stops (the relay blocked on a dead peer)
-    let reports = offer_many(&mut f, 8);
+    f.offer(0, &env(20, 1));
+    f.next(0); // one message of the first, then it stops (the relay blocked on a dead peer)
+    let reports = tick_many(&mut f, BEHIND_AFTER_TICKS);
     assert_eq!(
         reports,
-        std::vec![Report::Behind {
-            unasked: 8,
-            never_asked: false
-        }]
+        std::vec![(
+            0,
+            Report::Behind {
+                waiting: 2,
+                never_asked: false
+            }
+        )]
     );
+}
+
+#[test]
+fn a_presentation_with_nothing_queued_is_never_reported_however_long_it_is_silent() {
+    // Parked is idle by design.
+    let mut f: Fanout<1, 4096> = Fanout::new();
+    f.next(0);
+    assert_eq!(tick_many(&mut f, 100_000), Vec::new());
+    // And one that never asked, with nothing offered, is not "behind" either.
+    let mut g: Fanout<1, 4096> = Fanout::new();
+    assert_eq!(tick_many(&mut g, 100_000), Vec::new());
 }
 
 #[test]
 fn a_presentation_that_keeps_asking_is_never_reported_behind() {
     let mut f: Fanout<1, 4096> = Fanout::new();
     for i in 0..1000usize {
-        match f.offer(0, &env(20, i as u8)) {
-            Offer::Queued { report, .. } | Offer::Dropped { report } => assert_eq!(report, None),
-        }
-        // It asks between offers, as a busy-but-alive one does, and takes
-        // everything queued each time.
-        let (_, reports) = drain(&mut f, 0);
-        assert_eq!(reports, Vec::<Report>::new());
+        f.offer(0, &env(20, i as u8));
+        // Some of the stream's other calls between its questions, as with a
+        // second presentation and the publishers all sharing the stream.
+        let mut reports = tick_many(&mut f, 10);
+        let (_, r) = drain(&mut f, 0);
+        reports.extend(r.into_iter().map(|r| (0, r)));
+        assert_eq!(reports, Vec::new());
     }
 }
 
 #[test]
 fn a_presentation_that_falls_behind_then_drains_reports_resumed_once() {
     let mut f: Fanout<1, 4096> = Fanout::new();
-    let behind = offer_many(&mut f, 10);
-    assert_eq!(behind.len(), 1);
+    for i in 0..5 {
+        f.offer(0, &env(20, i));
+    }
+    assert_eq!(tick_many(&mut f, BEHIND_AFTER_TICKS).len(), 1);
     let (got, reports) = drain(&mut f, 0);
-    assert_eq!(got.len(), 10, "nothing was lost");
+    assert_eq!(got.len(), 5, "nothing was lost");
     assert_eq!(reports, std::vec![Report::Resumed { dropped: 0 }]);
     assert_eq!(drain(&mut f, 0).1, Vec::<Report>::new(), "and only once");
 }
 
 #[test]
-fn a_late_starting_presentation_is_reported_behind_then_resumed_and_gets_everything() {
-    // The boot case: the stream runs and publishes before a presentation has
-    // started. Everything queued is delivered once it does.
-    let mut f: Fanout<1, 4096> = Fanout::new();
-    let es: Vec<_> = (0..14).map(|i| env(60 + i, i as u8)).collect();
-    for e in &es {
-        f.offer(0, e);
+fn a_drop_run_is_not_also_reported_behind() {
+    let mut f: Fanout<1, 256> = Fanout::new();
+    for _ in 0..10 {
+        f.offer(0, &env(60, 0)); // 4 fit, 6 dropped
     }
-    let (got, reports) = drain(&mut f, 0);
-    assert_eq!(got, es);
-    assert!(reports.contains(&Report::Resumed { dropped: 0 }));
+    assert!(f.presentation(0).unwrap().dropped_total() > 0);
+    assert_eq!(
+        tick_many(&mut f, 1000),
+        Vec::new(),
+        "the drop reports speak"
+    );
+}
+
+#[test]
+fn the_late_crash_shape_is_reported_even_though_no_further_offer_ever_arrives() {
+    // The shape a real run showed: the publishers finish long before the
+    // presentation does, so its backlog is already queued when it dies and no
+    // later offer can trip a count of offers. Only the stream's own activity
+    // (here: another presentation's questions) is left to notice.
+    let mut f: Fanout<2, 4096> = Fanout::new();
+    for i in 0..12 {
+        f.offer(0, &env(60, i));
+        f.offer(1, &env(60, i));
+    }
+    for _ in 0..8 {
+        f.next(0); // the doomed presentation takes a few messages, then dies
+    }
+    let mut got_1 = Vec::new();
+    let mut reports = Vec::new();
+    // Presentation 1 keeps asking; every ask is a tick.
+    for _ in 0..2000 {
+        reports.extend(
+            f.tick()
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, r)| r.map(|r| (i, r))),
+        );
+        let (n, r) = f.next(1);
+        reports.extend(r.map(|r| (1, r)));
+        if let Next::Message(m) = n {
+            if m.kind == Kind::Commit {
+                got_1.push(());
+            }
+        }
+    }
+    assert_eq!(got_1.len(), 12, "the live presentation got everything");
+    let behind: Vec<_> = reports
+        .iter()
+        .filter(|(i, r)| *i == 0 && matches!(r, Report::Behind { .. }))
+        .collect();
+    assert!(
+        !behind.is_empty(),
+        "the dead one was never reported: {reports:?}"
+    );
+    assert!(behind.len() <= 6, "and not once per tick: {}", behind.len());
+    assert!(
+        reports.iter().all(|(i, _)| *i == 0),
+        "nothing was said about the live one"
+    );
 }

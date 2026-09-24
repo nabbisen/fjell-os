@@ -32,7 +32,7 @@ timeout_secs     = 60
 extra_args       = ["-device", "virtio-balloon-device"]
 expected_markers = [
     "init: presentation-absent test configuration; proxy-text not started",
-    "semantic-stream: presentation text has stopped asking; 8 envelopes waiting",
+    "semantic-stream: presentation text has stopped asking",
     "TEST:M7:PASS",
     "driver-uart: ready",
 ]

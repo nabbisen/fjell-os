@@ -32,18 +32,24 @@
 //!   enforced.
 //! * **Absence stays observable, before anything is lost.** A queue that holds
 //!   a whole boot's traffic would make a presentation that is gone silent until
-//!   the bound is hit, so the engine reports two things as [`Report`]s: a
-//!   presentation that has not asked for [`BEHIND_AFTER`] envelopes
-//!   ([`Report::Behind`], then at each doubling), and drops
-//!   ([`Report::NotTaking`], at the first and at each power of two after it).
-//!   An unbounded fault costs `log2(n)` lines. A presentation that then empties
-//!   its queue reports [`Report::Resumed`].
+//!   the bound is hit — and a presentation that dies *after* the publishers have
+//!   finished never causes another offer at all. So the engine keeps a logical
+//!   clock: the stream calls [`Fanout::tick`] on every call it serves, and a
+//!   presentation that has work queued and has not asked for
+//!   [`BEHIND_AFTER_TICKS`] ticks is reported [`Report::Behind`] (then at each
+//!   doubling). Drops are reported separately ([`Report::NotTaking`], at the
+//!   first and at each power of two after it). An unbounded fault costs
+//!   `log2(n)` lines. A presentation that then empties its queue reports
+//!   [`Report::Resumed`].
 //!
 //! # What this does not do
 //!
 //! It cannot tell a presentation that is dead from one that is alive and
-//! not asking: there is no timer to say how long is too long. Both look like a
-//! full queue and a rising drop count, which is observable and correct.
+//! not asking: there is no wall-clock timer to say how long is too long, only
+//! the stream's own activity to count. Both look like queued work that is not
+//! being taken, which is observable and correct. A presentation with **nothing
+//! queued** is never reported however long it is silent — idle is what parked
+//! means.
 //!
 //! No allocation, no `unsafe`, no syscalls.
 
@@ -52,12 +58,13 @@
 /// Bytes of an envelope carried by one `Chunk` message: four 8-byte words.
 pub const CHUNK_BYTES: usize = 32;
 
-/// A presentation that has not asked for this many envelopes is reported
-/// [`Report::Behind`]. Chosen so that a presentation busy between two questions
-/// is not reported (cooperative scheduling means nothing is offered while it
-/// runs) and one that has stopped is, well inside the queue's bound: a typical
-/// envelope is a few hundred bytes, so eight is far short of overflowing 8 KiB.
-pub const BEHIND_AFTER: u64 = 8;
+/// A presentation with work queued that has not asked for this many of the
+/// stream's calls is reported [`Report::Behind`]. Every message of every
+/// envelope is a call, so an envelope of a few hundred bytes is ten to twenty
+/// ticks: 64 is a few envelopes' worth of the whole system's activity, far more
+/// than a presentation that is merely busy between two questions lets pass, and
+/// well inside what a stuck one goes on to cause.
+pub const BEHIND_AFTER_TICKS: u64 = 64;
 
 /// Bytes of length prefix in front of each queued envelope.
 const LEN_PREFIX: usize = 2;
@@ -97,10 +104,11 @@ pub struct Msg {
 /// Something worth saying on the node's own output about one presentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Report {
-    /// `unasked` envelopes have been offered since the presentation last asked
-    /// (the [`BEHIND_AFTER`]th, and each doubling after it). Nothing has been
-    /// lost yet. `never_asked` is true if it has not asked for anything at all.
-    Behind { unasked: u64, never_asked: bool },
+    /// The presentation has `waiting` envelopes queued and has not asked for
+    /// [`BEHIND_AFTER_TICKS`] of the stream's calls (and then each doubling of
+    /// that). Nothing has necessarily been lost. `never_asked` is true if it has
+    /// not asked for anything at all.
+    Behind { waiting: u64, never_asked: bool },
     /// `dropped` envelopes have been dropped in this run (the first, and each
     /// power of two after it). `never_asked` is true if the presentation has
     /// not asked for anything yet — it may not exist.
@@ -115,9 +123,8 @@ pub enum Report {
 pub enum Offer {
     /// It is queued. `wake` is true exactly when the presentation was parked
     /// and must now be woken (once): the caller sends the wake, and it is the
-    /// only send the stream ever makes to a presentation. `report` is set when
-    /// the presentation has become [`Report::Behind`].
-    Queued { wake: bool, report: Option<Report> },
+    /// only send the stream ever makes to a presentation.
+    Queued { wake: bool },
     /// It did not fit and was dropped. `report` is set when this drop is the
     /// first, or a power of two, of the current run.
     Dropped { report: Option<Report> },
@@ -194,8 +201,10 @@ pub struct Presentation<const N: usize> {
     dropped_total: u64,
     dropped_run: u64,
     next_report_at: u64,
-    /// Envelopes offered since the presentation last asked.
-    unasked: u64,
+    /// Envelopes currently queued (offered, not yet fully handed out).
+    queued: u64,
+    /// Ticks since the presentation last asked, counted only while work waits.
+    idle_ticks: u64,
     next_behind_at: u64,
     /// A `Behind` was reported and has not been answered by catching up.
     reported_behind: bool,
@@ -212,39 +221,48 @@ impl<const N: usize> Presentation<N> {
             dropped_total: 0,
             dropped_run: 0,
             next_report_at: 1,
-            unasked: 0,
-            next_behind_at: BEHIND_AFTER,
+            queued: 0,
+            idle_ticks: 0,
+            next_behind_at: BEHIND_AFTER_TICKS,
             reported_behind: false,
             high_water: 0,
         }
     }
 
-    /// Count an offer; the `Behind` report it triggers, if any.
-    fn count_unasked(&mut self) -> Option<Report> {
-        self.unasked += 1;
-        if self.unasked == self.next_behind_at {
-            self.next_behind_at = self.next_behind_at.saturating_mul(2);
-            self.reported_behind = true;
-            return Some(Report::Behind {
-                unasked: self.unasked,
-                never_asked: !self.asked,
-            });
+    /// One call served by the stream. A presentation with work waiting that
+    /// has not asked for [`BEHIND_AFTER_TICKS`] of them is `Behind`.
+    fn tick(&mut self) -> Option<Report> {
+        if self.ring.used == 0 {
+            // Nothing waiting: idle is what parked means, however long.
+            self.idle_ticks = 0;
+            return None;
         }
-        None
+        self.idle_ticks += 1;
+        if self.idle_ticks < self.next_behind_at {
+            return None;
+        }
+        self.next_behind_at = self.next_behind_at.saturating_mul(2);
+        self.reported_behind = true;
+        // Once envelopes are being lost the drop reports say more; still
+        // advance the doubling so the two do not both speak.
+        if self.dropped_run > 0 {
+            return None;
+        }
+        Some(Report::Behind {
+            waiting: self.queued,
+            never_asked: !self.asked,
+        })
     }
 
     fn offer(&mut self, env: &[u8]) -> Offer {
-        let behind = self.count_unasked();
         if self.ring.push(env) {
+            self.queued += 1;
             if self.ring.used > self.high_water {
                 self.high_water = self.ring.used;
             }
             let wake = self.parked;
             self.parked = false;
-            return Offer::Queued {
-                wake,
-                report: behind,
-            };
+            return Offer::Queued { wake };
         }
         self.dropped_total += 1;
         self.dropped_run += 1;
@@ -255,18 +273,15 @@ impl<const N: usize> Presentation<N> {
                 never_asked: !self.asked,
             })
         } else {
-            // Once envelopes are being lost, the drop reports say more than a
-            // `Behind` at every doubling would; do not say both.
             None
         };
-        let _ = behind;
         Offer::Dropped { report }
     }
 
     fn next(&mut self) -> (Next, Option<Report>) {
         self.asked = true;
-        self.unasked = 0;
-        self.next_behind_at = BEHIND_AFTER;
+        self.idle_ticks = 0;
+        self.next_behind_at = BEHIND_AFTER_TICKS;
         let Some(len) = self.ring.front_len() else {
             self.parked = true;
             self.sent = 0;
@@ -312,6 +327,7 @@ impl<const N: usize> Presentation<N> {
             }
         } else {
             self.ring.pop();
+            self.queued -= 1;
             self.sent = 0;
             Msg {
                 kind: Kind::Commit,
@@ -388,6 +404,13 @@ impl<const P: usize, const N: usize> Fanout<P, N> {
             Some(pr) => pr.next(),
             None => (Next::Empty, None),
         }
+    }
+
+    /// The stream served one call (any call: a publish message, a presentation's
+    /// question, an action). Returns what is worth saying about each
+    /// presentation now. Never blocks.
+    pub fn tick(&mut self) -> [Option<Report>; P] {
+        core::array::from_fn(|i| self.presentations[i].tick())
     }
 
     pub fn presentation(&self, p: usize) -> Option<&Presentation<N>> {
