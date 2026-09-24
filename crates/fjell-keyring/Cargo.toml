@@ -13,5 +13,6 @@ name = "fjell_keyring"
 path = "src/lib.rs"
 
 [dependencies]
+fjell-canon           = { path = "../fjell-canon" }
 fjell-measure-format   = { path = "../formats/fjell-measure-format" }
 fjell-trust-provider   = { path = "../fjell-trust-provider" }

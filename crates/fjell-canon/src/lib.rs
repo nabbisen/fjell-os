@@ -170,6 +170,81 @@ impl<const N: usize> Canon for BufSink<N> {
     fn note(&mut self, _: &'static str, _: &str) {}
 }
 
+/// A sink that writes into a caller's slice: the "collect the bytes" half for a
+/// codec that fills a buffer it was handed. The caller checks the size first (the
+/// codecs here all do); overrunning **panics** rather than truncating.
+pub struct SliceSink<'a> {
+    buf: &'a mut [u8],
+    len: usize,
+}
+
+impl<'a> SliceSink<'a> {
+    pub fn new(buf: &'a mut [u8]) -> Self {
+        SliceSink { buf, len: 0 }
+    }
+
+    /// Bytes written so far.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    fn put(&mut self, b: &[u8]) {
+        let end = self.len + b.len();
+        assert!(end <= self.buf.len(), "canonical stream overran its buffer");
+        self.buf[self.len..end].copy_from_slice(b);
+        self.len = end;
+    }
+}
+
+impl Canon for SliceSink<'_> {
+    fn domain(&mut self, tag: &[u8]) {
+        self.put(tag);
+    }
+    fn magic(&mut self, tag: &[u8]) {
+        self.put(tag);
+    }
+    fn u8(&mut self, _: &'static str, v: u8) {
+        self.put(&[v]);
+    }
+    fn u16(&mut self, _: &'static str, v: u16) {
+        self.put(&v.to_le_bytes());
+    }
+    fn u32(&mut self, _: &'static str, v: u32) {
+        self.put(&v.to_le_bytes());
+    }
+    fn u64(&mut self, _: &'static str, v: u64) {
+        self.put(&v.to_le_bytes());
+    }
+    fn bytes(&mut self, _: &'static str, v: &[u8]) {
+        self.put(v);
+    }
+    fn var_bytes(&mut self, _: &'static str, v: &[u8], _: &'static str) {
+        self.put(v);
+    }
+    fn zeros(&mut self, _: &'static str, n: usize) {
+        let end = self.len + n;
+        assert!(end <= self.buf.len(), "canonical stream overran its buffer");
+        self.buf[self.len..end].fill(0);
+        self.len = end;
+    }
+    fn each(
+        &mut self,
+        _: &'static str,
+        count: usize,
+        _: Option<usize>,
+        f: &mut dyn FnMut(&mut dyn Canon, usize),
+    ) {
+        for i in 0..count {
+            f(self, i);
+        }
+    }
+    fn note(&mut self, _: &'static str, _: &str) {}
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,6 +303,24 @@ mod tests {
     fn overrunning_the_capacity_panics() {
         let mut s = BufSink::<2>::new();
         s.u32("x", 1);
+    }
+
+    #[test]
+    fn the_slice_sink_writes_what_the_buffer_sink_writes() {
+        let mut a = BufSink::<64>::new();
+        stream(&mut a);
+        let mut raw = [0u8; 64];
+        let mut b = SliceSink::new(&mut raw);
+        stream(&mut b);
+        let n = b.len();
+        assert_eq!(&raw[..n], a.bytes());
+    }
+
+    #[test]
+    #[should_panic(expected = "overran")]
+    fn the_slice_sink_panics_rather_than_truncate() {
+        let mut raw = [0u8; 2];
+        SliceSink::new(&mut raw).u32("x", 1);
     }
 
     #[test]

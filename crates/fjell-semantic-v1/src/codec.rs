@@ -12,7 +12,8 @@
 //! ```
 
 use crate::catalog::lookup_tag;
-use crate::schema::FieldKind;
+use crate::schema::{FieldKind, IntentSchema};
+use fjell_canon::{Canon, SliceSink};
 
 /// Maximum number of fields per intent (catalog v1 never exceeds this).
 pub const MAX_FIELDS: usize = 6;
@@ -104,54 +105,45 @@ pub fn encode(
         }
     }
 
-    let mut pos = 0;
-    out[pos..pos + 7].copy_from_slice(MAGIC);
-    pos += 7;
-    out[pos..pos + 2].copy_from_slice(&tag.to_le_bytes());
-    pos += 2;
-    out[pos..pos + 8].copy_from_slice(&created_tick.to_le_bytes());
-    pos += 8;
+    let mut sink = SliceSink::new(out);
+    write_canonical(entry.schema, tag, created_tick, fields, &mut sink);
+    Ok(sink.len())
+}
 
-    for (i, _fd) in schema.fields.iter().enumerate() {
-        let fv = fields.get(i).copied().unwrap_or(FieldValue::Absent);
-        if fv == FieldValue::Absent {
-            out[pos] = 0;
-            pos += 1;
-        } else {
-            out[pos] = 1;
-            pos += 1;
-            match fv {
-                FieldValue::U8(v) => {
-                    out[pos] = v;
-                    pos += 1;
+/// The envelope's byte stream, written through `Canon`.
+///
+/// This is the one place the layout is stated: `encode` writes it into the caller's
+/// buffer, and `fjell-schema` runs it on a recording sink to produce the frozen
+/// description. Each present field's value is written under the field's
+/// catalogue name, at the width its variant carries.
+pub fn write_canonical(
+    schema: &IntentSchema,
+    tag: u16,
+    created_tick: u64,
+    fields: &[FieldValue],
+    c: &mut dyn Canon,
+) {
+    c.magic(MAGIC);
+    c.u16("intent_tag", tag);
+    c.u64("created_tick", created_tick);
+    for (i, fd) in schema.fields.iter().enumerate() {
+        match fields.get(i).copied().unwrap_or(FieldValue::Absent) {
+            FieldValue::Absent => c.u8("present", 0),
+            fv => {
+                c.u8("present", 1);
+                match fv {
+                    FieldValue::U8(v) => c.u8(fd.name, v),
+                    FieldValue::U16(v) => c.u16(fd.name, v),
+                    FieldValue::U32(v) => c.u32(fd.name, v),
+                    FieldValue::U64(v) => c.u64(fd.name, v),
+                    FieldValue::Bytes16(b) => c.bytes(fd.name, &b),
+                    FieldValue::Bytes32(b) => c.bytes(fd.name, &b),
+                    FieldValue::Absent => unreachable!(),
                 }
-                FieldValue::U16(v) => {
-                    out[pos..pos + 2].copy_from_slice(&v.to_le_bytes());
-                    pos += 2;
-                }
-                FieldValue::U32(v) => {
-                    out[pos..pos + 4].copy_from_slice(&v.to_le_bytes());
-                    pos += 4;
-                }
-                FieldValue::U64(v) => {
-                    out[pos..pos + 8].copy_from_slice(&v.to_le_bytes());
-                    pos += 8;
-                }
-                FieldValue::Bytes16(b) => {
-                    out[pos..pos + 16].copy_from_slice(&b);
-                    pos += 16;
-                }
-                FieldValue::Bytes32(b) => {
-                    out[pos..pos + 32].copy_from_slice(&b);
-                    pos += 32;
-                }
-                FieldValue::Absent => unreachable!(),
             }
         }
     }
-    out[pos] = SENTINEL;
-    pos += 1;
-    Ok(pos)
+    c.u8("sentinel", SENTINEL);
 }
 
 /// Decode a v1 intent envelope.

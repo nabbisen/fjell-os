@@ -1,12 +1,12 @@
 //! `BundleBuilder` — collects records, enforces the allow-list, computes the
 //! canonical SHA-256 bundle digest (RFC v0.4-005 §6.4).
 
+use fjell_canon::BufSink;
 use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
 use crate::bundle::{
-    DIAG_BUNDLE_VERSION, DiagAuditEvent, DiagIntent, DiagnosticBundle, MAX_AUDIT_EVENTS,
-    MAX_SEMANTIC_INTENTS,
+    DiagAuditEvent, DiagIntent, DiagnosticBundle, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS,
 };
 use crate::events::is_audit_event_allowed;
 use crate::intents::is_intent_allowed;
@@ -124,69 +124,10 @@ impl BundleBuilder {
     }
 
     fn compute_digest(&self) -> Digest32 {
-        // Build a serialised representation for hashing.
         // Maximum size: 13 (prefix) + 2 + 8 + 8 + 32 + 32 + 1 + 64*16 + 1 + 32*16 = 1605 bytes.
-        let mut buf = [0u8; 1700];
-        let mut pos = 0;
-
-        macro_rules! write_bytes {
-            ($b:expr) => {
-                let b: &[u8] = $b;
-                buf[pos..pos + b.len()].copy_from_slice(b);
-                pos += b.len();
-            };
-        }
-        macro_rules! write_u8 {
-            ($v:expr) => {
-                buf[pos] = $v;
-                pos += 1;
-            };
-        }
-        macro_rules! write_u16 {
-            ($v:expr) => {
-                buf[pos..pos + 2].copy_from_slice(&($v as u16).to_le_bytes());
-                pos += 2;
-            };
-        }
-        macro_rules! write_u32 {
-            ($v:expr) => {
-                buf[pos..pos + 4].copy_from_slice(&($v as u32).to_le_bytes());
-                pos += 4;
-            };
-        }
-        macro_rules! write_u64 {
-            ($v:expr) => {
-                buf[pos..pos + 8].copy_from_slice(&($v as u64).to_le_bytes());
-                pos += 8;
-            };
-        }
-
-        write_bytes!(b"FJELL-DIAG-V1");
-        write_u16!(DIAG_BUNDLE_VERSION);
-        write_bytes!(&self.bundle.bundle_id);
-        write_u64!(self.bundle.created_tick);
-        write_bytes!(&self.bundle.measurement_head.0);
-        write_bytes!(&self.bundle.last_attestation.0);
-
-        write_u8!(self.bundle.audit_event_count);
-        for i in 0..self.bundle.audit_event_count as usize {
-            let ev = &self.bundle.audit_events[i];
-            write_u32!(ev.seq);
-            write_u16!(ev.kind_tag);
-            write_u16!(ev.code);
-            write_u64!(ev.at_tick);
-        }
-
-        write_u8!(self.bundle.semantic_intent_count);
-        for i in 0..self.bundle.semantic_intent_count as usize {
-            let it = &self.bundle.semantic_intents[i];
-            write_u32!(it.seq);
-            write_u16!(it.intent_tag);
-            write_u16!(it.code);
-            write_u64!(it.at_tick);
-        }
-
-        Digest32::of(&buf[..pos])
+        let mut sink = BufSink::<1700>::new();
+        self.bundle.write_canonical(&mut sink);
+        Digest32::of(sink.bytes())
     }
 
     /// Number of audit events accumulated so far.

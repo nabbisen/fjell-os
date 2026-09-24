@@ -2,112 +2,56 @@
 
 use crate::measurement::{MSUMMARY_SCHEMA_VERSION, MeasurementSummary};
 use crate::release::{RSUMMARY_SCHEMA_VERSION, ReleaseSummary};
+use fjell_canon::{BufSink, Canon};
 use fjell_measure_format::Digest32;
 
 /// `SHA256("FJELL-MSUMMARY-V1" || schema || source_node_id || ...)`.
 pub fn measurement_summary_digest(s: &MeasurementSummary) -> Digest32 {
-    let mut buf = [0u8; 512];
-    let mut pos = 0usize;
+    let mut sink = BufSink::<512>::new();
+    write_measurement_canonical(s, &mut sink);
+    Digest32::of(sink.bytes())
+}
 
-    macro_rules! w_u8 {
-        ($v:expr) => {
-            buf[pos] = $v;
-            pos += 1;
-        };
-    }
-    macro_rules! w_u16 {
-        ($v:expr) => {
-            buf[pos..pos + 2].copy_from_slice(&($v as u16).to_le_bytes());
-            pos += 2;
-        };
-    }
-    macro_rules! w_u32 {
-        ($v:expr) => {
-            buf[pos..pos + 4].copy_from_slice(&($v as u32).to_le_bytes());
-            pos += 4;
-        };
-    }
-    macro_rules! w_u64 {
-        ($v:expr) => {
-            buf[pos..pos + 8].copy_from_slice(&($v as u64).to_le_bytes());
-            pos += 8;
-        };
-    }
-    macro_rules! w_b {
-        ($b:expr) => {
-            let bb: &[u8] = $b;
-            buf[pos..pos + bb.len()].copy_from_slice(bb);
-            pos += bb.len();
-        };
-    }
-
-    w_b!(b"FJELL-MSUMMARY-V1");
-    w_u16!(MSUMMARY_SCHEMA_VERSION);
-    w_b!(&s.source_node_id);
-    w_u64!(s.issued_tick);
-    w_u64!(s.head_seq);
-    w_b!(&s.head_chain_digest.0);
-    w_u8!(s.kind_count);
-    for i in 0..s.kind_count as usize {
-        w_u8!(s.kind_counts[i].kind);
-        w_u32!(s.kind_counts[i].count);
-    }
-    w_b!(&s.policy_digest.0);
-
-    Digest32::of(&buf[..pos])
+/// The canonical byte stream `measurement_summary_digest` is taken over —
+/// **the function the digest is computed from and the frozen schema is
+/// generated from**.
+pub fn write_measurement_canonical(s: &MeasurementSummary, c: &mut dyn Canon) {
+    c.domain(b"FJELL-MSUMMARY-V1");
+    c.u16("schema_version", MSUMMARY_SCHEMA_VERSION);
+    c.bytes("source_node_id", &s.source_node_id);
+    c.u64("issued_tick", s.issued_tick);
+    c.u64("head_seq", s.head_seq);
+    c.bytes("head_chain_digest", &s.head_chain_digest.0);
+    c.u8("kind_count", s.kind_count);
+    c.each("kind_counts", s.kind_count as usize, None, &mut |c, i| {
+        c.u8("kind", s.kind_counts[i].kind);
+        c.u32("count", s.kind_counts[i].count);
+    });
+    c.bytes("policy_digest", &s.policy_digest.0);
 }
 
 /// `SHA256("FJELL-RSUMMARY-V1" || schema || source_node_id || ...)`.
 pub fn release_summary_digest(s: &ReleaseSummary) -> Digest32 {
-    let mut buf = [0u8; 512];
-    let mut pos = 0usize;
+    let mut sink = BufSink::<512>::new();
+    write_release_canonical(s, &mut sink);
+    Digest32::of(sink.bytes())
+}
 
-    macro_rules! w_u8 {
-        ($v:expr) => {
-            buf[pos] = $v;
-            pos += 1;
-        };
-    }
-    macro_rules! w_u16 {
-        ($v:expr) => {
-            buf[pos..pos + 2].copy_from_slice(&($v as u16).to_le_bytes());
-            pos += 2;
-        };
-    }
-    macro_rules! w_u32 {
-        ($v:expr) => {
-            buf[pos..pos + 4].copy_from_slice(&($v as u32).to_le_bytes());
-            pos += 4;
-        };
-    }
-    macro_rules! w_u64 {
-        ($v:expr) => {
-            buf[pos..pos + 8].copy_from_slice(&($v as u64).to_le_bytes());
-            pos += 8;
-        };
-    }
-    macro_rules! w_b {
-        ($b:expr) => {
-            let bb: &[u8] = $b;
-            buf[pos..pos + bb.len()].copy_from_slice(bb);
-            pos += bb.len();
-        };
-    }
-
-    w_b!(b"FJELL-RSUMMARY-V1");
-    w_u16!(RSUMMARY_SCHEMA_VERSION);
-    w_b!(&s.source_node_id);
-    w_u64!(s.issued_tick);
-    w_u8!(s.channel_count);
-    for i in 0..s.channel_count as usize {
+/// The canonical byte stream `release_summary_digest` is taken over — **the
+/// function the digest is computed from and the frozen schema is generated from**.
+pub fn write_release_canonical(s: &ReleaseSummary, c: &mut dyn Canon) {
+    c.domain(b"FJELL-RSUMMARY-V1");
+    c.u16("schema_version", RSUMMARY_SCHEMA_VERSION);
+    c.bytes("source_node_id", &s.source_node_id);
+    c.u64("issued_tick", s.issued_tick);
+    c.u8("channel_count", s.channel_count);
+    c.each("channels", s.channel_count as usize, None, &mut |c, i| {
         let ch = &s.channels[i];
-        w_b!(&ch.channel_id);
-        w_u64!(ch.current_counter);
-        w_u64!(ch.min_counter);
-        w_u32!(ch.active_anchor_epoch);
-        w_u64!(ch.last_confirm_tick);
-        w_u8!(ch.last_advance_source as u8);
-    }
-
-    Digest32::of(&buf[..pos])
+        c.bytes("channel_id", &ch.channel_id);
+        c.u64("current_counter", ch.current_counter);
+        c.u64("min_counter", ch.min_counter);
+        c.u32("active_anchor_epoch", ch.active_anchor_epoch);
+        c.u64("last_confirm_tick", ch.last_confirm_tick);
+        c.u8("last_advance_source", ch.last_advance_source as u8);
+    });
 }

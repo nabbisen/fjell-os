@@ -4,12 +4,17 @@
 //! The *latest* record per `channel_id` in storaged's log is authoritative.
 //! The record digest covers all fields so a tampered record is detectable.
 
+use fjell_canon::{BufSink, Canon};
 use fjell_measure_format::Digest32;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 pub const ROLLBACK_RECORD_VERSION: u16 = 1;
 pub const ROLLBACK_RECORD_DOMAIN: &[u8] = b"FJELL-ROLLBACK-V1";
+
+/// The stream's width: domain (17) + 2 + 8 + 8 + 8 + 1 + 32. Overrunning it
+/// panics in `BufSink`, so a field added without widening this fails loudly.
+const ROLLBACK_STREAM_BYTES: usize = 17 + 2 + 8 + 8 + 8 + 1 + 32;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,21 +57,27 @@ pub struct RollbackRecord {
 }
 
 impl RollbackRecord {
+    /// The canonical byte stream `record_digest` is taken over — **the function
+    /// the digest is computed from and the frozen schema is generated from**.
+    ///
+    /// The last part is 32 zero bytes standing in for `record_digest` itself: it
+    /// is a field of no struct, and it is named so the description says what it
+    /// is.
+    pub fn write_canonical(&self, c: &mut dyn Canon) {
+        c.domain(ROLLBACK_RECORD_DOMAIN);
+        c.u16("schema_version", self.schema_version);
+        c.bytes("channel_id", &self.channel_id);
+        c.u64("min_counter", self.min_counter);
+        c.u64("last_advance_tick", self.last_advance_tick);
+        c.u8("last_advance_source", self.last_advance_source as u8);
+        c.zeros("record_digest_placeholder", 32);
+    }
+
     /// Compute the canonical `record_digest`.
     pub fn compute_digest(&self) -> Digest32 {
-        let sv = self.schema_version.to_le_bytes();
-        let min = self.min_counter.to_le_bytes();
-        let tck = self.last_advance_tick.to_le_bytes();
-        let src = [self.last_advance_source as u8];
-        Digest32::of_parts(&[
-            ROLLBACK_RECORD_DOMAIN,
-            &sv,
-            &self.channel_id,
-            &min,
-            &tck,
-            &src,
-            &[0u8; 32], // placeholder for record_digest
-        ])
+        let mut sink = BufSink::<{ ROLLBACK_STREAM_BYTES }>::new();
+        self.write_canonical(&mut sink);
+        Digest32::of(sink.bytes())
     }
 
     /// Build a `RollbackRecord` with a freshly computed `record_digest`.

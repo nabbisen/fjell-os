@@ -12,5 +12,6 @@ name = "fjell_identity_format"
 path = "src/lib.rs"
 
 [dependencies]
+fjell-canon          = { path = "../../fjell-canon" }
 fjell-measure-format = { path = "../fjell-measure-format" }
 fjell-platform-format = { path = "../fjell-platform-format" }

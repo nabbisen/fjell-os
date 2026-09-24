@@ -259,3 +259,48 @@ pub fn snapshot_envelope(version: u16) -> fjell_snapshot_format::SnapshotEnvelop
     }
     e
 }
+
+/// A semantic intent v1 envelope, encoded by the codec: the catalogue entry with
+/// the most fields. Every field gets a distinct value of its
+/// declared kind, and the **last optional** field, if any, is left absent so the
+/// `present = 0` branch is in the bytes too.
+pub fn semantic_intent() -> (u16, Vec<u8>) {
+    use fjell_semantic_v1::{CATALOG_V1, FieldValue, encode};
+    // The entry with the most fields (the first of them, on a tie).
+    let entry = CATALOG_V1
+        .iter()
+        .rev()
+        .max_by_key(|e| e.schema.fields.len())
+        .expect("a non-empty catalogue");
+    let mut absent = None;
+    for (i, f) in entry.schema.fields.iter().enumerate() {
+        if !f.required {
+            absent = Some(i);
+        }
+    }
+    let values: Vec<FieldValue> = entry
+        .schema
+        .fields
+        .iter()
+        .enumerate()
+        .map(|(i, f)| {
+            if Some(i) == absent {
+                return FieldValue::Absent;
+            }
+            let n = 0x10 + i as u8;
+            match f.kind {
+                fjell_semantic_v1::FieldKind::U8 => FieldValue::U8(n),
+                fjell_semantic_v1::FieldKind::U16 => FieldValue::U16(0x0100 + n as u16),
+                fjell_semantic_v1::FieldKind::U32 => FieldValue::U32(0x0102_0300 + n as u32),
+                fjell_semantic_v1::FieldKind::U64 => {
+                    FieldValue::U64(0x0102_0304_0506_0700 + n as u64)
+                }
+                fjell_semantic_v1::FieldKind::Bytes16 => FieldValue::Bytes16([n; 16]),
+                fjell_semantic_v1::FieldKind::Bytes32 => FieldValue::Bytes32(digest(n).0),
+            }
+        })
+        .collect();
+    let mut out = [0u8; 256];
+    let n = encode(entry.tag, 0x1112_1314_1516_1718, &values, &mut out).expect("encodes");
+    (entry.tag, out[..n].to_vec())
+}

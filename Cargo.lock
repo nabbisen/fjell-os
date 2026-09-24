@@ -446,6 +446,7 @@ name = "fjell-attestation-format"
 version = "0.32.0"
 dependencies = [
  "fjell-abi",
+ "fjell-canon",
  "fjell-keyring",
  "fjell-measure-format",
  "fjell-trust-provider",
@@ -623,6 +624,7 @@ dependencies = [
 name = "fjell-diag-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-measure-format",
  "fjell-trust-provider",
 ]
@@ -716,6 +718,7 @@ dependencies = [
 name = "fjell-identity-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-measure-format",
  "fjell-platform-format",
 ]
@@ -761,6 +764,7 @@ dependencies = [
 name = "fjell-keyring"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-measure-format",
  "fjell-trust-provider",
 ]
@@ -822,6 +826,7 @@ dependencies = [
 name = "fjell-platform-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-measure-format",
 ]
 
@@ -1022,6 +1027,9 @@ dependencies = [
 [[package]]
 name = "fjell-semantic-v1"
 version = "0.32.0"
+dependencies = [
+ "fjell-canon",
+]
 
 [[package]]
 name = "fjell-service-api"
@@ -1056,6 +1064,7 @@ dependencies = [
 name = "fjell-snapshot-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-measure-format",
 ]
 
@@ -1106,6 +1115,7 @@ dependencies = [
 name = "fjell-summary-format"
 version = "0.32.0"
 dependencies = [
+ "fjell-canon",
  "fjell-identity-format",
  "fjell-measure-format",
  "fjell-upgrade-format",

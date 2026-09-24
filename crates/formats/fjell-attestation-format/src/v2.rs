@@ -5,6 +5,7 @@
 //! `"FJELL-ATTEST-V2"` domain separator so a single signature check
 //! suffices for complete local-trust validation.
 
+use fjell_canon::{BufSink, Canon};
 use fjell_measure_format::Digest32;
 // KeyEpoch imported only when key-epoch validation tests are added (v0.8).
 // use fjell_keyring::KeyEpoch;
@@ -22,6 +23,10 @@ use crate::{
 // ── Domain separator ─────────────────────────────────────────────────────────
 
 pub const ATTEST_V2_DOMAIN: &[u8] = b"FJELL-ATTEST-V2";
+
+/// Capacity of the canonical stream (it is well under this; overrunning it
+/// panics in `BufSink`, so a field added without widening it fails loudly).
+const ATTEST_V2_STREAM_MAX: usize = 512;
 
 // ── New claim structs ────────────────────────────────────────────────────────
 
@@ -111,89 +116,120 @@ pub struct AttestationRecordV2 {
 impl AttestationRecordV2 {
     pub const SCHEMA_VERSION: u16 = 2;
 
-    /// Compute the canonical v2 digest (RFC v0.3-004 §6.3).
-    pub fn canonical_digest(&self) -> Digest32 {
-        let sv = self.schema_version.to_le_bytes();
-        let tick = self.created_tick.to_le_bytes();
-        let pid = self.provider.provider_id.0.to_le_bytes();
-        let pgen = self.provider.provider_generation.to_le_bytes();
-        let kea = self.keyring.active_epoch_attestation.to_le_bytes();
-        let ker = self.keyring.active_epoch_release.to_le_bytes();
-        let kep = self.keyring.active_epoch_policy.to_le_bytes();
-        let bid = self.boot.boot_id.to_le_bytes();
+    /// The canonical v2 byte stream (RFC v0.3-004 §6.3) — **the function the
+    /// digest is computed from and the frozen schema is generated from**.
+    pub fn write_canonical(&self, c: &mut dyn Canon) {
+        c.domain(ATTEST_V2_DOMAIN);
+        c.u16("schema_version", self.schema_version);
+        c.bytes("record_id", &self.record_id.0);
+        c.u64("created_tick", self.created_tick);
+        c.u8("profile", self.profile as u8);
+        // provider
+        c.u32("provider.provider_id", self.provider.provider_id.0);
+        c.u8("provider.provider_kind", self.provider.provider_kind);
+        c.u8("provider.profile_tag", self.provider.profile_tag);
+        c.u16(
+            "provider.provider_generation",
+            self.provider.provider_generation,
+        );
+        // keyring
+        c.u32(
+            "keyring.active_epoch_attestation",
+            self.keyring.active_epoch_attestation,
+        );
+        c.u32(
+            "keyring.active_epoch_release",
+            self.keyring.active_epoch_release,
+        );
+        c.u32(
+            "keyring.active_epoch_policy",
+            self.keyring.active_epoch_policy,
+        );
+        c.bytes(
+            "keyring.keyring_snapshot_digest",
+            &self.keyring.keyring_snapshot_digest.0,
+        );
+        // boot
+        c.u8("boot.selected_slot", self.boot.selected_slot);
+        c.u64("boot.boot_id", self.boot.boot_id);
+        c.bytes("boot.kernel_digest", &self.boot.kernel_digest.0);
+        // verification
+        c.bytes(
+            "verification.release_digest",
+            &self.verification.release_digest.0,
+        );
+        c.bytes(
+            "verification.rootfs_digest",
+            &self.verification.rootfs_digest.0,
+        );
+        c.bytes(
+            "verification.policy_digest",
+            &self.verification.policy_digest.0,
+        );
+        // bit 0 release_verified, bit 1 rootfs_verified, bit 2 policy_verified
         let vflags: u8 = (self.verification.release_verified as u8)
             | ((self.verification.rootfs_verified as u8) << 1)
             | ((self.verification.policy_verified as u8) << 2);
-        let mseq = self.measurement.head_seq.to_le_bytes();
-        let mfrom = self.measurement.included_from_seq.to_le_bytes();
-        let mto = self.measurement.included_to_seq.to_le_bytes();
-        let rmin = self.rollback.min_counter.to_le_bytes();
-        let rtpc = self.rollback.trust_provider_counter_value.to_le_bytes();
-        let fgen = self.freshness.generation.to_le_bytes();
-        let fkep = self.freshness.key_epoch.to_le_bytes();
+        c.u8("verification.verified_flags", vflags);
+        // measurement
+        c.u64("measurement.head_seq", self.measurement.head_seq);
+        c.bytes("measurement.chain_digest", &self.measurement.chain_digest.0);
+        c.u64(
+            "measurement.included_from_seq",
+            self.measurement.included_from_seq,
+        );
+        c.u64(
+            "measurement.included_to_seq",
+            self.measurement.included_to_seq,
+        );
+        // snapshot
+        c.bytes("snapshot.snapshot_id", &self.snapshot.snapshot_id);
+        c.bytes("snapshot.snapshot_digest", &self.snapshot.snapshot_digest.0);
+        c.u8("snapshot.reason", self.snapshot.reason);
+        // health
+        c.bytes("health.target", &self.health.target);
+        c.u8("health.status", self.health.status);
+        // rollback
+        c.bytes("rollback.channel_id", &self.rollback.channel_id);
+        c.u64("rollback.min_counter", self.rollback.min_counter);
+        c.u8(
+            "rollback.last_advance_source",
+            self.rollback.last_advance_source,
+        );
+        c.u8(
+            "rollback.trust_provider_counter_supported",
+            self.rollback.trust_provider_counter_supported as u8,
+        );
+        c.u64(
+            "rollback.trust_provider_counter_value",
+            self.rollback.trust_provider_counter_value,
+        );
+        // freshness
+        c.u32("freshness.generation", self.freshness.generation);
+        c.u32("freshness.key_epoch", self.freshness.key_epoch);
+        c.u8("freshness.status", self.freshness.status);
+        c.u8("freshness.nonce_class", self.freshness.nonce_class);
+        c.bytes("freshness.nonce_bytes", &self.freshness.nonce_bytes);
+        // provenance: a present byte, then the fields (or zeros / result 3 when absent)
+        c.u8("provenance.present", self.provenance.is_some() as u8);
+        c.bytes(
+            "provenance.sidecar_digest",
+            &self
+                .provenance
+                .map(|p| p.sidecar_digest.0)
+                .unwrap_or([0u8; 32]),
+        );
+        c.u8(
+            "provenance.result",
+            self.provenance.map(|p| p.result).unwrap_or(3u8),
+        );
+    }
 
-        // Provenance: present-byte + fields (or zeros when absent).
-        let prov_present = [self.provenance.is_some() as u8];
-        let prov_digest = self
-            .provenance
-            .map(|p| p.sidecar_digest.0)
-            .unwrap_or([0u8; 32]);
-        let prov_res = [self.provenance.map(|p| p.result).unwrap_or(3u8)];
-
-        Digest32::of_parts(&[
-            ATTEST_V2_DOMAIN,
-            &sv,
-            &self.record_id.0,
-            &tick,
-            &[self.profile as u8],
-            // provider
-            &pid,
-            &[self.provider.provider_kind],
-            &[self.provider.profile_tag],
-            &pgen,
-            // keyring
-            &kea,
-            &ker,
-            &kep,
-            &self.keyring.keyring_snapshot_digest.0,
-            // boot
-            &[self.boot.selected_slot],
-            &bid,
-            &self.boot.kernel_digest.0,
-            // verification
-            &self.verification.release_digest.0,
-            &self.verification.rootfs_digest.0,
-            &self.verification.policy_digest.0,
-            &[vflags],
-            // measurement
-            &mseq,
-            &self.measurement.chain_digest.0,
-            &mfrom,
-            &mto,
-            // snapshot
-            &self.snapshot.snapshot_id,
-            &self.snapshot.snapshot_digest.0,
-            &[self.snapshot.reason],
-            // health
-            &self.health.target,
-            &[self.health.status],
-            // rollback
-            &self.rollback.channel_id,
-            &rmin,
-            &[self.rollback.last_advance_source],
-            &[self.rollback.trust_provider_counter_supported as u8],
-            &rtpc,
-            // freshness
-            &fgen,
-            &fkep,
-            &[self.freshness.status],
-            &[self.freshness.nonce_class],
-            &self.freshness.nonce_bytes,
-            // provenance
-            &prov_present,
-            &prov_digest,
-            &prov_res,
-        ])
+    /// Compute the canonical v2 digest (RFC v0.3-004 §6.3).
+    pub fn canonical_digest(&self) -> Digest32 {
+        let mut sink = BufSink::<{ ATTEST_V2_STREAM_MAX }>::new();
+        self.write_canonical(&mut sink);
+        Digest32::of(sink.bytes())
     }
 }
 

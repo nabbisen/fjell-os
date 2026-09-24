@@ -1,5 +1,6 @@
 //! `DiagnosticBundle` and its component record types (RFC v0.4-005 §5.2).
 
+use fjell_canon::Canon;
 use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
@@ -93,5 +94,46 @@ impl DiagnosticBundle {
             semantic_intents: [DiagIntent::EMPTY; MAX_SEMANTIC_INTENTS],
             bundle_digest: Digest32([0u8; 32]),
         }
+    }
+}
+
+impl DiagnosticBundle {
+    /// The canonical byte stream `bundle_digest` is taken over (RFC v0.4-005
+    /// §6.4) — **the function the digest is computed from and the frozen schema
+    /// is generated from**. The schema version written is the crate's constant,
+    /// as it always was, not the value in `self.schema_version`.
+    pub fn write_canonical(&self, c: &mut dyn Canon) {
+        c.domain(b"FJELL-DIAG-V1");
+        c.u16("schema_version", DIAG_BUNDLE_VERSION);
+        c.bytes("bundle_id", &self.bundle_id);
+        c.u64("created_tick", self.created_tick);
+        c.bytes("measurement_head", &self.measurement_head.0);
+        c.bytes("last_attestation", &self.last_attestation.0);
+        c.u8("audit_event_count", self.audit_event_count);
+        c.each(
+            "audit_events",
+            self.audit_event_count as usize,
+            Some(MAX_AUDIT_EVENTS),
+            &mut |c, i| {
+                let ev = &self.audit_events[i];
+                c.u32("seq", ev.seq);
+                c.u16("kind_tag", ev.kind_tag);
+                c.u16("code", ev.code);
+                c.u64("at_tick", ev.at_tick);
+            },
+        );
+        c.u8("semantic_intent_count", self.semantic_intent_count);
+        c.each(
+            "semantic_intents",
+            self.semantic_intent_count as usize,
+            Some(MAX_SEMANTIC_INTENTS),
+            &mut |c, i| {
+                let it = &self.semantic_intents[i];
+                c.u32("seq", it.seq);
+                c.u16("intent_tag", it.intent_tag);
+                c.u16("code", it.code);
+                c.u64("at_tick", it.at_tick);
+            },
+        );
     }
 }

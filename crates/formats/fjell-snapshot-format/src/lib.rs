@@ -1,6 +1,8 @@
 //! System snapshot types for Fjell OS M7.
 #![no_std]
 
+use fjell_canon::Canon;
+
 /// Unique identifier for a snapshot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SnapshotId(pub u64);
@@ -476,29 +478,91 @@ pub enum SnapshotError {
     UnknownDomain = 0x04,
 }
 
+/// The streaming SHA-256 writer is a [`Canon`] sink: the stream is fed straight
+/// into the hash, with no fixed-size intermediate buffer, exactly as before.
+impl Canon for DigestWriter {
+    fn domain(&mut self, tag: &[u8]) {
+        self.update(tag);
+    }
+    fn magic(&mut self, tag: &[u8]) {
+        self.update(tag);
+    }
+    fn u8(&mut self, _: &'static str, v: u8) {
+        self.write_u8(v);
+    }
+    fn u16(&mut self, _: &'static str, v: u16) {
+        self.write_u16(v);
+    }
+    fn u32(&mut self, _: &'static str, v: u32) {
+        self.write_u32(v);
+    }
+    fn u64(&mut self, _: &'static str, v: u64) {
+        self.write_u64(v);
+    }
+    fn bytes(&mut self, _: &'static str, v: &[u8]) {
+        self.update(v);
+    }
+    fn var_bytes(&mut self, _: &'static str, v: &[u8], _: &'static str) {
+        self.update(v);
+    }
+    fn zeros(&mut self, _: &'static str, n: usize) {
+        for _ in 0..n {
+            self.write_u8(0);
+        }
+    }
+    fn each(
+        &mut self,
+        _: &'static str,
+        count: usize,
+        _: Option<usize>,
+        f: &mut dyn FnMut(&mut dyn Canon, usize),
+    ) {
+        for i in 0..count {
+            f(self, i);
+        }
+    }
+    fn note(&mut self, _: &'static str, _: &str) {}
+}
+
+/// The canonical byte stream `snapshot_digest` is taken over — **the function the
+/// digest is computed from and the frozen schema is generated from**.
+///
+/// From `schema_version` 2 each record carries a `domain` byte; a v1 envelope
+/// does not. A schema for one version describes that version's stream.
+pub fn write_canonical(env: &SnapshotEnvelope, c: &mut dyn Canon) {
+    c.magic(b"FJELL-SNAPSHOT-V1");
+    c.u16("schema_version", env.schema_version);
+    c.bytes("source_identity_digest", &env.source_identity_digest.0);
+    c.u64("issued_tick", env.issued_tick);
+    c.bytes("nonce", &env.nonce);
+    c.u16("record_count", env.record_count);
+    // A record slot that is `None` writes nothing, as it always did.
+    let present = |i: usize| env.records[i].as_ref();
+    c.each(
+        "records",
+        env.record_count as usize,
+        Some(MAX_SNAPSHOT_RECORDS),
+        &mut |c, i| {
+            if let Some(r) = present(i) {
+                if env.schema_version >= SNAPSHOT_ENVELOPE_V2 {
+                    c.u8("domain", r.domain as u8);
+                }
+                c.u16("kind", r.kind);
+                c.u64("seq", r.seq);
+                let len = (r.body_len as usize).min(SNAPSHOT_RECORD_BODY_MAX);
+                c.u32("body_len", len as u32);
+                c.var_bytes("body", &r.body[..len], "body_len");
+            }
+        },
+    );
+}
+
 /// Compute the canonical `snapshot_digest` using a streaming writer —
 /// no fixed-size stack buffer; cannot panic at declared capacity
 /// (RFC-v0.7.2-002, closes C-RB-02).
 pub fn snapshot_digest(env: &SnapshotEnvelope) -> Digest32 {
     let mut w = DigestWriter::new();
-    w.update(b"FJELL-SNAPSHOT-V1");
-    w.write_u16(env.schema_version);
-    w.update(&env.source_identity_digest.0);
-    w.write_u64(env.issued_tick);
-    w.update(&env.nonce);
-    w.write_u16(env.record_count);
-    for i in 0..env.record_count as usize {
-        if let Some(r) = &env.records[i] {
-            if env.schema_version >= SNAPSHOT_ENVELOPE_V2 {
-                w.write_u8(r.domain as u8);
-            }
-            w.write_u16(r.kind);
-            w.write_u64(r.seq);
-            let len = (r.body_len as usize).min(SNAPSHOT_RECORD_BODY_MAX);
-            w.write_u32(len as u32);
-            w.update(&r.body[..len]);
-        }
-    }
+    write_canonical(env, &mut w);
     w.finalize()
 }
 

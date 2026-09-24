@@ -6,4 +6,5 @@ authors.workspace = true
 license.workspace = true
 publish = false
 [dependencies]
+fjell-canon          = { path = "../../fjell-canon" }
 fjell-measure-format = { path = "../fjell-measure-format" }

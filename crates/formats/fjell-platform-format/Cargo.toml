@@ -12,4 +12,5 @@ name = "fjell_platform_format"
 path = "src/lib.rs"
 
 [dependencies]
+fjell-canon           = { path = "../../fjell-canon" }
 fjell-measure-format = { path = "../fjell-measure-format" }

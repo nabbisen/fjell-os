@@ -5,6 +5,7 @@
 //! release authority; this module concerns itself only with structure,
 //! digest computation, and replay onto a fresh `Keyring`.
 
+use fjell_canon::{BufSink, Canon};
 use fjell_measure_format::Digest32;
 
 use crate::anchor::TrustAnchor;
@@ -72,63 +73,58 @@ impl KeyringSnapshot {
     }
 }
 
+/// The canonical byte stream a snapshot's digest is taken over — **the function
+/// the digest is computed from and the frozen schema is generated from**.
+///
+/// Domain: `KEYRING_DOMAIN || "SNAP-V1"`. Every one of the
+/// `MAX_SNAPSHOT_ANCHORS` slots is written, present or not: a present byte
+/// (`+`/`-`), the anchor's purpose, algorithm, authority and epoch, its key
+/// length, and its key bytes. An empty slot writes the same shape with zeros, so
+/// the description of one slot is true of all of them.
+pub fn write_canonical(snap: &KeyringSnapshot, c: &mut dyn Canon) {
+    c.domain(KEYRING_DOMAIN);
+    c.domain(b"SNAP-V1");
+    c.u16("schema_version", snap.schema_version);
+    c.u8("anchor_count", snap.anchor_count);
+    c.each(
+        "slots",
+        MAX_SNAPSHOT_ANCHORS,
+        Some(MAX_SNAPSHOT_ANCHORS),
+        &mut |c, i| match &snap.anchors[i] {
+            Some(a) => {
+                c.u8("present", b'+');
+                c.u8("purpose", a.purpose.tag());
+                c.u8("algorithm", a.algorithm.tag());
+                c.u8("authority", a.authority.tag());
+                c.u32("epoch", a.epoch.raw());
+                c.u8("reserved", 0);
+                c.u8("key_len", a.key_len);
+                c.var_bytes("key_bytes", &a.key_bytes[..a.key_len as usize], "key_len");
+            }
+            None => {
+                c.u8("present", b'-');
+                c.u8("purpose", 0);
+                c.u8("algorithm", 0);
+                c.u8("authority", 0);
+                c.u32("epoch", 0);
+                c.u8("reserved", 0);
+                c.u8("key_len", 0);
+                c.var_bytes("key_bytes", &[], "key_len");
+            }
+        },
+    );
+}
+
+/// Capacity of the canonical stream: the header plus every slot at its widest.
+const SNAPSHOT_STREAM_MAX: usize = 32 + MAX_SNAPSHOT_ANCHORS * (1 + 8 + 1 + ANCHOR_KEY_BYTES_MAX);
+
 /// Compute the canonical digest of a snapshot.
 ///
 /// Domain:  `KEYRING_DOMAIN || "SNAP-V1"`.
 fn compute_digest(snap: &KeyringSnapshot) -> Digest32 {
-    let header = [
-        snap.schema_version.to_le_bytes()[0],
-        snap.schema_version.to_le_bytes()[1],
-        snap.anchor_count,
-    ];
-
-    // Pass 1: materialise per-anchor scratch buffers (no borrows of parts
-    // here, so the borrow checker is happy).
-    let mut present: [u8; MAX_SNAPSHOT_ANCHORS] = [b'-'; MAX_SNAPSHOT_ANCHORS];
-    let mut scratch: [[u8; 8]; MAX_SNAPSHOT_ANCHORS] = [[0u8; 8]; MAX_SNAPSHOT_ANCHORS];
-    let mut keylens: [[u8; 1]; MAX_SNAPSHOT_ANCHORS] = [[0u8; 1]; MAX_SNAPSHOT_ANCHORS];
-
-    for i in 0..MAX_SNAPSHOT_ANCHORS {
-        if let Some(a) = snap.anchors[i] {
-            present[i] = b'+';
-            let epoch = a.epoch.raw().to_le_bytes();
-            scratch[i] = [
-                a.purpose.tag(),
-                a.algorithm.tag(),
-                a.authority.tag(),
-                epoch[0],
-                epoch[1],
-                epoch[2],
-                epoch[3],
-                0,
-            ];
-            keylens[i] = [a.key_len];
-        }
-    }
-
-    // Pass 2: build the parts list, taking borrows of the scratch arrays
-    // and of the in-place key bytes inside `snap.anchors`.
-    let mut parts: [&[u8]; 3 + MAX_SNAPSHOT_ANCHORS * 5] = [&[]; 3 + MAX_SNAPSHOT_ANCHORS * 5];
-    parts[0] = KEYRING_DOMAIN;
-    parts[1] = b"SNAP-V1";
-    parts[2] = &header;
-
-    let mut p = 3;
-    for i in 0..MAX_SNAPSHOT_ANCHORS {
-        parts[p] = core::slice::from_ref(&present[i]);
-        parts[p + 1] = &scratch[i];
-        parts[p + 2] = &keylens[i];
-        // Reference the anchor's key bytes through `snap.anchors[i]` so the
-        // borrow is tied to `snap`'s lifetime, not to a local `Some(a)`.
-        parts[p + 3] = match &snap.anchors[i] {
-            Some(a) => &a.key_bytes[..a.key_len as usize],
-            None => &[],
-        };
-        parts[p + 4] = &[]; // padding slot for future fields
-        p += 5;
-    }
-
-    Digest32::of_parts(&parts[..p])
+    let mut sink = BufSink::<{ SNAPSHOT_STREAM_MAX }>::new();
+    write_canonical(snap, &mut sink);
+    Digest32::of(sink.bytes())
 }
 
 /// Anchor key byte cap is reflected in the snapshot via the per-anchor

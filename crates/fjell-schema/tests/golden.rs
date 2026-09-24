@@ -132,6 +132,20 @@ fn snapshot_v2_has_the_domain_byte() {
     );
 }
 
+/// The semantic intent codec's bytes, captured from `encode` before it was
+/// rewritten to write through `Canon`. (No catalogue entry has an optional field,
+/// so every `present` byte here is `01`.)
+#[test]
+fn semantic_intent_v1() {
+    let (tag, bytes) = s::semantic_intent();
+    assert_eq!(tag, 0x0100);
+    check(
+        "semantic_intent_v1",
+        &bytes,
+        "464a53492d563100011817161514131211011003020101110302010112030201ff",
+    );
+}
+
 /// The control for the whole file: a golden that cannot fail proves nothing. The
 /// same sample with one field changed must NOT reproduce its digest.
 #[test]

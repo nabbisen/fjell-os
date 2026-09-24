@@ -10,3 +10,6 @@ publish = false
 [lib]
 name = "fjell_semantic_v1"
 path = "src/lib.rs"
+
+[dependencies]
+fjell-canon = { path = "../fjell-canon" }

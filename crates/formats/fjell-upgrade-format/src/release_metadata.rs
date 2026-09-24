@@ -2,6 +2,7 @@
 //! monotonic release counter, keyring epoch, trust provider, and measurement
 //! chain head (RFC v0.3-003 §6.1).
 
+use fjell_canon::{BufSink, Canon};
 use fjell_keyring::KeyEpoch;
 use fjell_measure_format::{Digest32, MeasurementHead};
 use fjell_trust_provider::ids::TrustProviderId;
@@ -10,6 +11,9 @@ use fjell_trust_provider::ids::TrustProviderId;
 
 pub const RELEASE_METADATA_VERSION: u16 = 1;
 pub const RELEASE_METADATA_DOMAIN: &[u8] = b"FJELL-RELEASE-META-V1";
+
+/// The stream's width: domain (21) + 2 + 8 + 8 + 8 + 32 + 4 + 4 + 32 + 8 + 8 + 8 + 32.
+const RELEASE_METADATA_STREAM_BYTES: usize = 21 + 2 + 8 + 8 + 8 + 32 + 4 + 4 + 32 + 8 + 8 + 8 + 32;
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,30 +60,37 @@ pub struct ReleaseMetadata {
 }
 
 impl ReleaseMetadata {
+    /// The canonical byte stream `metadata_digest` is taken over — **the function
+    /// the digest is computed from and the frozen schema is generated from**.
+    /// `metadata_digest` itself is 32 zero bytes during hashing.
+    pub fn write_canonical(&self, c: &mut dyn Canon) {
+        c.domain(RELEASE_METADATA_DOMAIN);
+        c.u16("schema_version", self.schema_version);
+        c.bytes("channel_id", &self.channel_id);
+        c.u64("release_counter", self.release_counter);
+        c.u64("embedded_min_counter", self.embedded_min_counter);
+        c.bytes("release_manifest_digest", &self.release_manifest_digest.0);
+        c.u32("signing_anchor_epoch", self.signing_anchor_epoch.raw());
+        c.u32("trust_provider_id", self.trust_provider_id.0);
+        c.bytes("measurement_at_stage", &self.measurement_at_stage.0);
+        c.u64("created_tick", self.created_tick);
+        c.bytes(
+            "provenance.builder_tool_id",
+            &self.provenance.builder_tool_id,
+        );
+        c.bytes(
+            "provenance.builder_version",
+            &self.provenance.builder_version,
+        );
+        c.zeros("metadata_digest_placeholder", 32);
+    }
+
     /// Compute the canonical `metadata_digest`.
     /// `metadata_digest` itself is treated as `[0u8; 32]` during hashing.
     pub fn compute_digest(&self) -> Digest32 {
-        let sv = self.schema_version.to_le_bytes();
-        let ctr = self.release_counter.to_le_bytes();
-        let min = self.embedded_min_counter.to_le_bytes();
-        let aep = self.signing_anchor_epoch.raw().to_le_bytes();
-        let pid = self.trust_provider_id.0.to_le_bytes();
-        let tck = self.created_tick.to_le_bytes();
-        Digest32::of_parts(&[
-            RELEASE_METADATA_DOMAIN,
-            &sv,
-            &self.channel_id,
-            &ctr,
-            &min,
-            &self.release_manifest_digest.0,
-            &aep,
-            &pid,
-            &self.measurement_at_stage.0,
-            &tck,
-            &self.provenance.builder_tool_id,
-            &self.provenance.builder_version,
-            &[0u8; 32], // placeholder for metadata_digest
-        ])
+        let mut sink = BufSink::<{ RELEASE_METADATA_STREAM_BYTES }>::new();
+        self.write_canonical(&mut sink);
+        Digest32::of(sink.bytes())
     }
 
     /// Build a `ReleaseMetadata` with a freshly computed `metadata_digest`.
