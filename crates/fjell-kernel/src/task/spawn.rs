@@ -619,6 +619,30 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 16: Reboot for NEG_TEST (RFC-0.33-001 D15, the fifth kernel
+            // touch the second mid-line ruling approved and nothing else).
+            // The reset mechanism -- dispatch arm, capability check, MMIO
+            // write -- has exactly one other holder, `bootctl`, and no
+            // decision in this deployment can reach it (one image, no slot
+            // switching), so without this it would ship unexercised. neg-test
+            // is already an intentional test target in the shipped image; the
+            // precedent is the disclosure in v1-limitations.md, not the
+            // capability. Granted the same way its TaskControl grant below is.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(
+                    16,
+                    Capability {
+                        kind: CapKind::Reboot,
+                        object_id: 0,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slots 5-6: TaskCreate + TaskControl for NEG_TEST (RFC 042 SVC tests).
             // Allows neg-test to spawn and monitor the svc-timeout/svc-fault services.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
