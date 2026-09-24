@@ -82,6 +82,9 @@ fn parse_known_broken(src: &str) -> BTreeSet<(String, String)> {
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
 /// `files` is `(path, content)`; paths are compared to `known_broken` after
 /// normalising to forward-slash, repo-root-relative form.
+/// The published book's source directory.
+const BOOK_ROOT: &str = "docs/src/";
+
 pub fn run_check(files: &[(&Path, &str)], known_broken: &BTreeSet<(String, String)>) -> ExitCode {
     let mut broken = Vec::new();
     let mut recorded = 0usize;
@@ -97,10 +100,30 @@ pub fn run_check(files: &[(&Path, &str)], known_broken: &BTreeSet<(String, Strin
             total_links += 1;
             let target_link = link.split('#').next().unwrap_or(&link);
             let resolved = normalise(&dir.join(target_link));
+            let file_label = normalise_label(path);
+            // RFC-0.33-004 (E-052): a page of the published book must not reach
+            // outside it by relative path. It resolves on disk — so the existence
+            // check below passes — and 404s on the site, where `../../../rfcs/…`
+            // escapes the site root. A citation to a repository file is an
+            // absolute repository URL. (Pages outside the book, the RFCs among
+            // them, are read on disk and keep their relative links.)
+            if file_label.starts_with(BOOK_ROOT)
+                && !resolved
+                    .to_string_lossy()
+                    .replace('\\', "/")
+                    .starts_with(BOOK_ROOT)
+            {
+                broken.push(format!(
+                    "{file_label}: link {link:?} leaves the book (resolves to {}): it works on \
+                     disk and 404s on the published site — cite a repository file as an absolute \
+                     `<repository url>/blob/main/<path>` URL (E-052)",
+                    resolved.display()
+                ));
+                continue;
+            }
             if resolved.exists() {
                 continue;
             }
-            let file_label = normalise_label(path);
             let key = (file_label.clone(), link.clone());
             if known_broken.contains(&key) {
                 recorded += 1;
@@ -285,5 +308,22 @@ mod tests {
         let mut known = BTreeSet::new();
         known.insert(("Cargo.toml".to_string(), "does/not/exist.md".to_string()));
         assert_eq!(run_check(&files, &known), ExitCode::FAILURE);
+    }
+
+    // ── RFC-0.33-004 (E-052): a book page may not link out of the book ───────
+
+    #[test]
+    fn a_book_page_linking_out_of_the_book_is_refused() {
+        // The target exists on disk (this is the whole problem), so only the
+        // boundary rule can refuse it.
+        let files = [(Path::new("docs/src/a/page.md"), "[x](../../../Cargo.toml)")];
+        assert_eq!(run_check(&files, &BTreeSet::new()), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn a_page_outside_the_book_keeps_its_relative_links() {
+        let files = [(Path::new("rfcs/a/page.md"), "[x](../../Cargo.toml)")];
+        // resolves to ./Cargo.toml relative to this crate's cwd
+        assert_eq!(run_check(&files, &BTreeSet::new()), ExitCode::SUCCESS);
     }
 }

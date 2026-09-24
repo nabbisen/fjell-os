@@ -3704,12 +3704,49 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   published (E-050), so no link had ever been resolved against a served site.
   `doc-links` checks paths on disk and is right to; the site is a second
   namespace, and until now there was none.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-16), tracked **RFC-0.33-003** (scoped 2026-09-24).
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-16), tracked **RFC-0.33-003** (scoped 2026-09-24).
   Closing it means both subchecks accept an absolute repository URL as a
   citation — they already know the repository — and the eleven links are
   converted, with the site checked for them afterwards rather than the
   filesystem. Two demonstrations: a citation that resolves nowhere is still
   refused, and a converted citation is accepted.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.33-004 D4**, with the site check
+  owed at the push (stated below, not claimed).
+  `standards-mapping` and `evidence` accept an absolute repository URL —
+  `<git-repository-url>/blob/main/<path>` (or `/tree/main/`), the URL read from
+  `docs/book.toml`, one function (`citation::classify`) shared by both — and check
+  it as they check a relative citation: it must exist on disk; for `evidence` it must
+  have its provenance sidecar and it counts as citing the log (the orphan direction).
+  A URL that resolves nowhere is **still refused**, and so is a URL into another
+  repository or a pinned commit (not a citation this tree can check).
+
+  **The count, because three numbers were in circulation.** This register said
+  **eleven** (2026-09-16: ten + one); RFC-0.33-004 said **23 + 1** (lines); the
+  probe at this tip finds **34 link occurrences in three files** — 32 in
+  `standards-mapping.md` (23 lines, 15 distinct targets), 1 in `v0-release-cycle.md`,
+  and **1 in `v1-limitations.md`, a file neither earlier count had** (a cited
+  evidence log). All 34 are converted. The probe (every relative link in
+  `docs/src/**` whose target leaves `docs/src`) had a control: the same script finds
+  34 links that stay inside the book in the same file.
+
+  | | before | after |
+  |---|---|---|
+  | the old `standards-mapping` on the converted document | **30 refusals**, resolving to `docs/src/compliance/https:/github.com/…` (the register's claim, reproduced) | 37 rows PASS |
+  | `evidence` | 12 citations checked | **12** — the converted log link is still recognised as a citation |
+  | a citation URL to `blob/main/rfcs/NOSUCH-…` | (old check: refused everything absolute) | **refused**, `does not exist (resolves to rfcs/NOSUCH-done/…)` |
+  | a URL into `somebody-else/repo` | | **refused**, naming the rule |
+  | the locally built book's hrefs (an *earlier* build, `docs/book/`, untracked) | **32** `href="../../../rfcs/…html"` in `standards-mapping.html` — the 404 form | — |
+
+  **Beyond D4, one guard:** `doc-links` now refuses a link on a page of the book
+  that resolves outside `docs/src` (it resolves on disk, which is why nothing saw it
+  for three files), demonstrated by reintroducing one. Pages outside the book, the
+  RFCs among them, keep their relative links.
+
+  **What is owed:** the served site. `mdbook build` was not run (declined in this
+  session), and the site is published only on a push, so the converted hrefs have
+  **not** been followed from the live page (RFC-0.32-003 R8's shape). At the push:
+  fetch `…/compliance/standards-mapping.html` and follow any evidence link from it.
 
 ## E-053 — two published RustSec advisories applied to crates in `Cargo.lock`, and nothing in the project would have said so
 
@@ -4416,7 +4453,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | RFC-0.33-004 | ACCEPTED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |
-| E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | RFC-0.33-004 | ACCEPTED |
+| E-052 eleven citations in the published book are relative paths that leave the book: they resolve on disk, so `doc-links` passes, and 404 on the site — and converting them to repository URLs turns `standards-mapping` and `evidence` red, because both resolve a citation as a filesystem path | RFC-0.33-004 | CLOSED |
 | E-053 two published RustSec advisories applied to `Cargo.lock` — RUSTSEC-2026-0204 (`crossbeam-epoch`, a benchmark dev-dependency) and RUSTSEC-2026-0190 (`anyhow`, locked but compiled for no target) — and nothing checked; found by RFC-0.32-004's first dependency-check run | 0.32 | CLOSED |
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |

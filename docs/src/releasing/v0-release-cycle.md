@@ -66,7 +66,7 @@ artifact still supports the row's claim (RFC-0.27-003 R3's own disclosure).
 A path that resolves is not the same thing as a row that is still true;
 re-read both documents against the release's actual changes before the tag.
 
-**The same limit applies to [`tests/evidence/`](../../../tests/evidence/README.md)
+**The same limit applies to [`tests/evidence/`](https://github.com/nabbisen/fjell-os/blob/main/tests/evidence/README.md)
 (RFC-0.27-004).** Gate 12's `evidence` subcheck confirms a citation resolves
 to a file with well-formed provenance whose commit is a real ancestor of
 `HEAD` — it does not and cannot confirm the provenance is *honest*, or that

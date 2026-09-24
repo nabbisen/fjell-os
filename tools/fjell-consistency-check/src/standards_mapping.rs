@@ -180,7 +180,15 @@ fn normalise(path: &Path) -> PathBuf {
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
 /// `mapping_dir` is the directory Evidence-column links are resolved
 /// against.
+#[cfg(test)]
 pub fn run_check(src: &str, mapping_dir: &str) -> ExitCode {
+    run_check_with(src, mapping_dir, crate::citation::TEST_REPOSITORY_URL)
+}
+
+/// As [`run_check`], with the repository URL an absolute citation may use
+/// (RFC-0.33-004 D4): a link under it is checked as the repo-relative path it names.
+pub fn run_check_with(src: &str, mapping_dir: &str, repository_url: &str) -> ExitCode {
+    use crate::citation::{Citation, classify};
     let rows = parse_rows(src);
     let mut problems: Vec<String> = Vec::new();
     let mut checked = 0usize;
@@ -222,7 +230,19 @@ pub fn run_check(src: &str, mapping_dir: &str) -> ExitCode {
                     ));
                 }
                 for p in &paths {
-                    let resolved = normalise(&Path::new(mapping_dir).join(p));
+                    let resolved = match classify(p, repository_url) {
+                        Citation::Relative(rel) => normalise(&Path::new(mapping_dir).join(rel)),
+                        // From the repository root, not the mapping's directory.
+                        Citation::Repository(path) => normalise(Path::new(&path)),
+                        Citation::Foreign(url) => {
+                            problems.push(format!(
+                                "{id} (line {line}): cited URL {url:?} is not a citation into this \
+                                 repository — an absolute citation must be \
+                                 `{repository_url}/blob/main/<path>` so it can be checked against the tree"
+                            ));
+                            continue;
+                        }
+                    };
                     if !resolved.exists() {
                         problems.push(format!(
                             "{id} (line {line}): cited path {p:?} does not exist (resolves to {})",
@@ -250,7 +270,14 @@ pub fn check() -> ExitCode {
     let Some(src) = read_file("standards-mapping", MAPPING_PATH) else {
         return ExitCode::FAILURE;
     };
-    run_check(&src, MAPPING_DIR)
+    let repository_url = match crate::citation::repository_url() {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("standards-mapping: FAIL — {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    run_check_with(&src, MAPPING_DIR, &repository_url)
 }
 
 #[cfg(test)]
@@ -389,6 +416,66 @@ mod tests {
                 "../security/threat-model-v1.md".to_string(),
                 "../release/v1-limitations.md".to_string(),
             ]
+        );
+    }
+
+    // ── RFC-0.33-004 D4 / E-052: an absolute repository URL is a citation ────
+
+    const URL: &str = "https://example.test/org/repo";
+
+    /// `cargo test` runs with cwd = this crate's directory, so `Cargo.toml` is a
+    /// file that exists at the "repository root" these tests resolve against.
+    #[test]
+    fn a_repository_url_to_an_existing_file_is_accepted() {
+        let src =
+            format!("| IEC-4-1-SR | thing | unassessed | m | [x]({URL}/blob/main/Cargo.toml) |");
+        assert_eq!(run_check(&src, DIR), ExitCode::SUCCESS);
+    }
+
+    /// The other half of the demonstration: a citation that resolves nowhere is
+    /// **still refused**, in URL form too.
+    #[test]
+    fn a_repository_url_to_a_missing_file_is_still_refused() {
+        let src = format!(
+            "| IEC-4-1-SR | thing | unassessed | m | [x]({URL}/blob/main/no/such/file.md) |"
+        );
+        assert_eq!(run_check(&src, DIR), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn a_url_outside_the_repository_is_refused_not_silently_passed() {
+        let src =
+            "| IEC-4-1-SR | thing | unassessed | m | [x](https://elsewhere.test/Cargo.toml) |";
+        assert_eq!(run_check(src, DIR), ExitCode::FAILURE);
+        let src =
+            format!("| IEC-4-1-SR | thing | unassessed | m | [x]({URL}/blob/abc123/Cargo.toml) |");
+        assert_eq!(
+            run_check(&src, DIR),
+            ExitCode::FAILURE,
+            "a pinned commit is not the default branch"
+        );
+    }
+
+    #[test]
+    fn a_relative_citation_still_works() {
+        let src = "| IEC-4-1-SR | thing | unassessed | m | [x](Cargo.toml) |";
+        assert_eq!(run_check(src, "."), ExitCode::SUCCESS);
+    }
+
+    /// The published table: every citation in the real file is a URL or an
+    /// in-book path, none leaves the book by relative path, and the whole thing
+    /// passes against the real tree.
+    #[test]
+    fn the_published_mapping_cites_nothing_by_a_path_that_leaves_the_book() {
+        let src = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../")
+                .join(MAPPING_PATH),
+        )
+        .unwrap();
+        assert!(
+            !src.contains("](../../../"),
+            "a citation still leaves the book by relative path (E-052)"
         );
     }
 }

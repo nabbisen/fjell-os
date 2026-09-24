@@ -1005,12 +1005,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   [the section above](#accessibility-and-inclusion--what-does-not-exist-yet), which
   is the condition on that claim and is kept true at each cut.
 
-- **Eleven compliance and release citations are unreachable from the published
-  book** (Errata **E-052**, ACCEPTED, tracked to 0.33). They are relative paths
-  that leave the book: correct on disk, 404 on the site. They were left that
-  way deliberately — the instruments that read those two documents resolve a
-  citation as a filesystem path, so converting the links to repository URLs
-  turns Gate 12 red until those checks accept both spellings.
+- **Thirty-four citations in the published book pointed outside it** (Errata
+  **E-052**, **CLOSED** 2026-09-25 by RFC-0.33-004, with one thing owed). They were
+  relative paths that leave the book — correct on disk, 404 on the site — in three
+  files (the register's earlier counts, eleven and 23 + 1, were at other dates and
+  by other definitions). The two subchecks that forced that spelling now accept an
+  absolute repository URL, all 34 are converted, and `doc-links` refuses a new one.
+  **Owed:** the served site has not been checked, because it is published only on a
+  push; the check is to follow a converted citation from the live
+  `compliance/standards-mapping` page.
 
 - **The security advisory process is built, and has never been rehearsed**
   (Errata **E-051**, CLOSED by RFC-0.32-004, with that survivor named).
@@ -1162,7 +1165,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   log fails the run). All nine now have every specified marker confirmed
   (capability 8, mmio 3, dma 3, audit 1, user-copy 2, policy 4, harness 1,
   **svc 4/4 — Errata E-024/E-031, closed by RFC-0.28-001**, evidence:
-  [`tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log`](../../../tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log));
+  [`tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log`](https://github.com/nabbisen/fjell-os/blob/main/tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log));
   the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC words ABI and the
   reply-edge cancellation path. The `store` and `upgrade` negative profiles
   exist as marker specifications but have **no emitting scenarios yet** and

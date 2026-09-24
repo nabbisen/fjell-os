@@ -88,7 +88,20 @@ pub fn check() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    run_check(&docs, &evidence_logs, EVIDENCE_DIR, check_ancestor_real)
+    let repository_url = match crate::citation::repository_url() {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("{NAME}: FAIL — {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    run_check_with(
+        &docs,
+        &evidence_logs,
+        EVIDENCE_DIR,
+        &repository_url,
+        check_ancestor_real,
+    )
 }
 
 fn walk_markdown(dir: &Path, out: &mut Vec<(PathBuf, String)>) -> std::io::Result<()> {
@@ -219,12 +232,33 @@ fn parse_provenance(src: &str) -> std::collections::BTreeMap<String, String> {
 /// tests sandbox against a temp directory instead of the real
 /// `tests/evidence`). `docs` is every tracked markdown file; `evidence_logs`
 /// is every real `.log` path found under `evidence_prefix`.
+#[cfg(test)]
 fn run_check(
     docs: &[(&Path, &str)],
     evidence_logs: &[String],
     evidence_prefix: &str,
     ancestor_check: fn(&str) -> AncestorResult,
 ) -> ExitCode {
+    run_check_with(
+        docs,
+        evidence_logs,
+        evidence_prefix,
+        crate::citation::TEST_REPOSITORY_URL,
+        ancestor_check,
+    )
+}
+
+/// As [`run_check`], with the repository URL a citation may use (RFC-0.33-004 D4):
+/// `{url}/blob/main/tests/evidence/…` is the path `tests/evidence/…`, checked
+/// exactly as a relative citation to it is.
+fn run_check_with(
+    docs: &[(&Path, &str)],
+    evidence_logs: &[String],
+    evidence_prefix: &str,
+    repository_url: &str,
+    ancestor_check: fn(&str) -> AncestorResult,
+) -> ExitCode {
+    use crate::citation::{Citation, classify};
     let mut problems: Vec<String> = Vec::new();
     let mut cited: BTreeSet<String> = BTreeSet::new();
     let mut citations_checked = 0usize;
@@ -234,8 +268,15 @@ fn run_check(
     for (path, content) in docs {
         let dir = path.parent().unwrap_or(Path::new("."));
         for link in extract_links(content) {
-            let target = link.split('#').next().unwrap_or(&link);
-            let resolved = normalise(&dir.join(target));
+            let resolved = match classify(&link, repository_url) {
+                Citation::Relative(rel) => {
+                    let target = rel.split('#').next().unwrap_or(rel);
+                    normalise(&dir.join(target))
+                }
+                Citation::Repository(path) => normalise(Path::new(&path)),
+                // A foreign URL cannot point into the evidence directory.
+                Citation::Foreign(_) => continue,
+            };
             let resolved_str = resolved.to_string_lossy().replace('\\', "/");
             if !resolved_str.starts_with(&prefix_slash) {
                 continue;
@@ -458,6 +499,50 @@ mod tests {
         assert_eq!(
             extract_links("see [a](b/c.log) and [d](e.md)"),
             vec!["b/c.log".to_string(), "e.md".to_string()]
+        );
+    }
+
+    // ── RFC-0.33-004 D4 / E-052: a citation may be a repository URL ──────────
+
+    /// A log cited *only* by URL is cited: the orphan direction counts it, and the
+    /// citation direction checks it exists and has its provenance sidecar, exactly
+    /// as it does for a relative link.
+    #[test]
+    fn a_log_cited_by_repository_url_is_checked_and_not_an_orphan() {
+        let dir = tmp_evidence_dir("url_cite");
+        write_evidence(&dir, "RFC-X", "a", "log", Some(&full_provenance()));
+        let evidence_dir_str = dir.to_string_lossy().replace('\\', "/");
+        let url = format!(
+            "{}/blob/main/{evidence_dir_str}/RFC-X/a.log",
+            crate::citation::TEST_REPOSITORY_URL
+        );
+        let doc = format!("[e]({url})");
+        let docs = [(Path::new("./doc.md"), doc.as_str())];
+        let logs = [format!("{evidence_dir_str}/RFC-X/a.log")];
+        assert_eq!(
+            run_check(&docs, &logs, &evidence_dir_str, always_ancestor),
+            ExitCode::SUCCESS
+        );
+        // and with no document citing it, it is an orphan (the control)
+        assert_eq!(
+            run_check(&[], &logs, &evidence_dir_str, always_ancestor),
+            ExitCode::FAILURE
+        );
+    }
+
+    #[test]
+    fn a_repository_url_to_a_missing_evidence_file_is_refused() {
+        let dir = tmp_evidence_dir("url_missing");
+        let evidence_dir_str = dir.to_string_lossy().replace('\\', "/");
+        let url = format!(
+            "{}/blob/main/{evidence_dir_str}/RFC-X/gone.log",
+            crate::citation::TEST_REPOSITORY_URL
+        );
+        let doc = format!("[e]({url})");
+        let docs = [(Path::new("./doc.md"), doc.as_str())];
+        assert_eq!(
+            run_check(&docs, &[], &evidence_dir_str, always_ancestor),
+            ExitCode::FAILURE
         );
     }
 }

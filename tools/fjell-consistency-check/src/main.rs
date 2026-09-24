@@ -47,6 +47,7 @@ use std::fs;
 use std::process::ExitCode;
 
 mod book_structure;
+mod citation;
 mod doc_counts;
 mod doc_links;
 mod errata_limitations;
