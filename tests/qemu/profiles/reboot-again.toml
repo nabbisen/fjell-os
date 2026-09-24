@@ -24,8 +24,18 @@
 #   * no byte injected  -> the machine boots once (expect_boots = 2 fails);
 #   * the `satp` clear reverted -> this tier goes RED with the second boot hung.
 #
-# It also asserts the device-tree lines (D22 / E-064): every boot must find and
-# reserve firmware's tree, and the reset boot receives the pointer again.
+# It also asserts, PER BOOT (D22 / E-064, made enforceable by D23): every boot must
+# find and reserve firmware's tree, and the reset boot receives the pointer again;
+# and every boot must reach the readiness the first one did, at the SERVICE level.
+# `expected_markers` match anywhere in the log, so all of that was once satisfied by
+# the first boot alone -- a second boot that printed the banner and then died would
+# have passed. `per_boot_markers` are counted: each must appear exactly `expect_boots`
+# times, so a second boot that dies after `sched: started` fails here. (Counted in the
+# tier's own log at review: `mm: device tree reserved` 2, `driver-uart: ready` 2.)
+# `driver-uart: ready` is a service's line, printed after the kernel's own boot is
+# over: that it CAME BACK means the machine reached the readiness the first boot did,
+# not merely the end of the kernel's boot. No "stop after N boots" mode: a hang after
+# the second banner is what this catches.
 
 name                 = "reboot-again"
 timeout_secs         = 60
@@ -37,5 +47,8 @@ expected_markers = [
     "init: reset trigger received; asking neg-test to run its reboot scenario",
     "NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS",
     "neg-test: calling sys_reboot with the Reboot right",
+]
+per_boot_markers = [
     "mm: device tree reserved",
+    "driver-uart: ready",
 ]

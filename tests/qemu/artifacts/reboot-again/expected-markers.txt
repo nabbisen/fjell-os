@@ -1,4 +1,5 @@
 init: reset trigger received; asking neg-test to run its reboot scenario
 NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS
 neg-test: calling sys_reboot with the Reboot right
-mm: device tree reserved
+mm: device tree reserved    [exactly 2x: once per boot]
+driver-uart: ready    [exactly 2x: once per boot]

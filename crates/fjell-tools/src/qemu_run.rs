@@ -91,6 +91,15 @@ pub struct Profile {
     /// A line printed **late in every boot** — late enough that a boot which
     /// hangs early (the first `satp` failure died six lines in) never prints it.
     pub boot_banner: Option<String>,
+    /// RFC-0.33-001 D23: lines that must each appear **exactly once per boot**,
+    /// i.e. exactly `expect_boots` times in the run. `expected_markers` match
+    /// anywhere in the log, so a claim like "the reset boot reaches readiness
+    /// again" is satisfied by the first boot alone; a marker here is counted, so
+    /// a second boot that prints the banner and then dies fails. **At least one
+    /// should be a service-level line** (e.g. `driver-uart: ready`), not only the
+    /// kernel's own: that a service came back means the machine reached the
+    /// readiness the first boot did. Requires `expect_boots`.
+    pub per_boot_markers: Vec<String>,
 }
 
 impl Profile {
@@ -110,6 +119,7 @@ impl Profile {
             expect_shutdown: None,
             expect_boots: None,
             boot_banner: None,
+            per_boot_markers: vec![],
         }
     }
 }
@@ -374,10 +384,15 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     }
 
     art.write_summary("qemu-command.txt", argv.join(" ").as_bytes());
-    art.write_summary(
-        "expected-markers.txt",
-        p.expected_markers.join("\n").as_bytes(),
-    );
+    let mut expected_text = p.expected_markers.join("\n");
+    for m in &p.per_boot_markers {
+        // The count is part of the assertion, so it is part of the record.
+        expected_text.push_str(&format!(
+            "\n{m}    [exactly {}x: once per boot]",
+            p.expect_boots.unwrap_or(0)
+        ));
+    }
+    art.write_summary("expected-markers.txt", expected_text.as_bytes());
 
     // A run that expects a particular ending needs the exit status and QMP's
     // account, which the two older paths discard. Only those profiles take
@@ -470,6 +485,29 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             Err(why) => {
                 eprintln!("[xtask] boot count check FAILED — {why}");
                 all_ok = false;
+            }
+        }
+        // D23: each per-boot marker, once per boot. Recorded beside the boot
+        // count before it is judged, so a failure can be read without re-running.
+        let mut record = String::new();
+        for m in &p.per_boot_markers {
+            let n = qemu_shutdown::count_boots(&combined, m.as_bytes());
+            record.push_str(&format!("per_boot_marker = {m}\nobserved = {n}\n"));
+            match qemu_shutdown::judge_per_boot(expected, n, m) {
+                Ok(()) => println!("[xtask] `{m}` seen {n}x — once per boot ✓"),
+                Err(why) => {
+                    eprintln!("[xtask] per-boot marker check FAILED — {why}");
+                    all_ok = false;
+                }
+            }
+        }
+        if !record.is_empty() {
+            use std::io::Write;
+            if let Ok(mut f) = fs::OpenOptions::new()
+                .append(true)
+                .open(run_dir.join("boots.txt"))
+            {
+                let _ = f.write_all(record.as_bytes());
             }
         }
     }
@@ -761,6 +799,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_shutdown_v: Option<String> = None;
     let mut expect_boots_v: Option<u32> = None;
     let mut boot_banner_v: Option<String> = None;
+    let mut per_boot_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -841,6 +880,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
                 )
             }
             "boot_banner" => boot_banner_v = Some(unquote(v)),
+            "per_boot_markers" => per_boot_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -888,6 +928,14 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         }
     }
 
+    if !per_boot_v.is_empty() && expect_boots_v.is_none() {
+        return Err(format!(
+            "{}: per_boot_markers is judged against expect_boots (a marker must appear once per \
+             boot), and expect_boots is not set",
+            path.display()
+        ));
+    }
+
     let inject_after_marker = match (inject_after_marker_v, inject_bytes_v) {
         (Some(m), Some(b)) => Some((m, b.into_bytes())),
         _ => None,
@@ -907,6 +955,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         expect_shutdown: expect_shutdown_v,
         expect_boots: expect_boots_v,
         boot_banner: boot_banner_v,
+        per_boot_markers: per_boot_v,
     })
 }
 
@@ -1533,6 +1582,45 @@ mod discover_tests {
             Ok(_) => panic!("release_gated=false with no reason must fail closed"),
         }
         fs::remove_dir_all(&dir).ok();
+    }
+
+    // ── RFC-0.33-001 D23: markers counted once per boot ─────────────────────
+
+    #[test]
+    fn per_boot_markers_are_refused_without_expect_boots() {
+        let r = scratch_root(
+            "pb1",
+            "name = \"p\"\nper_boot_markers = [\"a\"]\nexpected_markers = [\"x\"]\n",
+        );
+        let e = load_profile(&r, "p").unwrap_err();
+        assert!(
+            e.contains("per_boot_markers") && e.contains("expect_boots"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn per_boot_markers_load_with_expect_boots_and_the_real_profile_has_a_service_level_one() {
+        let r = scratch_root(
+            "pb2",
+            "name = \"p\"\nexpect_boots = 2\nboot_banner = \"b\"\nper_boot_markers = [\"a, b\", \"c\"]\n",
+        );
+        let p = load_profile(&r, "p").unwrap();
+        assert_eq!(p.per_boot_markers, ["a, b", "c"]);
+        // the committed tier: the device tree AND a service, per boot
+        let real = load_profile(&test_workspace_root(), "reboot-again").unwrap();
+        assert_eq!(real.expect_boots, Some(2));
+        assert!(
+            real.per_boot_markers
+                .iter()
+                .any(|m| m == "mm: device tree reserved")
+        );
+        assert!(
+            real.per_boot_markers
+                .iter()
+                .any(|m| m == "driver-uart: ready"),
+            "at least one per-boot marker must be a service's line"
+        );
     }
 }
 

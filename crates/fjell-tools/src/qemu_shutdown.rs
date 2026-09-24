@@ -256,6 +256,25 @@ pub fn judge_boots(expected: u32, counted: usize, banner: &str) -> Result<(), St
     }
 }
 
+/// Judge a per-boot marker (RFC-0.33-001 D23): it must appear **exactly once per
+/// boot**, i.e. `boots` times in the run. Fewer means some boot never reached the
+/// line — a second boot that printed the banner and then died; more means it
+/// printed twice in one boot.
+pub fn judge_per_boot(boots: u32, counted: usize, marker: &str) -> Result<(), String> {
+    let boots = boots as usize;
+    match counted.cmp(&boots) {
+        std::cmp::Ordering::Equal => Ok(()),
+        std::cmp::Ordering::Less => Err(format!(
+            "`{marker}` must appear once per boot ({boots} boots) but appeared {counted}x: a boot \
+             did not reach it"
+        )),
+        std::cmp::Ordering::Greater => Err(format!(
+            "`{marker}` must appear once per boot ({boots} boots) but appeared {counted}x: it \
+             printed more than once in a boot"
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,5 +423,14 @@ mod boot_count_tests {
         assert!(more.contains("repeats"), "{more}");
         assert!(judge_boots(1, 1, "b").is_ok());
         assert!(judge_boots(1, 0, "b").is_err());
+    }
+
+    #[test]
+    fn a_per_boot_marker_must_appear_exactly_once_per_boot() {
+        assert!(judge_per_boot(2, 2, "m").is_ok());
+        let fewer = judge_per_boot(2, 1, "m").unwrap_err();
+        assert!(fewer.contains("did not reach"), "{fewer}");
+        let more = judge_per_boot(2, 3, "m").unwrap_err();
+        assert!(more.contains("more than once"), "{more}");
     }
 }
