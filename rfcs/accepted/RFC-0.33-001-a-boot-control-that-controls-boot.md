@@ -351,6 +351,56 @@ allocatable**. Same file, same twenty instructions, same class as the comment th
 was true until the machine could reset itself. Fix it with D20's comment, and show
 the received value first.
 
+## Settled at the fifth ruling, 2026-09-24 (D20–D22's review)
+
+**D23 — the gate is accepted, and the tier claims more than it asserts.**
+`expect_boots` with an exact count is a real assertion, and `sched: started` is
+the right banner for the reason you give: counting the first line would have
+counted the hung second boot as a boot. The loader's three refusals, the recorded
+`boots.txt` before judging, and both controls — run, with the reverted `satp`
+clear turning the tier red — are what D21 asked for.
+
+**But the profile's header says** *"every boot must find and reserve firmware's
+tree, and the reset boot receives the pointer again"*, **and nothing enforces it.**
+`expected_markers` match anywhere in the log, so all four are satisfied by the
+first boot alone; a second boot that printed `sched: started` and then died would
+still pass. As it happens the claim is true — counted in the tier's own log:
+`mm: device tree reserved` **2**, `driver-uart: ready` **2**, `sched: started`
+**2** (and `M6: storaged ready` **4**, which is E-063's two writers, twice) — but
+true and unenforced is the shape this line exists to correct.
+
+**Make the count generic**: a marker that must appear once per boot carries a
+required count, and at least one of them is a **service**-level marker.
+`driver-uart: ready` is the natural choice — it is already the injection hook — so
+that *came back* means the machine reached the readiness the first boot did, not
+merely the end of the kernel's own boot. Correcting the header instead would be
+the weaker half of the fix.
+
+**That also answers your second question.** No "stop after N boots" mode: a hang
+after the second banner is exactly what the per-boot service marker catches, and
+it costs less than a new way to end a run. The 60-second wait is what its
+neighbours do; leave it.
+
+**D24 — the dependency, not the testability, is what I refuse.** Choosing a
+host-tested function over an inline check with no test was right. But `fdt_extent`
+is **14 lines** and uses **neither** of `fjell-dtb-validate`'s two dependencies
+(`fjell-platform-format`, `fjell-measure-format`) — so the most privileged
+component in the tree gained a 645-line crate and two format crates to read an
+8-byte header. Split those 14 lines, their constants and their tests into a leaf
+with no dependencies (or into a crate the kernel already has), and leave the
+boot-handoff validator outside the kernel until E-048 wires it deliberately. The
+kernel's dependency list is its trust surface, and it is easier to keep short than
+to shorten later.
+
+**D25 — E-064's closure verified, live.** The failing case was shown first as the
+ruling asked (`dtb_pa = 0x8007ccb8 = __bss_end`). At this tip: the tree is found at
+`0x87e00000`, 5,044 bytes, its **real extent** reserved, the free-frame count
+`32131 → 32129` — the two pages that were allocatable before — and **both boots**
+print all three lines. The reserve's failure is printed instead of discarded, and
+the header is checked before anything is stored or reserved. What survives is
+correctly named: only the header is read, and no path here has run on a real
+board's tree.
+
 ## The open questions
 
 **§A — Does the block survive the reset?** Persisting it means a store client:

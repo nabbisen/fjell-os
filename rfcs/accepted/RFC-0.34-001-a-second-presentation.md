@@ -193,6 +193,22 @@ evidence artefacts for all five new profiles (`fleet-demo` remains the only
 profile with none, and it is not a gated tier); and the `(ends by machine reset)`
 label, which removes the misreading I made myself.
 
+## Settled at the third review, 2026-09-24
+
+**D18 — D15 is delivered, and its control reproduced here.** `PresentationKind`
+is on the row, `DORMANT` is derived from the rows in a const block, and the
+compile-time check is keyed on **image ids**, not positions — so a row inserted
+anywhere can neither shift a flag nor slip past the assertion. I marked
+`proxy-text` test-only in a scratch worktree and the build stopped with
+`error[E0080]: evaluation panicked: a production presentation is marked
+test-only`; the worktree was removed and the main tree is unchanged. Naming it
+`PresentationKind` rather than `Kind`, because the engine's `Kind` is already
+imported, is the right call for the same reason the flag moved onto the row.
+
+**Nothing further on this line from me.** What remains for 0.34 is E-061, E-062
+and E-063, which want their own RFC (D17), and the two items on the 0.33-001 line
+(D23, D24).
+
 ## The open questions
 
 **§A — Which modality?** Candidates:
