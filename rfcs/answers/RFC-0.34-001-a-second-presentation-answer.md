@@ -400,3 +400,31 @@ not 313/125; E-049 has not landed, so CI's package lists were extended by hand;
 forward while `proxy-text` is blocked in its own `DISPATCH_ACTION` call) was never
 triggered; the new topology cannot have it, but I did not demonstrate the old one. The
 mid-run crash is a scratch build with a fault injected, not a committed tier.
+
+---
+
+## Second afterword — the review (2026-09-24), and what it removed
+
+The review ruled (D9) that **`proxy-relay` goes and `proxy-text` speaks the ask
+protocol**. D5 — "`proxy-text` is not modified beyond what fan-out requires" — was the
+instruction that produced the relay, and I chose it over economy in the first
+submission's question 1; the ruling corrects D5. It was right: the relay was a
+permanent shim, an image id, an endpoint object and a thirty-first prebuilt, kept to
+avoid roughly ten lines in one service. The design sections above that describe it are
+left as written and are superseded by this paragraph.
+
+What changed: `proxy-text`'s loop now asks the stream and parks on its own endpoint,
+exactly as `proxy-braille` does; it no longer replies to anything, so its `reply` helper
+went and, with it, its entry in Gate 11's allowlist; the stream wakes it through object
+8; braille took image id `0x1F` and endpoint object 13, so there are no gaps; the image
+count is **30**, as the RFC first said. What did **not** change, checked rather than
+assumed: the `semantic` profile's counts are identical to before (`[STATE]` 8, `[EVENT]`
+3, `[INTENT]` 3, `TEST:M7:PASS` 2, `driver-uart: ready` 1, `action accepted` 5, `action
+DENIED` 1; 371 lines), and the tiers that assert `proxy-text`'s markers pass. Those are
+the check the ruling named.
+
+Two consequences worth stating. The absent-from-boot tier's report now reads *"has not
+asked for anything"* (there is no relay that asked once and then blocked), and the
+parked-to-`recv` window the ruling says survives is now in `proxy-text` itself. The
+mid-run crash measurements above were taken **with** the relay in place; the committed
+crash tier the review requires (D11) replaces them.

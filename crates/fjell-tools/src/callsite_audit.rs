@@ -237,7 +237,7 @@ fn bcb_pattern_present(src: &str) -> bool {
 // is refused unless its `(file, enclosing function)` is named here, and an
 // allowlisted site must still declare every register the kernel writes for
 // that syscall as a correct clobber. Adding a 36th hand-rolled block, or
-// weakening one of the nine kept here, means editing this list — a
+// weakening one of the eight kept here, means editing this list — a
 // reviewed, two-line diff, not a comment convention anyone could add next
 // to their own new block.
 //
@@ -261,7 +261,6 @@ const ALLOWED_RAW_SYSCALL_SITES: &[(&str, &str)] = &[
     ),
     // Worded IpcReply (23): sys_ipc_reply carries the tag only, no payload.
     ("crates/services/fjell-measuredd/src/main.rs", "reply"),
-    ("crates/services/fjell-proxy-text/src/main.rs", "reply"),
     ("crates/services/fjell-recoveryd/src/main.rs", "reply"),
     ("crates/services/fjell-semantic-stream/src/main.rs", "reply"),
     // RFC-0.34-001 D8: a four-word IpcReply. The stream answers a

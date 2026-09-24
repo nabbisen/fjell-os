@@ -211,21 +211,13 @@ pub const BOOTCTL_HEALTH_SEND_SLOT: u32 = 22;
 // `rfcs/answers/RFC-0.34-001-a-second-presentation-answer.md`.
 
 impl ImageId {
-    /// Asks the stream for messages and forwards each to `proxy-text` with the
-    /// blocking call `proxy-text` has always answered — so `proxy-text` is
-    /// unchanged and whatever it blocks is blocked in this task, not in the
-    /// stream (RFC-0.34-001 D5/D8).
-    pub const PROXY_RELAY: ImageId = ImageId(0x1F); // 31
     /// The second presentation: uncontracted braille cells, written to the
     /// console as the stream a display driver would consume (RFC-0.34-001 §A).
-    pub const PROXY_BRAILLE: ImageId = ImageId(0x20); // 32
+    pub const PROXY_BRAILLE: ImageId = ImageId(0x1F); // 31
 }
 
-/// The endpoint object `proxy-relay` receives its wake on.
-pub const PROXY_RELAY_EP_OBJECT: u32 = 13;
-
 /// The endpoint object `proxy-braille` receives its wake on.
-pub const PROXY_BRAILLE_EP_OBJECT: u32 = 14;
+pub const PROXY_BRAILLE_EP_OBJECT: u32 = 13;
 
 /// How many endpoint objects the kernel allocates at boot: the highest object
 /// id above, plus one. `crates/fjell-kernel/src/main.rs` asserts that each
@@ -235,7 +227,7 @@ pub const PROXY_BRAILLE_EP_OBJECT: u32 = 14;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 15;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 14;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -302,7 +294,6 @@ mod endpoint_allocation_tests {
             ("SERVICE_MANAGER_EP_OBJECT", SERVICE_MANAGER_EP_OBJECT),
             ("INIT_RELAY_EP_OBJECT", INIT_RELAY_EP_OBJECT),
             ("BOOTCTL_EP_OBJECT", BOOTCTL_EP_OBJECT),
-            ("PROXY_RELAY_EP_OBJECT", PROXY_RELAY_EP_OBJECT),
             ("PROXY_BRAILLE_EP_OBJECT", PROXY_BRAILLE_EP_OBJECT),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");

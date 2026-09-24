@@ -471,10 +471,6 @@ pub extern "C" fn service_main() -> ! {
 
     // ── M5 ───────────────────────────────────────────────────────────────────
     spawn(ImageId::SEMANTIC_STREAM, "M5: semantic-stream started");
-    // RFC-0.34-001 D8: `proxy-relay` asks the stream on `proxy-text`'s behalf,
-    // so a `proxy-text` that blocks (or never runs) blocks only the relay —
-    // never the stream, and never a publisher (E-058).
-    spawn(ImageId::PROXY_RELAY, "M5: proxy-relay started");
     // RFC-0.34-001: the second presentation, asking the stream like the first.
     spawn(ImageId::PROXY_BRAILLE, "M5: proxy-braille started");
     // RFC-0.34-001 D8's demonstration needs a presentation that is *absent*, in

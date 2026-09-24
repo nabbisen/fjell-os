@@ -257,10 +257,8 @@ pub fn spawn(
                 fjell_abi::service::ImageId::SEMANTIC_STREAM => 7,
                 fjell_abi::service::ImageId::PROXY_TEXT => 8,
                 // RFC-0.34-001 D8: each presentation's own endpoint, where the
-                // stream's wake arrives. Never shared (RFC-0.28-001).
-                fjell_abi::service::ImageId::PROXY_RELAY => {
-                    fjell_abi::service::PROXY_RELAY_EP_OBJECT
-                }
+                // stream's wake arrives (proxy-text's is object 8 above). Never
+                // shared (RFC-0.28-001).
                 fjell_abi::service::ImageId::PROXY_BRAILLE => {
                     fjell_abi::service::PROXY_BRAILLE_EP_OBJECT
                 }
@@ -721,13 +719,11 @@ pub fn spawn(
             // capability of its own. Before this line, slot 1 was a full
             // capability to proxy-text's endpoint (object 8), used for a
             // blocking forward that could stall every publisher (E-058).
-            //   1 = proxy-relay's endpoint (object 13)
-            //   2 = proxy-braille's endpoint (object 14)
+            //   1 = proxy-text's endpoint (object 8)
+            //   2 = proxy-braille's endpoint (object 13)
             if image_id == fjell_abi::service::ImageId::SEMANTIC_STREAM {
-                for (slot, object_id) in [
-                    (1, fjell_abi::service::PROXY_RELAY_EP_OBJECT),
-                    (2, fjell_abi::service::PROXY_BRAILLE_EP_OBJECT),
-                ] {
+                for (slot, object_id) in [(1, 8), (2, fjell_abi::service::PROXY_BRAILLE_EP_OBJECT)]
+                {
                     let _ = cs.install_raw(
                         slot,
                         Capability {
@@ -743,33 +739,15 @@ pub fn spawn(
                     );
                 }
             }
-            // Slots 1-2 for PROXY_RELAY, slot 1 for PROXY_BRAILLE (RFC-0.34-001
-            // D8): a CALL capability to the stream (object 7), which they ask;
-            // and, for the relay, one to proxy-text (object 8), whose blocking
-            // protocol it speaks so that the stream does not.
-            if image_id == fjell_abi::service::ImageId::PROXY_RELAY
-                || image_id == fjell_abi::service::ImageId::PROXY_BRAILLE
-            {
+            // Slot 1 for PROXY_BRAILLE (RFC-0.34-001 D8): a CALL capability to
+            // the stream (object 7), which it asks. `proxy-text` holds the same
+            // one at slot 1 below, for its return leg and now also its asks.
+            if image_id == fjell_abi::service::ImageId::PROXY_BRAILLE {
                 let _ = cs.install_raw(
                     1,
                     Capability {
                         kind: CapKind::Endpoint,
                         object_id: 7,
-                        rights: CapRights::ALL_NON_META,
-                        badge: 0,
-                        scope: ObjectScope::Any,
-                        state: CapState::Active,
-                        parent: None,
-                        lease: None,
-                    },
-                );
-            }
-            if image_id == fjell_abi::service::ImageId::PROXY_RELAY {
-                let _ = cs.install_raw(
-                    2,
-                    Capability {
-                        kind: CapKind::Endpoint,
-                        object_id: 8,
                         rights: CapRights::ALL_NON_META,
                         badge: 0,
                         scope: ObjectScope::Any,

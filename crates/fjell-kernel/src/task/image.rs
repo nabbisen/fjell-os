@@ -42,8 +42,6 @@ static SAMPLE_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-sample-service.b
 // M5 services
 static SEMANTIC_STREAM_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-semantic-stream.bin");
 static PROXY_TEXT_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-proxy-text.bin");
-// RFC-0.34-001 D8: asks the stream on proxy-text's behalf.
-static PROXY_RELAY_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-proxy-relay.bin");
 // RFC-0.34-001: the second presentation.
 static PROXY_BRAILLE_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-proxy-braille.bin");
 
@@ -58,7 +56,6 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::SAMPLE_SERVICE => Some(SAMPLE_BIN),
         ImageId::SEMANTIC_STREAM => Some(SEMANTIC_STREAM_BIN),
         ImageId::PROXY_TEXT => Some(PROXY_TEXT_BIN),
-        ImageId::PROXY_RELAY => Some(PROXY_RELAY_BIN),
         ImageId::PROXY_BRAILLE => Some(PROXY_BRAILLE_BIN),
         ImageId::DEVMGR => Some(DEVMGR_BIN),
         ImageId::DRIVER_VIRTIO_BLK => Some(VIRTIO_BLK_BIN),

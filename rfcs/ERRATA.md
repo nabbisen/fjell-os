@@ -3906,12 +3906,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   reply (the only IPC that never blocks its issuer — the kernel has no
   non-blocking send, a server holds one reply edge, and a dead receiver never
   releases a blocked sender, so reordering the forward would only have moved the
-  stall to the next publish). `proxy-text`'s protocol is blocking, so a new
-  `proxy-relay` asks on its behalf and `proxy-text`'s **source** is untouched.
+  stall to the next publish). `proxy-text` and the new `proxy-braille` both ask.
+  *(Amended at the review, D9: a `proxy-relay` task that asked on `proxy-text`'s
+  behalf, so that its source stayed untouched, was built first and then removed —
+  it was a permanent shim, an image, an endpoint and a prebuilt to avoid about ten
+  lines. The measurements below were taken with it in place; the tiers and the
+  `semantic` counts were re-run without it, identical.)*
 
   | | before | after |
   |---|---|---|
-  | `semantic` profile, `proxy-text` never started | **124** lines (this entry said 125), every semantic count 0; `init` stops at its first publish and never reaches `driver-uart` | tier **`semantic-absent`**: **270** lines with braille still running; `TEST:M7:PASS` and `driver-uart: ready` reached; the stream prints `presentation text has stopped asking` |
+  | `semantic` profile, `proxy-text` never started | **124** lines (this entry said 125), every semantic count 0; `init` stops at its first publish and never reaches `driver-uart` | tier **`semantic-absent`**: **270** lines with braille still running; `TEST:M7:PASS` and `driver-uart: ready` reached; the stream prints `presentation text has not asked for anything` |
   | control: the *old* stream on that same profile | — | **124** lines, `TEST:M7:PASS`, `driver-uart: ready` and the stream's line all missing, exit 1 |
   | `proxy-text` faulting on its 40th call (scratch build, fault injected) | **229** lines; 3 `[STATE]` / 1 `[EVENT]` / 1 `[INTENT]`; `init` stops at its next publish | **313** lines; `TEST:M7:PASS` twice, `driver-uart: ready` once; braille keeps rendering (56 lines); the stream reports `presentation text has stopped asking; 9 envelopes waiting` |
   | presentations that exist | one | two: `proxy-braille` renders the same envelope, asserted by content in `semantic-braille` |
@@ -3932,7 +3936,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   wait on one, in code this project wrote; (c) envelopes a presentation cannot
   take are queued to **8 KiB and then dropped**, newest first, and the gap is
   reported on the node's console line, **not through the presentation**; (d)
-  nothing restarts a stuck presentation, and the relay stays blocked. **The
+  nothing restarts a stuck presentation. **The
   mid-run crash is not a committed tier** — the committed tier is
   absence-from-boot; the crash case was a scratch build. And **E-059 and E-060
   are unchanged**: the stream now keys a presentation by the kernel-attested

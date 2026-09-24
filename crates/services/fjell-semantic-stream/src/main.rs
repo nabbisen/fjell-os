@@ -109,11 +109,10 @@ struct PresentationSlot {
 
 /// The presentations, in fan-out order. Adding one is a row here, a spawn-table
 /// entry and an endpoint — no decoding, validation or envelope content changes
-/// (RFC-0.34-001 D2). `proxy-text` is served through `proxy-relay`, which asks
-/// on its behalf (RFC-0.34-001 D5).
+/// (RFC-0.34-001 D2). `proxy-text` asks like any other (RFC-0.34-001 D9).
 const PRESENTATIONS: [PresentationSlot; 2] = [
     PresentationSlot {
-        image_id: fjell_abi::service::ImageId::PROXY_RELAY.0,
+        image_id: fjell_abi::service::ImageId::PROXY_TEXT.0,
         wake_slot: 1,
         name: "text",
     },

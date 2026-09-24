@@ -798,12 +798,6 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // allocation added above this line without moving the constant) stops the
     // boot here, in every tier, instead of failing one IPC later with
     // `InvalidCap` from a perfectly valid capability.
-    let proxy_relay_ep_id = et.alloc().expect("alloc proxy-relay endpoint");
-    assert_eq!(
-        proxy_relay_ep_id,
-        fjell_abi::service::PROXY_RELAY_EP_OBJECT,
-        "PROXY_RELAY_EP_OBJECT does not name the object just allocated"
-    );
     let proxy_braille_ep_id = et.alloc().expect("alloc proxy-braille endpoint");
     assert_eq!(
         proxy_braille_ep_id,

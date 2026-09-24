@@ -4,14 +4,17 @@
 mod rt;
 use fjell_cap::CapHandle;
 use fjell_proxy_text::{render_event, render_intent, render_state};
-use fjell_semantic_format::{ActionId, CorrelationId, IntentNode, SemanticPayload, wire};
+use fjell_semantic_format::{ActionId, CorrelationId, SemanticPayload, wire};
+use fjell_service_api::presentation;
 use fjell_service_api::proxy_text as proto;
 use fjell_service_api::semantic_stream as sem_proto;
-use fjell_syscall::{sys_cap_inspect, sys_debug_writeln};
+use fjell_syscall::{sys_cap_inspect, sys_debug_writeln, sys_ipc_recv_msg};
 
+/// This task's own endpoint (object 8): where the stream's wake arrives.
 const EP_SLOT: u32 = 0;
 // semantic-stream endpoint cap (object 7), pre-installed by spawn.rs
-// (RFC-v0.23-001) — used for the DISPATCH_ACTION return leg.
+// (RFC-v0.23-001) — used to ASK for the next message (RFC-0.34-001 D8/D9) and
+// for the DISPATCH_ACTION return leg.
 const SEM_STREAM_EP: u32 = 1;
 // A deliberately narrow-rights capability (SEND | REPLY only), pre-installed
 // by spawn.rs at slot 2. Inspected via sys_cap_inspect (kernel-verified, not
@@ -23,25 +26,6 @@ const DEMO_CAP_SLOT: u32 = 2;
 /// `size_of::<SemanticEnvelope>()`, which is the struct's in-memory size and
 /// has nothing to do with its encoding.
 const ENV_BUF_SIZE: usize = wire::MAX_WIRE_BYTES.div_ceil(32) * 32;
-
-fn recv_call() -> (usize, usize, usize, usize, usize) {
-    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
-    // is a correct superset (also returns the sender identity, unused here).
-    match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
-        Ok((t, w0, w1, w2, w3, _sender)) => (t, w0, w1, w2, w3),
-        Err(_) => (0, 0, 0, 0, 0),
-    }
-}
-
-/// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted): see
-/// `fjell-measuredd::reply`'s identical note — 3-word `IpcReply` has no
-/// `fjell-syscall` wrapper.
-fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
-    // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
-    unsafe {
-        core::arch::asm!("li a7, 23","ecall", inlateout("a0") 0usize => _, in("a1") tag, in("a2") w0, in("a3") w1, in("a4") w2, lateout("a7") _, options(nostack));
-    }
-}
 
 /// Issue a capability-checked `ActionRequest` for one action back to
 /// semantic-stream (RFC-v0.23-001 Slice 3). `granted_rights` comes from
@@ -112,100 +96,80 @@ fn ipc_call_action(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize) ->
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // RFC-0.26-004 (closes E-020/E-021): this used to announce readiness by
-    // sending `proto::READY` into this task's own endpoint (object 8) — a
-    // message nothing has consumed since `init`'s `wait_ready_exact` was
-    // removed (see `fjell-init/src/main.rs`'s M5 section): under the
-    // established invariant, this endpoint's only receiver is proxy-text
-    // itself, so a self-addressed announcement has no reader.
-    //
-    // It was also actively harmful, not merely dead: one-way `sys_ipc_send`
-    // (`crates/fjell-kernel/src/cap/syscall.rs`) blocks the caller when the
-    // message queues with no receiver waiting — correct kernel behaviour
-    // (rendezvous IPC), but at the time this was written the wrapper was
-    // named `sys_ipc_try_send` and documented a non-blocking, fire-and-
-    // forget contract the kernel never implemented. Calling `send_ready()`
-    // here — before this task has reached its own `recv_call()` — queued
-    // the message against the very endpoint only this task could ever
-    // drain, self-deadlocking permanently. This was previously masked by
-    // `init` also holding a receive capability here and reaching
-    // `wait_ready_exact` first, giving the send an immediate receiver;
-    // removing `init` as a receiver (RFC-0.26-004) removed that accidental
-    // cover. Filed as E-022; closed by RFC-0.27-002, which renamed the
-    // wrapper to `sys_ipc_send` and corrected its doc comment to describe
-    // the blocking contract the kernel actually has — see
-    // `crates/fjell-syscall/src/lib.rs` and
-    // `rfcs/answers/RFC-0.27-002-one-way-send-contract-answer.md`.
+    // sending `proto::READY` into this task's own endpoint — a message nothing
+    // consumed, and one that self-deadlocked (a one-way send blocks when no
+    // receiver waits; E-022, closed by RFC-0.27-002). Only the init line below
+    // announces now.
     sys_debug_writeln("M5: proxy-text started");
 
     let mut frames = fjell_service_api::chunked::Reassembler::<ENV_BUF_SIZE>::new();
 
+    // RFC-0.34-001 D8/D9: this service ASKS the stream for its messages and is
+    // answered by reply (`fjell_service_api::presentation`), instead of being
+    // called by it. The stream therefore never initiates a blocking IPC to a
+    // presentation: one that never starts, or faults, cannot stall a publisher
+    // (E-058). Until D9 a separate relay task asked on this service's behalf,
+    // because this loop answered a blocking protocol; that was a permanent shim
+    // to avoid roughly ten lines here.
+    //
+    // Nothing between being told "parked" and reaching `recv` below can fault
+    // but this one call: that window is the one place the stream can wait on a
+    // presentation (its wake), and it is a named survivor of E-058.
     loop {
-        let (tag_packed, w0, w1, w2, w3) = recv_call();
-        let tag = tag_packed & 0xFFFF;
-        match tag {
-            t if t == proto::RENDER_BEGIN => {
-                // RFC-0.32-002 D3, as in semantic-stream: the declared length
-                // is recorded and checked, not discarded.
-                match frames.begin(w0) {
-                    Ok(()) => reply(proto::RENDER_OK, 0, 0, 0),
-                    Err(_) => reply(proto::ERR, 0, 0, 0),
+        match presentation::ask(SEM_STREAM_EP) {
+            presentation::Ask::Message { tag, words } => match tag {
+                t if t == proto::RENDER_BEGIN => {
+                    // RFC-0.32-002 D3: the declared length is recorded and
+                    // checked, not discarded.
+                    let _ = frames.begin(words[0]);
                 }
-            }
-            t if t == proto::RENDER_CHUNK => match frames.chunk(w0, w1, w2, w3) {
-                Ok(()) => reply(proto::RENDER_OK, 0, 0, 0),
-                Err(_) => {
+                t if t == proto::RENDER_CHUNK => {
+                    if frames
+                        .chunk(words[0], words[1], words[2], words[3])
+                        .is_err()
+                    {
+                        frames.reset();
+                    }
+                }
+                t if t == proto::RENDER_COMMIT => {
+                    let decoded = match frames.commit() {
+                        Ok(bytes) => wire::decode_exact(bytes).ok(),
+                        Err(_) => None,
+                    };
                     frames.reset();
-                    reply(proto::ERR, 0, 0, 0);
+                    let Some(envelope) = decoded else {
+                        // Framing or decoding refused it. Say so, as the
+                        // braille presentation does, rather than show nothing.
+                        sys_debug_writeln("proxy-text: envelope refused");
+                        continue;
+                    };
+                    match &envelope.payload {
+                        SemanticPayload::State(n) => render_state(n),
+                        SemanticPayload::Event(n) => render_event(n),
+                        SemanticPayload::Intent(n) => {
+                            render_intent(n);
+                            let correlation_id: u64 = match envelope.correlation_id {
+                                Some(CorrelationId(c)) => c,
+                                None => envelope.sequence,
+                            };
+                            // The return leg is an independent round trip to the
+                            // stream. It used to have to wait until this task had
+                            // replied to the stream's blocked forward, or both
+                            // deadlocked (confirmed live); the stream no longer
+                            // waits on this task at all.
+                            for action in n.actions.iter() {
+                                dispatch_action(correlation_id, action.action_id);
+                            }
+                        }
+                    }
                 }
+                _ => {}
             },
-            t if t == proto::RENDER_COMMIT => {
-                let decoded = match frames.commit() {
-                    Ok(bytes) => wire::decode_exact(bytes).ok(),
-                    Err(_) => None,
-                };
-                frames.reset();
-                let Some(envelope) = decoded else {
-                    // Framing or decoding refused it. proxy_text has no
-                    // RENDER_ERR; `ERR` is this protocol's error reply.
-                    reply(proto::ERR, 0, 0, 0);
-                    continue;
-                };
-                // Render (and, for an Intent, copy out what the return leg
-                // needs) BEFORE replying. `dispatch_action` below calls back
-                // into semantic-stream — which is, right now, still blocked
-                // waiting for *this* RENDER_COMMIT reply. Issuing that call
-                // before replying would deadlock (semantic-stream can't
-                // service a new incoming call while blocked on its own
-                // pending one); confirmed live as a silent hang, not a
-                // fault, before this fix. So: reply first, unblocking
-                // semantic-stream, then dispatch actions as an independent
-                // follow-up round trip.
-                let pending_actions: Option<(u64, IntentNode)> = match &envelope.payload {
-                    SemanticPayload::State(n) => {
-                        render_state(n);
-                        None
-                    }
-                    SemanticPayload::Event(n) => {
-                        render_event(n);
-                        None
-                    }
-                    SemanticPayload::Intent(n) => {
-                        render_intent(n);
-                        let correlation_id: u64 = match envelope.correlation_id {
-                            Some(CorrelationId(c)) => c,
-                            None => envelope.sequence,
-                        };
-                        Some((correlation_id, *n))
-                    }
-                };
-                reply(proto::RENDER_OK, 0, 0, 0);
-                if let Some((correlation_id, intent)) = pending_actions {
-                    for action in intent.actions.iter() {
-                        dispatch_action(correlation_id, action.action_id);
-                    }
-                }
+            presentation::Ask::Empty => {
+                // Parked. The stream sends one wake when there is something;
+                // whatever arrives, ask again.
+                let _ = sys_ipc_recv_msg(EP_SLOT);
             }
-            _ => reply(proto::ERR, 0, 0, 0),
         }
     }
 }

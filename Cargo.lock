@@ -861,14 +861,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fjell-proxy-relay"
-version = "0.32.0"
-dependencies = [
- "fjell-service-api",
- "fjell-syscall",
-]
-
-[[package]]
 name = "fjell-proxy-text"
 version = "0.32.0"
 dependencies = [

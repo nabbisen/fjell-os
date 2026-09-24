@@ -452,7 +452,6 @@ fn image_label(image_id: ImageId) -> &'static str {
         ImageId::SUMMARYD => "summaryd",
         ImageId::SYNCD => "syncd",
         ImageId::DRIVER_UART => "driver-uart",
-        ImageId::PROXY_RELAY => "proxy-relay",
         ImageId::PROXY_BRAILLE => "proxy-braille",
         _ => "task",
     }

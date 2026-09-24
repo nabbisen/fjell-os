@@ -73,15 +73,17 @@ person, and the list is the reason no page says otherwise.
    receiver never releases a blocked sender, so the fix is not a reordering: the
    stream **never initiates a blocking call to a presentation**. Each presentation
    *asks* the stream and is answered by reply, and is woken through an endpoint
-   of its own; `proxy-text`, whose protocol is blocking, is served through
-   `proxy-relay`, which absorbs the block, so `proxy-text`'s source is unchanged.
+   of its own. Both presentations ask; `proxy-text` was converted to (RFC-0.34-001
+   D9) after a relay task that asked on its behalf was built and then judged a
+   permanent shim for ten lines of code, and removed.
    The `semantic-absent` tier starts the node without `proxy-text` and `init`
    reaches its last phase (270 lines in the tier, with the braille presentation
    still running; the same absence stopped the node at 124 lines before), and the
-   stream says on its own output that the presentation stopped asking. The other
-   case E-058 measured — `proxy-text` **faulting mid-run** — was re-run against
-   the new code in a scratch build with the fault injected (**not** a committed
-   tier): `init` reaches its last phase (313 lines against the 229 it stopped at),
+   stream says on its own output that the presentation has not asked for
+   anything. The other case E-058 measured — `proxy-text` **faulting mid-run** —
+   was re-run against the new code in a scratch build with the fault injected
+   (**not** a committed tier; and measured while a relay still stood between the
+   stream and `proxy-text`, which has since been removed): `init` reaches its last phase (313 lines against the 229 it stopped at),
    the braille presentation keeps rendering, and the stream reports the text
    presentation as no longer asking. **What survives**, named:
    (a) a presentation that is *alive but never asks again* is not detected as

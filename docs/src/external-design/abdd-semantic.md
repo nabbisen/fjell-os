@@ -92,7 +92,7 @@ That is the architectural claim; it has been exercised with **two** proxies, on 
   `semantic-stream` never initiates a blocking call to a presentation: each
   presentation asks the stream and is answered by reply (an 8 KiB queue each,
   dropping the newest when full, reported on the node's own output); `proxy-text`
-  is served through `proxy-relay`. Errata E-058 is closed. What survives — a
+  asks like the others. Errata E-058 is closed. What survives — a
   presentation that is alive but silent is not detected as dead, a short window
   in which a faulting presentation could still hold the stream, gaps that are
   reported on the console and not through the presentation, and nothing that
