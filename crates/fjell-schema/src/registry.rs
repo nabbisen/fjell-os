@@ -18,6 +18,11 @@ pub struct Format {
     /// Dated notes on what the file used to claim (D3). Documentation about the
     /// past, not a description of a layout.
     pub notes: &'static [&'static str],
+    /// The format's **on-disk version**, where it has one (RFC-0.33-003 D11): read from
+    /// the crate's own constant, so the header says the format's version — what a
+    /// reader of `store-superblock.frozen` wants — and not the release the file was
+    /// generated in (that is `version`, kept beside it).
+    pub on_disk: Option<fn() -> u16>,
     /// The encoder, run on the representative value.
     pub write: fn(&mut dyn Canon),
 }
@@ -94,27 +99,15 @@ fn platform(c: &mut dyn Canon) {
 fn store_superblock(c: &mut dyn Canon) {
     s::store_superblock().write_canonical(c);
     c.note(
-        "on_disk_version",
-        &fjell_store_format::STORE_SUPERBLOCK_VERSION.to_string(),
-    );
-    c.note(
         "sector_bytes",
         "512 (the caller zero-fills the rest of the sector explicitly)",
     );
 }
 fn record_header(c: &mut dyn Canon) {
     s::record_header().write_canonical(c);
-    c.note(
-        "on_disk_version",
-        &fjell_store_format::RECORD_HEADER_VERSION.to_string(),
-    );
 }
 fn boot_control(c: &mut dyn Canon) {
     s::boot_control_block().write_canonical(c);
-    c.note(
-        "on_disk_version",
-        &fjell_upgrade_format::BOOT_CONTROL_VERSION.to_string(),
-    );
     c.note(
         "sector_bytes",
         "512 (the caller zero-fills the rest of the sector explicitly)",
@@ -131,6 +124,7 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim `channel` u8[16], `min_counter` u32 and `updated_tick`, and omitted `last_advance_source` and the 32-byte `record_digest_placeholder`; the encoder writes `channel_id` u8[8], `min_counter` u64, `last_advance_tick`, `last_advance_source` and the placeholder. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
+        on_disk: None,
         write: rollback,
     },
     Format {
@@ -142,6 +136,7 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to describe a different structure (domain FJELL-RELEASE-V1; `release_id`, `channel` u8[16], `counter` u32, `min_counter` u32, kernel/rootfs/policy digests and a `signature` triple); the encoder writes domain FJELL-RELEASE-META-V1 and the fields below. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
+        on_disk: None,
         write: release_metadata,
     },
     Format {
@@ -153,6 +148,7 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to list 16 fields (provider, measurement_head, three digests, health_result, signature); the encoder writes the keyring, boot, verification, measurement, snapshot, health, rollback, freshness and provenance groups as well and has no signature in the digest stream. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
+        on_disk: None,
         write: attestation,
     },
     Format {
@@ -164,6 +160,7 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim `purpose_count` and six `purpose[0..6]` records with a 64-byte `anchor_bytes`; the encoder writes the SNAP-V1 domain, `anchor_count` and 28 slots of present/purpose/algorithm/authority/epoch/reserved/key_len/key_bytes. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
+        on_disk: None,
         write: keyring,
     },
     Format {
@@ -175,6 +172,7 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim `export_tick`, `source_service`, `entry_count` and `entries[]` of tag/tick/len/body; the encoder writes `created_tick`, `measurement_head`, `last_attestation` and two counted groups, `audit_events` and `semantic_intents`. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
+        on_disk: None,
         write: diag,
     },
     Format {
@@ -184,6 +182,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen)",
         path: "crates/formats/fjell-identity-format/schema/node-identity-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: identity,
     },
     Format {
@@ -193,6 +192,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.6.0 (frozen)",
         path: "crates/formats/fjell-platform-format/schema/board-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: board,
     },
     Format {
@@ -202,6 +202,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen)",
         path: "crates/formats/fjell-summary-format/schema/measurement-summary-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: measurement_summary,
     },
     Format {
@@ -211,6 +212,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen)",
         path: "crates/formats/fjell-summary-format/schema/release-summary-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: release_summary,
     },
     Format {
@@ -220,6 +222,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen) BREAKING-SCHEMA: see ADR-v0.7-004",
         path: "crates/formats/fjell-snapshot-format/schema/snapshot-v2.frozen",
         notes: &[],
+        on_disk: None,
         write: snapshot,
     },
     Format {
@@ -231,6 +234,7 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim one `fields[].value` of width FieldKind.wire_size and carry hand-typed `catalog_entries`/`catalog_version` lines; it now records the widest catalogue entry and derives the notes from the catalogue. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
+        on_disk: None,
         write: semantic,
     },
     Format {
@@ -240,6 +244,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.8.0 (first generated)",
         path: "crates/formats/fjell-fleet-format/schema/fleet-roster-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: fleet_roster,
     },
     Format {
@@ -249,6 +254,7 @@ pub const FORMATS: &[Format] = &[
         version: "v0.8.0 (first generated)",
         path: "crates/formats/fjell-fleet-format/schema/fleet-policy-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: fleet_policy,
     },
     Format {
@@ -258,33 +264,37 @@ pub const FORMATS: &[Format] = &[
         version: "v0.6.0 (frozen)",
         path: "crates/formats/fjell-platform-format/schema/platform-v1.frozen",
         notes: &[],
+        on_disk: None,
         write: platform,
     },
     Format {
         id: "store-superblock",
         krate: "fjell-store-format",
         name: "StoreSuperblock",
-        version: "v0.33.0 (first generated; on-disk version in the body)",
+        version: "first generated in v0.33.0",
         path: "crates/formats/fjell-store-format/schema/store-superblock.frozen",
         notes: &[],
+        on_disk: Some(|| fjell_store_format::STORE_SUPERBLOCK_VERSION),
         write: store_superblock,
     },
     Format {
         id: "record-header",
         krate: "fjell-store-format",
         name: "RecordHeader",
-        version: "v0.33.0 (first generated; on-disk version in the body)",
+        version: "first generated in v0.33.0",
         path: "crates/formats/fjell-store-format/schema/record-header.frozen",
         notes: &[],
+        on_disk: Some(|| fjell_store_format::RECORD_HEADER_VERSION),
         write: record_header,
     },
     Format {
         id: "boot-control-block",
         krate: "fjell-upgrade-format",
         name: "BootControlBlock",
-        version: "v0.33.0 (first generated; on-disk version in the body)",
+        version: "first generated in v0.33.0",
         path: "crates/formats/fjell-upgrade-format/schema/boot-control-block.frozen",
         notes: &[],
+        on_disk: Some(|| fjell_upgrade_format::BOOT_CONTROL_VERSION),
         write: boot_control,
     },
 ];

@@ -254,6 +254,45 @@ fn a_survivor_is_named_in_the_register() {
     }
 }
 
+// ── D11: a format's header says the format's version ───────────────────────
+
+/// A reader of `store-superblock.frozen` wants the format's version (v3), not the
+/// release the file was generated in. The header states it, from the crate's own
+/// constant, and the body does not say it a second time.
+#[test]
+fn a_disk_structures_header_states_its_on_disk_version() {
+    let mut checked = 0;
+    for f in FORMATS.iter().filter(|f| f.on_disk.is_some()) {
+        let v = (f.on_disk.unwrap())();
+        let text = generate(f).unwrap();
+        let header = text.lines().find(|l| l.starts_with("# version:")).unwrap();
+        assert!(
+            header.starts_with(&format!("# version: v{v} on disk")),
+            "{}: {header}",
+            f.id
+        );
+        assert!(
+            !text.contains("on_disk_version"),
+            "{}: the version is said once",
+            f.id
+        );
+        checked += 1;
+    }
+    assert_eq!(checked, 3, "the three disk structures");
+    // and the values are the real ones
+    let get = |id: &str| {
+        FORMATS
+            .iter()
+            .find(|f| f.id == id)
+            .unwrap()
+            .on_disk
+            .unwrap()()
+    };
+    assert_eq!(get("store-superblock"), 3);
+    assert_eq!(get("boot-control-block"), 3);
+    assert_eq!(get("record-header"), 1);
+}
+
 // ── Controls: the comparison names what changed ──────────────────────────────
 
 fn rollback() -> (String, &'static fjell_schema::registry::Format) {

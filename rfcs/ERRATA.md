@@ -3427,7 +3427,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the same tree or board and are each refused by the check that names them.
   **The kernel's dependency list shrank** (D6): the 14-line header reader the kernel
   runs every boot moved to a dependency-free crate, `fjell-fdt-header`, so the kernel
-  no longer links the validator or the crates beside it — **8 crates → 6**,
+  no longer links the validator or the crates beside it — **8 crates → 5** (`fjell-abi`, `fjell-audit-format`, `fjell-cap`, `fjell-fdt-header`, `fjell-ipc`; corrected at review — the first figure counted `fjell-cap` twice),
   `fjell-dtb-validate`, `fjell-platform-format`, `fjell-measure-format` and
   `fjell-canon` out, `fjell-fdt-header` in (`fjell-canon` had reached the kernel by
   this route after RFC-0.33-003).

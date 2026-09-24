@@ -31,7 +31,11 @@ pub fn generate(f: &Format) -> Result<String, Vec<String>> {
     );
     out.push_str(&format!("# crate: {}\n", f.krate));
     out.push_str(&format!("# format: {}\n", f.name));
-    out.push_str(&format!("# version: {}\n", f.version));
+    match f.on_disk {
+        // The format's own version first (D11), and where the file came from beside it.
+        Some(v) => out.push_str(&format!("# version: v{} on disk ({})\n", v(), f.version)),
+        None => out.push_str(&format!("# version: {}\n", f.version)),
+    }
     for n in f.notes {
         out.push_str(&format!("# note: {n}\n"));
     }
