@@ -18,7 +18,7 @@
 #     guest-initiated `guest-reset` and QEMU exited by itself, not by the
 #     timeout wrapper -- the machine's behaviour is the evidence. A reset that
 #     did not happen is a hang or a power-off, and both fail the run
-#     (tests/qemu_shutdown.rs, five refusals with tests).
+#     (crates/fjell-tools/src/qemu_shutdown.rs, five refusals, each a unit test).
 #   * If sys_reboot *returns*, neg-test prints NEG:HARNESS:REBOOT_RETURNED, a
 #     forbidden harness marker, and the run fails closed.
 #
