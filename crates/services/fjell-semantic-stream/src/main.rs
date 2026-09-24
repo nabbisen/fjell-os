@@ -97,14 +97,29 @@ use fjell_service_api::semantic_stream as proto;
 
 const EP_SLOT: u32 = 0;
 
+/// What kind of presentation a row is — which decides how the stream treats one
+/// that has not started (RFC-0.34-001 D15).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PresentationKind {
+    /// The image **expects** it. Envelopes published before it starts are queued
+    /// for it and delivered when it does, and one that never starts is reported
+    /// (E-058's point): its absence is a fault.
+    Expected,
+    /// Only a test starts it. Nothing is queued for it, counted against it or
+    /// reported about it until it first asks, so a profile that never starts it
+    /// pays nothing and hears nothing.
+    TestOnly,
+}
+
 /// One presentation this stream serves: who it is (by the kernel-attested image
 /// id of its `NEXT` call — never by a word it sends), the CSpace slot holding
-/// the send capability to its own endpoint (used only for the wake), and the
-/// name the node's output uses for it.
+/// the send capability to its own endpoint (used only for the wake), the name
+/// the node's output uses for it, and what kind it is.
 struct PresentationSlot {
     image_id: u16,
     wake_slot: u32,
     name: &'static str,
+    kind: PresentationKind,
 }
 
 /// The presentations, in fan-out order. Adding one is a row here, a spawn-table
@@ -115,25 +130,53 @@ const PRESENTATIONS: [PresentationSlot; 3] = [
         image_id: fjell_abi::service::ImageId::PROXY_TEXT.0,
         wake_slot: 1,
         name: "text",
+        kind: PresentationKind::Expected,
     },
     PresentationSlot {
         image_id: fjell_abi::service::ImageId::PROXY_BRAILLE.0,
         wake_slot: 2,
         name: "braille",
+        kind: PresentationKind::Expected,
     },
-    // RFC-0.34-001 D11: the test-only presentation that faults. Dormant: nothing
-    // is queued for it, counted against it or reported about it unless it
-    // starts (only the `semantic-crash` profile starts it), so no other profile
-    // pays for it or hears of it.
+    // RFC-0.34-001 D11: the test-only presentation that faults (only the
+    // `semantic-crash` profile starts it).
     PresentationSlot {
         image_id: fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT.0,
         wake_slot: 3,
         name: "fault-test",
+        kind: PresentationKind::TestOnly,
     },
 ];
 
-/// Which of `PRESENTATIONS` are dormant until their first ask.
-const DORMANT: [bool; PRESENTATIONS.len()] = [false, false, true];
+/// Which of `PRESENTATIONS` are dormant until their first ask — **derived from
+/// each row's kind**, so a row inserted anywhere cannot shift a flag onto the
+/// wrong presentation (a hand-kept array parallel to the table could).
+const DORMANT: [bool; PRESENTATIONS.len()] = {
+    let mut d = [false; PRESENTATIONS.len()];
+    let mut i = 0;
+    while i < PRESENTATIONS.len() {
+        d[i] = matches!(PRESENTATIONS[i].kind, PresentationKind::TestOnly);
+        i += 1;
+    }
+    d
+};
+
+// The production presentations are never test-only: one that starts late must
+// get what was published before it, and one that never starts must be reported.
+// Checked at COMPILE time, against the image ids that are the product.
+const _: () = {
+    let mut i = 0;
+    while i < PRESENTATIONS.len() {
+        let id = PRESENTATIONS[i].image_id;
+        let production = id == fjell_abi::service::ImageId::PROXY_TEXT.0
+            || id == fjell_abi::service::ImageId::PROXY_BRAILLE.0;
+        assert!(
+            !production || matches!(PRESENTATIONS[i].kind, PresentationKind::Expected),
+            "a production presentation is marked test-only"
+        );
+        i += 1;
+    }
+};
 
 /// Receive-buffer size: the widest envelope the wire format can carry
 /// (RFC-0.32-002 D1), rounded up to a whole number of 32-byte chunks. It is
