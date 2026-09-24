@@ -871,27 +871,16 @@ fn test_cap_inspect_without_right() {
 //   passes the run only if QEMU itself reports `SHUTDOWN` with
 //   `reason: "guest-reset"` and exited by itself (`expect_shutdown`).
 //
-// Neither runs unless the machine is configured for it: every profile boots
-// this same image, and a reset in all of them would end them all. The switch is
-// the machine's own configuration — a virtio entropy device (`virtio-rng`,
-// device id 4), which no other profile adds — read the way any driver reads a
-// device, through the MMIO capabilities neg-test already holds. Nothing here
-// adds authority; it is an input only a profile's QEMU command line controls.
-
-/// Does the machine carry a virtio entropy device? See
-/// `fjell_service_api::machine` — the probe is shared with `init`'s
-/// RFC-0.34-001 D8 switch.
-fn machine_asks_for_reboot_test() -> bool {
-    fjell_service_api::machine::has_virtio_device(
-        CapHandle(SLOT_MMIO_BASE + 3),
-        fjell_service_api::machine::virtio_device::ENTROPY,
-    )
-}
+// Neither runs unless asked. Every profile boots this same image, and a reset in
+// all of them would end them all, so the scenario waits for a message on
+// `neg-test`'s own endpoint that `init` sends when a console byte (`R`) is
+// injected (RFC-0.33-001 D17). **A trigger for a reset must not survive the
+// reset**: the byte is injected once, by an external agent, and is absent on the
+// next boot. The previous trigger, a virtio entropy device on the bus, survived
+// it — a machine with one would reset, boot and reset again, and the tier hid
+// that only because the harness passes `-no-reboot`.
 
 fn test_reboot() {
-    if !machine_asks_for_reboot_test() {
-        return;
-    }
     // Without the right: mint the full capability down to one with no REBOOT.
     match sys_cap_mint(
         CapHandle(SLOT_REBOOT),
@@ -992,8 +981,16 @@ pub extern "C" fn service_main() -> ! {
 
     sys_debug_writeln("neg-test: all scenarios complete");
 
-    // RFC-0.33-001 D15: the reset mechanism, last, and only where the machine
-    // asks for it. In every other profile this returns immediately.
-    test_reboot();
+    // RFC-0.33-001 D17: wait for `init`'s message on this task's own endpoint,
+    // sent when the console byte `R` is injected. In every profile that injects
+    // nothing (all but `reboot`) this task simply stays parked, as several
+    // services do; nothing waits on its exit. Only `init` holds a capability
+    // that can send here, and the capability check on `sys_reboot` is still
+    // this task's own.
+    if let Ok((tag, ..)) = sys_ipc_recv_msg(fjell_abi::service::NEG_TEST_TRIGGER_RECV_SLOT) {
+        if tag & 0xFFFF == fjell_service_api::neg_test::RUN_REBOOT {
+            test_reboot();
+        }
+    }
     sys_exit(0)
 }

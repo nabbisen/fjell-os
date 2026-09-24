@@ -804,10 +804,18 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         fjell_abi::service::PROXY_BRAILLE_EP_OBJECT,
         "PROXY_BRAILLE_EP_OBJECT does not name the object just allocated"
     );
+    // RFC-0.33-001 D17: `neg-test`'s own endpoint, where `init` sends the
+    // console-byte trigger for the reset scenario. Asserted, like the above.
+    let neg_test_ep_id = et.alloc().expect("alloc neg-test endpoint");
+    assert_eq!(
+        neg_test_ep_id,
+        fjell_abi::service::NEG_TEST_EP_OBJECT,
+        "NEG_TEST_EP_OBJECT does not name the object just allocated"
+    );
     // ...and the whole table, so the total cannot drift from the constant the
     // host test counts allocations against (`ENDPOINT_OBJECT_COUNT`).
     assert_eq!(
-        proxy_braille_ep_id + 1,
+        neg_test_ep_id + 1,
         fjell_abi::service::ENDPOINT_OBJECT_COUNT,
         "ENDPOINT_OBJECT_COUNT is not one past the last endpoint allocated"
     );
@@ -1209,6 +1217,24 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     kind: CapKind::Endpoint,
                     object_id: 9,
                     rights: CapRights::ALL_NON_META,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            // Slot `INIT_NEG_TEST_SEND_SLOT` (RFC-0.33-001 D17, the sixth kernel
+            // touch): SEND only, to `neg-test`'s own endpoint. `init` reads a
+            // console byte and sends one message; that byte's only power is to ask
+            // `neg-test` to run its reboot scenario, and `neg-test` still holds
+            // the capability check.
+            let _ = cs.install_raw(
+                fjell_abi::service::INIT_NEG_TEST_SEND_SLOT as usize,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: fjell_abi::service::NEG_TEST_EP_OBJECT,
+                    rights: CapRights::SEND,
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,

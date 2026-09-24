@@ -1,0 +1,4 @@
+neg-test: all scenarios complete
+init: reset trigger received; asking neg-test to run its reboot scenario
+NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS
+neg-test: calling sys_reboot with the Reboot right

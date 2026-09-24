@@ -640,6 +640,24 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot `NEG_TEST_TRIGGER_RECV_SLOT`: RECV on `neg-test`'s own endpoint
+            // (RFC-0.33-001 D17, the sixth kernel touch). `init` sends the
+            // console-byte trigger for the reset scenario here. RECV only.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(
+                    fjell_abi::service::NEG_TEST_TRIGGER_RECV_SLOT as usize,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::NEG_TEST_EP_OBJECT,
+                        rights: CapRights::RECV,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot 16: Reboot for NEG_TEST (RFC-0.33-001 D15, the fifth kernel
             // touch the second mid-line ruling approved and nothing else).
             // The reset mechanism -- dispatch arm, capability check, MMIO

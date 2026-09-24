@@ -1,4 +1,4 @@
-# RFC-0.33-001 D15: the reset mechanism, demonstrated on its own.
+# RFC-0.33-001 D15/D17: the reset mechanism, demonstrated on its own.
 #
 # bootctl's health decision cannot reach a reset in this deployment (health-fail
 # shows why: one image, no slot switching, the active slot is also the last
@@ -8,6 +8,19 @@
 # demonstrated end to end by `health-fail`; the *reset* is demonstrated end to
 # end by this profile; joining them needs slot switching (D7) and a durable
 # block (section A). Neither profile implies otherwise.
+#
+# THE TRIGGER (D17): a console byte, `R`, injected once after "driver-uart:
+# ready". init reads it and sends neg-test one message over neg-test's own
+# endpoint; neg-test then runs the scenario. **A trigger for a reset must not
+# survive the reset.** This profile's first version armed the scenario with a
+# virtio entropy device on the bus, which is still there after the reset: a
+# machine with one resets, boots and resets again. The tier hid that only because
+# the harness passes -no-reboot, so QEMU exits instead of rebooting. The byte is
+# injected once by an external agent and is absent on the next boot, so it cannot
+# loop -- checked, not assumed, by `tests/qemu/scripts/reset_boots_once.py`, run by
+# hand (no tier boots a second time: the harness passes -no-reboot). That check
+# found the machine did NOT boot again after its reset -- satp survived it -- and
+# the kernel now clears satp at entry.
 #
 # What is asserted, and how:
 #   * WITHOUT the right: neg-test mints its Reboot capability down to one with no
@@ -22,16 +35,19 @@
 #   * If sys_reboot *returns*, neg-test prints NEG:HARNESS:REBOOT_RETURNED, a
 #     forbidden harness marker, and the run fails closed.
 #
-# The switch is the machine's configuration: neg-test runs this scenario only if
-# it finds a virtio entropy device, which no other profile adds. Every profile
-# boots this same image, and a reset in all of them would end them all.
+# This tier finishes in well under a second of *its own* time while its
+# neighbours wait out a 60-second timeout: that is the machine EXITING EARLY
+# because it reset, not a skipped run. It reads like a skip in the summary table;
+# it is not one (controlled against a tier that waits out its timeout).
 
-name             = "reboot"
-timeout_secs     = 60
-expect_shutdown  = "guest-reset"
-extra_args       = ["-device", "virtio-rng-device"]
+name                 = "reboot"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "R"
+expect_shutdown      = "guest-reset"
 expected_markers = [
     "neg-test: all scenarios complete",
+    "init: reset trigger received; asking neg-test to run its reboot scenario",
     "NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS",
     "neg-test: calling sys_reboot with the Reboot right",
 ]

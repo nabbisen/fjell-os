@@ -1024,6 +1024,13 @@ pub extern "C" fn service_main() -> ! {
         // demonstration would be testing the console rather than the
         // system's decision (the mid-line ruling's D10 constraint).
         const HEALTH_FAIL_TRIGGER: u8 = b'F';
+        // RFC-0.33-001 D17: this byte's only power is to ask `neg-test` to run
+        // its reboot scenario, over an endpoint that is `neg-test`'s alone.
+        // `neg-test` still makes the capability check. Unlike the entropy
+        // device that used to arm this scenario, the byte does not survive the
+        // reset it causes: injected once, by an external agent, absent on the
+        // next boot.
+        const RESET_TRIGGER: u8 = b'R';
         let mut received = false;
         for _ in 0..POLL_BUDGET {
             match sys_ipc_try_recv(UART_RX_EP) {
@@ -1032,6 +1039,15 @@ pub extern "C" fn service_main() -> ! {
                     sys_debug_write_byte(byte as u8);
                     sys_debug_writeln("' delivered over IPC");
                     received = true;
+                    if byte as u8 == RESET_TRIGGER {
+                        sys_debug_writeln(
+                            "init: reset trigger received; asking neg-test to run its reboot scenario",
+                        );
+                        let _ = fjell_syscall::sys_ipc_send(
+                            fjell_abi::service::INIT_NEG_TEST_SEND_SLOT,
+                            fjell_service_api::neg_test::RUN_REBOOT,
+                        );
+                    }
                     if byte as u8 == HEALTH_FAIL_TRIGGER {
                         sys_debug_writeln("init: health-fail trigger received; spawning svc-fault");
                         let handle = spawn(ImageId::SVC_FAULT, "");

@@ -2945,6 +2945,42 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > verified. And `tests/qemu/profiles/upgrade.toml` already expects
   > `NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS`, which nothing emits.
 
+- **Resolution:** **CLOSED** 2026-09-24 by **RFC-0.33-001**, with survivors.
+
+  | | before | after |
+  |---|---|---|
+  | `bootctl`'s state | a three-state enum; never constructs or reads a `BootControlBlock` | owns the block, tied to `fjell-bootctl-model` by a refinement test |
+  | boot-control protocols | two (`BOOT_*`, `READ_BCB`/`WRITE_BCB`), one sent by nothing and one implemented by nothing | one, `BOOT_*` |
+  | health at runtime | none | evaluated by `service-manager`, reported to `bootctl`, decided there; observed in the `health-fail` tier |
+  | reboot syscalls | neither dispatched | `PlatformReboot` (18) dispatched with a capability check; `Reboot` (120) retired; `syscall-surface` **34 declared, 30 dispatched, 4 undispatched** |
+  | the kernel's reset path | none | the reset device mapped kernel-only, its write audited |
+  | a reset demonstrated | never | tier `reboot`: QEMU's own `SHUTDOWN{guest-reset}`, not a marker; a reset that did not happen fails (control) |
+
+  **What closing this does not do — the survivors, as ruled (D18), plus one:**
+
+  - **No reset follows a health decision in this deployment.** The active slot is
+    also the last confirmed one, so `fail_health` correctly refuses to strand the
+    system; joining the decision to the reset needs slot switching (D7) and a
+    durable block (§A). The decision and the reset are each demonstrated end to
+    end, and **they are not joined**.
+  - **Four syscalls remain undispatched** (`CapInstall`, `TaskKill`, `MmioUnmap`,
+    `DmaShare`).
+  - **Nothing durable bounds a reset**, so an organic health failure would loop —
+    which is why the failure path is reachable only through a deliberate trigger.
+  - **No tier boots the machine a second time** *(found by the implementer while
+    checking D17)*. The harness passes `-no-reboot` when it judges a reset, so QEMU
+    exits instead of rebooting. Run by hand without it, the machine reset and then
+    **did not come back**: QEMU leaves `satp` as the previous boot set it, so the
+    second boot's first page-table write faulted and the trap handler faulted on its
+    own first store. The kernel now clears `satp` at entry, and
+    `tests/qemu/scripts/reset_boots_once.py` shows two boots and one reset — but it
+    is a script run by hand, not a gate. Until that commit the reset D15
+    demonstrated was a reset into a hung machine.
+
+  **Corrections along the way:** the reset trigger was refused at review (D17) — a
+  virtio entropy device survives the reset it causes — and is now a console byte,
+  which does not.
+
 ## E-045 — the frozen wire-format schemas were never enforced, and have already drifted
 
 - **Claim:** RFC-v0.6-003 (Implemented, v0.6.0) specified a frozen schema file
@@ -4109,7 +4145,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-041 CI had one green run in 152 (last 2026-05-05): apt `rust-src` cannot `build-std`, so no CI job had ever built the kernel or a service, and every "runs in CI" claim since June was read from `ci.yml`, not from a run | RFC-0.31-002 | CLOSED |
 | E-042 `fjell-identityd` has never compiled for `riscv64gc-unknown-none-elf`: it was written against `fjell-service-api/src/storaged.rs`, an orphan skeleton no `mod` ever included; the one job that checks it had never reached it | 0.31 | CLOSED |
 | E-043 the fuzz harness had never run: every weekly `fuzz-nightly` run since 2026-06-06 failed (workspace membership, paths broken by the July reorg, 5 of 8 targets calling functions that never existed), and the job was schedule-only; rebuilt against the six real byte decoders and fuzzed on CI | RFC-0.32-001 | CLOSED |
-| E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | RFC-0.33-001 | ACCEPTED |
+| E-044 ADR-0009's A/B boot-control state machine has no runtime client: nothing sends `bootctl` a message, the health model is used by nothing, and no reboot syscall is dispatched | RFC-0.33-001 | CLOSED |
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | RFC-0.33-003 | ACCEPTED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |

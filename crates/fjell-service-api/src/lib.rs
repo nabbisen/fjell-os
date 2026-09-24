@@ -469,17 +469,28 @@ pub mod proxy_text {
     pub const ERR: usize = 0x51F;
 }
 
+/// The one message `init` sends `neg-test` (RFC-0.33-001 D17): the console byte
+/// `R` was injected, so run the reboot scenario.
+pub mod neg_test {
+    /// `init` → `neg-test`, one-way, no words. Only ever sent on the endpoint
+    /// that is `neg-test`'s alone (`fjell_abi::service::NEG_TEST_EP_OBJECT`).
+    pub const RUN_REBOOT: usize = 0x5F0;
+}
+
 /// The machine's own configuration, read the way any driver reads a device.
 ///
 /// Every QEMU profile boots the same image, so a scenario that must happen in
 /// **one** profile only (a reset; a presentation that is not started) cannot be
 /// switched by the image. It is switched by what the profile puts on the
 /// machine: a virtio device no other profile adds, found by scanning the eight
-/// virtio-mmio slots. The probe uses MMIO capabilities the caller already holds,
-/// so it adds no authority, and it is an input only a profile's QEMU command
-/// line controls. Each use is a **test affordance in the shipped image** and is
-/// listed in `docs/src/releasing/v1-limitations.md` (RFC-0.33-001 D15,
-/// RFC-0.34-001 D8).
+/// virtio-mmio slots. **Only where the worst case is a presentation that does not
+/// start and a console line saying so** (RFC-0.34-001 D10): a trigger for a
+/// *reset* must not be a device, because a device survives the reset it causes
+/// (RFC-0.33-001 D17, which retired the entropy-device trigger that was here).
+/// The probe uses MMIO capabilities the caller already holds, so it adds no
+/// authority, and it is an input only a profile's QEMU command line controls.
+/// Each use is a **test affordance in the shipped image** and is listed in
+/// `docs/src/releasing/v1-limitations.md` (today: RFC-0.34-001 D8's).
 pub mod machine {
     use fjell_cap::CapHandle;
 
@@ -487,9 +498,6 @@ pub mod machine {
 
     /// Virtio device ids a profile can add to switch a test affordance.
     pub mod virtio_device {
-        /// `-device virtio-rng-device`: `neg-test` calls `sys_reboot`
-        /// (RFC-0.33-001 D15, profile `reboot`).
-        pub const ENTROPY: u32 = 4;
         /// `-device virtio-balloon-device`: `init` does not start `proxy-text`
         /// (RFC-0.34-001 D8, profile `semantic-absent`). Chosen because nothing
         /// else in this system looks for it.

@@ -922,7 +922,8 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   belongs with hardware bring-up (E-004).
 
 - **A health failure cannot reach a reset in this deployment** (Errata
-  **E-044**, ACCEPTED, tracked to RFC-0.33-001). `bootctl` now decides health
+  **E-044**, **CLOSED** by RFC-0.33-001, with the survivors named here).
+  `bootctl` now decides health
   for real — `service-manager` reports a required service's fault, and the
   decision is printed and observed in a QEMU tier. But a genuine health failure
   on the active slot has no rollback target while that slot is also the last
@@ -933,19 +934,29 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   That is why the failure path is reachable today only through a deliberate
   console trigger in the test profile, and by nothing a production boot can
   encounter on its own. The reset *mechanism* is demonstrated separately.
+  **Also surviving:** four syscalls remain undispatched (`CapInstall`,
+  `TaskKill`, `MmioUnmap`, `DmaShare`); and **no tier boots the machine a second
+  time** — the harness passes `-no-reboot` when it judges a reset, so QEMU exits
+  instead of rebooting. Running the reset without it, by hand
+  (`tests/qemu/scripts/reset_boots_once.py`), found that the machine did **not**
+  come back — QEMU leaves `satp` as the previous boot set it — and the kernel now
+  clears it at entry. That check is a script, not a gate.
 
-- **Three test affordances are present in the shipped image**: a console byte that
-  makes `init` spawn the fault service (RFC-0.33-001 D10); `neg-test`'s `Reboot`
-  capability, which lets it reset the machine (D15), and which it uses only when
-  the machine carries a virtio entropy device; and a switch that makes `init` **not
-  start `proxy-text`** when the machine carries a virtio balloon device
-  (RFC-0.34-001 D8). The last two are read the same way, through
-  `fjell_service_api::machine`, from MMIO capabilities the reader already holds:
-  the machine's configuration — which only a profile's QEMU command line controls
-  — is the switch, because every profile boots the same image. Each exists so
-  that a decision, a reset or an absence can be observed rather than asserted;
-  the balloon switch's only power is to *not start* a presentation. `svc-fault` and
-  `svc-timeout` are already in the image for the same reason.
+- **Three test affordances are present in the shipped image**: a console byte,
+  `F`, that makes `init` spawn the fault service (RFC-0.33-001 D10); a console
+  byte, `R`, that makes `init` send `neg-test` one message so that it runs its
+  reboot scenario, with the `Reboot` capability it holds for the purpose
+  (D15, D17); and a switch that makes `init` **not start `proxy-text`** when the
+  machine carries a virtio balloon device, saying so on the console
+  (RFC-0.34-001 D8, D10). The two bytes are injected once by an external agent and
+  are absent on the next boot, which is what makes a *reset* trigger safe: **a
+  trigger for a reset must not survive the reset** (D17 — the first version was a
+  virtio entropy device, which does, and a machine that has one would reset, boot
+  and reset again). The balloon switch is a hardware-presence trigger, accepted
+  because its worst case is a presentation that does not start and a console line
+  saying why. Each exists so that a decision, a reset or an absence can be
+  observed rather than asserted. `svc-fault` and `svc-timeout` are already in the
+  image for the same reason.
 
 - **The ABI baseline does not see enum variants** (Errata **E-056**, ACCEPTED,
   tracked to 0.33). Gate 4 hashes an enum's declaration line, so adding or
@@ -1045,14 +1056,12 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   workspace-wide `--bins --tests` job that covers every gate tool, and it
   counts `mkdir -p "<path>"` as a package.
 
-- **A/B boot confirmation and rollback are not wired up** (Errata **E-044**,
-  ACCEPTED, tracked to 0.33). ADR-0009 describes candidate boot, health
-  confirmation and rollback between two slots. The pieces exist separately —
-  the boot-control block format (tested), a health and last-known-good model
-  (tested, but used by nothing) and a `bootctl` service — but no component
-  sends `bootctl` a message, there is no runtime health check, and no reboot
-  syscall is implemented, so a rollback could not reboot if one were ever
-  requested. Nothing currently requests one.
+- **A/B boot confirmation and rollback** (Errata **E-044**, **CLOSED** by
+  RFC-0.33-001). ADR-0009's state machine now has a runtime: `bootctl` owns the
+  boot-control block, `service-manager` reports health, and a reboot syscall is
+  dispatched with a capability check. What it does **not** do — no reset from a
+  health decision, four syscalls undispatched, nothing durable, a second boot no
+  tier observes — is the *A health failure cannot reach a reset* item above.
 
 - **The frozen wire-format schemas are neither frozen nor accurate** (Errata
   **E-045**, ACCEPTED, tracked to 0.33). Eleven `.frozen` files are described

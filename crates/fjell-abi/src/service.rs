@@ -219,6 +219,27 @@ impl ImageId {
 /// The endpoint object `proxy-braille` receives its wake on.
 pub const PROXY_BRAILLE_EP_OBJECT: u32 = 13;
 
+// ── RFC-0.33-001 D17: the reset trigger must not survive the reset ────────────
+//
+// `neg-test` runs a scenario that resets the machine. Its trigger used to be a
+// virtio entropy device on the bus, which is still there after the reset — a
+// reboot loop on hardware whose only fault is having an entropy source, hidden
+// in the one place it would be observed because the harness passes `-no-reboot`.
+// The trigger is now a console byte, which does not survive: injected once by an
+// external agent, absent on the next boot. `init` reads it and sends
+// `neg-test` one message over an endpoint that is `neg-test`'s alone.
+
+/// The endpoint object `neg-test` receives its trigger on. Deliberately not
+/// object 0, which `neg-test` shares with other services (and which raced
+/// before RFC-0.28-001).
+pub const NEG_TEST_EP_OBJECT: u32 = 14;
+
+/// The CSpace slot in `neg-test` that receives on `NEG_TEST_EP_OBJECT`.
+pub const NEG_TEST_TRIGGER_RECV_SLOT: u32 = 8;
+
+/// The CSpace slot in `init` that sends to `NEG_TEST_EP_OBJECT`, SEND only.
+pub const INIT_NEG_TEST_SEND_SLOT: u32 = 9;
+
 /// How many endpoint objects the kernel allocates at boot: the highest object
 /// id above, plus one. `crates/fjell-kernel/src/main.rs` asserts that each
 /// `et.alloc()` returns the object its constant names, and a host test counts
@@ -227,7 +248,7 @@ pub const PROXY_BRAILLE_EP_OBJECT: u32 = 13;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 14;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 15;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -295,6 +316,7 @@ mod endpoint_allocation_tests {
             ("INIT_RELAY_EP_OBJECT", INIT_RELAY_EP_OBJECT),
             ("BOOTCTL_EP_OBJECT", BOOTCTL_EP_OBJECT),
             ("PROXY_BRAILLE_EP_OBJECT", PROXY_BRAILLE_EP_OBJECT),
+            ("NEG_TEST_EP_OBJECT", NEG_TEST_EP_OBJECT),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
         }
