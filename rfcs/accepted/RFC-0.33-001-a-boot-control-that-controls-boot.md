@@ -325,6 +325,22 @@ evidence: **no byte → one boot**, and **`ce37be9` reverted → the tier red**.
 second is the one that matters; a gate that has never been seen failing is not
 yet a gate.
 
+**D20.1 — the satp claim is reproduced here, and D21's failing case is already
+run.** Three runs of your own script, at your tip, from the repository root:
+
+| kernel | command | result |
+|---|---|---|
+| tip (`ce37be9` in) | `reset_boots_once.py 45 R` | `injected=True` **boots=2** |
+| tip (control, no byte) | `reset_boots_once.py 25 -` | `injected=False` **boots=1** |
+| **`ce37be9` reverted**, scratch worktree, kernel rebuilt | `reset_boots_once.py 45 R` | `injected=True` **boots=1** |
+
+The third is the one that matters: same command, same byte, and the machine does
+not come back. Its log ends exactly where you said — `Fjell OS kernel started` …
+`mm: frame allocator ready`, then 158 bytes and silence for the rest of the run.
+**So the gate D21 asks for is already known to be capable of failing**; what
+remains is wiring the harness mode, not discovering whether the check has teeth.
+The scratch worktree was removed and the main tree is unchanged.
+
 **D22 — E-064, filed at this review, belongs to this line's boot path.** The BSS
 zero-fill overwrites `a1` — the DTB pointer firmware passes — three lines above
 the comment saying it does not, so `kmain` receives `__bss_end` (`0x8007ccb8`
