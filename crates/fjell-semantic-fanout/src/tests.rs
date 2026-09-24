@@ -380,6 +380,7 @@ fn the_engine_agrees_with_a_plain_queue_over_many_operations() {
                     model.push_back(e);
                 }
                 Offer::Dropped { .. } => assert!(!fits, "engine dropped what fits"),
+                Offer::Skipped => panic!("a non-dormant presentation skipped an offer"),
             }
         } else {
             match f.next(0).0 {
@@ -581,5 +582,61 @@ fn the_late_crash_shape_is_reported_even_though_no_further_offer_ever_arrives() 
     assert!(
         reports.iter().all(|(i, _)| *i == 0),
         "nothing was said about the live one"
+    );
+}
+
+// ── Dormant presentations ────────────────────────────────────────────────────
+
+#[test]
+fn a_dormant_presentation_costs_nothing_until_it_asks() {
+    let mut f: Fanout<2, 4096> = Fanout::with_dormant([false, true]);
+    for i in 0..500usize {
+        // The ordinary one is queued for; the dormant one is skipped.
+        assert!(matches!(
+            f.offer(0, &env(40, i as u8)),
+            Offer::Queued { .. } | Offer::Dropped { .. }
+        ));
+        assert_eq!(f.offer(1, &env(40, i as u8)), Offer::Skipped);
+    }
+    let dormant = f.presentation(1).unwrap();
+    assert_eq!(dormant.queued_bytes(), 0);
+    assert_eq!(dormant.dropped_total(), 0, "skipping is not dropping");
+    // And nothing is ever said about it, however long the stream runs.
+    let said: Vec<_> = tick_many(&mut f, 100_000)
+        .into_iter()
+        .filter(|(i, _)| *i == 1)
+        .collect();
+    assert_eq!(said, Vec::new());
+}
+
+#[test]
+fn a_dormant_presentation_becomes_ordinary_at_its_first_ask() {
+    let mut f: Fanout<1, 4096> = Fanout::with_dormant([true]);
+    assert_eq!(f.offer(0, &env(20, 0)), Offer::Skipped);
+    assert_eq!(f.next(0).0, Next::Empty, "nothing was queued while dormant");
+    // Asked once: from now on it is offered, woken and queued like any other.
+    assert_eq!(f.offer(0, &env(20, 1)), Offer::Queued { wake: true });
+    assert_eq!(drain(&mut f, 0).0, std::vec![env(20, 1)]);
+}
+
+#[test]
+fn a_dormant_presentation_that_asked_and_then_stopped_is_reported_like_any_other() {
+    // The crash tier's shape: it registers, is woken, takes one message, dies.
+    let mut f: Fanout<1, 4096> = Fanout::with_dormant([true]);
+    f.next(0);
+    for i in 0..12 {
+        f.offer(0, &env(60, i));
+    }
+    f.next(0);
+    let reports = tick_many(&mut f, BEHIND_AFTER_TICKS);
+    assert_eq!(
+        reports,
+        std::vec![(
+            0,
+            Report::Behind {
+                waiting: 12,
+                never_asked: false
+            }
+        )]
     );
 }

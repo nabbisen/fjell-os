@@ -189,7 +189,7 @@ fn wait_relay_all_m8_ready() {
 // (Slice 1); reused here as the emission target.
 const SEM_STREAM_EP: u32 = 6;
 
-fn emit_envelope(envelope: SemanticEnvelope) {
+fn emit_envelope(envelope: SemanticEnvelope) -> bool {
     // The sender encodes (RFC-0.32-002 D4); it does not publish a view of its
     // own stack. This function was the one sender that RFC missed: it kept
     // shipping `size_of::<SemanticEnvelope>()` raw struct bytes after
@@ -203,28 +203,30 @@ fn emit_envelope(envelope: SemanticEnvelope) {
         Ok(n) => n,
         Err(_) => {
             sys_debug_writeln("init: semantic envelope encode FAILED");
-            return;
+            return false;
         }
     };
     let bytes: &[u8] = &out[..n];
-    let _ = fjell_service_api::chunked::send(
+    // Whether the stream answered `PUBLISH_OK`. Most callers ignore it (as they
+    // always did); the presentation-fault test counts it.
+    fjell_service_api::chunked::send(
         SEM_STREAM_EP,
         fjell_service_api::semantic_stream::PUBLISH_BEGIN,
         fjell_service_api::semantic_stream::PUBLISH_CHUNK,
         fjell_service_api::semantic_stream::PUBLISH_COMMIT,
         bytes,
-    );
+    ) == fjell_service_api::semantic_stream::PUBLISH_OK
 }
 
 /// producer_index=1 (init's own task index) for every node init emits.
 const INIT_PRODUCER: u16 = 1;
 
-fn emit_state(n: StateNode) {
+fn emit_state(n: StateNode) -> bool {
     let node_id = NodeId {
         producer_index: INIT_PRODUCER,
         local_sequence: 0,
     };
-    emit_envelope(SemanticEnvelope::new_state(node_id, 1, n));
+    emit_envelope(SemanticEnvelope::new_state(node_id, 1, n))
 }
 
 fn emit_event(n: EventNode) {
@@ -410,6 +412,48 @@ fn emit_rollback_selected_event() {
         related_audit_seq: None,
     };
     emit_event(n);
+}
+
+/// RFC-0.34-001 D11: a presentation that dies mid-run, as a committed tier.
+///
+/// Starts `svc-presentation-fault` — which registers with the stream by asking,
+/// is woken when there is something to show, takes its first message and
+/// faults — lets it register, then publishes `PUBLISH_COUNT` real envelopes and
+/// says how many the stream **answered**. Every one is a call that returns only
+/// if the stream is not stuck behind the dead presentation: that is exactly what
+/// E-058 used to prevent (`init` stopped at its next publish). The stream's own
+/// output says the presentation stopped asking, and the two live presentations
+/// keep rendering what is published after it died.
+fn presentation_fault_test() {
+    const PUBLISH_COUNT: u32 = 12;
+    sys_debug_writeln("init: presentation-fault trigger received; spawning svc-presentation-fault");
+    let _ = spawn(ImageId::SVC_PRESENTATION_FAULT, "");
+    // Let it run far enough to ask and park. (If it has not, nothing is queued
+    // for it -- it is dormant until it asks -- and it never faults: the tier
+    // then fails on its missing markers instead of passing by accident.)
+    for _ in 0..8 {
+        sys_yield();
+    }
+    let mut answered = 0u32;
+    for _ in 0..PUBLISH_COUNT {
+        let n = StateNode {
+            kind: StateKind::ServiceStatus,
+            title: TextToken::new("presentation fault test"),
+            summary: TextToken::new(""),
+            status: Status::Ok,
+            facts: FixedVec::new(),
+        };
+        if emit_state(n) {
+            answered += 1;
+        }
+    }
+    sys_debug_write("init: presentation-fault test: ");
+    sys_debug_write(if answered == PUBLISH_COUNT {
+        "all 12"
+    } else {
+        "NOT all 12"
+    });
+    sys_debug_writeln(" envelopes published and answered");
 }
 
 fn spawn(img: ImageId, label: &str) -> usize {
@@ -1031,6 +1075,11 @@ pub extern "C" fn service_main() -> ! {
         // reset it causes: injected once, by an external agent, absent on the
         // next boot.
         const RESET_TRIGGER: u8 = b'R';
+        // RFC-0.34-001 D11: this byte's only power is to start a test-only
+        // presentation that faults on its first message, and then to publish
+        // envelopes and say how many were answered. Injected once, by an external
+        // agent, absent on the next boot.
+        const PRESENTATION_FAULT_TRIGGER: u8 = b'P';
         let mut received = false;
         for _ in 0..POLL_BUDGET {
             match sys_ipc_try_recv(UART_RX_EP) {
@@ -1047,6 +1096,9 @@ pub extern "C" fn service_main() -> ! {
                             fjell_abi::service::INIT_NEG_TEST_SEND_SLOT,
                             fjell_service_api::neg_test::RUN_REBOOT,
                         );
+                    }
+                    if byte as u8 == PRESENTATION_FAULT_TRIGGER {
+                        presentation_fault_test();
                     }
                     if byte as u8 == HEALTH_FAIL_TRIGGER {
                         sys_debug_writeln("init: health-fail trigger received; spawning svc-fault");

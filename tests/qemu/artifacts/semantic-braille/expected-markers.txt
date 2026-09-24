@@ -1,0 +1,9 @@
+sample-service demo intent
+RFC-v0.23-001 ABDD live path demonstration
+remap-device
+proxy-braille: ⠝⠕⠗⠍⠁⠇⠒⠀⠎⠁⠍⠏⠇⠑⠤⠎⠑⠗⠧⠊⠉⠑⠀⠙⠑⠍⠕⠀⠊⠝⠞⠑⠝⠞
+proxy-braille: ⠠⠗⠠⠋⠠⠉⠤⠧⠼⠚⠲⠃⠉⠤⠼⠚⠚⠁⠀⠠⠁⠠⠃⠠⠙⠠⠙⠀⠇⠊⠧⠑⠀⠏⠁⠞⠓
+proxy-braille: ⠙⠑⠍⠕⠝⠎⠞⠗⠁⠞⠊⠕⠝
+proxy-braille: ⠁⠉⠞⠊⠕⠝⠎⠒⠀⠼⠃
+proxy-braille: ⠼⠁⠀⠁⠉⠅⠝⠕⠺⠇⠑⠙⠛⠑
+proxy-braille: ⠼⠃⠀⠗⠑⠍⠁⠏⠤⠙⠑⠧⠊⠉⠑

@@ -262,6 +262,9 @@ pub fn spawn(
                 fjell_abi::service::ImageId::PROXY_BRAILLE => {
                     fjell_abi::service::PROXY_BRAILLE_EP_OBJECT
                 }
+                fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT => {
+                    fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT
+                }
                 // RFC-0.25-001: driver-uart's send end of the uart-rx endpoint.
                 fjell_abi::service::ImageId::DRIVER_UART => 9,
                 // RFC-0.28-001: service-manager's own dedicated, named
@@ -739,9 +742,14 @@ pub fn spawn(
             // blocking forward that could stall every publisher (E-058).
             //   1 = proxy-text's endpoint (object 8)
             //   2 = proxy-braille's endpoint (object 13)
+            //   3 = svc-presentation-fault's endpoint (object 15; RFC-0.34-001
+            //       D11 — nothing is queued for it unless it starts)
             if image_id == fjell_abi::service::ImageId::SEMANTIC_STREAM {
-                for (slot, object_id) in [(1, 8), (2, fjell_abi::service::PROXY_BRAILLE_EP_OBJECT)]
-                {
+                for (slot, object_id) in [
+                    (1, 8),
+                    (2, fjell_abi::service::PROXY_BRAILLE_EP_OBJECT),
+                    (3, fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT),
+                ] {
                     let _ = cs.install_raw(
                         slot,
                         Capability {
@@ -760,7 +768,9 @@ pub fn spawn(
             // Slot 1 for PROXY_BRAILLE (RFC-0.34-001 D8): a CALL capability to
             // the stream (object 7), which it asks. `proxy-text` holds the same
             // one at slot 1 below, for its return leg and now also its asks.
-            if image_id == fjell_abi::service::ImageId::PROXY_BRAILLE {
+            if image_id == fjell_abi::service::ImageId::PROXY_BRAILLE
+                || image_id == fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT
+            {
                 let _ = cs.install_raw(
                     1,
                     Capability {

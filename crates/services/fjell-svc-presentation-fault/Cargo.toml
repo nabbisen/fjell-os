@@ -1,0 +1,16 @@
+[package]
+name = "fjell-svc-presentation-fault"
+description = "Test-only: registers with semantic-stream as a presentation and then faults on its first message (RFC-0.34-001 D11)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-svc-presentation-fault"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall     = { path = "../../fjell-syscall" }
+fjell-service-api = { path = "../../fjell-service-api" }

@@ -1,0 +1,7 @@
+v0.25: uart byte='P' delivered over IPC
+init: presentation-fault trigger received; spawning svc-presentation-fault
+svc-presentation-fault: faulting on its first message
+init: presentation-fault test: all 12 envelopes published and answered
+semantic-stream: presentation fault-test has stopped asking
+presentation fault test
+proxy-braille: ⠕⠅⠒⠀⠏⠗⠑⠎⠑⠝⠞⠁⠞⠊⠕⠝⠀⠋⠁⠥⠇⠞⠀⠞⠑⠎⠞

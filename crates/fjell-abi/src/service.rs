@@ -214,10 +214,17 @@ impl ImageId {
     /// The second presentation: uncontracted braille cells, written to the
     /// console as the stream a display driver would consume (RFC-0.34-001 §A).
     pub const PROXY_BRAILLE: ImageId = ImageId(0x1F); // 31
+    /// Test-only (RFC-0.34-001 D11): registers as a presentation and faults on
+    /// its first message, so a presentation that dies mid-run is evidence in a
+    /// tier. `init` starts it only on the console byte `P`.
+    pub const SVC_PRESENTATION_FAULT: ImageId = ImageId(0x20); // 32
 }
 
 /// The endpoint object `proxy-braille` receives its wake on.
 pub const PROXY_BRAILLE_EP_OBJECT: u32 = 13;
+
+/// The endpoint object `svc-presentation-fault` receives its wake on.
+pub const SVC_PRESENTATION_FAULT_EP_OBJECT: u32 = 15;
 
 // ── RFC-0.33-001 D17: the reset trigger must not survive the reset ────────────
 //
@@ -248,7 +255,7 @@ pub const INIT_NEG_TEST_SEND_SLOT: u32 = 9;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 15;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 16;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -317,6 +324,10 @@ mod endpoint_allocation_tests {
             ("BOOTCTL_EP_OBJECT", BOOTCTL_EP_OBJECT),
             ("PROXY_BRAILLE_EP_OBJECT", PROXY_BRAILLE_EP_OBJECT),
             ("NEG_TEST_EP_OBJECT", NEG_TEST_EP_OBJECT),
+            (
+                "SVC_PRESENTATION_FAULT_EP_OBJECT",
+                SVC_PRESENTATION_FAULT_EP_OBJECT,
+            ),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
         }

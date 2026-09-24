@@ -110,7 +110,7 @@ struct PresentationSlot {
 /// The presentations, in fan-out order. Adding one is a row here, a spawn-table
 /// entry and an endpoint — no decoding, validation or envelope content changes
 /// (RFC-0.34-001 D2). `proxy-text` asks like any other (RFC-0.34-001 D9).
-const PRESENTATIONS: [PresentationSlot; 2] = [
+const PRESENTATIONS: [PresentationSlot; 3] = [
     PresentationSlot {
         image_id: fjell_abi::service::ImageId::PROXY_TEXT.0,
         wake_slot: 1,
@@ -121,7 +121,19 @@ const PRESENTATIONS: [PresentationSlot; 2] = [
         wake_slot: 2,
         name: "braille",
     },
+    // RFC-0.34-001 D11: the test-only presentation that faults. Dormant: nothing
+    // is queued for it, counted against it or reported about it unless it
+    // starts (only the `semantic-crash` profile starts it), so no other profile
+    // pays for it or hears of it.
+    PresentationSlot {
+        image_id: fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT.0,
+        wake_slot: 3,
+        name: "fault-test",
+    },
 ];
+
+/// Which of `PRESENTATIONS` are dormant until their first ask.
+const DORMANT: [bool; PRESENTATIONS.len()] = [false, false, true];
 
 /// Receive-buffer size: the widest envelope the wire format can carry
 /// (RFC-0.32-002 D1), rounded up to a whole number of 32-byte chunks. It is
@@ -257,7 +269,7 @@ pub extern "C" fn service_main() -> ! {
     let mut last_intent: Option<IntentNode> = None;
     // RFC-0.34-001 D8: what is queued for each presentation. On this stack, not
     // a static: a service image cannot write to one.
-    let mut fanout: Fanout<2, RING_BYTES> = Fanout::new();
+    let mut fanout: Fanout<{ PRESENTATIONS.len() }, RING_BYTES> = Fanout::with_dormant(DORMANT);
 
     loop {
         let (tag_packed, w0, w1, w2, w3, sender) = recv_call();
@@ -318,6 +330,7 @@ pub extern "C" fn service_main() -> ! {
                                 for (i, pres) in PRESENTATIONS.iter().enumerate() {
                                     match fanout.offer(i, &out[..n]) {
                                         Offer::Queued { wake: w } => wake[i] = w,
+                                        Offer::Skipped => {}
                                         Offer::Dropped { report } => {
                                             if let Some(r) = report {
                                                 say(pres.name, r);

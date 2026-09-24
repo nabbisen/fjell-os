@@ -1,0 +1,47 @@
+# RFC-0.34-001 D11 / E-058: a presentation that DIES MID-RUN, as a committed tier.
+#
+# E-058 was measured two ways: a presentation that never starts (tier
+# `semantic-absent`), and one that starts, works, and faults -- 229 output lines
+# against 313, `init` stopping at its next publish. The second was, until now,
+# only a scratch build with a fault edited in by hand. It is the case that found
+# the counting defect in the first absence report, and the one trusted least.
+#
+# The channel is the console byte, as D10's is -- no device-presence trigger. `P`,
+# injected once after "driver-uart: ready", makes init start `svc-presentation-
+# fault`: a test-only presentation (as `svc-fault` is a test-only service) that
+# registers with the stream the way any presentation does -- by asking -- is woken
+# when there is something to show, takes its first message, and faults. init then
+# publishes twelve real envelopes and says how many the stream ANSWERED.
+#
+# What is asserted, and what it means:
+#   * init's intention line and the test service's own intention line ("faulting
+#     on its first message") are printed BEFORE the fault -- intentions, not
+#     outcomes;
+#   * "init: presentation-fault test: all 12 envelopes published and answered" is
+#     init's count of `PUBLISH_OK` replies. Each publish is a call that returns
+#     only if the stream is NOT stuck behind the dead presentation, which is what
+#     E-058 used to prevent;
+#   * the stream says, on its own output, that the presentation stopped asking:
+#     absence is visible without any further publish having to trip it (the first
+#     design of this report counted offers, and this exact shape -- the
+#     publishers finish and THEN the presentation dies -- never tripped it);
+#   * the two live presentations keep rendering what was published AFTER it died:
+#     the text lines and one hand-derived braille line ("ok: presentation fault
+#     test": o k : / p r e s e n t a t i o n / f a u l t / t e s t).
+#
+# The fault is real: the kernel reports it as a fault in task `svc-presentation-
+# fault` (its label comes from its ImageId; see RFC-0.34-001's review request).
+
+name                 = "semantic-crash"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "P"
+expected_markers = [
+    "v0.25: uart byte='P' delivered over IPC",
+    "init: presentation-fault trigger received; spawning svc-presentation-fault",
+    "svc-presentation-fault: faulting on its first message",
+    "init: presentation-fault test: all 12 envelopes published and answered",
+    "semantic-stream: presentation fault-test has stopped asking",
+    "presentation fault test",
+    "proxy-braille: ⠕⠅⠒⠀⠏⠗⠑⠎⠑⠝⠞⠁⠞⠊⠕⠝⠀⠋⠁⠥⠇⠞⠀⠞⠑⠎⠞",
+]

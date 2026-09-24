@@ -1,0 +1,7 @@
+driver-uart: ready
+v0.25: uart byte='F' delivered over IPC
+init: health-fail trigger received; spawning svc-fault
+init: svc-fault spawned and registered as required
+bootctl: health passed; active slot confirmed
+bootctl: health FAILED on the last confirmed slot
+not resetting

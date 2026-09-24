@@ -80,12 +80,14 @@ person, and the list is the reason no page says otherwise.
    reaches its last phase (270 lines in the tier, with the braille presentation
    still running; the same absence stopped the node at 124 lines before), and the
    stream says on its own output that the presentation has not asked for
-   anything. The other case E-058 measured — `proxy-text` **faulting mid-run** —
-   was re-run against the new code in a scratch build with the fault injected
-   (**not** a committed tier; and measured while a relay still stood between the
-   stream and `proxy-text`, which has since been removed): `init` reaches its last phase (313 lines against the 229 it stopped at),
-   the braille presentation keeps rendering, and the stream reports the text
-   presentation as no longer asking. **What survives**, named:
+   anything. The other case E-058 measured — a presentation **faulting mid-run**
+   — is a committed tier too, `semantic-crash`: a test-only presentation registers
+   with the stream, is woken, takes its first message and faults (the kernel
+   reports the fault in its own task); `init` then publishes twelve real
+   envelopes and **all twelve are answered** (the old behaviour was `init`
+   stopping at its next publish); the stream reports the presentation as no
+   longer asking; and the text and braille presentations keep rendering what was
+   published after it died. **What survives**, named:
    (a) a presentation that is *alive but never asks again* is not detected as
    dead — there is no wall-clock timer, only the stream's own activity to count.
    While it has work queued it is reported (`has stopped asking`) after 64 of the
@@ -942,13 +944,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   come back — QEMU leaves `satp` as the previous boot set it — and the kernel now
   clears it at entry. That check is a script, not a gate.
 
-- **Three test affordances are present in the shipped image**: a console byte,
+- **Four test affordances are present in the shipped image**: a console byte,
   `F`, that makes `init` spawn the fault service (RFC-0.33-001 D10); a console
   byte, `R`, that makes `init` send `neg-test` one message so that it runs its
   reboot scenario, with the `Reboot` capability it holds for the purpose
-  (D15, D17); and a switch that makes `init` **not start `proxy-text`** when the
+  (D15, D17); a console byte, `P`, that makes `init` spawn a test-only
+  presentation which faults on its first message, then publish twelve envelopes
+  and report how many were answered (RFC-0.34-001 D11) — the stream carries a
+  third, dormant presentation row for it, which queues and reports nothing unless
+  it starts; and a switch that makes `init` **not start `proxy-text`** when the
   machine carries a virtio balloon device, saying so on the console
-  (RFC-0.34-001 D8, D10). The two bytes are injected once by an external agent and
+  (RFC-0.34-001 D8, D10). The three bytes are injected once by an external agent and
   are absent on the next boot, which is what makes a *reset* trigger safe: **a
   trigger for a reset must not survive the reset** (D17 — the first version was a
   virtio entropy device, which does, and a machine that has one would reset, boot

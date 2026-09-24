@@ -428,3 +428,13 @@ asked for anything"* (there is no relay that asked once and then blocked), and t
 parked-to-`recv` window the ruling says survives is now in `proxy-text` itself. The
 mid-run crash measurements above were taken **with** the relay in place; the committed
 crash tier the review requires (D11) replaces them.
+
+**D11, done.** The mid-run crash is now a committed tier, `semantic-crash`, on the
+console-byte channel with no device trigger: `init`, on the byte `P`, starts a test-only
+presentation (`svc-presentation-fault`) that asks, is woken, and faults on its first
+message; `init` then publishes twelve real envelopes and says how many the stream
+answered. It needed one thing the design above did not have: a third presentation row in
+the stream that is **dormant until its first ask**, so that a build in which the test
+service never starts does not queue a backlog for it or report its absence. Control: with
+the stream's tick disabled the tier fails on that report's marker, and with it enabled
+all twelve publishes are answered and the dead presentation is reported.

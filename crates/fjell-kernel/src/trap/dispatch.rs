@@ -453,6 +453,7 @@ fn image_label(image_id: ImageId) -> &'static str {
         ImageId::SYNCD => "syncd",
         ImageId::DRIVER_UART => "driver-uart",
         ImageId::PROXY_BRAILLE => "proxy-braille",
+        ImageId::SVC_PRESENTATION_FAULT => "svc-presentation-fault",
         _ => "task",
     }
 }

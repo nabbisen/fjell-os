@@ -3953,7 +3953,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   |---|---|---|
   | `semantic` profile, `proxy-text` never started | **124** lines (this entry said 125), every semantic count 0; `init` stops at its first publish and never reaches `driver-uart` | tier **`semantic-absent`**: **270** lines with braille still running; `TEST:M7:PASS` and `driver-uart: ready` reached; the stream prints `presentation text has not asked for anything` |
   | control: the *old* stream on that same profile | — | **124** lines, `TEST:M7:PASS`, `driver-uart: ready` and the stream's line all missing, exit 1 |
-  | `proxy-text` faulting on its 40th call (scratch build, fault injected) | **229** lines; 3 `[STATE]` / 1 `[EVENT]` / 1 `[INTENT]`; `init` stops at its next publish | **313** lines; `TEST:M7:PASS` twice, `driver-uart: ready` once; braille keeps rendering (56 lines); the stream reports `presentation text has stopped asking; 9 envelopes waiting` |
+  | a presentation faulting mid-run | **229** lines (`proxy-text` faulting on its 40th call, scratch build); 3 `[STATE]` / 1 `[EVENT]` / 1 `[INTENT]`; `init` stops at its next publish | tier **`semantic-crash`** (RFC-0.34-001 D11, committed): a test-only presentation registers, is woken and faults on its first message — the kernel reports `svc-presentation-fault` faulting; **`init`'s twelve publishes are all answered**; the stream prints `presentation fault-test has stopped asking; 12 envelopes waiting`; the text and braille presentations render what was published after it died. Control: with the stream's tick disabled the tier fails on that report's marker. (The same case as a scratch build with `proxy-text` faulting, before the review: 313 lines, `init` reaching its last phase.) |
   | presentations that exist | one | two: `proxy-braille` renders the same envelope, asserted by content in `semantic-braille` |
 
   **Two corrections to this entry**, from measuring it: the figures were **313 →
@@ -3972,10 +3972,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   wait on one, in code this project wrote; (c) envelopes a presentation cannot
   take are queued to **8 KiB and then dropped**, newest first, and the gap is
   reported on the node's console line, **not through the presentation**; (d)
-  nothing restarts a stuck presentation. **The
-  mid-run crash is not a committed tier** — the committed tier is
-  absence-from-boot; the crash case was a scratch build. And **E-059 and E-060
-  are unchanged**: the stream now keys a presentation by the kernel-attested
+  nothing restarts a stuck presentation. **Both cases are now committed tiers**
+  (absence-from-boot, and a presentation that dies mid-run — the latter added at
+  the review, D11, because it was the case that found the counting defect in the
+  first absence report). And **E-059 and E-060 are unchanged**: the stream now keys a presentation by the kernel-attested
   sender identity, but `DISPATCH_ACTION` still authorises on a payload word it
   cannot verify, and the threat model still has no presentation boundary.
 

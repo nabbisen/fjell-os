@@ -121,6 +121,9 @@ pub enum Report {
 /// What [`Fanout::offer`] did with an envelope for one presentation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Offer {
+    /// The presentation is *dormant* and has not asked yet: nothing was queued,
+    /// counted or reported. See [`Fanout::with_dormant`].
+    Skipped,
     /// It is queued. `wake` is true exactly when the presentation was parked
     /// and must now be woken (once): the caller sends the wake, and it is the
     /// only send the stream ever makes to a presentation.
@@ -197,6 +200,8 @@ pub struct Presentation<const N: usize> {
     /// Messages of the oldest envelope already handed out (0 = none yet).
     sent: usize,
     asked: bool,
+    /// Skip offers until the first ask (see [`Fanout::with_dormant`]).
+    dormant: bool,
     parked: bool,
     dropped_total: u64,
     dropped_run: u64,
@@ -217,6 +222,7 @@ impl<const N: usize> Presentation<N> {
             ring: Ring::new(),
             sent: 0,
             asked: false,
+            dormant: false,
             parked: false,
             dropped_total: 0,
             dropped_run: 0,
@@ -255,6 +261,9 @@ impl<const N: usize> Presentation<N> {
     }
 
     fn offer(&mut self, env: &[u8]) -> Offer {
+        if self.dormant && !self.asked {
+            return Offer::Skipped;
+        }
         if self.ring.push(env) {
             self.queued += 1;
             if self.ring.used > self.high_water {
@@ -383,6 +392,24 @@ impl<const P: usize, const N: usize> Fanout<P, N> {
         Fanout {
             presentations: [const { Presentation::new() }; P],
         }
+    }
+
+    /// Like [`Fanout::new`], but the presentations flagged in `dormant` are
+    /// **skipped until their first ask**: nothing is queued for them, counted
+    /// against them or reported about them before it. For a presentation that
+    /// exists only in some configurations — a test-only one — so that a build in
+    /// which it never starts is not one in which the stream queues a backlog for
+    /// it and reports its absence. The production presentations are not dormant:
+    /// a presentation that starts late must get what was published before it, and
+    /// one that never starts must be reported.
+    pub const fn with_dormant(dormant: [bool; P]) -> Self {
+        let mut f = Self::new();
+        let mut i = 0;
+        while i < P {
+            f.presentations[i].dormant = dormant[i];
+            i += 1;
+        }
+        f
     }
 
     /// Offer an encoded envelope to presentation `p`. Never blocks.

@@ -1,0 +1,4 @@
+init: presentation-absent test configuration; proxy-text not started
+semantic-stream: presentation text has not asked for anything
+TEST:M7:PASS
+driver-uart: ready
