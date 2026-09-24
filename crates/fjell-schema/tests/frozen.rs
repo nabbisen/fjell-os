@@ -270,19 +270,40 @@ fn control_an_unchanged_file_reports_nothing() {
     assert!(compare(&g, &g).is_empty());
 }
 
+/// The `field` lines of a generated file: (index in `lines`, name, rest).
+fn field_lines(g: &str) -> Vec<(usize, String, String)> {
+    g.lines()
+        .enumerate()
+        .filter(|(_, l)| l.starts_with("field "))
+        .map(|(i, l)| {
+            let mut w = l.split_whitespace().skip(1);
+            let name = w.next().unwrap().to_string();
+            (i, name, w.collect::<Vec<_>>().join(" "))
+        })
+        .collect()
+}
+
+fn join(lines: &[String]) -> String {
+    lines.iter().map(|l| format!("{l}\n")).collect()
+}
+
 #[test]
 fn control_a_changed_width_is_named() {
     let (g, _) = rollback();
-    let drifted = g.replace("field min_counter", "field min_counter").replace(
-        "min_counter                u64 LE",
-        "min_counter                u32 LE",
-    );
-    assert_ne!(g, drifted, "the control did not change anything");
-    let d = compare(&g, &drifted);
+    // The first field written as a u64 is written as a u32 instead. Found by
+    // shape, not by name, so the control does not depend on any field's name.
+    let (i, name, _) = field_lines(&g)
+        .into_iter()
+        .find(|(_, _, ty)| ty == "u64 LE")
+        .expect("the sample has a u64");
+    let mut lines: Vec<String> = g.lines().map(String::from).collect();
+    lines[i] = lines[i].replace("u64 LE", "u32 LE");
+    let d = compare(&g, &join(&lines));
     assert!(
-        d.iter().any(|d| d.to_string().contains("field min_counter")
-            && d.to_string().contains("u32 LE")
-            && d.to_string().contains("u64 LE")),
+        d.iter()
+            .any(|d| d.to_string().contains(&format!("field {name}"))
+                && d.to_string().contains("u32 LE")
+                && d.to_string().contains("u64 LE")),
         "{d:?}"
     );
 }
@@ -290,20 +311,19 @@ fn control_a_changed_width_is_named() {
 #[test]
 fn control_a_removed_and_an_added_field_are_named() {
     let (g, _) = rollback();
-    let without: String = g
-        .lines()
-        .filter(|l| !l.starts_with("field last_advance_source"))
-        .map(|l| format!("{l}\n"))
-        .collect();
-    let d = compare(&g, &without);
+    let (i, name, _) = field_lines(&g).pop().expect("a field");
+    let mut lines: Vec<String> = g.lines().map(String::from).collect();
+    lines.remove(i);
+    let d = compare(&g, &join(&lines));
     assert!(
         d.iter()
-            .any(|d| d.to_string().contains("field last_advance_source")
+            .any(|d| d.to_string().contains(&format!("field {name}"))
                 && d.to_string().contains("absent from the committed file")),
         "{d:?}"
     );
-    let with_extra = format!("{}field invented u8\n", without.trim_end_matches("end\n"));
-    let d = compare(&g, &format!("{with_extra}end\n"));
+    let mut lines: Vec<String> = g.lines().map(String::from).collect();
+    lines.insert(i, "field invented                u8".into());
+    let d = compare(&g, &join(&lines));
     assert!(
         d.iter().any(|d| d.to_string().contains("field invented")
             && d.to_string().contains("does not write it")),
@@ -314,14 +334,11 @@ fn control_a_removed_and_an_added_field_are_named() {
 #[test]
 fn control_a_reordering_is_reported_even_though_every_field_is_present() {
     let (g, _) = rollback();
-    let mut lines: Vec<&str> = g.lines().collect();
-    let a = lines
-        .iter()
-        .position(|l| l.starts_with("field channel_id"))
-        .unwrap();
-    lines.swap(a, a + 1);
-    let swapped: String = lines.iter().map(|l| format!("{l}\n")).collect();
-    let d = compare(&g, &swapped);
+    let f = field_lines(&g);
+    let (a, b) = (f[0].0, f[1].0);
+    let mut lines: Vec<String> = g.lines().map(String::from).collect();
+    lines.swap(a, b);
+    let d = compare(&g, &join(&lines));
     assert!(
         d.iter().any(|d| d.to_string().contains("order differs")),
         "a swap of two fields went unreported: {d:?}"
