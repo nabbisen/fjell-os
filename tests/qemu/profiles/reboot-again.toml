@@ -1,0 +1,41 @@
+# RFC-0.33-001 D21: the machine boots AGAIN after its own reset, and only once.
+#
+# `reboot` proves the reset happens: QEMU's own SHUTDOWN{guest-reset}. It cannot
+# prove anything about the boot AFTER the reset, because it runs with -no-reboot
+# so QEMU exits at the reset. That blind spot hid a real defect for the whole life
+# of the reset feature: a system reset leaves `satp` as the previous boot set it,
+# so the second boot faulted on its first page-table write and went silent six
+# lines in. It was found by running the reset WITHOUT -no-reboot by hand; this
+# tier is that run, made a gate.
+#
+# The run has no -no-reboot and no QMP socket. The console byte `R` is injected
+# ONCE, after "driver-uart: ready" (the same trigger `reboot` uses; a byte does not
+# survive the reset it causes, which is what makes it a safe trigger -- D17). The
+# harness then counts `boot_banner` in the serial log and judges the count
+# EXACTLY: fewer than two is a machine that did not come back; more than two is a
+# reset that repeats.
+#
+# `sched: started` is printed at the end of the kernel's own boot, after paging and
+# every table are up -- late enough that a boot which dies early never prints it.
+# (Counting "Fjell OS kernel started.", the first line, would have counted the
+# hung second boot as a boot.)
+#
+# Controls, both required by the ruling and both run (RFC-0.33-001 review request):
+#   * no byte injected  -> the machine boots once (expect_boots = 2 fails);
+#   * the `satp` clear reverted -> this tier goes RED with the second boot hung.
+#
+# It also asserts the device-tree lines (D22 / E-064): every boot must find and
+# reserve firmware's tree, and the reset boot receives the pointer again.
+
+name                 = "reboot-again"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "R"
+expect_boots         = 2
+boot_banner          = "sched: started"
+expected_markers = [
+    "init: reset trigger received; asking neg-test to run its reboot scenario",
+    "NEG:REBOOT:WITHOUT_RIGHT_REFUSED:PASS",
+    "neg-test: calling sys_reboot with the Reboot right",
+    "mm: device tree reserved",
+]

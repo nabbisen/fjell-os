@@ -77,6 +77,19 @@ pub struct Profile {
     /// machine's own account is the evidence, not a marker (see
     /// `qemu_shutdown`'s module doc for the measurements).
     pub expect_shutdown: Option<String>,
+    /// RFC-0.33-001 D21: how many times the machine must **boot to
+    /// `boot_banner`** in one run — `2` for a machine that resets itself once
+    /// and must come back. The run is made **without `-no-reboot`** (which
+    /// `expect_shutdown` adds, and which is why no tier ever booted a second
+    /// time: QEMU exits at the reset, so the boot after it is never observed),
+    /// the trigger is injected **once**, and the count of banners in the serial
+    /// log is judged **exactly**: fewer is a machine that did not come back,
+    /// more is a reset that repeats. Requires `boot_banner`; excludes
+    /// `expect_shutdown`.
+    pub expect_boots: Option<u32>,
+    /// A line printed **late in every boot** — late enough that a boot which
+    /// hangs early (the first `satp` failure died six lines in) never prints it.
+    pub boot_banner: Option<String>,
 }
 
 impl Profile {
@@ -94,6 +107,8 @@ impl Profile {
             release_gated: true,
             not_gated_reason: None,
             expect_shutdown: None,
+            expect_boots: None,
+            boot_banner: None,
         }
     }
 }
@@ -420,8 +435,8 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     let _ = fs::write(run_dir.join("run-info.txt"), run_info.as_bytes());
 
     // Empty marker list = placeholder profile (no cases registered) — unless
-    // it expects a particular ending, which is itself a case.
-    if p.expected_markers.is_empty() && p.expect_shutdown.is_none() {
+    // it expects a particular ending or a number of boots, which is itself a case.
+    if p.expected_markers.is_empty() && p.expect_shutdown.is_none() && p.expect_boots.is_none() {
         art.write_summary(
             "result-summary.txt",
             b"PASS (placeholder; no expected markers)\n",
@@ -436,6 +451,27 @@ pub fn run_profile(p: &Profile) -> ExitCode {
 
     // Check every expected marker.
     let mut all_ok = true;
+
+    // RFC-0.33-001 D21: did the machine come back from its own reset, and did
+    // it do so exactly as often as expected? Counted from the serial log, which
+    // is what a reader can open; recorded per run before it is judged.
+    if let (Some(expected), Some(banner)) = (p.expect_boots, &p.boot_banner) {
+        let counted = qemu_shutdown::count_boots(&combined, banner.as_bytes());
+        let _ = fs::write(
+            run_dir.join("boots.txt"),
+            format!("expected = {expected}\nobserved = {counted}\nboot_banner = {banner}\n"),
+        );
+        match qemu_shutdown::judge_boots(expected, counted, banner) {
+            Ok(()) => println!(
+                "[xtask] the machine booted {counted} time(s), as expected (`{banner}` seen \
+                 {counted}x, no -no-reboot) ✓"
+            ),
+            Err(why) => {
+                eprintln!("[xtask] boot count check FAILED — {why}");
+                all_ok = false;
+            }
+        }
+    }
 
     // RFC-0.33-001 D5: how the run ended, by QEMU's own account. Recorded
     // before it is judged, so a failure can be read without re-running.
@@ -722,6 +758,8 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut release_gated_v = true;
     let mut not_gated_reason_v: Option<String> = None;
     let mut expect_shutdown_v: Option<String> = None;
+    let mut expect_boots_v: Option<u32> = None;
+    let mut boot_banner_v: Option<String> = None;
 
     let mut lines = src.lines().peekable();
     while let Some(raw) = lines.next() {
@@ -778,6 +816,13 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             }
             "not_gated_reason" => not_gated_reason_v = Some(unquote(v)),
             "expect_shutdown" => expect_shutdown_v = Some(unquote(v)),
+            "expect_boots" => {
+                expect_boots_v = Some(
+                    v.parse::<u32>()
+                        .map_err(|e| format!("bad expect_boots: {e}"))?,
+                )
+            }
+            "boot_banner" => boot_banner_v = Some(unquote(v)),
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -805,6 +850,26 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         }
     }
 
+    // RFC-0.33-001 D21: the count of boots is only meaningful against a banner,
+    // and only when QEMU is allowed to reboot — `expect_shutdown` adds
+    // `-no-reboot`, so the two cannot describe one run.
+    if let Some(n) = expect_boots_v {
+        if n == 0 || boot_banner_v.as_deref().unwrap_or("").is_empty() {
+            return Err(format!(
+                "{}: expect_boots = {n} needs a count of at least 1 and a non-empty boot_banner \
+                 (a line printed late in every boot)",
+                path.display()
+            ));
+        }
+        if expect_shutdown_v.is_some() {
+            return Err(format!(
+                "{}: expect_boots and expect_shutdown cannot both be set: expect_shutdown runs \
+                 with -no-reboot, so a second boot could never happen",
+                path.display()
+            ));
+        }
+    }
+
     let inject_after_marker = match (inject_after_marker_v, inject_bytes_v) {
         (Some(m), Some(b)) => Some((m, b.into_bytes())),
         _ => None,
@@ -822,6 +887,8 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         release_gated: release_gated_v,
         not_gated_reason: not_gated_reason_v,
         expect_shutdown: expect_shutdown_v,
+        expect_boots: expect_boots_v,
+        boot_banner: boot_banner_v,
     })
 }
 
@@ -1002,6 +1069,48 @@ mod discover_tests {
     /// xtask` invocation always uses.
     fn test_workspace_root() -> PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    fn scratch_root(tag: &str, profile: &str) -> PathBuf {
+        let root =
+            std::env::temp_dir().join(format!("fjell-qemu-run-{tag}-{}", std::process::id()));
+        let dir = root.join("tests/qemu/profiles");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("p.toml"), profile).unwrap();
+        root
+    }
+
+    #[test]
+    fn expect_boots_loads_from_the_real_profile_and_is_absent_elsewhere() {
+        let root = test_workspace_root();
+        let p = load_profile(&root, "reboot-again").expect("reboot-again loads");
+        assert_eq!(p.expect_boots, Some(2));
+        assert_eq!(p.boot_banner.as_deref(), Some("sched: started"));
+        assert!(p.expect_shutdown.is_none(), "the two are exclusive");
+        let r = load_profile(&root, "reboot").expect("reboot loads");
+        assert_eq!(r.expect_boots, None);
+        assert!(r.expect_shutdown.is_some());
+    }
+
+    #[test]
+    fn expect_boots_is_refused_without_a_banner_or_alongside_expect_shutdown() {
+        let no_banner = scratch_root("nb", "name = \"p\"\nexpect_boots = 2\n");
+        let e = load_profile(&no_banner, "p").err().expect("refused");
+        assert!(e.contains("boot_banner"), "{e}");
+        let zero = scratch_root("z", "name = \"p\"\nexpect_boots = 0\nboot_banner = \"b\"\n");
+        assert!(load_profile(&zero, "p").is_err());
+        let both = scratch_root(
+            "both",
+            "name = \"p\"\nexpect_boots = 2\nboot_banner = \"b\"\nexpect_shutdown = \"guest-reset\"\n",
+        );
+        let e = load_profile(&both, "p").err().expect("refused");
+        assert!(e.contains("-no-reboot"), "{e}");
+        // Control: the same profile without the conflict loads.
+        let ok = scratch_root(
+            "ok",
+            "name = \"p\"\nexpect_boots = 2\nboot_banner = \"b\"\n",
+        );
+        assert!(load_profile(&ok, "p").is_ok());
     }
 
     #[test]

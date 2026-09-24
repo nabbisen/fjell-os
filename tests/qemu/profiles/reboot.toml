@@ -17,10 +17,10 @@
 # machine with one resets, boots and resets again. The tier hid that only because
 # the harness passes -no-reboot, so QEMU exits instead of rebooting. The byte is
 # injected once by an external agent and is absent on the next boot, so it cannot
-# loop -- checked, not assumed, by `tests/qemu/scripts/reset_boots_once.py`, run by
-# hand (no tier boots a second time: the harness passes -no-reboot). That check
-# found the machine did NOT boot again after its reset -- satp survived it -- and
-# the kernel now clears satp at entry.
+# loop -- and tier `reboot-again` checks it: it runs WITHOUT -no-reboot, injects
+# the byte once and counts the boots exactly. This tier cannot: -no-reboot makes
+# QEMU exit at the reset. That blind spot hid a machine that did not come back
+# after its reset (satp survived it); the kernel now clears satp at entry.
 #
 # What is asserted, and how:
 #   * WITHOUT the right: neg-test mints its Reboot capability down to one with no

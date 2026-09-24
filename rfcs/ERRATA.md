@@ -2954,9 +2954,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   | health at runtime | none | evaluated by `service-manager`, reported to `bootctl`, decided there; observed in the `health-fail` tier |
   | reboot syscalls | neither dispatched | `PlatformReboot` (18) dispatched with a capability check; `Reboot` (120) retired; `syscall-surface` **34 declared, 30 dispatched, 4 undispatched** |
   | the kernel's reset path | none | the reset device mapped kernel-only, its write audited |
-  | a reset demonstrated | never | tier `reboot`: QEMU's own `SHUTDOWN{guest-reset}`, not a marker; a reset that did not happen fails (control) |
+  | a reset demonstrated | never | tier `reboot`: QEMU's own `SHUTDOWN{guest-reset}`, not a marker; a reset that did not happen fails (control). And tier `reboot-again`: the machine **comes back** and does not reset again, counted exactly, with two controls |
 
-  **What closing this does not do — the survivors, as ruled (D18), plus one:**
+  **What closing this does not do — the survivors, as ruled (D18):**
 
   - **No reset follows a health decision in this deployment.** The active slot is
     also the last confirmed one, so `fail_health` correctly refuses to strand the
@@ -2967,15 +2967,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     `DmaShare`).
   - **Nothing durable bounds a reset**, so an organic health failure would loop —
     which is why the failure path is reachable only through a deliberate trigger.
-  - **No tier boots the machine a second time** *(found by the implementer while
-    checking D17)*. The harness passes `-no-reboot` when it judges a reset, so QEMU
-    exits instead of rebooting. Run by hand without it, the machine reset and then
-    **did not come back**: QEMU leaves `satp` as the previous boot set it, so the
-    second boot's first page-table write faulted and the trap handler faulted on its
-    own first store. The kernel now clears `satp` at entry, and
-    `tests/qemu/scripts/reset_boots_once.py` shows two boots and one reset — but it
-    is a script run by hand, not a gate. Until that commit the reset D15
-    demonstrated was a reset into a hung machine.
+
+  **Retired at the second review (D21): "no tier boots the machine a second
+  time"** *(found by the implementer while checking D17)*. The harness passes
+  `-no-reboot` when it judges a reset, so QEMU exits instead of rebooting. Run by
+  hand without it, the machine reset and then **did not come back**: QEMU leaves
+  `satp` as the previous boot set it, so the second boot's first page-table write
+  faulted and the trap handler faulted on its own first store. The kernel now
+  clears `satp` at entry, and tier **`reboot-again`** (profile field `expect_boots`)
+  runs without `-no-reboot`, injects the trigger once and counts the boots
+  exactly. Controls, both run: with **no byte** the machine boots once and the
+  tier fails as *"did not come back"*; with **the `satp` clear reverted** the tier
+  goes red and its log ends at `mm: frame allocator ready`. Until that commit the
+  reset D15 demonstrated was a reset into a hung machine.
 
   **Corrections along the way:** the reset trigger was refused at review (D17) — a
   virtio entropy device survives the reset it causes — and is now a console byte,
@@ -4132,6 +4136,23 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   then the real page reserved. It is also the reason no DTB path in this tree has
   ever run on a real device tree, which bears on E-048.
 
+- **Resolution:** **CLOSED** 2026-09-24 by **RFC-0.33-001 D22**, failing case first.
+
+  | | before | after |
+  |---|---|---|
+  | `dtb_pa` the kernel receives | **`0x8007ccb8` = `__bss_end`** (printed at boot beside the linker symbol, in a scratch edit, before any fix) | **`0x87e00000`**, firmware's real tree |
+  | the BSS loop | used `a0`/`a1`, so `a1` was clobbered three lines above the comment saying it was not touched | uses `t1`/`t2`; `a1` is untouched from entry to `kmain` |
+  | what is checked before use | nothing | the FDT magic and `totalsize` (`fjell_dtb_validate::fdt_extent`, 5 host tests, incl. the old value's zeros refused), and that the tree lies in RAM |
+  | the reserve | one fixed page, its error discarded (and, with the wrong pointer, failing on its first frame) | the tree's **real extent** (5,044 bytes → 2 frames), the result printed |
+  | free frames at boot | 32131 — the tree's two pages were allocatable | **32129** |
+  | asserted | nothing | `reboot-again` requires `mm: device tree reserved`, on **both** boots (the reset boot receives the pointer again) |
+
+  **What closing this does not do:** only the *header* is read. `platform::detect`
+  still ignores the tree, and `fjell-dtb-validate`'s full validation is still not
+  wired into boot (E-048; hardware bring-up, E-004), so no DTB path here has run on
+  a real board's tree. Also fixed along the way: a dead `DtbHeader` struct and a
+  duplicate copy of the magic constant in that crate.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4199,7 +4220,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | ACCEPTED |
 | E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | ACCEPTED |
-| E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | ACCEPTED |
+| E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
 newly-surfaced collateral its own investigation document names. At the

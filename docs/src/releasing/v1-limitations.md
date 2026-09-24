@@ -937,12 +937,12 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   console trigger in the test profile, and by nothing a production boot can
   encounter on its own. The reset *mechanism* is demonstrated separately.
   **Also surviving:** four syscalls remain undispatched (`CapInstall`,
-  `TaskKill`, `MmioUnmap`, `DmaShare`); and **no tier boots the machine a second
-  time** — the harness passes `-no-reboot` when it judges a reset, so QEMU exits
-  instead of rebooting. Running the reset without it, by hand
-  (`tests/qemu/scripts/reset_boots_once.py`), found that the machine did **not**
-  come back — QEMU leaves `satp` as the previous boot set it — and the kernel now
-  clears it at entry. That check is a script, not a gate.
+  `TaskKill`, `MmioUnmap`, `DmaShare`). *(A fifth survivor — that no tier booted
+  the machine a second time, because the harness passes `-no-reboot` when it
+  judges a reset — is retired: the `reboot-again` tier runs without it, injects the
+  trigger once and counts the boots exactly. It exists because running the reset
+  that way by hand found the machine did **not** come back — QEMU leaves `satp`
+  as the previous boot set it — which the kernel now clears at entry.)*
 
 - **Four test affordances are present in the shipped image**: a console byte,
   `F`, that makes `init` spawn the fault service (RFC-0.33-001 D10); a console
@@ -1169,13 +1169,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `init: spawn error`. Which limits a new service consumes — the task table,
   its stack, an endpoint slot, the callsite budget — is discoverable only by
   reading the kernel, not from the error or from any document.
-- **The kernel has never seen a real device tree** (Erratum **E-064**, filed
-  2026-09-24, tracked 0.34). The boot shim's BSS zero-fill overwrites `a1`, the
-  DTB pointer firmware passes, three lines above the comment saying it does not,
-  so `kmain` receives `__bss_end` instead. Nothing has a symptom today because
-  `platform::detect` ignores the tree and returns a hard-coded `qemu-virt`
-  profile — but the reserve that exists to keep firmware's device tree out of the
-  free pool fails on its first frame and its error is discarded, so **the real
-  DTB page is allocatable**, and any future reader of `PlatformInfo.dtb_pa` would
-  parse the kernel's own BSS tail. It is also why no DTB path here has ever run
-  on a real device tree (E-048).
+- **The kernel finds and reserves firmware's device tree, and reads nothing else
+  from it** (Erratum **E-064**, **CLOSED** by RFC-0.33-001 D22). The boot shim used
+  to overwrite the DTB pointer in `a1`, so `kmain` received `__bss_end`, the reserve
+  that keeps the tree out of the free pool failed on its first frame with its error
+  discarded, and the real page was allocatable. The pointer now survives, the
+  header's magic and size are checked before anything is stored or reserved, the
+  tree's real extent is reserved (5,044 bytes at `0x87e00000` under QEMU: two
+  frames), and a failure is printed. **What survives:** only the header is read.
+  `platform::detect` still ignores the tree and returns a hard-coded `qemu-virt`
+  profile, and `fjell-dtb-validate`'s full validation is still not wired into boot
+  (E-048; hardware bring-up, E-004) — so no path here has run on a real board's
+  tree, and this line says nothing about one.

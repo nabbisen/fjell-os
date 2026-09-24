@@ -213,6 +213,49 @@ pub fn watch(sock: &Path, deadline: Duration) -> QmpResult {
     out
 }
 
+// ── Counting boots (RFC-0.33-001 D21) ─────────────────────────────────────────
+
+/// How many times `banner` appears in `log`, non-overlapping.
+///
+/// The banner must be a line printed **late in every boot** — late enough that a
+/// boot which hangs early never prints it. The first version of this check's
+/// subject failed six lines into its second boot; counting the *first* line of
+/// the kernel's output would have counted that dead boot as a boot.
+pub fn count_boots(log: &[u8], banner: &[u8]) -> usize {
+    if banner.is_empty() {
+        return 0;
+    }
+    let mut n = 0;
+    let mut i = 0;
+    while i + banner.len() <= log.len() {
+        if &log[i..i + banner.len()] == banner {
+            n += 1;
+            i += banner.len();
+        } else {
+            i += 1;
+        }
+    }
+    n
+}
+
+/// Judge the boot count **exactly**. Fewer is a machine that did not come back;
+/// more is a reset that repeats — the loop D17 refused the entropy-device
+/// trigger for. Both are failures, and each says which it is.
+pub fn judge_boots(expected: u32, counted: usize, banner: &str) -> Result<(), String> {
+    let expected = expected as usize;
+    match counted.cmp(&expected) {
+        std::cmp::Ordering::Equal => Ok(()),
+        std::cmp::Ordering::Less => Err(format!(
+            "expected the machine to boot {expected} time(s) but `{banner}` appeared {counted}: \
+             it did not come back (a boot that dies early never prints it)"
+        )),
+        std::cmp::Ordering::Greater => Err(format!(
+            "expected the machine to boot {expected} time(s) but `{banner}` appeared {counted}: \
+             the reset repeats"
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,5 +358,51 @@ mod tests {
     fn host_signal_can_never_be_an_expected_reason() {
         assert!(!EXPECTABLE.contains(&"host-signal"));
         assert!(EXPECTABLE.contains(&GUEST_RESET) && EXPECTABLE.contains(&GUEST_SHUTDOWN));
+    }
+}
+
+#[cfg(test)]
+mod boot_count_tests {
+    use super::*;
+
+    const B: &[u8] = b"sched: started";
+
+    #[test]
+    fn counts_every_banner_and_nothing_else() {
+        assert_eq!(count_boots(b"", B), 0);
+        assert_eq!(count_boots(b"boot\nsched: started\nrun\n", B), 1);
+        assert_eq!(count_boots(b"sched: started\n...\nsched: started\n", B), 2);
+        assert_eq!(
+            count_boots(b"sched: start", B),
+            0,
+            "a partial banner is not a boot"
+        );
+        assert_eq!(
+            count_boots(b"anything", b""),
+            0,
+            "an empty banner counts nothing"
+        );
+    }
+
+    #[test]
+    fn a_boot_that_dies_early_is_not_counted() {
+        // The shape of the satp failure: the second boot printed its first six
+        // lines and never reached the banner. Counting the FIRST line would have
+        // called this two boots.
+        let log = b"Fjell OS kernel started.\n...\nsched: started\n[reset]\n\
+                    Fjell OS kernel started.\nmode: S\nmm: frame allocator ready\n";
+        assert_eq!(count_boots(log, b"Fjell OS kernel started."), 2);
+        assert_eq!(count_boots(log, B), 1);
+    }
+
+    #[test]
+    fn the_count_is_judged_exactly() {
+        assert!(judge_boots(2, 2, "b").is_ok());
+        let fewer = judge_boots(2, 1, "b").unwrap_err();
+        assert!(fewer.contains("did not come back"), "{fewer}");
+        let more = judge_boots(2, 3, "b").unwrap_err();
+        assert!(more.contains("repeats"), "{more}");
+        assert!(judge_boots(1, 1, "b").is_ok());
+        assert!(judge_boots(1, 0, "b").is_err());
     }
 }
