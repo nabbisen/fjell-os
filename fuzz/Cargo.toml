@@ -23,7 +23,7 @@ libfuzzer-sys         = "0.4"
 fjell-semantic-v1     = { path = "../crates/fjell-semantic-v1" }
 fjell-keyring         = { path = "../crates/fjell-keyring" }
 fjell-audit-format    = { path = "../crates/formats/fjell-audit-format" }
-fjell-dtb-derive      = { path = "../crates/fjell-dtb-derive" }
+fjell-fdt-header      = { path = "../crates/fjell-fdt-header" }
 fjell-dtb-validate    = { path = "../crates/fjell-dtb-validate" }
 fjell-platform-format = { path = "../crates/formats/fjell-platform-format" }
 fjell-cap-manifest    = { path = "../crates/fjell-cap-manifest" }
@@ -46,13 +46,6 @@ bench = false
 [[bin]]
 name = "audit_record_parse"
 path = "fuzz_targets/audit_record_parse.rs"
-test = false
-doc = false
-bench = false
-
-[[bin]]
-name = "dtb_derive_board_profile"
-path = "fuzz_targets/dtb_derive_board_profile.rs"
 test = false
 doc = false
 bench = false

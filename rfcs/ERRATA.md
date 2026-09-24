@@ -2873,7 +2873,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > | `fjell_semantic_v1::decode` | encoded intent envelopes | none at runtime (fixture checks; `fjell-proxy-text`'s `ingest`, called only by its tests) | yes |
 > | `fjell_keyring::RevocationRecord::from_bytes` | revocation records | none | yes, with a round-trip check |
 > | `fjell_audit_format::AuditRecordBin::from_bytes` | the kernel's audit ring | `fjell-auditd` | yes |
-> | `fjell_dtb_derive::derive_board_profile` and its token walk | a firmware device tree | none (E-048) | yes — found E-047 |
+> | ~~`fjell_dtb_derive::derive_board_profile` and its token walk~~ | a firmware device tree | none (E-048) | yes — found E-047. **Deleted 2026-09-25 (RFC-0.33-005), with the crate.** |
 > | `fjell_dtb_validate::validate_dtb` | a firmware device tree | none | yes |
 > | `fjell_cap_manifest::parse_manifest` | manifests read from disk by `fjell-tools` | `fjell-tools` | yes |
 > | `fjell_service_api::chunked::reassemble` | IPC bytes from another service | `fjell-semantic-stream`, `fjell-proxy-text` | **no** — unsound by construction until E-046's line |
@@ -2892,6 +2892,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > nightly floats, revisited at the first build-step failure on an unchanged
 > tree (§8). The grown corpus is kept as a run artifact, not written back.
 > Each is in `docs/src/releasing/v1-limitations.md`.
+>
+> **The count, and how it moved (updated 2026-09-25, RFC-0.33-005).** Six
+> fuzzed decoders at this closure (2026-09-15); **seven** once RFC-0.32-002 added
+> `semantic_envelope_wire_decode` (the row above that says "one before this line, six
+> after" is the closure's own moment); **six again** now that
+> `fjell_dtb_derive` is deleted — a coincidence of number, not a return: the six are
+> **not** the same six. Today's are `semantic_v1::decode`, `RevocationRecord::from_bytes`,
+> `AuditRecordBin::from_bytes`, `validate_dtb` (whose target now also calls the
+> kernel's `fdt_extent`), `parse_manifest` and `semantic_format::wire::decode`. All six
+> were among the seven fuzzed for 300 s at the 0.32.0 cut (dispatch run `35089305545`);
+> **the target that changed (`dtb_validate`) has not been run on CI since**, only
+> locally (5.28M executions in 61 s, no crash). A dispatched `fuzz-run` after the push is
+> owed. `v1-readiness.md`'s row said "six … run `34976532420`" all along — a run that
+> fuzzed a *different* six, without the wire decoder — and is corrected to say so.
 >
 > *Corrected in this closure: this entry and its summary row said six of
 > the eight targets did not compile and called functions that "no longer
@@ -3282,6 +3296,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `Done 10721172 runs in 301 second(s)`. The input stays in `fuzz/corpora/` as a
   > regression seed replayed on every push.
 
+- **Where the regression seed went (RFC-0.33-005, 2026-09-25).** `fjell-dtb-derive`,
+  its fuzz target and this entry's seed
+  `fuzz/corpora/dtb_derive_board_profile/regression-e047-get-string-add-overflow` were
+  **deleted** (E-048). This entry stays **CLOSED**: the defect was in code that no
+  longer exists, so there is nothing left to regress. The 5,044-byte input is in git
+  history and reproduces nothing today; to read it,
+  `git show 34974f5:fuzz/corpora/dtb_derive_board_profile/regression-e047-get-string-add-overflow`.
+  Its sibling, `dtb_validate`, is fuzzed from the same committed QEMU tree.
+
 ## E-048 — `fjell-dtb-derive` has never derived a board profile from a real device tree, and nothing that is documented as using it exists
 
 - **Claim:**
@@ -3370,7 +3393,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   means deciding what the parser should derive from a real tree — depth,
   `/soc` handling, virtio device identification — and whether anything should
   call it at all.
-- **Resolution:** ~~**OPEN**~~ **ACCEPTED** (architect, 2026-09-15, at
+- **Earlier resolution:** ~~**OPEN**~~ **ACCEPTED** (architect, 2026-09-15, at
   RFC-0.32-001's review), tracked **RFC-0.33-005** (scoped 2026-09-24) (owner, 2026-09-22: the deletion is
   approved and scheduled into the milestone that does the boot-plane work). Verified before ruling: in a scratch
   crate outside the tree, `derive_board_profile` on the committed seed
@@ -3391,6 +3414,44 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   target, or make it derive from a real tree and give it a caller. Until then
   the fuzz target stays: E-047 shows it finds real defects in code that is
   still published in the tree.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.33-005**, with survivors.
+  **`fjell-dtb-derive` is deleted** — crate, fuzz target, seeds, both workspace
+  lists, the fuzz manifest's edge and its lock entries — in one commit with the
+  figures it moved. Re-derived first, with controls: no manifest names it but the
+  fuzz crate's and the root's; on the committed QEMU tree it returns
+  `Err(MissingPlic)`; the tree has **8** `virtio,mmio` nodes and `classify_compat`
+  maps them all to `VirtioNetMmio`.
+  **`fjell-dtb-validate` stays and now has its test** (D2): the committed tree validates
+  against `BoardProfile::qemu_virt_default` in Gate 1, with five controls that break
+  the same tree or board and are each refused by the check that names them.
+  **The kernel's dependency list shrank** (D6): the 14-line header reader the kernel
+  runs every boot moved to a dependency-free crate, `fjell-fdt-header`, so the kernel
+  no longer links the validator or the crates beside it — **8 crates → 6**,
+  `fjell-dtb-validate`, `fjell-platform-format`, `fjell-measure-format` and
+  `fjell-canon` out, `fjell-fdt-header` in (`fjell-canon` had reached the kernel by
+  this route after RFC-0.33-003).
+
+  **The three published figures the deletion moved, and what they said before:**
+
+  | Where | Before | After |
+  |---|---|---|
+  | `v1-limitations.md`, fuzzing bullet | "seven decoders" | **six**, with how the number moved |
+  | `v1-readiness.md`, fuzz row | "six decoders … run `34976532420`" — **already wrong** (seven decoders since RFC-0.32-002; that run fuzzed a different six) | six, run `35089305545`, and a post-deletion run owed |
+  | E-043's decoder table | derive row live; "six" and "seven" both in the entry | derive row struck; a dated note on how the count moved |
+
+  The deletion does not move the count *seven → six* uniformly: in one place the old
+  number was already wrong, and the new number happens to equal it. Both are said.
+
+  **Survivors:** (1) `validate_dtb` still has **no caller** and boot-time full
+  validation is not built (E-004, hardware bring-up; the RFC's D5). (2) **What the test
+  proves is narrower than "the declared profile matches the machine":** R4 matches
+  `compatible` strings, not `reg`, and QEMU's eight identical `virtio,mmio` nodes
+  cannot be told apart from the tree — so it shows compatible strings present, and the
+  test's own doc says so. (3) The extended `dtb_validate` target has run only locally;
+  a CI `fuzz-run` is owed. (4) Nothing derives a board profile from a device tree on any
+  board, and nothing here builds it; a bring-up line will need a parser it does not
+  have — git history holds the deleted one, and this record says why it went.
 
 ## E-049 — `fjell-ci-coverage --check` has been red and nothing runs it; its matcher counts any `-p ` as a package
 
@@ -4497,7 +4558,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-045 the frozen wire-format schemas were never enforced: the generator and comparison test RFC-v0.6-003 specified were never built, CI checks only that the files exist, and both formats checked have drifted with no version bump | RFC-0.33-003 | CLOSED |
 | E-046 Rust structs reinterpreted as raw bytes unsoundly: `reassemble` decodes cross-service IPC bytes into an enum-bearing, non-`repr(C)` type, and the boot-control and store-superblock checksums read padding | RFC-0.32-002 | CLOSED |
 | E-047 `fjell-dtb-derive`'s `get_string` adds two `u32` offsets from the device tree unchecked: a crafted tree panics it (overflow checks) or reads the wrong string (none); found by RFC-0.32-001's first fuzz run | 0.32 | CLOSED |
-| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | RFC-0.33-005 | ACCEPTED |
+| E-048 `fjell-dtb-derive` has never derived a board profile from a real device tree (QEMU `virt` gives `MissingPlic`), nothing uses it, and ADR-v0.5-002 and RFC-v0.5-002 describe callers, a `profile derive` command and an `UnknownNode` error that do not exist | RFC-0.33-005 | CLOSED |
 | E-049 `fjell-ci-coverage --check` exits 1 on today's workflow and nothing runs it; its matcher counts any `-p ` on a line, so `mkdir -p "<path>"` reads as a covered package | RFC-0.33-004 | CLOSED |
 | E-050 76 of the 135 files under `docs/src` are absent from `SUMMARY.md`, so they are in no book — all 41 ADRs among them; the book's pages point at documents outside it, one claiming to be a symlink where none exists; four directory names exist twice and `docs/book/` is not ignored | RFC-0.32-003 | CLOSED |
 | E-051 the security advisory process is specified by RFC-v0.15-003 (Implemented) and has neither artefact — no `advisory-process.md`, no `advisories/` directory; the release checklist publishes a placeholder `security@<domain>` beside SECURITY.md's working channel, with a different acknowledgement commitment; and nothing checks advisories for 153 third-party packages | RFC-0.32-004 | CLOSED |

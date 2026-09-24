@@ -666,14 +666,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fjell-dtb-derive"
-version = "0.32.0"
-dependencies = [
- "fjell-measure-format",
- "fjell-platform-format",
-]
-
-[[package]]
 name = "fjell-dtb-validate"
 version = "0.32.0"
 dependencies = [

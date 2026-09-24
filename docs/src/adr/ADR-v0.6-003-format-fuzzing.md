@@ -57,6 +57,10 @@ Fuzzing runs nightly with the seeded corpora as starting points.
 > The first run of the device-tree target found a real crash in
 > `fjell-dtb-derive` within 30 seconds (E-047, fixed); its input is now a
 > permanent regression seed.
+>
+> *(Updated 2026-09-25, RFC-0.33-005: `fjell-dtb-derive`, its target
+> `dtb_derive_board_profile` — the row above — and that seed were deleted; see E-047
+> and E-048. This table is the record of what run `34976532420` fuzzed.)*
 
 ## Consequences
 

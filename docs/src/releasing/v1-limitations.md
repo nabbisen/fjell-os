@@ -878,17 +878,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   broken is answerable after all: since it was written, because the API it
   imported was in a file no `mod` declaration ever included.
 
-- **Fuzzing covers seven decoders, and only one of them sits on a live
+- **Fuzzing covers six decoders, and only one of them sits on a live
   cross-service boundary** (Errata **E-043**, **CLOSED** 2026-09-15 by
   RFC-0.32-001). The fuzz harness had never run: five of its eight targets
   called functions that never existed. It now has one target per byte decoder
   a host fuzz crate can reach — the semantic envelope wire format, semantic
-  intent records, revocation records, audit records, both device-tree parsers,
-  capability manifests — and all seven were fuzzed for 300 seconds each at the
+  intent records, revocation records, audit records, the device-tree
+  validator (whose target also fuzzes the kernel's header check), capability
+  manifests — and all of them were fuzzed for 300 seconds each at the
   0.32.0 cut (dispatch run `35089305545`). *(This bullet said "six decoders,
-  and none on a live boundary" until the 0.32.0 cut review: RFC-0.32-002 added
-  the seventh, on the live path, and updated the sub-bullet below but not this
-  heading.)* Every push builds the targets and replays every
+  and none on a live boundary" until the 0.32.0 cut review, then "seven"
+  when RFC-0.32-002 added the wire decoder; **it is six again** since
+  RFC-0.33-005 deleted `fjell-dtb-derive` and its target — the same number as
+  the original, and **not** the same six. The changed `dtb_validate` target has not
+  yet run on CI: a dispatched `fuzz-run` is owed after the push.)* Every push builds the targets and replays every
   committed seed. What this does not cover, stated plainly:
   - **Most fuzzed decoders are not on live untrusted paths.** Only the audit
     decoder and the semantic envelope decoder have runtime callers. *(Updated
@@ -910,18 +913,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
     *(`fjell-store-format` gained its first three on 2026-09-16 with
     RFC-0.32-002's checksum change.)*
 
-- **One device-tree parser has never worked on a real device tree** (Errata
-  **E-048**, ACCEPTED, unscheduled — deletion or repair is an owner decision). `fjell-dtb-derive` returns `MissingPlic` on QEMU's own
-  `virt` tree, because QEMU nests devices one level deeper than the parser
-  looks, and nothing uses the crate — and on this board no fix would help,
-  because QEMU's eight identical `virtio,mmio` nodes cannot be told apart from
-  the device tree at all. **Neither device-tree crate has a caller:**
-  `fjell-dtb-validate` works on the real tree but the kernel's DTB parser is a
-  stub, so the boot-time validation described by RFC-v0.12-003, ADR-v0.5-001,
-  ADR-v0.5-002 and the VisionFive 2 guide does not happen and no
-  `FJELL-BOOT-FAIL: DTB` marker exists. **Nothing shipped depends on either**:
-  `fjell-devmgr` builds its board profile in code. Boot-time validation
-  belongs with hardware bring-up (E-004).
+- **One device-tree parser never worked on a real device tree, and was deleted**
+  (Errata **E-048**, **CLOSED** 2026-09-25 by RFC-0.33-005, with survivors).
+  `fjell-dtb-derive` returned `MissingPlic` on QEMU's own `virt` tree, nothing used
+  it, and on this board no fix would help: QEMU's eight identical `virtio,mmio` nodes
+  cannot be told apart from the tree. It is gone, and the record says why so nobody
+  rebuilds it in bring-up by accident. **`fjell-dtb-validate` stays and is now
+  exercised in Gate 1** against the committed QEMU tree — which proves *compatible
+  strings present*, not that each device is at its declared address. **It still has no
+  caller**: the kernel checks only the tree's *header* at boot (through a new
+  dependency-free crate, `fjell-fdt-header`), and full boot-time validation, and any
+  derivation of a board profile from a tree, belong with hardware bring-up (E-004).
+  `fjell-devmgr` builds its board profile in code.
 
 - **A health failure cannot reach a reset in this deployment** (Errata
   **E-044**, **CLOSED** by RFC-0.33-001, with the survivors named here).

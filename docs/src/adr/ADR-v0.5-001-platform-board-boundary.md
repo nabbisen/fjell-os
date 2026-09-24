@@ -27,5 +27,7 @@ A new `KeyPurpose::BoardProfile` (0x07) covers the signing anchor.
   *(**Correction, 2026-09-16 (E-048):** it does not. No crate uses
   `fjell-dtb-derive`, the kernel hands off no parsed DTB, and `devmgr`
   constructs `BoardProfile::qemu_virt_default` in code.)*
+  *(**Update, 2026-09-25 (RFC-0.33-005):** `fjell-dtb-derive` was deleted; see
+  ADR-v0.5-002.)*
   avoiding runtime FDT parsing in services.
 - `devmgr` verifies `board.platform_ref == platform.profile_digest` before registration.

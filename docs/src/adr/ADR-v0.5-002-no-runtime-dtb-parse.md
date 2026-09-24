@@ -35,3 +35,19 @@ fails hard rather than registering an unknown device.
 > decision — no runtime DTB parsing in user-space services — is untouched, and
 > holds today for the simpler reason that nothing parses a DTB at all. The
 > crate's disposition is an owner decision.
+
+> **Update, 2026-09-25 (RFC-0.33-005): the crate was deleted, and why.**
+> `fjell-dtb-derive` existed (v0.5), never derived a profile from a real device tree
+> (on QEMU's `virt` tree it returned `MissingPlic`; and every one of that tree's eight
+> `virtio,mmio` nodes classified as a network device, so no depth fix would have made a
+> derived profile match the declared one — which virtio device a node is lives in the
+> device's own register, not in the tree), was used by nothing, and was removed with
+> its fuzz target and seeds. **This record is kept so it is not rebuilt in bring-up by
+> accident:** a device-tree parser that is written against a synthetic tree and tested
+> against the same synthetic tree has proved nothing. Git history (`fjell-dtb-derive`
+> before `34974f5`) is the archive; none of its code was carried forward.
+> What exists: `fjell-fdt-header`, the 8-byte header check the kernel runs on every boot;
+> and `fjell-dtb-validate`, which checks a tree against a declared `BoardProfile` and is
+> exercised against QEMU's real tree in Gate 1 but called by nothing at boot (hardware
+> bring-up, E-004). The decision this ADR records — no runtime DTB parsing in user-space
+> services — is untouched.
