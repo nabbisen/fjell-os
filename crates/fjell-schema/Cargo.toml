@@ -24,5 +24,6 @@ fjell-summary-format      = { path = "../formats/fjell-summary-format" }
 fjell-snapshot-format     = { path = "../formats/fjell-snapshot-format" }
 fjell-store-format        = { path = "../formats/fjell-store-format" }
 fjell-keyring             = { path = "../fjell-keyring" }
+fjell-semantic-format    = { path = "../formats/fjell-semantic-format" }
 fjell-semantic-v1         = { path = "../fjell-semantic-v1" }
 fjell-trust-provider      = { path = "../fjell-trust-provider" }

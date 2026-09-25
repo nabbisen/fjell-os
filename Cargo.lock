@@ -956,6 +956,7 @@ dependencies = [
  "fjell-keyring",
  "fjell-measure-format",
  "fjell-platform-format",
+ "fjell-semantic-format",
  "fjell-semantic-v1",
  "fjell-snapshot-format",
  "fjell-store-format",

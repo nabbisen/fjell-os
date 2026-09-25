@@ -154,6 +154,76 @@ fn fleet_policy() {
     );
 }
 
+/// The wire codec's bytes (`fjell-semantic-format::wire::encode`) for five envelopes that
+/// between them reach every arm of the codec (`samples::semantic_envelopes`), captured from
+/// the encoder **before** RFC-0.34-003 rewrote it to write through `Canon`. The rewrite must
+/// reproduce every byte; a change here is a wire-format change to the format services
+/// exchange across a trust boundary, and needs a version bump and a note.
+#[test]
+fn wire_envelopes() {
+    let want: [(usize, usize, &str); 5] = [
+        (
+            0,
+            183,
+            "464a534501000100010101010001021817161514131211013837363534333231010544440000100055706461746520617661696c61626c6555550000170041206e65772072656c65617365206973207374616765640402010a111100000b0061636b6e6f776c656467650101070073657276696365080073746f7261676564f10000000202020a222200000500726574727903000101010333330000100064617461206d6179206265206c6f7374012827262524232221",
+        ),
+        (
+            1,
+            47,
+            "464a53450100010001020102000102020000000000000000010166660000050048656c6c6f77770000000001000000",
+        ),
+        (
+            2,
+            159,
+            "464a53450100010002030103000102030000000000000000020311a1000007005365727669636522a200000800416c6c2077656c6c04050090000004006661637401010301900000040066616374024847464544434241030290000004006661637403a8a8a9aaabacadae03039000000400666163740488880000050072656164790304900000040066616374056867666564636261787776757473727103",
+        ),
+        (
+            3,
+            94,
+            "464a534501000100030401040001020400000000000000010900000000000000030c11b100000400446f6e6522b20000140054686520616374696f6e20636f6d706c657465640201010a0070726f78792d74657874018887868584838281",
+        ),
+        (
+            4,
+            47,
+            "464a53450100010003050105000102050000000000000000030211c100000500526561647922c20000000001050000",
+        ),
+    ];
+    let envs = s::semantic_envelopes();
+    assert_eq!(envs.len(), want.len());
+    for (i, len, hex_want) in want {
+        let mut out = [0u8; 8192];
+        let n = fjell_semantic_format::wire::encode(&envs[i], &mut out).expect("encodes");
+        assert_eq!(n, len, "wire sample {i}: the length changed");
+        check(&format!("wire_{i}"), &out[..n], hex_want);
+    }
+}
+
+/// The samples reach every arm of the codec. The two `arm` helpers are exhaustive matches,
+/// so a new variant in the model is a compile error there; this test makes sure the set
+/// actually takes each arm — an arm the samples miss is a hole in the description.
+#[test]
+fn the_wire_samples_reach_every_arm() {
+    let envs = s::semantic_envelopes();
+    let mut payload = [false; s::PAYLOAD_ARMS];
+    let mut fact = [false; s::FACT_ARMS];
+    for e in &envs {
+        payload[s::payload_arm(&e.payload)] = true;
+        if let fjell_semantic_format::SemanticPayload::State(n) = &e.payload {
+            for f in n.facts.iter() {
+                fact[s::fact_arm(&f.value)] = true;
+            }
+        }
+    }
+    assert!(
+        payload.iter().all(|&b| b),
+        "a payload arm has no sample: {payload:?}"
+    );
+    assert!(
+        fact.iter().all(|&b| b),
+        "a FactValue arm has no sample: {fact:?}"
+    );
+}
+
 /// The semantic intent codec's bytes, captured from `encode` before it was
 /// rewritten to write through `Canon`. (No catalogue entry has an optional field,
 /// so every `present` byte here is `01`.)

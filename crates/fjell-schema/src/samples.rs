@@ -382,3 +382,180 @@ pub fn fleet_policy() -> fjell_fleet_format::FleetPolicy {
     }
     p
 }
+
+// ── fjell-semantic-format::wire ───────────────────────────────────────────────
+//
+// The wire codec is not a flat field list: it has a three-arm tagged payload, optional
+// fields, and a five-arm tagged union (`FactValue`). One encoder run shows one arm, so its
+// description is recorded from a **set** of samples (RFC-0.34-003 §B), and the set must
+// reach every arm. The two `arm` helpers below are exhaustive `match`es on purpose:
+// adding a variant to the model is a compile error here, not a silent hole in the file.
+
+use fjell_semantic_format::{
+    ActionId, ActionKind, ActionSpec, BoundedText, CapabilityRequirement, ConfirmationPolicy,
+    Consequence, CorrelationId, EventKind, EventNode, EventResult, FactValue, FixedVec, Importance,
+    IntentKind, IntentNode, NodeId, ResourceName, Reversibility, SemanticEnvelope, SemanticPayload,
+    Severity, StateFact, StateKind, StateNode, Status, TextId, TextToken,
+};
+
+/// Which arm of the payload union an envelope takes (exhaustive by construction).
+pub fn payload_arm(p: &SemanticPayload) -> usize {
+    match p {
+        SemanticPayload::Intent(_) => 0,
+        SemanticPayload::State(_) => 1,
+        SemanticPayload::Event(_) => 2,
+    }
+}
+pub const PAYLOAD_ARMS: usize = 3;
+
+/// Which arm of `FactValue` a fact takes (exhaustive by construction).
+pub fn fact_arm(v: &FactValue) -> usize {
+    match v {
+        FactValue::Bool(_) => 0,
+        FactValue::U64(_) => 1,
+        FactValue::I64(_) => 2,
+        FactValue::Text(_) => 3,
+        FactValue::Ratio { .. } => 4,
+    }
+}
+pub const FACT_ARMS: usize = 5;
+
+fn tok(id: u32, s: &str) -> TextToken {
+    TextToken {
+        id: TextId(id),
+        fallback: BoundedText::from_str(s),
+    }
+}
+
+fn node_id(n: u16) -> NodeId {
+    NodeId {
+        producer_index: 0x0100 + n,
+        local_sequence: 0x0201_0000 + n as u32,
+    }
+}
+
+/// Five envelopes that together reach every arm of the codec: every payload arm, every
+/// `FactValue` arm, each optional both present and absent, and every counted group with
+/// at least one element (and one intent with none).
+pub fn semantic_envelopes() -> Vec<SemanticEnvelope> {
+    // 1. An intent with two actions (one with a required capability, one without), one
+    //    consequence, an expiry, and a correlation id.
+    let mut actions = FixedVec::new();
+    actions.push(ActionSpec {
+        action_id: ActionId(0x0A01),
+        label: tok(0x1111, "acknowledge"),
+        kind: ActionKind::Confirm,
+        required_capability: Some(CapabilityRequirement {
+            resource_class: BoundedText::from_str("service"),
+            resource_name: ResourceName::new("storaged"),
+            rights: 0x0000_00F1,
+        }),
+        reversibility: Reversibility::PartiallyReversible,
+        confirmation: ConfirmationPolicy::Required,
+    });
+    actions.push(ActionSpec {
+        action_id: ActionId(0x0A02),
+        label: tok(0x2222, "retry"),
+        kind: ActionKind::Retry,
+        required_capability: None,
+        reversibility: Reversibility::Reversible,
+        confirmation: ConfirmationPolicy::None,
+    });
+    let mut consequences = FixedVec::new();
+    consequences.push(Consequence {
+        level: Severity::Important,
+        text: tok(0x3333, "data may be lost"),
+    });
+    let mut i1 = SemanticEnvelope::new_intent(
+        node_id(1),
+        0x1112_1314_1516_1718,
+        IntentNode {
+            kind: IntentKind::ActionRequest,
+            title: tok(0x4444, "Update available"),
+            description: tok(0x5555, "A new release is staged"),
+            severity: Severity::Critical,
+            actions,
+            consequences,
+            expires_at_tick: Some(0x2122_2324_2526_2728),
+        },
+    );
+    i1.correlation_id = Some(CorrelationId(0x3132_3334_3536_3738));
+
+    // 2. The minimal intent: no actions, no consequences, no expiry, no correlation.
+    let i2 = SemanticEnvelope::new_intent(
+        node_id(2),
+        2,
+        IntentNode {
+            kind: IntentKind::Information,
+            title: tok(0x6666, "Hello"),
+            description: tok(0x7777, ""),
+            severity: Severity::Low,
+            actions: FixedVec::new(),
+            consequences: FixedVec::new(),
+            expires_at_tick: None,
+        },
+    );
+
+    // 3. A state with one fact of every `FactValue` arm.
+    let mut facts = FixedVec::new();
+    let vals = [
+        FactValue::Bool(true),
+        FactValue::U64(0x4142_4344_4546_4748),
+        FactValue::I64(-0x5152_5354_5556_5758),
+        FactValue::Text(tok(0x8888, "ready")),
+        FactValue::Ratio {
+            numerator: 0x6162_6364_6566_6768,
+            denominator: 0x7172_7374_7576_7778,
+        },
+    ];
+    for (i, v) in vals.into_iter().enumerate() {
+        facts.push(StateFact {
+            key: tok(0x9000 + i as u32, "fact"),
+            value: v,
+            importance: Importance::High,
+        });
+    }
+    let s3 = SemanticEnvelope::new_state(
+        node_id(3),
+        3,
+        StateNode {
+            kind: StateKind::ServiceStatus,
+            title: tok(0xA111, "Service"),
+            summary: tok(0xA222, "All well"),
+            status: Status::Warning,
+            facts,
+        },
+    );
+
+    // 4. An event with a subject and a related audit sequence, and a correlation id.
+    let mut e4 = SemanticEnvelope::new_event(
+        node_id(4),
+        4,
+        EventNode {
+            kind: EventKind::ActionCompleted,
+            title: tok(0xB111, "Done"),
+            description: tok(0xB222, "The action completed"),
+            severity: Severity::Normal,
+            result: EventResult::Ok,
+            subject: Some(ResourceName::new("proxy-text")),
+            related_audit_seq: Some(0x8182_8384_8586_8788),
+        },
+    );
+    e4.correlation_id = Some(CorrelationId(9));
+
+    // 5. An event with neither.
+    let e5 = SemanticEnvelope::new_event(
+        node_id(5),
+        5,
+        EventNode {
+            kind: EventKind::ServiceReady,
+            title: tok(0xC111, "Ready"),
+            description: tok(0xC222, ""),
+            severity: Severity::Low,
+            result: EventResult::NotApplicable,
+            subject: None,
+            related_audit_seq: None,
+        },
+    );
+    vec![i1, i2, s3, e4, e5]
+}
