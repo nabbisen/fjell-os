@@ -7,3 +7,4 @@ license.workspace = true
 publish = false
 
 [dependencies]
+fjell-canon = { path = "../../fjell-canon" }

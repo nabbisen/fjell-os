@@ -262,8 +262,11 @@ fn a_survivor_is_named_in_the_register() {
 #[test]
 fn a_disk_structures_header_states_its_on_disk_version() {
     let mut checked = 0;
-    for f in FORMATS.iter().filter(|f| f.on_disk.is_some()) {
-        let v = (f.on_disk.unwrap())();
+    for f in FORMATS
+        .iter()
+        .filter(|f| matches!(f.format_version, Some((_, "on disk"))))
+    {
+        let v = (f.format_version.unwrap().0)();
         let text = generate(f).unwrap();
         let header = text.lines().find(|l| l.starts_with("# version:")).unwrap();
         assert!(
@@ -285,12 +288,80 @@ fn a_disk_structures_header_states_its_on_disk_version() {
             .iter()
             .find(|f| f.id == id)
             .unwrap()
-            .on_disk
-            .unwrap()()
+            .format_version
+            .unwrap()
+            .0()
     };
     assert_eq!(get("store-superblock"), 3);
     assert_eq!(get("boot-control-block"), 3);
     assert_eq!(get("record-header"), 1);
+}
+
+// ── RFC-0.34-003 §A: the wire description describes the encoder, and the decoder is checked ──
+
+/// The frozen file describes what `encode` writes; the decoder is a second, hand-written
+/// reading of the same layout that it does not describe. So every sample must survive a
+/// round trip — `decode_exact(encode(x))` succeeds and encodes to the *same bytes* — which
+/// is the only check on the decode side, and the file's header says so.
+#[test]
+fn every_wire_sample_round_trips_and_the_generic_writer_agrees_with_encode() {
+    use fjell_semantic_format::wire;
+    for (i, e) in fjell_schema::samples::semantic_envelopes()
+        .iter()
+        .enumerate()
+    {
+        let mut a = [0u8; 8192];
+        let n = wire::encode(e, &mut a).expect("encodes");
+        let back = wire::decode_exact(&a[..n]).unwrap_or_else(|x| panic!("sample {i}: {x:?}"));
+        let mut b = [0u8; 8192];
+        let m = wire::encode(&back, &mut b).expect("re-encodes");
+        assert_eq!(
+            &a[..n],
+            &b[..m],
+            "sample {i}: decode then encode changed the bytes"
+        );
+        assert_eq!(
+            format!("{e:?}"),
+            format!("{back:?}"),
+            "sample {i}: the value changed"
+        );
+        // and the function the description is generated from writes the same bytes
+        let mut c = [0u8; 8192];
+        let mut sink = fjell_canon::SliceSink::new(&mut c);
+        wire::write_canonical(e, &mut sink);
+        let k = sink.len();
+        assert_eq!(
+            &a[..n],
+            &c[..k],
+            "sample {i}: write_canonical differs from encode"
+        );
+    }
+}
+
+#[test]
+fn the_wire_file_states_its_version_and_what_it_does_not_cover() {
+    let f = FORMATS
+        .iter()
+        .find(|f| f.id == "wire-v1")
+        .expect("registered");
+    let text = generate(f).unwrap();
+    assert!(text.contains("# version: v1 wire"), "{text}");
+    assert!(
+        text.contains("# not described: what `decode` accepts or refuses"),
+        "the file must not let a reader infer it blesses the decoder"
+    );
+    // the union shapes the description was extended for are really in it
+    for needle in [
+        "choice payload",
+        "variant intent",
+        "variant state",
+        "variant event",
+        "choice",
+    ] {
+        assert!(text.contains(needle), "missing `{needle}`:\n{text}");
+    }
+    assert!(text.contains("optional correlation_id"), "{text}");
+    assert!(text.contains("i64 LE"), "{text}");
 }
 
 // ── Controls: the comparison names what changed ──────────────────────────────

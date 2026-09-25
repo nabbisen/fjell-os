@@ -4558,6 +4558,21 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   bytes** (possible because they are padding-free, unlike E-055's), after which the
   kernel's raw write of `AuditRecordBin` is a separate, kernel-side change.
 
+- **Update 2026-09-25 (RFC-0.34-003): the first survivor is resolved; four remain.**
+  **`fjell-semantic-format::wire`** now writes through `Canon` and has a generated
+  description, `schema/wire-v1.frozen`, compared in Gate 1 — **18** generated files (17
+  before), and the eighteen include every format services exchange across a trust boundary.
+  `Canon` gained what the codec needed and **the gap is named**: `scope`, `optional`, `variant`,
+  `i64` and `refuse` (all with defaults that write what the codec always wrote, so no
+  existing description moved: **17 files unchanged**), and the recorder merges a *set* of samples
+  because one encoder run takes one arm of each union. **What the file does not cover, and
+  says so in its header:** the decoder (a second, hand-written reading of the same layout —
+  checked only by a round trip per sample), the values behind a tag byte, and the encoder's
+  refusals and their precedence. Goldens were captured from the **unmodified** encoder
+  (183, 47, 159, 94, 47 bytes) before the first edit and are reproduced byte for byte. **Still
+  unresolved, unscheduled:** the measurement chain digest, the bundle digest, and the audit and
+  net `#[repr(C)]` layouts.
+
 ## E-066 — a fleet roster's digest covered only its first eight members
 
 - **Claim:** `fjell-fleet-format`'s `roster_digest` is *"the canonical digest of a
@@ -4734,7 +4749,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
-| E-065 five format crates that produce bytes (the semantic wire codec, the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) have no generated description — named survivors of E-045's census | 0.34 | ACCEPTED |
+| E-065 four format crates that produce bytes (the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) still have no generated description — named survivors of E-045's census; the fifth, the semantic wire codec, was resolved by RFC-0.34-003 | 0.34 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

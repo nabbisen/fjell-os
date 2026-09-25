@@ -1000,6 +1000,9 @@ dependencies = [
 [[package]]
 name = "fjell-semantic-format"
 version = "0.32.0"
+dependencies = [
+ "fjell-canon",
+]
 
 [[package]]
 name = "fjell-semantic-stream"

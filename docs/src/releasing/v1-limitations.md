@@ -1098,17 +1098,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   differed by spelling and seven described something other than what is hashed**.
   They are now **generated** by `cargo xtask schema dump` from the same functions
   that produce the bytes, compared with the code in Gate 1 (the comparison names
-  the field that drifted), and there are seventeen. **What this does and does not
+  the field that drifted), and there are eighteen (seventeen when this was closed; the semantic wire codec's is the eighteenth, RFC-0.34-003). **What this does and does not
   guarantee:** a change to a covered format's field names, types, widths, order or
   group capacity cannot be committed without its file changing; it does *not* see
   the *values* of ordinary fields (the golden digests hold those for the fourteen
   digest and codec formats they cover, and the three disk structures' own tests
   hold theirs), and a version bump is something the diff makes visible to a
-  reviewer, not something a check enforces. **Survivors — Errata E-065 (OPEN,
-  unscheduled):** five format crates produce bytes and still have no generated
-  description — the semantic wire codec that services exchange over IPC, the
-  measurement chain digest, the bundle digest, and the audit and net `#[repr(C)]`
-  layouts.
+  reviewer, not something a check enforces. **Survivors — Errata E-065 (ACCEPTED,
+  unscheduled):** four format crates produce bytes and still have no generated
+  description — the measurement chain digest, the bundle digest, and the audit and net
+  `#[repr(C)]` layouts (the semantic wire codec that services exchange over IPC was the
+  fifth and was resolved by RFC-0.34-003).
 
 - **A fleet roster's digest covered only its first eight members** (Errata
   **E-066**, **CLOSED** 2026-09-24, found and fixed inside RFC-0.33-003). The
@@ -1228,17 +1228,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   profile, and `fjell-dtb-validate`'s full validation is still not wired into boot
   (E-048; hardware bring-up, E-004) — so no path here has run on a real board's
   tree, and this line says nothing about one.
-- **Five formats that produce bytes still have no generated description**
-  (Erratum **E-065**, ACCEPTED 2026-09-25, the semantic codec tracked 0.34, the
-  rest unscheduled). RFC-0.33-003 gave nine formats a description generated from
-  the encoder that writes them, and a check that fails on drift. Five were not
-  converted, each for a stated reason: **`fjell-semantic-format`'s `wire`** — the
-  IPC codec every publisher and presentation exchanges, and the largest byte format
-  in the tree — because it is its own line; `fjell-measure-format`'s chain digest
-  and `fjell-bundle-format`'s bundle digest because the latter is big-endian, which
-  `Canon` cannot yet express; and `fjell-audit-format` and `fjell-net-format`
-  because their `#[repr(C)]` layouts *are* the description and one of them is
-  written raw by the kernel, so converting them is a kernel-side change. **What
-  this means for a reader:** for those five, the bytes on the wire are described by
-  nothing a gate compares, and the semantic codec is the one that matters —
-  which is why it is scheduled first.
+- **Four formats that produce bytes still have no generated description**
+  (Erratum **E-065**, ACCEPTED 2026-09-25; unscheduled). RFC-0.33-003 gave nine formats a
+  description generated from the encoder that writes them, and a check that fails on drift;
+  **RFC-0.34-003 added the one that matters most — `fjell-semantic-format`'s `wire`, the IPC
+  codec every publisher and presentation exchanges** (18 generated files now). Four remain,
+  each for a stated reason: `fjell-measure-format`'s chain digest and `fjell-bundle-format`'s
+  bundle digest (the latter big-endian, which `Canon` cannot yet express), and
+  `fjell-audit-format` and `fjell-net-format`, whose `#[repr(C)]` layouts *are* the
+  description and one of which is written raw by the kernel. **What the wire description does
+  *not* cover — a reader must not infer more:** it describes what `encode` *writes*. The
+  decoder is a second, hand-written reading of the same layout and is **not described** (a
+  decoder that read different fields would not be caught by the file; a round trip per sample
+  is the only check), nor are the values behind a tag byte or the encoder's refusals. **For the
+  four:** the bytes are described by nothing a gate compares.

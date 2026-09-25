@@ -18,13 +18,21 @@ pub struct Format {
     /// Dated notes on what the file used to claim (D3). Documentation about the
     /// past, not a description of a layout.
     pub notes: &'static [&'static str],
-    /// The format's **on-disk version**, where it has one (RFC-0.33-003 D11): read from
+    /// The format's **own version** and what kind it is (`"on disk"`, `"wire"`), where it
+    /// has one (RFC-0.33-003 D11, RFC-0.34-003 §E): read from
     /// the crate's own constant, so the header says the format's version — what a
     /// reader of `store-superblock.frozen` wants — and not the release the file was
     /// generated in (that is `version`, kept beside it).
-    pub on_disk: Option<fn() -> u16>,
-    /// The encoder, run on the representative value.
-    pub write: fn(&mut dyn Canon),
+    pub format_version: Option<(fn() -> u16, &'static str)>,
+    /// What the file says the description does **not** cover, one `# not described:`
+    /// line each — for a format whose *reader* is a second, hand-written reading of the
+    /// layout (RFC-0.34-003 §A): the file describes what the encoder writes and must not
+    /// be read as blessing the decoder.
+    pub caveats: &'static [&'static str],
+    /// The encoder, run on each representative value. A flat format has one sample; a
+    /// format with tagged unions or optionals needs samples that between them reach
+    /// every arm, and their recordings are merged (`crate::record`).
+    pub samples: &'static [fn(&mut dyn Canon)],
 }
 
 fn rollback(c: &mut dyn Canon) {
@@ -93,6 +101,24 @@ fn fleet_roster(c: &mut dyn Canon) {
 fn fleet_policy(c: &mut dyn Canon) {
     fjell_fleet_format::digest::write_policy_canonical(&s::fleet_policy(), c)
 }
+fn wire_sample_0(c: &mut dyn Canon) {
+    wire_sample(0, c)
+}
+fn wire_sample_1(c: &mut dyn Canon) {
+    wire_sample(1, c)
+}
+fn wire_sample_2(c: &mut dyn Canon) {
+    wire_sample(2, c)
+}
+fn wire_sample_3(c: &mut dyn Canon) {
+    wire_sample(3, c)
+}
+fn wire_sample_4(c: &mut dyn Canon) {
+    wire_sample(4, c)
+}
+fn wire_sample(i: usize, c: &mut dyn Canon) {
+    fjell_semantic_format::wire::write_canonical(&s::semantic_envelopes()[i], c)
+}
 fn platform(c: &mut dyn Canon) {
     fjell_platform_format::digest::write_platform_canonical(&s::platform_profile(), c)
 }
@@ -124,8 +150,9 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim `channel` u8[16], `min_counter` u32 and `updated_tick`, and omitted `last_advance_source` and the 32-byte `record_digest_placeholder`; the encoder writes `channel_id` u8[8], `min_counter` u64, `last_advance_tick`, `last_advance_source` and the placeholder. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
-        on_disk: None,
-        write: rollback,
+        format_version: None,
+        caveats: &[],
+        samples: &[rollback],
     },
     Format {
         id: "release-metadata-v1",
@@ -136,8 +163,9 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to describe a different structure (domain FJELL-RELEASE-V1; `release_id`, `channel` u8[16], `counter` u32, `min_counter` u32, kernel/rootfs/policy digests and a `signature` triple); the encoder writes domain FJELL-RELEASE-META-V1 and the fields below. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
-        on_disk: None,
-        write: release_metadata,
+        format_version: None,
+        caveats: &[],
+        samples: &[release_metadata],
     },
     Format {
         id: "v2",
@@ -148,8 +176,9 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to list 16 fields (provider, measurement_head, three digests, health_result, signature); the encoder writes the keyring, boot, verification, measurement, snapshot, health, rollback, freshness and provenance groups as well and has no signature in the digest stream. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
-        on_disk: None,
-        write: attestation,
+        format_version: None,
+        caveats: &[],
+        samples: &[attestation],
     },
     Format {
         id: "snapshot-v1",
@@ -160,8 +189,9 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim `purpose_count` and six `purpose[0..6]` records with a 64-byte `anchor_bytes`; the encoder writes the SNAP-V1 domain, `anchor_count` and 28 slots of present/purpose/algorithm/authority/epoch/reserved/key_len/key_bytes. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
-        on_disk: None,
-        write: keyring,
+        format_version: None,
+        caveats: &[],
+        samples: &[keyring],
     },
     Format {
         id: "bundle-v1",
@@ -172,8 +202,9 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim `export_tick`, `source_service`, `entry_count` and `entries[]` of tag/tick/len/body; the encoder writes `created_tick`, `measurement_head`, `last_attestation` and two counted groups, `audit_events` and `semantic_intents`. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
-        on_disk: None,
-        write: diag,
+        format_version: None,
+        caveats: &[],
+        samples: &[diag],
     },
     Format {
         id: "node-identity-v1",
@@ -182,8 +213,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen)",
         path: "crates/formats/fjell-identity-format/schema/node-identity-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: identity,
+        format_version: None,
+        caveats: &[],
+        samples: &[identity],
     },
     Format {
         id: "board-v1",
@@ -192,8 +224,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.6.0 (frozen)",
         path: "crates/formats/fjell-platform-format/schema/board-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: board,
+        format_version: None,
+        caveats: &[],
+        samples: &[board],
     },
     Format {
         id: "measurement-summary-v1",
@@ -202,8 +235,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen)",
         path: "crates/formats/fjell-summary-format/schema/measurement-summary-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: measurement_summary,
+        format_version: None,
+        caveats: &[],
+        samples: &[measurement_summary],
     },
     Format {
         id: "release-summary-v1",
@@ -212,8 +246,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen)",
         path: "crates/formats/fjell-summary-format/schema/release-summary-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: release_summary,
+        format_version: None,
+        caveats: &[],
+        samples: &[release_summary],
     },
     Format {
         id: "snapshot-v2",
@@ -222,8 +257,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.7.0 (frozen) BREAKING-SCHEMA: see ADR-v0.7-004",
         path: "crates/formats/fjell-snapshot-format/schema/snapshot-v2.frozen",
         notes: &[],
-        on_disk: None,
-        write: snapshot,
+        format_version: None,
+        caveats: &[],
+        samples: &[snapshot],
     },
     Format {
         id: "intent-v1",
@@ -234,8 +270,9 @@ pub const FORMATS: &[Format] = &[
         notes: &[
             "2026-09-24: this file used to claim one `fields[].value` of width FieldKind.wire_size and carry hand-typed `catalog_entries`/`catalog_version` lines; it now records the widest catalogue entry and derives the notes from the catalogue. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
         ],
-        on_disk: None,
-        write: semantic,
+        format_version: None,
+        caveats: &[],
+        samples: &[semantic],
     },
     Format {
         id: "fleet-roster-v1",
@@ -244,8 +281,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.8.0 (first generated)",
         path: "crates/formats/fjell-fleet-format/schema/fleet-roster-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: fleet_roster,
+        format_version: None,
+        caveats: &[],
+        samples: &[fleet_roster],
     },
     Format {
         id: "fleet-policy-v1",
@@ -254,8 +292,29 @@ pub const FORMATS: &[Format] = &[
         version: "v0.8.0 (first generated)",
         path: "crates/formats/fjell-fleet-format/schema/fleet-policy-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: fleet_policy,
+        format_version: None,
+        caveats: &[],
+        samples: &[fleet_policy],
+    },
+    Format {
+        id: "wire-v1",
+        krate: "fjell-semantic-format",
+        name: "SemanticEnvelopeWireV1",
+        version: "first generated in v0.34.0",
+        path: "crates/formats/fjell-semantic-format/schema/wire-v1.frozen",
+        notes: &[],
+        format_version: Some((|| fjell_semantic_format::wire::WIRE_VERSION, "wire")),
+        caveats: &[
+            "what `decode` accepts or refuses -- the tag tables it maps back, the count limits it enforces, the stream/payload agreement it demands, decode_exact's trailing-byte rule. This file describes what `encode` WRITES; a decoder that read a different layout would not be caught by it (the round-trip test in fjell-schema is the only check)",
+            "the values behind a tag byte (which byte means which enum variant lives in the tagged! tables), and the encoder's refusals (BufferTooSmall, TooLong) and their precedence",
+        ],
+        samples: &[
+            wire_sample_0,
+            wire_sample_1,
+            wire_sample_2,
+            wire_sample_3,
+            wire_sample_4,
+        ],
     },
     Format {
         id: "platform-v1",
@@ -264,8 +323,9 @@ pub const FORMATS: &[Format] = &[
         version: "v0.6.0 (frozen)",
         path: "crates/formats/fjell-platform-format/schema/platform-v1.frozen",
         notes: &[],
-        on_disk: None,
-        write: platform,
+        format_version: None,
+        caveats: &[],
+        samples: &[platform],
     },
     Format {
         id: "store-superblock",
@@ -274,8 +334,9 @@ pub const FORMATS: &[Format] = &[
         version: "first generated in v0.33.0",
         path: "crates/formats/fjell-store-format/schema/store-superblock.frozen",
         notes: &[],
-        on_disk: Some(|| fjell_store_format::STORE_SUPERBLOCK_VERSION),
-        write: store_superblock,
+        format_version: Some((|| fjell_store_format::STORE_SUPERBLOCK_VERSION, "on disk")),
+        caveats: &[],
+        samples: &[store_superblock],
     },
     Format {
         id: "record-header",
@@ -284,8 +345,9 @@ pub const FORMATS: &[Format] = &[
         version: "first generated in v0.33.0",
         path: "crates/formats/fjell-store-format/schema/record-header.frozen",
         notes: &[],
-        on_disk: Some(|| fjell_store_format::RECORD_HEADER_VERSION),
-        write: record_header,
+        format_version: Some((|| fjell_store_format::RECORD_HEADER_VERSION, "on disk")),
+        caveats: &[],
+        samples: &[record_header],
     },
     Format {
         id: "boot-control-block",
@@ -294,8 +356,9 @@ pub const FORMATS: &[Format] = &[
         version: "first generated in v0.33.0",
         path: "crates/formats/fjell-upgrade-format/schema/boot-control-block.frozen",
         notes: &[],
-        on_disk: Some(|| fjell_upgrade_format::BOOT_CONTROL_VERSION),
-        write: boot_control,
+        format_version: Some((|| fjell_upgrade_format::BOOT_CONTROL_VERSION, "on disk")),
+        caveats: &[],
+        samples: &[boot_control],
     },
 ];
 
@@ -354,13 +417,6 @@ pub const EXCLUSIONS: &[(&str, Exclusion)] = &[
         Exclusion::Survivor {
             erratum: "E-065",
             what: "`MeasurementEvent::compute_chain_digest` is a digest stream over `of_parts`; not yet on `Canon`",
-        },
-    ),
-    (
-        "fjell-semantic-format",
-        Exclusion::Survivor {
-            erratum: "E-065",
-            what: "`wire` is the IPC codec for `SemanticEnvelope` (RFC-0.32-002 D1): an encoder and decoder with unnamed writer calls, the largest format in the tree, and it needs its own line",
         },
     ),
 ];

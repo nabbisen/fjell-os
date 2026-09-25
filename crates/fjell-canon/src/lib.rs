@@ -72,6 +72,94 @@ pub trait Canon {
     /// A fact about the format that is **not** part of its bytes (a catalogue size,
     /// a version label). Recorded; never written.
     fn note(&mut self, key: &'static str, value: &str);
+
+    // ── Extensions for shapes the flat formats did not have (RFC-0.34-003 §B) ──
+    //
+    // Every method below has a default that writes **exactly what the codec always
+    // wrote**, so the byte sinks need no change and every existing description is
+    // byte-identical. Only the recording sink overrides them.
+
+    /// A signed 64-bit integer, little-endian: the same eight bytes as `u64`, but
+    /// described as signed.
+    fn i64(&mut self, name: &'static str, v: i64) {
+        self.u64(name, v as u64);
+    }
+
+    /// **This value cannot be written** (a text longer than its capacity, say). A byte
+    /// sink that can fail records it and stops; the recording sink and the plain byte
+    /// sinks ignore it. It is how a codec keeps its error *precedence* — the first
+    /// thing to go wrong, in write order — when its writes go through `Canon`.
+    fn refuse(&mut self, _reason: &'static str) {}
+
+    /// Structure the recorder needs and no byte sink cares about: entering and leaving
+    /// a named scope, an optional body, or an arm of a tagged union. Written through
+    /// [`dyn Canon`'s `scope`, `optional` and `variant`](Canon#method.scope) — never
+    /// called directly. Byte sinks ignore it.
+    fn structure(&mut self, _event: Structure) {}
+}
+
+/// What [`Canon::structure`] tells a recording sink.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Structure {
+    /// Entering a nested value: its fields are named `name.field`.
+    EnterScope(&'static str),
+    /// Entering the body of an optional value whose presence byte was just written.
+    /// `present` is what the value being written holds; a body is only *seen* when it
+    /// is present, so a description needs a sample where it is.
+    EnterOptional { name: &'static str, present: bool },
+    /// Entering one arm of a tagged union whose tag byte was just written.
+    EnterVariant {
+        name: &'static str,
+        tag: u8,
+        label: &'static str,
+    },
+    /// Leaving whatever was entered last.
+    Leave,
+}
+
+/// Writers for the shapes the flat formats did not have. Inherent on `dyn Canon` so a
+/// codec calls them on its `&mut dyn Canon` with nothing to import; each is built from
+/// the trait's primitives, so a byte sink writes what it always wrote.
+impl<'a> dyn Canon + 'a {
+    /// A named nested value. Writes nothing itself: its fields are named
+    /// `name.field` in the description.
+    pub fn scope(&mut self, name: &'static str, f: &mut dyn FnMut(&mut dyn Canon)) {
+        self.structure(Structure::EnterScope(name));
+        f(self);
+        self.structure(Structure::Leave);
+    }
+
+    /// An optional value: one presence byte (`0` or `1`, named `name`), then the body
+    /// **if present**.
+    pub fn optional(
+        &mut self,
+        name: &'static str,
+        present: bool,
+        f: &mut dyn FnMut(&mut dyn Canon),
+    ) {
+        self.u8(name, present as u8);
+        self.structure(Structure::EnterOptional { name, present });
+        if present {
+            f(self);
+        }
+        self.structure(Structure::Leave);
+    }
+
+    /// One arm of a tagged union: the tag byte (named `name`), then the arm's body.
+    /// The description is the union of every arm some sample takes; `label` names the
+    /// arm in it.
+    pub fn variant(
+        &mut self,
+        name: &'static str,
+        tag: u8,
+        label: &'static str,
+        f: &mut dyn FnMut(&mut dyn Canon),
+    ) {
+        self.u8(name, tag);
+        self.structure(Structure::EnterVariant { name, tag, label });
+        f(self);
+        self.structure(Structure::Leave);
+    }
 }
 
 /// A fixed-capacity byte sink: the "collect the bytes" half of [`Canon`].
@@ -334,5 +422,66 @@ mod tests {
         let mut s = BufSink::<4>::new();
         s.note("k", "v");
         assert!(s.is_empty());
+    }
+
+    // ── RFC-0.34-003 §B: the extensions write exactly the bytes they always did ──
+
+    /// A tagged payload with an optional field and a scope, written two ways: through
+    /// the extensions, and by hand with only the primitives. The byte sinks must agree.
+    fn extended(c: &mut dyn Canon, present: bool) {
+        c.u16("version", 1);
+        c.variant("payload", 2, "state", &mut |c| {
+            c.scope("title", &mut |c| {
+                c.u32("id", 0x0102_0304);
+                c.u8("len", 2);
+            });
+            c.optional("expiry", present, &mut |c| c.i64("at", -2));
+        });
+    }
+
+    fn by_hand(c: &mut dyn Canon, present: bool) {
+        c.u16("version", 1);
+        c.u8("payload", 2);
+        c.u32("id", 0x0102_0304);
+        c.u8("len", 2);
+        c.u8("expiry", present as u8);
+        if present {
+            c.u64("at", (-2i64) as u64);
+        }
+    }
+
+    #[test]
+    fn the_extensions_write_what_the_primitives_write() {
+        for present in [false, true] {
+            let (mut a, mut b) = (BufSink::<64>::new(), BufSink::<64>::new());
+            extended(&mut a, present);
+            by_hand(&mut b, present);
+            assert_eq!(a.bytes(), b.bytes(), "present = {present}");
+            let mut raw = [0u8; 64];
+            let mut s = SliceSink::new(&mut raw);
+            extended(&mut s, present);
+            let n = s.len();
+            assert_eq!(&raw[..n], a.bytes());
+        }
+    }
+
+    #[test]
+    fn an_absent_optional_writes_only_its_presence_byte() {
+        let mut a = BufSink::<16>::new();
+        (&mut a as &mut dyn Canon).optional("x", false, &mut |c| c.u64("body", 1));
+        assert_eq!(a.bytes(), [0]);
+        let mut b = BufSink::<16>::new();
+        (&mut b as &mut dyn Canon).optional("x", true, &mut |c| c.u64("body", 1));
+        assert_eq!(b.bytes(), [1, 1, 0, 0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
+    fn i64_is_the_same_eight_bytes_as_u64() {
+        let mut a = BufSink::<8>::new();
+        a.i64("v", -1);
+        assert_eq!(a.bytes(), [0xFF; 8]);
+        let mut b = BufSink::<8>::new();
+        b.refuse("too long"); // a plain byte sink ignores a refusal
+        assert!(b.is_empty());
     }
 }

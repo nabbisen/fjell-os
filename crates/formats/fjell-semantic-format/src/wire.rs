@@ -27,6 +27,7 @@
 //! misreading.
 
 use crate::*;
+use fjell_canon::Canon;
 
 /// Magic prefix: `FJSE` — Fjell semantic envelope.
 pub const WIRE_MAGIC: [u8; 4] = *b"FJSE";
@@ -101,38 +102,89 @@ pub enum WireError {
 
 // ── writer / reader ───────────────────────────────────────────────────────────
 
-struct Writer<'a> {
+/// The sink `encode` writes through: **`Canon`'s byte half**, over the caller's buffer,
+/// with the codec's own error semantics.
+///
+/// The first thing to go wrong, in write order, is what `encode` returns — a write that
+/// does not fit is [`WireError::BufferTooSmall`], a value the model cannot hold is
+/// [`WireError::TooLong`] (reported through [`Canon::refuse`]) — and everything after it
+/// is ignored. That is exactly what the hand-rolled writer did (each write returned early
+/// with `?`), so the error *precedence* is unchanged: whichever comes first wins.
+struct Enc<'a> {
     out: &'a mut [u8],
     pos: usize,
+    err: Option<WireError>,
 }
 
-impl<'a> Writer<'a> {
+impl<'a> Enc<'a> {
     fn new(out: &'a mut [u8]) -> Self {
-        Writer { out, pos: 0 }
+        Enc {
+            out,
+            pos: 0,
+            err: None,
+        }
     }
-    fn bytes(&mut self, b: &[u8]) -> Result<(), WireError> {
-        let end = self.pos.checked_add(b.len()).ok_or(WireError::TooLong)?;
+    fn put(&mut self, b: &[u8]) {
+        if self.err.is_some() {
+            return;
+        }
+        let Some(end) = self.pos.checked_add(b.len()) else {
+            self.err = Some(WireError::TooLong);
+            return;
+        };
         if end > self.out.len() {
-            return Err(WireError::BufferTooSmall);
+            self.err = Some(WireError::BufferTooSmall);
+            return;
         }
         self.out[self.pos..end].copy_from_slice(b);
         self.pos = end;
-        Ok(())
     }
-    fn u8(&mut self, v: u8) -> Result<(), WireError> {
-        self.bytes(&[v])
+}
+
+impl Canon for Enc<'_> {
+    fn domain(&mut self, tag: &[u8]) {
+        self.put(tag);
     }
-    fn u16(&mut self, v: u16) -> Result<(), WireError> {
-        self.bytes(&v.to_le_bytes())
+    fn magic(&mut self, tag: &[u8]) {
+        self.put(tag);
     }
-    fn u32(&mut self, v: u32) -> Result<(), WireError> {
-        self.bytes(&v.to_le_bytes())
+    fn u8(&mut self, _: &'static str, v: u8) {
+        self.put(&[v]);
     }
-    fn u64(&mut self, v: u64) -> Result<(), WireError> {
-        self.bytes(&v.to_le_bytes())
+    fn u16(&mut self, _: &'static str, v: u16) {
+        self.put(&v.to_le_bytes());
     }
-    fn i64(&mut self, v: i64) -> Result<(), WireError> {
-        self.bytes(&v.to_le_bytes())
+    fn u32(&mut self, _: &'static str, v: u32) {
+        self.put(&v.to_le_bytes());
+    }
+    fn u64(&mut self, _: &'static str, v: u64) {
+        self.put(&v.to_le_bytes());
+    }
+    fn bytes(&mut self, _: &'static str, v: &[u8]) {
+        self.put(v);
+    }
+    fn var_bytes(&mut self, _: &'static str, v: &[u8], _: &'static str) {
+        self.put(v);
+    }
+    fn zeros(&mut self, _: &'static str, _: usize) {
+        // The wire format has no padding; nothing here writes zeros.
+    }
+    fn each(
+        &mut self,
+        _: &'static str,
+        count: usize,
+        _: Option<usize>,
+        f: &mut dyn FnMut(&mut dyn Canon, usize),
+    ) {
+        for i in 0..count {
+            f(self, i);
+        }
+    }
+    fn note(&mut self, _: &'static str, _: &str) {}
+    fn refuse(&mut self, _: &'static str) {
+        if self.err.is_none() {
+            self.err = Some(WireError::TooLong);
+        }
     }
 }
 
@@ -243,13 +295,15 @@ tagged!(EventKind, ek_to, ek_from,
 
 // ── leaf types ────────────────────────────────────────────────────────────────
 
-fn put_text(w: &mut Writer, t: &BoundedText) -> Result<(), WireError> {
+/// A length-prefixed text: `len` (u16), then `len` bytes.
+fn put_text(c: &mut dyn Canon, t: &BoundedText) {
     let n = t.len as usize;
     if n > MAX_TEXT_BYTES {
-        return Err(WireError::TooLong);
+        c.refuse("text longer than its capacity");
+        return;
     }
-    w.u16(t.len)?;
-    w.bytes(&t.bytes[..n])
+    c.u16("len", t.len);
+    c.var_bytes("bytes", &t.bytes[..n], "len");
 }
 
 fn get_text(r: &mut Reader) -> Result<BoundedText, WireError> {
@@ -264,9 +318,10 @@ fn get_text(r: &mut Reader) -> Result<BoundedText, WireError> {
     Ok(BoundedText { len, bytes })
 }
 
-fn put_token(w: &mut Writer, t: &TextToken) -> Result<(), WireError> {
-    w.u32(t.id.0)?;
-    put_text(w, &t.fallback)
+/// A text token: its id (u32), then its fallback text.
+fn put_token(c: &mut dyn Canon, t: &TextToken) {
+    c.u32("id", t.id.0);
+    c.scope("fallback", &mut |c| put_text(c, &t.fallback));
 }
 
 fn get_token(r: &mut Reader) -> Result<TextToken, WireError> {
@@ -277,14 +332,9 @@ fn get_token(r: &mut Reader) -> Result<TextToken, WireError> {
     })
 }
 
-fn put_opt_u64(w: &mut Writer, v: Option<u64>) -> Result<(), WireError> {
-    match v {
-        None => w.u8(0),
-        Some(x) => {
-            w.u8(1)?;
-            w.u64(x)
-        }
-    }
+/// An optional u64: a presence byte, then the value if present.
+fn put_opt_u64(c: &mut dyn Canon, name: &'static str, v: Option<u64>) {
+    c.optional(name, v.is_some(), &mut |c| c.u64("value", v.unwrap_or(0)));
 }
 
 fn get_opt_u64(r: &mut Reader) -> Result<Option<u64>, WireError> {
@@ -297,10 +347,10 @@ fn get_opt_u64(r: &mut Reader) -> Result<Option<u64>, WireError> {
 
 // ── payload bodies ────────────────────────────────────────────────────────────
 
-fn put_cap(w: &mut Writer, c: &CapabilityRequirement) -> Result<(), WireError> {
-    put_text(w, &c.resource_class)?;
-    put_text(w, &c.resource_name.0)?;
-    w.u32(c.rights)
+fn put_cap(c: &mut dyn Canon, cap: &CapabilityRequirement) {
+    c.scope("resource_class", &mut |c| put_text(c, &cap.resource_class));
+    c.scope("resource_name", &mut |c| put_text(c, &cap.resource_name.0));
+    c.u32("rights", cap.rights);
 }
 
 fn get_cap(r: &mut Reader) -> Result<CapabilityRequirement, WireError> {
@@ -311,19 +361,21 @@ fn get_cap(r: &mut Reader) -> Result<CapabilityRequirement, WireError> {
     })
 }
 
-fn put_action(w: &mut Writer, a: &ActionSpec) -> Result<(), WireError> {
-    w.u16(a.action_id.0)?;
-    put_token(w, &a.label)?;
-    w.u8(ak_to(a.kind))?;
-    match &a.required_capability {
-        None => w.u8(0)?,
-        Some(c) => {
-            w.u8(1)?;
-            put_cap(w, c)?;
-        }
-    }
-    w.u8(rev_to(a.reversibility))?;
-    w.u8(conf_to(a.confirmation))
+fn put_action(c: &mut dyn Canon, a: &ActionSpec) {
+    c.u16("action_id", a.action_id.0);
+    c.scope("label", &mut |c| put_token(c, &a.label));
+    c.u8("kind", ak_to(a.kind));
+    c.optional(
+        "required_capability",
+        a.required_capability.is_some(),
+        &mut |c| {
+            if let Some(cap) = &a.required_capability {
+                put_cap(c, cap);
+            }
+        },
+    );
+    c.u8("reversibility", rev_to(a.reversibility));
+    c.u8("confirmation", conf_to(a.confirmation));
 }
 
 fn get_action(r: &mut Reader) -> Result<ActionSpec, WireError> {
@@ -345,21 +397,35 @@ fn get_action(r: &mut Reader) -> Result<ActionSpec, WireError> {
     })
 }
 
-fn put_intent(w: &mut Writer, n: &IntentNode) -> Result<(), WireError> {
-    w.u8(ik_to(n.kind))?;
-    put_token(w, &n.title)?;
-    put_token(w, &n.description)?;
-    w.u8(sev_to(n.severity))?;
-    w.u8(n.actions.len() as u8)?;
-    for a in n.actions.iter() {
-        put_action(w, a)?;
-    }
-    w.u8(n.consequences.len() as u8)?;
-    for c in n.consequences.iter() {
-        w.u8(sev_to(c.level))?;
-        put_token(w, &c.text)?;
-    }
-    put_opt_u64(w, n.expires_at_tick)
+fn put_intent(c: &mut dyn Canon, n: &IntentNode) {
+    c.u8("kind", ik_to(n.kind));
+    c.scope("title", &mut |c| put_token(c, &n.title));
+    c.scope("description", &mut |c| put_token(c, &n.description));
+    c.u8("severity", sev_to(n.severity));
+    c.u8("action_count", n.actions.len() as u8);
+    c.each(
+        "actions",
+        n.actions.len(),
+        Some(MAX_ACTIONS),
+        &mut |c, i| {
+            if let Some(a) = n.actions.get(i) {
+                put_action(c, a);
+            }
+        },
+    );
+    c.u8("consequence_count", n.consequences.len() as u8);
+    c.each(
+        "consequences",
+        n.consequences.len(),
+        Some(MAX_CONSEQUENCES),
+        &mut |c, i| {
+            if let Some(k) = n.consequences.get(i) {
+                c.u8("level", sev_to(k.level));
+                c.scope("text", &mut |c| put_token(c, &k.text));
+            }
+        },
+    );
+    put_opt_u64(c, "expires_at_tick", n.expires_at_tick);
 }
 
 fn get_intent(r: &mut Reader) -> Result<IntentNode, WireError> {
@@ -398,32 +464,24 @@ fn get_intent(r: &mut Reader) -> Result<IntentNode, WireError> {
     })
 }
 
-fn put_fact_value(w: &mut Writer, v: &FactValue) -> Result<(), WireError> {
+/// A fact's value: a tag byte, then the arm it selects.
+fn put_fact_value(c: &mut dyn Canon, v: &FactValue) {
     match v {
         FactValue::Bool(b) => {
-            w.u8(1)?;
-            w.u8(u8::from(*b))
+            c.variant("value_tag", 1, "bool", &mut |c| c.u8("value", u8::from(*b)))
         }
-        FactValue::U64(x) => {
-            w.u8(2)?;
-            w.u64(*x)
-        }
-        FactValue::I64(x) => {
-            w.u8(3)?;
-            w.i64(*x)
-        }
-        FactValue::Text(t) => {
-            w.u8(4)?;
-            put_token(w, t)
-        }
+        FactValue::U64(x) => c.variant("value_tag", 2, "u64", &mut |c| c.u64("value", *x)),
+        FactValue::I64(x) => c.variant("value_tag", 3, "i64", &mut |c| c.i64("value", *x)),
+        FactValue::Text(t) => c.variant("value_tag", 4, "text", &mut |c| {
+            c.scope("token", &mut |c| put_token(c, t))
+        }),
         FactValue::Ratio {
             numerator,
             denominator,
-        } => {
-            w.u8(5)?;
-            w.u64(*numerator)?;
-            w.u64(*denominator)
-        }
+        } => c.variant("value_tag", 5, "ratio", &mut |c| {
+            c.u64("numerator", *numerator);
+            c.u64("denominator", *denominator);
+        }),
     }
 }
 
@@ -441,18 +499,19 @@ fn get_fact_value(r: &mut Reader) -> Result<FactValue, WireError> {
     }
 }
 
-fn put_state(w: &mut Writer, n: &StateNode) -> Result<(), WireError> {
-    w.u8(sk_to(n.kind))?;
-    put_token(w, &n.title)?;
-    put_token(w, &n.summary)?;
-    w.u8(status_to(n.status))?;
-    w.u8(n.facts.len() as u8)?;
-    for f in n.facts.iter() {
-        put_token(w, &f.key)?;
-        put_fact_value(w, &f.value)?;
-        w.u8(imp_to(f.importance))?;
-    }
-    Ok(())
+fn put_state(c: &mut dyn Canon, n: &StateNode) {
+    c.u8("kind", sk_to(n.kind));
+    c.scope("title", &mut |c| put_token(c, &n.title));
+    c.scope("summary", &mut |c| put_token(c, &n.summary));
+    c.u8("status", status_to(n.status));
+    c.u8("fact_count", n.facts.len() as u8);
+    c.each("facts", n.facts.len(), Some(MAX_FACTS), &mut |c, i| {
+        if let Some(f) = n.facts.get(i) {
+            c.scope("key", &mut |c| put_token(c, &f.key));
+            put_fact_value(c, &f.value);
+            c.u8("importance", imp_to(f.importance));
+        }
+    });
 }
 
 fn get_state(r: &mut Reader) -> Result<StateNode, WireError> {
@@ -483,20 +542,18 @@ fn get_state(r: &mut Reader) -> Result<StateNode, WireError> {
     })
 }
 
-fn put_event(w: &mut Writer, n: &EventNode) -> Result<(), WireError> {
-    w.u8(ek_to(n.kind))?;
-    put_token(w, &n.title)?;
-    put_token(w, &n.description)?;
-    w.u8(sev_to(n.severity))?;
-    w.u8(res_to(n.result))?;
-    match &n.subject {
-        None => w.u8(0)?,
-        Some(s) => {
-            w.u8(1)?;
-            put_text(w, &s.0)?;
+fn put_event(c: &mut dyn Canon, n: &EventNode) {
+    c.u8("kind", ek_to(n.kind));
+    c.scope("title", &mut |c| put_token(c, &n.title));
+    c.scope("description", &mut |c| put_token(c, &n.description));
+    c.u8("severity", sev_to(n.severity));
+    c.u8("result", res_to(n.result));
+    c.optional("subject", n.subject.is_some(), &mut |c| {
+        if let Some(s) = &n.subject {
+            c.scope("name", &mut |c| put_text(c, &s.0));
         }
-    }
-    put_opt_u64(w, n.related_audit_seq)
+    });
+    put_opt_u64(c, "related_audit_seq", n.related_audit_seq);
 }
 
 fn get_event(r: &mut Reader) -> Result<EventNode, WireError> {
@@ -523,34 +580,46 @@ fn get_event(r: &mut Reader) -> Result<EventNode, WireError> {
 
 // ── envelope ──────────────────────────────────────────────────────────────────
 
+/// The bytes of an envelope, written through [`Canon`] — **the function `encode` writes
+/// from and the frozen description (`schema/wire-v1.frozen`) is generated from**
+/// (RFC-0.34-003): one description, read two ways.
+///
+/// **What the description does not cover.** It describes what this function *writes*. The
+/// **decoder** (`decode`, `decode_exact`, the `get_*` functions) is a second, hand-written
+/// reading of the same layout and is **not described**: not the tag tables it maps back,
+/// not the count limits it enforces, not the stream/payload agreement it demands
+/// ([`WireError::StreamPayloadMismatch`]), not `decode_exact`'s trailing-byte rule. A
+/// decoder that read a different layout would not be caught by the file; the round-trip
+/// test in `fjell-schema` (every sample decodes and re-encodes byte-identically) is the
+/// only check. The description also carries no *values* — which byte means which
+/// enum variant lives in the `tagged!` tables — only names, types, widths, order, counted
+/// groups, presence bytes and tagged arms.
+pub fn write_canonical(env: &SemanticEnvelope, c: &mut dyn Canon) {
+    c.magic(&WIRE_MAGIC);
+    c.u16("wire_version", WIRE_VERSION);
+    c.u16("schema_version", env.schema_version);
+    c.u8("stream", stream_to(env.stream));
+    c.u16("producer_index", env.node_id.producer_index);
+    c.u32("local_sequence", env.node_id.local_sequence);
+    c.u64("sequence", env.sequence);
+    put_opt_u64(c, "correlation_id", env.correlation_id.map(|x| x.0));
+    match &env.payload {
+        SemanticPayload::Intent(n) => c.variant("payload", 1, "intent", &mut |c| put_intent(c, n)),
+        SemanticPayload::State(n) => c.variant("payload", 2, "state", &mut |c| put_state(c, n)),
+        SemanticPayload::Event(n) => c.variant("payload", 3, "event", &mut |c| put_event(c, n)),
+    }
+}
+
 /// Encode `env` into `out`, returning the number of bytes written.
 ///
 /// Fails with [`WireError::BufferTooSmall`] rather than truncating.
 pub fn encode(env: &SemanticEnvelope, out: &mut [u8]) -> Result<usize, WireError> {
-    let mut w = Writer::new(out);
-    w.bytes(&WIRE_MAGIC)?;
-    w.u16(WIRE_VERSION)?;
-    w.u16(env.schema_version)?;
-    w.u8(stream_to(env.stream))?;
-    w.u16(env.node_id.producer_index)?;
-    w.u32(env.node_id.local_sequence)?;
-    w.u64(env.sequence)?;
-    put_opt_u64(&mut w, env.correlation_id.map(|c| c.0))?;
-    match &env.payload {
-        SemanticPayload::Intent(n) => {
-            w.u8(1)?;
-            put_intent(&mut w, n)?;
-        }
-        SemanticPayload::State(n) => {
-            w.u8(2)?;
-            put_state(&mut w, n)?;
-        }
-        SemanticPayload::Event(n) => {
-            w.u8(3)?;
-            put_event(&mut w, n)?;
-        }
+    let mut e = Enc::new(out);
+    write_canonical(env, &mut e);
+    match e.err {
+        Some(err) => Err(err),
+        None => Ok(e.pos),
     }
-    Ok(w.pos)
 }
 
 /// Decode an envelope from the front of `inp`, returning it and the number of

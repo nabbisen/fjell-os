@@ -88,8 +88,8 @@ Fuzzing runs nightly with the seeded corpora as starting points.
 > a second description — and a test in Gate 1 fails, naming the field, when a
 > committed file differs from what its encoder writes; `ci-schema-gate` was
 > retired in its favour. So an accidental field reorder, re-widthing or rename is
-> caught per-PR **for the seventeen formats that have a file**. It does not enforce
+> caught per-PR **for the eighteen formats that have a file** (seventeen when this was written; RFC-0.34-003 added the semantic wire codec's). It does not enforce
 > the BREAKING-SCHEMA commit, the version bump or the ADR: the regenerated file's
 > diff makes the change visible to the reviewer, and the process consequence stays
-> a review obligation. Five format crates that produce bytes have no generated
+> a review obligation. Four format crates that produce bytes have no generated
 > description yet (Errata E-065).
