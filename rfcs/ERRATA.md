@@ -4678,7 +4678,25 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   changed in an existing item are the `Reboot = 120` removal and the formatting change above.
   Nothing needed escalating: there was no removed field or method to stop for. (Less drift than
   feared, said as such.) **Survivor:** attributes other than `repr` and `non_exhaustive` are not
-  hashed, so a `Copy` removed from a struct is invisible; stated in the tool.
+  hashed, so a `Copy` removed from a struct is invisible — **except in a published crate (see the
+  review's D8, below).**
+
+  **Review ruling D8 (2026-09-25), done:** the **`#[derive]` set enters the hash — sorted, so a
+  reorder is free — for a crate that is published, and stays out for the rest.** Which crates are
+  published is **read from each crate's `Cargo.toml`** (no `publish = false`), not from a list:
+  of the eight scanned crates only **`fjell-abi`** (on crates.io) qualifies, asserted by a test that
+  reads all eight manifests. For the other seven the workspace compiler catches a removed derive at
+  its use site; for `fjell-abi` there is no use site in this tree. `#[doc]`, `#[must_use]`,
+  `#[allow]` stay out everywhere. **Its re-record, read (D4):** `--verify` *before* regenerating:
+  **11 items changed hash, all in `fjell-abi`** — 6 structs (`BootInfo`, `LeaseEpoch`, `LeaseId`,
+  `ImageId`, `ServiceId`, `TaskId`) and 5 enums (`SysError`, `RevokeOutcome`, `ServiceState`,
+  `TaskLifecycle`, `SyscallNumber`) — 11 lines of `snapshot.json`, nothing else. **Drift by the tag walk:**
+  the derive sets *appear* at `0.26.0` → `0.27.0`, because `fjell-abi` **became publishable** there
+  (`e002306`, 2026-08-27, *"prepare fjell-abi for a crates.io name booking"* removed `publish = false`) —
+  the flag changing, not a derive changing. **From `0.27.0` to the tip no derived trait was added to or
+  removed from any `fjell-abi` type**; the only changes are the two known variant edits (`Reboot = 120`
+  removed, `TaskTableFull = -35` added). Nothing removed; nothing to escalate. **Cost now stated
+  narrowly:** a removed derive is invisible in the seven `publish = false` crates.
 
 ## Summary
 

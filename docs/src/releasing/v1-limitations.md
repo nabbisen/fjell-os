@@ -976,8 +976,9 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   covered too since RFC-0.34-003 (Errata **E-067**, **CLOSED** 2026-09-25): adding a
   field to `AuditRecordBin` now registers, `#[repr]` is part of the hash, and the
   re-record was read (no field or method removed in twenty-two releases). **Not seen:**
-  attributes other than `repr` and `non_exhaustive` — removing `Copy` from a struct is
-  invisible. The syscall enum is also covered by `syscall-surface`.
+  attributes other than `repr`, `non_exhaustive` and — for the one published crate,
+  `fjell-abi` — the sorted `#[derive]` set. Removing `Copy` from a struct in a
+  `publish = false` crate is invisible to Gate 4 (the workspace compiler catches it at its use site). The syscall enum is also covered by `syscall-surface`.
 
 - **A QEMU profile's markers could be silently split** (Errata **E-057**,
   **CLOSED** 2026-09-25 by RFC-0.33-004). The profile reader split on every comma

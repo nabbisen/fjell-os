@@ -37,7 +37,8 @@
 //! | comments, doc comments, whitespace, line layout | **out** (normalised) | cannot change the ABI; a hash that moves on `rustfmt` gets regenerated unread |
 //! | `#[repr(...)]` | **in** | it *is* the layout: `#[repr(C)]` on `AuditRecordBin` is the ABI |
 //! | `#[non_exhaustive]` | **in** | changes what a downstream `match` may assume |
-//! | `#[derive(...)]`, `#[doc]`, `#[must_use]`, `#[allow]`, other attributes on the item | **out** | they change trait impls or lints, not the item's shape; derive lists are reordered and extended as routine churn. **The cost, stated:** removing `Copy` from a struct is not seen here |
+//! | `#[derive(...)]` | **in for a crate that is published, out otherwise** — sorted, so reordering is free | for a crate on crates.io (`fjell-abi`, read from its manifest's absence of `publish = false`) removing a derived trait breaks consumers this tree cannot see, and Gate 4 is the only instrument for that surface; for the seven `publish = false` crates the workspace compiler catches a removed `Copy` at its use site, so the churn is not worth it (RFC-0.34-003 D8) |
+//! | `#[doc]`, `#[must_use]`, `#[allow]`, other attributes on the item | **out** everywhere | they change lints and docs, not anything a consumer can depend on |
 //! | a field's or variant's own attributes | **in** (part of its text) | they sit on the member and are rare; a change there is a change to it |
 //! | private fields | **in** | they set the size and layout of a `#[repr(C)]` struct, and construction |
 //! | field / variant / item **order** | **in** | field order is layout; variant order renumbers implicit discriminants; for trait items it is conservative (a reorder registers) |
@@ -506,19 +507,25 @@ fn extract_json_usize(json: &str, key: &str) -> Option<usize> {
 fn scan_all() -> Vec<AbiItem> {
     let mut items = Vec::new();
     for (crate_name, src_dir) in STABLE_CRATES {
-        scan_crate(Path::new(src_dir), crate_name, &mut items);
+        // RFC-0.34-003 D8: read from the crate's own manifest, so it cannot rot the way a
+        // hand-kept list of "crates that matter" would.
+        let manifest = Path::new(src_dir).join("../Cargo.toml");
+        let published = fs::read_to_string(&manifest)
+            .map(|t| crate_is_published(&t))
+            .unwrap_or(false);
+        scan_crate(Path::new(src_dir), crate_name, published, &mut items);
     }
     items.sort();
     items
 }
 
 /// Scan one stable crate starting at `src_dir/lib.rs`.
-fn scan_crate(src_dir: &Path, crate_name: &str, items: &mut Vec<AbiItem>) {
+fn scan_crate(src_dir: &Path, crate_name: &str, published: bool, items: &mut Vec<AbiItem>) {
     let lib_path = src_dir.join("lib.rs");
     let Ok(content) = fs::read_to_string(&lib_path) else {
         return;
     };
-    scan_module_tree(&content, src_dir, crate_name, "", items);
+    scan_module_tree(&content, src_dir, crate_name, published, "", items);
 }
 
 /// Scan one file's content (`scan_content_into`), then follow every
@@ -530,11 +537,20 @@ fn scan_module_tree(
     content: &str,
     dir: &Path,
     crate_name: &str,
+    published: bool,
     prefix: &str,
     items: &mut Vec<AbiItem>,
 ) {
     let mut file_mods = Vec::new();
-    scan_content_into(content, crate_name, prefix, "", items, &mut file_mods);
+    scan_content_into(
+        content,
+        crate_name,
+        published,
+        prefix,
+        "",
+        items,
+        &mut file_mods,
+    );
     for (mod_prefix, name) in file_mods {
         let flat = dir.join(format!("{name}.rs"));
         let nested = dir.join(&name).join("mod.rs");
@@ -550,7 +566,14 @@ fn scan_module_tree(
         if let Some(path) = path {
             if let Ok(child_content) = fs::read_to_string(&path) {
                 let child_prefix = join_prefix(&mod_prefix, &name);
-                scan_module_tree(&child_content, dir, crate_name, &child_prefix, items);
+                scan_module_tree(
+                    &child_content,
+                    dir,
+                    crate_name,
+                    published,
+                    &child_prefix,
+                    items,
+                );
             }
         }
     }
@@ -568,6 +591,7 @@ fn scan_module_tree(
 fn scan_content_into(
     content: &str,
     crate_name: &str,
+    published: bool,
     module: &str,
     impl_type: &str,
     items: &mut Vec<AbiItem>,
@@ -596,7 +620,15 @@ fn scan_content_into(
             let (body, end_line) = extract_braced_body(&lines, &stripped_lines, i);
             if !prev_line_was_cfg_test {
                 let child_prefix = join_prefix(module, &name);
-                scan_content_into(&body, crate_name, &child_prefix, "", items, file_mods);
+                scan_content_into(
+                    &body,
+                    crate_name,
+                    published,
+                    &child_prefix,
+                    "",
+                    items,
+                    file_mods,
+                );
             }
             prev_line_was_cfg_test = false;
             i = end_line + 1;
@@ -609,7 +641,9 @@ fn scan_content_into(
         if let Some(self_type) = impl_self_type(clean) {
             let (body, end_line) = extract_braced_body(&lines, &stripped_lines, i);
             if !prev_line_was_cfg_test {
-                scan_content_into(&body, crate_name, module, &self_type, items, file_mods);
+                scan_content_into(
+                    &body, crate_name, published, module, &self_type, items, file_mods,
+                );
             }
             prev_line_was_cfg_test = false;
             i = end_line + 1;
@@ -699,7 +733,16 @@ fn scan_content_into(
                 members = b.members;
                 i = i.max(b.end);
             }
-            let attrs = abi_attrs(&stripped_lines, decl_start);
+            let mut attrs = abi_attrs(&stripped_lines, decl_start);
+            if published {
+                // RFC-0.34-003 D8: for a crate that is on crates.io, removing a derived
+                // trait is a breaking change for consumers this tree cannot see. Sorted,
+                // so reordering a derive list is free.
+                let d = derive_set(&stripped_lines, decl_start);
+                if !d.is_empty() {
+                    attrs.push(format!("#[derive({})]", d.join(", ")));
+                }
+            }
             if !attrs.is_empty() {
                 // Attributes are part of what is hashed and of what is dumped, first.
                 hashed = format!("{} {hashed}", attrs.join(" "));
@@ -726,9 +769,22 @@ fn scan_content_into(
 /// Test-only, filesystem-free entry point preserving the original
 /// `scan_content` signature.
 fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
+    scan_content_as(content, crate_name, module, false)
+}
+
+/// As [`scan_content`], for a crate that is `published` (its derive sets are hashed).
+fn scan_content_as(content: &str, crate_name: &str, module: &str, published: bool) -> Vec<AbiItem> {
     let mut items = Vec::new();
     let mut file_mods = Vec::new();
-    scan_content_into(content, crate_name, module, "", &mut items, &mut file_mods);
+    scan_content_into(
+        content,
+        crate_name,
+        published,
+        module,
+        "",
+        &mut items,
+        &mut file_mods,
+    );
     items
 }
 
@@ -1185,6 +1241,52 @@ fn split_trait_items(body: &str) -> Vec<String> {
         out.push(v);
     }
     out
+}
+
+/// Is the crate whose `Cargo.toml` text this is publishable? (No `publish = false` in it.)
+/// Read from the manifest, never from a list here (RFC-0.34-003 D8).
+fn crate_is_published(manifest: &str) -> bool {
+    !manifest.lines().any(|l| {
+        let l = l.trim();
+        l.strip_prefix("publish").is_some_and(|r| {
+            let r = r.trim_start();
+            r.strip_prefix('=')
+                .is_some_and(|v| v.trim().starts_with("false"))
+        })
+    })
+}
+
+/// The traits a `#[derive(...)]` above the item at `stripped[start]` names, sorted and
+/// de-duplicated. `derive` lines are collected the way `abi_attrs` collects attributes.
+fn derive_set(stripped: &[&str], start: usize) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    let mut i = start;
+    while i > 0 {
+        let line = stripped[i - 1].trim();
+        if line.is_empty() {
+            i -= 1;
+            continue;
+        }
+        if !line.starts_with("#[") {
+            break;
+        }
+        let mut rest = line;
+        while let Some(pos) = rest.find("#[derive(") {
+            let after = &rest[pos + "#[derive(".len()..];
+            let Some(close) = after.find(")]") else { break };
+            for n in after[..close].split(',') {
+                let n = n.trim();
+                if !n.is_empty() {
+                    names.push(n.to_string());
+                }
+            }
+            rest = &after[close + 2..];
+        }
+        i -= 1;
+    }
+    names.sort();
+    names.dedup();
+    names
 }
 
 /// The attributes directly above the item at `stripped[start]` that are part of its
@@ -2055,6 +2157,85 @@ mod tests {
         assert_eq!(
             items[0].members,
             ["pub m: Map<K, V>", "pub f: fn(u8, u8) -> Result<u8, E>"]
+        );
+    }
+
+    // ── RFC-0.34-003 D8: the derive set is in the hash for a published crate ──
+
+    fn hash_as(src: &str, published: bool) -> String {
+        let items = scan_content_as(src, "c", "m", published);
+        assert_eq!(items.len(), 1, "{src}");
+        items[0].sig_hash.clone()
+    }
+
+    #[test]
+    fn a_derive_removed_or_added_moves_a_published_crates_hash_and_not_others() {
+        let with = "#[derive(Clone, Copy, Debug)]\npub struct S {\n    pub a: u8,\n}\n";
+        let without = "#[derive(Clone, Debug)]\npub struct S {\n    pub a: u8,\n}\n";
+        let more = "#[derive(Clone, Copy, Debug, PartialEq)]\npub struct S {\n    pub a: u8,\n}\n";
+        // published: removing `Copy`, or adding `PartialEq`, is drift
+        assert_ne!(hash_as(with, true), hash_as(without, true));
+        assert_ne!(hash_as(with, true), hash_as(more, true));
+        // not published: neither is
+        assert_eq!(hash_as(with, false), hash_as(without, false));
+        assert_eq!(hash_as(with, false), hash_as(more, false));
+    }
+
+    /// Sorted: reordering a derive list, splitting it over two attributes, or putting it on
+    /// one line with `repr` is free — even for a published crate.
+    #[test]
+    fn a_reordered_or_split_derive_list_does_not_move_a_published_hash() {
+        let base = hash_as(
+            "#[derive(Clone, Copy, Debug)]\npub struct S {\n    pub a: u8,\n}\n",
+            true,
+        );
+        for src in [
+            "#[derive(Debug, Copy, Clone)]\npub struct S {\n    pub a: u8,\n}\n",
+            "#[derive(Clone)]\n#[derive(Copy, Debug)]\npub struct S {\n    pub a: u8,\n}\n",
+            "#[derive(Clone, Copy, Debug)] #[must_use]\npub struct S {\n    pub a: u8,\n}\n",
+            "/// doc\n#[allow(dead_code)]\n#[derive( Clone ,Copy,Debug )]\npub struct S {\n    pub a: u8,\n}\n",
+        ] {
+            assert_eq!(hash_as(src, true), base, "{src}");
+        }
+    }
+
+    #[test]
+    fn doc_must_use_and_allow_stay_out_everywhere() {
+        let plain = "pub struct S {\n    pub a: u8,\n}\n";
+        let noisy = "/// d\n#[must_use]\n#[allow(dead_code)]\npub struct S {\n    pub a: u8,\n}\n";
+        for published in [true, false] {
+            assert_eq!(hash_as(plain, published), hash_as(noisy, published));
+        }
+    }
+
+    /// The fact is read from the manifest: `publish = false` means not published.
+    #[test]
+    fn published_is_read_from_the_manifest_and_only_fjell_abi_is_published() {
+        assert!(crate_is_published(
+            "[package]\nname = \"x\"\nversion = \"1\"\n"
+        ));
+        assert!(!crate_is_published(
+            "[package]\nname = \"x\"\npublish = false\n"
+        ));
+        assert!(!crate_is_published(
+            "[package]\nname = \"x\"\npublish     = false\n"
+        ));
+        let mut published = Vec::new();
+        for (name, src) in STABLE_CRATES {
+            let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../..")
+                .join(src)
+                .join("../Cargo.toml");
+            let text = fs::read_to_string(&manifest)
+                .unwrap_or_else(|e| panic!("{name}: {} — {e}", manifest.display()));
+            if crate_is_published(&text) {
+                published.push(*name);
+            }
+        }
+        assert_eq!(
+            published,
+            ["fjell-abi"],
+            "the scanned crates that are on crates.io"
         );
     }
 }
