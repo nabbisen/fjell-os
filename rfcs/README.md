@@ -445,10 +445,15 @@ Signed off by the owner; implementation may begin; not yet shipped.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 2 RFCs
 
-Nothing is awaiting the owner's decision. `proposed/README.md` keeps the folder in
-a fresh clone.
+Awaiting the owner's decision. The owner ruled on 2026-09-25 that 0.34's five
+remaining errata are **two** lines, not one; these are them.
+
+| RFC | Title |
+|-----|-------|
+| 0.34-002 | [What the machine tells a person](./proposed/RFC-0.34-002-what-the-machine-tells-a-person.md) — closes **E-061**, **E-062**, **E-063** |
+| 0.34-003 | [What the instruments cannot see](./proposed/RFC-0.34-003-what-the-instruments-cannot-see.md) — closes **E-067**, resolves **E-065**'s first survivor |
 
 ## Archive (archive/) — 2 RFCs
 

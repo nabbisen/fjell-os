@@ -1197,9 +1197,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   marking the split, and a braille presentation line is already 136 bytes at the
   sizes tested — so the second presentation's own output can be cut without a
   reader or a check being told. Separately, `M6: storaged ready` is printed by
-  **both `storaged` and `init`**, so every tier that asserts it passes on
-  `init`'s line alone. Marker assertions match substrings, which is why a junk
-  prefix and a duplicate writer both survived.
+  **both `storaged` and `init`**, so a person reading the console cannot tell which
+  task came up. *(Corrected 2026-09-25: this said every tier asserting it passes on
+  `init`'s line alone. **No committed marker specification asserts it** — all 45
+  profile and expected-marker files searched, with `driver-uart: ready` as the
+  control, found in four. The defect is the ambiguity and the trap it sets for any
+  assertion added later, not a tier passing today.)* Marker assertions match
+  substrings, which is why a junk prefix survived unnoticed.
 - **A failed spawn does not say what ran out** (Erratum **E-061**, filed
   2026-09-24, tracked 0.34). Four distinct failures in `spawn.rs` — including
   *the task table is full* — all return `SysError::NoMemory`, so the symptom of

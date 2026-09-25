@@ -4323,7 +4323,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   names a memory exhaustion.
 - **Tree, observed 2026-09-24:** `crates/fjell-kernel/src/task/spawn.rs` returns
   `SysError::NoMemory` from **four distinct failures** (lines 41, 48, 62, 79),
-  one of which is *the task table is full*. When RFC-0.34-001's two new services
+  one of which is *the task table is full*.
+
+  > **Corrected 2026-09-25, re-derived at the tip while scoping the line that
+  > closes this.** The count was **wrong and too kind**: `NoMemory` is returned
+  > from **thirteen** sites in that file (41, 48, 62, 79, 100, 126, 143, 148, 163,
+  > 189, 198, 204, 220), and the distinct causes behind them are *no free task
+  > slot* (41), *no frame* for the kernel page table (48), for user text (62, 126,
+  > 148), for the user stack (189) and for the kernel stack (204), and *the task
+  > table rejected the insert* (220). Four was the number I counted from the first
+  > four occurrences; it is thirteen sites and at least three genuinely different
+  > conditions. When RFC-0.34-001's two new services
   overflowed the 32-entry table, the whole diagnosis a reader got was
   `init: spawn error` — the caller cannot distinguish an exhausted table from an
   exhausted allocator, and the table's own limit has no error value.
@@ -4373,8 +4383,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   passes on `init`'s line alone — the assertion does not identify its writer,
   and would survive `storaged` never printing anything.
 - **Why nothing saw it:** the duplicate reads as an echo. The marker has been
-  present twice for as long as the archived logs go back, and a passing
-  assertion never prompts anyone to ask which task satisfied it.
+  present twice for as long as the archived logs go back.
+
+  > **Corrected 2026-09-25, re-derived at the tip while scoping the line that
+  > closes this.** This entry said *"QEMU profiles and archived evidence assert
+  > it"* and that a profile asserting it *"passes on `init`'s line alone"*.
+  > **No committed marker specification asserts this marker at all**: all 45
+  > `tests/qemu/profiles/*.toml` and `tests/qemu/artifacts/*/expected-markers.txt`
+  > files were searched, with the control `driver-uart: ready`, which is found in
+  > four of them. So the live consequence I stated does not exist. What is true:
+  > **two tasks print the identical line**, a person reading the console cannot
+  > tell which one came up, and any assertion added later would be satisfied by
+  > either writer — E-014's class waiting rather than an instance of it. The
+  > defect is the ambiguity, not a passing tier.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. One
   writer per marker, or markers that name their writer. This is the
   weak-predicate class the project polices, in the evidence base itself.
