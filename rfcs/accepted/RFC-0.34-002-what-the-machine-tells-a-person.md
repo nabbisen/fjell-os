@@ -126,6 +126,74 @@ bytes are not.
 
 **Answer all five in writing before implementing.**
 
+## Settled at the review, 2026-09-25
+
+**D8 — E-062's mechanism was mine and it was wrong. Your attribution is decisive, and
+I verified it rather than took it.** `TaskTable::remove` is defined at `tcb.rs:249`
+and **has no call site anywhere in the kernel** — controlled against `.insert(`, which
+has eleven across three files — so no slot is ever reused and *a dead task's bytes in
+front of the next task's line* cannot happen in this kernel. The eight bytes are
+`storaged`'s own probes: `sys_debug_write_byte(0x90 + (devid & 0xF)); // devid` at
+`main.rs:276`, one per virtio-mmio slot, which is seven empty slots at `0x90` and the
+block device at `0x92` — exactly the sequence — plus `0xB0 + lba` at `:352` and
+`0xC0 + lba` at `:376`, both labelled *probe*. **The task whose buffer held them was
+alive.**
+
+So the erratum I filed contained two defects and named one: a **latent** lifetime
+defect (real, and with no slot reuse it loses a dying task's last words rather than
+corrupting a live line — which is what you demonstrated failing) and **three debug
+writes putting non-printable bytes on the one surface a person reads**. Refusing to
+close it on my mechanism is exactly what §E asked for, and the register and
+`v1-limitations.md` now say which defect is which, including the correction of my
+control figure — *twelve* files, not four.
+
+**D9 — delete the three probe writes (your question 1).** The prohibition *"do not
+change what any service prints"* exists to stop this line drifting into service
+behaviour. **It was not written to protect debug residue that is itself the defect** —
+three writes labelled `// devid`, `// begin probe`, `// lba probe`, emitting bytes no
+terminal renders. Escalating instead of deleting them silently was right, and the
+answer is: delete all three, add the harness check (no control byte other than `\n`,
+`\r`, `\t`), and then **R7's clean console is deliverable and E-062 closes** with the
+corrected mechanism. `storaged`'s prebuilt and the repro baseline move in the same
+commit.
+
+**D10 — `svc-fault` carries the console scenario (your question 2), and the
+prohibition is amended.** `svc-fault`, `svc-timeout`, `svc-presentation-fault` and
+`neg-test` are **instruments**: their output *is* the mechanism, and the prohibition
+covers production services. A dedicated service would cost a task slot, an image id,
+and endpoint and callsite bookkeeping — the permanent structural cost I refused for
+`proxy-relay` in RFC-0.34-001 D9, for the same reason.
+
+**D11 — no new error values, but stop discarding the kind you already have (your
+question 3).** *Out of frames* and *the table is full* are the two conditions a person
+must tell apart, and you have them. What is left is not a missing value: six sites do
+`map_err(|_| …)` and **throw away `map_page`'s typed error**, so a mapping failure
+cannot say which mapping failed. **Propagate it** — the information exists and costs
+nothing to keep. If propagation forces a new ABI value, stop and escalate rather than
+minting one here.
+
+**D12 — two things my RFC did not name, and you found both.** `current_task_idx()`
+reported **0** for *no current task*, so a write with no task attributed itself to task
+0 — a case the RFC's D4 did not cover, now a failure. And `neg-test`'s **fixed ten
+yields** were a race that only held while `svc-fault` did nothing between its yield
+and its fault; your console scenario pushed the fault past ten, the `svc` tier went
+red, and `test-all` found it rather than you. Fixed forward as a bounded poll, still
+failing closed. **A line that exposes a latent race in an unrelated service and fixes
+it forward is the line working.**
+
+**Accepted as delivered:** §A's measurement (277 departures, 24 logs, every buffer
+empty) made *before* any change; `TaskTableFull = -35` with `--verify` reporting
+`Changed sig: 1` on `SysError` **before** the re-record — the first ABI addition Gate 4
+caught by body rather than by declaration line, which is RFC-0.33-004 D5 paying for
+itself; `init: cannot spawn image 29: the task table is full (raise MAX_TASKS and its
+dependents) (error 35)` shown by overflowing a 20-entry table, against the
+`init: spawn error` a person used to get; `debug_leave` flushing on **exit and fault**
+with the single-hart argument re-made in its own comment; the 160-byte bound kept with
+its measurement (longest committed line 153, longest braille 135) and disclosed for a
+braille reader; and D5's `once_markers` check, which fails at **2** naming *two writers
+print it* and at **0** naming the absence — with `init`'s duplicate removed and a
+comment where it stood.
+
 ## Requirements
 
 **R1 — Re-derive** all three findings at your tip: the thirteen sites and their
