@@ -7,6 +7,7 @@
 #![no_main]
 mod rt;
 
+use fjell_abi::error::SysError;
 use fjell_abi::service::ImageId;
 // RFC 048: init's pre-installed TaskCreate/TaskControl/LeaseAdmin cap slots.
 const INIT_SLOT_TASK_CREATE: u32 = 28;
@@ -465,10 +466,46 @@ fn spawn(img: ImageId, label: &str) -> usize {
             }
             h
         }
-        Err(_) => {
-            sys_debug_writeln("init: spawn error");
+        Err(e) => {
+            // RFC-0.34-002 D1: a person reading this line must learn WHICH image
+            // could not be spawned and WHICH limit was hit. The old line,
+            // `init: spawn error`, was the whole diagnosis when a 32-entry task
+            // table overflowed, and named neither. The line is built from several
+            // writes but reaches the console as one: the kernel buffers a task's
+            // bytes until the newline.
+            sys_debug_write("init: cannot spawn image ");
+            debug_dec(img.0 as u32);
+            sys_debug_write(": ");
+            sys_debug_write(match e {
+                SysError::TaskTableFull => {
+                    "the task table is full (raise MAX_TASKS and its dependents)"
+                }
+                SysError::NoMemory => "out of memory (no frame, or a mapping failed)",
+                SysError::InvalidCap => "no such image, or no capability to spawn",
+                _ => "the kernel refused it",
+            });
+            sys_debug_write(" (error ");
+            debug_dec((-(e as isize)) as u32);
+            sys_debug_writeln(")");
             sys_exit(1);
         }
+    }
+}
+
+/// Write `n` in decimal to the console (no allocation, no formatting machinery).
+fn debug_dec(mut n: u32) {
+    let mut digits = [0u8; 10];
+    let mut i = digits.len();
+    loop {
+        i -= 1;
+        digits[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    for &d in &digits[i..] {
+        sys_debug_write_byte(d);
     }
 }
 

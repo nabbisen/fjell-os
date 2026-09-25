@@ -38,7 +38,7 @@ pub fn spawn(
     let bytes = image_bytes(image_id).ok_or(SysError::InvalidCap)?;
 
     // Find a fresh task slot index.
-    let tid_index = table.next_free_index().ok_or(SysError::NoMemory)?;
+    let tid_index = table.next_free_index().ok_or(SysError::TaskTableFull)?;
     let tid = TaskId::new(tid_index, 0);
     let asp_id = AddressSpaceId(tid_index);
 
@@ -217,7 +217,7 @@ pub fn spawn(
     t.trap_frame.sstatus = 1 << 5; // SPIE, SPP=0 (user mode)
     t.state = TaskState::Created;
 
-    let ins_id = table.insert(t).map_err(|_| SysError::NoMemory)?;
+    let ins_id = table.insert(t).map_err(|_| SysError::TaskTableFull)?;
 
     // Install bootstrap capabilities in the new task's CSpace (RFC 016, M7.1).
     // Uses ins_id.index (the actual slot) so the index is always correct.

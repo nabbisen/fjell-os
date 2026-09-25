@@ -41,6 +41,12 @@ pub enum SysError {
     NotMapped = -32,
     InvalidAddress = -33,
     NotSupported = -34,
+    /// The task table has no free slot (RFC-0.34-002 D1). Distinct from `NoMemory`
+    /// (no physical frame, or a mapping failed): a caller — and a person reading
+    /// what `init` prints — must be able to tell *the table is full* from *the
+    /// allocator is exhausted*, because the remedies differ (raise `MAX_TASKS`
+    /// and its dependents, or free memory).
+    TaskTableFull = -35,
     // ── Lease / v0.2 errors ────────────────────────────────────────────────
     /// The capability's lease has been revoked (epoch mismatch or state Revoked).
     LeaseRevoked = -40,
@@ -73,6 +79,7 @@ impl SysError {
             -32 => Self::NotMapped,
             -33 => Self::InvalidAddress,
             -34 => Self::NotSupported,
+            -35 => Self::TaskTableFull,
             -40 => Self::LeaseRevoked,
             -41 => Self::LeaseExpired,
             -42 => Self::GenerationMismatch,

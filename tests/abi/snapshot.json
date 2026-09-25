@@ -5,7 +5,7 @@
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_CAP_DERIVE","sig":"0f992a0dc517373b"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_TASK_CREATE","sig":"d6b3f3f13468d346"},
-  {"crate":"fjell-abi","module":"error","impl_type":"","kind":"enum","name":"SysError","sig":"5ff55063b7ef649e"},
+  {"crate":"fjell-abi","module":"error","impl_type":"","kind":"enum","name":"SysError","sig":"cf13350678585622"},
   {"crate":"fjell-abi","module":"error","impl_type":"SysError","kind":"fn","name":"from_isize","sig":"bb06ab05a06a1aee"},
   {"crate":"fjell-abi","module":"lease","impl_type":"","kind":"enum","name":"RevokeOutcome","sig":"7c5f111112cb04d6"},
   {"crate":"fjell-abi","module":"lease","impl_type":"","kind":"fn","name":"lease_revoke","sig":"3d54666a9a1c8dbb"},
