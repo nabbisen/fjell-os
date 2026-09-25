@@ -4621,6 +4621,50 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   4, and a v1.0 that ships with it ships a baseline that cannot see a field added
   to `AuditRecordBin`.
 
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.34-003 D3, D4**. The scanner's hash for a
+  braced `struct`, an `enum` and a `trait` covers the item's **members** (fields, variants,
+  trait-item signatures) and its **ABI attributes**; `--dump-members` prints them, so a change
+  to a hash can be *named*. The rules are in the tool's own doc, as a table:
+
+  | | | why |
+  |---|---|---|
+  | comments, doc comments, whitespace, layout; the bracket and trailing-comma spacing a wrapped rendering adds | **out** | cannot change the ABI; a hash that moves on a reflow is regenerated unread |
+  | `#[repr(...)]`, `#[non_exhaustive]` | **in** | the layout; what a downstream `match` may assume |
+  | `#[derive]`, `#[doc]`, `#[must_use]`, other item attributes | **out** | trait impls and lints, not shape. **Cost stated:** removing `Copy` is not seen |
+  | a member's own attributes; **private fields**; field, variant and item **order** | **in** | private fields set a `#[repr(C)]` layout; order is layout, and renumbers implicit discriminants |
+  | a trait item's default body | **out** | behaviour, not surface; the signature is in |
+
+  **Demonstrated / controlled:** the test that asserted the blindness
+  (`a_braced_structs_fields_are_still_outside_its_hash`) is **inverted**
+  (`a_field_added_to_a_braced_struct_changes_its_hash`); a field removed, retyped, renamed,
+  reordered or made private each move the hash; `#[repr(C)]` added moves it and `#[derive]`
+  does not; a method added, removed or retyped moves a trait hash; and **the reflow control —
+  one-line, multi-line, doc-commented, re-aligned, with `#[derive]` and `#[must_use]` added,
+  and a method signature wrapped with a trailing comma — hashes identically.** 49 tests (42
+  before).
+
+  **What the re-record revealed (§C, D4).** `--verify` *before* regenerating: **37 items
+  changed hash — 27 structs, 9 enums, 1 trait — by construction** (the hash now covers
+  members and, for enums, `#[repr]`); nothing else moved, and 37 lines of
+  `tests/abi/snapshot.json` changed, all of them structs, enums or the trait. The *content*
+  of the drift was named by running the new scanner over **every release tag from `0.10.0`** to
+  the tip and diffing consecutive member lists (attributes included):
+
+  | Between | What changed |
+  |---|---|
+  | `0.18.0` → `0.18.1` | `fjell-abi::lease::RevokeOutcome` **appears** |
+  | `0.20.2` → `0.21.0` | `fjell-audit-format` and `fjell-bundle-format` join the scanned set: `AuditKind`, `AuditEvent`, `AuditLogHeader`, `AuditPersistRecord`, `AuditRecordBin` (and the bundle items) **appear** |
+  | `0.21.2` → `0.21.3` | `InvalidPresentByte= 0x15` → `= 0x15`: **formatting only** |
+  | `0.31.0` → `0.32.0` | `fjell-service-api::chunked::FrameError` and `Reassembler` **appear** |
+  | `0.32.0` → tip | **`SyscallNumber::Reboot = 120` removed** (`3dd3bc6`, deliberate, RFC-0.33-001 D8); `SysError::TaskTableFull = -35` added (RFC-0.34-002, this line's neighbour); `presentation::Ask` **appears** |
+
+  **Across twenty-two releases no field was removed from, added to, or retyped in a pre-existing
+  struct, and no method was removed from or added to the trait.** The only two lines that
+  changed in an existing item are the `Reboot = 120` removal and the formatting change above.
+  Nothing needed escalating: there was no removed field or method to stop for. (Less drift than
+  feared, said as such.) **Survivor:** attributes other than `repr` and `non_exhaustive` are not
+  hashed, so a `Copy` removed from a struct is invisible; stated in the tool.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4681,7 +4725,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-054 the book cannot say who Fjell is for: inclusion is a founding pillar of the requirements and is absent from both intro pages, while N3's rationale and the identity list narrow the audience to headless industrial nodes — and the same book's requirements chapter still lists accessible-UI devices as a primary target | RFC-0.33-002 | CLOSED |
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | CLOSED |
-| E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | ACCEPTED |
+| E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |

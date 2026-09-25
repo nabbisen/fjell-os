@@ -972,10 +972,12 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   or removing a variant — a syscall number among them — was zero drift. The hash now
   covers the variants, and the re-record was read: across twenty-two releases the only
   variant removed from an existing enum was `Reboot = 120`, deliberately, in
-  RFC-0.33-001. **It still does not see a braced struct's fields or a trait's items**
-  (Errata **E-067**, OPEN, unscheduled) — adding a field to an ABI struct such as
-  `AuditRecordBin` is zero drift. The syscall enum is also covered by
-  `syscall-surface`.
+  RFC-0.33-001. A braced struct's fields and a trait's items are
+  covered too since RFC-0.34-003 (Errata **E-067**, **CLOSED** 2026-09-25): adding a
+  field to `AuditRecordBin` now registers, `#[repr]` is part of the hash, and the
+  re-record was read (no field or method removed in twenty-two releases). **Not seen:**
+  attributes other than `repr` and `non_exhaustive` — removing `Copy` from a struct is
+  invisible. The syscall enum is also covered by `syscall-surface`.
 
 - **A QEMU profile's markers could be silently split** (Errata **E-057**,
   **CLOSED** 2026-09-25 by RFC-0.33-004). The profile reader split on every comma
@@ -1240,11 +1242,3 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   this means for a reader:** for those five, the bytes on the wire are described by
   nothing a gate compares, and the semantic codec is the one that matters —
   which is why it is scheduled first.
-- **Gate 4 cannot see a field added to a struct, or a method added to a trait**
-  (Erratum **E-067**, ACCEPTED 2026-09-25, tracked 0.34). RFC-0.33-004 made the ABI
-  snapshot's hash cover an enum's variants, which is how `SyscallNumber::Reboot`'s
-  removal became visible. A braced struct and a trait are still hashed by their
-  declaration line alone, so adding a field to `AuditRecordBin` — a `#[repr(C)]`
-  layout the kernel writes raw — registers zero drift. The mechanism of the fix is
-  one condition beside the enum's; the work is reading the drift the re-record
-  reveals, which is why it is its own line rather than absorbed into that one.

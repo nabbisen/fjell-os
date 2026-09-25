@@ -23,6 +23,27 @@
 //! This catches 95% of stability-relevant changes with zero nightly
 //! dependency.
 //!
+//! ## What an item's hash covers (RFC-0.33-004 D5, RFC-0.34-003 D3 / §C)
+//!
+//! A `fn`, `const` or `type` is hashed by its whole declaration. An `enum`, a braced
+//! `struct` and a `trait` are hashed by their declaration **and their members** — the
+//! variants, the fields, the item signatures — because the declaration line
+//! (`pub struct AuditRecordBin {`) says nothing about what is inside: until this was
+//! done, adding a field or a method was zero drift. What is **in** and **out**, and why,
+//! so that no reflow moves a hash and no ABI change hides in one:
+//!
+//! | | | why |
+//! |---|---|---|
+//! | comments, doc comments, whitespace, line layout | **out** (normalised) | cannot change the ABI; a hash that moves on `rustfmt` gets regenerated unread |
+//! | `#[repr(...)]` | **in** | it *is* the layout: `#[repr(C)]` on `AuditRecordBin` is the ABI |
+//! | `#[non_exhaustive]` | **in** | changes what a downstream `match` may assume |
+//! | `#[derive(...)]`, `#[doc]`, `#[must_use]`, `#[allow]`, other attributes on the item | **out** | they change trait impls or lints, not the item's shape; derive lists are reordered and extended as routine churn. **The cost, stated:** removing `Copy` from a struct is not seen here |
+//! | a field's or variant's own attributes | **in** (part of its text) | they sit on the member and are rare; a change there is a change to it |
+//! | private fields | **in** | they set the size and layout of a `#[repr(C)]` struct, and construction |
+//! | field / variant / item **order** | **in** | field order is layout; variant order renumbers implicit discriminants; for trait items it is conservative (a reorder registers) |
+//! | a trait item's default body | **out** | behaviour, not surface; the signature before the `{` is in |
+//! | a tuple or unit struct's fields | in, on its declaration line | as before |
+//!
 //! Items added between snapshots are **not** a failure (additive change).
 //! Items *removed or renamed* between snapshots fail the `--verify` gate.
 //! Signature changes are flagged if the whole-line hash differs.
@@ -64,11 +85,14 @@ struct AbiItem {
     kind: String, // fn | struct | enum | trait | const | type
     name: String,
     sig_hash: String, // first 16 hex chars of SHA-256-like hash of full sig line
-    /// RFC-0.33-004 D5 (E-056): for an `enum`, its variants in source order, each
-    /// whitespace-normalised with its attributes, discriminant and payload; empty
-    /// for every other kind. The hash covers these (the snapshot stores only the
-    /// hash), and `--dump-enums` prints them so a change can be *named*.
-    variants: Vec<String>,
+    /// RFC-0.33-004 D5 / RFC-0.34-003 D3: for a braced `enum`, `struct` or `trait`, its
+    /// **members** in source order — an enum's variants, a struct's fields, a trait's
+    /// item signatures — each whitespace-normalised, with its attributes, discriminant
+    /// and payload; empty for every other kind (a tuple or unit struct's fields are on
+    /// its declaration line already). Preceded by the item's ABI attributes (see the
+    /// module doc). The hash covers all of it (the snapshot stores only the hash), and
+    /// `--dump-members` prints it so a change can be *named*.
+    members: Vec<String>,
 }
 
 fn main() -> ExitCode {
@@ -84,29 +108,29 @@ fn main() -> ExitCode {
     match mode {
         "--generate" => generate(snapshot_path),
         "--verify" => verify(snapshot_path),
-        "--dump-enums" => dump_enums(),
+        "--dump-members" | "--dump-enums" => dump_members(),
         _ => {
             eprintln!(
-                "Usage: fjell-abi-snapshot --generate|--verify|--dump-enums [--snapshot <path>]"
+                "Usage: fjell-abi-snapshot --generate|--verify|--dump-members [--snapshot <path>]"
             );
             ExitCode::FAILURE
         }
     }
 }
 
-/// `--dump-enums`: every scanned enum and its variants, one `crate::module::Enum`
-/// header and one indented line per variant. Not a gate: it exists so that when
-/// the enum hash changes, *what* changed can be named by diffing two dumps (the
-/// snapshot itself stores only the hash).
-fn dump_enums() -> ExitCode {
-    for it in scan_all().iter().filter(|i| i.kind == "enum") {
+/// `--dump-members`: every scanned enum, struct and trait with its ABI attributes and
+/// members, one `crate::module::Item` header and one indented line each. Not a gate: it
+/// exists so that when a hash changes, *what* changed can be named by diffing two dumps
+/// (the snapshot itself stores only the hash). (`--dump-enums` is the earlier name.)
+fn dump_members() -> ExitCode {
+    for it in scan_all().iter().filter(|i| !i.members.is_empty()) {
         let module = if it.module.is_empty() {
             String::new()
         } else {
             format!("::{}", it.module)
         };
-        println!("{}{}::{}", it.crate_name, module, it.name);
-        for v in &it.variants {
+        println!("{} {}{}::{}", it.kind, it.crate_name, module, it.name);
+        for v in &it.members {
             println!("    {v}");
         }
     }
@@ -309,11 +333,16 @@ fn verify(snapshot_path: &str) -> ExitCode {
                     &c.sig_hash[..8]
                 );
             }
-            if changed.iter().any(|(_, c)| c.kind == "enum") {
+            if changed
+                .iter()
+                .any(|(_, c)| matches!(c.kind.as_str(), "enum" | "struct" | "trait"))
+            {
                 eprintln!(
-                    "\nAn enum's hash covers its variants (RFC-0.33-004 D5): a change above may be a \
-                     variant added, removed, renumbered or reordered. The snapshot stores only the \
-                     hash; `--dump-enums` at the baseline's commit and now, diffed, names which."
+                    "\nAn enum, struct or trait hash covers its members (RFC-0.33-004 D5, \
+                     RFC-0.34-003 D3): a change above may be a variant, field or method added, \
+                     removed, renumbered, retyped or reordered, or a changed `#[repr]`. The \
+                     snapshot stores only the hash; `--dump-members` at the baseline's commit and \
+                     now, diffed, names which."
                 );
             }
         }
@@ -429,7 +458,7 @@ fn load_snapshot(path: &str) -> io::Result<LoadedSnapshot> {
                 kind: ki,
                 name: na,
                 sig_hash: sig,
-                variants: Vec::new(),
+                members: Vec::new(),
             });
         }
     }
@@ -648,30 +677,35 @@ fn scan_content_into(
         let (full_decl, last_index) = join_wrapped_declaration(&lines, i);
         i = last_index;
 
-        // RFC-0.33-004 D5 (E-056): an enum's declaration line is
-        // `pub enum SyscallNumber {`, which says nothing about its variants, so
-        // adding or retiring one — a syscall number among them — was zero drift.
-        // The hash now covers the variant list (comments removed, whitespace
-        // normalised, order kept: reordering variants without explicit
-        // discriminants renumbers them).
-        let mut variants: Vec<String> = Vec::new();
+        // RFC-0.33-004 D5 (E-056) and RFC-0.34-003 D3 (E-067): the declaration line of
+        // `pub enum SyscallNumber {`, `pub struct AuditRecordBin {` or `pub trait T {`
+        // says nothing about what is inside, so adding or retiring a variant, a field or
+        // a method was zero drift. The hash covers the item's **members** and its ABI
+        // attributes (see the module doc for exactly what is in and out, and why).
+        let mut members: Vec<String> = Vec::new();
         let mut hashed = normalize_signature(&full_decl);
-        if kind == "enum" {
-            if let Some((vs, end)) = enum_variants(&stripped_lines, decl_start) {
-                // The declaration is what precedes the opening brace, so a
-                // one-line `pub enum E { A, B }` and the same enum laid out over
-                // several lines hash alike.
-                let head = full_decl.split('{').next().unwrap_or(&full_decl);
-                hashed = normalize_signature(head);
+        if matches!(kind, "enum" | "struct" | "trait") {
+            if let Some(b) = braced_members(kind, &stripped_lines, decl_start) {
+                // The declaration is what precedes the opening brace, so a one-line
+                // `pub enum E { A, B }` and the same enum over several lines hash alike.
+                hashed = b.head;
                 hashed.push_str(" {");
-                for v in &vs {
+                for m in &b.members {
                     hashed.push(' ');
-                    hashed.push_str(v);
+                    hashed.push_str(m);
                     hashed.push(',');
                 }
                 hashed.push_str(" }");
-                variants = vs;
-                i = i.max(end);
+                members = b.members;
+                i = i.max(b.end);
+            }
+            let attrs = abi_attrs(&stripped_lines, decl_start);
+            if !attrs.is_empty() {
+                // Attributes are part of what is hashed and of what is dumped, first.
+                hashed = format!("{} {hashed}", attrs.join(" "));
+                let mut with = attrs;
+                with.extend(members);
+                members = with;
             }
         }
         let sig_hash = simple_hash(&hashed);
@@ -682,7 +716,7 @@ fn scan_content_into(
             kind: kind.to_string(),
             name,
             sig_hash,
-            variants,
+            members,
         });
 
         i += 1;
@@ -978,18 +1012,44 @@ fn char_literal_len(bytes: &[u8]) -> Option<usize> {
     }
 }
 
-/// The variants of the `enum` whose declaration starts at `stripped[start]`,
-/// read from the comment-and-string-blanked lines: the text between the enum's
-/// own braces, split at commas that are not inside `()`, `{}` or `[]`, each piece
-/// whitespace-normalised. Also returns the line the closing brace is on.
-/// `None` if no braced body is found (which no `pub enum` has).
-fn enum_variants(stripped: &[&str], start: usize) -> Option<(Vec<String>, usize)> {
-    let mut text = String::new();
+/// What a braced `enum`, `struct` or `trait` contains.
+struct Braced {
+    /// The declaration up to (not including) its opening brace, whitespace-normalised.
+    head: String,
+    /// Variants, fields or trait-item signatures, in source order, normalised.
+    members: Vec<String>,
+    /// The line the closing brace is on.
+    end: usize,
+}
+
+/// Read the braced body of the item whose declaration starts at `stripped[start]`
+/// (comments and string contents already blanked): its head and its members.
+///
+/// * `enum`, `struct`: members are split at commas outside `()`, `{}`, `[]` and `<>`.
+/// * `trait`: members are **item signatures** — an item ends at a top-level `;`, or at
+///   the `{` of a default body, which is *not* part of the signature (a default body's
+///   text is behaviour, not surface).
+///
+/// `None` if the item has no braced body: a unit or tuple struct (`pub struct S;`,
+/// `pub struct S(u8);` — their fields are on the declaration line, already hashed).
+fn braced_members(kind: &str, stripped: &[&str], start: usize) -> Option<Braced> {
+    let mut head = String::new();
+    let mut body = String::new();
     let mut depth = 0i32;
+    let mut paren = 0i32;
     let mut opened = false;
     let mut end = start;
     'lines: for (k, line) in stripped.iter().enumerate().skip(start) {
         for c in line.chars() {
+            if !opened {
+                match c {
+                    '(' => paren += 1,
+                    ')' => paren -= 1,
+                    // A `;` before any `{` ends a unit/tuple struct: no body.
+                    ';' if paren <= 0 => return None,
+                    _ => {}
+                }
+            }
             match c {
                 '{' => {
                     depth += 1;
@@ -1008,44 +1068,174 @@ fn enum_variants(stripped: &[&str], start: usize) -> Option<(Vec<String>, usize)
                 _ => {}
             }
             if opened {
-                text.push(c);
+                body.push(c);
+            } else {
+                head.push(c);
             }
         }
         if opened {
-            text.push('\n');
+            body.push('\n');
+        } else {
+            head.push(' ');
+        }
+        // A tuple/unit struct with no body may run on for many lines before the next
+        // item's brace; a struct head never spans more than a handful of lines.
+        if !opened && k > start + 12 {
+            return None;
         }
     }
     if !opened || depth != 0 {
         return None;
     }
+    let members = if kind == "trait" {
+        split_trait_items(&body)
+    } else {
+        split_top_level(&body, ',')
+    };
+    Some(Braced {
+        head: tidy(&head),
+        members,
+        end,
+    })
+}
+
+/// Split `text` at `sep` where that is not inside `()`, `{}`, `[]` or `<>`, and
+/// whitespace-normalise each non-empty piece. (`->` is not a closing angle bracket.)
+fn split_top_level(text: &str, sep: char) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     let mut nest = 0i32;
+    let mut prev = ' ';
     for c in text.chars() {
         match c {
-            '(' | '{' | '[' => {
-                nest += 1;
-                cur.push(c);
-            }
-            ')' | '}' | ']' => {
-                nest -= 1;
-                cur.push(c);
-            }
-            ',' if nest == 0 => {
-                let v = normalize_signature(&cur);
-                if !v.is_empty() {
-                    out.push(v);
-                }
-                cur.clear();
-            }
-            _ => cur.push(c),
+            '(' | '{' | '[' | '<' => nest += 1,
+            ')' | '}' | ']' => nest -= 1,
+            '>' if prev != '-' && prev != '=' => nest -= 1,
+            _ => {}
         }
+        if c == sep && nest == 0 {
+            let v = tidy(&cur);
+            if !v.is_empty() {
+                out.push(v);
+            }
+            cur.clear();
+        } else {
+            cur.push(c);
+        }
+        prev = c;
     }
-    let v = normalize_signature(&cur);
+    let v = tidy(&cur);
     if !v.is_empty() {
         out.push(v);
     }
-    Some((out, end))
+    out
+}
+
+/// A trait body's items: each ends at a top-level `;`, or at the `{` that opens a
+/// default body (the body is skipped; the signature before it is the member).
+fn split_trait_items(body: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let mut nest = 0i32;
+    let mut prev = ' ';
+    let mut chars = body.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '(' | '[' | '<' => nest += 1,
+            ')' | ']' => nest -= 1,
+            '>' if prev != '-' && prev != '=' => nest -= 1,
+            _ => {}
+        }
+        if nest == 0 && c == '{' {
+            // Skip the default body to its matching brace.
+            let mut d = 1;
+            for b in chars.by_ref() {
+                match b {
+                    '{' => d += 1,
+                    '}' => {
+                        d -= 1;
+                        if d == 0 {
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let v = tidy(&cur);
+            if !v.is_empty() {
+                out.push(v);
+            }
+            cur.clear();
+            prev = '}';
+            continue;
+        }
+        if nest == 0 && c == ';' {
+            let v = tidy(&cur);
+            if !v.is_empty() {
+                out.push(v);
+            }
+            cur.clear();
+        } else {
+            cur.push(c);
+        }
+        prev = c;
+    }
+    let v = tidy(&cur);
+    if !v.is_empty() {
+        out.push(v);
+    }
+    out
+}
+
+/// The attributes directly above the item at `stripped[start]` that are part of its
+/// ABI: `#[repr(...)]` and `#[non_exhaustive]`. Every other attribute — `derive`, `doc`,
+/// `must_use`, `allow`, `cfg_attr`, … — is **out**, and the module doc says why.
+fn abi_attrs(stripped: &[&str], start: usize) -> Vec<String> {
+    let mut found: Vec<String> = Vec::new();
+    let mut i = start;
+    while i > 0 {
+        let line = stripped[i - 1].trim();
+        if line.is_empty() {
+            // A comment or doc line (blanked); attributes may sit above it.
+            i -= 1;
+            continue;
+        }
+        if !line.starts_with("#[") {
+            break;
+        }
+        // One line may carry several `#[..]` groups.
+        let mut rest = line;
+        let mut this: Vec<String> = Vec::new();
+        while let Some(pos) = rest.find("#[") {
+            let mut d = 0;
+            let mut close = None;
+            for (o, c) in rest[pos..].char_indices() {
+                match c {
+                    '[' => d += 1,
+                    ']' => {
+                        d -= 1;
+                        if d == 0 {
+                            close = Some(pos + o);
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            let Some(close) = close else { break };
+            this.push(normalize_signature(&rest[pos..=close]));
+            rest = &rest[close + 1..];
+        }
+        // Collected bottom-up; keep them in source order.
+        found.splice(0..0, this);
+        i -= 1;
+    }
+    found.retain(|a| {
+        let name = a.trim_start_matches("#[").trim_start();
+        let name = name.split(['(', ']', ' ', '=']).next().unwrap_or("");
+        matches!(name, "repr" | "non_exhaustive")
+    });
+    found
 }
 
 /// Starting at `lines[start]`, join subsequent lines while the declaration
@@ -1086,6 +1276,32 @@ fn paren_depth(s: &str) -> i32 {
 /// wrapping a long line differently) does not change the hash by itself.
 fn normalize_signature(s: &str) -> String {
     s.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// [`normalize_signature`], and the punctuation-spacing `rustfmt` moves between a one-line
+/// and a wrapped rendering of the same text: no space just inside `(` `[` or just before
+/// `)` `]` `,`, and no trailing comma before a closing bracket. Applied to **members**
+/// (fields, variants, trait-item signatures), so re-wrapping a long method signature over
+/// several lines does not move a hash (RFC-0.34-003 §C).
+fn tidy(s: &str) -> String {
+    let mut t = normalize_signature(s);
+    loop {
+        let before = t.clone();
+        for (from, to) in [
+            ("( ", "("),
+            (" )", ")"),
+            ("[ ", "["),
+            (" ]", "]"),
+            (" ,", ","),
+            (",)", ")"),
+            (",]", "]"),
+        ] {
+            t = t.replace(from, to);
+        }
+        if t == before {
+            return t;
+        }
+    }
 }
 
 /// Fast non-cryptographic hash sufficient for change detection.
@@ -1209,7 +1425,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "z".into(),
                 sig_hash: "0".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
             AbiItem {
                 crate_name: "a".into(),
@@ -1218,7 +1434,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "a".into(),
                 sig_hash: "0".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
         ];
         items.sort();
@@ -1448,7 +1664,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "1".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
             AbiItem {
                 crate_name: "c".into(),
@@ -1457,7 +1673,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "2".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
         ];
         let err = build_identity_map(&items).unwrap_err();
@@ -1485,7 +1701,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "1".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
             AbiItem {
                 crate_name: "c".into(),
@@ -1494,7 +1710,7 @@ mod tests {
                 kind: "const".into(),
                 name: "READY".into(),
                 sig_hash: "2".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
         ];
         assert!(build_identity_map(&items).is_ok());
@@ -1596,7 +1812,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "new".into(),
                 sig_hash: "1".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
             AbiItem {
                 crate_name: "c".into(),
@@ -1605,7 +1821,7 @@ mod tests {
                 kind: "fn".into(),
                 name: "new".into(),
                 sig_hash: "2".into(),
-                variants: Vec::new(),
+                members: Vec::new(),
             },
         ];
         assert!(build_identity_map(&items).is_ok());
@@ -1669,7 +1885,7 @@ mod tests {
         assert_ne!(enum_hash(a), enum_hash(b));
         let items = scan_content(a, "c", "m");
         assert_eq!(
-            items[0].variants,
+            items[0].members,
             ["M { tag: usize, words: [usize; 4] }", "N"]
         );
     }
@@ -1687,17 +1903,158 @@ mod tests {
         assert_eq!(names, ["E", "after", "C"]);
     }
 
-    /// The control: what this line did *not* change. A braced struct's fields are
-    /// still not in its hash (E-056's class, filed separately) — stated in a test
-    /// so it is a known boundary and not a surprise.
+    // ── RFC-0.34-003 D3 / E-067: a struct's fields and a trait's items are hashed ──
+
+    /// **The inverted test.** This used to be
+    /// `a_braced_structs_fields_are_still_outside_its_hash` and asserted the blindness:
+    /// two structs differing by a field hashed alike. It now asserts the opposite.
     #[test]
-    fn a_braced_structs_fields_are_still_outside_its_hash() {
+    fn a_field_added_to_a_braced_struct_changes_its_hash() {
         let a = scan_content("pub struct S {\n    pub a: u8,\n}\n", "c", "m");
         let b = scan_content(
             "pub struct S {\n    pub a: u8,\n    pub b: u8,\n}\n",
             "c",
             "m",
         );
-        assert_eq!(a[0].sig_hash, b[0].sig_hash);
+        assert_ne!(a[0].sig_hash, b[0].sig_hash);
+        assert_eq!(b[0].members, ["pub a: u8", "pub b: u8"]);
+    }
+
+    fn struct_hash(src: &str) -> String {
+        let items = scan_content(src, "c", "m");
+        assert_eq!(items.len(), 1, "{src}");
+        items[0].sig_hash.clone()
+    }
+
+    const S: &str = "pub struct S {\n    pub a: u8,\n    pub b: u16,\n}\n";
+
+    #[test]
+    fn a_field_removed_retyped_renamed_or_reordered_changes_the_hash() {
+        let base = struct_hash(S);
+        for (what, src) in [
+            ("removed", "pub struct S {\n    pub a: u8,\n}\n"),
+            (
+                "retyped",
+                "pub struct S {\n    pub a: u8,\n    pub b: u32,\n}\n",
+            ),
+            (
+                "renamed",
+                "pub struct S {\n    pub a: u8,\n    pub c: u16,\n}\n",
+            ),
+            (
+                "reordered",
+                "pub struct S {\n    pub b: u16,\n    pub a: u8,\n}\n",
+            ),
+            (
+                "made private",
+                "pub struct S {\n    pub a: u8,\n    b: u16,\n}\n",
+            ),
+        ] {
+            assert_ne!(
+                struct_hash(src),
+                base,
+                "a field {what} must change the hash"
+            );
+        }
+    }
+
+    /// The control §C asks for: **a `rustfmt` reflow does not move the hash.**
+    #[test]
+    fn a_reflow_does_not_move_a_struct_hash() {
+        let base = struct_hash(S);
+        for src in [
+            "pub struct S { pub a: u8, pub b: u16 }\n",
+            "pub struct S {\n    /// doc\n    pub a: u8, // trailing\n    /* block */ pub b: u16,\n}\n",
+            "pub struct S {\n        pub a:   u8,\n\n        pub b:   u16\n}\n",
+            "#[derive(Clone, Copy, Debug)]\npub struct S {\n    pub a: u8,\n    pub b: u16,\n}\n",
+            "/// docs\n#[must_use]\n#[allow(dead_code)]\npub struct S {\n    pub a: u8,\n    pub b: u16,\n}\n",
+        ] {
+            assert_eq!(struct_hash(src), base, "{src}");
+        }
+    }
+
+    /// `#[repr(C)]` is the ABI: adding, removing or changing it moves the hash.
+    #[test]
+    fn repr_is_in_the_hash_and_derive_is_out() {
+        let plain = struct_hash(S);
+        let c = struct_hash(&format!("#[repr(C)]\n{S}"));
+        let packed = struct_hash(&format!("#[repr(C, packed)]\n{S}"));
+        let both = struct_hash(&format!("#[derive(Clone)]\n#[repr(C)]\n{S}"));
+        assert_ne!(plain, c);
+        assert_ne!(c, packed);
+        assert_eq!(c, both, "derive must not move a hash; repr must");
+        // several attributes on one line
+        assert_eq!(c, struct_hash(&format!("#[derive(Clone)] #[repr(C)]\n{S}")));
+        let items = scan_content(&format!("#[repr(C)]\n{S}"), "c", "m");
+        assert_eq!(items[0].members[0], "#[repr(C)]");
+    }
+
+    /// A tuple or unit struct has no braced body and is untouched — and the scanner
+    /// must not run on into the *next* item's brace looking for one.
+    #[test]
+    fn tuple_and_unit_structs_are_not_confused_with_the_next_items_body() {
+        let items = scan_content(
+            "pub struct T(pub u8);\npub struct U;\npub struct B {\n    pub x: u8,\n}\npub fn after() {}\n",
+            "c",
+            "m",
+        );
+        let by: Vec<(&str, usize)> = items
+            .iter()
+            .map(|i| (i.name.as_str(), i.members.len()))
+            .collect();
+        assert_eq!(by, [("T", 0), ("U", 0), ("B", 1), ("after", 0)]);
+    }
+
+    const TR: &str = "pub trait T {\n    fn a(&self) -> u8;\n    fn b(&mut self, x: u16);\n}\n";
+
+    #[test]
+    fn a_method_added_removed_or_changed_moves_a_trait_hash() {
+        let base = struct_hash(TR);
+        for (what, src) in [
+            (
+                "added",
+                "pub trait T {\n    fn a(&self) -> u8;\n    fn b(&mut self, x: u16);\n    fn c(&self);\n}\n",
+            ),
+            ("removed", "pub trait T {\n    fn a(&self) -> u8;\n}\n"),
+            (
+                "retyped",
+                "pub trait T {\n    fn a(&self) -> u32;\n    fn b(&mut self, x: u16);\n}\n",
+            ),
+            (
+                "with an associated type",
+                "pub trait T {\n    type Out;\n    fn a(&self) -> u8;\n    fn b(&mut self, x: u16);\n}\n",
+            ),
+        ] {
+            assert_ne!(
+                struct_hash(src),
+                base,
+                "a method {what} must change the hash"
+            );
+        }
+    }
+
+    /// A trait's *default body* is behaviour, not surface: editing it is not drift;
+    /// nor is a reflow or a comment.
+    #[test]
+    fn a_default_body_and_a_reflow_do_not_move_a_trait_hash() {
+        let with_default = "pub trait T {\n    fn a(&self) -> u8 {\n        1\n    }\n    fn b(&mut self, x: u16);\n}\n";
+        let other_default = "pub trait T {\n    fn a(&self) -> u8 {\n        2 + { 3 }\n    }\n    fn b(&mut self, x: u16);\n}\n";
+        assert_eq!(struct_hash(with_default), struct_hash(other_default));
+        let reflowed = "pub trait T {\n    /// doc\n    fn a(\n        &self,\n    ) -> u8 { 1 } // c\n    fn b(&mut self, x: u16);\n}\n";
+        assert_eq!(struct_hash(with_default), struct_hash(reflowed));
+        assert_eq!(scan_content(with_default, "c", "m")[0].members.len(), 2);
+    }
+
+    #[test]
+    fn generic_fields_with_commas_are_one_field() {
+        let items = scan_content(
+            "pub struct G {\n    pub m: Map<K, V>,\n    pub f: fn(u8, u8) -> Result<u8, E>,\n}\n",
+            "c",
+            "m",
+        );
+        assert_eq!(
+            items[0].members,
+            ["pub m: Map<K, V>", "pub f: fn(u8, u8) -> Result<u8, E>"]
+        );
     }
 }
