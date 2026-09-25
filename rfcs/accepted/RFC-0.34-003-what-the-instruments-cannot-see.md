@@ -1,6 +1,6 @@
 # RFC-0.34-003: What the instruments cannot see
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-25; implementation may begin (RFC 000)
 **Milestone:** 0.34
 **Tracks.** **E-065**'s first survivor — `fjell-semantic-format::wire`, the IPC codec
 every publisher and presentation exchanges, which has no generated description — and

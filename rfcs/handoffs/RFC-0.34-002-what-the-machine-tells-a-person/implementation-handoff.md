@@ -1,10 +1,8 @@
 # Developer Handoff — RFC-0.34-002
 
-**Governing RFC:** [RFC-0.34-002](../../proposed/RFC-0.34-002-what-the-machine-tells-a-person.md)
+**Governing RFC:** [RFC-0.34-002](../../accepted/RFC-0.34-002-what-the-machine-tells-a-person.md)
 **Milestone:** 0.34
-**Status:** inherited from the governing RFC (Proposed — **do not start until the
-owner accepts it**; this handoff is written in advance so that acceptance is the
-only thing between you and R1)
+**Status:** inherited from the governing RFC (Accepted, 2026-09-25)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

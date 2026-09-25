@@ -429,7 +429,7 @@ before it was trusted.
 
 ---
 
-## Accepted (accepted/) — 6 RFCs
+## Accepted (accepted/) — 8 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 `accepted/README.md` keeps the folder in a fresh clone.
@@ -442,18 +442,15 @@ Signed off by the owner; implementation may begin; not yet shipped.
 | 0.33-003 | [Schemas that describe the bytes](./accepted/RFC-0.33-003-schemas-that-describe-the-bytes.md) — accepted 2026-09-24; closes **E-045**, **E-055**; handoff: [`handoffs/`](./handoffs/RFC-0.33-003-schemas-that-describe-the-bytes/implementation-handoff.md) |
 | 0.33-004 | [Checks that cover what they claim](./accepted/RFC-0.33-004-checks-that-cover-what-they-claim.md) — accepted 2026-09-24; closes **E-049**, **E-052**, **E-056**, **E-057**; handoff: [`handoffs/`](./handoffs/RFC-0.33-004-checks-that-cover-what-they-claim/implementation-handoff.md) |
 | 0.33-005 | [A parser with no tree](./accepted/RFC-0.33-005-a-parser-with-no-tree.md) — accepted 2026-09-24; closes **E-048**; carries RFC-0.33-001 D24; handoff: [`handoffs/`](./handoffs/RFC-0.33-005-a-parser-with-no-tree/implementation-handoff.md) |
+| 0.34-002 | [What the machine tells a person](./accepted/RFC-0.34-002-what-the-machine-tells-a-person.md) — accepted 2026-09-25; closes **E-061**, **E-062**, **E-063**; handoff: [`handoffs/`](./handoffs/RFC-0.34-002-what-the-machine-tells-a-person/implementation-handoff.md) |
+| 0.34-003 | [What the instruments cannot see](./accepted/RFC-0.34-003-what-the-instruments-cannot-see.md) — accepted 2026-09-25; closes **E-067**, resolves **E-065**'s first survivor; handoff: [`handoffs/`](./handoffs/RFC-0.34-003-what-the-instruments-cannot-see/implementation-handoff.md) |
 
 ---
 
-## Proposed (proposed/) — 2 RFCs
+## Proposed (proposed/) — none
 
-Awaiting the owner's decision. The owner ruled on 2026-09-25 that 0.34's five
-remaining errata are **two** lines, not one; these are them.
-
-| RFC | Title |
-|-----|-------|
-| 0.34-002 | [What the machine tells a person](./proposed/RFC-0.34-002-what-the-machine-tells-a-person.md) — closes **E-061**, **E-062**, **E-063** |
-| 0.34-003 | [What the instruments cannot see](./proposed/RFC-0.34-003-what-the-instruments-cannot-see.md) — closes **E-067**, resolves **E-065**'s first survivor |
+Nothing is awaiting the owner's decision. `proposed/README.md` keeps the folder in
+a fresh clone.
 
 ## Archive (archive/) — 2 RFCs
 

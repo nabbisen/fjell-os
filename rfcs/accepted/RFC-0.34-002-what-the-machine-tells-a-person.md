@@ -1,6 +1,6 @@
 # RFC-0.34-002: What the machine tells a person
 
-**Status:** Proposed
+**Status:** Accepted — by the owner (nabbisen), 2026-09-25; implementation may begin (RFC 000)
 **Milestone:** 0.34
 **Tracks.** **E-061** (a failed spawn cannot name the limit it hit), **E-062** (the
 console line buffer emits a dead task's bytes in front of a live task's line, and

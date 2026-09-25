@@ -1,10 +1,8 @@
 # Developer Handoff — RFC-0.34-003
 
-**Governing RFC:** [RFC-0.34-003](../../proposed/RFC-0.34-003-what-the-instruments-cannot-see.md)
+**Governing RFC:** [RFC-0.34-003](../../accepted/RFC-0.34-003-what-the-instruments-cannot-see.md)
 **Milestone:** 0.34
-**Status:** inherited from the governing RFC (Proposed — **do not start until the
-owner accepts it**; this handoff is written in advance so that acceptance is the
-only thing between you and R1)
+**Status:** inherited from the governing RFC (Accepted, 2026-09-25)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a
