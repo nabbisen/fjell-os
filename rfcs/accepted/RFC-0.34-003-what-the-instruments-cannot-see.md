@@ -32,8 +32,10 @@ sends and every presentation renders, including the two RFC-0.34-001 shipped.
 
 ### Finding 2 — thirty-three structs and one trait are hashed by their first line (E-067)
 
-`tests/abi/snapshot.json` holds **443 items**: 262 `const`, 126 `fn`, **33
-`struct`**, **19 `enum`**, 1 `trait`, 1 `type`, across eight crates. Since
+`tests/abi/snapshot.json` holds **442 items**: 262 `const`, 126 `fn`, **33
+`struct`**, **19 `enum`**, 1 `trait`, 1 `type`, across eight crates. *(Corrected at
+review from 443 — the file is a JSON list whose first record is `{"count": 442}`,
+and this RFC counted that header as an item. 262 + 126 + 33 + 19 + 1 + 1 = 442.)* Since
 RFC-0.33-004 D5 the enums' hashes cover their variants. A braced struct's hash is
 still `pub struct AuditRecordBin {` and a trait's items are not descended into, so
 **adding a field or a method is zero drift** — asserted today by the snapshot's own
@@ -78,9 +80,12 @@ writes is precisely the class E-045 hid. **Lean: a round-trip per sample *and* a
 statement of what the description does not cover on the decode side** — say which,
 rather than implying the file covers both.
 
-**§B — can `Canon` express this codec at all?** Chunked frames, a length-prefixed
-token stream and a sentinel are not the flat field lists the nine converted formats
-had. **Lean: extend `Canon` with what the codec needs** (counted groups already
+**§B — can `Canon` express this codec at all?** The codec's shape is not the flat
+field list the nine converted formats had. *(Corrected at review: this RFC said
+"chunked frames … and a sentinel". `wire.rs` has neither — 0 hits for each; chunking
+lives in `fjell-service-api` and `fjell-syscall`. What it actually has is a three-arm
+tagged payload, optional fields, a five-arm tagged union and nested reusable tokens,
+which is what `Canon` was extended for.)* **Lean: extend `Canon` with what the codec needs** (counted groups already
 exist; say what is missing) — and if some part cannot be expressed, the honest
 output is a description that stops where `Canon` stops, plus a named survivor. Do
 not invent a second notation.
@@ -103,6 +108,67 @@ header states the wire version the way the disk structures' headers now state th
 on-disk version (RFC-0.33-003 D11).
 
 **Answer all five in writing before implementing.**
+
+## Settled at the review, 2026-09-25
+
+**D7 — two figures of mine were wrong, and both corrections are right.** The
+snapshot holds **442** items, not 443: the file is a JSON list whose first record is
+`{"count": 442}`, and I counted that header as an item. And **`wire.rs` has no
+chunked frames and no sentinel** — 0 hits for either; chunking lives in
+`fjell-service-api` and `fjell-syscall`, and I attributed it to the codec from
+memory. The RFC's Finding 2 and §B are corrected by this section, and the register
+carries neither figure. *Checking a reviewer's numbers is part of the work, and this
+is the third round where doing it has paid.*
+
+**D8 — the derive list goes into the hash for a crate that is published, and stays
+out everywhere else.** Your reasoning for leaving it out is sound for seven of the
+eight scanned crates, and the fact that decides the eighth is one neither of us
+weighed: **`fjell-abi` is the only scanned crate without `publish = false`** — it is
+on crates.io at 0.32.0. For the other seven the workspace compiler catches a removed
+`Copy` at its use site, so the churn is not worth it. For `fjell-abi` there is no use
+site inside this tree: removing a derived trait from a public type there is a
+breaking change for **external** consumers that **no instrument in this project would
+see**, and Gate 4 is the instrument that exists for exactly that surface.
+
+So: **read `publish` from the crate's manifest** and include the derive set — sorted,
+so that reordering is free — where the crate is publishable. A fact read from the
+manifest cannot rot the way a hand-maintained list of "crates that matter" would
+(E-014's family). Keep `#[doc]`, `#[must_use]`, `#[allow]` out everywhere; their
+absence costs nothing a consumer can depend on. The re-record this causes touches
+only `fjell-abi`'s derived items, and D4's discipline applies to it.
+
+**D9 — private fields stay in.** Your reason is the right one: for a `#[repr(C)]`
+type the private fields *are* the size and the layout, and construction depends on
+them. That a private-field change then reads as drift is not a cost — for those types
+it **is** drift, and the report names the item so a reviewer sees which.
+
+**D10 — the wire file's version header is accepted as written.** `# version: v1 wire
+(first generated in v0.34.0)` is the same shape as the disk structures' `v3 on disk
+(...)` from RFC-0.33-003 D11, and it is read from `WIRE_VERSION` rather than spelled
+again. That nothing forces the bump is already a stated limitation of the mechanism,
+not of this line.
+
+**Accepted as delivered:** E-067's re-record, read the way RFC-0.33-004 read the
+enums — the tag walk from `0.10.0`, consecutive member lists diffed, and the finding
+that **no field was added to, removed from or retyped in a pre-existing struct and no
+method changed on the trait across twenty-two releases**, so there was nothing to
+escalate and you said so instead of implying more; §C's in/out table in the tool's
+own doc **with the cost of each `out` stated**; the reflow control and its mirror,
+including the wrapped-signature defect your own control found in your first cut,
+fixed before any baseline was recorded with it; `Canon`'s five new methods, each
+defaulting to what the codec already wrote, so the seventeen existing files are
+byte-identical (`schema check`: **18 match their encoders**, verified here); the
+recorder merging a **set** of samples with an unreached arm a generation error, over
+exhaustive `match` helpers so a new variant is a compile error; the generated
+`wire-v1.frozen` as a real tree — `optional`, `choice`/`variant`, `group … max N`,
+67 field lines — carrying **two `# not described:` lines** so no reader can infer it
+blesses the decoder; and the round-trip test named as the only check on that side,
+with its limit stated.
+
+**On the scratch directory:** `.git-exclude/tmp/scratch34/` is exactly what that path
+exists for, and it is gitignored — keep it until this line's review is closed, then
+clear it with `rm -rf .git-exclude/tmp/scratch34` (that command is yours to run; it
+is refused in my environment).
 
 ## Requirements
 
