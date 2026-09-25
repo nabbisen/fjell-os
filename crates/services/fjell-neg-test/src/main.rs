@@ -762,17 +762,26 @@ fn test_svc_fault_detected() {
         return;
     }
 
-    // Yield a few times to let svc-fault run, yield, then fault.
-    for _ in 0..10u32 {
+    // Yield until svc-fault has run, yielded, written its console lines and faulted.
+    // This was a fixed ten yields, which held only while svc-fault did nothing between
+    // its own yield and its fault: RFC-0.34-002's console scenario (a 160+-byte line and
+    // a partial one, written a byte per ecall) made it miss. Poll for the state
+    // instead, bounded, so a task that never faults still fails closed.
+    let mut faulted = false;
+    for _ in 0..200u32 {
         sys_yield();
+        if matches!(
+            sys_task_status(SLOT_TASK_CONTROL, handle),
+            Ok(lc) if lc == TaskLifecycle::Faulted as u8
+        ) {
+            faulted = true;
+            break;
+        }
     }
 
     // Check: task is Faulted.
-    match sys_task_status(SLOT_TASK_CONTROL, handle) {
-        Ok(lc) if lc == TaskLifecycle::Faulted as u8 => {
-            check(true, M::SVC_FAULT);
-        }
-        _ => {}
+    if faulted {
+        check(true, M::SVC_FAULT);
     }
 }
 
