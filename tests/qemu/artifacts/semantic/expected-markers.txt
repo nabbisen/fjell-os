@@ -3,3 +3,4 @@ M5: semantic operations ready
 proxy-text: action accepted
 proxy-text: action DENIED (capability not held)
 Verified boot status
+M6: storaged ready    [exactly 1x]

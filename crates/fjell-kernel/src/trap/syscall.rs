@@ -152,33 +152,79 @@ fn sys_exit(tf: &mut TrapFrame) {
 // v0.18 follow-up: marker atomicity for the negative-test profiles).
 //
 // Bytes are accumulated per task and flushed as one atomic UART write
-// (interrupts masked) when a newline arrives or the line buffer fills.
-// Single-hart Cell/UnsafeCell pattern, same as `Flag` below.
+// (interrupts masked) when a newline arrives, when the line buffer fills, or —
+// RFC-0.34-002 — when the task **leaves**. Single-hart Cell/UnsafeCell pattern,
+// same as `Flag` below.
+//
+// **What a reader of the console can rely on (RFC-0.34-002 D2, D3, D4):**
+//
+// * A line is **never shown as two without saying so.** A line longer than
+//   `DBG_LINE` (160 bytes) is split; the chunk ends `[cont]` and the next begins
+//   `[cont]`. The bound is a bound, not a promise of one line per write: a
+//   presentation that writes more than 160 bytes to the console will be cut, and
+//   says so (`docs/src/releasing/v1-limitations.md`).
+// * A task's partial line is **flushed when it leaves** (exit or fault), ending
+//   `[cut]`, so a dying task's last words are shown, and its slot is never left
+//   holding bytes for whoever occupies it next. (Today no slot is reused —
+//   `TaskTable::remove` has no caller — so what the flush prevents is the words
+//   being lost silently; it also removes the hazard the day slots are reused.)
+// * An index outside the table **fails** the write; it is never folded onto
+//   another task's buffer with `%`.
+//
+// ## Why flushing on the exit path is sound (the single-hart argument, re-made)
+//
+// The argument that makes the buffer safe is: single hart, and a line reaches the
+// UART only inside `debug_flush`, which masks `SSTATUS.SIE` for the whole byte
+// loop — so no line is ever *open* on the UART while another task runs. The exit
+// path is a new caller of that argument and it holds for the same reasons:
+// (1) `debug_leave` runs in `schedule_next`, in trap context, on the one hart, so
+// nothing else is executing; (2) it touches only the *leaving* task's slot, and that
+// task is not running, so no concurrent `sys_debug_write` can be appending to it;
+// (3) it emits through the same `debug_flush`, so the UART write is atomic exactly
+// as a newline-triggered one is — it cannot land inside another task's line because
+// no other task's line is ever partly written.
 
 const DBG_TASKS: usize = crate::task::tcb::MAX_TASKS;
 const DBG_LINE: usize = 160;
+/// Ends a chunk of a line that continues, and begins the chunk that continues it.
+const DBG_CONT: &[u8] = b"[cont]";
+/// Ends a task's partial line when the task leaves before ending it.
+const DBG_CUT: &[u8] = b"[cut]";
 
 struct DebugLineBufs {
     len: [core::cell::Cell<usize>; DBG_TASKS],
+    /// The slot's previous chunk ended in a split, so this one starts `[cont]`.
+    continued: [core::cell::Cell<bool>; DBG_TASKS],
     buf: core::cell::UnsafeCell<[[u8; DBG_LINE]; DBG_TASKS]>,
 }
 // SAFETY: category=kernel-global-mutable single-hart; accessed only from the
-// syscall handler with interrupts implicitly serialised per task.
+// syscall handler and the exit path with interrupts implicitly serialised per task.
 unsafe impl Sync for DebugLineBufs {}
 
 #[allow(clippy::declare_interior_mutable_const)]
 const ZERO_LEN: core::cell::Cell<usize> = core::cell::Cell::new(0);
+#[allow(clippy::declare_interior_mutable_const)]
+const NOT_CONT: core::cell::Cell<bool> = core::cell::Cell::new(false);
 static DEBUG_LINES: DebugLineBufs = DebugLineBufs {
     len: [ZERO_LEN; DBG_TASKS],
+    continued: [NOT_CONT; DBG_TASKS],
     buf: core::cell::UnsafeCell::new([[0u8; DBG_LINE]; DBG_TASKS]),
 };
 
-/// Flush one task's buffered line to the UART as a single atomic write.
-fn debug_flush(slot: usize) {
+/// Flush one task's buffered bytes to the UART as a single atomic write: a
+/// `[cont]` prefix if the previous chunk was split, the bytes, then `tail`
+/// (empty when the bytes end their line with `\n`; `[cont]\n` for a split;
+/// `[cut]\n` for a task that left mid-line).
+fn debug_flush(slot: usize, tail: &[u8]) {
     let n = DEBUG_LINES.len[slot].get();
     if n == 0 {
         return;
     }
+    let prefix: &[u8] = if DEBUG_LINES.continued[slot].get() {
+        DBG_CONT
+    } else {
+        b""
+    };
     // Mask SSTATUS.SIE so the byte loop cannot be preempted mid-line
     // (mirrors console::_print; single hart, so masking suffices).
     // SAFETY: category=kernel-global-mutable single hart; SIE masked for the
@@ -192,7 +238,7 @@ fn debug_flush(slot: usize) {
     // with preemption masked above, so no concurrent writer.
     unsafe {
         let lines = &*DEBUG_LINES.buf.get();
-        for &b in &lines[slot][..n] {
+        for &b in prefix.iter().chain(&lines[slot][..n]).chain(tail) {
             // MMIO-ORDER: device_kick
             (0x1000_0000usize as *mut u8).write_volatile(b);
         }
@@ -205,20 +251,60 @@ fn debug_flush(slot: usize) {
         }
     }
     DEBUG_LINES.len[slot].set(0);
+    DEBUG_LINES.continued[slot].set(tail == DBG_CONT_TAIL);
+}
+
+/// The tail of a split chunk: `[cont]` and a newline.
+const DBG_CONT_TAIL: &[u8] = b"[cont]\n";
+const DBG_CUT_TAIL: &[u8] = b"[cut]\n";
+
+/// A task is leaving (exit or fault): resolve its slot **now** (RFC-0.34-002 D2).
+/// Whatever it had not ended with a newline is shown, ending `[cut]`, and the slot
+/// is left empty and not-continued. The safety argument for calling this from the
+/// exit path is in this section's header.
+pub(crate) fn debug_leave(idx: usize) {
+    if idx >= DBG_TASKS {
+        return; // such a task could never have written (the write fails, D4)
+    }
+    debug_flush(idx, DBG_CUT_TAIL);
+    DEBUG_LINES.continued[idx].set(false);
 }
 
 fn sys_debug_write(tf: &mut TrapFrame) {
     let b = tf.gpr[REG_A0] as u8;
-    let slot = crate::trap::dispatch::current_task_idx() % DBG_TASKS;
+    // RFC-0.34-002 D4: the index must be a real slot. It used to be
+    // `current_task_idx() % DBG_TASKS`, which turned an out-of-range index — and a
+    // missing current task, which `current_task_idx` reports as 0 — into an alias
+    // of another task's buffer. Either is a bug to surface, not to fold.
+    let slot = match crate::trap::dispatch::current_task_index() {
+        Some(i) if i < DBG_TASKS => i,
+        other => {
+            static REPORTED: Flag = Flag::new();
+            if !REPORTED.load() {
+                REPORTED.store(true);
+                crate::kprintln!(
+                    "kernel: sys_debug_write refused: task index {:?} is outside the {}-slot console table",
+                    other,
+                    DBG_TASKS
+                );
+            }
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
     let n = DEBUG_LINES.len[slot].get();
-    // SAFETY: category=kernel-global-mutable single-hart; only this handler
-    // mutates the per-task line buffer, and the index is bounds-checked.
+    // SAFETY: category=kernel-global-mutable single-hart; only this handler and
+    // `debug_leave` touch the per-task line buffer, `slot < DBG_TASKS` is checked
+    // above and `n < DBG_LINE` because a full line is flushed the moment it fills.
     unsafe {
         (*DEBUG_LINES.buf.get())[slot][n] = b;
     }
     DEBUG_LINES.len[slot].set(n + 1);
-    if b == b'\n' || n + 1 == DBG_LINE {
-        debug_flush(slot);
+    if b == b'\n' {
+        debug_flush(slot, b"");
+        DEBUG_LINES.continued[slot].set(false);
+    } else if n + 1 == DBG_LINE {
+        debug_flush(slot, DBG_CONT_TAIL);
     }
     tf.gpr[REG_A0] = SysError::Ok as usize;
 }

@@ -4340,10 +4340,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why nothing saw it:** no test asserts *which* error a failed spawn returns;
   every tier asserts the success markers. The value is only read by a human, and
   only when something has already gone wrong.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. A
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. A
   distinct error for a full table, and `init` naming the image it could not
   spawn. An error a person reads is user surface: a value that cannot say which
   limit was hit is a defect, not polish.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.34-002 D1**. `SysError::TaskTableFull`
+  (`-35`) is returned at the two sites where the table has no free slot (41 and 220);
+  the other eleven keep `NoMemory` (no frame, or a mapping failed). `init` now says
+  what it could not do: `init: cannot spawn image N: <reason> (error M)`. **Shown** by
+  overflowing a 20-entry table in a scratch tree: `init: cannot spawn image 29: the
+  task table is full (raise MAX_TASKS and its dependents) (error 35)` — the line that
+  was `init: spawn error`. **ABI:** `--verify` *before* regenerating reported
+  `Changed sig: 1` (`fjell-abi::error enum SysError`) — the first addition Gate 4
+  caught by *body* since RFC-0.33-004 D5; `syscall-surface` is unchanged (34 / 30 / 4:
+  it counts `SyscallNumber`, not `SysError`). **Survivor:** the frame and mapping
+  conditions still share `NoMemory`, and six of the sites discard the mapping error's
+  kind (`map_err(|_| …)`); distinguishing them was not asked for. The dated correction
+  above stays.
 
 ## E-062 — the console line buffer prefixes a task's first line with a dead task's bytes
 
@@ -4366,11 +4380,47 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why nothing saw it:** every tier asserts markers with a substring match, and
   a prefix of junk in front of a marker still contains the marker. The one
   surface a person actually reads is the one nothing asserts the shape of.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. Flush
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. Flush
   or clear a slot when its task leaves; mark a split line as split; make the
   index out of range fail rather than alias. Closing it needs the failing case
   demonstrated — a task exiting mid-line, and the leftover appearing on the next
   task's line — not only the corrupted bytes disappearing.
+
+- **Resolution (2026-09-25, RFC-0.34-002): partly resolved, and the register's own
+  mechanism was wrong. Not closed.**
+  **What was measured (§A), before anything was changed:** on an instrumented kernel,
+  across 24 tier logs, **277 task departures — 250 exits, 27 faults — and the task's
+  line buffer was empty at every one.** `TaskTable::remove` has **no caller**, so no
+  slot is ever reused. **The mechanism this entry describes — a dead task's bytes
+  emitted in front of the next task's line — has never occurred in any tier and cannot
+  occur in the current kernel.**
+  **What the eight bytes are (§E):** `90 90 90 90 90 90 90 92` are written, one `ecall`
+  at a time, by **`storaged`** (task index 13 = image 10, shown by a spawn probe) —
+  **on purpose**: `fjell-storaged/src/main.rs:276`,
+  `sys_debug_write_byte(0x90 + (devid as u8 & 0xF)); // devid`, one byte per virtio
+  slot it scans (seven empty → `0x90`, the block device → `0x92`). Two more probes of
+  the same kind (`0xB0 + lba`, `0xC0 + lba`, lines 352 and 376) surface as junk in any
+  tier that writes to the disk. They precede `M6: storaged ready` because that is
+  storaged's own next line. **The task whose buffer held them was alive.**
+  **What was still defective and is fixed:** (D2) nothing flushed a task's line when it
+  left, so a task that exited or faulted mid-line **lost its last words silently** — and
+  would have handed the slot's bytes to the next occupant the day slots are reused. The
+  buffer now resolves its slot on exit and on fault (`debug_leave`): the partial line is
+  shown, ending `[cut]`. (D3) a line longer than 160 bytes is split with the chunks
+  saying so (`[cont]` ends one and begins the next); **on the old kernel the same
+  scenario showed the first chunk glued to another task's line and the tail as its own
+  line, with nothing between.** (D4) the `% DBG_TASKS` alias is gone: an out-of-range
+  index — and a missing current task, which `current_task_idx()` reported as 0, a case
+  this entry did not name — **fails** the write. The single-hart argument for flushing
+  from the exit path is re-made in the code's own comment. **Bound (§B):** 160 bytes,
+  unchanged; the longest console line in any committed log is 153, the longest braille
+  line 135, so nothing has been split yet; sizing from `MAX_WIRE_BYTES` would cost 185 KB.
+  **Survivor, and an escalation:** the eight (and later) bytes are still on the console,
+  because removing `storaged`'s three probe writes is *changing what a service prints*,
+  which RFC-0.34-002 prohibits, and a clean-console assertion (R7 as written) cannot pass
+  while they exist. Proposal, awaiting a ruling: delete the three writes (debug residue),
+  then assert a control-byte-free serial log. **The per-byte `sys_debug_write` is not
+  redesigned** (D7) — survivor.
 
 ## E-063 — `M6: storaged ready` is printed by two tasks, and every tier asserts it
 
@@ -4396,9 +4446,23 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > tell which one came up, and any assertion added later would be satisfied by
   > either writer — E-014's class waiting rather than an instance of it. The
   > defect is the ambiguity, not a passing tier.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. One
+- **Earlier resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. One
   writer per marker, or markers that name their writer. This is the
   weak-predicate class the project polices, in the evidence base itself.
+
+- **Resolution:** **CLOSED** 2026-09-25 by **RFC-0.34-002 D5**. `init`'s line is
+  **removed, not renamed** (its wait returning is not an event a person needs to read;
+  the line that means two things is what made the marker ambiguous); `storaged`'s stays.
+  §C's check that nothing depended on two: no profile or artefact specification asserts
+  it (0 of 45, control `driver-uart: ready` — **found in 12, not the four this entry's
+  correction says**; a third figure I had to correct), and the seven archived evidence
+  logs record output and assert no count. **The absence is now checked, not
+  remembered:** a new harness key `once_markers` counts a marker and fails if it does not
+  appear **exactly once**, and `semantic.toml` asserts `M6: storaged ready` that way.
+  **Shown both ways:** with both writers present the tier **fails** — `once-marker check
+  FAILED — \`M6: storaged ready\` must appear exactly once but appeared 2x: two writers print it`
+  (exit 1) — and with `init`'s line gone it passes with the marker once. The dated
+  correction above stays. **Not a tier that was fixed:** none asserted it.
 
 ## E-064 — the boot shim destroys the DTB pointer three lines above the comment saying it does not
 
@@ -4622,9 +4686,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
-| E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | ACCEPTED |
+| E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | CLOSED |
 | E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
-| E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | ACCEPTED |
+| E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
 | E-065 five format crates that produce bytes (the semantic wire codec, the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) have no generated description — named survivors of E-045's census | 0.34 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |

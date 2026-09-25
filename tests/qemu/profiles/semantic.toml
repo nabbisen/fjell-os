@@ -27,4 +27,9 @@ expected_markers = [
     "proxy-text: action DENIED (capability not held)",
     "Verified boot status",
 ]
+# RFC-0.34-002 D5 (E-063): the marker is printed by storaged, once. Counted, so a
+# second writer is a failure, not a passing marker.
+once_markers = [
+    "M6: storaged ready",
+]
 extra_args       = []

@@ -264,6 +264,8 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         if let Some(task) = table.get_mut(id) {
             if let Some(code) = super::syscall::take_exit() {
                 let _label = task_label(id, task.image_id);
+                // RFC-0.34-002 D2: resolve the console slot before the task is gone.
+                super::syscall::debug_leave(id.index as usize);
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task exit.
@@ -277,6 +279,8 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 check_smoke_pass(table);
             } else if let Some(fault) = super::fault::take_fault() {
                 let label = task_label(id, task.image_id);
+                // RFC-0.34-002 D2: a faulting task's last words, before the fault line.
+                super::syscall::debug_leave(id.index as usize);
                 // RISC-V ABI: x14=a4, x29=t4, x30=t5 — the registers used
                 // by the LBU string-print loop at the observed fault sites.
                 crate::kprintln!(
@@ -659,6 +663,14 @@ mod milestone_marker_tests {
 /// Return the index of the currently running task (used by M4 syscall dispatch).
 ///
 /// Returns 0 (idle) if no task is currently scheduled.
+/// The running task's table index, or `None` when there is no current task.
+/// Unlike [`current_task_idx`] this does not report 0 for "none" (RFC-0.34-002 D4).
+pub fn current_task_index() -> Option<usize> {
+    // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+    let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
+    sched.current().map(|id| id.index as usize)
+}
+
 pub fn current_task_idx() -> usize {
     // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
     let (_, sched, _, _) = unsafe { crate::get_kernel_state() };

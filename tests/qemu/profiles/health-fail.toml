@@ -38,5 +38,10 @@ expected_markers = [
     "init: svc-fault spawned and registered as required",
     "bootctl: health passed; active slot confirmed",
     "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting",
+    # RFC-0.34-002 R7: what a person reads on the console. svc-fault writes a line
+    # longer than the 160-byte buffer and then dies mid-line.
+    "a[cont]",
+    "[cont]TAIL-END",
+    "svc-fault: last words before the fault[cut]",
 ]
 extra_args = []

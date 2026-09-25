@@ -607,7 +607,11 @@ pub extern "C" fn service_main() -> ! {
     // RFC-0.28-001: relayed via service-manager, not received directly on
     // storaged's own endpoint (slot 2) any more.
     wait_relay_exact(storaged_proto::READY);
-    sys_debug_writeln("M6: storaged ready");
+    // RFC-0.34-002 D5 / E-063: `M6: storaged ready` is printed by `storaged`, once,
+    // when it becomes ready. `init` used to print it again here, after its relay wait
+    // returned, so every serial log carried two of the same marker. Removed — not
+    // renamed: the wait returning is not an event a person needs to read, and a line
+    // that means two things is what made the marker ambiguous.
     use fjell_cap::CapHandle;
     let storaged_ep = CapHandle::new(2, 0); // slot 2 = storaged private endpoint (ep id=1)
 

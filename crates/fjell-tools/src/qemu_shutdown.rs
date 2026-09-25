@@ -275,6 +275,20 @@ pub fn judge_per_boot(boots: u32, counted: usize, marker: &str) -> Result<(), St
     }
 }
 
+/// Judge a once-marker (RFC-0.34-002 D5): exactly one occurrence. Zero is a line that
+/// never printed; two or more is a line with more than one writer (E-063).
+pub fn judge_once(counted: usize, marker: &str) -> Result<(), String> {
+    match counted {
+        1 => Ok(()),
+        0 => Err(format!(
+            "`{marker}` must appear exactly once but never appeared"
+        )),
+        n => Err(format!(
+            "`{marker}` must appear exactly once but appeared {n}x: two writers print it"
+        )),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,5 +446,12 @@ mod boot_count_tests {
         assert!(fewer.contains("did not reach"), "{fewer}");
         let more = judge_per_boot(2, 3, "m").unwrap_err();
         assert!(more.contains("more than once"), "{more}");
+    }
+
+    #[test]
+    fn a_once_marker_is_exactly_once() {
+        assert!(judge_once(1, "m").is_ok());
+        assert!(judge_once(0, "m").unwrap_err().contains("never appeared"));
+        assert!(judge_once(2, "m").unwrap_err().contains("two writers"));
     }
 }

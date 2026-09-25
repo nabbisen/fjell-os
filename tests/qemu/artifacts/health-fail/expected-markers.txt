@@ -4,3 +4,6 @@ init: health-fail trigger received; spawning svc-fault
 init: svc-fault spawned and registered as required
 bootctl: health passed; active slot confirmed
 bootctl: health FAILED on the last confirmed slot; no fallback, not resetting
+a[cont]
+[cont]TAIL-END
+svc-fault: last words before the fault[cut]

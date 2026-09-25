@@ -100,6 +100,12 @@ pub struct Profile {
     /// kernel's own: that a service came back means the machine reached the
     /// readiness the first boot did. Requires `expect_boots`.
     pub per_boot_markers: Vec<String>,
+    /// RFC-0.34-002 D5 / E-063: lines that must appear **exactly once** in the run.
+    /// `expected_markers` match anywhere, so a marker printed by two writers
+    /// (`M6: storaged ready` was, by `storaged` and by `init`) passes as happily as
+    /// one printed once — the ambiguity is invisible until someone asserts the line
+    /// and trips on it. A marker here is counted, so a second writer is a failure.
+    pub once_markers: Vec<String>,
 }
 
 impl Profile {
@@ -120,6 +126,7 @@ impl Profile {
             expect_boots: None,
             boot_banner: None,
             per_boot_markers: vec![],
+            once_markers: vec![],
         }
     }
 }
@@ -385,6 +392,9 @@ pub fn run_profile(p: &Profile) -> ExitCode {
 
     art.write_summary("qemu-command.txt", argv.join(" ").as_bytes());
     let mut expected_text = p.expected_markers.join("\n");
+    for m in &p.once_markers {
+        expected_text.push_str(&format!("\n{m}    [exactly 1x]"));
+    }
     for m in &p.per_boot_markers {
         // The count is part of the assertion, so it is part of the record.
         expected_text.push_str(&format!(
@@ -452,7 +462,11 @@ pub fn run_profile(p: &Profile) -> ExitCode {
 
     // Empty marker list = placeholder profile (no cases registered) — unless
     // it expects a particular ending or a number of boots, which is itself a case.
-    if p.expected_markers.is_empty() && p.expect_shutdown.is_none() && p.expect_boots.is_none() {
+    if p.expected_markers.is_empty()
+        && p.once_markers.is_empty()
+        && p.expect_shutdown.is_none()
+        && p.expect_boots.is_none()
+    {
         art.write_summary(
             "result-summary.txt",
             b"PASS (placeholder; no expected markers)\n",
@@ -541,6 +555,14 @@ pub fn run_profile(p: &Profile) -> ExitCode {
                 eprintln!("[xtask] shutdown check FAILED — {why}");
                 all_ok = false;
             }
+        }
+    }
+    // D5: each once-marker appears exactly once (a second writer is a failure).
+    for m in &p.once_markers {
+        let n = qemu_shutdown::count_boots(&combined, m.as_bytes());
+        if let Err(why) = qemu_shutdown::judge_once(n, m) {
+            eprintln!("[xtask] once-marker check FAILED — {why}");
+            all_ok = false;
         }
     }
     for marker in &p.expected_markers {
@@ -800,6 +822,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_boots_v: Option<u32> = None;
     let mut boot_banner_v: Option<String> = None;
     let mut per_boot_v: Vec<String> = Vec::new();
+    let mut once_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -881,6 +904,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             }
             "boot_banner" => boot_banner_v = Some(unquote(v)),
             "per_boot_markers" => per_boot_v = array_items(&path, k, idx, v)?,
+            "once_markers" => once_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -956,6 +980,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         expect_boots: expect_boots_v,
         boot_banner: boot_banner_v,
         per_boot_markers: per_boot_v,
+        once_markers: once_v,
     })
 }
 
@@ -1621,6 +1646,14 @@ mod discover_tests {
                 .any(|m| m == "driver-uart: ready"),
             "at least one per-boot marker must be a service's line"
         );
+    }
+
+    #[test]
+    fn once_markers_load_and_semantic_asserts_the_m6_line_once() {
+        let r = scratch_root("om", "name = \"p\"\nonce_markers = [\"a, b\"]\n");
+        assert_eq!(load_profile(&r, "p").unwrap().once_markers, ["a, b"]);
+        let real = load_profile(&test_workspace_root(), "semantic").unwrap();
+        assert!(real.once_markers.iter().any(|m| m == "M6: storaged ready"));
     }
 }
 
