@@ -4386,8 +4386,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   demonstrated — a task exiting mid-line, and the leftover appearing on the next
   task's line — not only the corrupted bytes disappearing.
 
-- **Resolution (2026-09-25, RFC-0.34-002): partly resolved, and the register's own
-  mechanism was wrong. Not closed.**
+- **Resolution (2026-09-25, RFC-0.34-002; closed at review 2026-09-29): the register's own
+  mechanism was wrong, and once that was named, the survivor was small enough to close.**
   **What was measured (§A), before anything was changed:** on an instrumented kernel,
   across 24 tier logs, **277 task departures — 250 exits, 27 faults — and the task's
   line buffer was empty at every one.** `TaskTable::remove` has **no caller**, so no
@@ -4415,12 +4415,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   from the exit path is re-made in the code's own comment. **Bound (§B):** 160 bytes,
   unchanged; the longest console line in any committed log is 153, the longest braille
   line 135, so nothing has been split yet; sizing from `MAX_WIRE_BYTES` would cost 185 KB.
-  **Survivor, and an escalation:** the eight (and later) bytes are still on the console,
-  because removing `storaged`'s three probe writes is *changing what a service prints*,
-  which RFC-0.34-002 prohibits, and a clean-console assertion (R7 as written) cannot pass
-  while they exist. Proposal, awaiting a ruling: delete the three writes (debug residue),
-  then assert a control-byte-free serial log. **The per-byte `sys_debug_write` is not
-  redesigned** (D7) — survivor.
+  **The escalation was ruled at review (D9), and delivered.** *"Do not change what any
+  service prints"* protects service *behaviour*; it was never written to protect debug
+  residue that is itself the defect — three writes labelled `// devid`, `// begin probe`,
+  `// lba probe`, emitting bytes no terminal renders, with no reader. **Deleted**, all
+  three, from `fjell-storaged/src/main.rs` (was `:276`, `:352`, `:376`). **R7 delivered**:
+  `semantic.toml` — the tier this entry's bytes were found in, between
+  `devmgr: profiles verified` and `M6: storaged ready` — now asserts `clean_console = true`:
+  the whole serial log must be valid UTF-8 with no control character other than `\n`, `\r`,
+  `\t`. **A byte-range check is not enough and the first cut of this one got it wrong**: a
+  check for `byte < 0x20` misses `0x90`/`0x92` entirely, because those are C1 controls
+  (`0x80..=0x9F`), not C0 — confirmed by running that exact check against the unmodified
+  `storaged` in a scratch worktree, where it wrongly reported the console clean. Deciding by
+  valid UTF-8 plus Unicode's control-character classification catches both C0 and C1
+  controls, demonstrated both ways: the unmodified `storaged` (old probes, in a scratch
+  worktree) fails with `invalid UTF-8 at byte offset 1811`; with the probes deleted, the
+  same tier passes with `console is clean (valid UTF-8, no control character other than
+  \n \r \t)`. **The per-byte `sys_debug_write` is not redesigned** (D7) — survivor, as
+  the RFC always said. **E-062 CLOSED.**
 
 ## E-063 — `M6: storaged ready` is printed by two tasks, and every tier asserts it
 
@@ -4764,7 +4776,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
 | E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | CLOSED |
-| E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | ACCEPTED |
+| E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
 | E-065 four format crates that produce bytes (the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) still have no generated description — named survivors of E-045's census; the fifth, the semantic wire codec, was resolved by RFC-0.34-003 | 0.34 | ACCEPTED |

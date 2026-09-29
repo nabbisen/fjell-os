@@ -4,6 +4,7 @@
 //! address space and returns the new `TaskId`.
 
 use crate::mm::address::{PhysFrame, VirtAddr};
+use crate::mm::error::MmError;
 use crate::mm::frame_alloc::{FrameAllocator, FrameOwner};
 use crate::mm::region::VmRegionKind;
 use crate::mm::vspace::{AddressSpace, AddressSpaceId, VmPerms};
@@ -28,6 +29,23 @@ use fjell_abi::task::TaskId;
 ///
 /// Returns `(TaskId, task_handle_raw)`.  The task is in `Created` state
 /// and must be started with `sys_task_start`.
+
+/// RFC-0.34-002 D11: `map_page`'s only two failure paths are "no frame for an
+/// intermediate page-table level" and "the page is already mapped" (see
+/// `mm::page_table::map_page` and `ensure_next_level`) -- both of which `SysError`
+/// already has a value for. Propagating the real kind instead of collapsing every
+/// mapping failure to `NoMemory` costs nothing and needs no new ABI value.
+fn map_page_err(e: MmError) -> SysError {
+    match e {
+        MmError::AlreadyMapped => SysError::AlreadyMapped,
+        // `OutOfMemory` is the only other path `map_page` can take; anything else
+        // reaching here would be a new failure mode this function was not written
+        // for, so it still reads as `NoMemory` rather than silently mapping to the
+        // wrong named error.
+        _ => SysError::NoMemory,
+    }
+}
+
 pub fn spawn(
     image_id: ImageId,
     table: &mut crate::task::tcb::TaskTable,
@@ -42,7 +60,10 @@ pub fn spawn(
     let tid = TaskId::new(tid_index, 0);
     let asp_id = AddressSpaceId(tid_index);
 
-    // Allocate root page table.
+    // Allocate root page table. `alloc_frame`'s only error is `OutOfMemory`
+    // (RFC-0.34-002 D11: unlike `map_page`, it has no second failure kind to
+    // discard), so `NoMemory` already says the whole truth here and at every
+    // other `alloc_frame` call in this function.
     let root_f = fa
         .alloc_frame(FrameOwner::KernelPageTable)
         .map_err(|_| SysError::NoMemory)?;
@@ -59,7 +80,7 @@ pub fn spawn(
             VmRegionKind::Mmio,
             fa,
         )
-        .map_err(|_| SysError::NoMemory)?;
+        .map_err(map_page_err)?;
 
     // RFC-0.25-001: map the PLIC pages the trap handler touches on every
     // external interrupt (`crate::plic::claim`/`complete`, and `enable` from
@@ -76,7 +97,7 @@ pub fn spawn(
                     VmRegionKind::Mmio,
                     fa,
                 )
-                .map_err(|_| SysError::NoMemory)?;
+                .map_err(map_page_err)?;
         }
     }
 
@@ -97,7 +118,7 @@ pub fn spawn(
                     VmRegionKind::Mmio,
                     fa,
                 )
-                .map_err(|_| SysError::NoMemory)?;
+                .map_err(map_page_err)?;
         }
     }
 
@@ -140,7 +161,7 @@ pub fn spawn(
                     VmRegionKind::UserText,
                     fa,
                 )
-                .map_err(|_| SysError::NoMemory)?;
+                .map_err(map_page_err)?;
         }
     } else {
         let f = fa
@@ -160,7 +181,7 @@ pub fn spawn(
                 VmRegionKind::UserText,
                 fa,
             )
-            .map_err(|_| SysError::NoMemory)?;
+            .map_err(map_page_err)?;
     }
 
     // Allocate and map all stack pages (64 KiB = 16 pages).
@@ -195,7 +216,7 @@ pub fn spawn(
                 VmRegionKind::UserStack,
                 fa,
             )
-            .map_err(|_| SysError::NoMemory)?;
+            .map_err(map_page_err)?;
     }
 
     // Allocate kernel stack.

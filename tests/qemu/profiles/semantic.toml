@@ -32,4 +32,11 @@ expected_markers = [
 once_markers = [
     "M6: storaged ready",
 ]
+# RFC-0.34-002 D9/R7: this is the tier E-062's eight-byte prefix was found in --
+# between "devmgr: profiles verified" and "M6: storaged ready" -- and storaged is
+# the task that wrote it, scanning for the block device. Now that the three debug
+# probe writes are gone, the whole serial log must carry no control byte other
+# than newline, carriage return or tab: the console is a checked claim here, not
+# only a fix that compiled.
+clean_console    = true
 extra_args       = []

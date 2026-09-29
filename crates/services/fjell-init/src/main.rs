@@ -480,7 +480,12 @@ fn spawn(img: ImageId, label: &str) -> usize {
                 SysError::TaskTableFull => {
                     "the task table is full (raise MAX_TASKS and its dependents)"
                 }
-                SysError::NoMemory => "out of memory (no frame, or a mapping failed)",
+                SysError::NoMemory => {
+                    "out of memory (no frame for a page table, a text, stack or kernel-stack page)"
+                }
+                // RFC-0.34-002 D11: spawn's own kernel-only mappings (UART, PLIC,
+                // the reset device) can now report this distinctly from NoMemory.
+                SysError::AlreadyMapped => "a kernel mapping spawn needs was already present",
                 SysError::InvalidCap => "no such image, or no capability to spawn",
                 _ => "the kernel refused it",
             });

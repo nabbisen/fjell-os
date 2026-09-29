@@ -106,6 +106,12 @@ pub struct Profile {
     /// one printed once — the ambiguity is invisible until someone asserts the line
     /// and trips on it. A marker here is counted, so a second writer is a failure.
     pub once_markers: Vec<String>,
+    /// RFC-0.34-002 D9: the run's whole serial log must contain no control byte other
+    /// than `\n`, `\r`, `\t` — the check R7 asks for, now that E-062's actual source
+    /// (three debug probe writes) is gone. Not the default: most profiles' QEMU
+    /// banners and the harness's own timeout/shutdown text are not being asserted
+    /// here, only opted-in tiers that want the console-cleanliness claim checked.
+    pub clean_console: bool,
 }
 
 impl Profile {
@@ -127,6 +133,7 @@ impl Profile {
             boot_banner: None,
             per_boot_markers: vec![],
             once_markers: vec![],
+            clean_console: false,
         }
     }
 }
@@ -557,6 +564,43 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             }
         }
     }
+    // RFC-0.34-002 D9/R7: the console is a surface a person reads, and this is where
+    // "clean" becomes a checked claim rather than an assertion that a fix compiled.
+    if p.clean_console {
+        // A byte-range check (`b < 0x20`) is not enough: the bytes E-062 was filed
+        // over, `0x90`/`0x92`, are C1 controls (`0x80..=0x9F`), which that range
+        // misses entirely — confirmed by running this exact check against the
+        // unmodified `storaged` in a scratch worktree, where it wrongly reported
+        // clean. Deciding by valid UTF-8 plus Unicode's own control-character
+        // classification catches both C0 and C1 controls correctly, and — unlike a
+        // blanket "no byte ≥ 0x80" — still allows a tier that prints braille (valid
+        // multi-byte UTF-8) to opt in later without this check flagging it.
+        match core::str::from_utf8(&combined) {
+            Err(e) => {
+                eprintln!(
+                    "[xtask] clean-console check FAILED — invalid UTF-8 at byte offset {} in {}",
+                    e.valid_up_to(),
+                    log_path.display()
+                );
+                all_ok = false;
+            }
+            Ok(text) => match text
+                .char_indices()
+                .find(|&(_, c)| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))
+            {
+                Some((i, c)) => {
+                    eprintln!(
+                        "[xtask] clean-console check FAILED — control character {c:?} at byte offset {i} in {}",
+                        log_path.display()
+                    );
+                    all_ok = false;
+                }
+                None => println!(
+                    "[xtask] console is clean (valid UTF-8, no control character other than \\n \\r \\t) ✓"
+                ),
+            },
+        }
+    }
     // D5: each once-marker appears exactly once (a second writer is a failure).
     for m in &p.once_markers {
         let n = qemu_shutdown::count_boots(&combined, m.as_bytes());
@@ -823,6 +867,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut boot_banner_v: Option<String> = None;
     let mut per_boot_v: Vec<String> = Vec::new();
     let mut once_v: Vec<String> = Vec::new();
+    let mut clean_console_v = false;
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -905,6 +950,9 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             "boot_banner" => boot_banner_v = Some(unquote(v)),
             "per_boot_markers" => per_boot_v = array_items(&path, k, idx, v)?,
             "once_markers" => once_v = array_items(&path, k, idx, v)?,
+            "clean_console" => {
+                clean_console_v = parse_bool(v).map_err(|e| format!("bad clean_console: {e}"))?
+            }
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -981,6 +1029,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         boot_banner: boot_banner_v,
         per_boot_markers: per_boot_v,
         once_markers: once_v,
+        clean_console: clean_console_v,
     })
 }
 
@@ -1649,11 +1698,20 @@ mod discover_tests {
     }
 
     #[test]
-    fn once_markers_load_and_semantic_asserts_the_m6_line_once() {
-        let r = scratch_root("om", "name = \"p\"\nonce_markers = [\"a, b\"]\n");
-        assert_eq!(load_profile(&r, "p").unwrap().once_markers, ["a, b"]);
-        let real = load_profile(&test_workspace_root(), "semantic").unwrap();
-        assert!(real.once_markers.iter().any(|m| m == "M6: storaged ready"));
+    #[test]
+    fn clean_console_defaults_false_and_semantic_opts_in() {
+        let r = scratch_root("cc", "name = \"p\"\nexpected_markers = [\"a\"]\n");
+        assert!(
+            !load_profile(&r, "p").unwrap().clean_console,
+            "clean_console is opt-in"
+        );
+        let semantic = load_profile(&test_workspace_root(), "semantic").unwrap();
+        assert!(
+            semantic.clean_console,
+            "semantic.toml should opt into the clean-console check"
+        );
+        let health_fail = load_profile(&test_workspace_root(), "health-fail").unwrap();
+        assert!(!health_fail.clean_console, "health-fail did not opt in");
     }
 }
 

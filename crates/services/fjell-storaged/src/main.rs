@@ -273,7 +273,10 @@ pub extern "C" fn service_main() -> ! {
             let magic = unsafe { rd32(va, 0x000) };
             // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
             let devid = unsafe { rd32(va, 0x008) };
-            fjell_syscall::sys_debug_write_byte(0x90 + (devid as u8 & 0xF)); // devid (0x90-0x9F)
+            // RFC-0.34-002 D9: this used to write a non-printable probe byte
+            // (`0x90 + devid`) to the console on every scan iteration -- debug
+            // residue with no reader, and the source of E-062's eight-byte prefix.
+            // Removed; the scan's result is what matters, not its progress.
             if magic == MAGIC_VALUE && devid == DEVICE_ID_BLK {
                 found = va;
                 break;
@@ -349,7 +352,7 @@ pub extern "C" fn service_main() -> ! {
                 unsafe {
                     core::ptr::write_bytes(buf.as_mut_ptr(), 0, 512);
                 }
-                fjell_syscall::sys_debug_write_byte(0xB0 + (lba as u8 & 0x3F)); // begin probe
+                // RFC-0.34-002 D9: a non-printable probe byte removed (see above).
                 reply(WRITE_ACK);
             }
             WRITE_CHUNK => {
@@ -373,7 +376,7 @@ pub extern "C" fn service_main() -> ! {
                 unsafe {
                     core::ptr::copy_nonoverlapping(buf.as_ptr(), (va + OFF_DATA) as *mut u8, 512);
                 }
-                fjell_syscall::sys_debug_write_byte(0xC0 + (lba as u8 & 0x3F)); // lba probe
+                // RFC-0.34-002 D9: a non-printable probe byte removed (see above).
                 let ok = do_io(mmio, va, pa, lba, true);
                 reply(if ok { WRITE_OK } else { WRITE_ERR });
             }

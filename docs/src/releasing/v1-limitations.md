@@ -1189,32 +1189,35 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   committed `prebuilt/*.bin` artefacts and must be re-recorded whenever the
   prebuilt service binaries are rebuilt — see `tools/fjell-repro-check`.
 
-- **The console a person reads: what is fixed, what is bounded, what is not**
-  (Errata **E-062**, ACCEPTED, partly resolved; **E-063** and **E-061**, **CLOSED**
-  2026-09-25 by RFC-0.34-002).
+- **The console a person reads: what is fixed and what is bounded** (Errata **E-061**,
+  **E-062**, **E-063**, all **CLOSED** — 2026-09-25 by RFC-0.34-002, E-062 at its review
+  2026-09-29).
   - **Fixed:** the kernel now resolves a task's console line when the task leaves — a
     task that exits or faults mid-line has its last words shown, ending `[cut]`, instead
     of lost; an index outside the console table fails the write instead of aliasing
     another task's buffer; `M6: storaged ready` has one writer, and a harness check
     (`once_markers`) fails if a second appears; a full task table returns
-    `SysError::TaskTableFull` and `init` prints `init: cannot spawn image N: <reason>`.
+    `SysError::TaskTableFull` and `init` prints `init: cannot spawn image N: <reason>`,
+    naming `AlreadyMapped` distinctly from `NoMemory` where the kernel's own mapping
+    step is what failed. **What E-062's eight non-printing bytes actually were:** measured
+    on an instrumented kernel, the line buffer was empty at all 277 task departures across
+    24 tier logs, and no slot is ever reused (`TaskTable::remove` has no caller) — *a dead
+    task's bytes in front of the next task's line*, the mechanism this entry first named,
+    **has never happened**. The bytes were **`storaged`'s own diagnostic probe writes**
+    (`0x90 + device id`, one per virtio slot scanned; two more probes per disk write) —
+    debug residue with no reader, not the lifetime defect, and now **deleted**. A tier
+    (`semantic.toml`) asserts the console clean — valid UTF-8, no control character other
+    than `\n`, `\r`, `\t` — demonstrated against the unmodified `storaged` (fails, an
+    invalid byte) and the fixed one (passes).
   - **Bounded — and a reader of a braille presentation through the console needs this:**
     the console line buffer is **160 bytes**. A longer line is **cut**, and says so
     (`[cont]` ends a chunk and begins the next), but it *is* cut. The longest line any
     committed log carries is 153 bytes and the longest braille line 135, so nothing has
     been split yet; a presentation must wrap deliberately, not discover the limit.
     Sizing the buffer from the wire format (4,624 bytes × 40 tasks = 185 KB of kernel
-    `.bss`) was declined.
-  - **Not fixed:** the eight non-printing bytes that precede `M6: storaged ready` in
-    every serial log **are not what E-062 said**. Measured: the line buffer was empty at
-    all 277 task departures across 24 tier logs, and no slot is ever reused
-    (`TaskTable::remove` has no caller), so *a dead task's bytes in front of the next
-    task's line* has never happened. They are **`storaged`'s own diagnostic probe
-    writes** (`0x90 + device id`, one per virtio slot; two more probes per disk write),
-    still on the console because removing them changes what a service prints, which the
-    RFC prohibits. Awaiting a ruling. `sys_debug_write` is still one byte per `ecall`
-    (D7); marker assertions still match substrings.
-    *(The earlier text of this entry said every tier asserting the marker passes on
+    `.bss`) was declined. `sys_debug_write` is still one byte per `ecall` (D7); marker
+    assertions still match substrings.
+    *(The earlier text of this entry said every tier asserting the M6 marker passes on
     `init`'s line alone; no specification asserted it, and the search's control was found
     in twelve files, not four.)*
 - **The kernel finds and reserves firmware's device tree, and reads nothing else
