@@ -194,6 +194,44 @@ braille reader; and D5's `once_markers` check, which fails at **2** naming *two 
 print it* and at **0** naming the absence — with `init`'s duplicate removed and a
 comment where it stood.
 
+## Closed at the second review, 2026-09-29
+
+**D13 — E-062 is closed, and the check that closes it is better than the one I asked
+for.** The three probe writes are gone (0 in `fjell-storaged`, control: 6
+`sys_debug_writeln` in the same file), and `semantic.toml` asserts `clean_console`.
+**Your own correction of your first cut is the part that matters**: a `b < 0x20` test
+misses `0x90`/`0x92` entirely, because they are **C1** controls, and you found that by
+running the check against the unmodified `storaged` and seeing it report *clean*. The
+rule you landed — valid UTF-8, then `char::is_control()` less `\n`/`\r`/`\t` — catches
+C0 and C1 both and still lets a braille-printing tier opt in, which a blanket
+*no byte ≥ 0x80* would not have.
+
+**Verified independently, over both populations rather than one log:** applying that
+rule myself to **673 archived pre-fix logs, 668 are not clean** (the first fails at
+byte offset 1612), and of the 25 current logs **24 are clean** — the one exception is
+`smoke-m6/serial.log`, an untracked orphan from a retired profile, last written
+2026-09-10. So the claim is not "the tier passes"; it is that **every log this tree
+produces is now clean and almost none was before**.
+
+**D14 — D11 is delivered and the answer was better than my question.** I asked for
+`map_page`'s kind to be propagated and left the door open for a new value; you
+established there is no new value to mint — `map_page`'s only failures are
+`OutOfMemory` and `AlreadyMapped`, both of which `SysError` already had — and wired
+the six sites through `map_page_err`, with `init` naming *a kernel mapping spawn needs
+was already present*. The five `alloc_frame` sites keep `NoMemory` with a comment
+saying that function returns only that. **A conversion function instead of a new ABI
+value is the cheaper and cleaner answer**, and it is the one the tree supported.
+
+**Fixed at this review, in my own text:** the register's **summary row** for E-062 and
+the **heading** of E-063 still stated the mechanisms that were disproven — the row
+said a dead task's bytes prefix a live line, the heading said every tier asserts the
+marker. Both now say what was true; the dated corrections in the bodies stay. A
+reader scanning the summary table should not meet a claim the entry below it retracts.
+
+**One housekeeping note, not a defect:** `tests/qemu/artifacts/smoke-m6/` is an
+untracked orphan directory for a profile that no longer runs. Clearing it is
+optional and yours.
+
 ## Requirements
 
 **R1 — Re-derive** all three findings at your tip: the thirteen sites and their

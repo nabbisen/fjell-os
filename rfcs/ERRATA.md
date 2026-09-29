@@ -4434,7 +4434,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   \n \r \t)`. **The per-byte `sys_debug_write` is not redesigned** (D7) — survivor, as
   the RFC always said. **E-062 CLOSED.**
 
-## E-063 — `M6: storaged ready` is printed by two tasks, and every tier asserts it
+## E-063 — `M6: storaged ready` is printed by two tasks, and nothing said which one
 
 - **Claim:** the marker `M6: storaged ready` records that `storaged` came up;
   QEMU profiles and archived evidence assert it.
@@ -4776,7 +4776,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
 | E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | CLOSED |
-| E-062 the per-task console line buffer is never flushed when a task leaves, so a dead task's partial line is emitted in front of the next task's first line — eight junk bytes before `M6: storaged ready` in every profile since 2026-09-02; `DBG_LINE = 160` also splits longer lines silently | 0.34 | CLOSED |
+| E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
 | E-065 four format crates that produce bytes (the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) still have no generated description — named survivors of E-045's census; the fifth, the semantic wire codec, was resolved by RFC-0.34-003 | 0.34 | ACCEPTED |
