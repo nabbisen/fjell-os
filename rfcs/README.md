@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 187 files
+## Implemented (done/) — 195 files
 
-186 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+194 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -429,21 +429,30 @@ before it was trusted.
 
 ---
 
-## Accepted (accepted/) — 8 RFCs
+### 0.33 — a boot control, and three of 0.34's RFCs shipped early
 
-Signed off by the owner; implementation may begin; not yet shipped.
+Milestone 0.34 is not complete — E-059, E-060 and E-065 remain **ACCEPTED** and
+tracked to it — but three of its RFCs were reviewed and implemented inside
+this cut, so they ship under the 0.33.0 tag alongside the five RFCs drafted
+for 0.33. Each keeps its own milestone number in its RFC id; the Status line
+names the release that actually shipped it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.33-001 | [A boot control that controls boot](./done/RFC-0.33-001-a-boot-control-that-controls-boot.md) — closed **E-044**; a real A/B boot-control runtime, a health decision and a reset reachable from the console, not just specified | 0.33.0 |
+| 0.33-002 | [Who Fjell is for](./done/RFC-0.33-002-who-fjell-is-for.md) — closed **E-054**; identity-level — who the project is for, and what it explicitly is not, stated once | 0.33.0 |
+| 0.34-001 | [A second presentation](./done/RFC-0.34-001-a-second-presentation.md) — closed **E-058**; delivers RFC-0.33-002 D9's first v1.0 criterion | 0.33.0 |
+| 0.33-003 | [Schemas that describe the bytes](./done/RFC-0.33-003-schemas-that-describe-the-bytes.md) — closed **E-045**, **E-055**; generated schemas for the wire formats, one source for what a decoder accepts | 0.33.0 |
+| 0.33-004 | [Checks that cover what they claim](./done/RFC-0.33-004-checks-that-cover-what-they-claim.md) — closed **E-049**, **E-052**, **E-056**, **E-057**; CI test jobs derived from the workspace rather than hand-listed, enum-body hashing in the ABI snapshot, the profile reader's marker split fixed | 0.33.0 |
+| 0.33-005 | [A parser with no tree](./done/RFC-0.33-005-a-parser-with-no-tree.md) — closed **E-048**; the untested derive parser deleted, the header reader it duplicated kept, fuzzed, and given a leaf crate of its own | 0.33.0 |
+| 0.34-002 | [What the machine tells a person](./done/RFC-0.34-002-what-the-machine-tells-a-person.md) — closed **E-061**, **E-062**, **E-063**; the console is a checked claim, the three probe writes removed, `map_page`'s real error no longer discarded | 0.33.0 |
+| 0.34-003 | [What the instruments cannot see](./done/RFC-0.34-003-what-the-instruments-cannot-see.md) — closed **E-067**, resolves **E-065**'s first survivor; the ABI hash now covers derive-generated code, read from the manifest of the one scanned crate that is published | 0.33.0 |
+
+---
+
+## Accepted (accepted/) — none
+
 `accepted/README.md` keeps the folder in a fresh clone.
-
-| RFC | Title |
-|-----|-------|
-| 0.33-001 | [A boot control that controls boot](./accepted/RFC-0.33-001-a-boot-control-that-controls-boot.md) — accepted 2026-09-22; closes **E-044**; handoff: [`handoffs/`](./handoffs/RFC-0.33-001-a-boot-control-that-controls-boot/implementation-handoff.md) |
-| 0.33-002 | [Who Fjell is for](./accepted/RFC-0.33-002-who-fjell-is-for.md) — identity-level; accepted 2026-09-23; closes **E-054**; handoff: [`handoffs/`](./handoffs/RFC-0.33-002-who-fjell-is-for/implementation-handoff.md) |
-| 0.34-001 | [A second presentation](./accepted/RFC-0.34-001-a-second-presentation.md) — accepted 2026-09-24; closes **E-058**; delivers RFC-0.33-002 D9's first v1.0 criterion; handoff: [`handoffs/`](./handoffs/RFC-0.34-001-a-second-presentation/implementation-handoff.md) |
-| 0.33-003 | [Schemas that describe the bytes](./accepted/RFC-0.33-003-schemas-that-describe-the-bytes.md) — accepted 2026-09-24; closes **E-045**, **E-055**; handoff: [`handoffs/`](./handoffs/RFC-0.33-003-schemas-that-describe-the-bytes/implementation-handoff.md) |
-| 0.33-004 | [Checks that cover what they claim](./accepted/RFC-0.33-004-checks-that-cover-what-they-claim.md) — accepted 2026-09-24; closes **E-049**, **E-052**, **E-056**, **E-057**; handoff: [`handoffs/`](./handoffs/RFC-0.33-004-checks-that-cover-what-they-claim/implementation-handoff.md) |
-| 0.33-005 | [A parser with no tree](./accepted/RFC-0.33-005-a-parser-with-no-tree.md) — accepted 2026-09-24; closes **E-048**; carries RFC-0.33-001 D24; handoff: [`handoffs/`](./handoffs/RFC-0.33-005-a-parser-with-no-tree/implementation-handoff.md) |
-| 0.34-002 | [What the machine tells a person](./accepted/RFC-0.34-002-what-the-machine-tells-a-person.md) — accepted 2026-09-25; closes **E-061**, **E-062**, **E-063**; handoff: [`handoffs/`](./handoffs/RFC-0.34-002-what-the-machine-tells-a-person/implementation-handoff.md) |
-| 0.34-003 | [What the instruments cannot see](./accepted/RFC-0.34-003-what-the-instruments-cannot-see.md) — accepted 2026-09-25; closes **E-067**, resolves **E-065**'s first survivor; handoff: [`handoffs/`](./handoffs/RFC-0.34-003-what-the-instruments-cannot-see/implementation-handoff.md) |
 
 ---
 

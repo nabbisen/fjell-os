@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.34-002
 
-**Governing RFC:** [RFC-0.34-002](../../accepted/RFC-0.34-002-what-the-machine-tells-a-person.md)
+**Governing RFC:** [RFC-0.34-002](../../done/RFC-0.34-002-what-the-machine-tells-a-person.md)
 **Milestone:** 0.34
-**Status:** inherited from the governing RFC (Accepted, 2026-09-25)
+**Status:** inherited from the governing RFC (Implemented, 0.33.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

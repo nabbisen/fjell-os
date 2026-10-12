@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.33-005
 
-**Governing RFC:** [RFC-0.33-005](../../accepted/RFC-0.33-005-a-parser-with-no-tree.md)
+**Governing RFC:** [RFC-0.33-005](../../done/RFC-0.33-005-a-parser-with-no-tree.md)
 **Milestone:** 0.33
-**Status:** inherited from the governing RFC (Accepted, 2026-09-24)
+**Status:** inherited from the governing RFC (Implemented, 0.33.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

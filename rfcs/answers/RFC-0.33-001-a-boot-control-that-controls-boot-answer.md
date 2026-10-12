@@ -1,6 +1,6 @@
 # RFC-0.33-001 §A–§E, and six questions the RFC did not ask
 
-**Governing RFC:** [../accepted/RFC-0.33-001-a-boot-control-that-controls-boot.md](../accepted/RFC-0.33-001-a-boot-control-that-controls-boot.md)
+**Governing RFC:** [../done/RFC-0.33-001-a-boot-control-that-controls-boot.md](../done/RFC-0.33-001-a-boot-control-that-controls-boot.md)
 
 Written after R1 and before the kernel work, in the handoff's order. §A–§E are
 answered. **§F is new**: R1 found that the RFC's shape — "the state machine, then

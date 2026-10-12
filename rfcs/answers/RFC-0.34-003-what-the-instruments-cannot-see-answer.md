@@ -1,6 +1,6 @@
 # RFC-0.34-003 R1 and §A–§E: what the wire codec's description can and cannot say
 
-**Governing RFC:** [../accepted/RFC-0.34-003-what-the-instruments-cannot-see.md](../accepted/RFC-0.34-003-what-the-instruments-cannot-see.md)
+**Governing RFC:** [../done/RFC-0.34-003-what-the-instruments-cannot-see.md](../done/RFC-0.34-003-what-the-instruments-cannot-see.md)
 **Handoff:** [../handoffs/RFC-0.34-003-what-the-instruments-cannot-see/implementation-handoff.md](../handoffs/RFC-0.34-003-what-the-instruments-cannot-see/implementation-handoff.md)
 
 Written after R1 and before any code. Tip at R1: `f0c4b02` plus the neg-test fix

@@ -1,6 +1,6 @@
 # RFC-0.33-005 R1 and §A–§D: a deletion, and a test for what stays
 
-**Governing RFC:** [../accepted/RFC-0.33-005-a-parser-with-no-tree.md](../accepted/RFC-0.33-005-a-parser-with-no-tree.md)
+**Governing RFC:** [../done/RFC-0.33-005-a-parser-with-no-tree.md](../done/RFC-0.33-005-a-parser-with-no-tree.md)
 **Handoff:** [../handoffs/RFC-0.33-005-a-parser-with-no-tree/implementation-handoff.md](../handoffs/RFC-0.33-005-a-parser-with-no-tree/implementation-handoff.md)
 
 Written after R1 and before any code. Absences probed with `/usr/bin/grep -a`, each

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.34-001
 
-**Governing RFC:** [RFC-0.34-001](../../accepted/RFC-0.34-001-a-second-presentation.md)
+**Governing RFC:** [RFC-0.34-001](../../done/RFC-0.34-001-a-second-presentation.md)
 **Milestone:** 0.34
-**Status:** inherited from the governing RFC (Accepted, 2026-09-24)
+**Status:** inherited from the governing RFC (Implemented, 0.33.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

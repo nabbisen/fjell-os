@@ -1,6 +1,6 @@
 # RFC-0.33-002 R1, §A–§D, and what writing A4 found out
 
-**Governing RFC:** [../accepted/RFC-0.33-002-who-fjell-is-for.md](../accepted/RFC-0.33-002-who-fjell-is-for.md)
+**Governing RFC:** [../done/RFC-0.33-002-who-fjell-is-for.md](../done/RFC-0.33-002-who-fjell-is-for.md)
 **Handoff:** [../handoffs/RFC-0.33-002-who-fjell-is-for/implementation-handoff.md](../handoffs/RFC-0.33-002-who-fjell-is-for/implementation-handoff.md)
 
 Written after R1 and before any page, in the handoff's order. Every absence is

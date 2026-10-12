@@ -1,6 +1,6 @@
 # RFC-0.34-002 R1 and §A–§E: the eight bytes were not what E-062 said
 
-**Governing RFC:** [../accepted/RFC-0.34-002-what-the-machine-tells-a-person.md](../accepted/RFC-0.34-002-what-the-machine-tells-a-person.md)
+**Governing RFC:** [../done/RFC-0.34-002-what-the-machine-tells-a-person.md](../done/RFC-0.34-002-what-the-machine-tells-a-person.md)
 **Handoff:** [../handoffs/RFC-0.34-002-what-the-machine-tells-a-person/implementation-handoff.md](../handoffs/RFC-0.34-002-what-the-machine-tells-a-person/implementation-handoff.md)
 
 Written after R1 and §A's measurement and before any change to the tree. Absences

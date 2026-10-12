@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.33-003
 
-**Governing RFC:** [RFC-0.33-003](../../accepted/RFC-0.33-003-schemas-that-describe-the-bytes.md)
+**Governing RFC:** [RFC-0.33-003](../../done/RFC-0.33-003-schemas-that-describe-the-bytes.md)
 **Milestone:** 0.33
-**Status:** inherited from the governing RFC (Accepted, 2026-09-24)
+**Status:** inherited from the governing RFC (Implemented, 0.33.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

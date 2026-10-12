@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.33-002
 
-**Governing RFC:** [RFC-0.33-002](../../accepted/RFC-0.33-002-who-fjell-is-for.md)
+**Governing RFC:** [RFC-0.33-002](../../done/RFC-0.33-002-who-fjell-is-for.md)
 **Milestone:** 0.33
-**Status:** inherited from the governing RFC (Accepted, 2026-09-23)
+**Status:** inherited from the governing RFC (Implemented, 0.33.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

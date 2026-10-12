@@ -1,6 +1,6 @@
 # RFC-0.34-001 R1, §A–§E, and what D8 needs that the kernel does not offer
 
-**Governing RFC:** [../accepted/RFC-0.34-001-a-second-presentation.md](../accepted/RFC-0.34-001-a-second-presentation.md)
+**Governing RFC:** [../done/RFC-0.34-001-a-second-presentation.md](../done/RFC-0.34-001-a-second-presentation.md)
 **Handoff:** [../handoffs/RFC-0.34-001-a-second-presentation/implementation-handoff.md](../handoffs/RFC-0.34-001-a-second-presentation/implementation-handoff.md)
 
 Written after R1 and before any code, in the handoff's order. Every absence is

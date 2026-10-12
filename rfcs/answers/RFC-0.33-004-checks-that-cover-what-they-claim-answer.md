@@ -1,6 +1,6 @@
 # RFC-0.33-004 R1 and §A–§E: four instruments, each seen refusing what it used to pass
 
-**Governing RFC:** [../accepted/RFC-0.33-004-checks-that-cover-what-they-claim.md](../accepted/RFC-0.33-004-checks-that-cover-what-they-claim.md)
+**Governing RFC:** [../done/RFC-0.33-004-checks-that-cover-what-they-claim.md](../done/RFC-0.33-004-checks-that-cover-what-they-claim.md)
 **Handoff:** [../handoffs/RFC-0.33-004-checks-that-cover-what-they-claim/implementation-handoff.md](../handoffs/RFC-0.33-004-checks-that-cover-what-they-claim/implementation-handoff.md)
 
 Written after R1 and before the first code change, for all four errata, as the

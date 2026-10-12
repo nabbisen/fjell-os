@@ -1,6 +1,6 @@
 # RFC-0.33-003 R1 and §A–§E: the layout lives in the encoder, not the struct
 
-**Governing RFC:** [../accepted/RFC-0.33-003-schemas-that-describe-the-bytes.md](../accepted/RFC-0.33-003-schemas-that-describe-the-bytes.md)
+**Governing RFC:** [../done/RFC-0.33-003-schemas-that-describe-the-bytes.md](../done/RFC-0.33-003-schemas-that-describe-the-bytes.md)
 **Handoff:** [../handoffs/RFC-0.33-003-schemas-that-describe-the-bytes/implementation-handoff.md](../handoffs/RFC-0.33-003-schemas-that-describe-the-bytes/implementation-handoff.md)
 
 Written after R1 and before any code, in the handoff's order. Every absence is
