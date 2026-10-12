@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-09-16 11:14:14 UTC
-Version   : 0.32.0
+Generated : 2026-10-12 22:43:46 UTC
+Version   : 0.33.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -30,36 +30,38 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §3. MEASUREMENT AND BUNDLE DIGEST CHAIN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Service binaries in prebuilt/: 29
-    fjell-init.bin (17471 bytes)
+  Service binaries in prebuilt/: 31
+    fjell-init.bin (27528 bytes)
     fjell-configd.bin (472 bytes)
     fjell-cap-broker.bin (1576 bytes)
     fjell-auditd.bin (2760 bytes)
-    fjell-service-manager.bin (1416 bytes)
-    fjell-sample-service.bin (6064 bytes)
-    fjell-neg-test.bin (9088 bytes)
+    fjell-service-manager.bin (1800 bytes)
+    fjell-sample-service.bin (7232 bytes)
+    fjell-neg-test.bin (8976 bytes)
     fjell-svc-timeout.bin (32 bytes)
-    fjell-svc-fault.bin (50 bytes)
-    fjell-semantic-stream.bin (11709 bytes)
+    fjell-svc-fault.bin (260 bytes)
+    fjell-semantic-stream.bin (24536 bytes)
     fjell-proxy-text.bin (11920 bytes)
-    fjell-devmgr.bin (4624 bytes)
+    fjell-devmgr.bin (5175 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
-    fjell-storaged.bin (2003 bytes)
-    fjell-bootctl.bin (473 bytes)
-    fjell-upgraded.bin (4038 bytes)
+    fjell-storaged.bin (1947 bytes)
+    fjell-bootctl.bin (692 bytes)
+    fjell-upgraded.bin (4302 bytes)
     fjell-powerd.bin (134 bytes)
     fjell-verifyd.bin (3912 bytes)
     fjell-rootfsd.bin (54 bytes)
     fjell-snapshotd.bin (54 bytes)
     fjell-measuredd.bin (3847 bytes)
-    fjell-attestd.bin (9087 bytes)
+    fjell-attestd.bin (9663 bytes)
     fjell-recoveryd.bin (581 bytes)
     fjell-syncd.bin (3886 bytes)
     fjell-driver-virtio-net.bin (1030 bytes)
     fjell-netd.bin (831 bytes)
     fjell-secure-transportd.bin (1519 bytes)
-    fjell-diagnosticsd.bin (3832 bytes)
+    fjell-diagnosticsd.bin (3880 bytes)
     fjell-driver-uart.bin (686 bytes)
+    fjell-proxy-braille.bin (13008 bytes)
+    fjell-svc-presentation-fault.bin (169 bytes)
   Bundle signatures: (available after v0.11 signing pipeline)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -75,8 +77,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 277
-  with SAFETY comment: 277
+  total unsafe sites : 280
+  with SAFETY comment: 280
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -84,15 +86,15 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20260916-105215
-  24    QEMU negative: user-copy                            60.0s  PASS
+  Latest test-all run: 20261012-221731
+  30    QEMU negative: user-copy                            60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 24  |  PASS: 22  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 2
+  Total: 30  |  PASS: 28  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 2
   
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 605 passed, 0 failed  [PASS]
+    Host tests   : 705 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 
