@@ -1,6 +1,6 @@
 # RFC-0.33-003: Schemas that describe the bytes
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
+**Status:** Implemented (0.33.0) — accepted 2026-09-24
 **Milestone:** 0.33
 **Tracks.** **E-045** — the frozen wire-format schemas were never enforced and
 have drifted — and **E-055**, struct padding written to disk through four raw

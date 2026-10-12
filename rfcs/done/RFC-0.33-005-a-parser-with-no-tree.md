@@ -1,6 +1,6 @@
 # RFC-0.33-005: A parser with no tree
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
+**Status:** Implemented (0.33.0) — accepted 2026-09-24
 **Milestone:** 0.33
 **Tracks.** **E-048** — `fjell-dtb-derive` has never derived a board profile from
 a real device tree, nothing uses it, and the documents that described its callers

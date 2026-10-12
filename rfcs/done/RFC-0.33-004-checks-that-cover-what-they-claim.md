@@ -1,6 +1,6 @@
 # RFC-0.33-004: Checks that cover what they claim
 
-**Status:** Accepted — by the owner (nabbisen), 2026-09-24; implementation may begin (RFC 000)
+**Status:** Implemented (0.33.0) — accepted 2026-09-24
 **Milestone:** 0.33
 **Tracks.** Four instruments that report success over less than they claim:
 **E-049** (CI names test packages by hand and misses ten crates), **E-052**
