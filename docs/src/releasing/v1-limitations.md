@@ -156,8 +156,8 @@ person, and the list is the reason no page says otherwise.
 
 **What this section does not say.** It does not say Fjell is "accessible" or
 "inclusive" as a verdict about the product — there is no such verdict to give.
-It does not date any of the above: a second presentation modality is now in the
-tree (the 0.34 line, unreleased until it is cut) and has been driven on no device,
+It does not date any of the above: a second presentation modality **ships in
+0.33.0** (the 0.34 line, cut inside that release) and has been driven on no device,
 the adaptive Personal Proxy is unscheduled, and the readiness matrix carries two
 of the three inclusion rows as work in progress.
 
