@@ -450,23 +450,24 @@ names the release that actually shipped it.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 2 RFCs
 
+Signed off by the owner; implementation may begin; not yet shipped.
 `accepted/README.md` keeps the folder in a fresh clone.
-
----
-
-## Proposed (proposed/) — 2 RFCs
-
-Awaiting the owner's decision. 0.34's scope was set on 2026-10-13: the owner took
-**these two lines** and deferred the other two candidates (descriptions for E-065's
-four remaining formats, and a check that the readiness matrix's summary matches its
-own rows).
 
 | RFC | Title |
 |-----|-------|
-| 0.34-004 | [A word that claims an authority it does not carry](./proposed/RFC-0.34-004-a-word-that-claims-an-authority.md) — closes **E-059**, **E-034** |
-| 0.34-005 | [The presentation in the threat model](./proposed/RFC-0.34-005-the-presentation-in-the-threat-model.md) — closes **E-060** |
+| 0.34-004 | [A word that claims an authority it does not carry](./accepted/RFC-0.34-004-a-word-that-claims-an-authority.md) — accepted 2026-10-13; closes **E-059**, **E-034**; handoff: [`handoffs/`](./handoffs/RFC-0.34-004-a-word-that-claims-an-authority/implementation-handoff.md) |
+| 0.34-005 | [The presentation in the threat model](./accepted/RFC-0.34-005-the-presentation-in-the-threat-model.md) — accepted 2026-10-13; amends an authoritative document (RFC-v0.15-002); closes **E-060**; handoff: [`handoffs/`](./handoffs/RFC-0.34-005-the-presentation-in-the-threat-model/implementation-handoff.md) |
+
+---
+
+## Proposed (proposed/) — none
+
+Nothing is awaiting the owner's decision. `proposed/README.md` keeps the folder in
+a fresh clone. 0.34's two deferred candidates — descriptions for E-065's four
+remaining formats, and a check that the readiness matrix's summary matches its own
+rows — are recorded in the register, not here.
 
 ## Archive (archive/) — 2 RFCs
 

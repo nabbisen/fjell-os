@@ -1,10 +1,8 @@
 # Developer Handoff — RFC-0.34-004
 
-**Governing RFC:** [RFC-0.34-004](../../proposed/RFC-0.34-004-a-word-that-claims-an-authority.md)
+**Governing RFC:** [RFC-0.34-004](../../accepted/RFC-0.34-004-a-word-that-claims-an-authority.md)
 **Milestone:** 0.34
-**Status:** inherited from the governing RFC (Proposed — **do not start until the
-owner accepts it**; written in advance so acceptance is the only thing between you
-and R1)
+**Status:** inherited from the governing RFC (Accepted, 2026-10-13)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design
