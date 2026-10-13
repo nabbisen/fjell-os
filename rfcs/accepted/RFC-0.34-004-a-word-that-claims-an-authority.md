@@ -115,6 +115,75 @@ condition this whole line exists to end.
 
 **Answer all five in writing before implementing.**
 
+## Settled at the review, 2026-10-13
+
+**D7 — accepted, and the mechanism is the right one for the right reason.** Verified
+here rather than read: `granted_rights` is now
+`PRESENTATIONS[presentation_of(sender)].dispatch_rights`, with `unwrap_or(0)` for a
+sender the stream does not know — **fail-closed on an unrecognised sender**, which the
+RFC did not ask for and which is the correct default. The payload word is gone from
+the decision, and the comment at `:60` now says it is **not** a payload word.
+
+**§3's binding is exactly what §A demanded and nothing looser.**
+`CapRights::PROXY_TEXT_DEMO` is declared once (`fjell-cap/src/rights.rs:100`) and read
+twice — by the kernel's CSpace install (`spawn.rs:863`) and by the stream's row
+(`main.rs:149`). **One declaration, two read sites**, so the grant and the check cannot
+drift; every other row is `0`, matching that no other presentation has ever held a
+dispatch capability. That is the difference between a policy and a second table, and
+you found the form yourself.
+
+**§B's answer is confirmed.** `sys_cap_inspect(tf, tidx, ct)` takes `tidx` from the
+dispatcher's `cur_id.index` — never a caller-supplied index — so a task cannot ask
+about another task's rights, and the capability route is a new syscall and a different
+line. **Your "no" is correct and it is what makes §A's route a conclusion rather than
+a preference.**
+
+**D8 — the live failing transcript is the evidence that could not be re-taken, and you
+took it first.** 6 accepted / 0 denied with a forged `0xFFFFFFFF` against the
+unmodified receiver, 5/1 as the honest control, then 5/1 either way against the fixed
+one. That last figure is the one that matters: **the forgery now has no effect**, and
+the `semantic-liar` tier keeps it that way.
+
+**D9 — E-034's four signatures: the right call, and the one exception is now its own
+erratum.** Three of the four word-categories were inert and are gone; the fourth —
+`upgraded`'s `channel_id` — **is read by a real receiver that always sees `0`**, and
+§C said carrying it is an ABI change in its own line. You stopped there, which was
+right, and the consequence is **E-070**: the update-index fetch has never completed.
+The five prebuilts being byte-identical after dropping the parameters is the proof
+that dropping changed no behaviour.
+
+**D10 — your question 1: both go in the register, not in a closing note.** **E-068**
+(`diagnosticsd` sends an `AUDIT_QUERY` nothing answers — zero mentions in `auditd`)
+and **E-069** (`secure-transportd` declares four client endpoints, polls exactly one,
+and says in a comment that it polls three) are filed, ACCEPTED, unscheduled. Prose in
+a closing note is where a defect goes to be forgotten; the register is what Gate 7 and
+every cut read. **Raising them instead of fixing them silently was the right
+instinct** — both are outside this line.
+
+**D11 — your question 2: yes, E-070 is different in kind, and it is scheduled.** It is
+**behaviour**, not a promise, and it sits in the one area whose tiers (`store`,
+`upgrade`) are not release-gated and have no emitting scenario — so nothing would have
+caught it and nothing will catch the next one. Filed ACCEPTED, tracked **0.35**, and
+**recommended as 0.35's first candidate together with those emitting scenarios.**
+
+**D12 — the near-miss you disclosed is now E-071, and it is an instrument defect, not
+an operator error.** `fjell-repro-check` reads its flags with
+`args.iter().any(|a| a == "--skip-build")`, so **any unrecognised argument is silently
+ignored** and the tool falls through to its full two-build mode — and it has **no
+`--help`**, which makes asking for usage the way to start a build. That is the second
+time this has fired. An unknown flag must exit non-zero with the usage. Tracked
+**0.35**. *Disclosing it, checking `git status` and every prebuilt size immediately,
+and confirming the live `test-all` was unaffected is exactly the handling trap 7 asks
+for.*
+
+**Accepted as delivered:** the comment sweep, which found and corrected two comments
+false for unrelated reasons (`diagnosticsd`'s `AUDIT_QUERY` protocol and
+`secure-transportd`'s `OpenChannel` kind word) in files this line already touched;
+the `L` trigger and a dedicated test intent after the first design's dependence on
+boot-order timing proved wrong — *and saying so*; the three registrations the new
+test-only crate needed, the same three every prior one needed; and `--verify` read
+before regenerating (`Changed sig: 1`, `Added: 3`, then 445 = 445).
+
 ## Requirements
 
 **R1 — Re-derive** Findings 1–4 at your tip: the two line numbers and the comment;

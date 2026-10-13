@@ -1267,3 +1267,24 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   decoder that read different fields would not be caught by the file; a round trip per sample
   is the only check), nor are the values behind a tag byte or the encoder's refusals. **For the
   four:** the bytes are described by nothing a gate compares.
+- **Three request paths that nothing answers, and an instrument that builds when you
+  ask it for help** (Errata **E-068**, **E-069** unscheduled; **E-070**, **E-071**
+  tracked 0.35; all filed 2026-10-13 at RFC-0.34-004's review).
+  - `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that
+    **`fjell-auditd` has never implemented** — zero mentions of it there — so a
+    diagnostics audit query returns nothing and the caller cannot tell that apart
+    from "no records" (**E-068**).
+  - `fjell-secure-transportd` declares **four** client endpoints and polls exactly
+    **one**, under a comment saying it polls three in round-robin, so
+    `diagnosticsd`, `attestd` and `service-manager` can never be served by it
+    (**E-069**).
+  - `fjell-upgraded`'s **update-index fetch has never completed**: the channel-kind
+    word its open request should carry is never carried, and the receiving end always
+    sees `0`. This is behaviour rather than a promise, and it sits in the one area of
+    the tree whose QEMU tiers — `store` and `upgrade` — are **not release-gated and
+    have no emitting scenario**, so nothing would have caught it (**E-070**,
+    recommended as 0.35's first candidate together with those scenarios).
+  - `fjell-repro-check` **silently ignores an unrecognised flag** and falls through
+    to its full two-build mode, and has no `--help` — so the natural way to ask for
+    usage starts a build that can race a concurrent `test-all`. It has happened
+    twice (**E-071**).

@@ -107,6 +107,51 @@ not a page of assertions. Where nothing demonstrates a defence, D5 applies.
 
 **Answer all five in writing before writing the amendment.**
 
+## Settled at the review, 2026-10-13
+
+**D7 — accepted. The defence-to-evidence table is what makes this an amendment rather
+than a page of prose**, and the row that proves the discipline worked is **T23:
+defence "None", demonstrated by "—"**. A threat model that can write that about itself
+is worth more than one that cannot.
+
+**§E held.** T21's defence cites the `semantic-liar` tier, T22's cites
+`semantic-absent` and `semantic-crash`, and where there is nothing, the table says
+nothing. Doing this line **after** RFC-0.34-004 rather than before it is why T21 can
+cite a closed erratum instead of a conditional.
+
+**D8 — §B's answer is right, and the escalation was correctly not taken.** A
+presentation is a same-node task in the TCB exactly as every other service is, which
+is T17's own point rather than a new property; and the separate-device configuration
+is **named and explicitly excluded** rather than analysed thinly. *"No assistive
+presentation on a separate device may be called safe under this model until its own
+amendment exists"* is the sentence that makes the exclusion a commitment instead of a
+silence.
+
+**D9 — T23 needs no erratum number of its own (your question 1).** E-060's closure
+already names it — *"a compromised presentation showing false state to the attending
+operator, for which no defence"* — and the model entry carries the analysis. A second
+number would duplicate one record in two places, which is how they drift. **But the
+register entry is the one that must stay**: Gate 7 and every cut read the register, not
+the threat model.
+
+**D10 — your question 2: yes, cite T22 at `CRA-I-2h`, and I have done it** — that row
+is exit criterion 8's territory, not yours. The row reads *"no dedicated in-kernel
+resource-exhaustion or DoS mitigation instrument was found"*, and T22's defence **is**
+a real mechanism with two tiers for a specific availability failure. A conservative
+row that omits a mechanism that exists understates the evidence, and criterion 8 reads
+these rows for truth in **both** directions. The status stays **partial**, because a
+no-stall guarantee for the narration path is not availability in general; the citation
+now reads `(T13, T22 — …)` with the tiers named. Leaving it uncited and asking was
+right: the judgement is mine.
+
+**Accepted as delivered:** T21–T23 in the model's existing shape; T17's residual
+gaining exactly one sentence, a pointer to T21 by name, with T1–T20 otherwise
+untouched (the whole diff of the amendment commit removes **one** line, that
+residual's); the fifth T22 residual found at R1 and added to both documents in the
+commit that found it; `CRA-I-2f` gaining T21 as a precise fit to an existing row
+rather than a new one; and `errata-limitations` dropping from 8 ACCEPTED to 7 by a
+real closure.
+
 ## Requirements
 
 **R1 — Re-derive** Finding 1 with its control (the three absences and `T17` present),

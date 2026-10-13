@@ -4783,6 +4783,83 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   removed, `TaskTableFull = -35` added). Nothing removed; nothing to escalate. **Cost now stated
   narrowly:** a removed derive is invisible in the seven `publish = false` crates.
 
+## E-068 — `fjell-diagnosticsd` sends an audit query `fjell-auditd` has never answered
+
+- **Claim:** `fjell-diagnosticsd` documents an `AUDIT_QUERY` protocol over IPC and
+  sends it (`main.rs:98`, with the protocol written out at `:51` and `:87`).
+- **Tree, observed 2026-10-13:** `fjell-auditd` mentions `AUDIT_QUERY` **zero**
+  times — it drains the audit ring and never serves a query. So a diagnostics audit
+  query is sent to a service with no arm for it and **returns nothing, silently**;
+  the caller cannot tell the difference between "no audit records" and "nobody
+  listening".
+- **Found by:** the implementer, while sweeping comments for RFC-0.34-004 D3; they
+  corrected `diagnosticsd`'s comment to say the protocol is unimplemented and raised
+  the gap rather than filing it themselves.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-13), **unscheduled**, in
+  `v1-limitations.md`. Either `auditd` answers the query or `diagnosticsd` stops
+  sending it; what is not acceptable is a request path that reports nothing and
+  cannot say why.
+
+## E-069 — `fjell-secure-transportd` declares four client endpoints, polls one, and says it polls three
+
+- **Claim:** `crates/services/fjell-secure-transportd/src/main.rs:132` — *"In
+  v0.4.0-alpha.1 we poll the three client endpoints in round-robin."*
+- **Tree, observed 2026-10-13:** four endpoint handles are declared — `CAP_SMGR_EP`
+  (1), `CAP_UPGRAD_EP` (2), `CAP_DIAG_EP` (3), `CAP_ATTEST_EP` (4) — and the service
+  makes exactly **one** `recv_msg(CAP_…)` call, on `CAP_UPGRAD_EP`. There is no
+  round-robin and there are four endpoints, not three. **`diagnosticsd` and
+  `attestd` can never be served by it**, and `service-manager`'s endpoint is never
+  received on either.
+- **Why nothing saw it:** nothing calls the unserved endpoints, so nothing blocks or
+  errors; the comment describes the intended loop and reads as a description of the
+  code beneath it.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-13), **unscheduled**, in
+  `v1-limitations.md`. The comment must stop claiming a loop that does not exist
+  whatever else is done; serving the other endpoints is a design decision, not a
+  correction.
+
+## E-070 — the update-index fetch has never completed, and its tier is one of the two that are not gated
+
+- **Claim:** `fjell-upgraded::fetch_update_index` opens a metadata channel through
+  `secure-transportd` and returns the channel on success.
+- **Tree, observed 2026-10-13:** it returns `Some(channel_id)` only if both replies
+  arrive with the expected tags, and **the implementer measured that it has always
+  returned `None` against a real `secure-transportd`**. The channel-kind word its
+  open request should carry is **never carried** — E-034's class, the one of four
+  cases where a dropped word was read by a real receiver, which always sees `0`.
+- **Why this one matters more than its neighbours:** it is **behaviour**, not a
+  promise. And it sits in the one area of the tree whose QEMU tiers — `store` and
+  `upgrade` — are **not release-gated and have no emitting scenario**, so nothing
+  would have caught it and nothing will catch the next one.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **0.35**, in
+  `v1-limitations.md`. **Recommended as 0.35's first candidate**, with the emitting
+  scenarios for `store` and `upgrade` in the same line: a silently broken path in the
+  only unexercised area is the shape this project exists to refuse. The causal chain
+  from the uncarried word is the implementer's measurement and is to be re-derived,
+  not assumed, by whoever takes the line.
+
+## E-071 — `fjell-repro-check` treats an unrecognised flag as "do the expensive thing"
+
+- **Claim:** the tool's usage line offers `[--artefacts <dir>] [--build-cmd <cmd>]
+  [--skip-build]`, and `--skip-build` is the fast, read-only mode.
+- **Tree, observed 2026-10-13:** flags are read with
+  `args.iter().any(|a| a == "--skip-build")`, so **any unrecognised argument is
+  silently ignored** and the tool falls through to its full two-build mode — which
+  rebuilds into the shared `target/` and can race a concurrent `test-all`. There is
+  **no `--help`**, so the natural way to ask what the flags are is the way to trigger
+  the expensive path.
+- **This has now happened twice.** It was recorded as a note after a prebuilt rebuild
+  earlier in 0.33, and it happened again at RFC-0.34-004, where
+  `fjell-repro-check -- --help` fell through to a real two-build run beside a live
+  `test-all` — disclosed by the implementer, killed by a broken pipe before any write
+  completed, and verified afterwards to have corrupted nothing.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **0.35**, in
+  `v1-limitations.md`. An unknown flag must **exit non-zero with the usage**, and
+  `--help` must print it; closing it needs the failing case shown — an unknown flag
+  that used to start a build and now does not. It is also release-handoff trap 7's
+  rule in a second instrument: *one `test-all` at a time per tree*, which an
+  accidental build violates.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4844,6 +4921,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | CLOSED |
 | E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
+| E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented, so a diagnostics audit query returns nothing and cannot say why | unscheduled | ACCEPTED |
+| E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin, so `diagnosticsd`, `attestd` and `service-manager` can never be served by it | unscheduled | ACCEPTED |
+| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | 0.35 | ACCEPTED |
+| E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | 0.35 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | RFC-0.34-004 | CLOSED |
