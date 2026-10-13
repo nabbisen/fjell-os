@@ -456,10 +456,17 @@ names the release that actually shipped it.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 2 RFCs
 
-Nothing is awaiting the owner's decision. `proposed/README.md` keeps the folder in
-a fresh clone.
+Awaiting the owner's decision. 0.34's scope was set on 2026-10-13: the owner took
+**these two lines** and deferred the other two candidates (descriptions for E-065's
+four remaining formats, and a check that the readiness matrix's summary matches its
+own rows).
+
+| RFC | Title |
+|-----|-------|
+| 0.34-004 | [A word that claims an authority it does not carry](./proposed/RFC-0.34-004-a-word-that-claims-an-authority.md) — closes **E-059**, **E-034** |
+| 0.34-005 | [The presentation in the threat model](./proposed/RFC-0.34-005-the-presentation-in-the-threat-model.md) — closes **E-060** |
 
 ## Archive (archive/) — 2 RFCs
 
