@@ -5,6 +5,76 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.34.0] — 2026-10-13 — A word that claims an authority it does not carry
+
+Two RFCs, **three errata closed** (**E-034**, **E-059**, **E-060**) — and
+nothing else. **This cut carries only this milestone's work**, unlike
+0.33.0, which also shipped three RFCs tracked to 0.34 because that work had
+piled up unreleased inside it.
+
+### Fixed — a presentation's claimed rights were trusted on its own word, not on what the kernel attested (RFC-0.34-004)
+
+`fjell-semantic-stream`'s `DISPATCH_ACTION` authority check compared a
+required capability against an ordinary IPC payload word the presentation
+sent, under a comment asserting the value was kernel-verified — true on the
+presentation's own side, and nowhere the receiver could confirm it. The
+payload word is now never read: the decision is a lookup against the
+kernel-attested sender's own compiled-in policy row (`CapRights::
+PROXY_TEXT_DEMO`, the one constant both the kernel's capability install and
+the stream's policy read, so the two cannot drift apart independently). A
+forged claim of every right there is — demonstrated in a committed tier,
+`semantic-liar`, a presentation installed with no dispatch capability at
+all — is refused every run; the identical forgery was accepted before the
+fix. The four `send` helpers E-034 named (`sxt_send`, two `send_tag`s,
+`send_sxt`) no longer take a payload word that was never carried to a
+receiver in the first place. **Dispatching an action still does nothing**
+— this closes a false claim about authority, not a way to exercise one.
+
+Closes **E-059**, **E-034**.
+
+### Fixed — the presentation had never been analysed as a boundary in the authoritative threat model (RFC-0.34-005)
+
+`docs/src/security/threat-model-v1.md` enumerated twenty threats and named
+none of them a proxy or a presentation, despite the component receiving
+every operator-facing byte and an archetype (**A4**) now depending on it.
+Three entries close the gap: **T21**, the authority-claim instance this
+release also fixed (RFC-0.34-004); **T22**, an absent or crashed
+presentation stalling the node's narration (RFC-0.34-001's fix, five
+named survivors); and **T23**, the first entry in this model whose
+adversary's target is a person rather than a task — a compromised
+presentation showing false state to the attending operator — for which
+**no defence exists**, named as a residual rather than asserted away. The
+model covers only a presentation on the same node; one on a separate or
+personal device remains named and excluded, still needing its own
+amendment before it can be called safe.
+
+Closes **E-060**.
+
+### Known, disclosed, not fixed here
+
+**`fjell-upgraded`'s update-index fetch has never completed against a real
+`secure-transportd`.** Filed as **E-070** while closing E-034: the
+channel-kind word its open request should carry is never carried (the one
+case of E-034's four where a dropped word is read by a real receiver,
+which always finds `0`), so `fetch_update_index` always returns `None`.
+This sits in the one area of the tree — the `store` and `upgrade` QEMU
+tiers — that is **not release-gated and has no emitting scenario**, so
+nothing caught it and nothing would catch the next one either. **The
+upgrade path does not work; this tag ships with that known, not with it
+implied to work.** Tracked **0.35**, recommended as that milestone's first
+candidate, with emitting scenarios for both tiers in the same line.
+
+Also filed, both unscheduled: `fjell-diagnosticsd` sends an audit query
+`fjell-auditd` has never answered, returning nothing and unable to say why
+(**E-068**); `fjell-secure-transportd` declares four client endpoints,
+serves one, and its own comment claims a round-robin over three that does
+not exist (**E-069**). And a tooling defect found a second time:
+`fjell-repro-check` treats any unrecognised flag — including `--help`,
+which it does not have — as "run the full two-build check," which can race
+a concurrent `test-all` (**E-071**, tracked 0.35).
+
+---
+
 ## [0.33.0] — 2026-10-13 — A boot control that controls boot
 
 Eight RFCs, **fourteen errata closed** (**E-044**, **E-045**, **E-048**,
