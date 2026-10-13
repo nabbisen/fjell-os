@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-10-12 22:43:46 UTC
-Version   : 0.33.0
+Generated : 2026-10-13 15:04:02 UTC
+Version   : 0.34.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -30,8 +30,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §3. MEASUREMENT AND BUNDLE DIGEST CHAIN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Service binaries in prebuilt/: 31
-    fjell-init.bin (27528 bytes)
+  Service binaries in prebuilt/: 32
+    fjell-init.bin (28424 bytes)
     fjell-configd.bin (472 bytes)
     fjell-cap-broker.bin (1576 bytes)
     fjell-auditd.bin (2760 bytes)
@@ -40,7 +40,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-neg-test.bin (8976 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (260 bytes)
-    fjell-semantic-stream.bin (24536 bytes)
+    fjell-semantic-stream.bin (24800 bytes)
     fjell-proxy-text.bin (11920 bytes)
     fjell-devmgr.bin (5175 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
@@ -62,6 +62,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-driver-uart.bin (686 bytes)
     fjell-proxy-braille.bin (13008 bytes)
     fjell-svc-presentation-fault.bin (169 bytes)
+    fjell-svc-presentation-liar.bin (342 bytes)
   Bundle signatures: (available after v0.11 signing pipeline)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -77,8 +78,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 280
-  with SAFETY comment: 280
+  total unsafe sites : 281
+  with SAFETY comment: 281
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -86,10 +87,10 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261012-221731
-  30    QEMU negative: user-copy                            60.0s  PASS
+  Latest test-all run: 20261013-143657
+  31    QEMU negative: user-copy                            60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 30  |  PASS: 28  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 2
+  Total: 31  |  PASS: 29  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 2
   
   ✓ ALL REQUIRED TIERS PASSED
 
