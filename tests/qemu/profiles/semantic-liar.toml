@@ -22,7 +22,7 @@
 #     printed before the call resolves -- an intention, not an outcome;
 #   * "svc-presentation-liar: forged claim refused" is the liar's own read of
 #     the reply -- what IT was told;
-#   * "semantic-stream: dispatch liar action 2 -> refused" is the stream's
+#   * "semantic-stream: dispatch liar action 1 -> refused" is the stream's
 #     own output at the point the decision is made (RFC-0.34-004 §D) -- not
 #     only inferred from what the caller chooses to print about its own call.
 #     Both must agree, and both must say refused: nothing the claim carried
