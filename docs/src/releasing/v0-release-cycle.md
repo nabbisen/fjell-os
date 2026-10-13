@@ -285,6 +285,17 @@ cargo publish -p fjell-os      # depends on the version just published
 `fjell-os` cannot publish first: it depends on `fjell-abi` at the workspace
 version, so that version must already be on the index.
 
+**And it cannot be dry-run first either** — measured at the 0.33.0 cut:
+`cargo package -p fjell-abi --no-verify` succeeds and writes the `.crate`, while
+`cargo package -p fjell-os --no-verify` **fails, exit 101**, *"failed to prepare
+local package for uploading"*, because the index has no `fjell-abi 0.33.0` yet
+(*"candidate versions found which didn't match: 0.32.0, 0.31.0, …"*). So the first
+irreversible step is necessarily taken with the second crate unpackaged. **That
+failure is the expected state before the first publish, not a defect** — do not
+chase it, and do not take it as a reason to loosen the dependency to a range.
+Package `fjell-abi` first to confirm the manifest and the file list, publish it,
+then package and publish `fjell-os`.
+
 **Before publishing, re-read `crates/fjell-os/README.md`.** It carries counts
 and status claims — errata totals, what has and has not booted on hardware,
 what is and is not a stable dependency. Those are the same kind of claims that
