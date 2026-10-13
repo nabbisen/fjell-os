@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 195 files
+## Implemented (done/) — 197 files
 
-194 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+196 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -448,17 +448,22 @@ names the release that actually shipped it.
 | 0.34-002 | [What the machine tells a person](./done/RFC-0.34-002-what-the-machine-tells-a-person.md) — closed **E-061**, **E-062**, **E-063**; the console is a checked claim, the three probe writes removed, `map_page`'s real error no longer discarded | 0.33.0 |
 | 0.34-003 | [What the instruments cannot see](./done/RFC-0.34-003-what-the-instruments-cannot-see.md) — closed **E-067**, resolves **E-065**'s first survivor; the ABI hash now covers derive-generated code, read from the manifest of the one scanned crate that is published | 0.33.0 |
 
+### 0.34 — the authority word, and the boundary it sits on
+
+The two RFCs 0.33.0 tracked to this milestone, and nothing else: a smaller,
+focused cut by design.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.34-004 | [A word that claims an authority it does not carry](./done/RFC-0.34-004-a-word-that-claims-an-authority.md) — closed **E-059**, **E-034**; the authority decision reads a kernel-attested sender's own compiled policy row, never a payload word a presentation could forge | 0.34.0 |
+| 0.34-005 | [The presentation in the threat model](./done/RFC-0.34-005-the-presentation-in-the-threat-model.md) — closed **E-060**; T21–T23, including the first entry in this model with no defence at all | 0.34.0 |
+
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — none
 
 Signed off by the owner; implementation may begin; not yet shipped.
 `accepted/README.md` keeps the folder in a fresh clone.
-
-| RFC | Title |
-|-----|-------|
-| 0.34-004 | [A word that claims an authority it does not carry](./accepted/RFC-0.34-004-a-word-that-claims-an-authority.md) — accepted 2026-10-13; closes **E-059**, **E-034**; handoff: [`handoffs/`](./handoffs/RFC-0.34-004-a-word-that-claims-an-authority/implementation-handoff.md) |
-| 0.34-005 | [The presentation in the threat model](./accepted/RFC-0.34-005-the-presentation-in-the-threat-model.md) — accepted 2026-10-13; amends an authoritative document (RFC-v0.15-002); closes **E-060**; handoff: [`handoffs/`](./handoffs/RFC-0.34-005-the-presentation-in-the-threat-model/implementation-handoff.md) |
 
 ---
 

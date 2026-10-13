@@ -1,6 +1,6 @@
 # RFC-0.34-004 R1, §A–§E, and the live failing case
 
-**Governing RFC:** [../accepted/RFC-0.34-004-a-word-that-claims-an-authority.md](../accepted/RFC-0.34-004-a-word-that-claims-an-authority.md)
+**Governing RFC:** [../done/RFC-0.34-004-a-word-that-claims-an-authority.md](../done/RFC-0.34-004-a-word-that-claims-an-authority.md)
 **Handoff:** [../handoffs/RFC-0.34-004-a-word-that-claims-an-authority/implementation-handoff.md](../handoffs/RFC-0.34-004-a-word-that-claims-an-authority/implementation-handoff.md)
 
 Written after R1 and the live failing transcript, before the mechanism. Every

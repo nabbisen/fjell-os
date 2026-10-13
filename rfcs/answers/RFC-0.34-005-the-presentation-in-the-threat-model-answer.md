@@ -1,6 +1,6 @@
 # RFC-0.34-005 R1, §A–§E, and the defence-to-evidence table
 
-**Governing RFC:** [../accepted/RFC-0.34-005-the-presentation-in-the-threat-model.md](../accepted/RFC-0.34-005-the-presentation-in-the-threat-model.md)
+**Governing RFC:** [../done/RFC-0.34-005-the-presentation-in-the-threat-model.md](../done/RFC-0.34-005-the-presentation-in-the-threat-model.md)
 **Handoff:** [../handoffs/RFC-0.34-005-the-presentation-in-the-threat-model/implementation-handoff.md](../handoffs/RFC-0.34-005-the-presentation-in-the-threat-model/implementation-handoff.md)
 
 Written in the handoff's order: §A–§E before prose, so the amendment is not

@@ -1,6 +1,6 @@
 # RFC-0.34-004: A word that claims an authority it does not carry
 
-**Status:** Accepted — by the owner (nabbisen), 2026-10-13; implementation may begin (RFC 000)
+**Status:** Implemented (0.34.0) — accepted 2026-10-13
 **Milestone:** 0.34
 **Tracks.** **E-059** — the presentation's action return leg sends the rights it
 holds as an ordinary payload word and `semantic-stream` authorises against that

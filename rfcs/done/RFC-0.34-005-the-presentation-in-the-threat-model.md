@@ -1,6 +1,6 @@
 # RFC-0.34-005: The presentation in the threat model
 
-**Status:** Accepted — by the owner (nabbisen), 2026-10-13; implementation may begin (RFC 000)
+**Status:** Implemented (0.34.0) — accepted 2026-10-13
 **Milestone:** 0.34
 **Tracks.** **E-060** — `docs/src/security/threat-model-v1.md` is authoritative for
 v1.0.0 and contains no proxy and no presentation, so the component that receives
