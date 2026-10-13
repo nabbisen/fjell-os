@@ -41,23 +41,20 @@ const MEASUREDD_HEAD_REPLY: usize = 0x321;
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
-/// RFC-0.28-002 audit finding (documented, not fixed here — out of this
-/// RFC's scope, a pre-existing functional gap, not a register-clobber
-/// bug): `w0` has never actually reached the receiver. `IpcSend`'s
-/// `build_msg` (`crates/fjell-kernel/src/cap/syscall.rs`) only copies
-/// `tag.words` words, taken from bits 16-23 of the packed tag; this call
-/// never set them, so `tag.words == 0` and the kernel's copy loop runs
-/// zero times regardless of what is in `a2` — including the
+/// RFC-0.34-004 §C (closes E-034): `send_tag` no longer takes a data word.
+/// It never carried one — `IpcSend`'s `build_msg`
+/// (`crates/fjell-kernel/src/cap/syscall.rs`) only copies `tag.words` words,
+/// taken from bits 16-23 of the packed tag, and this call never set them —
+/// so removing the parameter changes no runtime behaviour. The
 /// `MAX_QUERY_RECORDS`/channel-id/max-count values this file's call sites
-/// document as meaningful. `w0` is therefore inert today on every call
-/// site below, independent of whether this is a hand-rolled asm block or
-/// the wrapper — the swap is bit-for-bit behaviour-preserving.
-fn send_tag(ep: CapHandle, tag: usize, w0: usize) {
-    // E-034: this word is discarded, and always has been. The tag carries no
-    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
-    // kernel has never copied it. The discard is what the compiler would
-    // otherwise report; the erratum is the record.
-    let _ = w0;
+/// used to pass were already inert: `fjell-auditd` never implements the
+/// `AUDIT_QUERY` protocol over IPC at all (it drains the audit ring
+/// unconditionally, ignoring tag and words), and `secure-transportd`'s
+/// receive loop never polls this service's endpoint in the first place —
+/// found while re-deriving this erratum, named in the register, not fixed
+/// here (see the answer document's §C: both are far outside this line's
+/// scope).
+fn send_tag(ep: CapHandle, tag: usize) {
     let _ = fjell_syscall::sys_ipc_send(ep.0, tag);
 }
 
@@ -73,7 +70,7 @@ fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
 // ── Measurement head query ────────────────────────────────────────────────────
 
 fn query_measurement_head() -> Digest32 {
-    send_tag(CAP_MEASUREDD_EP, MEASUREDD_HEAD_QUERY, 0);
+    send_tag(CAP_MEASUREDD_EP, MEASUREDD_HEAD_QUERY);
     let (tag, w0_lo, w0_hi) = recv_msg(CAP_MEASUREDD_EP);
     if tag != MEASUREDD_HEAD_REPLY {
         return Digest32([0u8; 32]);
@@ -86,16 +83,19 @@ fn query_measurement_head() -> Digest32 {
 
 // ── Audit record collection ───────────────────────────────────────────────────
 
-const MAX_QUERY_RECORDS: usize = 64;
-
-/// Query `auditd` for recent audit records and populate the builder.
-///
-/// Wire protocol (diagnosticsd → auditd):
-///   → `AUDIT_QUERY` (w0 = max_count)
+/// Wire protocol this function speaks (diagnosticsd → auditd):
+///   → `AUDIT_QUERY`
 ///   ← zero or more `AUDIT_RECORD` (w0 = kind_tag|seq<<16, w1 = at_tick)
 ///   ← `AUDIT_STREAM_END`
+///
+/// **`fjell-auditd` does not implement this** (found re-deriving RFC-0.34-004
+/// §C/E-034): it drains the audit ring unconditionally on a bare
+/// `sys_ipc_recv`, ignoring the tag, and never replies `AUDIT_RECORD` or
+/// `AUDIT_STREAM_END` over IPC — so this loop blocks forever against the
+/// real service. Named for escalation, not fixed here: a protocol gap, not
+/// a word-carrying one, and outside this line's *Touches* list.
 fn collect_audit_events(builder: &mut BundleBuilder) {
-    send_tag(CAP_AUDITD_EP, proto::AUDIT_QUERY, MAX_QUERY_RECORDS);
+    send_tag(CAP_AUDITD_EP, proto::AUDIT_QUERY);
     loop {
         let (tag, w0, w1) = recv_msg(CAP_AUDITD_EP);
         if tag == proto::AUDIT_STREAM_END {
@@ -139,15 +139,15 @@ fn build_bundle(
 // ── Push via secure-transportd ────────────────────────────────────────────────
 
 fn push_bundle(_bundle: &fjell_diag_format::bundle::DiagnosticBundle) -> bool {
-    send_tag(CAP_SXT_EP, SXT_OPEN_CHANNEL, 0x0200_0000);
+    send_tag(CAP_SXT_EP, SXT_OPEN_CHANNEL);
     let (reply, w0, _) = recv_msg(CAP_SXT_EP);
     if reply != SXT_OPENED {
         return false;
     }
-    let channel_id = w0;
-    send_tag(CAP_SXT_EP, SXT_DIAG_PUSH, channel_id);
+    let _channel_id = w0;
+    send_tag(CAP_SXT_EP, SXT_DIAG_PUSH);
     let (ack, _, _) = recv_msg(CAP_SXT_EP);
-    send_tag(CAP_SXT_EP, SXT_CLOSE, channel_id);
+    send_tag(CAP_SXT_EP, SXT_CLOSE);
     ack == SXT_DIAG_ACK
 }
 
@@ -158,7 +158,7 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("diagnosticsd: starting");
     const PROVIDER_ID: TrustProviderId = TrustProviderId(1);
 
-    send_tag(CAP_SMGR_EP, proto::READY, 0);
+    send_tag(CAP_SMGR_EP, proto::READY);
     sys_debug_writeln("diagnosticsd: ready");
 
     loop {
@@ -166,11 +166,8 @@ pub extern "C" fn service_main() -> ! {
         if tag == proto::BUILD_BUNDLE {
             let bundle = build_bundle(PROVIDER_ID, w0 as u64);
             sys_debug_writeln("diagnosticsd: bundle built");
-            send_tag(
-                CAP_TOOLS_EP,
-                proto::BUNDLE_READY,
-                bundle.audit_event_count as usize,
-            );
+            let _ = bundle.audit_event_count;
+            send_tag(CAP_TOOLS_EP, proto::BUNDLE_READY);
         } else if tag == proto::PUSH {
             let bundle = build_bundle(PROVIDER_ID, w0 as u64);
             let ok = push_bundle(&bundle);
@@ -179,7 +176,7 @@ pub extern "C" fn service_main() -> ! {
             } else {
                 proto::PUSH_FAULT
             };
-            send_tag(CAP_TOOLS_EP, reply, 0);
+            send_tag(CAP_TOOLS_EP, reply);
             sys_debug_writeln(if ok {
                 "diagnosticsd: bundle pushed"
             } else {

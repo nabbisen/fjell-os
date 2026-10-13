@@ -151,17 +151,19 @@ const SXT_UPDATE_METADATA_REPLY: u16 = 0x0103;
 #[allow(dead_code)] // v0.7: SXT channel fault state tracking
 const SXT_FAULTED: u16 = 0x010b;
 
-/// RFC-0.28-002 audit finding (documented, not fixed here — see
-/// `fjell-diagnosticsd::send_tag`'s identical note): `w0` never reaches the
-/// receiver — this call never packs a word count into the tag, so
-/// `build_msg` copies zero words regardless of what is in `a2`. Swap is
-/// bit-for-bit behaviour-preserving.
-fn send_sxt(tag: u16, w0: usize) {
-    // E-034: this word is discarded, and always has been. The tag carries no
-    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
-    // kernel has never copied it. The discard is what the compiler would
-    // otherwise report; the erratum is the record.
-    let _ = w0;
+/// RFC-0.34-004 §C (closes E-034): `send_sxt` no longer takes a data word —
+/// see `fjell-diagnosticsd::send_tag`'s identical note. It never carried
+/// one, so removing the parameter changes no runtime behaviour. **This is
+/// the one call of the four where the dropped word was not inert**: the
+/// `channel_id` `fetch_update_index` used to pass below never reached
+/// `secure-transportd` either (same defect), so every `UpdateMetadataFetch`
+/// and `Close` this function issues is already looked up against `0` on the
+/// receiving end — `fetch_update_index` has always returned `None` against
+/// a real `secure-transportd`, not only when the remote index is actually
+/// unavailable. Pre-existing, independent of this change, and named in the
+/// register rather than fixed: carrying the word for real is an ABI change
+/// to the tag packing, its own line (see the answer document's §C).
+fn send_sxt(tag: u16) {
     let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
 }
 
@@ -182,18 +184,20 @@ fn recv_sxt() -> (u16, usize) {
 /// RFC v0.4-004 §5.1: channel kind = 0x01 (UpdateMetadata).
 pub fn fetch_update_index() -> Option<u32> {
     // Request channel open: kind = UpdateMetadata (0x01).
-    send_sxt(SXT_OPEN_CHANNEL, 0x0100_0000);
+    send_sxt(SXT_OPEN_CHANNEL);
     let (reply_tag, w0) = recv_sxt();
     if reply_tag != SXT_OPENED {
         return None;
     }
     let channel_id = w0 as u32;
 
-    // Issue metadata fetch on the established channel.
-    send_sxt(SXT_UPDATE_METADATA_FETCH, channel_id as usize);
+    // Issue metadata fetch on the established channel. `channel_id` does not
+    // travel with it (E-034, named above) — this call has always looked up
+    // against `0` on the receiving end, not this `channel_id`.
+    send_sxt(SXT_UPDATE_METADATA_FETCH);
     let (reply_tag2, _w0_2) = recv_sxt();
     if reply_tag2 != SXT_UPDATE_METADATA_REPLY {
-        send_sxt(SXT_CLOSE, channel_id as usize);
+        send_sxt(SXT_CLOSE);
         return None;
     }
 

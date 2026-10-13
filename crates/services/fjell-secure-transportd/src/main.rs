@@ -55,17 +55,16 @@ const CAP_ATTEST_EP: CapHandle = CapHandle(4);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
-/// RFC-0.28-002 audit finding (documented, not fixed here — see
-/// `fjell-diagnosticsd::send_tag`'s identical note): `w0` never reaches the
-/// receiver — this call never packs a word count into the tag, so
-/// `build_msg` copies zero words regardless of what is in `a2`. Swap is
-/// bit-for-bit behaviour-preserving.
-fn send_tag(ep: CapHandle, tag: u16, w0: usize) {
-    // E-034: this word is discarded, and always has been. The tag carries no
-    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
-    // kernel has never copied it. The discard is what the compiler would
-    // otherwise report; the erratum is the record.
-    let _ = w0;
+/// RFC-0.34-004 §C (closes E-034): `send_tag` no longer takes a data word —
+/// see `fjell-diagnosticsd::send_tag`'s identical note. It never carried
+/// one (this call never packs a word count into the tag, so `build_msg`
+/// copies zero words regardless of what was in `a2`), so this changes no
+/// runtime behaviour. The `channel_id`/`SxtError` values call sites used to
+/// pass here were already inert for the same reason the OpenChannel
+/// arm's own incoming `w0` always reads `0` below: whatever `upgraded`
+/// sends through the identical, equally-broken `send_sxt` never arrives
+/// either.
+fn send_tag(ep: CapHandle, tag: u16) {
     let _ = fjell_syscall::sys_ipc_send(ep.0, tag as usize);
 }
 
@@ -126,7 +125,7 @@ pub extern "C" fn service_main() -> ! {
     let mut channels = ChannelTable::new();
 
     // Notify service-manager we are ready.
-    send_tag(CAP_SMGR_EP, SxtTag::Opened as u16, 0);
+    send_tag(CAP_SMGR_EP, SxtTag::Opened as u16);
     sys_debug_writeln("secure-transportd: ready");
 
     // IPC event loop.
@@ -137,8 +136,14 @@ pub extern "C" fn service_main() -> ! {
         let (tag, w0, _w1) = recv_msg(CAP_UPGRAD_EP);
         match SxtTag::from_u16(tag) {
             Some(SxtTag::OpenChannel) => {
-                // w0 encodes: kind (high 8 bits) | server_name_ptr (low 24 bits).
-                // In v0.4.0-alpha.1 the server name is always the update server.
+                // Intended to encode: kind (high 8 bits) | server_name_ptr
+                // (low 24 bits). **`w0` always arrives `0`** (RFC-0.34-004
+                // §C/E-034): `upgraded::send_sxt` never carries a word
+                // either, for the identical reason `send_tag` above no
+                // longer promises to — so `kind_raw` is always `0` and
+                // every channel this arm opens is `UpdateMetadata`,
+                // regardless of what a caller intended. In v0.4.0-alpha.1
+                // the server name is always the update server anyway.
                 let kind_raw = (w0 >> 24) as u8;
                 let kind = match kind_raw {
                     0x01 => ChannelKind::UpdateMetadata,
@@ -158,21 +163,17 @@ pub extern "C" fn service_main() -> ! {
                                 ch.state = ChannelState::Established;
                                 ch.anchor_epoch = epoch;
                             }
-                            send_tag(CAP_UPGRAD_EP, SxtTag::Opened as u16, channel_id as usize);
+                            send_tag(CAP_UPGRAD_EP, SxtTag::Opened as u16);
                             sys_debug_writeln("secure-transportd: channel opened");
                         }
                         Err(_) => {
                             channels.close(channel_id);
-                            send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
+                            send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
                             sys_debug_writeln("secure-transportd: handshake failed");
                         }
                     },
                     Err(_) => {
-                        send_tag(
-                            CAP_UPGRAD_EP,
-                            SxtTag::Faulted as u16,
-                            SxtError::Internal as usize,
-                        );
+                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
                         sys_debug_writeln("secure-transportd: channel table full");
                     }
                 }
@@ -182,30 +183,18 @@ pub extern "C" fn service_main() -> ! {
                 if let Some(ch) = channels.find_mut(channel_id) {
                     if ch.state == ChannelState::Established {
                         // Stub: in alpha.2 this sends an HTTP/1.1 GET over the TLS record.
-                        send_tag(
-                            CAP_UPGRAD_EP,
-                            SxtTag::UpdateMetadataReply as u16,
-                            channel_id as usize,
-                        );
+                        send_tag(CAP_UPGRAD_EP, SxtTag::UpdateMetadataReply as u16);
                     } else {
-                        send_tag(
-                            CAP_UPGRAD_EP,
-                            SxtTag::Faulted as u16,
-                            SxtError::ChannelFaulted as usize,
-                        );
+                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
                     }
                 } else {
-                    send_tag(
-                        CAP_UPGRAD_EP,
-                        SxtTag::Faulted as u16,
-                        SxtError::ChannelClosed as usize,
-                    );
+                    send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
                 }
             }
             Some(SxtTag::Close) => {
                 let channel_id = w0 as u32;
                 channels.close(channel_id);
-                send_tag(CAP_UPGRAD_EP, SxtTag::Closed as u16, channel_id as usize);
+                send_tag(CAP_UPGRAD_EP, SxtTag::Closed as u16);
             }
             _ => {}
         }

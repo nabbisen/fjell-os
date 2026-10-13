@@ -296,22 +296,18 @@ const SXT_FAULTED: u16 = 0x010b;
 /// Stored in-process (alpha.1); migrates to storaged IPC in alpha.2.
 static mut CACHED_NONCE: [u8; 16] = [0u8; 16];
 
-/// RFC-0.28-002 audit finding (documented, not fixed here — out of this
-/// RFC's scope, a pre-existing functional gap, not a register-clobber
-/// bug): `w0` has never actually reached the receiver. `IpcSend`'s
-/// `build_msg` (`crates/fjell-kernel/src/cap/syscall.rs`) only copies
-/// `tag.words` words, taken from bits 16-23 of the packed tag; this call
-/// never set them, so `tag.words == 0` and the kernel's copy loop runs
-/// zero times regardless of what is in `a2`. `w0` is therefore inert today
-/// on every call site below, independent of whether this is a hand-rolled
-/// asm block or the wrapper — the swap below is bit-for-bit behaviour-
-/// preserving, not a regression.
-fn sxt_send(tag: u16, w0: usize) {
-    // E-034: this word is discarded, and always has been. The tag carries no
-    // word count (`build_msg` reads it from `(raw >> 16) & 0xFF`), so the
-    // kernel has never copied it. The discard is what the compiler would
-    // otherwise report; the erratum is the record.
-    let _ = w0;
+/// RFC-0.34-004 §C (closes E-034): `sxt_send` no longer takes a data word.
+/// It never carried one — `IpcSend`'s `build_msg`
+/// (`crates/fjell-kernel/src/cap/syscall.rs`) only copies `tag.words` words,
+/// taken from bits 16-23 of the packed tag, and this call never set them —
+/// so removing the parameter changes no runtime behaviour, it only stops
+/// the signature promising delivery that never happened. (One call site
+/// genuinely needed a word delivered and was silently broken by its
+/// absence — `fjell-upgraded`'s `channel_id` for `UpdateMetadataFetch`/
+/// `Close` — found while re-deriving this erratum and left as a survivor:
+/// carrying it for real is an ABI change to the tag packing, its own line,
+/// not this one. See the answer document's §C.)
+fn sxt_send(tag: u16) {
     let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
 }
 
@@ -329,20 +325,22 @@ fn sxt_recv() -> (u16, usize) {
 ///
 /// On success updates `CACHED_NONCE` with the server's next nonce.
 /// Returns `true` if the round-trip completed.
-pub fn push_attestation(record_seq: u32) -> bool {
-    // Open an Attestation channel (kind byte = 0x03).
-    sxt_send(SXT_OPEN_CHANNEL, 0x0300_0000);
+pub fn push_attestation(_record_seq: u32) -> bool {
+    // Open an Attestation channel (its kind, dead on arrival per E-034).
+    sxt_send(SXT_OPEN_CHANNEL);
     let (reply, w0) = sxt_recv();
     if reply != SXT_OPENED {
         return false;
     }
-    let channel_id = w0 as u32;
+    let _channel_id = w0 as u32;
 
-    // Push the signed attestation record (w0 = record sequence number).
-    sxt_send(SXT_ATTEST_PUSH, record_seq as usize);
+    // Push the signed attestation record. `_record_seq` no longer travels
+    // with it (RFC-0.34-004 §C) — `secure-transportd` has no receive arm for
+    // `SxtTag::AttestPush` at all, so it never reached a reader either way.
+    sxt_send(SXT_ATTEST_PUSH);
     let (ack, nonce_lo) = sxt_recv();
 
-    sxt_send(SXT_CLOSE, channel_id as usize);
+    sxt_send(SXT_CLOSE);
 
     if ack == SXT_ATTEST_CHALLENGE {
         // Cache the returned nonce (lower 8 bytes from w0 in alpha.1 stub).
