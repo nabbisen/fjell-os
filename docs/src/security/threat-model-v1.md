@@ -171,7 +171,11 @@ they are well-formed, so every receiver must decode rather than reinterpret.
 E-046 was exactly this, on the semantic path; RFC-0.32-002 made that path
 decode through a checked wire format and fuzzes the decoder. **No mechanism
 requires every service to do the same.** *(Named at the 0.32.0 cut review: this
-entry covered forgery and was silent on the neighbouring class.)*
+entry covered forgery and was silent on the neighbouring class.)* **T21 is a
+second instance, on the presentation boundary** (RFC-0.34-005): a
+presentation's return leg claimed an authority value as an ordinary payload
+word; RFC-0.34-004 closed it the same way — the receiver decides from what
+the kernel attests, never from what a correctly identified sender sent.
 
 ---
 
@@ -198,6 +202,126 @@ entry covered forgery and was silent on the neighbouring class.)*
 **Residual:** Malicious toolchain that produces identical output for different inputs; cross-machine reproducibility, unproven — no two machines' digests are ever compared. That gap is maintained in [`docs/src/releasing/v1-limitations.md`](../releasing/v1-limitations.md) and is deliberately not restated here.
 
 *Rewritten 2026-09-13, at the 0.31.0 cut's review. **This row had been corrected under exit criterion 8 at two consecutive cuts** — at 0.30.0 for saying the toolchain was "not yet recorded" two days after RFC-0.30-003 recorded it, and at 0.31.0 for saying `ci-repro-check` "has never succeeded" after RFC-0.31-002 made it green, and for naming E-037's "two surviving instances" after E-037 closed. Both times the stale part was **live state restated here instead of cited**: which job is green, what is pinned, which errata are open. Checked across the document: of twenty rows, T20 was the only one carrying erratum numbers (E-037 ×2, E-041) or CI state, and the only one holding a criterion-8 correction. It now states the defence durably and points at the limitation set for anything that moves, so a third correction of the same kind should not be possible.*
+
+---
+
+### The presentation boundary (T21–T23, RFC-0.34-005)
+
+*Added 2026-10-13. E-060: the component that receives every operator-facing
+byte, and that RFC-0.33-002's archetype **A4** names as something a person
+depends on, had never been analysed as a boundary. T17's own residual
+already named the class it falls into; these three entries put it in the
+model rather than leaving it implied.*
+
+**What configuration this covers, and what it does not (§B).** Today, shipped,
+a presentation (`proxy-text`, `proxy-braille`) is a task on the **same node**,
+spawned from the same init image, holding a kernel-issued capability like any
+other service. It is "in the TCB" in exactly the sense every other same-node
+service already is: the kernel attests its identity, and nothing beyond that
+identity is trusted — T17's own residual already establishes that a
+correctly identified sender's payload is not. A compromised presentation is
+not a new adversary capability; it is **C-NODE-EXEC**, the same class that
+already covers compromising any other task, applied to this one. **What this
+amendment does not cover: a presentation running on a separate or personal
+device.** RFC-0.33-002 names that as a future direction and does not decide
+it; if it is ever built, the channel between the node and that device —
+authentication, replay, confidentiality, device identity — is a materially
+different boundary from a same-node task, and is its own amendment, not a
+thin extension of these three entries. **No assistive presentation on a
+separate or personal device may be described as meeting this model until
+that amendment exists** (E-060's own closing condition, carried forward
+rather than met).
+
+---
+
+### T21 — Presentation payload forgery (the authority-claim instance)
+
+**Adversary:** C-NODE-EXEC  
+**Defence:** RFC-0.34-004 (closes E-059). A presentation's `DISPATCH_ACTION`
+return leg used to carry the rights it claimed to hold as an ordinary IPC
+payload word, and `semantic-stream` authorised against that word under a
+comment asserting it was kernel-verified — it was, on the presentation's own
+side, and not on the receiving one. The payload word is now never read: the
+receiver's decision comes from the kernel-attested sender's own compiled-in
+policy row (`CapRights::PROXY_TEXT_DEMO` for `proxy-text`, `0` for every
+presentation that has never held a dispatch capability), the same value
+`spawn.rs` installs, read from one declaration rather than two hand-kept
+ones. Demonstrated: a forged claim (`0xFFFFFFFF`, every right there is) is
+refused every run, in a committed tier (`semantic-liar`) a presentation
+installed with no dispatch capability at all exercises against a dedicated
+test action. **Instance of T17's adjacent class:** yes — a correctly
+identified sender (the presentation) whose payload (the claimed rights) was
+not what it was trusted to be.  
+**Residual:** A dispatched action executes nothing yet (RFC-0.34-004 D6;
+RFC-0.33-002 §C's input path is unbuilt). This defence has therefore not yet
+been tested against a real stake — a capability-gated effect a forged claim
+could actually obtain. It must be re-examined, not assumed to still hold
+unchanged, the day an input path is built.
+
+---
+
+### T22 — An absent or crashed presentation stalls the node's narration
+
+**Adversary:** C-NODE-EXEC  
+**Defence:** RFC-0.34-001 (closes E-058). `semantic-stream` used to forward
+each published envelope to a presentation with a blocking call before
+replying to the publisher, so an absent or crashed presentation stalled
+every publisher behind it — measured at 314 → 124 output lines with
+`proxy-text` never started. The stream now never initiates a blocking IPC to
+a presentation at all: each presentation **asks** for its next message and
+is answered by **reply** — the one IPC that never blocks its issuer — and is
+woken through an endpoint of its own when something new arrives. Demonstrated
+in two committed tiers: `semantic-absent` (a presentation that never starts;
+the node reaches its last phase, 270 lines, with the surviving presentation
+still rendering) and `semantic-crash` (a test-only presentation that
+registers, is woken, and faults on its first message; twelve subsequent
+publishes are all answered). **Not an instance of T17's adjacent class** —
+this is an availability property of the fan-out mechanism, not a decision
+about a sender's payload.  
+**Residual, named rather than left in `v1-limitations.md` alone:**
+(a) a presentation that is alive but never asks again is not detected as
+dead — there is no wall-clock timer, only the stream's own call activity to
+count, and one with nothing queued is idle by design and never reported;
+(b) a presentation that faults in the two instructions between being told
+"parked" and reaching its next receive still blocks the stream on the
+following wake — the one place the stream can wait on one, and it is code
+this project wrote;
+(c) envelopes queued past an 8 KiB bound are dropped, newest first, and the
+gap is reported on the node's own console line, **not through the
+presentation itself** — a person reading only one presentation's output is
+not told something was skipped;
+(d) nothing restarts a stuck presentation;
+(e) a rendered line over the kernel's 160-byte console-line bound is split
+— visibly, since E-062's close (`[cont]` marks each half) rather than
+silently — but the bound itself is unchanged, and nothing stops a longer
+title or description from being the first committed line to cross it (the
+longest measured so far is 153 bytes of text, 135 of braille).
+
+---
+
+### T23 — A compromised presentation shows false state to the attending operator
+
+**Adversary:** C-NODE-EXEC — reused, not a new class (§D). A presentation is
+a task like any other; running malicious code as it is already inside the
+capability "execute arbitrary code on one node", the same one that already
+covers every other service. What is new is not the adversary — it is the
+**victim**: every other entry in this model defends the node against a
+sender, or the fleet against a node; this is the first entry whose receiver
+is a person, with the archetype that makes this matter named explicitly
+(**A4**, `v1-direction.md`: an operator who reads the node's state, warnings
+and offered actions through a presentation instead of a screen).  
+**Defence:** None.  
+**Residual, named rather than asserted away:** nothing lets the attending
+operator cross-check what a presentation shows against the node's own
+authoritative record. The audit ring (T16) records security-relevant events,
+but nothing surfaces it to an operator through a channel independent of the
+presentation they are already reading — if that presentation is compromised,
+it can render anything regardless of what it decoded, and the operator has
+no second source. This is also why the excluded configuration above (a
+presentation on a separate or personal device) cannot be called safe without
+its own amendment: the same question — can what a person is shown be trusted
+— only gets harder once the presentation is no longer even on the node whose
+state it claims to report.
 
 ---
 
