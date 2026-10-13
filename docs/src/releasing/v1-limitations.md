@@ -13,7 +13,7 @@ require updating the governing record first, then this page.*
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
 | 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 | 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other **5** declared-but-undispatched syscalls (`PlatformReboot`, `TaskKill`, `MmioUnmap`, `DmaShare`, `Reboot`) was deferred to v0.22 and **did not happen**; it remains open. *Corrected at the 0.27.0 cut: this read "the other 8 … deferred to v0.22", a count that had moved (35 declared / 29 dispatched / 6 undispatched) and a deferral to a milestone that shipped without it. The current figure is printed by `syscall-surface` at every release rehearsal.* | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
-| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is partial: two presentations exist, both text on a serial console and both output-only — `proxy-text`, and `proxy-braille`, which writes braille cells (the stream a braille display driver would consume) that no braille reader has read and no device has displayed; no speech or simplified presentation; no way for a person to answer the node through any presentation; nothing tested against a standard or with a person. A missing or crashed presentation no longer stalls a publisher (E-058, **closed**), with survivors named. The one action a person could take is now authorised on the kernel-attested sender's own policy row rather than a word it sent (E-059, **closed**), though it still executes nothing. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058** (closed), **E-059** (closed), **E-060**; **RFC-0.33-002** D6; **RFC-0.34-001**; **RFC-0.34-004**; ADR-v0.5-005 |
+| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is partial: two presentations exist, both text on a serial console and both output-only — `proxy-text`, and `proxy-braille`, which writes braille cells (the stream a braille display driver would consume) that no braille reader has read and no device has displayed; no speech or simplified presentation; no way for a person to answer the node through any presentation; nothing tested against a standard or with a person. A missing or crashed presentation no longer stalls a publisher (E-058, **closed**), with survivors named. The one action a person could take is now authorised on the kernel-attested sender's own policy row rather than a word it sent (E-059, **closed**), though it still executes nothing. The presentation boundary is now in the threat model (E-060, **closed**; T21–T23) — including a residual with **no defence**: nothing lets the attending operator cross-check what a presentation shows against the node's own record. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058** (closed), **E-059** (closed), **E-060** (closed); **RFC-0.33-002** D6; **RFC-0.34-001**; **RFC-0.34-004**; **RFC-0.34-005**; ADR-v0.5-005 |
 
 ## Accessibility and inclusion — what does not exist yet
 
@@ -101,7 +101,13 @@ person, and the list is the reason no page says otherwise.
    behind shows a **gap**, and the gap is reported on the node's own console line,
    **not through the presentation** — a person reading only the braille is not
    told that something was skipped;
-   (d) nothing restarts a stuck presentation.
+   (d) nothing restarts a stuck presentation;
+   (e) a rendered line over the kernel's **160-byte console-line bound** is
+   split — visibly, since Errata **E-062**'s close (`[cont]` marks each half)
+   rather than silently — but the bound itself is unchanged, and nothing stops
+   a longer title or description from being the first committed line to cross
+   it (the longest measured so far is 153 bytes of text, 135 of braille). All
+   five are now also in the threat model, named rather than implied: **T22**.
 5. **Little of the node's state reaches a presentation.** Only `init` and one
    SDK sample service publish to the stream. Running services do not report
    their live state through it, so what a presentation shows today is largely
@@ -119,14 +125,17 @@ person, and the list is the reason no page says otherwise.
    technology. The operator tooling is a command-line program that has not been
    evaluated with assistive technology either; nothing here says it is, or is
    not, usable with it.
-9. **The presentation boundary is not in the threat model.** The threat model
-   (`security/threat-model-v1.md`) does not mention a proxy or a presentation, so
-   the component that receives every operator-facing byte — and the
-   malformed-payload class T17 names as adjacent to forgery — has not been
-   analysed. That needs its own amendment before an assistive presentation on a
-   separate or personal device is described as safe. **Filed as E-060** at this
-   line's review, tracked 0.34; the threat model is authoritative for v1.0 and
-   changes require its own RFC.
+9. **The presentation boundary is now in the threat model — was absent until
+   RFC-0.34-005, which closed E-060.** Three entries, **T21–T23**: the
+   authority-claim instance of T17's adjacent class (closed by RFC-0.34-004);
+   an absent or crashed presentation stalling the node's narration (closed by
+   RFC-0.34-001, with five named survivors — item 4 above); and a compromised
+   presentation showing false state to the attending operator, for which
+   **no defence exists** — named as a residual, not asserted away. The model
+   is explicit that it covers only a presentation on the **same node**: a
+   presentation on a separate or personal device is named and excluded, and
+   still needs its own amendment before it is described as safe — the
+   condition E-060 closed on, carried forward rather than met.
 10. **The one action a person could take is authorised on a payload word the
    authoriser cannot check — was true until RFC-0.34-004, which closed
    E-059.** The presentation's return leg sent `DISPATCH_ACTION` carrying the

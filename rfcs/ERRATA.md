@@ -4363,11 +4363,32 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   demonstration of a rendering, not a component an archetype depends on. Nothing
   re-reads a threat model when a document elsewhere starts relying on a component
   it omits.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**. The
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-24), tracked **0.34**. The
   model is authoritative for v1.0 and changes require their own RFC, so closing
   this means an amendment RFC covering the presentation boundary — the proxy as a
   sender, as a receiver, and as a component whose absence is a failure mode —
-  alongside the second-presentation line that makes the boundary real.
+  alongside the second-presentation line that makes the boundary real.~~ →
+  **CLOSED** by **RFC-0.34-005**.
+
+  > **Closed by RFC-0.34-005, 2026-10-13.** Three new entries, **T21–T23**,
+  > covering the three directions D1 required: **sender** (T21, the
+  > authority-claim instance of T17's adjacent class, closed by
+  > RFC-0.34-004); **absence/crash** (T22, closed by RFC-0.34-001, five
+  > residuals named); and **receiver** — reframed as the first entry whose
+  > receiver is a person rather than a task (T23: a compromised presentation
+  > showing false state to the attending operator, for which **no defence
+  > exists**, named rather than asserted away). T17's own residual now points
+  > at T21 by name, so the two cannot drift apart. **§B's question, answered
+  > and bounded:** the model covers a presentation as a same-node task —
+  > "in the TCB" exactly as every other service already is, not a new
+  > adversary capability — and explicitly **excludes** a presentation on a
+  > separate or personal device, named rather than analysed; that
+  > configuration still needs its own amendment before being called safe,
+  > which is this erratum's own closing condition, carried forward rather
+  > than met. T1–T20 untouched; `standards-mapping.md`'s threat count (20 →
+  > 23) and two citation rows updated in the same commits, named for
+  > criterion 8. Full detail in
+  > `rfcs/answers/RFC-0.34-005-the-presentation-in-the-threat-model-answer.md`.
 
 ## E-061 — a full task table and three other failures report `NoMemory`
 
@@ -4826,7 +4847,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | RFC-0.34-004 | CLOSED |
-| E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
+| E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | RFC-0.34-005 | CLOSED |
 | E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | CLOSED |
 | E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
