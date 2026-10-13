@@ -4625,6 +4625,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     record** — the layout *is* the struct.
   - **`fjell-net-format`** — `NetDescriptorHeader` and `NetDriverPacket`:
     `#[repr(C)]`, and nothing outside the crate uses either.
+
+  > **Re-tracked 0.34 → unscheduled, 2026-10-13.** The owner scoped 0.34 on this date
+  > and **deferred this work** — *"consider with C later"* — so the tracking value was
+  > stale against a decision already taken, not against a gate. It is corrected **now,
+  > with no cut in motion**, deliberately: `errata-tracking` requires an erratum
+  > tracked to a shipped milestone to be CLOSED, so left alone this row would have
+  > turned Gate 12 red at step 12 of a 0.34 cut — the moment at which re-tracking it
+  > would have been indistinguishable from the gate dodge the 0.33.0 cut handoff
+  > prohibits in writing. The semantic wire codec, the one of the five on a live
+  > cross-service boundary, was resolved by RFC-0.34-003; these four remain, each with
+  > its reason above, and none has a milestone until the owner gives it one.
 - **Why nothing saw it:** the eleven files were the census, and a format outside
   the census had no reason to be counted.
 - **Resolution:** **ACCEPTED** (architect, 2026-09-25), tracked **0.34** for the
@@ -4933,7 +4944,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
-| E-065 four format crates that produce bytes (the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) still have no generated description — named survivors of E-045's census; the fifth, the semantic wire codec, was resolved by RFC-0.34-003 | 0.34 | ACCEPTED |
+| E-065 four format crates that produce bytes (the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) still have no generated description — named survivors of E-045's census; the fifth, the semantic wire codec, was resolved by RFC-0.34-003 | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
