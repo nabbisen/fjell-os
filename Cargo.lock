@@ -1009,6 +1009,7 @@ name = "fjell-semantic-stream"
 version = "0.33.0"
 dependencies = [
  "fjell-abi",
+ "fjell-cap",
  "fjell-semantic-fanout",
  "fjell-semantic-format",
  "fjell-service-api",
@@ -1142,6 +1143,15 @@ dependencies = [
 name = "fjell-svc-presentation-fault"
 version = "0.33.0"
 dependencies = [
+ "fjell-service-api",
+ "fjell-syscall",
+]
+
+[[package]]
+name = "fjell-svc-presentation-liar"
+version = "0.33.0"
+dependencies = [
+ "fjell-semantic-format",
  "fjell-service-api",
  "fjell-syscall",
 ]

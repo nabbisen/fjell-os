@@ -259,6 +259,13 @@ const ALLOWED_RAW_SYSCALL_SITES: &[(&str, &str)] = &[
         "crates/services/fjell-proxy-text/src/main.rs",
         "ipc_call_action",
     ),
+    // RFC-0.34-004 D5/R6: identical shape and reason as proxy-text's site
+    // above — this test-only presentation issues the same 4-word
+    // DISPATCH_ACTION call, needing the reply's data word.
+    (
+        "crates/services/fjell-svc-presentation-liar/src/main.rs",
+        "ipc_call_action",
+    ),
     // Worded IpcReply (23): sys_ipc_reply carries the tag only, no payload.
     ("crates/services/fjell-measuredd/src/main.rs", "reply"),
     ("crates/services/fjell-recoveryd/src/main.rs", "reply"),

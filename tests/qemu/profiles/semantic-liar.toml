@@ -1,0 +1,41 @@
+# RFC-0.34-004 D5/R6: a presentation that CLAIMS RIGHTS IT DOES NOT HOLD, as
+# a committed tier.
+#
+# E-059's live failing case was taken once, in a scratch build, before any fix
+# (see `rfcs/answers/RFC-0.34-004-a-word-that-claims-an-authority-answer.md`):
+# a presentation that forged its `DISPATCH_ACTION` payload word was believed,
+# and an action requiring a right it did not hold was accepted. That
+# demonstration cannot be re-taken against the fixed receiver — the fix is
+# that nothing the sender sends is read at all — so this tier is the ongoing,
+# gated proof that the refusal holds: `svc-presentation-liar` is installed
+# with no dispatch capability whatsoever (one CALL capability to the stream,
+# nothing else), yet claims `0xFFFFFFFF` — every right there is.
+#
+# The channel is the console byte, as D10's and D11's are. `L`, injected once
+# after "driver-uart: ready", makes `init` publish a dedicated test intent
+# (action 1, requiring `MMIO_MAP` — not sample-service's own intent, so this
+# tier does not depend on which intent another publisher last sent) and then
+# start `svc-presentation-liar`.
+#
+# What is asserted, and what it means:
+#   * the liar's own intention line ("claiming rights it does not hold") is
+#     printed before the call resolves -- an intention, not an outcome;
+#   * "svc-presentation-liar: forged claim refused" is the liar's own read of
+#     the reply -- what IT was told;
+#   * "semantic-stream: dispatch liar action 2 -> refused" is the stream's
+#     own output at the point the decision is made (RFC-0.34-004 §D) -- not
+#     only inferred from what the caller chooses to print about its own call.
+#     Both must agree, and both must say refused: nothing the claim carried
+#     changed the outcome.
+
+name                 = "semantic-liar"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "L"
+expected_markers = [
+    "v0.25: uart byte='L' delivered over IPC",
+    "init: presentation-liar trigger received; publishing a test intent and spawning svc-presentation-liar",
+    "svc-presentation-liar: claiming rights it does not hold",
+    "svc-presentation-liar: forged claim refused",
+    "semantic-stream: dispatch liar action 1 -> refused",
+]

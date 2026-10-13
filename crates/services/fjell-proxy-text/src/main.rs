@@ -16,9 +16,14 @@ const EP_SLOT: u32 = 0;
 // (RFC-v0.23-001) — used to ASK for the next message (RFC-0.34-001 D8/D9) and
 // for the DISPATCH_ACTION return leg.
 const SEM_STREAM_EP: u32 = 1;
-// A deliberately narrow-rights capability (SEND | REPLY only), pre-installed
+// `CapRights::PROXY_TEXT_DEMO` (SEND | REPLY | INSPECT only), pre-installed
 // by spawn.rs at slot 2. Inspected via sys_cap_inspect (kernel-verified, not
-// self-asserted) to obtain the rights presented for each action's check.
+// self-asserted) and sent with each DISPATCH_ACTION — informational only
+// since RFC-0.34-004: `semantic-stream` reads the same `CapRights::
+// PROXY_TEXT_DEMO` constant from its own compiled policy row for this
+// presentation, keyed by the kernel-attested sender, and does not read this
+// word. Computed and sent anyway so the call shape stays unchanged and this
+// task's own view of its rights remains visible on the wire.
 const DEMO_CAP_SLOT: u32 = 2;
 
 /// Receive-buffer size: the widest envelope the wire format can carry
@@ -27,11 +32,15 @@ const DEMO_CAP_SLOT: u32 = 2;
 /// has nothing to do with its encoding.
 const ENV_BUF_SIZE: usize = wire::MAX_WIRE_BYTES.div_ceil(32) * 32;
 
-/// Issue a capability-checked `ActionRequest` for one action back to
-/// semantic-stream (RFC-v0.23-001 Slice 3). `granted_rights` comes from
-/// `sys_cap_inspect` on `DEMO_CAP_SLOT` — a real, kernel-verified rights
-/// bitmask, not a self-asserted claim — so the accept/refuse outcome
-/// reflects an actual capability, not a fabricated one.
+/// Issue an `ActionRequest` for one action back to semantic-stream
+/// (RFC-v0.23-001 Slice 3). `granted_rights` comes from `sys_cap_inspect` on
+/// `DEMO_CAP_SLOT` — a real, kernel-verified rights bitmask, not a
+/// self-asserted claim — but it no longer decides the outcome
+/// (RFC-0.34-004 D1/§A): the stream checks its own compiled policy for this
+/// presentation's kernel-attested identity, not this word. The accept/
+/// refuse outcome reflects an actual capability either way, because the
+/// stream's policy *is* this same capability's rights — read once, from the
+/// one place the kernel installed them, rather than trusted on each call.
 fn dispatch_action(correlation_id: u64, action_id: ActionId) {
     let granted_rights: u32 = match sys_cap_inspect(CapHandle::new(DEMO_CAP_SLOT as u16, 0)) {
         Ok((_kind, rights, _badge)) => rights as u32,

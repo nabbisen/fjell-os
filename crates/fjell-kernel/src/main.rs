@@ -864,10 +864,19 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT,
         "SVC_PRESENTATION_FAULT_EP_OBJECT does not name the object just allocated"
     );
+    // RFC-0.34-004 D5/R6: the test-only liar presentation's endpoint — never
+    // woken (it never asks), allocated and asserted the same as every other
+    // service's.
+    let svc_presentation_liar_ep_id = et.alloc().expect("alloc svc-presentation-liar endpoint");
+    assert_eq!(
+        svc_presentation_liar_ep_id,
+        fjell_abi::service::SVC_PRESENTATION_LIAR_EP_OBJECT,
+        "SVC_PRESENTATION_LIAR_EP_OBJECT does not name the object just allocated"
+    );
     // ...and the whole table, so the total cannot drift from the constant the
     // host test counts allocations against (`ENDPOINT_OBJECT_COUNT`).
     assert_eq!(
-        svc_presentation_fault_ep_id + 1,
+        svc_presentation_liar_ep_id + 1,
         fjell_abi::service::ENDPOINT_OBJECT_COUNT,
         "ENDPOINT_OBJECT_COUNT is not one past the last endpoint allocated"
     );

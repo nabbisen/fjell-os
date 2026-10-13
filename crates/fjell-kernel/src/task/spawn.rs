@@ -286,6 +286,9 @@ pub fn spawn(
                 fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT => {
                     fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT
                 }
+                fjell_abi::service::ImageId::SVC_PRESENTATION_LIAR => {
+                    fjell_abi::service::SVC_PRESENTATION_LIAR_EP_OBJECT
+                }
                 // RFC-0.25-001: driver-uart's send end of the uart-rx endpoint.
                 fjell_abi::service::ImageId::DRIVER_UART => 9,
                 // RFC-0.28-001: service-manager's own dedicated, named
@@ -789,8 +792,13 @@ pub fn spawn(
             // Slot 1 for PROXY_BRAILLE (RFC-0.34-001 D8): a CALL capability to
             // the stream (object 7), which it asks. `proxy-text` holds the same
             // one at slot 1 below, for its return leg and now also its asks.
+            // RFC-0.34-004 D5/R6: `SVC_PRESENTATION_LIAR` holds the same, and
+            // **nothing else** — the one capability a real presentation needs
+            // to call DISPATCH_ACTION at all, deliberately with no dispatch
+            // rights behind it, so its claim has nothing honest to match.
             if image_id == fjell_abi::service::ImageId::PROXY_BRAILLE
                 || image_id == fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT
+                || image_id == fjell_abi::service::ImageId::SVC_PRESENTATION_LIAR
             {
                 let _ = cs.install_raw(
                     1,
@@ -809,10 +817,10 @@ pub fn spawn(
             // Slots 1-2 for PROXY_TEXT (RFC-v0.23-001):
             //   1 = semantic-stream endpoint cap (object 7), for the
             //       capability-checked ActionRequest return leg.
-            //   2 = a deliberately narrow-rights capability (SEND | REPLY |
-            //       INSPECT only — no MMIO_MAP, no DMA_*, no TASK_*) that
-            //       proxy-text introspects via sys_cap_inspect to obtain its
-            //       OWN kernel-verified rights, rather than self-asserting a
+            //   2 = `CapRights::PROXY_TEXT_DEMO` (SEND | REPLY | INSPECT only
+            //       — no MMIO_MAP, no DMA_*, no TASK_*) that proxy-text
+            //       introspects via sys_cap_inspect to obtain its OWN
+            //       kernel-verified rights, rather than self-asserting a
             //       bitmask. INSPECT must be included on *this* capability
             //       itself, not just held generally — RFC 049's
             //       sys_cap_inspect checks `cap.rights.contains(INSPECT)` on
@@ -827,6 +835,12 @@ pub fn spawn(
             //       accepted; one that is not, is refused. The object_id is
             //       unused (this capability is never sent through) and is
             //       set to 0.
+            //       RFC-0.34-004 §A: `semantic-stream`'s `DISPATCH_ACTION`
+            //       policy reads this same constant for this presentation's
+            //       row, rather than trusting a word the presentation sends
+            //       — this install is what it must agree with, by
+            //       construction, not by two people remembering to keep two
+            //       numbers in sync.
             if image_id == fjell_abi::service::ImageId::PROXY_TEXT {
                 let _ = cs.install_raw(
                     1,
@@ -846,9 +860,7 @@ pub fn spawn(
                     Capability {
                         kind: CapKind::Endpoint,
                         object_id: 0,
-                        rights: CapRights(
-                            CapRights::SEND.0 | CapRights::REPLY.0 | CapRights::INSPECT.0,
-                        ),
+                        rights: CapRights::PROXY_TEXT_DEMO,
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,

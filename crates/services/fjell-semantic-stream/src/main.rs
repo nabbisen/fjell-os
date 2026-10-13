@@ -57,8 +57,12 @@ pub fn validate_envelope(env: &SemanticEnvelope) -> bool {
 /// RFC-v0.23-001 Slice 3: real capability check, using the intent's own
 /// declared `required_capability` as the source of truth rather than a
 /// hardcoded rule (architect ruling, review-record-design-conflict.md §1).
-/// `granted_rights` is the caller's kernel-verified rights bitmask (read via
-/// `sys_cap_inspect` on the caller's side, not self-asserted).
+/// `granted_rights` is **not** a payload word a caller sent — this function
+/// does not read IPC at all. The caller (`service_main`'s `DISPATCH_ACTION`
+/// arm) looks it up from `PRESENTATIONS[presentation_of(sender)]
+/// .dispatch_rights`, the kernel-attested sender's own compiled-in policy
+/// row (RFC-0.34-004 D1/D2/§A, closes E-059: a receiver never authorises on
+/// a value the sender chose).
 fn dispatch_action_checked(
     intent: &IntentNode,
     action_id: ActionId,
@@ -120,23 +124,39 @@ struct PresentationSlot {
     wake_slot: u32,
     name: &'static str,
     kind: PresentationKind,
+    /// RFC-0.34-004 §A (closes E-059): the rights this presentation may be
+    /// granted when it calls `DISPATCH_ACTION` — derived from what the
+    /// kernel actually installed for it (`spawn.rs`), never from anything
+    /// it sends. A presentation with no dispatch capability installed gets
+    /// `0`, which satisfies no non-empty requirement and changes nothing
+    /// for an action whose `required_capability` is `None`.
+    dispatch_rights: u32,
 }
 
 /// The presentations, in fan-out order. Adding one is a row here, a spawn-table
 /// entry and an endpoint — no decoding, validation or envelope content changes
 /// (RFC-0.34-001 D2). `proxy-text` asks like any other (RFC-0.34-001 D9).
-const PRESENTATIONS: [PresentationSlot; 3] = [
+const PRESENTATIONS: [PresentationSlot; 4] = [
     PresentationSlot {
         image_id: fjell_abi::service::ImageId::PROXY_TEXT.0,
         wake_slot: 1,
         name: "text",
         kind: PresentationKind::Expected,
+        // RFC-0.34-004 §A: the exact bits `spawn.rs` installs at this
+        // presentation's CSpace slot 2 — one constant, read in both places,
+        // so a capability-install edit and this policy cannot drift apart
+        // independently.
+        dispatch_rights: fjell_cap::CapRights::PROXY_TEXT_DEMO.0 as u32,
     },
     PresentationSlot {
         image_id: fjell_abi::service::ImageId::PROXY_BRAILLE.0,
         wake_slot: 2,
         name: "braille",
         kind: PresentationKind::Expected,
+        // Holds no dispatch capability (spawn.rs installs only the stream
+        // endpoint for this row) and has never called DISPATCH_ACTION; `0`
+        // is the honest value, not a placeholder.
+        dispatch_rights: 0,
     },
     // RFC-0.34-001 D11: the test-only presentation that faults (only the
     // `semantic-crash` profile starts it).
@@ -145,6 +165,20 @@ const PRESENTATIONS: [PresentationSlot; 3] = [
         wake_slot: 3,
         name: "fault-test",
         kind: PresentationKind::TestOnly,
+        dispatch_rights: 0,
+    },
+    // RFC-0.34-004 D5/R6: the test-only presentation that claims rights it
+    // does not hold (only the `semantic-liar` profile starts it). `wake_slot`
+    // is never read: this row is `TestOnly` (dormant until its first ask),
+    // and this presentation never asks, so nothing is ever queued or woken
+    // for it — `4` is unused by construction, not a capability installed
+    // anywhere.
+    PresentationSlot {
+        image_id: fjell_abi::service::ImageId::SVC_PRESENTATION_LIAR.0,
+        wake_slot: 4,
+        name: "liar",
+        kind: PresentationKind::TestOnly,
+        dispatch_rights: 0,
     },
 ];
 
@@ -438,7 +472,18 @@ pub extern "C" fn service_main() -> ! {
             t if t == proto::DISPATCH_ACTION => {
                 let correlation_id = CorrelationId(w0 as u64);
                 let action_id = ActionId(w1 as u16);
-                let granted_rights = w2 as u32;
+                // RFC-0.34-004 D1/D2/§A (closes E-059): `w2` is never read.
+                // The authority is a lookup keyed by the kernel-attested
+                // sender identity, against the policy this presentation's
+                // own compiled row carries — a sender not in `PRESENTATIONS`
+                // at all gets `0`, not whatever it claimed.
+                let presentation = presentation_of(sender);
+                let granted_rights = presentation
+                    .map(|i| PRESENTATIONS[i].dispatch_rights)
+                    .unwrap_or(0);
+                let name = presentation
+                    .map(|i| PRESENTATIONS[i].name)
+                    .unwrap_or("unknown");
                 let result = match &last_intent {
                     Some(intent) => {
                         dispatch_action_checked(intent, action_id, correlation_id, granted_rights)
@@ -449,6 +494,18 @@ pub extern "C" fn service_main() -> ! {
                         message: TextToken::new("no intent on record"),
                     },
                 };
+                // §D: the decision is reported on the stream's own output —
+                // not only inferred from what the caller chooses to print
+                // about its own call.
+                sys_debug_write("semantic-stream: dispatch ");
+                sys_debug_write(name);
+                sys_debug_write(" action ");
+                write_u64(action_id.0 as u64);
+                sys_debug_writeln(match result.result {
+                    EventResult::Ok => " -> accepted",
+                    EventResult::Denied => " -> refused",
+                    _ => " -> not applicable",
+                });
                 reply(proto::ACTION_RESULT, result.result as usize, 0, 0);
             }
             _ => reply(proto::ERR, 0, 0, 0),

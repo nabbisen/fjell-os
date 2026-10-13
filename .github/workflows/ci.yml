@@ -165,6 +165,7 @@ jobs:
             -p fjell-driver-virtio-net -p fjell-secure-transportd \
             -p fjell-fleetd \
             -p fjell-semantic-stream -p fjell-proxy-text -p fjell-proxy-braille -p fjell-svc-presentation-fault \
+            -p fjell-svc-presentation-liar \
             --target riscv64gc-unknown-none-elf \
             -Z build-std=core,compiler_builtins
 

@@ -448,9 +448,14 @@ pub mod semantic_stream {
     pub const PUBLISH_OK: usize = 0x504;
     pub const PUBLISH_ERR: usize = 0x505;
     /// An ActionRequest submitted by proxy-text for capability-checked
-    /// dispatch (words[0]=correlation_id, words[1]=action_id,
-    /// words[2]=granted_rights bitmask presented by the caller — 0 if none
-    /// held).
+    /// dispatch (words[0]=correlation_id, words[1]=action_id, words[2]=
+    /// whatever rights the caller claims to hold). **`words[2]` is not read
+    /// by the receiver** (RFC-0.34-004 D1/§A, closes E-059): a payload word
+    /// cannot attest to anything, so the authority a dispatch is checked
+    /// against comes from the kernel-attested sender's own compiled-in
+    /// policy row, never from what a caller sends. The word stays on the
+    /// wire — `proxy-text` still sends its own `sys_cap_inspect` reading in
+    /// it — so the call shape is unchanged, but it is informational only.
     pub const DISPATCH_ACTION: usize = 0x50A;
     /// Reply: EventResult as usize (see fjell_semantic_format::EventResult).
     pub const ACTION_RESULT: usize = 0x50B;

@@ -48,6 +48,9 @@ pub const SERVICES: &[&str] = &[
     "fjell-proxy-braille",
     // RFC-0.34-001 D11: a test-only presentation that faults.
     "fjell-svc-presentation-fault",
+    // RFC-0.34-004 D5/R6: a test-only presentation that claims rights it
+    // does not hold.
+    "fjell-svc-presentation-liar",
 ];
 
 /// Build user-space service binaries, extract flat images to `prebuilt/`.

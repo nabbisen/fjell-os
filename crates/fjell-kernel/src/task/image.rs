@@ -47,6 +47,10 @@ static PROXY_BRAILLE_BIN: &[u8] = include_bytes!("../../prebuilt/fjell-proxy-bra
 // RFC-0.34-001 D11: test-only, a presentation that faults.
 static SVC_PRESENTATION_FAULT_BIN: &[u8] =
     include_bytes!("../../prebuilt/fjell-svc-presentation-fault.bin");
+// RFC-0.34-004 D5/R6: test-only, a presentation that claims rights it does
+// not hold.
+static SVC_PRESENTATION_LIAR_BIN: &[u8] =
+    include_bytes!("../../prebuilt/fjell-svc-presentation-liar.bin");
 
 /// Resolve an `ImageId` to its raw flat-binary slice.
 pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
@@ -61,6 +65,7 @@ pub fn image_bytes(id: ImageId) -> Option<&'static [u8]> {
         ImageId::PROXY_TEXT => Some(PROXY_TEXT_BIN),
         ImageId::PROXY_BRAILLE => Some(PROXY_BRAILLE_BIN),
         ImageId::SVC_PRESENTATION_FAULT => Some(SVC_PRESENTATION_FAULT_BIN),
+        ImageId::SVC_PRESENTATION_LIAR => Some(SVC_PRESENTATION_LIAR_BIN),
         ImageId::DEVMGR => Some(DEVMGR_BIN),
         ImageId::DRIVER_VIRTIO_BLK => Some(VIRTIO_BLK_BIN),
         ImageId::STORAGED => Some(STORAGED_BIN),

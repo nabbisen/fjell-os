@@ -88,6 +88,17 @@ impl CapRights {
     /// No rights.
     pub const NONE: Self = CapRights(0);
 
+    /// `proxy-text`'s demonstration capability (CSpace slot 2, installed by
+    /// `spawn.rs`): `SEND | REPLY | INSPECT`, deliberately narrow — no
+    /// `MMIO_MAP`, no `DMA_*`, no `TASK_*`. The **single** declaration of
+    /// this bit pattern: `spawn.rs`'s install and `fjell-semantic-stream`'s
+    /// `DISPATCH_ACTION` policy (RFC-0.34-004 §A) both read this constant,
+    /// so what the kernel grants and what the stream checks against cannot
+    /// drift apart independently — editing it changes both in the same
+    /// commit, by construction, rather than requiring two hand-kept values
+    /// to be kept in sync.
+    pub const PROXY_TEXT_DEMO: Self = CapRights(Self::SEND.0 | Self::REPLY.0 | Self::INSPECT.0);
+
     /// Returns `true` if `self` contains all bits in `required`.
     #[inline]
     pub fn contains(self, required: CapRights) -> bool {

@@ -1,0 +1,17 @@
+[package]
+name = "fjell-svc-presentation-liar"
+description = "Test-only: calls DISPATCH_ACTION claiming rights it does not hold, demonstrating the receiver never reads the claim (RFC-0.34-004 D5)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "fjell-svc-presentation-liar"
+path = "src/main.rs"
+
+[dependencies]
+fjell-syscall         = { path = "../../fjell-syscall" }
+fjell-service-api     = { path = "../../fjell-service-api" }
+fjell-semantic-format = { path = "../../formats/fjell-semantic-format" }

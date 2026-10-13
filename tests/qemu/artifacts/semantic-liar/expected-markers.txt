@@ -1,0 +1,5 @@
+v0.25: uart byte='L' delivered over IPC
+init: presentation-liar trigger received; publishing a test intent and spawning svc-presentation-liar
+svc-presentation-liar: claiming rights it does not hold
+svc-presentation-liar: forged claim refused
+semantic-stream: dispatch liar action 1 -> refused

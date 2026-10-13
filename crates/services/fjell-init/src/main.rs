@@ -457,6 +457,51 @@ fn presentation_fault_test() {
     sys_debug_writeln(" envelopes published and answered");
 }
 
+/// RFC-0.34-004 D5/R6: a presentation that claims rights it does not hold,
+/// as a committed tier rather than a scratch edit.
+///
+/// Publishes a dedicated test intent — action 1 requires `MMIO_MAP` — so this
+/// test does not depend on which intent another publisher last sent (by the
+/// time this trigger fires, `semantic-stream`'s `last_intent` may already
+/// hold a later, more permissive one). Then starts `svc-presentation-liar` —
+/// installed with no dispatch capability at all — which immediately calls
+/// `DISPATCH_ACTION` for that action, claiming every right there is. The
+/// claim is never read: the stream's policy for this presentation's row is
+/// `0`, derived from what the kernel actually installed for it, never from
+/// anything it sends (RFC-0.34-004 D1/§A, closes E-059).
+fn presentation_liar_test() {
+    sys_debug_writeln(
+        "init: presentation-liar trigger received; publishing a test intent and spawning svc-presentation-liar",
+    );
+    let mut n = IntentNode {
+        kind: IntentKind::ActionRequest,
+        severity: Severity::Normal,
+        title: TextToken::new("presentation-liar test intent"),
+        description: TextToken::new(""),
+        consequences: FixedVec::new(),
+        actions: FixedVec::new(),
+        expires_at_tick: None,
+    };
+    let _ = n.actions.push(ActionSpec {
+        action_id: ActionId(1),
+        label: TextToken::new("test action requiring MMIO_MAP"),
+        kind: ActionKind::Inspect,
+        required_capability: Some(CapabilityRequirement {
+            resource_class: BoundedText::from_str("demo"),
+            resource_name: ResourceName::new("liar-mmio"),
+            rights: fjell_cap::CapRights::MMIO_MAP.0 as u32,
+        }),
+        reversibility: Reversibility::Reversible,
+        confirmation: ConfirmationPolicy::None,
+    });
+    emit_intent(n);
+    let _ = spawn(ImageId::SVC_PRESENTATION_LIAR, "");
+    // Let it run far enough to make its one call and print the outcome.
+    for _ in 0..8 {
+        sys_yield();
+    }
+}
+
 fn spawn(img: ImageId, label: &str) -> usize {
     match sys_task_spawn(INIT_SLOT_TASK_CREATE, img) {
         Ok(h) => {
@@ -1106,6 +1151,11 @@ pub extern "C" fn service_main() -> ! {
         // envelopes and say how many were answered. Injected once, by an external
         // agent, absent on the next boot.
         const PRESENTATION_FAULT_TRIGGER: u8 = b'P';
+        // RFC-0.34-004 D5/R6: this byte's only power is to start a test-only
+        // presentation that claims rights it does not hold and report
+        // whether the claim was believed. Injected once, by an external
+        // agent, absent on the next boot.
+        const PRESENTATION_LIAR_TRIGGER: u8 = b'L';
         let mut received = false;
         for _ in 0..POLL_BUDGET {
             match sys_ipc_try_recv(UART_RX_EP) {
@@ -1125,6 +1175,9 @@ pub extern "C" fn service_main() -> ! {
                     }
                     if byte as u8 == PRESENTATION_FAULT_TRIGGER {
                         presentation_fault_test();
+                    }
+                    if byte as u8 == PRESENTATION_LIAR_TRIGGER {
+                        presentation_liar_test();
                     }
                     if byte as u8 == HEALTH_FAIL_TRIGGER {
                         sys_debug_writeln("init: health-fail trigger received; spawning svc-fault");

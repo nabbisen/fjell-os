@@ -218,6 +218,11 @@ impl ImageId {
     /// its first message, so a presentation that dies mid-run is evidence in a
     /// tier. `init` starts it only on the console byte `P`.
     pub const SVC_PRESENTATION_FAULT: ImageId = ImageId(0x20); // 32
+    /// Test-only (RFC-0.34-004 D5/R6): installed with no dispatch capability
+    /// at all, calls `DISPATCH_ACTION` claiming every right there is, so the
+    /// claim's refusal is evidence in a tier that nothing it sends is ever
+    /// read. `init` starts it only on the console byte `L`.
+    pub const SVC_PRESENTATION_LIAR: ImageId = ImageId(0x21); // 33
 }
 
 /// The endpoint object `proxy-braille` receives its wake on.
@@ -225,6 +230,11 @@ pub const PROXY_BRAILLE_EP_OBJECT: u32 = 13;
 
 /// The endpoint object `svc-presentation-fault` receives its wake on.
 pub const SVC_PRESENTATION_FAULT_EP_OBJECT: u32 = 15;
+
+/// The endpoint object `svc-presentation-liar` receives on. Never woken (it
+/// never asks), but every task still gets its own endpoint object allocated
+/// and asserted at boot, the same as every other service.
+pub const SVC_PRESENTATION_LIAR_EP_OBJECT: u32 = 16;
 
 // ── RFC-0.33-001 D17: the reset trigger must not survive the reset ────────────
 //
@@ -255,7 +265,7 @@ pub const INIT_NEG_TEST_SEND_SLOT: u32 = 9;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 16;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 17;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -327,6 +337,10 @@ mod endpoint_allocation_tests {
             (
                 "SVC_PRESENTATION_FAULT_EP_OBJECT",
                 SVC_PRESENTATION_FAULT_EP_OBJECT,
+            ),
+            (
+                "SVC_PRESENTATION_LIAR_EP_OBJECT",
+                SVC_PRESENTATION_LIAR_EP_OBJECT,
             ),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
