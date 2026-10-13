@@ -13,7 +13,7 @@ require updating the governing record first, then this page.*
 | 5 | **ZeroizeOnDrop** — no independently verified byte-level key-erasure guarantee | Non-goal **N23** |
 | 6 | **Trust-anchor provisioning** — TOFU with `--allow-tofu-provision` flag (dev/QEMU), factory station (v1.1), hardware-anchored (v2+). Flag implemented (`cargo xtask provision-dev --allow-tofu-provision`) in v0.20.0. | **RFC-v0.17-001** (Accepted, 2026-06-04) |
 | 7 | **`cap_install` rights validation does not execute** — `sys_cap_install`'s and `sys_cap_install_with_rights`'s doc-comments claim the kernel validates `rights ⊆ installer authority`; no such check runs, because the `CapInstall` syscall has no dispatch arm at all. The path fails closed (`UnknownSyscall`) rather than granting excess rights — not a live security hole — but the documented behaviour is not shipped. Disposition of `CapInstall` and the other **5** declared-but-undispatched syscalls (`PlatformReboot`, `TaskKill`, `MmioUnmap`, `DmaShare`, `Reboot`) was deferred to v0.22 and **did not happen**; it remains open. *Corrected at the 0.27.0 cut: this read "the other 8 … deferred to v0.22", a count that had moved (35 declared / 29 dispatched / 6 undispatched) and a deferral to a milestone that shipped without it. The current figure is printed by `syscall-surface` at every release rehearsal.* | Errata **E-011** (ACCEPTED); **RFC-v0.21.3-001** §M2 |
-| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is partial: two presentations exist, both text on a serial console and both output-only — `proxy-text`, and `proxy-braille`, which writes braille cells (the stream a braille display driver would consume) that no braille reader has read and no device has displayed; no speech or simplified presentation; no way for a person to answer the node through any presentation; nothing tested against a standard or with a person. A missing or crashed presentation no longer stalls a publisher (E-058, **closed**), with survivors named. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058** (closed), **E-059**, **E-060**; **RFC-0.33-002** D6; **RFC-0.34-001**; ADR-v0.5-005 |
+| 8 | **Accessibility and inclusion** — the goal is stated, the delivery is partial: two presentations exist, both text on a serial console and both output-only — `proxy-text`, and `proxy-braille`, which writes braille cells (the stream a braille display driver would consume) that no braille reader has read and no device has displayed; no speech or simplified presentation; no way for a person to answer the node through any presentation; nothing tested against a standard or with a person. A missing or crashed presentation no longer stalls a publisher (E-058, **closed**), with survivors named. The one action a person could take is now authorised on the kernel-attested sender's own policy row rather than a word it sent (E-059, **closed**), though it still executes nothing. See [the section below](#accessibility-and-inclusion--what-does-not-exist-yet) | Errata **E-054**, **E-058** (closed), **E-059** (closed), **E-060**; **RFC-0.33-002** D6; **RFC-0.34-001**; **RFC-0.34-004**; ADR-v0.5-005 |
 
 ## Accessibility and inclusion — what does not exist yet
 
@@ -127,18 +127,20 @@ person, and the list is the reason no page says otherwise.
    separate or personal device is described as safe. **Filed as E-060** at this
    line's review, tracked 0.34; the threat model is authoritative for v1.0 and
    changes require its own RFC.
-10. **The one action a person could take is authorised on a word the authoriser
-   cannot check** (**E-059**, filed at this line's review, tracked 0.34). The
-   presentation's return leg sends `DISPATCH_ACTION` carrying the rights it holds
-   as an ordinary payload word, and `semantic-stream` compares the action's
-   required rights against that word. The proxy does read its own rights through
-   `sys_cap_inspect`, so the value is kernel-verified **where it is read** and
-   self-asserted **where it is used** — nothing on the receiving side can confirm
-   the word came from that inspection, and the function's own comment says *"not
-   self-asserted"*. Today a permitted action **executes nothing** (the dispatch
-   returns `Ok` or `Denied` as a message), so this is a false claim about
-   authority rather than a way to exercise it — and it is what an input path
-   (item 3) would be built on.
+10. **The one action a person could take is authorised on a payload word the
+   authoriser cannot check — was true until RFC-0.34-004, which closed
+   E-059.** The presentation's return leg sent `DISPATCH_ACTION` carrying the
+   rights it holds as an ordinary payload word, and `semantic-stream` compared
+   the action's required rights against that word; nothing on the receiving
+   side could confirm the word came from the proxy's own `sys_cap_inspect`
+   read rather than anywhere else. `w2` is now never read: the stream
+   authorises from a policy row keyed by the kernel-attested sender identity
+   (`CapRights::PROXY_TEXT_DEMO`, the same constant `spawn.rs` installs), not
+   from anything a presentation sends. **This does not make the action real.**
+   Today a permitted action still **executes nothing** (the dispatch returns
+   `Ok` or `Denied` as a message) — the fix changes what the authority decision
+   is based on, not what it does, and it is still what an input path (item 3)
+   would be built on.
 
 11. **The braille presentation shows the producer's English sentence, and leaves
    out what a person deciding whether to act would need.** A `TextToken` carries
@@ -559,11 +561,21 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   carried the identical defect class internally — is **E-033**, closed by
   RFC-0.28-004 (below).
 
-- **Four `send` helpers accept a payload word that is never transmitted**
-  (Errata **E-034**, ACCEPTED). `sxt_send`, two `send_tag`s and `send_sxt` take
-  a data word; none packs a word count into the tag, so the kernel copies zero
-  words and the payload has never reached a receiver. Nothing reads these words
-  today; the hazard is the next caller who trusts the signature.
+- **Four `send` helpers used to accept a payload word that was never
+  transmitted** (Errata **E-034**, **CLOSED** by **RFC-0.34-004**).
+  `sxt_send`, two `send_tag`s and `send_sxt` took a data word; none packed a
+  word count into the tag, so the kernel copied zero words and the payload
+  never reached a receiver. The parameter is now gone from all four
+  signatures. One caller's dropped word was not merely unread: `upgraded`'s
+  `channel_id` for `UpdateMetadataFetch`/`Close` genuinely reaches a receiver
+  that reads it and always finds `0` — `fetch_update_index` has always
+  returned `None` against a real `secure-transportd`. Pre-existing,
+  independent of this fix, and named rather than repaired: carrying the word
+  for real is an ABI change to the tag packing, its own line. Also found and
+  named: `secure-transportd`'s receive loop polls only one of its three
+  client endpoints, so `attestd`'s and `diagnosticsd`'s requests are
+  unreachable regardless; and `fjell-auditd` never implements the
+  `AUDIT_QUERY` protocol `diagnosticsd` speaks to it over IPC at all.
 
 - **`fjell-syscall`'s own helpers carried the register-contract defect the
   crate exists to protect everyone else from** (Errata **E-033**, **CLOSED**

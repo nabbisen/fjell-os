@@ -1552,10 +1552,33 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   silently given nothing.
 - **Family:** **E-011** — a declaration describing behaviour that does not
   execute.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-08), `unscheduled`. Each
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-08), `unscheduled`. Each
   discard now carries a comment naming this erratum, added in review. The real
   fix is to pack a word count and give these flows a receiver, or to delete the
-  parameter — whichever, it is a behaviour decision, not a cleanup.
+  parameter — whichever, it is a behaviour decision, not a cleanup.~~ →
+  **CLOSED** by **RFC-0.34-004**.
+
+  > **Closed by RFC-0.34-004, 2026-10-13.** The parameter, deleted: all four
+  > signatures (`sxt_send(tag)`, `send_tag(ep, tag)` ×2, `send_sxt(tag)`) no
+  > longer take a data word, and every call site stopped passing one. Checked
+  > first, with a control, whether any caller passed a value a receiver
+  > genuinely reads (the RFC's own lean assumed all were dummies): **three of
+  > the four categories are inert** — `diagnosticsd`'s `max_count`
+  > (`fjell-auditd` never implements `AUDIT_QUERY` over IPC at all), `attestd`'s
+  > `record_seq` (`secure-transportd` has no receive arm for `AttestPush`), and
+  > every `SxtError` payload (every receiver branches on the reply tag, never a
+  > payload word — `SXT_FAULTED` was `#[allow(dead_code)]` in two of three).
+  > **One is not:** `upgraded`'s `channel_id` for `UpdateMetadataFetch`/`Close`
+  > genuinely reaches a receiver that reads it and always finds `0` — a live,
+  > independent defect (`fetch_update_index` has always returned `None` against
+  > a real `secure-transportd`), pre-existing and unaffected by this change,
+  > **named here rather than fixed**: carrying the word for real is an ABI
+  > change to the tag packing, its own line, not this one (RFC-0.34-004 §C).
+  > Also found and named, not fixed: `secure-transportd`'s receive loop polls
+  > only `CAP_UPGRAD_EP`, never `CAP_DIAG_EP`/`CAP_ATTEST_EP`, so `attestd`'s and
+  > `diagnosticsd`'s `OpenChannel`/`DiagPush`/`AttestPush` are unreachable by any
+  > receiver today, independent of this erratum. Full detail in
+  > `rfcs/answers/RFC-0.34-004-a-word-that-claims-an-authority-answer.md` §C.
 
 ## E-035 — the ABI baseline is never re-recorded, so additive drift accumulates silently
 
@@ -4289,11 +4312,40 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   reads plausibly, and no instrument checks that an authority claim crossing IPC
   is attested rather than carried. Gate 11's callsite checks cover
   `sys_cap_inspect`'s own use, not what a service does with the answer.
-- **Resolution:** **ACCEPTED** (architect, 2026-09-24), tracked **0.34**, with
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-09-24), tracked **0.34**, with
   §C's input-path decision: either the stream inspects the caller's rights itself
   from the kernel-attested sender identity, or the action is authorised by a
   capability the proxy must present rather than a number it may claim. The false
-  comment goes with the fix, not before it.
+  comment goes with the fix, not before it.~~ → **CLOSED** by **RFC-0.34-004**.
+
+  > **Closed by RFC-0.34-004, 2026-10-13.** §B, verified with a control: no
+  > kernel syscall lets a task ask about another task's rights (`sys_cap_inspect`
+  > resolves only the caller's own CSpace slot; `sys_task_status` returns only a
+  > lifecycle enum). The capability route would need a new syscall — an ABI
+  > change, its own line — so §A is the policy route: `fjell-semantic-stream`'s
+  > `PRESENTATIONS` table gains a `dispatch_rights: u32` field per row, and
+  > `DISPATCH_ACTION`'s authority check reads it, keyed by the kernel-attested
+  > sender identity already used for fan-out — **`w2` is no longer read at
+  > all**. `proxy-text`'s row holds `CapRights::PROXY_TEXT_DEMO` (new constant,
+  > `crates/fjell-cap`), the exact bits `spawn.rs` installs at its CSpace slot 2
+  > — one declaration, read in both places, not two hand-kept values that could
+  > drift. `proxy-braille`'s and the test-only rows hold `0`, the honest value:
+  > neither has ever held a dispatch capability. The false comment (`:60`–`:61`)
+  > is corrected; the sweep found the same claim, accurately describing
+  > `proxy-text`'s own honest self-read, in that service's file, corrected to
+  > note the value no longer decides the outcome. The decision is now also
+  > reported on the stream's own output (§D), not only inferred from the
+  > caller's print. **Demonstrated both ways:** a scratch build with
+  > `proxy-text`'s self-inspection replaced by a hardcoded `0xFFFFFFFF` was
+  > accepted before this change (6/6 actions accepted, 0 denied, against an
+  > honest-baseline control of 5/1) and refused after (5/1, unchanged from
+  > honest — the forgery had zero effect); the "refused" half is now a
+  > permanent, committed tier (`semantic-liar`, `svc-presentation-liar` —
+  > installed with no dispatch capability at all, claims `0xFFFFFFFF` for a
+  > dedicated test action requiring `MMIO_MAP`, refused every run). **D6
+  > unaffected and checked:** dispatch still executes nothing; this closure
+  > does not say otherwise. Full detail in
+  > `rfcs/answers/RFC-0.34-004-a-word-that-claims-an-authority-answer.md`.
 
 ## E-060 — the presentation boundary is absent from the threat model
 
@@ -4747,7 +4799,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |
 | E-032 35 hand-rolled syscall `asm!` blocks in 14 crates carried three register-contract bugs (`a6` omitted ×12, `a0` as plain `in` ×18, `IpcCall` reply words ×3) | RFC-0.28-002 | CLOSED |
 | E-033 `sys_ipc_recv`/`sys_cap_inspect`/`sys_ipc_call_words` carried E-032's bug classes inside fjell-syscall itself; `sys_cap_inspect`'s second call was `CapRevoke`, not a race window | RFC-0.28-004 | CLOSED |
-| E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | unscheduled | ACCEPTED |
+| E-034 four `send` helpers take a payload word the kernel has never carried (no word count packed in the tag) | RFC-0.34-004 | CLOSED |
 | E-035 the ABI baseline is never re-recorded; additive drift accumulates and would be absorbed unreviewed | RFC-0.30-002 | CLOSED |
 | E-036 T20's two-build check is invoked nowhere, could not fail if it were (no clean between builds), and no mode covers the kernel | RFC-0.30-001 | CLOSED |
 | E-037 the toolchain version is declared in twenty-two places (a drift gate now checks 21 of them agree); ~~two survivors~~ -> ~~one~~ -> none: consolidation CLOSED by RFC-0.31-002 (22 places -> five, four of them documentation), and the channel pinned exactly at 1.98.1 by RFC-0.31-003 | RFC-0.31-003 | CLOSED |
@@ -4773,7 +4825,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
-| E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | 0.34 | ACCEPTED |
+| E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | RFC-0.34-004 | CLOSED |
 | E-060 the threat model contains no proxy and no presentation, so the component that receives every operator-facing byte — and can stall the node (E-058) — has never been analysed as a boundary | 0.34 | ACCEPTED |
 | E-061 a full task table, and three other failures in `spawn.rs`, all report `SysError::NoMemory`, so an overflowing table surfaces as a bare `init: spawn error` | 0.34 | CLOSED |
 | E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |

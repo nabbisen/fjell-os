@@ -204,3 +204,93 @@ I will not touch `fjell-proxy-text`'s or `fjell-proxy-braille`'s source
 `AUDIT_QUERY` implementation, or `secure-transportd`'s endpoint-polling gap.
 
 ---
+
+## Afterword — what survived contact with the code (written after it)
+
+Everything above this line was written before any code and is left as it
+was. This is what the running system did to it.
+
+**Kept, and shown to work:** the `dispatch_rights` field on `PresentationSlot`,
+populated from `CapRights::PROXY_TEXT_DEMO` for `proxy-text`'s row and `0` for
+every other; `spawn.rs`'s CSpace slot 2 install referencing the same
+constant; the `DISPATCH_ACTION` handler looking it up by
+`presentation_of(sender)` instead of `w2`; the stream's own output line
+(§D); dropping `w0` from all four E-034 helpers.
+
+**The "refused" transcript needed more than one attempt.** The first design
+of `svc-presentation-liar` assumed `semantic-stream`'s `last_intent` would
+still hold sample-service's demo intent (action 2, requires `MMIO_MAP`) by
+the time the console-byte trigger fired. Running it showed the opposite: by
+the time `L` is injected (after `driver-uart: ready`, deliberately late so
+boot has settled), `last_intent` already holds the *recovery* intent's own
+action 2 — which requires nothing — so the forged claim was trivially
+"accepted" for an action that needs no capability at all, proving nothing.
+**Fixed** by having `presentation_liar_test()` publish its own dedicated test
+intent (action 1, requires `MMIO_MAP`) immediately before spawning the liar,
+so the tier does not depend on which intent another publisher last sent —
+the same category of mistake the project's own precedent (E-058's absence
+report) was found by running the case, not by reasoning about it in
+advance.
+
+**Found while re-deriving §C, not assumed:** the RFC's own lean ("check
+whether any caller passes a value it needs delivered") was answered by two
+independent passes over the four helpers' call sites and their receivers,
+and the answer was **no, not safely assumed dummy** — three of the four
+word-categories are genuinely inert (no receiver ever reads them), but
+`upgraded`'s `channel_id` for `UpdateMetadataFetch`/`Close` is read by a real
+receiver that has always found `0`, silently failing every metadata fetch.
+Per the handoff's own instruction, this is named as a survivor (the register
+entry, this document, and the code's own comments) rather than fixed —
+carrying it for real needs `sys_ipc_send_words` and a receiver-side change,
+which is an ABI change to the tag packing and its own line. Also found and
+named, independent of word-carrying entirely: `fjell-auditd` never
+implements the `AUDIT_QUERY` protocol `diagnosticsd` speaks to it over IPC
+(it drains the ring unconditionally on a bare `sys_ipc_recv`), and
+`secure-transportd`'s receive loop polls only `CAP_UPGRAD_EP`, never
+`CAP_DIAG_EP`/`CAP_ATTEST_EP`, so `attestd`'s and `diagnosticsd`'s requests
+to it are unreachable regardless of any word.
+
+**Measured, not assumed, that dropping `w0` changes nothing at the byte
+level.** After editing all four helpers and every call site, `cargo xtask
+build-services` produced **byte-identical** prebuilts for `fjell-attestd`,
+`fjell-diagnosticsd`, `fjell-secure-transportd`, `fjell-upgraded` and
+`fjell-proxy-text` (confirmed via `git status`: no diff) — the discarded
+values were already dead-code-eliminated under the old signature, so
+removing the parameter changed the source without changing the compiled
+output. `fjell-init.bin` and `fjell-semantic-stream.bin` did change (real
+new logic); `fjell-svc-presentation-liar.bin` is new. The repro baseline
+(`tests/repro/baseline-digests.txt`) was re-recorded accordingly —
+32 artefacts, `fjell-repro-check --skip-build` PASS.
+
+**A gate caught what the plan did not anticipate, twice.** `SYSCALL-CALLSITE-001`
+(Gate 11) refused `svc-presentation-liar`'s `ipc_call_action` until it was
+added to the allowlist — expected, per the handoff's own prohibition against
+a gate piped into `grep`, this is the gate working, not a defect. Separately,
+`fjell-repro-check --skip-build` failed on the first `test-all` run because
+the baseline had not yet been re-recorded in the same pass as the rebuild —
+caught by the gate, fixed before evidence was taken, not after.
+
+**A near-miss, disclosed rather than buried.** While `test-all` was running
+in the background, an exploratory `fjell-repro-check -- --help` call (meant
+only to print usage) fell through to the tool's real two-build mode, since
+`--help` is not a recognised flag — and that mode runs its own
+`cargo xtask build-services`/`build` against the *same* working tree
+`test-all` was mid-run against. It was piped through `head -20`, and the
+pipe closing (`SIGPIPE`) killed it before any write completed; `git status`
+and every prebuilt's size were checked immediately after and showed no
+unexpected change, and the running `test-all` process was confirmed still
+alive and progressing. No corruption occurred, but it is the same class of
+mistake trap 7 exists for, and running `--help`-shaped probes against an
+unfamiliar tool while another build is in flight is now something to avoid
+on reflex, not just in hindsight.
+
+**Figures that differed from a first guess, corrected by running:** §C's
+"dummy value" assumption (corrected by two forked investigations, above);
+the liar tier's first design depending on boot-order timing (corrected by
+running it and reading the log, above).
+
+**Not verified, and said so:** whether `upgraded`'s `channel_id` defect or
+`secure-transportd`'s endpoint-polling gap have any live consequence beyond
+`fetch_update_index` always returning `None` and `attestd`'s/`diagnosticsd`'s
+requests being unreachable — both are named, neither is characterised
+further; that is the next investigation, not this one's.
