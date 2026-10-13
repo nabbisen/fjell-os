@@ -119,16 +119,26 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at v0.9.4
+## Summary at 0.33.0
 
 | Status | Count |
 |--------|-------|
-| DONE | 42 |
-| IN PROGRESS | 0 |
+| DONE | 56 |
+| IN PROGRESS | 2 |
 | DEFERRED | 3 |
 | OPEN | 0 |
 
-*Zero OPEN cells. Three IN PROGRESS items (RFC-0.33-002 D9's inclusion rows).*
+*Zero OPEN cells. Two IN PROGRESS rows — RFC-0.33-002 D9's remaining inclusion rows,
+an input path decided and this limitations section kept true — both `→ v1.x`.*
+
+> **Corrected 2026-10-13, at 0.34's scoping.** This summary disagreed with its own
+> rows in three ways: it was headed *"at v0.9.4"*, it said **DONE 42** where
+> `readiness-check` counts **56**, and its prose said **three** IN PROGRESS items
+> where the table said **0** and the rows number **2**. Gate 5 passed throughout,
+> because it looks only for `**OPEN**` cells and never compares what this document
+> *claims* with what it *contains* — the E-014 class, in the document that is the
+> v1.0 readiness gate. The figures above are `readiness-check`'s. **Nothing yet
+> checks that they stay its**, which is why 0.34 carries a line for it.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
