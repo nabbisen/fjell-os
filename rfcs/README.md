@@ -460,7 +460,7 @@ focused cut by design.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 3 RFCs
 
 Signed off by the owner; implementation may begin; not yet shipped.
 `accepted/README.md` keeps the folder in a fresh clone.

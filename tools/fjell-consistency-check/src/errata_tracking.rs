@@ -60,10 +60,22 @@
 //! bled a "closes" claim into an unrelated erratum's clause in the same
 //! paragraph; clause-scoping alone then bled a *different* RFC's claim
 //! across a paragraph break into unrelated prose). This is a heuristic,
-//! not a parser: a false positive here means a *stricter* check, not a
-//! missed one — direction B failing spuriously blocks nothing but its own
-//! green tick, whereas direction A (the one that catches a stale or
-//! nonexistent RFC reference) never depends on this heuristic at all.
+//! not a parser, and it is asymmetric in **both** directions, which an
+//! earlier version of this note denied. A false positive means a *stricter*
+//! check: direction B failing spuriously blocks nothing but its own green
+//! tick. But a **false negative is equally possible and was observed on
+//! 2026-10-14**: `RFC-0.35-003` tracks E-071 and names it in its header,
+//! and because the stem `"clos"` appears nowhere in that file's first 20
+//! lines, direction B never compared it with the register — while
+//! `RFC-0.35-001`, whose header happens to contain "cannot be closed
+//! without", was compared and (correctly) failed until the register named
+//! it. So a bare-milestone tracking value can coexist with an accepted RFC
+//! that will close the erratum, unobjected. **What still protects the
+//! release** is not this heuristic: it is rule 1, which refuses an
+//! `ACCEPTED` erratum tracked to a milestone that has shipped, and which
+//! runs at the cut regardless of how any RFC phrases itself. Direction A
+//! (the one that catches a stale or nonexistent RFC reference) never
+//! depends on this heuristic at all.
 //! `rfcs/archive/` is excluded from direction B entirely, for an unrelated
 //! reason — see the exclusion at its call site.
 

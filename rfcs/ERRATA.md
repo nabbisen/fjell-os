@@ -4866,9 +4866,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   promise. And it sits in the one area of the tree whose QEMU tiers — `store` and
   `upgrade` — are **not release-gated and have no emitting scenario**, so nothing
   would have caught it and nothing will catch the next one.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **0.35**, in
-  `v1-limitations.md`. **Recommended as 0.35's first candidate**, with the emitting
-  scenario for the `upgrade` tier in the same line: a silently broken path in the
+- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **RFC-0.35-001**
+  (accepted 2026-10-14; re-tracked from the bare milestone `0.35` when that RFC was
+  written, since the closing RFC is now known), in `v1-limitations.md`. **0.35's
+  first line**, with the emitting scenario for the `upgrade` tier in it: a silently broken path in the
   only unexercised area is the shape this project exists to refuse. The causal chain
   from the uncarried word is the implementer's measurement and is to be re-derived,
   not assumed, by whoever takes the line.
@@ -4907,8 +4908,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `fjell-repro-check -- --help` fell through to a real two-build run beside a live
   `test-all` — disclosed by the implementer, killed by a broken pipe before any write
   completed, and verified afterwards to have corrupted nothing.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **0.35**, in
-  `v1-limitations.md`. An unknown flag must **exit non-zero with the usage**, and
+- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **RFC-0.35-003**
+  (accepted 2026-10-14; re-tracked from the bare milestone `0.35` once the closing
+  RFC existed), in `v1-limitations.md`. An unknown flag must **exit non-zero with
+  the usage**, and
   `--help` must print it; closing it needs the failing case shown — an unknown flag
   that used to start a build and now does not. It is also release-handoff trap 7's
   rule in a second instrument: *one `test-all` at a time per tree*, which an
@@ -4974,8 +4977,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Found by:** the architect, 2026-10-14, while scoping 0.35 — specifically while
   deciding E-068/E-069's direction, which could not be decided without knowing
   whether the endpoints in question exist.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-14), tracked **0.35**, in
-  `v1-limitations.md`. Folded into 0.35's first line, because **E-070 cannot be
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), tracked **RFC-0.35-001**,
+  in `v1-limitations.md`. Folded into 0.35's first line, because **E-070 cannot be
   closed without it**. What closing it requires: **one** declaration of each
   service's CSpace layout that the kernel install and the service agree on by
   construction, and **a gate that fails when a service names a slot the kernel does
@@ -5077,9 +5080,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
 | E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented, so a diagnostics audit query returns nothing and cannot say why | unscheduled | ACCEPTED |
 | E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin, so `diagnosticsd`, `attestd` and `service-manager` can never be served by it | unscheduled | ACCEPTED |
-| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | 0.35 | ACCEPTED |
-| E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | 0.35 | ACCEPTED |
-| E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | 0.35 | ACCEPTED |
+| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | RFC-0.35-001 | ACCEPTED |
+| E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | RFC-0.35-003 | ACCEPTED |
+| E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | RFC-0.35-001 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | RFC-0.34-004 | CLOSED |
