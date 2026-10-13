@@ -4844,10 +4844,29 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   would have caught it and nothing will catch the next one.
 - **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **0.35**, in
   `v1-limitations.md`. **Recommended as 0.35's first candidate**, with the emitting
-  scenarios for `store` and `upgrade` in the same line: a silently broken path in the
+  scenario for the `upgrade` tier in the same line: a silently broken path in the
   only unexercised area is the shape this project exists to refuse. The causal chain
   from the uncarried word is the implementer's measurement and is to be re-derived,
   not assumed, by whoever takes the line.
+- **Amended 2026-10-14, at 0.35's scoping.** This entry first said the emitting
+  scenarios for **both** `store` and `upgrade` belonged in the same line as the fix.
+  **That was wrong about `store`, and it was wrong because I had not read for it.**
+  `upgrade`'s four markers are reachable from machinery that exists — `verifyd`'s
+  `VERIFY_FAIL` arm, `fjell-bootctl`'s slots from 0.33's A/B boot control, and
+  `upgraded`'s own `confirm`. `store`'s four are not: `fjell-storaged` contains **no**
+  CRC, superblock, mirror or recovery code (0 hits for each at this tip), so
+  "add an emitting scenario" there means **implementing a store that can reject** —
+  a feature line, not a test line. The host model `fjell-store-model` (299 lines,
+  properties S1–S3 under proptest) is its specification and is the right starting
+  point, but it is a model and refines nothing in the guest today. Scoped as its own
+  candidate accordingly.
+- **A second observation, from reading the mechanism rather than the measurement:**
+  the fetch fails **closed** today only because `ChannelTable::new` starts `next_id`
+  at `1`, so the absent word's `0` matches no live channel. That is arithmetic luck,
+  not a decision — and `next_id` is `wrapping_add(1)`, so the invalid id is inside
+  the space the allocator will eventually hand out. Whoever takes this line must make
+  `0` invalid **by construction** and say so, not leave the fail-closed behaviour
+  resting on where the counter happens to start.
 
 ## E-071 — `fjell-repro-check` treats an unrecognised flag as "do the expensive thing"
 

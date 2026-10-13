@@ -1283,7 +1283,12 @@ Additional operational notes (not Gate 9 items, listed for completeness):
     sees `0`. This is behaviour rather than a promise, and it sits in the one area of
     the tree whose QEMU tiers — `store` and `upgrade` — are **not release-gated and
     have no emitting scenario**, so nothing would have caught it (**E-070**,
-    recommended as 0.35's first candidate together with those scenarios).
+    recommended as 0.35's first candidate together with the `upgrade` tier's
+    scenario; `store`'s is a separate candidate, because `fjell-storaged` has no
+    CRC, superblock, mirror or recovery code to exercise and that tier's four
+    markers therefore need a store that can reject, not a test — amended
+    2026-10-14 at 0.35's scoping, correcting this bullet's own earlier claim that
+    both scenarios belonged in one line).
   - `fjell-repro-check` **silently ignores an unrecognised flag** and falls through
     to its full two-build mode, and has no `--help` — so the natural way to ask for
     usage starts a build that can race a concurrent `test-all`. It has happened
