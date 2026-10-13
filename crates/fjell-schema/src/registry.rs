@@ -389,7 +389,7 @@ pub const EXCLUSIONS: &[(&str, Exclusion)] = &[
     (
         "fjell-net-format",
         Exclusion::Survivor {
-            erratum: "E-065",
+            erratum: "E-073",
             what: "`NetDescriptorHeader` and `NetDriverPacket` are `#[repr(C)]` layouts with no encoder to record; nothing outside the crate uses either",
         },
     ),
@@ -401,7 +401,7 @@ pub const EXCLUSIONS: &[(&str, Exclusion)] = &[
     (
         "fjell-audit-format",
         Exclusion::Survivor {
-            erratum: "E-065",
+            erratum: "E-073",
             what: "`AuditRecordBin` (written raw by the kernel's `sys_audit_drain`), `AuditPersistRecord` and `AuditLogHeader` are `#[repr(C)]` layouts, padding-free with asserted sizes, and have no encoder to record",
         },
     ),

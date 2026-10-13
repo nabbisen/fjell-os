@@ -4654,6 +4654,30 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   bytes** (possible because they are padding-free, unlike E-055's), after which the
   kernel's raw write of `AuditRecordBin` is a separate, kernel-side change.
 
+- **Re-tracked unscheduled → 0.35, and split, 2026-10-14 at 0.35's scoping.** The
+  owner answered *"Now. Or at least should be managed in some way."* It **is**
+  already managed, and that was worth checking before proposing machinery for it:
+  `fjell_schema::registry::EXCLUSIONS` types every crate under `crates/formats/` as
+  either `InMemoryOnly` or `Survivor { erratum, what }`, and
+  `crates/fjell-schema/tests/frozen.rs` asserts that **every** formats crate is
+  described or excused (`missing.is_empty()`), that a survivor **names an erratum
+  the register actually contains**, and that a survivor's probe still finds a
+  producer (*"reclassify it"*). **A fifth undescribed format cannot appear
+  silently**; the four are named, typed and tested. So scheduling is a choice, not a
+  necessity, and this entry is scheduled by what is **bounded**:
+  - **Tracked 0.35: the two digest streams.** `fjell-measure-format`'s
+    `compute_chain_digest` and `fjell-bundle-format`'s `compute_bundle_digest` move
+    onto `Canon`, which gains a **big-endian integer** — the one real design piece,
+    and a small one. Goldens captured from the **unmodified** encoders first, as
+    RFC-0.33-003 and RFC-0.34-003 both did.
+  - **Split out as E-073: the two `#[repr(C)]` layouts.** `fjell-audit-format` and
+    `fjell-net-format` need named-field serialisers writing the same bytes **plus a
+    kernel-side change** to `sys_audit_drain`'s raw write of `AuditRecordBin`. That
+    is kernel audit-path work and must not ride inside a format line. Split so this
+    entry can **close** at the 0.35 cut rather than sit ACCEPTED against a shipped
+    milestone, which `errata-tracking` refuses — and so the kernel-side dependency
+    is scheduled on its own merits rather than inherited.
+
 - **Update 2026-09-25 (RFC-0.34-003): the first survivor is resolved; four remain.**
   **`fjell-semantic-format::wire`** now writes through `Canon` and has a generated
   description, `schema/wire-v1.frozen`, compared in Gate 1 — **18** generated files (17
@@ -4890,6 +4914,106 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   rule in a second instrument: *one `test-all` at a time per tree*, which an
   accidental build violates.
 
+## E-072 — five services declare CSpace slots the kernel never installs, and two of them spin forever on the absence
+
+- **Claim:** `fjell-secure-transportd`, `fjell-diagnosticsd`, `fjell-upgraded`,
+  `fjell-attestd` and `fjell-netd` each declare a *"CSpace layout"* (the comment is
+  `diagnosticsd`'s own words, `main.rs:24`) of named capability slots, and address
+  their peers through it: `transportd` receives on slot **2** and sends on **1**;
+  `diagnosticsd` receives on **1** and sends on **0**, **3**, **4**; `upgraded` uses
+  **6**; `attestd` **5**; `netd` **1**.
+- **Tree, observed 2026-10-14 at `9dc6454`:** `crates/fjell-kernel/src/task/spawn.rs`
+  installs, for **every** image, exactly two things — slot **0** (the task's own
+  endpoint, object taken from a per-image `match` that **falls to the shared object
+  `0`** for all five of these services) and `SERVICE_READY_SEND_SLOT`. Every further
+  install is inside an `if image_id == …` block, and those blocks exist only for
+  `BOOTCTL`, `SERVICE_MANAGER`, `DRIVER_UART`, `NEG_TEST`, `SAMPLE_SERVICE`,
+  `SEMANTIC_STREAM`, `SVC_PRESENTATION_LIAR`, `PROXY_TEXT`, `CAP_BROKER` and the
+  MMIO-region holders. **There is no block for any of the five.** So **eleven
+  declared slots hold nothing**, and every IPC addressed through them fails the
+  capability check.
+- **Control, so this is not an artefact of reading one file:** the kernel's other
+  install site (`main.rs:1064`–`1331`) populates **`init`'s** CSpace, not the
+  services'; and none of the three worst-affected services acquires a capability at
+  runtime — `cap_broker`/`cap_install`/`sys_cap` appear **0** times in each of
+  `secure-transportd`, `diagnosticsd`, `upgraded` (control: `fjell-cap-broker`
+  itself matches).
+- **Why it is worse than a dead path.** `sys_ipc_recv`
+  (`crates/fjell-kernel/src/cap/syscall.rs:552`) resolves the handle with
+  `cs.get(ep_h)` and, on `Err`, **returns the error immediately — it does not
+  block** (an empty slot yields `Err(InvalidCap)`; `fjell-neg-test:109` already
+  records that shape for `sys_cap_inspect`). Both services then map
+  `Err(_) => (0, 0, 0)`, and tag `0` is in neither protocol's vocabulary
+  (`SxtTag::from_u16(0)` → `None`; `diagnosticsd` compares against `0x401`/`0x403`),
+  so both fall out of the bottom of their event loop and re-enter it at once.
+  **`secure-transportd` and `fjell-diagnosticsd` busy-spin for the lifetime of every
+  boot**, each under a comment describing the work it is doing.
+- **Observed, 27 boots:** `secure-transportd` prints `starting` then `ready` and
+  **never one of its three per-outcome lines** (`channel opened`, `handshake
+  failed`, `channel table full`) in any recorded serial log. Control: logs from the
+  same boots carry real traffic lines for services that do receive.
+- **Two readiness notifications are also wrong, in two different ways.**
+  `transportd:128` *"Notify service-manager we are ready"* sends on slot **1**,
+  which is empty — the send simply fails. `diagnosticsd:33` does the same on slot
+  **0**, which is **its own** endpoint on the **shared** object `0`, so the
+  notification goes to whoever else receives there. Nine services use
+  `SERVICE_READY_SEND_SLOT`, which RFC-0.28-001 installed uniformly for exactly
+  this reason; these two do not. `fjell-netd:50` states the hazard in its own
+  comment — a fixed install *"instead of a per-image declaration that has to be
+  remembered to wire up"* — two lines above a per-image declaration nobody wired up.
+- **What this means for E-070.** The uncarried channel-kind word is **not** the
+  first cause of the update-index fetch failing. The IPC never happens at all:
+  `upgraded` sends on slot 6 and `transportd` receives on slot 2, and neither slot
+  exists. E-070's amendment told whoever takes that line to re-derive the chain
+  rather than assume it; **this is the chain**, and it sits under the word.
+- **Why nothing saw it:** the service-side slot layout and the kernel-side install
+  are **two independent declarations of one topology**, and no gate compares them.
+  Gate 11's callsite conformance checks LEASE / CAP / SYSCALL / BCB callsites, not
+  this. Every affected tier passes, because nothing asserts that these services ever
+  exchange a message.
+- **Found by:** the architect, 2026-10-14, while scoping 0.35 — specifically while
+  deciding E-068/E-069's direction, which could not be decided without knowing
+  whether the endpoints in question exist.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), tracked **0.35**, in
+  `v1-limitations.md`. Folded into 0.35's first line, because **E-070 cannot be
+  closed without it**. What closing it requires: **one** declaration of each
+  service's CSpace layout that the kernel install and the service agree on by
+  construction, and **a gate that fails when a service names a slot the kernel does
+  not install for it** — the absence of that comparison is the defect; the eleven
+  slots are its instances. Separately and not optionally: **a recv error must not be
+  a tight loop.** `attestd`'s and `netd`'s own consequences are **not re-derived
+  here** and must be, individually, by whoever takes the line — they are recorded as
+  the same class, not as the same outcome.
+
+## E-073 — two `#[repr(C)]` wire layouts are described by nothing a gate compares, and one is written raw by the kernel
+
+- **Split from E-065, 2026-10-14**, where both were two of five survivors. E-065
+  keeps the two digest streams, which are bounded; these two are not, for one
+  reason that belongs to the kernel.
+- **Claim:** RFC-0.33-003 D6 — *"every format written to disk or sent over IPC has a
+  file or a recorded reason; 'nobody wrote one' is not a reason."*
+- **Tree, observed 2026-10-14:** both crates are typed
+  `Exclusion::Survivor` in `fjell_schema::registry::EXCLUSIONS`, so neither is a
+  gap nobody noticed — but **the bytes are described by nothing a gate compares**:
+  - **`fjell-audit-format`** — `AuditRecordBin`, written **raw by the kernel's
+    `sys_audit_drain`**, plus `AuditPersistRecord` and `AuditLogHeader`.
+  - **`fjell-net-format`** — `NetDescriptorHeader` and `NetDriverPacket`; nothing
+    outside the crate uses either today.
+- **Why it is not simply scheduled with the rest:** the layouts are `#[repr(C)]` and
+  padding-free with compile-time size assertions, so a named-field serialiser **can**
+  write the same bytes — that part is ordinary work. What is not ordinary is that
+  closing `AuditRecordBin` honestly means **changing where the kernel writes an audit
+  record**, on the path that every audit entry in the system takes. A description
+  that describes a serialiser the kernel does not use would be the E-014 class: a
+  file asserting coverage of bytes nobody writes that way.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs, so it is not re-derived: named-field
+  serialisers producing **byte-identical** output against goldens captured from the
+  present layouts first; then the kernel's raw write moved onto the serialiser as a
+  **separate, kernel-side** change with its own demonstration that the bytes did not
+  move. Until the kernel half is designed, `fjell-audit-format` stays a survivor and
+  says why. `fjell-net-format` has no kernel dependency and may go first.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -4955,6 +5079,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin, so `diagnosticsd`, `attestd` and `service-manager` can never be served by it | unscheduled | ACCEPTED |
 | E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | 0.35 | ACCEPTED |
 | E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | 0.35 | ACCEPTED |
+| E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | 0.35 | ACCEPTED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | RFC-0.34-004 | CLOSED |
@@ -4963,7 +5088,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
-| E-065 four format crates that produce bytes (the measurement chain digest, the bundle digest, the audit and net `#[repr(C)]` layouts) still have no generated description — named survivors of E-045's census; the fifth, the semantic wire codec, was resolved by RFC-0.34-003 | unscheduled | ACCEPTED |
+| E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | 0.35 | ACCEPTED |
+| E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

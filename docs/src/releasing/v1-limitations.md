@@ -1254,7 +1254,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   (E-048; hardware bring-up, E-004) — so no path here has run on a real board's
   tree, and this line says nothing about one.
 - **Four formats that produce bytes still have no generated description**
-  (Erratum **E-065**, ACCEPTED 2026-09-25; unscheduled). RFC-0.33-003 gave nine formats a
+  (Errata **E-065**, ACCEPTED 2026-09-25, **tracked 0.35** for the two digest streams;
+  **E-073**, split out 2026-10-14, unscheduled, for the two `#[repr(C)]` layouts, because
+  `AuditRecordBin` is written **raw by the kernel's `sys_audit_drain`** and closing it
+  honestly is a kernel-side change). The set is **managed, not merely listed**:
+  `fjell_schema::registry::EXCLUSIONS` types each crate `InMemoryOnly` or
+  `Survivor { erratum, what }`, and `crates/fjell-schema/tests/frozen.rs` fails when a
+  formats crate is neither described nor excused, when a survivor names an erratum the
+  register does not contain, or when a survivor's probe stops finding a producer — so a
+  **fifth** undescribed format cannot appear silently. RFC-0.33-003 gave nine formats a
   description generated from the encoder that writes them, and a check that fails on drift;
   **RFC-0.34-003 added the one that matters most — `fjell-semantic-format`'s `wire`, the IPC
   codec every publisher and presentation exchanges** (18 generated files now). Four remain,
@@ -1293,3 +1301,22 @@ Additional operational notes (not Gate 9 items, listed for completeness):
     to its full two-build mode, and has no `--help` — so the natural way to ask for
     usage starts a build that can race a concurrent `test-all`. It has happened
     twice (**E-071**).
+- **Five services address peers through CSpace slots the kernel never installs, and
+  two of them busy-spin on the absence for the lifetime of every boot** (Erratum
+  **E-072**, ACCEPTED 2026-10-14, tracked **0.35**). `fjell-secure-transportd`,
+  `fjell-diagnosticsd`, `fjell-upgraded`, `fjell-attestd` and `fjell-netd` declare
+  named capability slots — eleven of them — and `crates/fjell-kernel/src/task/spawn.rs`
+  installs, for every image, only slot 0 and `SERVICE_READY_SEND_SLOT`; its per-image
+  install blocks cover nine other images and **none of these five**. `sys_ipc_recv`
+  returns the capability error immediately rather than blocking, both services map it
+  to a zero tag that is in neither protocol's vocabulary, and both loops re-enter at
+  once: **`secure-transportd` and `fjell-diagnosticsd` spin**, each under a comment
+  describing the work it is doing, and 27 recorded boots show `secure-transportd`
+  printing `ready` and then none of its three per-outcome lines, ever. Two readiness
+  notifications are wrong with it — one sends into an empty slot, one into the
+  service's **own** shared endpoint instead of `service-manager`'s. **This is what
+  E-070 sits on**: the update-index fetch fails below the uncarried word, because the
+  IPC never happens. The defect is that the service-side layout and the kernel-side
+  install are two independent declarations of one topology and **no gate compares
+  them**; the eleven slots are instances. `fjell-attestd`'s and `fjell-netd`'s own
+  consequences are recorded as the same class and are **not** re-derived here.
