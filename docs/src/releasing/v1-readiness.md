@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.33.0
+## Summary at 0.34.0
 
 | Status | Count |
 |--------|-------|
@@ -138,7 +138,16 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > because it looks only for `**OPEN**` cells and never compares what this document
 > *claims* with what it *contains* — the E-014 class, in the document that is the
 > v1.0 readiness gate. The figures above are `readiness-check`'s. **Nothing yet
-> checks that they stay its**, which is why 0.34 carries a line for it.
+> checks that they stay its.**
+>
+> **Amended 2026-10-14, at the 0.34.0 tag.** The sentence above ended *"which is
+> why 0.34 carries a line for it"*. **0.34 did not**: when the owner scoped 0.34
+> on 2026-10-13 they left that check out, and 0.34.0 shipped without it. It is
+> unscheduled, not tracked. Re-taken at this tag, `readiness-check` still counts
+> **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0** — unchanged by 0.34.0, whose
+> two RFCs touch no cell of this matrix — so only the heading and this clause
+> moved. A note that corrects a stale claim is not exempt from going stale
+> itself.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
