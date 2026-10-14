@@ -78,7 +78,14 @@ fn main() -> ExitCode {
     if let Some(bad) = first_unrecognized(&args) {
         eprintln!("mmio-audit: unrecognised argument: {bad}");
         eprintln!("{USAGE}");
-        return ExitCode::FAILURE;
+        // **2, not 1.** This module's own doc above said "exits 2" while
+        // this line returned `ExitCode::FAILURE` (1) — corrected at review,
+        // 2026-10-14. The distinction is load-bearing: `1` is this tool's
+        // "a site is missing its annotation", a real finding a caller
+        // reports as a defect. A caller that typoes a flag must not be told
+        // the audit failed. `fjell-unsafe-audit` already separates the two
+        // this way.
+        return ExitCode::from(2);
     }
 
     let check_mode = args.iter().any(|a| a == "--check");

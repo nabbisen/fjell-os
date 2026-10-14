@@ -20,8 +20,9 @@
 //! `fjell-repro-check -- --help`, asking what the flags are, **started a
 //! build** instead of answering. It has happened twice (a prebuilt rebuild
 //! in 0.33, and `--help` itself at RFC-0.34-004, killed by a broken pipe
-//! beside a live `test-all`). An unrecognised argument now exits non-zero
-//! with the usage below; `--help`/`-h` prints it and exits zero. Neither
+//! beside a live `test-all`). An unrecognised argument now exits **2** with
+//! the usage below — not 1, which is this tool's "the artefacts are not
+//! reproducible"; `--help`/`-h` prints it and exits zero. Neither
 //! starts a build. `--artefacts <dir>` was documented here and never
 //! implemented — removed from this usage rather than carried forward as a
 //! second instance of the same defect this line exists to close.
@@ -121,7 +122,14 @@ fn main() -> ExitCode {
     if let Some(bad) = first_unrecognized(&args) {
         eprintln!("fjell-repro-check: unrecognised argument: {bad}");
         eprintln!("{USAGE}");
-        return ExitCode::FAILURE;
+        // **2, not 1** (corrected at review, 2026-10-14). `1` is already
+        // this tool's "the artefacts are not reproducible" — the loudest
+        // thing it can say. Returning it for a mistyped flag would make a
+        // caller report a reproducibility failure that did not happen,
+        // which is the same confusion between "could not ask" and "the
+        // answer is no" that this line exists to remove.
+        // `fjell-unsafe-audit` separates them this way already.
+        return ExitCode::from(2);
     }
 
     let skip_build = args.iter().any(|a| a == "--skip-build");

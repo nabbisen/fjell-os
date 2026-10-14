@@ -102,6 +102,19 @@ failure, and five of them **look like success at the moment they happen**.
      real fixes. *(0.33.0. Self-caught, stopped with `TaskStop`, disclosed in the
      review request, and the reason that cut's figures are trustworthy.)*
 
+8. **One subcheck is *designed* to go red the moment you bump the version.**
+   `readiness-summary` compares `v1-readiness.md`'s `## Summary at <version>`
+   heading, its four counts and the prose beneath it against what
+   `readiness-check` actually counts and against the workspace version. Step 2
+   moves the version, so between the bump and your re-take, **Gate 12 is red
+   and nothing is wrong**. Re-take the summary in the bump commit and it never
+   appears. *(Added by the architect at RFC-0.35-003's review, 2026-10-14,
+   because the subcheck landed without this step and the next cut would have
+   met a red gate with no instruction. The matrix's summary disagreed with its
+   own rows twice — at 0.34's scoping and again at the 0.34.0 tag — with Gate 5
+   green both times; this subcheck is what stops the third time, and a release
+   is exactly when it must bite.)*
+
 ## 0.2 Settled — do not re-open
 
 - **The tag carries no `v` prefix.** `0.30.0`, never `v0.30.0` (Rust crate
@@ -122,7 +135,16 @@ The sequence is load-bearing — trap 2 exists because it was done in a differen
 order once.
 
 1. **Entry criteria** — tree clean, RFCs reviewed, no open finding.
-2. **Bump both version strings** (trap 1).
+2. **Bump both version strings** (trap 1), **and re-take
+   `v1-readiness.md`'s summary in the same commit** (trap 8). The bump makes
+   `readiness-summary` — Gate 12's 20th subcheck since RFC-0.35-003 — fail at
+   once, because the matrix's heading still names the previous release:
+   `heading says "Summary at 0.34.0"; the workspace version is 0.35.0`. That
+   is the gate working. Update the heading to this release, run
+   `cargo xtask readiness-check`, and make the summary table's four counts and
+   the prose beneath it agree with what it prints. *(Not a new numbered step,
+   deliberately: see the note at step 12 on why this document does not
+   renumber.)*
 3. **Pin the three crates.io logo URLs** to this release's tag, in the
    version-bump commit (§3).
 4. **`cargo xtask build`.**

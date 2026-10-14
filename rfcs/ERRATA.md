@@ -5290,6 +5290,26 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the same shape `fjell-repro-check`, `fjell-unsafe-audit` and
   `fjell-mmio-audit` now use — not repaired here, per R4's own scope: report
   the same defect, fix it; file what turns out to be a different one.
+- **The sweep's one named-not-filed case, recorded here so it is not only in an
+  answer document** (architect, at review, 2026-10-14).
+  `tools/fjell-readiness-check` has **both** ingredients of E-071's predicate —
+  no `--help`, and an unrecognised argument silently accepted — and **not** the
+  consequence: its single behaviour is a cheap read of `v1-readiness.md`, so a
+  mistyped flag selects nothing different and costs nothing. The implementer
+  judged it outside R4's bound and named it in the sweep table rather than
+  repairing it; **that judgement is right**, and R4's own wording ("fix the same
+  defect; file the rest") left a third case it did not describe — neither fixed
+  nor filed, but reasoned about. It is reasoned about **here** now. If it ever
+  grows a second mode, it acquires E-071's shape on that day and must be fixed
+  then, not swept again.
+- **Three tools, one exit-code contract** (architect, at review, 2026-10-14). The
+  three repairs first returned **1** for a usage error in `fjell-repro-check` and
+  `fjell-mmio-audit` and **2** in `fjell-unsafe-audit`, and `fjell-mmio-audit`'s
+  own module doc said *"exits 2"* beside code that exited 1. `1` is already
+  "the artefacts are not reproducible" / "a site is missing its annotation" — the
+  loudest thing either tool can say — so a mistyped flag would have been reported
+  to a caller as a real finding. All three now exit **2** for a usage error and
+  keep **1** for a finding, which is what `fjell-unsafe-audit` had right first.
 
 ## Summary
 
