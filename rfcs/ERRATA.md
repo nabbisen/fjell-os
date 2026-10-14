@@ -4665,11 +4665,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   producer (*"reclassify it"*). **A fifth undescribed format cannot appear
   silently**; the four are named, typed and tested. So scheduling is a choice, not a
   necessity, and this entry is scheduled by what is **bounded**:
-  - **Tracked 0.35: the two digest streams.** `fjell-measure-format`'s
+  - **Tracked RFC-0.35-004 (accepted 2026-10-15): the two digest streams.** `fjell-measure-format`'s
     `compute_chain_digest` and `fjell-bundle-format`'s `compute_bundle_digest` move
     onto `Canon`, which gains a **big-endian integer** — the one real design piece,
     and a small one. Goldens captured from the **unmodified** encoders first, as
     RFC-0.33-003 and RFC-0.34-003 both did.
+
+  > **Measured 2026-10-15, at RFC-0.35-004's acceptance, because this entry's own
+  > words overstate the gap.** It says *"big-endian integers, which `Canon` does
+  > not yet express"* — plural, and reading as an endianness feature. Read at
+  > `234e395`: `compute_chain_digest` needs **no new `Canon` primitive at all**
+  > (domain, `u16` LE, `u64` LE, three `u8`s, 32-byte digests, and a presence byte
+  > followed by a **fixed** 32-byte slot — note that this is *not* `Canon::optional`,
+  > which writes its body only when present, so reaching for it would describe a
+  > different format). `compute_bundle_digest` needs **one** method, a big-endian
+  > `u32`. One primitive, two encoders, two files. The scheduling argument was
+  > never the size; the size was smaller than this entry implied.
   - **Split out as E-073: the two `#[repr(C)]` layouts.** `fjell-audit-format` and
     `fjell-net-format` need named-field serialisers writing the same bytes **plus a
     kernel-side change** to `sys_audit_drain`'s raw write of `AuditRecordBin`. That
@@ -5385,7 +5396,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
-| E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | 0.35 | ACCEPTED |
+| E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | RFC-0.35-004 | ACCEPTED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
 | E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | unscheduled | ACCEPTED |
