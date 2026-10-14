@@ -5087,6 +5087,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   move. Until the kernel half is designed, `fjell-audit-format` stays a survivor and
   says why. `fjell-net-format` has no kernel dependency and may go first.
 
+## E-074 — two capability-addressing functions that no caller reaches, inside an entry that is now closed
+
+- **Split from E-072 at its closure, 2026-10-14**, where `fjell-attestd` and
+  `fjell-netd` were named as survivors. They are a **different defect with a
+  different remedy**, which is why they get a number rather than living on inside a
+  CLOSED entry: E-072 is *declared but not installed*, and its remedy is install or
+  waive; this is *built and never wired to a caller*, and its remedy is call it or
+  delete it.
+- **Claim:** `fjell-attestd` offers `push_attestation`, which addresses
+  `secure-transportd` through its declared slot **5** (`CAP_SXT_EP`); `fjell-netd`
+  declares slot **1** (`CAP_DRV_EP`) for its driver.
+- **Tree, observed 2026-10-14 at `78e1637`**, re-derived by the implementer
+  individually rather than inferred from E-072's shared shape (the handoff required
+  that, and they did it):
+  - `attestd`'s `push_attestation` is the **only** user of slot 5 and has **zero
+    call sites anywhere in the tree** — a dead `pub fn`. Its own main loop receives
+    on slot 0 (`EP_SLOT`), so the missing capability is never reached at runtime.
+  - `netd`'s `CAP_DRV_EP` has **no reference outside its own `const` declaration**;
+    `recv_msg` hardcodes `sys_ipc_recv_msg(0)`.
+- **Why this is materially better than E-072's two spinners, and still not
+  acceptable:** neither busy-spins, because neither path runs at all. But a function
+  that addresses a peer through a capability nobody installed, with no caller, is a
+  promise in the shape of code — the next person to call it gets E-072's failure,
+  and the `Err(_) => (0, 0)` arm underneath it will convert that into a plausible
+  zero.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), tracked **RFC-0.35-002**, in
+  `v1-limitations.md`. It belongs there and not in RFC-0.35-001 because the decision
+  is the same one that line is already making for `diagnosticsd` and `transportd`:
+  **serve it or retract it**, and the ruling in that RFC — retract — applies by the
+  same four arguments. Deleting a dead `pub fn` is the cheapest honest outcome; if
+  either is kept, it needs a caller and a capability in the same line, not a
+  declaration waiting for one.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5150,7 +5183,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
 | E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented, so a diagnostics audit query returns nothing and cannot say why | unscheduled | ACCEPTED |
 | E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin, so `diagnosticsd`, `attestd` and `service-manager` can never be served by it | unscheduled | ACCEPTED |
-| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | RFC-0.35-001 | CLOSED |
+| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario — **closed as to the vanishing message, not as to the fetch**: it still returns `None`, now because the TLS handshake correctly fails closed against an unprovisioned trust anchor, a separate limitation already in `v1-limitations.md` | RFC-0.35-001 | CLOSED |
 | E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | RFC-0.35-003 | ACCEPTED |
 | E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | RFC-0.35-001 | CLOSED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
@@ -5163,6 +5196,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
 | E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | 0.35 | ACCEPTED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
+| E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — built and never wired, a different defect from E-072's declared-but-not-installed, split out at its closure so a CLOSED entry does not carry live residuals | RFC-0.35-002 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

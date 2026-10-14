@@ -129,10 +129,34 @@ decision; do not inherit it from a counter's initial value.
 `ACTIVE_SLOT_WRITE_REJECTED`, `HEALTH_FAILURE_NOT_CONFIRMED` — get an emitting
 scenario, and `release_gated` becomes `true` with `not_gated_reason` removed.
 Each marker must assert the **real refusal** at the point the decision is made, not
-a print beside it: `verifyd`'s `VERIFY_FAIL` arm, `fjell-bootctl`'s slots,
-`upgraded`'s own `confirm`. `test-all` then reports **30 of 31 gated**, and the
-`store` tier's own `not_gated_reason` must be **narrowed** so it no longer speaks
-for a tier that is now gated.
+a print beside it: `verifyd`'s `VERIFY_FAIL` arm, and `fjell-bootctl`'s slot and
+health decisions. `test-all` then reports **30 of 31 gated**, and the doc comments
+that speak for **both** not-gated tiers must be narrowed so they no longer describe
+a tier that is now gated.
+
+> **Amended by the architect, 2026-10-14, at the first review — two errors of mine
+> in the paragraph above.**
+>
+> 1. It named **`upgraded`'s own `confirm`** as a mechanism for
+>    `HEALTH_FAILURE_NOT_CONFIRMED`. `confirm` is the **anti-rollback counter** and
+>    has nothing to do with a health check; asserting that marker on it would have
+>    asserted the wrong thing under a right-sounding name. The implementer caught
+>    this and used `fjell-bootctl`'s A/B health-decision path, flagging the
+>    deviation in `d9f1947`'s own message. **They were right and I was wrong**, and
+>    the sentence is corrected rather than left for the next reader to trip over.
+> 2. It said the **`store` tier's own `not_gated_reason`** spoke for a tier that is
+>    now gated. It does not and never did — `tests/qemu/profiles/store.toml`'s
+>    reason is per-profile and names only `store`. What spoke for both tiers were
+>    the doc comments at `crates/fjell-tools/src/qemu_run.rs:56` and
+>    `crates/fjell-tools/src/test_all.rs:21`, which is what the requirement now
+>    says and what the implementer in fact narrowed.
+>
+> The difference between the two is worth naming, because it is the whole of this
+> project's method: error 1 would have produced a tier asserting a falsehood, and it
+> was corrected out loud. Error 2 could only corrupt the record, and it was worked
+> around silently — `d9f1947`'s message claims `store.toml` was narrowed, and that
+> file is untouched by this line. A mis-specified requirement is to be **named**,
+> not satisfied in words.
 
 **R8 — E-070 and E-072 CLOSED**, or survivors named, with `v1-limitations.md` in
 the same commit as the register. `attestd`'s and `netd`'s consequences are **not**

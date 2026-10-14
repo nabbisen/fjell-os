@@ -12,6 +12,12 @@ shared API's protocol constants and once in a service's endpoint set.
 `crates/services/fjell-diagnosticsd/`, `crates/services/fjell-secure-transportd/`,
 `crates/services/fjell-auditd/`, `rfcs/ERRATA.md`,
 `docs/src/releasing/v1-limitations.md`.
+**Also tracks (added 2026-10-14, at RFC-0.35-001's first review): E-074** —
+`fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer
+through a capability nobody installs and have **no caller at all**. Split from E-072
+at its closure because the remedy is this line's question, not that one's: **serve it
+or retract it**, and the ruling below applies to both by the same four arguments.
+Neither busy-spins; both are promises in the shape of code.
 **Relates to:** **RFC-0.35-001**, which establishes that the slots these protocols
 would travel through are not installed at all — read it first; **T23** of
 `threat-model-v1.md`, the operator shown false state, which E-068's hang is an
@@ -104,7 +110,11 @@ constants go; `:131`'s comment describes the single-endpoint loop that exists.
 Nothing here installs a capability — RFC-0.35-001 decides installs, and its R5
 deliberately excludes these.
 
-**R5 — No loop spins on absence.** In both services, an unexpected tag and a
+**R5 — No loop spins on absence.** *(Partly landed early: RFC-0.35-001 added
+`sys_yield()` to both recv-error arms, because E-072's closure required the spin to
+be gone. What remains here is the rest of the requirement — and note that
+`diagnosticsd`'s loop still errors on **every** iteration, politely now, because its
+slot is this line's decision.)* In both services, an unexpected tag and a
 **recv error** must be distinguishable from each other and from a message, and
 neither may re-enter the loop silently. Fail closed and say so on the console; a
 service that cannot receive is not a service that should keep trying at full speed.
@@ -115,8 +125,8 @@ for a service nothing is talking to.
 that sends `BUILD_BUNDLE` and does not come back), and show it gone after. An
 absence probe is not evidence that a loop terminates.
 
-**R7 — E-068 and E-069 CLOSED**, with E-068's **consequence corrected** in the
-register — *"returns nothing, silently"* understates a hang — and
+**R7 — E-068, E-069 and E-074 CLOSED**, with E-068's **consequence corrected** in
+the register — *"returns nothing, silently"* understates a hang — and
 `v1-limitations.md` in the same commit.
 
 **R8 — The gates**, each by its own exit status; `test-all`; a CI run id.
@@ -124,6 +134,9 @@ register — *"returns nothing, silently"* understates a hang — and
 ### Non-goals
 
 - Implementing an audit query (that is the thing being deferred, deliberately).
+- Giving `attestd`'s `push_attestation` or `netd`'s `CAP_DRV_EP` a caller **and** a
+  capability. If either is kept, both are needed in one line; this line's expected
+  answer for them is deletion.
 - Serving `diagnosticsd`, `attestd` or `service-manager` over the secure transport.
 - Installing any capability slot (RFC-0.35-001).
 - A kernel multiplexed `recv`.

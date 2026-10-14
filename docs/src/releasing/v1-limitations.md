@@ -1350,3 +1350,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   every boot, but it now yields instead of spinning. Two readiness notifications are
   still wrong — one sends into an empty slot, one into the service's **own** shared
   endpoint instead of `service-manager`'s — untouched by this line.
+- **Two capability-addressing functions that no caller reaches** (Erratum **E-074**,
+  ACCEPTED 2026-10-14, tracked **RFC-0.35-002**; split from E-072 at its closure, so
+  a closed entry does not carry live residuals). The two survivors above are a
+  **different defect with a different remedy**: E-072 was *declared but not
+  installed*, fixed by installing or waiving; this is *built and never wired to a
+  caller*, fixed by calling it or deleting it. Neither path runs today, which is why
+  neither spins — but a function that addresses a peer through a capability nobody
+  installed, with no caller, is a promise in the shape of code: the next person to
+  call it meets E-072's failure with an `Err(_) => (0, 0)` arm underneath that turns
+  it into a plausible zero. **Serve it or retract it**, the same decision
+  RFC-0.35-002 is already making for `diagnosticsd` and `secure-transportd`.

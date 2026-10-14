@@ -767,12 +767,18 @@ fn scan_content_into(
 }
 
 /// Test-only, filesystem-free entry point preserving the original
-/// `scan_content` signature.
+/// `scan_content` signature. `#[cfg(test)]` because it says *test-only* and
+/// the compiler should enforce that rather than warn about it (added
+/// 2026-10-14: RFC-0.34-003's D8 commit left both of these reachable only
+/// from tests, so every build of this tool printed two `dead_code`
+/// warnings).
+#[cfg(test)]
 fn scan_content(content: &str, crate_name: &str, module: &str) -> Vec<AbiItem> {
     scan_content_as(content, crate_name, module, false)
 }
 
 /// As [`scan_content`], for a crate that is `published` (its derive sets are hashed).
+#[cfg(test)]
 fn scan_content_as(content: &str, crate_name: &str, module: &str, published: bool) -> Vec<AbiItem> {
     let mut items = Vec::new();
     let mut file_mods = Vec::new();
