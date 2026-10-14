@@ -15,12 +15,30 @@
 //! and two of them were found to be bit-for-bit identical — this project's
 //! same-machine build is, as measured, actually reproducible.
 //!
-//! Usage:
-//!   `fjell-repro-check [--artefacts <dir>] [--build-cmd <cmd>] [--skip-build]`
+//! RFC-0.35-003 (closes E-071): an unrecognised argument used to be
+//! silently ignored and fell through to the full two-build mode — so
+//! `fjell-repro-check -- --help`, asking what the flags are, **started a
+//! build** instead of answering. It has happened twice (a prebuilt rebuild
+//! in 0.33, and `--help` itself at RFC-0.34-004, killed by a broken pipe
+//! beside a live `test-all`). An unrecognised argument now exits non-zero
+//! with the usage below; `--help`/`-h` prints it and exits zero. Neither
+//! starts a build. `--artefacts <dir>` was documented here and never
+//! implemented — removed from this usage rather than carried forward as a
+//! second instance of the same defect this line exists to close.
 //!
-//! `--skip-build` assumes the artefacts already exist and just reports
-//! whether two sets of digests (passed via stdin or a file) match.
-//! In `--skip-build` mode the tool runs quickly enough to include in CI.
+//! Usage:
+//!   `fjell-repro-check [--build-cmd <cmd>]`
+//!   `fjell-repro-check --skip-build [--baseline <path>] [--record-baseline]`
+//!   `fjell-repro-check --help | -h`
+//!
+//! With no `--skip-build`, runs the two-build check above. `--skip-build`
+//! assumes the artefacts already exist and just reports whether the
+//! current digests match a committed baseline — quick enough for CI.
+//! `--build-cmd <cmd>` passes one extra argument to `cargo xtask build`
+//! (two-build mode only). `--baseline <path>` names the baseline file
+//! (`--skip-build` only; default `tests/repro/baseline-digests.txt`).
+//! `--record-baseline` records a new baseline instead of comparing
+//! (`--skip-build` only; refuses if one already exists — delete it first).
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -41,8 +59,71 @@ const DEFAULT_TARGETS: &[&str] = &[
 /// the host build cache (this tool's own binary included) warm.
 const TARGET_TRIPLE: &str = "riscv64gc-unknown-none-elf";
 
+const USAGE: &str = "\
+Usage:
+  fjell-repro-check [--build-cmd <cmd>]
+  fjell-repro-check --skip-build [--baseline <path>] [--record-baseline]
+  fjell-repro-check --help | -h
+
+With no --skip-build, runs two genuinely independent builds (a scoped
+`cargo clean` before each) and compares every targeted artefact's SHA-256
+digest.
+
+  --build-cmd <cmd>    one extra argument passed to `cargo xtask build`
+                       (two-build mode only)
+
+--skip-build compares the artefacts already on disk against a committed
+baseline, without building -- quick enough for CI.
+
+  --baseline <path>    baseline file (default: tests/repro/baseline-digests.txt)
+  --record-baseline    record a new baseline instead of comparing
+                       (refuses if one already exists -- delete it first)
+
+  --help, -h           print this usage and exit";
+
+/// Standalone flags this tool recognises, taking no value.
+const KNOWN_FLAGS: &[&str] = &["--skip-build", "--record-baseline", "--help", "-h"];
+/// Flags this tool recognises that consume the following argument as a value.
+const KNOWN_VALUE_FLAGS: &[&str] = &["--build-cmd", "--baseline"];
+
+/// RFC-0.35-003 (closes E-071): the first unrecognised argument, or `None`
+/// if every argument is a known flag or a value a known flag consumed.
+/// Walks forward rather than using `.any()` per flag, so a value-flag's own
+/// value (e.g. the `<cmd>` after `--build-cmd`) is never itself checked
+/// against `KNOWN_FLAGS` and misread as an unrecognised flag.
+fn first_unrecognized(args: &[String]) -> Option<&str> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if KNOWN_VALUE_FLAGS.contains(&a) {
+            i += 2; // skip the flag and its value, present or not
+            continue;
+        }
+        if KNOWN_FLAGS.contains(&a) {
+            i += 1;
+            continue;
+        }
+        return Some(a);
+    }
+    None
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    // Checked before validation: asking for help is always answerable,
+    // whatever else is on the command line.
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+
+    if let Some(bad) = first_unrecognized(&args) {
+        eprintln!("fjell-repro-check: unrecognised argument: {bad}");
+        eprintln!("{USAGE}");
+        return ExitCode::FAILURE;
+    }
+
     let skip_build = args.iter().any(|a| a == "--skip-build");
 
     if skip_build {
@@ -409,6 +490,68 @@ fn load_digests(path: &str) -> std::io::Result<BTreeMap<String, String>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn strs(args: &[&str]) -> Vec<String> {
+        args.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn no_args_is_recognised() {
+        assert_eq!(first_unrecognized(&strs(&[])), None);
+    }
+
+    #[test]
+    fn every_known_standalone_flag_is_recognised() {
+        for f in KNOWN_FLAGS {
+            assert_eq!(first_unrecognized(&strs(&[f])), None, "{f}");
+        }
+    }
+
+    #[test]
+    fn a_value_flag_s_own_value_is_not_checked_against_known_flags() {
+        // The value happens to look like a flag (`--skip-build`) -- it must
+        // still be consumed as --build-cmd's value, not flagged itself.
+        assert_eq!(
+            first_unrecognized(&strs(&["--build-cmd", "--skip-build"])),
+            None
+        );
+    }
+
+    #[test]
+    fn combining_recognised_flags_is_fine() {
+        assert_eq!(
+            first_unrecognized(&strs(&[
+                "--skip-build",
+                "--baseline",
+                "x.txt",
+                "--record-baseline"
+            ])),
+            None
+        );
+    }
+
+    #[test]
+    fn an_unrecognised_flag_is_named() {
+        assert_eq!(first_unrecognized(&strs(&["--bogus"])), Some("--bogus"));
+    }
+
+    #[test]
+    fn an_unrecognised_flag_after_recognised_ones_is_still_found() {
+        assert_eq!(
+            first_unrecognized(&strs(&["--skip-build", "--bogus"])),
+            Some("--bogus")
+        );
+    }
+
+    #[test]
+    fn removed_artefacts_flag_is_now_unrecognised() {
+        // RFC-0.35-003: --artefacts was documented, never implemented, and
+        // is not carried forward as a second instance of the same defect.
+        assert_eq!(
+            first_unrecognized(&strs(&["--artefacts", "/tmp"])),
+            Some("--artefacts")
+        );
+    }
 
     #[test]
     fn sha256_deterministic() {
