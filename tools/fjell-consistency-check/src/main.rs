@@ -32,6 +32,8 @@
 //!     tree
 //!   - `toolchain-declarations` — every live Fjell-toolchain declaration
 //!     site agrees with `rust-toolchain.toml`'s `channel` (RFC-0.30-003 §7)
+//!   - `readiness-summary` — `v1-readiness.md`'s own "Summary at …" block
+//!     agrees with the rows it summarises (RFC-0.35-003 R5)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -56,6 +58,7 @@ mod errata_limitations;
 mod errata_tracking;
 mod evidence;
 mod handoff_status;
+mod readiness_summary;
 mod rfc_status_folder;
 mod security_advisories;
 mod standards_mapping;
@@ -117,6 +120,9 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     // RFC-0.35-001 R4: a service's declared CSpace slot and the kernel's
     // install must agree.
     ("capability-topology", capability_topology::check),
+    // RFC-0.35-003 R5: v1-readiness.md's own "Summary at …" block must
+    // agree with the rows it summarises.
+    ("readiness-summary", readiness_summary::check),
 ];
 
 #[cfg(test)]

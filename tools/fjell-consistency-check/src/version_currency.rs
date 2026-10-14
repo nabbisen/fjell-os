@@ -185,7 +185,9 @@ fn find_stale_versions(src: &str, current: &str) -> Vec<String> {
 }
 
 /// Read `[workspace.package] version = "X.Y.Z"` from the root `Cargo.toml`.
-fn parse_workspace_version(src: &str) -> Option<String> {
+// `pub(crate)`: reused by `readiness_summary` (RFC-0.35-003 R6) so the
+// "what version is this right now" answer has one source, not two.
+pub(crate) fn parse_workspace_version(src: &str) -> Option<String> {
     let mut in_section = false;
     for line in src.lines() {
         let trimmed = line.trim();
