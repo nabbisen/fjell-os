@@ -59,13 +59,16 @@ const MEASUREDD_HEAD_REPLY: usize = 0x321;
 /// taken from bits 16-23 of the packed tag, and this call never set them —
 /// so removing the parameter changes no runtime behaviour. The
 /// `MAX_QUERY_RECORDS`/channel-id/max-count values this file's call sites
-/// used to pass were already inert: `fjell-auditd` never implements the
-/// `AUDIT_QUERY` protocol over IPC at all (it drains the audit ring
-/// unconditionally, ignoring tag and words), and `secure-transportd`'s
-/// receive loop never polls this service's endpoint in the first place —
-/// found while re-deriving this erratum, named in the register, not fixed
-/// here (see the answer document's §C: both are far outside this line's
-/// scope).
+/// used to pass were already inert.
+///
+/// **Updated 2026-10-14 (RFC-0.35-002 review).** This paragraph used to say,
+/// in the present tense, that `fjell-auditd` *never implements the
+/// `AUDIT_QUERY` protocol* and that the gap was *"not fixed here"*. There is
+/// no `AUDIT_QUERY` any more — RFC-0.35-002 retracted the sub-protocol and
+/// deleted its only caller — so the sentence described a protocol the tree
+/// no longer has. What remains true: `secure-transportd`'s receive loop
+/// serves one endpoint and never this service's, which is E-069's closure
+/// and `capability-topology`'s waiver for slot 2, not a pending fix.
 fn send_tag(ep: CapHandle, tag: usize) {
     let _ = fjell_syscall::sys_ipc_send(ep.0, tag);
 }
@@ -161,6 +164,11 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("diagnosticsd: starting");
     const PROVIDER_ID: TrustProviderId = TrustProviderId(1);
 
+    // E-075: `CAP_SMGR_EP` is slot 0 — this service's OWN identity endpoint
+    // on the shared object — so this tag reaches whichever service receives
+    // there, not service-manager. `SERVICE_READY_SEND_SLOT` is what the
+    // other nine use. Unchanged behaviour, claim withdrawn: see E-075 for
+    // why adopting that slot is not a two-line edit.
     send_tag(CAP_SMGR_EP, proto::READY);
     sys_debug_writeln("diagnosticsd: ready");
 

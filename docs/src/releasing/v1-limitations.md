@@ -1366,6 +1366,29 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   spinning or erroring silently (RFC-0.35-002 R5). Two readiness notifications are
   still wrong — one sends into an empty slot, one into the service's **own** shared
   endpoint instead of `service-manager`'s — untouched by either line.
+- **Two services announce their readiness to nobody, each under a comment saying
+  otherwise** (Erratum **E-075**, ACCEPTED 2026-10-14, unscheduled; carried out of
+  E-072 at its closure, where it was named in the body and then left behind).
+  `fjell-secure-transportd` sends readiness on **slot 1**, which nothing installs, so
+  the send fails and the error is discarded; `fjell-diagnosticsd` sends it on **slot
+  0**, its **own** identity endpoint on the shared object, so the tag reaches whichever
+  service receives there and not `service-manager`. RFC-0.28-001 installed
+  `SERVICE_READY_SEND_SLOT` uniformly for exactly this reason and **nine** services use
+  it; these two kept their own constant. The comments are corrected now; the fix needs
+  both services to adopt that slot **and** something that asserts `service-manager`
+  actually observes them, which is why it is not a two-line edit.
+- **A diagnostic bundle reports a measurement head of zeros when it could not ask for
+  one** (Erratum **E-076**, ACCEPTED 2026-10-14, unscheduled).
+  `fjell-diagnosticsd`'s `query_measurement_head` addresses **slot 4, which nothing
+  installs**, and on failure returns `Digest32([0u8; 32])` — thirty-two zero bytes in
+  the field that attests what the system measured, **indistinguishable from a real
+  digest**, with no flag saying the value was never obtained. This is the mechanism
+  E-074's entry predicted one line before it closed. The asymmetry is the point:
+  RFC-0.35-002 added `audit_available` so the audit section could not be silently
+  empty, and the measurement head in the same struct still fails open, so the bundle
+  now states honestly that it has no audit events and claims falsely that it measured
+  nothing. `push_bundle` shares the shape on slot 2 but fails **closed**, replying
+  `PUSH_FAULT`, so this is the measurement head alone.
 - **Two capability-addressing functions that no caller reaches** was Erratum
   **E-074**, **CLOSED** by **RFC-0.35-002** (split from E-072 at its closure, so a
   closed entry does not carry live residuals). The two survivors above were a

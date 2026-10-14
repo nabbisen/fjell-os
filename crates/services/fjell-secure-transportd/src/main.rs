@@ -157,7 +157,17 @@ pub extern "C" fn service_main() -> ! {
 
     let mut channels = ChannelTable::new();
 
-    // Notify service-manager we are ready.
+    // E-075: this send does NOT reach service-manager and never has.
+    // `CAP_SMGR_EP` is slot 1, which `spawn.rs` installs for no image, so
+    // the send fails the capability check and `send_tag` discards the
+    // error. Nine services announce readiness through
+    // `SERVICE_READY_SEND_SLOT`, installed uniformly for every image by
+    // RFC-0.28-001 precisely so this could not go to the wrong place; this
+    // service kept its own constant. Left in place rather than deleted
+    // because adopting that slot needs something that asserts
+    // service-manager observes it — see E-075. The comment that used to
+    // say "Notify service-manager we are ready" is the claim being
+    // withdrawn here, not the behaviour.
     send_tag(CAP_SMGR_EP, SxtTag::Opened as u16, 0);
     sys_debug_writeln("secure-transportd: ready");
 

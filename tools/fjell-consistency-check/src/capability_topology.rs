@@ -97,30 +97,45 @@ struct Waiver {
 /// to a caller — deleted rather than waived further). None of the five is
 /// discovered any more, so none would be matched here even if left in —
 /// removed anyway, so this list does not claim a slot exists that does not.
+/// **A waiver names where the slot's disposition lives, and that name has to
+/// keep meaning something.** All four of these said `RFC-0.35-002` until
+/// 2026-10-14; that line then finished without installing or deleting any of
+/// them, which left every reason here pointing at a completed line as though
+/// it were a pending decision — a waiver that cites nothing is a silence with
+/// a citation on it. Each now names the entry or closure that actually holds
+/// the slot. Re-check these whenever a line named here closes.
 const WAIVERS: &[Waiver] = &[
     Waiver {
         image: "SECURE_TRANSPORTD",
         slot: 1,
         purpose: "smgr readiness (superseded by SERVICE_READY_SEND_SLOT)",
-        reason: "E-072 survivor — not the update path (RFC-0.35-001 R5)",
+        reason: "E-075 — the readiness send fails and the claim is withdrawn; \
+                 adopting SERVICE_READY_SEND_SLOT needs an assertion that \
+                 service-manager observes it",
     },
     Waiver {
         image: "DIAGNOSTICSD",
         slot: 1,
         purpose: "tools",
-        reason: "RFC-0.35-002",
+        reason: "decided by RFC-0.35-002 (E-068 closed): deliberately not \
+                 installed, and the loop discloses the recv error once and \
+                 yields rather than spinning or failing silently",
     },
     Waiver {
         image: "DIAGNOSTICSD",
         slot: 2,
         purpose: "secure-transportd",
-        reason: "RFC-0.35-002",
+        reason: "E-069 closed: transportd serves one endpoint and never this \
+                 one; `push_bundle` fails closed on the absence and the caller \
+                 replies PUSH_FAULT, so nothing reads a false value",
     },
     Waiver {
         image: "DIAGNOSTICSD",
         slot: 4,
         purpose: "measuredd",
-        reason: "RFC-0.35-002",
+        reason: "E-076 — `query_measurement_head` folds the absence into a \
+                 32-byte zero digest the bundle presents as a measurement, \
+                 which is the one of these four that is not yet honest",
     },
 ];
 
@@ -398,8 +413,8 @@ pub fn check() -> ExitCode {
                 // once (R4's "show that run"), with the exit status
                 // carrying only the ones no waiver names.
                 println!(
-                    "{NAME}: note — {} slot {} ({}) is declared but spawn.rs installs \
-                     nothing there — waived to {}, not this line's business",
+                    "{NAME}: note — {} slot {} ({}) is declared, spawn.rs installs \
+                     nothing there, and that is accounted for: {}",
                     decl.image, decl.slot, w.purpose, w.reason
                 );
             }

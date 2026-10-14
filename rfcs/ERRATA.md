@@ -5165,6 +5165,79 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > than needing to fix. Full detail in
   > `rfcs/answers/RFC-0.35-002-protocols-and-authority-nobody-serves-answer.md`.
 
+## E-075 — two services announce their readiness to nobody, each under a comment saying otherwise
+
+- **Carried out of E-072 at its closure, 2026-10-14**, where it was named in the
+  entry's own body — *"Two readiness notifications are also wrong, in two different
+  ways"* — and then left behind when `attestd` and `netd` were carried out as E-074.
+  **A live defect whose only home is a CLOSED entry is not tracked**, and this
+  register has spent a milestone correcting exactly that shape. The architect's
+  omission, not the implementer's.
+- **Claim:** `crates/services/fjell-secure-transportd/src/main.rs:160` —
+  *"Notify service-manager we are ready."* `crates/services/fjell-diagnosticsd/src/main.rs:164`
+  sends `proto::READY` to `CAP_SMGR_EP`.
+- **Tree, observed 2026-10-14 at `3d78826`:** neither notification reaches
+  `service-manager`, in two different ways.
+  - `transportd`'s `CAP_SMGR_EP` is **slot 1**, which `spawn.rs` never installs
+    (E-072's own waiver names it *"superseded by `SERVICE_READY_SEND_SLOT`"*), so the
+    send fails the capability check and returns an error the `let _ =` discards.
+  - `diagnosticsd`'s `CAP_SMGR_EP` is **slot 0** — its **own** identity endpoint on
+    the **shared** object `0`. The tag goes to whichever service receives there,
+    which is not `service-manager`.
+- **Why nothing saw it:** RFC-0.28-001 installed `SERVICE_READY_SEND_SLOT`
+  uniformly for every image precisely so readiness could not be sent to the wrong
+  place, and **nine** services use it. These two never adopted it and kept their own
+  constant. Nothing compares a readiness send against that slot, and no tier asserts
+  that either service is seen ready.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs: both services send readiness through
+  `fjell_service_api::ready::SERVICE_READY_SEND_SLOT` like the other nine, their own
+  `CAP_SMGR_EP` constants go, and something asserts that `service-manager` actually
+  observes them — the last part being the reason this is not simply a two-line edit.
+  Until then **the comments must not say the notification happens**; that part is
+  corrected now, in this review, because a comment claiming a delivery that fails is
+  the defect class this milestone exists to remove.
+
+## E-076 — a diagnostic bundle reports a measurement head of zeros when it could not ask for one
+
+- **Claim:** `fjell-diagnosticsd`'s `build_bundle` fills
+  `DiagnosticBundle::measurement_head` with the measurement chain's head, queried
+  from `measuredd`.
+- **Tree, observed 2026-10-14 at `3d78826`:** `query_measurement_head` sends on
+  `CAP_MEASUREDD_EP` — **slot 4, which `spawn.rs` never installs** — and on a recv
+  error or an unexpected tag **returns `Digest32([0u8; 32])`**. The bundle then
+  carries thirty-two zero bytes in the field that attests what the system measured,
+  **indistinguishable from a real digest**, with no flag saying the value was never
+  obtained. `push_bundle` shares the shape on slot 2 but fails *closed* — it returns
+  `false` and the caller replies `PUSH_FAULT` — so the defect is the measurement
+  head alone.
+- **This is the mechanism E-074's own entry predicted**, one line before it was
+  closed: *"the next person to call it gets E-072's failure, and the
+  `Err(_) => (0, 0)` arm underneath it will convert that into a plausible zero."*
+  E-074's two functions had no caller. This one does: `build_bundle`, from the main
+  loop's `BUILD_BUNDLE` and `PUSH` arms — as reachable as the hang RFC-0.35-002
+  demonstrated and fixed, by the same scratch capability install.
+- **The asymmetry is what makes it an erratum rather than a note.** RFC-0.35-002
+  established the principle in its own words — *"a caller must be able to tell 'no
+  records' from 'not implemented'"* — and added `DiagnosticBundle::audit_available`
+  so the audit section could not be silently empty. **The measurement head, in the
+  same struct and the same commit, still fails open to zeros.** The bundle now
+  states honestly that it has no audit events and claims falsely that it measured
+  nothing.
+- **Why nothing saw it:** nothing in the tree sends `BUILD_BUNDLE`, so no bundle is
+  ever built outside a scratch harness; and a zero digest is a valid `Digest32`, so
+  no decoder refuses it.
+- **Found by:** the architect, 2026-10-14, reviewing RFC-0.35-002 — by asking what
+  the remaining `capability-topology` waivers would mean once the line they name had
+  finished.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), **unscheduled**, in
+  `v1-limitations.md`. Not a correction to RFC-0.35-002: that line's scope was the
+  audit query, and it is the line's own principle that condemns this. What closing it
+  needs: either the field carries its own availability, as `audit_available` now
+  does, or the bundle refuses to be built without a measurement head — **not** a zero
+  that reads as a measurement. The same question then applies to every other field
+  filled from a slot nobody installs.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5242,6 +5315,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | 0.35 | ACCEPTED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
+| E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | unscheduled | ACCEPTED |
+| E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
