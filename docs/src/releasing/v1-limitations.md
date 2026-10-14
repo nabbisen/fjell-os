@@ -1120,17 +1120,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   differed by spelling and seven described something other than what is hashed**.
   They are now **generated** by `cargo xtask schema dump` from the same functions
   that produce the bytes, compared with the code in Gate 1 (the comparison names
-  the field that drifted), and there are eighteen (seventeen when this was closed; the semantic wire codec's is the eighteenth, RFC-0.34-003). **What this does and does not
+  the field that drifted), and there are twenty (seventeen when this was closed;
+  the semantic wire codec's was the eighteenth, RFC-0.34-003; the measurement
+  chain and bundle digests are the nineteenth and twentieth, RFC-0.35-004, closing
+  E-065). **What this does and does not
   guarantee:** a change to a covered format's field names, types, widths, order or
   group capacity cannot be committed without its file changing; it does *not* see
-  the *values* of ordinary fields (the golden digests hold those for the fourteen
-  digest and codec formats they cover, and the three disk structures' own tests
+  the *values* of ordinary fields (the golden digests hold those for the formats
+  they cover, and the three disk structures' own tests
   hold theirs), and a version bump is something the diff makes visible to a
-  reviewer, not something a check enforces. **Survivors — Errata E-065 (ACCEPTED,
-  unscheduled):** four format crates produce bytes and still have no generated
-  description — the measurement chain digest, the bundle digest, and the audit and net
-  `#[repr(C)]` layouts (the semantic wire codec that services exchange over IPC was the
-  fifth and was resolved by RFC-0.34-003).
+  reviewer, not something a check enforces. **Survivors — Erratum E-073
+  (unscheduled):** two format crates produce bytes and still have no generated
+  description — `fjell-audit-format` and `fjell-net-format`'s `#[repr(C)]`
+  layouts, closing which needs the kernel's own `sys_audit_drain` to move.
 
 - **A fleet roster's digest covered only its first eight members** (Errata
   **E-066**, **CLOSED** 2026-09-24, found and fixed inside RFC-0.33-003). The
@@ -1262,28 +1264,39 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   profile, and `fjell-dtb-validate`'s full validation is still not wired into boot
   (E-048; hardware bring-up, E-004) — so no path here has run on a real board's
   tree, and this line says nothing about one.
-- **Four formats that produce bytes still have no generated description**
-  (Errata **E-065**, ACCEPTED 2026-09-25, **tracked 0.35** for the two digest streams;
-  **E-073**, split out 2026-10-14, unscheduled, for the two `#[repr(C)]` layouts, because
-  `AuditRecordBin` is written **raw by the kernel's `sys_audit_drain`** and closing it
-  honestly is a kernel-side change). The set is **managed, not merely listed**:
+- **Two digest streams that produced bytes and had no generated description**
+  was Erratum **E-065**, **CLOSED** by **RFC-0.35-004**. `fjell-measure-format`'s
+  `compute_chain_digest` and `fjell-bundle-format`'s `compute_bundle_digest` now
+  write through `Canon`, which gained one new method — a big-endian `u32`, with
+  the same "default writes what the encoder already wrote" treatment
+  RFC-0.34-003's five additions got, so **the existing eighteen descriptions are
+  unchanged**. Goldens captured from the unmodified encoders first (a
+  metadata-absent and a metadata-present case for the chain; a short and a
+  `SERVICE_NAME_MAX`-length name for the bundle) are reproduced byte for byte by
+  the moved encoders. The bundle digest's `name` carries no length prefix — the
+  argument for why that is safe here (every field after it is fixed-width, so the
+  total stream length determines where `name` ends) is written into the generated
+  file itself, beside the field, rather than left for a reader to assume. Both
+  files say what they do not cover: **nothing reads either stream back**, so the
+  file and the encoder are the only description a second implementation has — the
+  opposite and stronger version of the caveat every decoded format already states.
+  **Two survivors remain, named and typed, not a gap nobody noticed**:
+  `fjell-audit-format` and `fjell-net-format` (Erratum **E-073**, unscheduled),
+  whose `#[repr(C)]` layouts *are* the description and one of which is written raw
+  by the kernel — closing them needs the kernel's own audit write to move, which
+  is its own line. The set is **managed, not merely listed**:
   `fjell_schema::registry::EXCLUSIONS` types each crate `InMemoryOnly` or
-  `Survivor { erratum, what }`, and `crates/fjell-schema/tests/frozen.rs` fails when a
-  formats crate is neither described nor excused, when a survivor names an erratum the
-  register does not contain, or when a survivor's probe stops finding a producer — so a
-  **fifth** undescribed format cannot appear silently. RFC-0.33-003 gave nine formats a
-  description generated from the encoder that writes them, and a check that fails on drift;
-  **RFC-0.34-003 added the one that matters most — `fjell-semantic-format`'s `wire`, the IPC
-  codec every publisher and presentation exchanges** (18 generated files now). Four remain,
-  each for a stated reason: `fjell-measure-format`'s chain digest and `fjell-bundle-format`'s
-  bundle digest (the latter big-endian, which `Canon` cannot yet express), and
-  `fjell-audit-format` and `fjell-net-format`, whose `#[repr(C)]` layouts *are* the
-  description and one of which is written raw by the kernel. **What the wire description does
-  *not* cover — a reader must not infer more:** it describes what `encode` *writes*. The
-  decoder is a second, hand-written reading of the same layout and is **not described** (a
-  decoder that read different fields would not be caught by the file; a round trip per sample
-  is the only check), nor are the values behind a tag byte or the encoder's refusals. **For the
-  four:** the bytes are described by nothing a gate compares.
+  `Survivor { erratum, what }`, and `crates/fjell-schema/tests/frozen.rs` fails when
+  a formats crate is neither described nor excused, when a survivor names an
+  erratum the register does not contain, or when a survivor's probe stops finding a
+  producer — so a third undescribed format cannot appear silently. **What none of
+  the twenty generated files cover — a reader must not infer more:** each
+  describes what its encoder *writes*. A decoded format's reader is a second,
+  hand-written reading of the same layout and is not described (a decoder that
+  read different fields would not be caught by the file; a round trip per sample
+  is the only check), nor are the values behind a tag byte or an encoder's
+  refusals; the two digest streams have no decoder at all, which is the stronger
+  caveat stated above.
 - **An instrument that reports on less than it claims, twice over** was Erratum
   **E-071**, **CLOSED** by **RFC-0.35-003** (filed 2026-10-13 at RFC-0.34-004's
   review). `fjell-repro-check` used to **silently ignore an unrecognised flag**

@@ -4704,6 +4704,31 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   unresolved, unscheduled:** the measurement chain digest, the bundle digest, and the audit and
   net `#[repr(C)]` layouts.
 
+> **CLOSED by RFC-0.35-004, 2026-10-15.** R1 re-derived and confirmed both of that
+> RFC's own claims at tip: `compute_chain_digest` needed no new `Canon` primitive
+> (the metadata slot is a presence byte plus a **fixed** 32 bytes, written either
+> way — not `Canon::optional`, whose body is written only when present, which
+> would have described a different format); `compute_bundle_digest`'s one gap was
+> a big-endian `u32`. `Canon` gained exactly that one method, `u32_be`, with the
+> same treatment RFC-0.34-003's five additions got — a default that writes what
+> the encoder already wrote — and **the existing eighteen files are unchanged**,
+> confirmed by `frozen.rs`'s own comparison test. Goldens captured from the
+> unmodified encoders first (a metadata-absent and a metadata-present case for the
+> chain; a short and a `SERVICE_NAME_MAX`-length name for the bundle, plus the raw
+> byte stream for one case each); both moved encoders reproduce them byte for
+> byte. `compute_bundle_digest`'s `name` carries no length prefix — R4's argument,
+> written down rather than assumed: every field after it is fixed-width, so the
+> total stream length determines where `name` ends, and the generated file states
+> this in a note beside the field rather than leaving a reader to work it out.
+> Both files say what they do not cover — nothing reads either stream back, so the
+> file and the encoder are the only description a second implementation has — and
+> the chain digest's header reads its own `SCHEMA_VERSION`; the bundle digest's
+> states plainly that it carries no version field of its own (R6). Both registry
+> entries moved from `Survivor` to a generated file (`crates/fjell-schema/tests/
+> frozen.rs`'s own four checks re-run clean); the survivor count is down to
+> **exactly two**, both **E-073**'s, split out and left untouched. Full detail in
+> `rfcs/answers/RFC-0.35-004-two-digests-that-describe-themselves-answer.md`.
+
 ## E-066 — a fleet roster's digest covered only its first eight members
 
 - **Claim:** `fjell-fleet-format`'s `roster_digest` is *"the canonical digest of a
@@ -5396,7 +5421,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-062 the per-task console line buffer is never resolved when a task leaves, so a dying task's last words are lost (and, had a slot ever been reused, would have prefixed a live task's line); `DBG_LINE = 160` also split longer lines silently. **The eight junk bytes this was filed over were a different defect** — `storaged`'s own probe writes — and both are fixed | 0.34 | CLOSED |
 | E-063 `M6: storaged ready` is printed by both `storaged` and `init`, so every tier asserting it passes on `init`'s line alone and does not identify the writer | 0.34 | CLOSED |
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
-| E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | RFC-0.35-004 | ACCEPTED |
+| E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose one big-endian `u32` `Canon` did not yet express) still had no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 — **closed by moving both onto `Canon`**, against goldens captured first, with the existing eighteen descriptions unchanged | RFC-0.35-004 | CLOSED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
 | E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | unscheduled | ACCEPTED |
