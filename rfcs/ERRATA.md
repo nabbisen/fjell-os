@@ -4866,13 +4866,30 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   promise. And it sits in the one area of the tree whose QEMU tiers — `store` and
   `upgrade` — are **not release-gated and have no emitting scenario**, so nothing
   would have caught it and nothing will catch the next one.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **RFC-0.35-001**
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-13), tracked **RFC-0.35-001**
   (accepted 2026-10-14; re-tracked from the bare milestone `0.35` when that RFC was
   written, since the closing RFC is now known), in `v1-limitations.md`. **0.35's
   first line**, with the emitting scenario for the `upgrade` tier in it: a silently broken path in the
   only unexercised area is the shape this project exists to refuse. The causal chain
   from the uncarried word is the implementer's measurement and is to be re-derived,
-  not assumed, by whoever takes the line.
+  not assumed, by whoever takes the line.~~ → **CLOSED** by **RFC-0.35-001**.
+
+  > **Closed by RFC-0.35-001, 2026-10-14.** Re-derived, not assumed: the uncarried
+  > channel-kind word was never the first cause — `upgraded` sent on slot 6,
+  > `secure-transportd` received on slot 2, and neither slot existed (E-072). With
+  > the capability installed (E-072's own closure) and both words carried for real
+  > (R6), `fetch_update_index` was called for the first time ever (it had been a
+  > `pub fn` nothing called) and reached a real round trip: `OpenChannel` succeeds,
+  > a TLS handshake is attempted and **correctly fails closed** —
+  > `fjell-sxt-crypto`'s own doc comment: no real certificate verification exists
+  > yet, in `v1-limitations.md` already — so `fetch_update_index` still returns
+  > `None`, now for an honest, already-disclosed reason instead of a message that
+  > never arrived. **This does not mean the update path fetches anything real**
+  > (the RFC's own non-goal) — it means the one defect this erratum tracked, a
+  > silently vanishing message, is gone. `upgrade.toml`'s four markers now have a
+  > real emitting scenario (R7) and the tier is release-gated; `store`'s is scoped
+  > as its own candidate, named in this entry's own amendment above. Full detail in
+  > `rfcs/answers/RFC-0.35-001-the-capabilities-the-update-path-never-had-answer.md`.
 - **Amended 2026-10-14, at 0.35's scoping.** This entry first said the emitting
   scenarios for **both** `store` and `upgrade` belonged in the same line as the fix.
   **That was wrong about `store`, and it was wrong because I had not read for it.**
@@ -4977,7 +4994,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Found by:** the architect, 2026-10-14, while scoping 0.35 — specifically while
   deciding E-068/E-069's direction, which could not be decided without knowing
   whether the endpoints in question exist.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-14), tracked **RFC-0.35-001**,
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-14), tracked **RFC-0.35-001**,
   in `v1-limitations.md`. Folded into 0.35's first line, because **E-070 cannot be
   closed without it**. What closing it requires: **one** declaration of each
   service's CSpace layout that the kernel install and the service agree on by
@@ -4986,7 +5003,60 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   slots are its instances. Separately and not optionally: **a recv error must not be
   a tight loop.** `attestd`'s and `netd`'s own consequences are **not re-derived
   here** and must be, individually, by whoever takes the line — they are recorded as
-  the same class, not as the same outcome.
+  the same class, not as the same outcome.~~ → **CLOSED** by **RFC-0.35-001**, with
+  **`attestd` and `netd` named as survivors**.
+
+  > **Closed by RFC-0.35-001, 2026-10-14, for the update path; two survivors
+  > named, not rounded into this line.** R1 re-derived both controls: the
+  > kernel's `init`-only install site is a different one (`main.rs`, not
+  > `spawn.rs`); `cap_broker`/`cap_install`/`sys_cap` still appear 0 times in
+  > `secure-transportd`, `diagnosticsd`, `upgraded`. **R2, taken live before any
+  > fix** (scratch instrumentation, a counter printed every 10,000 iterations):
+  > `secure-transportd` reached **4,380,000+ iterations in a single 60-second
+  > boot**, confirming the spin — and confirming it does not freeze the
+  > machine, because the kernel's trap-return path re-enters the scheduler on
+  > *every* ecall, including a failed one, so other runnable tasks still get
+  > their turn. **R3/R4**: a new Gate 12 subcheck, `capability-topology`,
+  > enumerates the same eleven slots this entry names and checks each two
+  > ways — the service still declares it (so the table cannot go stale) and
+  > `spawn.rs` installs it. Its first run, before `spawn.rs` changed, printed
+  > all eleven as declared-but-uninstalled; nine are marked `waived_by` a
+  > named line (`RFC-0.35-002`, or — for `secure-transportd`'s own slot 1, a
+  > readiness send superseded by `SERVICE_READY_SEND_SLOT` and never this
+  > line's business either) and do not fail the gate; the two the update path
+  > needs do, until fixed. **R5**: one shared endpoint object,
+  > `UPDATE_CHANNEL_EP_OBJECT`, with a SEND|RECV capability in both
+  > `secure-transportd` (slot 2) and `upgraded` (slot 6) — nothing else
+  > installed for either. **R6**: the channel-kind and channel-id words are
+  > carried for real now (`sys_ipc_send_words`, restoring what RFC-0.34-004
+  > §C named as its own line); channel id `0` is invalid by construction
+  > (`INVALID_CHANNEL_ID`, checked in `find_mut` regardless of state, not
+  > inherited from `next_id`'s starting value). **Demonstrated live**: with
+  > the capability installed, `upgraded`'s first-ever call to
+  > `fetch_update_index` now reaches `secure-transportd` for real — a channel
+  > opens, a TLS handshake is attempted and correctly fails closed (no real
+  > certificate verification exists yet, a different, already-known
+  > limitation, not this one's) — instead of the message never arriving at
+  > all. **The general case, not just the two fixed slots**: both busy-spin
+  > sites now `sys_yield()` on a recv error rather than re-entering at once;
+  > `diagnosticsd`'s own loop still receives on an unfixed slot
+  > (RFC-0.35-002's), so it still errors every iteration, but no longer
+  > wastefully. **`attestd` and `netd` are named as survivors, not closed
+  > here — and re-derived individually, not rounded in, per this entry's own
+  > instruction that same class is not same outcome.** Neither spins.
+  > `attestd`'s `push_attestation` is the only caller of its declared slot 5
+  > (`CAP_SXT_EP`) and has **zero call sites anywhere in the tree** — a dead
+  > `pub fn`, not a live loop, so `sxt_recv`'s `Err(_) => (0, 0)` on the
+  > missing capability is never reached at runtime at all; `attestd`'s own
+  > main loop receives on slot 0 (`EP_SLOT`), not slot 5. `netd`'s declared
+  > slot 1 (`CAP_DRV_EP`) has **no reference anywhere outside its own `const`
+  > declaration** — `recv_msg` hardcodes `sys_ipc_recv_msg(0)`, never
+  > `CAP_DRV_EP.0`. Both are unreachable dead declarations, not busy-spins:
+  > a materially better outcome than `secure-transportd`'s and
+  > `diagnosticsd`'s, named rather than assumed. `secure-transportd`'s and
+  > `diagnosticsd`'s wrong readiness-notification slots (named in this entry)
+  > are also untouched, unrelated to this re-derivation. Full detail in
+  > `rfcs/answers/RFC-0.35-001-the-capabilities-the-update-path-never-had-answer.md`.
 
 ## E-073 — two `#[repr(C)]` wire layouts are described by nothing a gate compares, and one is written raw by the kernel
 
@@ -5080,9 +5150,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
 | E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented, so a diagnostics audit query returns nothing and cannot say why | unscheduled | ACCEPTED |
 | E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin, so `diagnosticsd`, `attestd` and `service-manager` can never be served by it | unscheduled | ACCEPTED |
-| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | RFC-0.35-001 | ACCEPTED |
+| E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario | RFC-0.35-001 | CLOSED |
 | E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | RFC-0.35-003 | ACCEPTED |
-| E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | RFC-0.35-001 | ACCEPTED |
+| E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | RFC-0.35-001 | CLOSED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
 | E-059 the presentation's action return leg carries its rights as an IPC payload word and `semantic-stream` authorises against it, under a comment claiming the value is kernel-verified and not self-asserted; a permitted action executes nothing today | RFC-0.34-004 | CLOSED |

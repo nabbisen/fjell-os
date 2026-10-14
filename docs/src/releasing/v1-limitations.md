@@ -1202,10 +1202,19 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   honestly rather than placeholder-passing.
 
 - Several services in the QEMU image are **smoke-test stubs** that signal
-  ready and exit by design (`fjell-netd`, `fjell-secure-transportd`,
-  `fjell-driver-virtio-net`, `fjell-proxy-text`, `fjell-driver-virtio-blk`,
-  `fjell-powerd`, among others). Their full implementations are tracked on
-  the post-v1.0 roadmap; their early-exit pattern is intentional.
+  ready and exit by design (`fjell-netd`, `fjell-driver-virtio-net`,
+  `fjell-driver-virtio-blk`, `fjell-powerd`, among others). Their full
+  implementations are tracked on the post-v1.0 roadmap; their early-exit
+  pattern is intentional. **`fjell-secure-transportd` is not one of these**
+  (removed from this list by RFC-0.35-001): it never exited early, and since
+  that line installed the capability the kernel never had for its
+  `upgraded` channel (E-072), it now genuinely exchanges messages rather
+  than busy-spinning on an empty slot. What it still does not do is real
+  certificate verification — `fjell-sxt-crypto`'s own doc comment — and it
+  does not serve `diagnosticsd` or `attestd` (E-069, RFC-0.35-002).
+  `fjell-proxy-text` is also not an early-exit stub (RFC-0.34-001 converted
+  it to ask-and-park); left in a prior cut's list and not corrected here,
+  outside this line's scope.
 - The repro-check baseline (`tests/repro/baseline-digests.txt`) tracks the
   committed `prebuilt/*.bin` artefacts and must be re-recorded whenever the
   prebuilt service binaries are rebuilt — see `tools/fjell-repro-check`.
@@ -1275,48 +1284,69 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   decoder that read different fields would not be caught by the file; a round trip per sample
   is the only check), nor are the values behind a tag byte or the encoder's refusals. **For the
   four:** the bytes are described by nothing a gate compares.
-- **Three request paths that nothing answers, and an instrument that builds when you
-  ask it for help** (Errata **E-068**, **E-069** unscheduled; **E-070**, **E-071**
-  tracked 0.35; all filed 2026-10-13 at RFC-0.34-004's review).
+- **Two request paths that nothing answers, and an instrument that builds when you
+  ask it for help** (Errata **E-068**, **E-069** unscheduled; **E-071** tracked
+  **RFC-0.35-003**; all filed 2026-10-13 at RFC-0.34-004's review). `fjell-upgraded`'s
+  update-index fetch, formerly the third request path here, is **closed** — see
+  below.
   - `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that
     **`fjell-auditd` has never implemented** — zero mentions of it there — so a
     diagnostics audit query returns nothing and the caller cannot tell that apart
     from "no records" (**E-068**).
   - `fjell-secure-transportd` declares **four** client endpoints and polls exactly
     **one**, under a comment saying it polls three in round-robin, so
-    `diagnosticsd`, `attestd` and `service-manager` can never be served by it
-    (**E-069**).
-  - `fjell-upgraded`'s **update-index fetch has never completed**: the channel-kind
-    word its open request should carry is never carried, and the receiving end always
-    sees `0`. This is behaviour rather than a promise, and it sits in the one area of
-    the tree whose QEMU tiers — `store` and `upgrade` — are **not release-gated and
-    have no emitting scenario**, so nothing would have caught it (**E-070**,
-    recommended as 0.35's first candidate together with the `upgrade` tier's
-    scenario; `store`'s is a separate candidate, because `fjell-storaged` has no
-    CRC, superblock, mirror or recovery code to exercise and that tier's four
-    markers therefore need a store that can reject, not a test — amended
-    2026-10-14 at 0.35's scoping, correcting this bullet's own earlier claim that
-    both scenarios belonged in one line).
+    `diagnosticsd` and `attestd` can never be served by it (**E-069**; the
+    `upgraded` leg of this same comment's claim is now true — RFC-0.35-001
+    installed its capability — so only the `diagnosticsd`/`attestd` legs remain
+    open, both RFC-0.35-002's decision).
   - `fjell-repro-check` **silently ignores an unrecognised flag** and falls through
     to its full two-build mode, and has no `--help` — so the natural way to ask for
     usage starts a build that can race a concurrent `test-all`. It has happened
     twice (**E-071**).
+- **`fjell-upgraded`'s update-index fetch has never completed** was Erratum
+  **E-070**, **CLOSED** by **RFC-0.35-001**. The uncarried channel-kind word was a
+  symptom, not the cause: the capability `secure-transportd` received on did not
+  exist until E-072 (below) closed, so no word — carried or not — was ever going
+  anywhere. With the capability installed and both the channel-kind and channel-id
+  words now carried for real (`sys_ipc_send_words`), the fetch reaches a real,
+  listening `secure-transportd`, which **correctly fails the handshake closed**
+  (no simulated trust — v0.7.3's real certificate verification is still a stub) —
+  `fetch_update_index` still returns `None`, now for that honest, already-documented
+  reason, not a silent IPC failure. The `upgrade` QEMU tier is release-gated as of
+  this line, with a real emitting scenario; `store`'s is a separate, still-open
+  candidate, because `fjell-storaged` has no CRC, superblock, mirror or recovery
+  code to exercise and that tier's four markers need a store that can reject, not a
+  test.
 - **Five services address peers through CSpace slots the kernel never installs, and
-  two of them busy-spin on the absence for the lifetime of every boot** (Erratum
-  **E-072**, ACCEPTED 2026-10-14, tracked **0.35**). `fjell-secure-transportd`,
-  `fjell-diagnosticsd`, `fjell-upgraded`, `fjell-attestd` and `fjell-netd` declare
+  two of them busy-spin on the absence for the lifetime of every boot** was Erratum
+  **E-072**, **CLOSED** by **RFC-0.35-001**, with **`fjell-attestd` and `fjell-netd`
+  named as survivors, re-derived individually rather than assumed** — neither
+  busy-spins. `fjell-attestd`'s declared slot 5 (`CAP_SXT_EP`) is addressed only by
+  `push_attestation`, which has **no caller anywhere in the tree**: a dead `pub fn`,
+  not a live loop, so the missing capability's error path is never reached at
+  runtime and `attestd`'s own main loop receives on slot 0 instead. `fjell-netd`'s
+  declared slot 1 (`CAP_DRV_EP`) has **no reference outside its own declaration**
+  — `recv_msg` hardcodes slot 0, never this constant. Both are unreachable dead
+  declarations, a materially better outcome than the two services below, named
+  rather than rounded in. `fjell-secure-transportd`,
+  `fjell-diagnosticsd`, `fjell-upgraded`, `fjell-attestd` and `fjell-netd` declared
   named capability slots — eleven of them — and `crates/fjell-kernel/src/task/spawn.rs`
-  installs, for every image, only slot 0 and `SERVICE_READY_SEND_SLOT`; its per-image
-  install blocks cover nine other images and **none of these five**. `sys_ipc_recv`
-  returns the capability error immediately rather than blocking, both services map it
-  to a zero tag that is in neither protocol's vocabulary, and both loops re-enter at
-  once: **`secure-transportd` and `fjell-diagnosticsd` spin**, each under a comment
-  describing the work it is doing, and 27 recorded boots show `secure-transportd`
-  printing `ready` and then none of its three per-outcome lines, ever. Two readiness
-  notifications are wrong with it — one sends into an empty slot, one into the
-  service's **own** shared endpoint instead of `service-manager`'s. **This is what
-  E-070 sits on**: the update-index fetch fails below the uncarried word, because the
-  IPC never happens. The defect is that the service-side layout and the kernel-side
-  install are two independent declarations of one topology and **no gate compares
-  them**; the eleven slots are instances. `fjell-attestd`'s and `fjell-netd`'s own
-  consequences are recorded as the same class and are **not** re-derived here.
+  installed, for every image, only slot 0 and `SERVICE_READY_SEND_SLOT`; its
+  per-image install blocks covered nine other images and **none of these five**.
+  `sys_ipc_recv` returned the capability error immediately rather than blocking,
+  both services mapped it to a zero tag that was in neither protocol's vocabulary,
+  and both loops re-entered at once: **`secure-transportd` and `fjell-diagnosticsd`
+  spun**, each under a comment describing the work it was doing, and 27 recorded
+  boots showed `secure-transportd` printing `ready` and then none of its three
+  per-outcome lines, ever (re-derived live for this line: 4.38 million further
+  iterations, still none). This line installs the two slots the update path needs
+  — `secure-transportd`'s slot 2 and `upgraded`'s slot 6, onto one shared endpoint —
+  and leaves the other nine declared-but-uninstalled slots to RFC-0.35-002,
+  **named, not silently dropped**, by the new `capability-topology` consistency-check
+  gate, which now compares the two independent declarations this erratum found and
+  fails on any non-waived divergence. A recv error is also no longer a tight loop in
+  either service, independent of which slot caused it — `fjell-diagnosticsd`'s own
+  `CAP_TOOLS_EP` remains unfixed (RFC-0.35-002's decision) and will keep erroring on
+  every boot, but it now yields instead of spinning. Two readiness notifications are
+  still wrong — one sends into an empty slot, one into the service's **own** shared
+  endpoint instead of `service-manager`'s — untouched by this line.
