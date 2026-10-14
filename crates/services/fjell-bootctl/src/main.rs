@@ -118,7 +118,9 @@ pub extern "C" fn service_main() -> ! {
                     // active slot's `confirmed` bit was never set. This is
                     // the reachable case in a fresh block (`health-fail`'s
                     // own tier); `MustRollBack` below is the other.
-                    sys_debug_writeln(fjell_service_api::negative_markers::UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED);
+                    sys_debug_writeln(
+                        fjell_service_api::negative_markers::UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED,
+                    );
                     let _ = sys_ipc_reply(usize::MAX);
                 }
                 Ok(HealthVerdict::MustRollBack) => {
@@ -128,7 +130,9 @@ pub extern "C" fn service_main() -> ! {
                     // a second candidate yet; health-fail's own tier
                     // explains why NoFallback is the one this project can
                     // demonstrate).
-                    sys_debug_writeln(fjell_service_api::negative_markers::UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED);
+                    sys_debug_writeln(
+                        fjell_service_api::negative_markers::UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED,
+                    );
                     let _ = sys_ipc_reply(0);
                     let _ = bcb.reboot();
                     // RFC-0.33-001 D8: the dispatch arm and the Reboot
@@ -165,9 +169,7 @@ pub extern "C" fn service_main() -> ! {
                         // marker, from its own independent read of the
                         // reply, matching the other three markers in this
                         // tier and RFC-0.34-004's `semantic-liar` pattern.
-                        sys_debug_writeln(
-                            "bootctl: candidate-set into the active slot REFUSED",
-                        );
+                        sys_debug_writeln("bootctl: candidate-set into the active slot REFUSED");
                         let _ = sys_ipc_reply(tags::BOOT_ACTIVE_SLOT_WRITE_REJECTED);
                     }
                     other => {

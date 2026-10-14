@@ -1344,7 +1344,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   and leaves the other nine declared-but-uninstalled slots to RFC-0.35-002,
   **named, not silently dropped**, by the new `capability-topology` consistency-check
   gate, which now compares the two independent declarations this erratum found and
-  fails on any non-waived divergence. A recv error is also no longer a tight loop in
+  fails on any non-waived divergence — **of the shape every declaration in this
+  tree takes**: a `const` whose slot is a decimal literal, in any `.rs` file under a
+  service's `src/`. A slot whose number is a named constant, or a binding that is not
+  such a `const`, is **not** discovered; the check says so in its own module doc
+  rather than implying a reach it does not have (architect probes, 2026-10-14 —
+  the `channel.rs` case was a real miss and is fixed, the constant-expression case is
+  a stated limit of a text scanner). A recv error is also no longer a tight loop in
   either service, independent of which slot caused it — `fjell-diagnosticsd`'s own
   `CAP_TOOLS_EP` remains unfixed (RFC-0.35-002's decision) and will keep erroring on
   every boot, but it now yields instead of spinning. Two readiness notifications are

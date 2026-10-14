@@ -953,13 +953,7 @@ fn test_upgrade_verify_rejections() {
 /// active slot must be refused (ADR-0009) — the receiver decides this from
 /// its own `active()`, never from anything this call sends.
 fn test_upgrade_active_slot_write_rejected() {
-    match sys_ipc_call_words(
-        SLOT_BOOTCTL_EP,
-        tags::BOOT_PROBE_ACTIVE_SLOT_WRITE,
-        0,
-        0,
-        0,
-    ) {
+    match sys_ipc_call_words(SLOT_BOOTCTL_EP, tags::BOOT_PROBE_ACTIVE_SLOT_WRITE, 0, 0, 0) {
         Ok(reply_tag) => check(
             reply_tag & 0xFFFF == (tags::BOOT_ACTIVE_SLOT_WRITE_REJECTED & 0xFFFF),
             M::UPGRADE_ACTIVE_SLOT_WRITE_REJECTED,

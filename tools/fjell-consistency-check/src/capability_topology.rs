@@ -44,6 +44,29 @@
 //! explicitly waived; it FAILs on a slot that is neither — a new,
 //! unclassified declared-and-uninstalled slot included, the moment it is
 //! declared, with no list to update first.
+//!
+//! **What discovery does not see, stated so a reader does not assume
+//! otherwise** (architect probes, 2026-10-14, each run against this module
+//! and each passing silently before the first was fixed):
+//! - ~~a slot declared outside `main.rs`~~ — **fixed**: every `.rs` under a
+//!   service's `src/`, recursively, is now scanned. The probe that found
+//!   this planted `CapHandle(9)` in `secure-transportd`'s `channel.rs`.
+//! - **a slot whose number is a named constant** rather than a decimal
+//!   literal — `CapHandle(SOME_SLOT)` is not matched, because resolving it
+//!   would mean evaluating constants, and a text-scanning checker that
+//!   pretended to do that would be the worse defect. Every one of E-072's
+//!   eleven instances is a literal, and so is every slot in the tree today;
+//!   if that changes, this check must grow a way to say so rather than
+//!   quietly missing it.
+//! - **a binding that is not a `const` with a SCREAMING_CASE name** — a
+//!   `let` or a lowercase constant is not matched, for the same reason and
+//!   with the same obligation.
+//!
+//! These are limits of a text scanner, not deferred decisions. They are
+//! here because the sentence *"the universe is discovered"* is true of the
+//! shape every declaration in this tree takes and **not** of every shape
+//! Rust permits, and the difference is exactly the kind of gap this line
+//! exists to close.
 
 use crate::read_file;
 use std::process::ExitCode;
@@ -172,7 +195,9 @@ fn find_cap_handle_consts(src: &str) -> Vec<(String, u32)> {
         let after_eq = after_eq.strip_prefix("fjell_cap::").unwrap_or(after_eq);
         if ty == "CapHandle"
             && !name.is_empty()
-            && name.chars().all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c == '_' || c.is_ascii_digit())
         {
             if let Some(num_src) = after_eq.strip_prefix("CapHandle(") {
                 if let Some(close_rel) = num_src.find(')') {
@@ -211,13 +236,55 @@ fn service_dirs(services_dir: &str) -> Option<Vec<String>> {
     Some(dirs)
 }
 
+/// Every `.rs` file under one service's `src/`, sorted, deepest-last.
+/// **Not `main.rs` alone**: `fjell-secure-transportd` already ships three
+/// source files (`main.rs`, `channel.rs`, `rt.rs`), and a slot declared in
+/// any of them is as real as one declared in `main.rs` — an architect probe
+/// on 2026-10-14 planted `CapHandle(9)` in `channel.rs` and this check
+/// passed with it there.
+fn service_rs_files(src_dir: &str, out: &mut Vec<String>) {
+    let Some(entries) = crate::read_dir_named(NAME, src_dir) else {
+        return;
+    };
+    let mut here: Vec<String> = Vec::new();
+    let mut subdirs: Vec<String> = Vec::new();
+    for entry in entries {
+        let Ok(entry) = entry else { continue };
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if path.is_dir() {
+            subdirs.push(format!("{src_dir}/{name}"));
+        } else if name.ends_with(".rs") {
+            here.push(format!("{src_dir}/{name}"));
+        }
+    }
+    here.sort();
+    subdirs.sort();
+    out.append(&mut here);
+    for d in subdirs {
+        service_rs_files(&d, out);
+    }
+}
+
 fn discover_slots(services_dir: &str) -> Option<Vec<DiscoveredSlot>> {
     let mut out = Vec::new();
     for service_dir in service_dirs(services_dir)? {
-        let path = format!("{services_dir}/{service_dir}/src/main.rs");
-        let src = read_file(NAME, &path)?;
+        let mut files = Vec::new();
+        service_rs_files(&format!("{services_dir}/{service_dir}/src"), &mut files);
+        if files.is_empty() {
+            eprintln!(
+                "{NAME}: FAIL — {services_dir}/{service_dir}/src holds no .rs file; \
+                 a service this check cannot read is a service it cannot vouch for"
+            );
+            return None;
+        }
         let image = image_name_for(&service_dir);
-        for (const_name, slot) in find_cap_handle_consts(&src) {
+        let mut pairs = Vec::new();
+        for path in &files {
+            let src = read_file(NAME, path)?;
+            pairs.extend(find_cap_handle_consts(&src));
+        }
+        for (const_name, slot) in pairs {
             if slot == 0 {
                 // Every image's own identity endpoint — spawn.rs's
                 // unconditional fallback, not a per-image install this
@@ -381,7 +448,10 @@ mod tests {
 
     #[test]
     fn image_name_for_matches_existing_image_id_variants() {
-        assert_eq!(image_name_for("fjell-secure-transportd"), "SECURE_TRANSPORTD");
+        assert_eq!(
+            image_name_for("fjell-secure-transportd"),
+            "SECURE_TRANSPORTD"
+        );
         assert_eq!(
             image_name_for("fjell-svc-presentation-fault"),
             "SVC_PRESENTATION_FAULT"
@@ -422,6 +492,48 @@ mod tests {
         assert_eq!(
             find_cap_handle_consts(src),
             vec![("CAP_ARCH_PROBE_12TH".to_string(), 7)]
+        );
+    }
+
+    #[test]
+    fn discovery_reads_every_rs_file_under_a_service_src_not_only_main() {
+        // An architect probe on 2026-10-14 planted
+        // `CapHandle(9)` in `fjell-secure-transportd`'s `channel.rs` — a
+        // service that already ships three source files — and this check
+        // passed with it there, because discovery read `main.rs` alone.
+        // Fixtured here so the walk cannot quietly narrow again.
+        let dir = std::env::temp_dir().join(format!(
+            "fjell-cap-topology-walk-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        let src = dir.join("fjell-probe-svc").join("src");
+        let nested = src.join("inner");
+        std::fs::create_dir_all(&nested).expect("fixture dirs");
+        std::fs::write(
+            src.join("main.rs"),
+            "const CAP_A: CapHandle = CapHandle(1);\n",
+        )
+        .expect("main.rs");
+        std::fs::write(
+            src.join("channel.rs"),
+            "pub const CAP_B: fjell_cap::CapHandle = fjell_cap::CapHandle(9);\n",
+        )
+        .expect("channel.rs");
+        std::fs::write(
+            nested.join("deep.rs"),
+            "pub const CAP_C: CapHandle = CapHandle(12);\n",
+        )
+        .expect("deep.rs");
+
+        let found = discover_slots(&dir.to_string_lossy()).expect("discovery");
+        let mut slots: Vec<u32> = found.iter().map(|d| d.slot).collect();
+        slots.sort();
+        std::fs::remove_dir_all(&dir).ok();
+        assert_eq!(
+            slots,
+            vec![1, 9, 12],
+            "every .rs under src/, recursively — not main.rs alone: {found:#?}"
         );
     }
 
@@ -486,8 +598,15 @@ mod tests {
         );
         let unwaived = discovered
             .iter()
-            .filter(|d| !WAIVERS.iter().any(|w| w.image == d.image && w.slot == d.slot))
+            .filter(|d| {
+                !WAIVERS
+                    .iter()
+                    .any(|w| w.image == d.image && w.slot == d.slot)
+            })
             .count();
-        assert_eq!(unwaived, 2, "exactly two slots are this line's own business");
+        assert_eq!(
+            unwaived, 2,
+            "exactly two slots are this line's own business"
+        );
     }
 }
