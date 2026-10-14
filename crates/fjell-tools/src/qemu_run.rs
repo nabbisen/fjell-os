@@ -56,12 +56,14 @@ pub struct Profile {
     /// RFC-0.29-001 D5: `true` unless the profile's own `.toml` says
     /// otherwise. A category can be swept into derived scope (D1) while
     /// still being explicitly excluded from what a release blocks on —
-    /// `store` and `upgrade` have marker specifications but no emitting
-    /// scenario yet (`v1-limitations.md`), and are expected to run and
-    /// fail honestly rather than being silently skipped. The loader
-    /// requires `not_gated_reason` whenever this is `false` — there is no
-    /// way to opt out without also saying why, in the one file a reader
-    /// checking this category will already have open.
+    /// `store` has marker specifications but no emitting scenario yet
+    /// (`v1-limitations.md`), and is expected to run and fail honestly
+    /// rather than being silently skipped. (`upgrade` was the other half of
+    /// this comment until RFC-0.35-001 gave it a real emitting scenario and
+    /// set this `true`.) The loader requires `not_gated_reason` whenever
+    /// this is `false` — there is no way to opt out without also saying
+    /// why, in the one file a reader checking this category will already
+    /// have open.
     pub release_gated: bool,
     /// Required, non-empty, whenever `release_gated` is `false`.
     pub not_gated_reason: Option<String>,
@@ -1697,7 +1699,6 @@ mod discover_tests {
         );
     }
 
-    #[test]
     #[test]
     fn clean_console_defaults_false_and_semantic_opts_in() {
         let r = scratch_root("cc", "name = \"p\"\nexpected_markers = [\"a\"]\n");

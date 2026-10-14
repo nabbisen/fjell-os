@@ -61,7 +61,31 @@ pub mod tags {
     /// The boot did not meet its health target. Same sender restriction as
     /// [`BOOT_HEALTH_OK`].
     pub const BOOT_HEALTH_FAILED: usize = 0x075;
+    /// RFC-0.35-001 R7 (E-072/E-070's sibling line): a test probe, not a
+    /// real staging command — "try to set the *active* slot as its own
+    /// candidate" always exercises `BootControlBlock::set_candidate`'s
+    /// `ActiveSlot` refusal (ADR-0009: an update stages to the *inactive*
+    /// slot). No payload; `bootctl` reads its own `active()`, not a word a
+    /// caller could misreport.
+    pub const BOOT_PROBE_ACTIVE_SLOT_WRITE: usize = 0x076;
+    /// Reply: the probe got exactly the `ActiveSlot` refusal it exists to
+    /// demonstrate. Any other outcome (success, or a different error) is a
+    /// generic refuse (`usize::MAX`), not this tag — this is a check, not a
+    /// status word.
+    pub const BOOT_ACTIVE_SLOT_WRITE_REJECTED: usize = 0x077;
     pub const BOOT_SHUTDOWN: usize = 0x07F;
+
+    // ── RFC v0.3-002 / RFC-0.35-001 R7: verifyd protocol ──────────────────────
+    //
+    // Moved here from a local `mod proto` in `fjell-verifyd` so `neg-test` —
+    // the first real caller — reads the same declaration `verifyd`
+    // dispatches on, rather than a second, independently hand-kept copy of
+    // the same three numbers.
+    /// Verify a dev `DevDigest32` signature. `w0` = `digest_lo`, `w1` =
+    /// `sig_lo` (both the low 8 bytes of the full 32-byte value).
+    pub const VERIFY: usize = 0x0010;
+    pub const VERIFY_OK: usize = 0x0011;
+    pub const VERIFY_FAIL: usize = 0x0012;
 
     // ── RFC 042: neg-test IPC protocol ───────────────────────────────────────
     /// Sent by neg-test to a helper service: "bind lease_id (in w0) to your
@@ -396,6 +420,29 @@ pub mod negative_markers {
     // ── v0.2 release gate ─────────────────────────────────────────────────────
     /// All v0.2 negative-test categories have been exercised.
     pub const V02_RELEASE_GATE: &str = "TEST:V02:PASS";
+
+    // ── the update path (RFC-0.35-001 R7; E-072/E-070's sibling line) ─────────
+    /// `verifyd`'s `VERIFY` rejects a release with no signature at all
+    /// (`sig_lo = 0`) — the same `VERIFY_FAIL` arm `INVALID_SIGNATURE`
+    /// below exercises with a different, deliberately wrong input; the
+    /// model has no separate "absent" representation, so the distinction
+    /// is in what the caller sends, not in a different code path.
+    pub const UPGRADE_UNSIGNED_RELEASE_REJECTED: &str =
+        "NEG:UPGRADE:UNSIGNED_RELEASE_REJECTED:PASS";
+    /// `verifyd`'s `VERIFY` rejects a release whose signature does not
+    /// verify (a non-zero, wrong `sig_lo`).
+    pub const UPGRADE_INVALID_SIGNATURE_REJECTED: &str =
+        "NEG:UPGRADE:INVALID_SIGNATURE_REJECTED:PASS";
+    /// `bootctl` refuses `BootControlBlock::set_candidate` into the slot
+    /// the system is currently running (ADR-0009).
+    pub const UPGRADE_ACTIVE_SLOT_WRITE_REJECTED: &str =
+        "NEG:UPGRADE:ACTIVE_SLOT_WRITE_REJECTED:PASS";
+    /// A failed health check never confirms the active slot. Printed by
+    /// `bootctl` itself — the deciding service — not by a neighbouring
+    /// instigator; `health-fail.toml`'s own markers are the instigator's
+    /// read for this one.
+    pub const UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED: &str =
+        "NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS";
 }
 
 // ── RFC v0.4-005: diagnosticsd IPC protocol ───────────────────────────────────

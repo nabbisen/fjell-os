@@ -62,6 +62,8 @@ const SLOT_SCRATCH_A: u32 = 10; // copy of OWN_EP with lease bound
 const SLOT_SCRATCH_B: u32 = 11; // minted cap with narrowed rights
 const SLOT_MMIO_BASE: u32 = 31; // First MmioRegion cap (object 0)
 const SLOT_MMIO_RAM: u32 = 35; // MmioRegion cap for region 4 (neg-test-RAM, straddles RAM)
+const SLOT_BOOTCTL_EP: u32 = 18; // CALL-only cap to bootctl (RFC-0.35-001 R7)
+const SLOT_VERIFYD_EP: u32 = 19; // CALL-only cap to verifyd (RFC-0.35-001 R7)
 
 // ── RAM_BASE (must match kernel platform constant) ────────────────────────────
 const RAM_BASE: usize = 0x8000_0000;
@@ -910,6 +912,62 @@ fn test_reboot() {
     sys_debug_writeln("NEG:HARNESS:REBOOT_RETURNED");
 }
 
+// ── RFC-0.35-001 R7: the update path's rejection scenarios ───────────────────
+//
+// Both `verifyd`'s `VERIFY` and `bootctl`'s new `BOOT_PROBE_ACTIVE_SLOT_WRITE`
+// were unreachable before this line (E-072's class — a capability topology
+// nothing compared). `neg-test` is the first real caller of either, over the
+// CALL-only capabilities `spawn.rs` installs at `SLOT_VERIFYD_EP`/
+// `SLOT_BOOTCTL_EP`.
+
+/// `verifyd`'s `VERIFY_FAIL` arm, exercised for the first time. Two inputs,
+/// both correctly refused: an absent signature (`sig_lo = 0`) and a
+/// present-but-wrong one. The model has one compare, not two branches, so
+/// the distinction is in what is sent, not in which code path runs.
+fn test_upgrade_verify_rejections() {
+    // `digest_lo` does not decide which arm this hits — `verify_dev`
+    // compares the whole (digest, sig) pair against the one dev anchor, and
+    // every `sig_lo` tried here is wrong for it regardless.
+    const DIGEST_LO: usize = 0xAAAA_AAAA;
+
+    // Unsigned: sig_lo = 0, the value nothing legitimately signs with.
+    match sys_ipc_call_words(SLOT_VERIFYD_EP, tags::VERIFY, DIGEST_LO, 0, 0) {
+        Ok(reply_tag) => check(
+            reply_tag & 0xFFFF == tags::VERIFY_FAIL,
+            M::UPGRADE_UNSIGNED_RELEASE_REJECTED,
+        ),
+        Err(_) => sys_debug_writeln("NEG:HARNESS:UPGRADE_VERIFY_UNSIGNED_CALL_FAILED"),
+    }
+
+    // Invalid: a non-zero sig_lo that does not verify against the dev anchor.
+    match sys_ipc_call_words(SLOT_VERIFYD_EP, tags::VERIFY, DIGEST_LO, 0xDEAD_BEEF, 0) {
+        Ok(reply_tag) => check(
+            reply_tag & 0xFFFF == tags::VERIFY_FAIL,
+            M::UPGRADE_INVALID_SIGNATURE_REJECTED,
+        ),
+        Err(_) => sys_debug_writeln("NEG:HARNESS:UPGRADE_VERIFY_INVALID_CALL_FAILED"),
+    }
+}
+
+/// `bootctl`'s `BOOT_PROBE_ACTIVE_SLOT_WRITE`: a candidate-set into the
+/// active slot must be refused (ADR-0009) — the receiver decides this from
+/// its own `active()`, never from anything this call sends.
+fn test_upgrade_active_slot_write_rejected() {
+    match sys_ipc_call_words(
+        SLOT_BOOTCTL_EP,
+        tags::BOOT_PROBE_ACTIVE_SLOT_WRITE,
+        0,
+        0,
+        0,
+    ) {
+        Ok(reply_tag) => check(
+            reply_tag & 0xFFFF == (tags::BOOT_ACTIVE_SLOT_WRITE_REJECTED & 0xFFFF),
+            M::UPGRADE_ACTIVE_SLOT_WRITE_REJECTED,
+        ),
+        Err(_) => sys_debug_writeln("NEG:HARNESS:UPGRADE_ACTIVE_SLOT_CALL_FAILED"),
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // Yield briefly so the rest of the system (cap-broker Enforcing handoff,
@@ -979,6 +1037,10 @@ pub extern "C" fn service_main() -> ! {
     // ── Service lifecycle (RFC 038) ───────────────────────────────────────────
     test_svc_start_timeout();
     test_svc_fault_detected();
+
+    // ── The update path's rejection scenarios (RFC-0.35-001 R7) ──────────────
+    test_upgrade_verify_rejections();
+    test_upgrade_active_slot_write_rejected();
 
     // ── IPC blocked-recv revocation (RFC 034) ────────────────────────────────
     // Deliberately LAST (architect review v0.19 follow-up): these scenarios

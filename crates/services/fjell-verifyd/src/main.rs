@@ -38,9 +38,12 @@ mod proto {
     // RFC-0.28-001: the old READY tag (0x0001, which happened to already
     // equal `tags::SERVICE_READY`) is gone — `send_ready` below now sends
     // the shared `tags::SERVICE_READY` constant directly.
-    pub const VERIFY: usize = 0x0010;
-    pub const VERIFY_OK: usize = 0x0011;
-    pub const VERIFY_FAIL: usize = 0x0012;
+    //
+    // RFC-0.35-001 R7: VERIFY/VERIFY_OK/VERIFY_FAIL moved to
+    // `fjell_service_api::tags` — `neg-test` is the first real caller, and
+    // it reads the same declaration this dispatch matches on, not a second
+    // hand-kept copy of the same three numbers.
+    pub use fjell_service_api::tags::{VERIFY, VERIFY_FAIL, VERIFY_OK};
     pub const ERR: usize = 0xFFFF;
 }
 
@@ -175,6 +178,9 @@ pub extern "C" fn service_main() -> ! {
                 if verify_dev(&keyring, w0 as u64, w1 as u64) {
                     reply(proto::VERIFY_OK);
                 } else {
+                    // RFC-0.35-001 R7: the deciding service's own output —
+                    // `neg-test`'s read of the reply tag is the other half.
+                    sys_debug_writeln("verifyd: signature verification failed, rejecting");
                     reply(proto::VERIFY_FAIL);
                 }
             }

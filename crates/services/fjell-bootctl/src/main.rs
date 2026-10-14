@@ -31,7 +31,7 @@ use fjell_service_api::tags;
 use fjell_syscall::{
     ipc_sender_image_id, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_reply, sys_reboot,
 };
-use fjell_upgrade_format::{BootControlBlock, HealthVerdict, SlotState};
+use fjell_upgrade_format::{BootControlBlock, BootError, HealthVerdict, SlotState};
 
 const SLOT_OWN_EP: u32 = 0;
 const SLOT_REBOOT: u32 = 1;
@@ -114,10 +114,21 @@ pub extern "C" fn service_main() -> ! {
                     sys_debug_writeln(
                         "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting",
                     );
+                    // RFC-0.35-001 R7: the real, deciding verdict — the
+                    // active slot's `confirmed` bit was never set. This is
+                    // the reachable case in a fresh block (`health-fail`'s
+                    // own tier); `MustRollBack` below is the other.
+                    sys_debug_writeln(fjell_service_api::negative_markers::UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED);
                     let _ = sys_ipc_reply(usize::MAX);
                 }
                 Ok(HealthVerdict::MustRollBack) => {
                     sys_debug_writeln("bootctl: health FAILED; rolling back");
+                    // Also "not confirmed" — named for completeness, not
+                    // reachable in any committed tier today (no line stages
+                    // a second candidate yet; health-fail's own tier
+                    // explains why NoFallback is the one this project can
+                    // demonstrate).
+                    sys_debug_writeln(fjell_service_api::negative_markers::UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED);
                     let _ = sys_ipc_reply(0);
                     let _ = bcb.reboot();
                     // RFC-0.33-001 D8: the dispatch arm and the Reboot
@@ -139,6 +150,36 @@ pub extern "C" fn service_main() -> ! {
         match label {
             l if l == (tags::BOOT_PENDING_QUERY & 0xFFFF) => {
                 let _ = sys_ipc_reply(tags::BOOT_STATE_REPLY | (state_word(&bcb) << 16));
+            }
+            l if l == (tags::BOOT_PROBE_ACTIVE_SLOT_WRITE & 0xFFFF) => {
+                // RFC-0.35-001 R7: no payload read — the slot this probes is
+                // `bcb`'s own `active()`, never a word a caller could
+                // misreport (the whole point: a receiver never authorises,
+                // or in this case never *acts*, on a value the sender
+                // chose).
+                match bcb.active().and_then(|active| bcb.set_candidate(active, 2)) {
+                    Err(BootError::ActiveSlot) => {
+                        // The deciding service's own output is this distinct
+                        // line, not the NEG marker itself — `neg-test`
+                        // (the instigator) owns printing the canonical
+                        // marker, from its own independent read of the
+                        // reply, matching the other three markers in this
+                        // tier and RFC-0.34-004's `semantic-liar` pattern.
+                        sys_debug_writeln(
+                            "bootctl: candidate-set into the active slot REFUSED",
+                        );
+                        let _ = sys_ipc_reply(tags::BOOT_ACTIVE_SLOT_WRITE_REJECTED);
+                    }
+                    other => {
+                        // Not the refusal this probe exists to demonstrate —
+                        // named rather than silently treated as a pass.
+                        sys_debug_writeln(
+                            "bootctl: active-slot-write probe did not get ActiveSlot",
+                        );
+                        let _ = other; // observable only via the absent marker
+                        let _ = sys_ipc_reply(usize::MAX);
+                    }
+                }
             }
             l if l == (tags::BOOT_SHUTDOWN & 0xFFFF) => {
                 let _ = sys_ipc_reply(0);

@@ -21,8 +21,10 @@
 //!
 //! Tiers 4 and 5 are skipped when `--no-qemu` is passed or when
 //! `qemu-system-riscv64` is not on `PATH`. A category not release-gated
-//! (`store`, `upgrade` today — RFC-0.29-001 D5) still runs in tier 5; its
-//! result is reported but excluded from the tier's pass/fail count.
+//! (`store` today — RFC-0.29-001 D5; `upgrade` was the other half of this
+//! comment until RFC-0.35-001 gave it a real emitting scenario) still runs
+//! in tier 5; its result is reported but excluded from the tier's pass/fail
+//! count.
 //!
 //! ## Output layout
 //!
@@ -260,7 +262,7 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     // ── Write summary ────────────────────────────────────────────────────────
     // A tier counts toward PASS/FAIL only if it neither skipped (never ran)
     // nor opted out of release gating (RFC-0.29-001 D5: ran for real, but
-    // its outcome — store/upgrade today — is a known, disclosed gap, not a
+    // its outcome — `store` today — is a known, disclosed gap, not a
     // regression to block a release on).
     fn counts_toward_gate(r: &TierResult) -> bool {
         r.skip_note.is_none() && r.not_gated_reason.is_none()

@@ -1,21 +1,33 @@
 # Negative-test profile: upgrade
 # Tests for RFC-v0.1.x-003 (RFC 026) upgrade verification rejection.
-# These are testable at v0.1.x: release signature verification
-# is part of the M7/M8 verifyd path.
+#
+# RFC-0.35-001 R7 gave these four markers a real emitting scenario, closing
+# the "specified but nothing produces them" gap RFC-0.29-001 D5 disclosed.
+# Three come from `neg-test`'s unconditional scenarios (it is the first real
+# caller of both `verifyd`'s `VERIFY` and `bootctl`'s new
+# `BOOT_PROBE_ACTIVE_SLOT_WRITE` — both were dead code before this line,
+# E-072's class: a capability topology nothing compared); the fourth reuses
+# `health-fail.toml`'s own console-byte trigger and `bootctl`'s real,
+# already-demonstrated `NoFallback` verdict.
+#
+# Each marker is asserted at the deciding service's own output (`verifyd:
+# signature verification failed, rejecting`; `bootctl: candidate-set into
+# the active slot REFUSED`; `bootctl: health FAILED on the last confirmed
+# slot; no fallback, not resetting`) as well as by the literal `NEG:UPGRADE:
+# *:PASS` line — the pattern RFC-0.34-004's `semantic-liar` tier established:
+# both the instigator's own read and the deciding service's own output.
 
-name             = "upgrade"
-timeout_secs     = 60
+name                 = "upgrade"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "F"
 expected_markers = [
+    "verifyd: signature verification failed, rejecting",
     "NEG:UPGRADE:UNSIGNED_RELEASE_REJECTED:PASS",
     "NEG:UPGRADE:INVALID_SIGNATURE_REJECTED:PASS",
+    "bootctl: candidate-set into the active slot REFUSED",
     "NEG:UPGRADE:ACTIVE_SLOT_WRITE_REJECTED:PASS",
+    "bootctl: health FAILED on the last confirmed slot; no fallback, not resetting",
     "NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS",
 ]
 extra_args       = []
-
-# RFC-0.29-001 D5: this profile has a marker specification but no emitting
-# scenario yet (v1-limitations.md) — running it fails honestly rather than
-# placeholder-passing. It is still derived into scope (D1) and runs like
-# any other category; only its result is excluded from release gating.
-release_gated    = false
-not_gated_reason = "no emitting scenario yet; markers are specified but nothing produces them (v1-limitations.md)"
