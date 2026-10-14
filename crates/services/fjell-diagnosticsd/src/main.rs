@@ -1,9 +1,17 @@
 //! diagnosticsd — Diagnostic bundle builder and remote push service.
 //!
-//! v0.4.0: Queries `auditd` for recent audit records, assembles a
-//! `DiagnosticBundle` via `fjell-diag-format`, and pushes it to a
-//! `secure-transportd` Diagnostics channel on operator request
-//! (RFC v0.4-005).  Push is operator-initiated only.
+//! v0.4.0: assembles a `DiagnosticBundle` via `fjell-diag-format` and
+//! pushes it to a `secure-transportd` Diagnostics channel on operator
+//! request (RFC v0.4-005).  Push is operator-initiated only.
+//!
+//! RFC-0.35-002 (closes E-068): this used to also query `auditd` for
+//! recent audit records. `fjell-auditd` never implemented that protocol,
+//! so the wait for its reply could not terminate — the first
+//! operator-triggered bundle hung the service. Retracted, not stubbed:
+//! every bundle's audit section states itself unavailable
+//! (`DiagnosticBundle::audit_available`) rather than silently containing
+//! nothing. See `rfcs/ERRATA.md`'s E-068 entry for what implementing it
+//! for real requires.
 #![no_std]
 #![no_main]
 mod rt;
@@ -22,10 +30,14 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 }
 
 // ── CSpace layout ─────────────────────────────────────────────────────────────
+//
+// RFC-0.35-002 (closes E-068): slot 3 — the endpoint to `auditd` the
+// retracted audit-query sub-protocol addressed — is gone. Least privilege:
+// a slot for a protocol nobody implements grants standing authority this
+// service does not exercise (RFC-0.35-002's own ruling, reason 3).
 const CAP_SMGR_EP: CapHandle = CapHandle(0);
 const CAP_TOOLS_EP: CapHandle = CapHandle(1);
 const CAP_SXT_EP: CapHandle = CapHandle(2);
-const CAP_AUDITD_EP: CapHandle = CapHandle(3);
 const CAP_MEASUREDD_EP: CapHandle = CapHandle(4);
 
 // SXT tags mirrored from secure-transportd.
@@ -58,21 +70,23 @@ fn send_tag(ep: CapHandle, tag: usize) {
     let _ = fjell_syscall::sys_ipc_send(ep.0, tag);
 }
 
-fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
+/// `Err(())` on a recv error, kept distinct from `Ok` so a caller that needs
+/// to tell "capability can't receive" apart from "received an unrecognised
+/// tag" (RFC-0.35-002 R5) is not forced to overload a sentinel value to do
+/// it — `query_measurement_head`/`push_bundle` don't need the distinction
+/// (either one is just "no usable reply") and fold it away themselves.
+fn recv_msg(ep: CapHandle) -> Result<(usize, usize, usize), ()> {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
     // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
     match fjell_syscall::sys_ipc_recv_msg(ep.0) {
-        Ok((t, w0, w1, _w2, _w3, _sender)) => (t, w0, w1),
+        Ok((t, w0, w1, _w2, _w3, _sender)) => Ok((t, w0, w1)),
         Err(_) => {
-            // RFC-0.35-001 (closes E-072): this service's main loop receives
-            // on `CAP_TOOLS_EP` (slot 1), which `spawn.rs` has never
-            // installed and remains RFC-0.35-002's decision, not this
-            // line's — so this error path still fires on every boot after
-            // this fix. What this line does fix: the error no longer causes
-            // an immediate, silent re-loop. A recv error must not be a
-            // tight loop, independent of which slot it was.
+            // RFC-0.35-001 (closes E-072): a recv error must not be a tight
+            // loop, independent of which slot caused it or which caller is
+            // asking — yielding here, unconditionally, covers every call
+            // site in this file, not just the main loop's.
             sys_yield();
-            (0, 0, 0)
+            Err(())
         }
     }
 }
@@ -81,7 +95,9 @@ fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
 
 fn query_measurement_head() -> Digest32 {
     send_tag(CAP_MEASUREDD_EP, MEASUREDD_HEAD_QUERY);
-    let (tag, w0_lo, w0_hi) = recv_msg(CAP_MEASUREDD_EP);
+    let Ok((tag, w0_lo, w0_hi)) = recv_msg(CAP_MEASUREDD_EP) else {
+        return Digest32([0u8; 32]);
+    };
     if tag != MEASUREDD_HEAD_REPLY {
         return Digest32([0u8; 32]);
     }
@@ -91,38 +107,14 @@ fn query_measurement_head() -> Digest32 {
     Digest32(d)
 }
 
-// ── Audit record collection ───────────────────────────────────────────────────
-
-/// Wire protocol this function speaks (diagnosticsd → auditd):
-///   → `AUDIT_QUERY`
-///   ← zero or more `AUDIT_RECORD` (w0 = kind_tag|seq<<16, w1 = at_tick)
-///   ← `AUDIT_STREAM_END`
-///
-/// **`fjell-auditd` does not implement this** (found re-deriving RFC-0.34-004
-/// §C/E-034): it drains the audit ring unconditionally on a bare
-/// `sys_ipc_recv`, ignoring the tag, and never replies `AUDIT_RECORD` or
-/// `AUDIT_STREAM_END` over IPC — so this loop blocks forever against the
-/// real service. Named for escalation, not fixed here: a protocol gap, not
-/// a word-carrying one, and outside this line's *Touches* list.
-fn collect_audit_events(builder: &mut BundleBuilder) {
-    send_tag(CAP_AUDITD_EP, proto::AUDIT_QUERY);
-    loop {
-        let (tag, w0, w1) = recv_msg(CAP_AUDITD_EP);
-        if tag == proto::AUDIT_STREAM_END {
-            break;
-        }
-        if tag != proto::AUDIT_RECORD {
-            continue;
-        }
-        let kind_tag = (w0 & 0xFFFF) as u16;
-        let seq = ((w0 >> 16) & 0xFFFF) as u32;
-        let at_tick = w1 as u64;
-        let _ = builder.add_audit_event(seq, kind_tag, 0, at_tick);
-    }
-}
-
 // ── Bundle assembly ───────────────────────────────────────────────────────────
 
+/// RFC-0.35-002 (closes E-068): this used to also query `auditd` here, via
+/// a protocol nothing implemented — the wait for a reply that never came
+/// could not terminate (`collect_audit_events`, deleted). Retracted, not
+/// stubbed: `BundleBuilder::new` leaves `audit_available` at its default
+/// `false`, so every bundle states its audit section unavailable rather
+/// than silently reporting zero records.
 fn build_bundle(
     provider_id: TrustProviderId,
     tick: u64,
@@ -136,7 +128,6 @@ fn build_bundle(
         measurement_head,
         Digest32([0u8; 32]),
     );
-    collect_audit_events(&mut builder);
     let _ = builder.add_intent(
         1,
         INTENT_UPDATE_STAGING_CONFIRMED,
@@ -150,13 +141,15 @@ fn build_bundle(
 
 fn push_bundle(_bundle: &fjell_diag_format::bundle::DiagnosticBundle) -> bool {
     send_tag(CAP_SXT_EP, SXT_OPEN_CHANNEL);
-    let (reply, w0, _) = recv_msg(CAP_SXT_EP);
+    let Ok((reply, w0, _)) = recv_msg(CAP_SXT_EP) else {
+        return false;
+    };
     if reply != SXT_OPENED {
         return false;
     }
     let _channel_id = w0;
     send_tag(CAP_SXT_EP, SXT_DIAG_PUSH);
-    let (ack, _, _) = recv_msg(CAP_SXT_EP);
+    let ack = recv_msg(CAP_SXT_EP).map(|(t, _, _)| t).unwrap_or(0);
     send_tag(CAP_SXT_EP, SXT_CLOSE);
     ack == SXT_DIAG_ACK
 }
@@ -171,8 +164,34 @@ pub extern "C" fn service_main() -> ! {
     send_tag(CAP_SMGR_EP, proto::READY);
     sys_debug_writeln("diagnosticsd: ready");
 
+    // RFC-0.35-002 R5: `CAP_TOOLS_EP` (slot 1) is declared but not installed
+    // (RFC-0.35-001 R5 waived it to this line; this line's own non-goals
+    // forbid installing it too — "finally clean" does not mean "finally
+    // patched over"), so `recv_msg` errors here on every iteration for the
+    // rest of every boot, by design, for as long as that stands. Disclosed
+    // once, not once per iteration: the condition does not change between
+    // iterations, and a line printed on every yield would flood the
+    // console and tell an operator nothing the first line did not already
+    // say. Chosen behaviour: yield and keep listening, not exit — a future
+    // line installing this slot should not require this service to be
+    // respawned to notice — and not block, since there is no capability to
+    // block on.
+    let mut recv_error_disclosed = false;
     loop {
-        let (tag, w0, _) = recv_msg(CAP_TOOLS_EP);
+        let (tag, w0) = match recv_msg(CAP_TOOLS_EP) {
+            Err(()) => {
+                if !recv_error_disclosed {
+                    sys_debug_writeln(
+                        "diagnosticsd: CAP_TOOLS_EP cannot receive (capability not \
+                         installed) -- yielding and listening, not exiting; this will \
+                         recur every iteration and is only disclosed once",
+                    );
+                    recv_error_disclosed = true;
+                }
+                continue;
+            }
+            Ok((tag, w0, _w1)) => (tag, w0),
+        };
         if tag == proto::BUILD_BUNDLE {
             let bundle = build_bundle(PROVIDER_ID, w0 as u64);
             sys_debug_writeln("diagnosticsd: bundle built");
@@ -192,6 +211,13 @@ pub extern "C" fn service_main() -> ! {
             } else {
                 "diagnosticsd: push failed"
             });
+        } else {
+            // RFC-0.35-002 R5: a real message this loop does not recognise
+            // — distinct from a recv error above — is disclosed every time
+            // it happens. Unlike the recv error, this is not an expected,
+            // unchanging condition: it is an actual message arriving, rate
+            // limited by whatever is sending it, not by this loop.
+            sys_debug_writeln("diagnosticsd: unexpected tag on CAP_TOOLS_EP");
         }
     }
 }

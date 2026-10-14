@@ -9,6 +9,7 @@ field bundle_id                      u8 [8]
 field created_tick                   u64 LE
 field measurement_head               u8 [32]
 field last_attestation               u8 [32]
+field audit_available                u8
 field audit_event_count              u8
 group audit_events max 64
 field audit_events[].seq             u32 LE

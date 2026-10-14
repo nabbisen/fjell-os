@@ -38,7 +38,6 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // ── CSpace layout ─────────────────────────────────────────────────────────────
 //
 //   slot 0 — NetDevice capability (from cap-broker)
-//   slot 1 — Endpoint to driver (for query/control)
 //
 // RFC-0.28-001: the readiness signal no longer goes through a per-image
 // CSpace slot at all. It used to declare "slot 2 — Endpoint to
@@ -49,8 +48,14 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // unconditional, always-installed slot for this
 // (`fjell_service_api::ready::SERVICE_READY_SEND_SLOT`) instead of a
 // per-image declaration that has to be remembered to wire up.
+//
+// RFC-0.35-002 (closes E-074): slot 1 — "Endpoint to driver" — is gone.
+// `recv_msg` below hardcodes slot 0, not this constant; nothing anywhere
+// in the tree referenced it outside its own declaration (re-derived,
+// RFC-0.35-001 R8). `service_main` exits before its main loop by design
+// (the smoke-test stub this file's own top comment already discloses), so
+// even the loop that would have used it never runs.
 const CAP_NETDEV: CapHandle = CapHandle(0);
-const CAP_DRV_EP: CapHandle = CapHandle(1);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 

@@ -5,7 +5,17 @@ use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
 /// Schema version for all `v0.4.0` bundles.
-pub const DIAG_BUNDLE_VERSION: u16 = 1;
+///
+/// RFC-0.35-002 (closes E-068): bumped 1 -> 2. `audit_available` is a new
+/// field in the canonical byte stream `bundle_digest` covers — every
+/// digest and signature computed over a v1 bundle stops verifying against
+/// a v2 one, by design; `tests/golden.rs`'s own header requires exactly
+/// this pairing (a version bump and a note) before its stored digest may
+/// change. No new domain separator: unlike `fjell-attestation-format`'s
+/// V1/V2 split, this bundle is never cross-verified against a differently
+/// versioned signature — `schema_version` already written into the bytes
+/// is the field a reader checks.
+pub const DIAG_BUNDLE_VERSION: u16 = 2;
 /// Maximum audit events stored per bundle.
 pub const MAX_AUDIT_EVENTS: usize = 64;
 /// Maximum semantic intents stored per bundle.
@@ -26,6 +36,13 @@ pub struct DiagnosticBundle {
     pub measurement_head: Digest32,
     /// SHA-256 digest of the last `AttestationRecordV2`.
     pub last_attestation: Digest32,
+    /// `false` whenever the audit section was never queried — RFC-0.35-002
+    /// (closes E-068): the audit-query sub-protocol diagnosticsd once sent
+    /// was retracted, never implemented by anything, so `audit_event_count
+    /// == 0` alone cannot say whether that means "queried, no records" or
+    /// "not implemented." This is the distinction the caller needs; see
+    /// `rfcs/ERRATA.md`'s E-068 entry for what implementing it requires.
+    pub audit_available: bool,
     pub audit_event_count: u8,
     pub audit_events: [DiagAuditEvent; MAX_AUDIT_EVENTS],
     pub semantic_intent_count: u8,
@@ -88,6 +105,7 @@ impl DiagnosticBundle {
             keyring_anchor_epoch: 0,
             measurement_head: Digest32([0u8; 32]),
             last_attestation: Digest32([0u8; 32]),
+            audit_available: false,
             audit_event_count: 0,
             audit_events: [DiagAuditEvent::EMPTY; MAX_AUDIT_EVENTS],
             semantic_intent_count: 0,
@@ -109,6 +127,7 @@ impl DiagnosticBundle {
         c.u64("created_tick", self.created_tick);
         c.bytes("measurement_head", &self.measurement_head.0);
         c.bytes("last_attestation", &self.last_attestation.0);
+        c.u8("audit_available", self.audit_available as u8);
         c.u8("audit_event_count", self.audit_event_count);
         c.each(
             "audit_events",

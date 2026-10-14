@@ -459,13 +459,12 @@ pub mod diagnosticsd {
     pub const PUSH_ACK: usize = 0x404;
     /// Push failed (w0 = error code).
     pub const PUSH_FAULT: usize = 0x40F;
-    // ── auditd query sub-protocol (diagnosticsd → auditd) ────────────────────
-    /// Query auditd for recent records (w0 = max_count).
-    pub const AUDIT_QUERY: usize = 0x410;
-    /// Single audit event record (w0 = kind_tag | seq<<16 | code<<32).
-    pub const AUDIT_RECORD: usize = 0x411;
-    /// End of audit record stream.
-    pub const AUDIT_STREAM_END: usize = 0x412;
+    // RFC-0.35-002 (closes E-068): the auditd query sub-protocol that lived
+    // here — AUDIT_QUERY/AUDIT_RECORD/AUDIT_STREAM_END — is retracted.
+    // `fjell-auditd` never implemented it; `diagnosticsd`'s own loop waiting
+    // for a reply that never came could not terminate. Not designed yet,
+    // not stubbed here under a different name — see `rfcs/ERRATA.md`'s
+    // E-068 entry for what implementing it for real requires.
 }
 
 // ── RFC-v0.23-001: ABDD live path IPC protocols ──────────────────────────────

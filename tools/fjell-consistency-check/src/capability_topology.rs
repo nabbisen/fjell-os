@@ -87,27 +87,22 @@ struct Waiver {
     reason: &'static str,
 }
 
-/// E-072's nine survivors, 2026-10-14, named with the reason this line does
-/// not install them. Updated in the same commit as whichever line changes
-/// a service's disposition (RFC-0.35-002, for all nine here).
+/// E-072's remaining four survivors, 2026-10-14, named with the reason this
+/// line does not install them. Updated in the same commit as whichever
+/// line changes a service's disposition. RFC-0.35-002 retired the other
+/// five: `SECURE_TRANSPORTD` slots 3 and 4, and `DIAGNOSTICSD` slot 3,
+/// closed E-068/E-069 by deleting the declarations outright (the protocols
+/// they addressed were retracted, not merely left unserved); `ATTESTD`
+/// slot 5 and `NETD` slot 1 closed E-074 the same way (built, never wired
+/// to a caller — deleted rather than waived further). None of the five is
+/// discovered any more, so none would be matched here even if left in —
+/// removed anyway, so this list does not claim a slot exists that does not.
 const WAIVERS: &[Waiver] = &[
     Waiver {
         image: "SECURE_TRANSPORTD",
         slot: 1,
         purpose: "smgr readiness (superseded by SERVICE_READY_SEND_SLOT)",
         reason: "E-072 survivor — not the update path (RFC-0.35-001 R5)",
-    },
-    Waiver {
-        image: "SECURE_TRANSPORTD",
-        slot: 3,
-        purpose: "diagnosticsd",
-        reason: "RFC-0.35-002",
-    },
-    Waiver {
-        image: "SECURE_TRANSPORTD",
-        slot: 4,
-        purpose: "attestd",
-        reason: "RFC-0.35-002",
     },
     Waiver {
         image: "DIAGNOSTICSD",
@@ -123,27 +118,9 @@ const WAIVERS: &[Waiver] = &[
     },
     Waiver {
         image: "DIAGNOSTICSD",
-        slot: 3,
-        purpose: "auditd",
-        reason: "RFC-0.35-002",
-    },
-    Waiver {
-        image: "DIAGNOSTICSD",
         slot: 4,
         purpose: "measuredd",
         reason: "RFC-0.35-002",
-    },
-    Waiver {
-        image: "ATTESTD",
-        slot: 5,
-        purpose: "secure-transportd",
-        reason: "RFC-0.35-002, E-074 (push_attestation has no caller)",
-    },
-    Waiver {
-        image: "NETD",
-        slot: 1,
-        purpose: "driver",
-        reason: "RFC-0.35-002, E-074 (no reference outside its own const)",
     },
 ];
 
@@ -577,7 +554,7 @@ mod tests {
     }
 
     #[test]
-    fn discovery_on_the_current_tree_matches_the_known_eleven() {
+    fn discovery_on_the_current_tree_matches_the_known_six() {
         // `cargo test` runs with this crate's own directory as the working
         // directory, not the workspace root `check()` assumes in
         // production (`cargo xtask consistency-check` always runs from the
@@ -591,10 +568,13 @@ mod tests {
         let services_dir = root.join(SERVICES_DIR);
         let discovered = discover_slots(&services_dir.to_string_lossy())
             .expect("discovery must succeed on the real tree");
+        // E-072's eleven, less the five RFC-0.35-002 closed by deleting the
+        // declaration outright (SECURE_TRANSPORTD slots 3/4, DIAGNOSTICSD
+        // slot 3, E-068/E-069; ATTESTD slot 5, NETD slot 1, E-074).
         assert_eq!(
             discovered.len(),
-            11,
-            "expected exactly E-072's eleven non-zero, non-init slots: {discovered:#?}",
+            6,
+            "expected exactly the six slots RFC-0.35-002 did not retire: {discovered:#?}",
         );
         let unwaived = discovered
             .iter()

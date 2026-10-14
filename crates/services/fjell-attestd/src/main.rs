@@ -278,79 +278,16 @@ pub extern "C" fn service_main() -> ! {
     }
 }
 
-// ── Remote attestation push (RFC v0.4-005 §5.3) ──────────────────────────────
-
-/// Cap slot for the `secure-transportd` endpoint.
-const CAP_SXT_EP: fjell_cap::CapHandle = fjell_cap::CapHandle(5);
-
-// SXT tag constants — must match secure-transportd.
-const SXT_OPEN_CHANNEL: u16 = 0x0100;
-const SXT_OPENED: u16 = 0x0101;
-const SXT_ATTEST_PUSH: u16 = 0x0106;
-const SXT_ATTEST_CHALLENGE: u16 = 0x0107;
-const SXT_CLOSE: u16 = 0x0109;
-#[allow(dead_code)] // v0.7: SXT channel fault state tracking
-const SXT_FAULTED: u16 = 0x010b;
-
-/// Cached server nonce from the last successful attestation push.
-/// Stored in-process (alpha.1); migrates to storaged IPC in alpha.2.
-static mut CACHED_NONCE: [u8; 16] = [0u8; 16];
-
-/// RFC-0.34-004 §C (closes E-034): `sxt_send` no longer takes a data word.
-/// It never carried one — `IpcSend`'s `build_msg`
-/// (`crates/fjell-kernel/src/cap/syscall.rs`) only copies `tag.words` words,
-/// taken from bits 16-23 of the packed tag, and this call never set them —
-/// so removing the parameter changes no runtime behaviour, it only stops
-/// the signature promising delivery that never happened. (One call site
-/// genuinely needed a word delivered and was silently broken by its
-/// absence — `fjell-upgraded`'s `channel_id` for `UpdateMetadataFetch`/
-/// `Close` — found while re-deriving this erratum and left as a survivor:
-/// carrying it for real is an ABI change to the tag packing, its own line,
-/// not this one. See the answer document's §C.)
-fn sxt_send(tag: u16) {
-    let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
-}
-
-fn sxt_recv() -> (u16, usize) {
-    // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
-    // is a correct superset (`w1`-`w3`/sender discarded, not needed here).
-    match fjell_syscall::sys_ipc_recv_msg(CAP_SXT_EP.0) {
-        Ok((t, w0, _w1, _w2, _w3, _sender)) => ((t & 0xFFFF) as u16, w0),
-        Err(_) => (0, 0),
-    }
-}
-
-/// Push the current attestation record to the remote endpoint via
-/// `secure-transportd` (RFC v0.4-005 §5.3 attestation exchange).
-///
-/// On success updates `CACHED_NONCE` with the server's next nonce.
-/// Returns `true` if the round-trip completed.
-pub fn push_attestation(_record_seq: u32) -> bool {
-    // Open an Attestation channel (its kind, dead on arrival per E-034).
-    sxt_send(SXT_OPEN_CHANNEL);
-    let (reply, w0) = sxt_recv();
-    if reply != SXT_OPENED {
-        return false;
-    }
-    let _channel_id = w0 as u32;
-
-    // Push the signed attestation record. `_record_seq` no longer travels
-    // with it (RFC-0.34-004 §C) — `secure-transportd` has no receive arm for
-    // `SxtTag::AttestPush` at all, so it never reached a reader either way.
-    sxt_send(SXT_ATTEST_PUSH);
-    let (ack, nonce_lo) = sxt_recv();
-
-    sxt_send(SXT_CLOSE);
-
-    if ack == SXT_ATTEST_CHALLENGE {
-        // Cache the returned nonce (lower 8 bytes from w0 in alpha.1 stub).
-        // SAFETY: category=user-copy shared-memory region is capability-gated; pointer is valid for the agreed-upon length.
-        unsafe {
-            let b = (nonce_lo as u64).to_le_bytes();
-            CACHED_NONCE[..8].copy_from_slice(&b);
-        }
-        true
-    } else {
-        false
-    }
-}
+// RFC-0.35-002 (closes E-074): "Remote attestation push" (RFC v0.4-005
+// §5.3) used to live here — `push_attestation`, its `CAP_SXT_EP` (slot 5),
+// and the SXT send/recv helpers it alone used. It had no caller anywhere
+// in the tree (re-derived, RFC-0.35-001 R8) and addressed a peer through a
+// capability nobody installs: built, never wired to a caller, the mirror
+// image of E-068/E-069's declared-but-not-serving shape. Deleted, not
+// stubbed — serving it is RFC-0.35-002's ruling's reason 1 (bolting a path
+// onto an existing comment retrofits a design to a sentence, not the other
+// way around). Its own write to `CACHED_NONCE`, a `static mut`, would have
+// page-faulted the moment it ran: a service's image is mapped `R | X | U`,
+// never `W` (the constraint `fjell-semantic-stream`'s own module doc
+// documents) — a second, previously-latent defect in the code this
+// deletion removes rather than fixes.

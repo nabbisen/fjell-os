@@ -2,8 +2,8 @@
 //!
 //! v0.4.0-alpha.1: Receives a `Session` cap from `netd` via cap-broker,
 //! initialises the channel table, and enters an IPC loop handling
-//! `SXT_OPEN_CHANNEL` / `SXT_CLOSE` requests from `upgraded`, `diagnosticsd`,
-//! and `attestd` (RFC v0.4-003 §5.2).
+//! `SXT_OPEN_CHANNEL` / `SXT_CLOSE` requests from `upgraded` — its one
+//! served peer (RFC v0.4-003 §5.2).
 //!
 //! TLS 1.3 handshake using `fjell-sxt-crypto` primitives is wired in this
 //! iteration; full certificate verification against the pinned trust anchor
@@ -14,12 +14,15 @@
 // had) now genuinely exchanges messages with `upgraded` rather than
 // busy-spinning on an empty slot. The claim that it "signals readiness and
 // exits before its main loop by design" was never true of the code; it is
-// removed from `v1-limitations.md`'s stub list in the same commit. What
-// remains a stub: real certificate verification (`fjell-sxt-crypto`'s own
-// doc comment) and the `diagnosticsd`/`attestd` legs, which RFC-0.35-002
-// decides. The allows below stay — `diagnosticsd`'s and `attestd`'s slots
-// are still unserved dead paths, and the round-robin comment below is one
-// of them (E-069).
+// removed from `v1-limitations.md`'s stub list in the same commit.
+//
+// RFC-0.35-002 (closes E-069): this used to also declare `CAP_DIAG_EP` and
+// `CAP_ATTEST_EP`, endpoints for `diagnosticsd` and `attestd` that nothing
+// ever received on — a round-robin this file's own comment claimed, over
+// three client endpoints, when only one was ever served. Retracted: this
+// service declares only the one endpoint it uses. Real certificate
+// verification (`fjell-sxt-crypto`'s own doc comment) remains a separate,
+// already-documented stub.
 
 #![allow(
     dead_code,
@@ -52,14 +55,13 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //   slot 0 — Session cap (from netd, via cap-broker)
 //   slot 1 — Endpoint to service-manager (ready signal)
 //   slot 2 — Endpoint for upgraded requests
-//   slot 3 — Endpoint for diagnosticsd requests
-//   slot 4 — Endpoint for attestd requests
 //
+// RFC-0.35-002 (closes E-069): slots 3 and 4 — endpoints for `diagnosticsd`
+// and `attestd` — are gone. Nothing ever received on either; declaring them
+// granted standing authority this service does not exercise.
 const CAP_SESSION: CapHandle = CapHandle(0);
 const CAP_SMGR_EP: CapHandle = CapHandle(1);
 const CAP_UPGRAD_EP: CapHandle = CapHandle(2);
-const CAP_DIAG_EP: CapHandle = CapHandle(3);
-const CAP_ATTEST_EP: CapHandle = CapHandle(4);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
@@ -77,26 +79,33 @@ fn send_tag(ep: CapHandle, tag: u16, w0: usize) {
     let _ = fjell_syscall::sys_ipc_send_words(ep.0, tag as usize, w0, 0);
 }
 
-fn recv_msg(ep: CapHandle) -> (u16, usize, usize) {
+/// `Err(())` on a recv error, kept distinct from `Ok` (RFC-0.35-002 R5) so
+/// the main loop can tell "capability can't receive" apart from "received
+/// an unrecognised tag" rather than overloading a sentinel value to do it.
+fn recv_msg(ep: CapHandle) -> Result<(u16, usize, usize), ()> {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
     // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
     match fjell_syscall::sys_ipc_recv_msg(ep.0) {
-        Ok((t, w0, w1, _w2, _w3, _sender)) => ((t & 0xFFFF) as u16, w0, w1),
+        Ok((t, w0, w1, _w2, _w3, _sender)) => Ok(((t & 0xFFFF) as u16, w0, w1)),
         Err(_) => {
             // RFC-0.35-001 (closes E-072): `sys_ipc_recv` errors instead of
             // blocking on a capability slot the kernel never installed
             // (`InvalidCap`) — this loop's only call site (`CAP_UPGRAD_EP`,
-            // this service polls nothing else despite its own comment
-            // claiming otherwise, E-069) used to re-enter at once on every
-            // such error, busy-spinning for the lifetime of every boot
-            // (E-072's own measurement: 27 recorded boots, never a single
-            // real message). `CAP_UPGRAD_EP` is installed by this line, so
-            // this branch is not expected to fire in a committed tier
-            // anymore — kept, and still yielding, as the general case
-            // rather than one tied to a specific slot: a recv error must
-            // not be a tight loop, whatever caused it.
+            // this service's one served peer since RFC-0.35-002 closed
+            // E-069) used to re-enter at once on every such error,
+            // busy-spinning for the lifetime of every boot (E-072's own
+            // measurement: 27 recorded boots, never a single real message).
+            // `CAP_UPGRAD_EP` is installed, so this branch is not expected
+            // to fire in a committed tier — kept as the general case rather
+            // than one tied to a specific slot: a recv error must not be a
+            // tight loop, whatever caused it. RFC-0.35-002 R5: disclosed on
+            // the console every time, unlike `diagnosticsd`'s chronic
+            // every-iteration case — this one is not expected to recur, so
+            // printing it every time it does is not a flood risk, and an
+            // operator seeing it at all is new information.
+            sys_debug_writeln("secure-transportd: CAP_UPGRAD_EP recv failed");
             sys_yield();
-            (0, 0, 0)
+            Err(())
         }
     }
 }
@@ -153,11 +162,16 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("secure-transportd: ready");
 
     // IPC event loop.
-    // In v0.4.0-alpha.1 we poll the three client endpoints in round-robin.
-    // A proper kernel-level multiplexed recv lands in v0.4.0.
+    // RFC-0.35-002 (closes E-069): this used to say "we poll the three
+    // client endpoints in round-robin." There was no round-robin — one
+    // endpoint, `CAP_UPGRAD_EP`, was ever served; `diagnosticsd`'s and
+    // `attestd`'s are gone (above). This loop receives on the one endpoint
+    // this service actually speaks to.
     loop {
-        // Poll upgraded endpoint.
-        let (tag, w0, _w1) = recv_msg(CAP_UPGRAD_EP);
+        let (tag, w0, _w1) = match recv_msg(CAP_UPGRAD_EP) {
+            Err(()) => continue, // disclosed inside recv_msg; nothing more to do here
+            Ok((tag, w0, w1)) => (tag, w0, w1),
+        };
         match SxtTag::from_u16(tag) {
             Some(SxtTag::OpenChannel) => {
                 // RFC-0.35-001 R6 (closes E-070): `w0` is carried for real
@@ -230,7 +244,13 @@ pub extern "C" fn service_main() -> ! {
                 channels.close(channel_id);
                 send_tag(CAP_UPGRAD_EP, SxtTag::Closed as u16, 0);
             }
-            _ => {}
+            _ => {
+                // RFC-0.35-002 R5: a tag this service does not act on —
+                // either outside `SxtTag` entirely, or one of its own
+                // reply-only variants echoed back — disclosed, not
+                // silently dropped, every time it happens.
+                sys_debug_writeln("secure-transportd: unexpected tag on CAP_UPGRAD_EP");
+            }
         }
     }
 }

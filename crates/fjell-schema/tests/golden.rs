@@ -53,10 +53,16 @@ fn attestation_v2() {
 
 #[test]
 fn diag_bundle() {
+    // RFC-0.35-002 (closes E-068), DIAG_BUNDLE_VERSION 1 -> 2: a new field,
+    // `audit_available`, is now written into the canonical byte stream
+    // this digest covers (ahead of `audit_event_count`, so it distinguishes
+    // "not implemented" from "queried, zero records" for a caller reading
+    // the bundle). A version bump and this note, as this file's own header
+    // requires before a stored digest may change.
     check(
         "diag_bundle",
         &s::diag_bundle().bundle_digest.0,
-        "0f778f1b455602c0aeee5692a60fb5480aa3647a8297b6b2fcc8f124d78522bb",
+        "f0d00a584db4f4a11d510f1231d715138279a4e4dddd3b15107209c4ee2b9d3e",
     );
 }
 

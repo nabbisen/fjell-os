@@ -113,7 +113,8 @@ impl BundleBuilder {
     /// ```text
     /// SHA256("FJELL-DIAG-V1" || schema u16 LE || bundle_id 8 B ||
     ///        created_tick u64 LE || measurement_head 32 B ||
-    ///        last_attestation 32 B || audit_event_count u8 ||
+    ///        last_attestation 32 B || audit_available u8 ||
+    ///        audit_event_count u8 ||
     ///        [per-event: seq u32 LE || kind_tag u16 LE || code u16 LE || tick u64 LE] ||
     ///        semantic_intent_count u8 ||
     ///        [per-intent: seq u32 LE || intent_tag u16 LE || code u16 LE || tick u64 LE])
@@ -124,7 +125,7 @@ impl BundleBuilder {
     }
 
     fn compute_digest(&self) -> Digest32 {
-        // Maximum size: 13 (prefix) + 2 + 8 + 8 + 32 + 32 + 1 + 64*16 + 1 + 32*16 = 1605 bytes.
+        // Maximum size: 13 (prefix) + 2 + 8 + 8 + 32 + 32 + 1 + 1 + 64*16 + 1 + 32*16 = 1606 bytes.
         let mut sink = BufSink::<1700>::new();
         self.bundle.write_canonical(&mut sink);
         Digest32::of(sink.bytes())
