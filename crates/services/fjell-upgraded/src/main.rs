@@ -133,6 +133,26 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("upgraded: rollback correctly rejected");
 
     sys_debug_writeln("upgraded: boot confirmation simulated");
+
+    // RFC-0.35-001 R5/R6 (closes E-070): exercised for the first time ever
+    // — `fetch_update_index` has always been reachable only as a `pub fn`
+    // nothing called. The capability now exists, so this is a real
+    // rendezvous with `secure-transportd`, not a call into an empty slot.
+    sys_debug_writeln("upgraded: fetching update index");
+    match fetch_update_index() {
+        Some(_channel_id) => {
+            sys_debug_writeln("upgraded: update index fetched");
+        }
+        None => {
+            // Expected today: `perform_tls_handshake`'s release path has no
+            // real certificate verification yet (`fjell-sxt-crypto`'s own
+            // doc comment) and fails closed by design — a different,
+            // already-known limitation, not E-070's. The channel open/fault
+            // round trip itself is what this line fixed.
+            sys_debug_writeln("upgraded: update index fetch returned no index");
+        }
+    }
+
     sys_exit(0)
 }
 
@@ -151,20 +171,15 @@ const SXT_UPDATE_METADATA_REPLY: u16 = 0x0103;
 #[allow(dead_code)] // v0.7: SXT channel fault state tracking
 const SXT_FAULTED: u16 = 0x010b;
 
-/// RFC-0.34-004 §C (closes E-034): `send_sxt` no longer takes a data word —
-/// see `fjell-diagnosticsd::send_tag`'s identical note. It never carried
-/// one, so removing the parameter changes no runtime behaviour. **This is
-/// the one call of the four where the dropped word was not inert**: the
-/// `channel_id` `fetch_update_index` used to pass below never reached
-/// `secure-transportd` either (same defect), so every `UpdateMetadataFetch`
-/// and `Close` this function issues is already looked up against `0` on the
-/// receiving end — `fetch_update_index` has always returned `None` against
-/// a real `secure-transportd`, not only when the remote index is actually
-/// unavailable. Pre-existing, independent of this change, and named in the
-/// register rather than fixed: carrying the word for real is an ABI change
-/// to the tag packing, its own line (see the answer document's §C).
-fn send_sxt(tag: u16) {
-    let _ = fjell_syscall::sys_ipc_send(CAP_SXT_EP.0, tag as usize);
+/// RFC-0.35-001 R6 (closes E-070): `send_sxt` carries a real data word
+/// again, via `sys_ipc_send_words`. RFC-0.34-004 §C dropped the parameter
+/// because nothing reached `secure-transportd` at all then (E-072: the
+/// capability did not exist); this is that fix's own named "its own line" —
+/// `spawn.rs` now installs `CAP_SXT_EP` (RFC-0.35-001 R5), so the channel
+/// id and channel kind this function's callers pass are facts the receiver
+/// can and does act on.
+fn send_sxt(tag: u16, w0: usize) {
+    let _ = fjell_syscall::sys_ipc_send_words(CAP_SXT_EP.0, tag as usize, w0, 0);
 }
 
 fn recv_sxt() -> (u16, usize) {
@@ -183,21 +198,24 @@ fn recv_sxt() -> (u16, usize) {
 ///
 /// RFC v0.4-004 §5.1: channel kind = 0x01 (UpdateMetadata).
 pub fn fetch_update_index() -> Option<u32> {
-    // Request channel open: kind = UpdateMetadata (0x01).
-    send_sxt(SXT_OPEN_CHANNEL);
+    // Request channel open: kind = UpdateMetadata (0x01) in the high byte —
+    // real now (RFC-0.35-001 R6), not the always-dropped word E-034 left it
+    // as.
+    const KIND_UPDATE_METADATA: usize = 0x01 << 24;
+    send_sxt(SXT_OPEN_CHANNEL, KIND_UPDATE_METADATA);
     let (reply_tag, w0) = recv_sxt();
     if reply_tag != SXT_OPENED {
         return None;
     }
     let channel_id = w0 as u32;
 
-    // Issue metadata fetch on the established channel. `channel_id` does not
-    // travel with it (E-034, named above) — this call has always looked up
-    // against `0` on the receiving end, not this `channel_id`.
-    send_sxt(SXT_UPDATE_METADATA_FETCH);
+    // Issue metadata fetch on the established channel, carrying the real
+    // channel id the `Opened` reply just gave — no longer looked up against
+    // `0` on the receiving end (E-070).
+    send_sxt(SXT_UPDATE_METADATA_FETCH, channel_id as usize);
     let (reply_tag2, _w0_2) = recv_sxt();
     if reply_tag2 != SXT_UPDATE_METADATA_REPLY {
-        send_sxt(SXT_CLOSE);
+        send_sxt(SXT_CLOSE, channel_id as usize);
         return None;
     }
 

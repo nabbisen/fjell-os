@@ -12,7 +12,7 @@ use fjell_cap::CapHandle;
 use fjell_diag_format::{BundleBuilder, intents::INTENT_UPDATE_STAGING_CONFIRMED};
 use fjell_measure_format::Digest32;
 use fjell_service_api::diagnosticsd as proto;
-use fjell_syscall::{sys_debug_writeln, sys_exit};
+use fjell_syscall::{sys_debug_writeln, sys_exit, sys_yield};
 use fjell_trust_provider::ids::TrustProviderId;
 
 #[panic_handler]
@@ -63,7 +63,17 @@ fn recv_msg(ep: CapHandle) -> (usize, usize, usize) {
     // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
     match fjell_syscall::sys_ipc_recv_msg(ep.0) {
         Ok((t, w0, w1, _w2, _w3, _sender)) => (t, w0, w1),
-        Err(_) => (0, 0, 0),
+        Err(_) => {
+            // RFC-0.35-001 (closes E-072): this service's main loop receives
+            // on `CAP_TOOLS_EP` (slot 1), which `spawn.rs` has never
+            // installed and remains RFC-0.35-002's decision, not this
+            // line's — so this error path still fires on every boot after
+            // this fix. What this line does fix: the error no longer causes
+            // an immediate, silent re-loop. A recv error must not be a
+            // tight loop, independent of which slot it was.
+            sys_yield();
+            (0, 0, 0)
+        }
     }
 }
 

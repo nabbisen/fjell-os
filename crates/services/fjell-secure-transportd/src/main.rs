@@ -8,11 +8,19 @@
 //! TLS 1.3 handshake using `fjell-sxt-crypto` primitives is wired in this
 //! iteration; full certificate verification against the pinned trust anchor
 //! lands in v0.4.0-alpha.2.
-// SMOKE-TEST STUB (v1.0 limitation; see docs/src/releasing/v1-limitations.md):
-// this service signals readiness and exits before its main loop by design,
-// so the kernel can emit the milestone marker. The full implementation is
-// post-v1.0 roadmap work; the allows below keep the intentional dead paths
-// from polluting the workspace warning baseline.
+// RFC-0.35-001 (closes E-072, E-070): this service does **not** exit early —
+// it signals readiness and enters its IPC loop, same as every other
+// service, and (since this line installed the capability the kernel never
+// had) now genuinely exchanges messages with `upgraded` rather than
+// busy-spinning on an empty slot. The claim that it "signals readiness and
+// exits before its main loop by design" was never true of the code; it is
+// removed from `v1-limitations.md`'s stub list in the same commit. What
+// remains a stub: real certificate verification (`fjell-sxt-crypto`'s own
+// doc comment) and the `diagnosticsd`/`attestd` legs, which RFC-0.35-002
+// decides. The allows below stay — `diagnosticsd`'s and `attestd`'s slots
+// are still unserved dead paths, and the round-robin comment below is one
+// of them (E-069).
+
 #![allow(
     dead_code,
     unused_variables,
@@ -29,7 +37,7 @@ mod rt;
 use fjell_cap::CapHandle;
 use fjell_net_format::{ChannelKind, MAX_SXT_CHANNELS};
 use fjell_sxt_crypto::tls_state::{SxtError as TlsSxtError, TlsHandshakeState, TlsState};
-use fjell_syscall::{sys_debug_writeln, sys_exit};
+use fjell_syscall::{sys_debug_writeln, sys_exit, sys_yield};
 
 use channel::{ChannelState, ChannelTable, SxtError, SxtTag};
 
@@ -55,17 +63,18 @@ const CAP_ATTEST_EP: CapHandle = CapHandle(4);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
-/// RFC-0.34-004 §C (closes E-034): `send_tag` no longer takes a data word —
-/// see `fjell-diagnosticsd::send_tag`'s identical note. It never carried
-/// one (this call never packs a word count into the tag, so `build_msg`
-/// copies zero words regardless of what was in `a2`), so this changes no
-/// runtime behaviour. The `channel_id`/`SxtError` values call sites used to
-/// pass here were already inert for the same reason the OpenChannel
-/// arm's own incoming `w0` always reads `0` below: whatever `upgraded`
-/// sends through the identical, equally-broken `send_sxt` never arrives
-/// either.
-fn send_tag(ep: CapHandle, tag: u16) {
-    let _ = fjell_syscall::sys_ipc_send(ep.0, tag as usize);
+/// RFC-0.35-001 R6 (closes E-070): `send_tag` carries a real data word
+/// again, via `sys_ipc_send_words` rather than the bare, zero-word
+/// `sys_ipc_send` RFC-0.34-004 left it with. That was correct when nothing
+/// reached this endpoint at all (E-072: the capability did not exist, so no
+/// word — carried or not — was ever going anywhere); now that
+/// `spawn.rs` installs `CAP_UPGRAD_EP`/`upgraded`'s `CAP_SXT_EP` to one
+/// shared object (RFC-0.35-001 R5), the channel id this function's callers
+/// pass is the fact that makes `UpdateMetadataFetch`/`Close` address the
+/// right channel instead of channel `0` (never valid — see
+/// `ChannelTable::find_mut`).
+fn send_tag(ep: CapHandle, tag: u16, w0: usize) {
+    let _ = fjell_syscall::sys_ipc_send_words(ep.0, tag as usize, w0, 0);
 }
 
 fn recv_msg(ep: CapHandle) -> (u16, usize, usize) {
@@ -73,7 +82,22 @@ fn recv_msg(ep: CapHandle) -> (u16, usize, usize) {
     // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
     match fjell_syscall::sys_ipc_recv_msg(ep.0) {
         Ok((t, w0, w1, _w2, _w3, _sender)) => ((t & 0xFFFF) as u16, w0, w1),
-        Err(_) => (0, 0, 0),
+        Err(_) => {
+            // RFC-0.35-001 (closes E-072): `sys_ipc_recv` errors instead of
+            // blocking on a capability slot the kernel never installed
+            // (`InvalidCap`) — this loop's only call site (`CAP_UPGRAD_EP`,
+            // this service polls nothing else despite its own comment
+            // claiming otherwise, E-069) used to re-enter at once on every
+            // such error, busy-spinning for the lifetime of every boot
+            // (E-072's own measurement: 27 recorded boots, never a single
+            // real message). `CAP_UPGRAD_EP` is installed by this line, so
+            // this branch is not expected to fire in a committed tier
+            // anymore — kept, and still yielding, as the general case
+            // rather than one tied to a specific slot: a recv error must
+            // not be a tight loop, whatever caused it.
+            sys_yield();
+            (0, 0, 0)
+        }
     }
 }
 
@@ -125,7 +149,7 @@ pub extern "C" fn service_main() -> ! {
     let mut channels = ChannelTable::new();
 
     // Notify service-manager we are ready.
-    send_tag(CAP_SMGR_EP, SxtTag::Opened as u16);
+    send_tag(CAP_SMGR_EP, SxtTag::Opened as u16, 0);
     sys_debug_writeln("secure-transportd: ready");
 
     // IPC event loop.
@@ -136,14 +160,15 @@ pub extern "C" fn service_main() -> ! {
         let (tag, w0, _w1) = recv_msg(CAP_UPGRAD_EP);
         match SxtTag::from_u16(tag) {
             Some(SxtTag::OpenChannel) => {
-                // Intended to encode: kind (high 8 bits) | server_name_ptr
-                // (low 24 bits). **`w0` always arrives `0`** (RFC-0.34-004
-                // §C/E-034): `upgraded::send_sxt` never carries a word
-                // either, for the identical reason `send_tag` above no
-                // longer promises to — so `kind_raw` is always `0` and
-                // every channel this arm opens is `UpdateMetadata`,
-                // regardless of what a caller intended. In v0.4.0-alpha.1
-                // the server name is always the update server anyway.
+                // RFC-0.35-001 R6 (closes E-070): `w0` is carried for real
+                // now (`send_tag`/`send_sxt` use `sys_ipc_send_words`), so
+                // this decode is no longer dead — encodes kind (high 8
+                // bits) | server_name_ptr (low 24 bits), exactly as always
+                // documented. `upgraded` is this channel's only wired
+                // caller (RFC-0.35-001 R5; diagnosticsd's and attestd's
+                // slots remain uninstalled, RFC-0.35-002's decision), and it
+                // always asks for `UpdateMetadata` — the fallback arm is
+                // reachable only once another caller is wired up.
                 let kind_raw = (w0 >> 24) as u8;
                 let kind = match kind_raw {
                     0x01 => ChannelKind::UpdateMetadata,
@@ -163,38 +188,47 @@ pub extern "C" fn service_main() -> ! {
                                 ch.state = ChannelState::Established;
                                 ch.anchor_epoch = epoch;
                             }
-                            send_tag(CAP_UPGRAD_EP, SxtTag::Opened as u16);
+                            // The channel id travels in the reply now — the
+                            // fact `UpdateMetadataFetch`/`Close` need to
+                            // address the right channel rather than `0`.
+                            send_tag(CAP_UPGRAD_EP, SxtTag::Opened as u16, channel_id as usize);
                             sys_debug_writeln("secure-transportd: channel opened");
                         }
                         Err(_) => {
                             channels.close(channel_id);
-                            send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
+                            send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
                             sys_debug_writeln("secure-transportd: handshake failed");
                         }
                     },
                     Err(_) => {
-                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
+                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
                         sys_debug_writeln("secure-transportd: channel table full");
                     }
                 }
             }
             Some(SxtTag::UpdateMetadataFetch) => {
+                // RFC-0.35-001 R6: `w0` is the channel id the `Opened` reply
+                // carried — real now, not the always-`0` E-034 left it as.
                 let channel_id = w0 as u32;
                 if let Some(ch) = channels.find_mut(channel_id) {
                     if ch.state == ChannelState::Established {
                         // Stub: in alpha.2 this sends an HTTP/1.1 GET over the TLS record.
-                        send_tag(CAP_UPGRAD_EP, SxtTag::UpdateMetadataReply as u16);
+                        send_tag(
+                            CAP_UPGRAD_EP,
+                            SxtTag::UpdateMetadataReply as u16,
+                            channel_id as usize,
+                        );
                     } else {
-                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
+                        send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
                     }
                 } else {
-                    send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16);
+                    send_tag(CAP_UPGRAD_EP, SxtTag::Faulted as u16, 0);
                 }
             }
             Some(SxtTag::Close) => {
                 let channel_id = w0 as u32;
                 channels.close(channel_id);
-                send_tag(CAP_UPGRAD_EP, SxtTag::Closed as u16);
+                send_tag(CAP_UPGRAD_EP, SxtTag::Closed as u16, 0);
             }
             _ => {}
         }

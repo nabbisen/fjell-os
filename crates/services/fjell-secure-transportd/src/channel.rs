@@ -96,6 +96,15 @@ impl ChannelDescriptor {
 
 // ── Channel table ─────────────────────────────────────────────────────────────
 
+/// RFC-0.35-001 R6: channel id `0` is invalid **by construction**, not by
+/// the accident that `next_id` happens to start at `1`. Before this line
+/// nothing read a real channel id at all (E-070), so the distinction never
+/// mattered; now that `UpdateMetadataFetch`/`Close` address a channel by a
+/// word a caller sends, a caller that sends `0` — the same `0` an
+/// uninitialised or dropped word always was — must fail closed, not
+/// accidentally succeed because no channel ever happens to hold it.
+pub const INVALID_CHANNEL_ID: u32 = 0;
+
 pub struct ChannelTable {
     channels: [ChannelDescriptor; MAX_SXT_CHANNELS],
     next_id: u32,
@@ -112,6 +121,14 @@ impl ChannelTable {
     pub fn open(&mut self, kind: ChannelKind, server_name: [u8; 64]) -> Result<u32, SxtError> {
         for slot in &mut self.channels {
             if slot.state == ChannelState::Free {
+                // `next_id` is advanced with `wrapping_add` (`u32::MAX`
+                // opens would otherwise panic in a debug build rather than
+                // fail closed); the one value it must never hand out is
+                // `INVALID_CHANNEL_ID`, by construction, not by how far a
+                // wrap is from happening.
+                if self.next_id == INVALID_CHANNEL_ID {
+                    self.next_id = self.next_id.wrapping_add(1);
+                }
                 slot.channel_id = self.next_id;
                 slot.kind = kind;
                 slot.server_name = server_name;
@@ -126,6 +143,9 @@ impl ChannelTable {
     }
 
     pub fn find_mut(&mut self, id: u32) -> Option<&mut ChannelDescriptor> {
+        if id == INVALID_CHANNEL_ID {
+            return None;
+        }
         self.channels
             .iter_mut()
             .find(|c| c.channel_id == id && c.state != ChannelState::Free)
@@ -144,3 +164,9 @@ impl ChannelTable {
             .count()
     }
 }
+
+// No host test module: this crate is a `[[bin]]`-only `#![no_std]
+// #![no_main]` binary with its own `#[panic_handler]`, which collides with
+// `std`'s under `cargo test` (`E0152: duplicate lang item panic_impl`) —
+// confirmed live, not assumed. `ChannelTable`'s invariants are exercised by
+// the `upgrade` QEMU tier instead (RFC-0.35-001 R7).
