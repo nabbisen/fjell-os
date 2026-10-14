@@ -16,6 +16,15 @@
 # slot; no fallback, not resetting`) as well as by the literal `NEG:UPGRADE:
 # *:PASS` line — the pattern RFC-0.34-004's `semantic-liar` tier established:
 # both the instigator's own read and the deciding service's own output.
+#
+# UNSIGNED_RELEASE_REJECTED and INVALID_SIGNATURE_REJECTED both print the
+# identical `verifyd` line above (it appears twice in this run, once per
+# call) and both resolve through `verify_dev`'s one compare, not two
+# branches — the model has no separate "absent signature" code path, so the
+# distinction between the two scenarios is in what `neg-test` sends (an
+# absent `sig_lo = 0` vs. a present-but-wrong one), not in which arm of
+# `verifyd` runs. Attribution to each still holds: `neg-test` reads the
+# reply independently for each of its two calls.
 
 name                 = "upgrade"
 timeout_secs         = 60

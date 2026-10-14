@@ -77,40 +77,78 @@ R3 is the shared constant, R4 is what makes drifting from it a build failure.
 
 ## R4 — `capability-topology`, Gate 12's 19th subcheck
 
-**Design.** `tools/fjell-consistency-check/src/capability_topology.rs`, a
-pure text-scanning checker (no dependency on the kernel or service crates,
-matching this tool's own established convention). A `DECLARED_SLOTS` table
-enumerates all eleven slots the RFC names, each with a `waived_by:
-Option<&'static str>` — `None` for the two the update path needs, `Some(...)`
-for the other nine, naming the line responsible for each. For each slot,
-`check()` confirms the service file still declares the `CapHandle` (so the
-table cannot silently go stale against a renamed or removed constant),
-searches `spawn.rs`'s source text for the literal `image_id ==
-fjell_abi::service::ImageId::{image}` comparison, and — only if found —
-brace-matches that block's body for an `install_raw(\n<slot>,` call. Every
-slot prints a line (`FAIL` or `note`, the latter naming its waiver) on every
-run, so one invocation discloses the full topology; only non-waived misses
-flip the exit code.
+**Design, corrected at review.** `tools/fjell-consistency-check/src/capability_topology.rs`,
+a pure text-scanning checker (no dependency on the kernel or service crates,
+matching this tool's own established convention). **The submitted version
+enumerated the eleven slots by hand in a `DECLARED_SLOTS` table — a third
+independent declaration of the topology, alongside the service's own source
+and `spawn.rs`'s installs, and one this gate itself never checked against
+either.** The review demonstrated the gap directly: a twelfth
+declared-and-uninstalled slot, planted in `fjell-netd`'s source
+(`CAP_ARCH_PROBE_12TH`, slot 7), passed the gate silently, because nothing
+compared the hand-maintained list to the service files it claimed to speak
+for.
 
-**A bug found and fixed inside this gate before it was trusted.** The first
-version matched a bare `ImageId::ATTESTD` and walked backward
-(`rfind("if ")`) to find the enclosing block — and false-positived on a
-*match arm* (`ImageId::ATTESTD => 3,` in the unrelated `ep_obj` match further
-up the file), walking into a different `if` block and finding an unrelated
-`install_raw(5, ...)`, reporting `ATTESTD` slot 5 as installed when it is not.
-Fixed by requiring the full `image_id == …` comparison (never a bare
-type-path mention) and scanning **forward**, never backward, from the match.
-A regression test (`image_block_installs_slot_ignores_a_match_arm_mention`)
-reproduces the exact false-positive shape so this class of bug cannot return
-silently. Six unit tests total, all passing, including one
-(`declared_slots_are_still_real_on_the_current_tree`) that reads the actual
-current source files, not a fixture.
+**The fix discovers the universe instead of enumerating it.** `check()` now
+scans every `crates/services/*/src/main.rs` for its own `const NAME:
+CapHandle = CapHandle(<slot>)` declarations — the shape every one of E-072's
+eleven instances takes, and the shape a call-site conversion like
+`CapHandle(SLOT_X)` or `CapHandle::new(n, 0)` does not match, so this does
+not also catch every incidental `CapHandle` mention. Two cases are excluded
+from discovery entirely, not waived, because this module cannot evaluate
+them, not because their outcome is deferred: slot 0 (every image's own
+identity endpoint, installed unconditionally by `spawn.rs`'s `_ => 0`
+fallback, outside any per-image condition this module can name), and
+`fjell-init` (spawned directly in `crates/fjell-kernel/src/main.rs`, never
+through `spawn.rs`'s per-image blocks this module reads — confirmed
+separately: `init`'s declared `UART_RX_EP` slot 8 *is* installed, at
+`main.rs:1293`, a site this gate does not parse). `WAIVERS` is now what its
+name always should have been — the nine slots this line does not install,
+each with a reason — not the set the gate looks for. A slot neither
+installed nor named in `WAIVERS` fails, discovered or not, named in any
+table or not. Re-running the review's own demonstration now FAILs, named by
+slot, const name and file
+(`target/scratch/rfc-0.35-001-d2-demo/gate-catches-12th-instance.log`); a
+regression test (`find_cap_handle_consts_catches_a_new_undeclared_instance`)
+reproduces the exact shape.
+
+For each discovered slot, `check()` searches `spawn.rs`'s source text for the
+literal `image_id == fjell_abi::service::ImageId::{image}` comparison, and —
+only if found — brace-matches that block's body for an `install_raw(\n<slot>,`
+call. Every slot prints a line (`FAIL` or `note`, the latter naming its
+waiver) on every run, so one invocation discloses the full topology; only
+non-waived misses flip the exit code. Output and counts are unchanged from
+the submitted version (`PASS (2 installed, 9 waived to a named line, 11
+checked)`) — the corrected mechanism reaches the same current answer by
+actually checking, rather than assuming, that the hand count matched reality.
+
+**A bug found and fixed inside this gate before it was trusted**, kept from
+the submitted version. The first version matched a bare `ImageId::ATTESTD`
+and walked backward (`rfind("if ")`) to find the enclosing block — and
+false-positived on a *match arm* (`ImageId::ATTESTD => 3,` in the unrelated
+`ep_obj` match further up the file), walking into a different `if` block and
+finding an unrelated `install_raw(5, ...)`, reporting `ATTESTD` slot 5 as
+installed when it is not. Fixed by requiring the full `image_id == …`
+comparison (never a bare type-path mention) and scanning **forward**, never
+backward, from the match. A regression test
+(`image_block_installs_slot_ignores_a_match_arm_mention`) reproduces the
+exact false-positive shape so this class of bug cannot return silently. Nine
+unit tests total, all passing, including one
+(`discovery_on_the_current_tree_matches_the_known_eleven`) that reads the
+actual current source files, not a fixture, and asserts both the discovered
+count (eleven) and the unwaived count (two).
 
 Before/after runs, both cited above and in R2/R7.
 
-## R5 — Installs: two slots, each justified; the other nine, named why not
+## R5 — Installs: four slots and one object move, each justified; the other nine, named why not
 
-**Installed, and only these:**
+**Corrected at review.** The submitted version of this section said
+"Installed, and only these," and named two. The line installs **four**
+slots and moves one service off a shared object — every one of them
+defensible and the right call in the code itself (least privilege is
+respected), but R5's entire purpose is an honest statement of granted
+authority, and "only these" was false the moment it was written. All four,
+named:
 
 - **`secure-transportd` slot 2** (`spawn.rs:946`–`:962`) — SEND|RECV on
   `UPDATE_CHANNEL_EP_OBJECT`. Necessary because this is the service's *only*
@@ -121,6 +159,22 @@ Before/after runs, both cited above and in R2/R7.
   object. Necessary for the symmetric reason: `upgraded` is the sender, and
   without its own install the send itself fails the capability check before
   any message leaves the task.
+- **`neg-test` slots 18 and 19** (`spawn.rs:590`–`:612`) — **CALL-only**
+  capabilities to `BOOTCTL_EP_OBJECT` and `VERIFYD_EP_OBJECT`. Necessary
+  because R7's `upgrade` tier needs `neg-test` to drive bootctl's
+  `BOOT_PROBE_ACTIVE_SLOT_WRITE` and verifyd's `VERIFY` — the first real
+  callers of either — and CALL alone, because `sys_ipc_call`/
+  `sys_ipc_call_words` check `CapRights::CALL` and this task has no other
+  business with either endpoint. Least-privilege by construction, not by
+  omission: a SEND|RECV grant here would have been strictly more authority
+  than the tier ever exercises.
+- **`verifyd` moved off the shared object `0`** onto its own
+  `VERIFYD_EP_OBJECT` (`spawn.rs:309`). Necessary because `neg-test` is
+  `verifyd`'s first real caller in this line, and leaving it on the shared
+  default would have risked the exact readiness-object ambiguity
+  RFC-0.28-001 already removed for service-manager, auditd and bootctl
+  (ambiguous sender attribution on a contested shared endpoint) — the same
+  move R7 made for `bootctl` one erratum line earlier, for the same reason.
 
 **Not installed, and why each of the other nine is not this line's
 business:**
@@ -186,6 +240,25 @@ marker(s) matched)** (the above four plus `verifyd`'s and `bootctl`'s own
 prose lines, counted separately by the profile). Full serial log:
 `target/scratch/rfc-0.35-001-evidence/upgrade-tier-passing.log`.
 
+**A real defect found and fixed in `d9f1947`, disclosed here at review's
+request (it was in the gitignored review request only; not in the commit
+message, not here, until now).** The `ACTIVE_SLOT_WRITE_REJECTED` dispatch
+arm's first version printed the canonical
+`NEG:UPGRADE:ACTIVE_SLOT_WRITE_REJECTED:PASS` marker itself
+(`fjell_service_api::negative_markers::UPGRADE_ACTIVE_SLOT_WRITE_REJECTED`),
+**in addition to** `neg-test` printing the identical string independently
+from its own read of the reply tag — the only one of the four markers in
+this table with two emitters of one string, caught by counting occurrences
+in a captured serial log (twice, where every other marker appeared once).
+It is the only marker here whose row above lists `neg-test`'s own read as
+the instigator *and* had a second, redundant print at the deciding service
+— inconsistent with every other row's single-owner shape and with
+RFC-0.34-004's `semantic-liar` pattern this table otherwise follows. Fixed
+by removing bootctl's own print of the canonical marker string, keeping
+only its distinct prose line (the row above, as committed). Re-verified
+live post-fix: exactly one occurrence of the marker, tier still **PASS (7
+marker(s) matched)**.
+
 **`verifyd` given its own endpoint, not the shared default.** Before this
 line, `verifyd`'s `EP_SLOT = 0` fell to the same shared object-0 default many
 untouched services use, and nothing had ever sent to it. Making `neg-test`
@@ -211,13 +284,22 @@ already-correct decision point.
 above is the one proving it: all seven markers present, the gate's own exit
 status 0, before the flip was made permanent in `upgrade.toml`.
 
-**`store`'s reason narrowed.** `not_gated_reason` previously spoke for both
-`store` and `upgrade`; now it names only `store` (`fjell-storaged` has no
-CRC, superblock, mirror, or recovery code to exercise, so its four markers
-need a store that can reject, not a test — a separate, still-open line).
-Narrowed in `tests/qemu/profiles/store.toml`, `crates/fjell-tools/src/
-qemu_run.rs`'s and `test_all.rs`'s doc comments, in the same commit as the
-`upgrade` flip.
+**Corrected at review — `d9f1947`'s own commit message is false, and I wrote
+it.** It claims "`store`'s `not_gated_reason`, which previously spoke for
+both tiers, is narrowed to name only itself." `tests/qemu/profiles/
+store.toml` is untouched by every commit in this line — zero commits touch
+it — and its `not_gated_reason` was **always** per-profile, naming only
+`store`; it never spoke for `upgrade`. The RFC's own R7 wording carried that
+premise first, and I carried it forward into the commit message without
+checking it against the one file the claim names, which I should have done
+before writing it. What actually spoke for *both* not-gated tiers, and what
+`d9f1947` in fact narrowed, were the doc comments at
+`crates/fjell-tools/src/qemu_run.rs:56` and
+`crates/fjell-tools/src/test_all.rs:21` — correctly, just not what the
+message said. The governing RFC's amendment (above) states the
+requirement's own error; this paragraph states mine, fixed forward in a
+commit that says what was actually narrowed, since `d9f1947` cannot be
+rewritten.
 
 ## R8 — E-070 and E-072: closed, with two survivors re-derived individually
 
