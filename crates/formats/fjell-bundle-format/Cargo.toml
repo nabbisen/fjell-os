@@ -8,5 +8,6 @@ description = "ServiceBundle wire format and canonical digest (RFC v0.9-004)."
 publish     = false
 
 [dependencies]
+fjell-canon             = { path = "../../fjell-canon" }
 fjell-measure-format    = { path = "../fjell-measure-format" }
 fjell-cap-manifest      = { path = "../../fjell-cap-manifest" }

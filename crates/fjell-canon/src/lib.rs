@@ -85,6 +85,19 @@ pub trait Canon {
         self.u64(name, v as u64);
     }
 
+    /// A 32-bit integer, **big-endian** (RFC-0.35-004 §"two digests that
+    /// describe themselves"): the one real exception to this module's own
+    /// "integers are little-endian" rule, so it is a distinct method rather
+    /// than a flag on `u32` that every other caller would have to remember
+    /// is always `false`. The default writes the four big-endian bytes
+    /// through `bytes` — the byte sinks need no override, same as every
+    /// other extension here — and is overridden only by the recording
+    /// sink, which must say *why* those four bytes are ordered the way
+    /// they are rather than recording them as an undifferentiated `u8 [4]`.
+    fn u32_be(&mut self, name: &'static str, v: u32) {
+        self.bytes(name, &v.to_be_bytes());
+    }
+
     /// **This value cannot be written** (a text longer than its capacity, say). A byte
     /// sink that can fail records it and stops; the recording sink and the plain byte
     /// sinks ignore it. It is how a codec keeps its error *precedence* — the first
@@ -367,6 +380,17 @@ mod tests {
                 0x07, 0xFF, 1, 2, 3, 0, 0, 2, 10, 11
             ]
         );
+    }
+
+    #[test]
+    fn u32_be_writes_big_endian_unlike_u32() {
+        let mut le = BufSink::<4>::new();
+        le.u32("x", 0x0102_0304);
+        let mut be = BufSink::<4>::new();
+        be.u32_be("x", 0x0102_0304);
+        assert_eq!(le.bytes(), &[0x04, 0x03, 0x02, 0x01]);
+        assert_eq!(be.bytes(), &[0x01, 0x02, 0x03, 0x04]);
+        assert_ne!(le.bytes(), be.bytes());
     }
 
     #[test]

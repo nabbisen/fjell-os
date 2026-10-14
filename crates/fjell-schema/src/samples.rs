@@ -559,3 +559,38 @@ pub fn semantic_envelopes() -> Vec<SemanticEnvelope> {
     );
     vec![i1, i2, s3, e4, e5]
 }
+
+/// RFC-0.35-004: a chain event whose metadata is **present** — recorded
+/// with it `Some`, not `None`, so the metadata slot's 32 bytes do not look
+/// like a constant run of zeros in the generated description.
+pub fn chain_event_with_metadata() -> fjell_measure_format::event::MeasurementEvent {
+    use fjell_measure_format::event::{
+        MeasurementEvent, MeasurementKind, MeasurementSource, MeasurementSubject,
+    };
+    MeasurementEvent::new(
+        0x1112_1314_1516_1718,
+        0x2122_2324_2526_2728,
+        MeasurementKind::PolicyBundleVerified,
+        MeasurementSource::Verifyd,
+        MeasurementSubject::PolicyBundle,
+        digest(0x30),
+        Some(digest(0x40)),
+        digest(0x50),
+    )
+}
+
+/// RFC-0.35-004: a service bundle with a short name (the format's own test
+/// suite separately exercises the long-name case against
+/// `SERVICE_NAME_MAX`; this sample only needs to show the shape).
+pub fn service_bundle() -> fjell_bundle_format::ServiceBundle {
+    let manifest_digest: [u8; 16] = core::array::from_fn(|i| 0x60u8.wrapping_add(i as u8));
+    fjell_bundle_format::build_bundle(
+        "fjell-example-svc",
+        0x7172_7374,
+        0x8182_8384,
+        0x9192_9394,
+        manifest_digest,
+        b"\x7fELF-fake-binary-payload-for-the-census",
+    )
+    .expect("sample bundle inputs are valid")
+}

@@ -125,6 +125,41 @@ pub struct MeasurementEvent {
     pub chain_digest: Digest32,
 }
 
+/// `compute_chain_digest`'s byte stream, written through `Canon`
+/// (RFC-0.35-004 R3) so a second implementation of the measurement chain
+/// has a generated description to match, not just a hash to agree with by
+/// luck.
+///
+/// The metadata slot is a presence byte plus a **fixed** 32 bytes, written
+/// either way — deliberately not `Canon::optional`, whose body is written
+/// only when present. This stream's width never depends on whether
+/// metadata is some or none; an `optional` here would describe a format
+/// this one is not.
+pub fn write_chain_canonical(
+    c: &mut dyn fjell_canon::Canon,
+    seq: u64,
+    kind: MeasurementKind,
+    source: MeasurementSource,
+    subject: MeasurementSubject,
+    subject_digest: &Digest32,
+    metadata_digest: Option<&Digest32>,
+    previous_chain_digest: &Digest32,
+) {
+    c.domain(CHAIN_DOMAIN);
+    c.u16("schema_version", SCHEMA_VERSION);
+    c.u64("seq", seq);
+    c.u8("kind", kind.as_u8());
+    c.u8("source", source.as_u8());
+    c.u8("subject", subject.as_u8());
+    c.bytes("subject_digest", &subject_digest.0);
+    c.u8("metadata_present", metadata_digest.is_some() as u8);
+    c.bytes(
+        "metadata_digest",
+        &metadata_digest.map(|d| d.0).unwrap_or([0u8; 32]),
+    );
+    c.bytes("previous_chain_digest", &previous_chain_digest.0);
+}
+
 impl MeasurementEvent {
     /// Compute the chain digest for a new event.
     ///
@@ -139,23 +174,19 @@ impl MeasurementEvent {
         metadata_digest: Option<&Digest32>,
         previous_chain_digest: &Digest32,
     ) -> Digest32 {
-        let schema_bytes = SCHEMA_VERSION.to_le_bytes();
-        let seq_bytes = seq.to_le_bytes();
-        let meta_present = [metadata_digest.is_some() as u8];
-        let meta_bytes = metadata_digest.map(|d| d.0).unwrap_or([0u8; 32]);
-
-        Digest32::of_parts(&[
-            CHAIN_DOMAIN,
-            &schema_bytes,
-            &seq_bytes,
-            &[kind.as_u8()],
-            &[source.as_u8()],
-            &[subject.as_u8()],
-            &subject_digest.0,
-            &meta_present,
-            &meta_bytes,
-            &previous_chain_digest.0,
-        ])
+        // 20 (CHAIN_DOMAIN) + 2 + 8 + 1+1+1 + 32 + 1 + 32 + 32 = 130 bytes.
+        let mut sink = fjell_canon::BufSink::<130>::new();
+        write_chain_canonical(
+            &mut sink,
+            seq,
+            kind,
+            source,
+            subject,
+            subject_digest,
+            metadata_digest,
+            previous_chain_digest,
+        );
+        Digest32::of(sink.bytes())
     }
 
     /// Construct a new event, computing `chain_digest` automatically.
@@ -272,6 +303,79 @@ mod tests {
 
     fn dummy_digest(b: u8) -> Digest32 {
         Digest32([b; 32])
+    }
+
+    #[test]
+    fn golden_digests_from_the_unmodified_encoder_rfc_0_35_004_r2() {
+        let no_meta = MeasurementEvent::compute_chain_digest(
+            7,
+            MeasurementKind::PolicyBundleVerified,
+            MeasurementSource::Verifyd,
+            MeasurementSubject::PolicyBundle,
+            &dummy_digest(0x10),
+            None,
+            &Digest32::ZERO,
+        );
+        let with_meta = MeasurementEvent::compute_chain_digest(
+            7,
+            MeasurementKind::PolicyBundleVerified,
+            MeasurementSource::Verifyd,
+            MeasurementSubject::PolicyBundle,
+            &dummy_digest(0x10),
+            Some(&dummy_digest(0x20)),
+            &Digest32::ZERO,
+        );
+        assert_eq!(
+            no_meta.0,
+            [
+                205, 126, 77, 241, 79, 67, 91, 0, 62, 222, 244, 206, 242, 125, 30, 36, 253, 99,
+                214, 232, 214, 132, 184, 231, 229, 75, 163, 109, 120, 179, 253, 131
+            ],
+            "GOLDEN no_meta"
+        );
+        assert_eq!(
+            with_meta.0,
+            [
+                65, 70, 1, 137, 236, 82, 231, 230, 169, 197, 154, 71, 174, 174, 90, 59, 74, 225,
+                62, 35, 181, 155, 60, 230, 95, 29, 245, 101, 105, 139, 202, 118
+            ],
+            "GOLDEN with_meta"
+        );
+        // Raw concatenated byte stream for the no_meta case too -- the
+        // stronger golden: not just "hashes the same" but "wrote the same
+        // bytes". Reconstructed here exactly as compute_chain_digest's own
+        // body does (`#![no_std]`, no `alloc`: a fixed array and a cursor),
+        // to capture it once before the encoder moves.
+        let mut raw = [0u8; 130];
+        let mut i = 0;
+        let put = |raw: &mut [u8; 130], i: &mut usize, b: &[u8]| {
+            raw[*i..*i + b.len()].copy_from_slice(b);
+            *i += b.len();
+        };
+        put(&mut raw, &mut i, CHAIN_DOMAIN);
+        put(&mut raw, &mut i, &SCHEMA_VERSION.to_le_bytes());
+        put(&mut raw, &mut i, &7u64.to_le_bytes());
+        put(
+            &mut raw,
+            &mut i,
+            &[MeasurementKind::PolicyBundleVerified.as_u8()],
+        );
+        put(&mut raw, &mut i, &[MeasurementSource::Verifyd.as_u8()]);
+        put(
+            &mut raw,
+            &mut i,
+            &[MeasurementSubject::PolicyBundle.as_u8()],
+        );
+        put(&mut raw, &mut i, &dummy_digest(0x10).0);
+        put(&mut raw, &mut i, &[0u8]);
+        put(&mut raw, &mut i, &[0u8; 32]);
+        put(&mut raw, &mut i, &Digest32::ZERO.0);
+        assert_eq!(i, 130, "GOLDEN raw byte length");
+        assert_eq!(
+            Digest32::of(&raw),
+            no_meta,
+            "GOLDEN raw bytes hash to the same digest"
+        );
     }
 
     #[test]

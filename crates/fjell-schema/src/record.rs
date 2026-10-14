@@ -380,6 +380,9 @@ impl Canon for Recorder {
     fn i64(&mut self, name: &'static str, _: i64) {
         self.field(name, "i64 LE");
     }
+    fn u32_be(&mut self, name: &'static str, _: u32) {
+        self.field(name, "u32 BE");
+    }
     fn bytes(&mut self, name: &'static str, v: &[u8]) {
         self.field(name, &format!("u8 [{}]", v.len()));
     }

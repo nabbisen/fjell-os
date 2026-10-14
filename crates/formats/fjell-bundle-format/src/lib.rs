@@ -201,6 +201,40 @@ pub fn build_bundle(
 
 // ── Canonical digest computation ──────────────────────────────────────────────
 
+/// `compute_bundle_digest`'s byte stream, written through `Canon`
+/// (RFC-0.35-004 R3/R4) so a second implementation can agree with this one
+/// from a generated description, not just a hash.
+///
+/// `name` carries **no length prefix** (RFC-0.35-004 R4's own argument,
+/// written down rather than assumed): every field after it is fixed-width
+/// (three `u32`, a 16-byte manifest digest, a 32-byte binary hash), so the
+/// total stream length determines where `name` ends. That is safe *because*
+/// of this fixed trailer, not in general — adding a variable-width field
+/// after `name` would reintroduce the ambiguity a length prefix exists to
+/// remove, which is why the note below is pinned to this shape specifically.
+pub fn write_bundle_canonical(
+    c: &mut dyn fjell_canon::Canon,
+    name: &[u8],
+    bundle_version: u32,
+    sdk_api_rev: u32,
+    catalog_version: u32,
+    manifest_digest: &[u8; 16],
+    binary_hash: &Digest32,
+) {
+    c.domain(BUNDLE_DOMAIN);
+    c.var_bytes("name", name, "unlengthed");
+    c.note(
+        "name_length",
+        "no length prefix: every field after `name` is fixed-width, so the \
+         total stream length determines `name`'s own length without one",
+    );
+    c.u32_be("bundle_version", bundle_version);
+    c.u32_be("sdk_api_rev", sdk_api_rev);
+    c.u32_be("catalog_version", catalog_version);
+    c.bytes("manifest_digest", manifest_digest);
+    c.bytes("binary_hash", &binary_hash.0);
+}
+
 fn compute_bundle_digest(
     name: &[u8],
     bundle_version: u32,
@@ -209,15 +243,19 @@ fn compute_bundle_digest(
     manifest_digest: &[u8; 16],
     binary_hash: &Digest32,
 ) -> Digest32 {
-    Digest32::of_parts(&[
-        BUNDLE_DOMAIN,
+    // BUNDLE_DOMAIN + name (<= SERVICE_NAME_MAX) + 3 u32 (12) + 16 + 32.
+    const MAX_LEN: usize = BUNDLE_DOMAIN.len() + SERVICE_NAME_MAX + 12 + 16 + 32;
+    let mut sink = fjell_canon::BufSink::<MAX_LEN>::new();
+    write_bundle_canonical(
+        &mut sink,
         name,
-        &bundle_version.to_be_bytes(),
-        &sdk_api_rev.to_be_bytes(),
-        &catalog_version.to_be_bytes(),
+        bundle_version,
+        sdk_api_rev,
+        catalog_version,
         manifest_digest,
-        &binary_hash.0,
-    ])
+        binary_hash,
+    );
+    Digest32::of(sink.bytes())
 }
 
 /// Re-compute and verify the bundle digest. Returns `true` if the header's
@@ -326,6 +364,50 @@ mod tests {
         let a = build_bundle("svc", 1, 1, 1, FAKE_MANIFEST, FAKE_BINARY).unwrap();
         let b = build_bundle("svc", 2, 1, 1, FAKE_MANIFEST, FAKE_BINARY).unwrap();
         assert_ne!(a.header.bundle_digest.0, b.header.bundle_digest.0);
+    }
+
+    /// RFC-0.35-004 R2: digests captured from the unmodified encoder, before
+    /// the first edit, for a short and a long `name` (the long one at
+    /// exactly `SERVICE_NAME_MAX` -- the unlengthed-name safety argument's
+    /// own stress case). If any digest here ever changes, that is a format
+    /// change in the attestation path, and no line should make one.
+    #[test]
+    fn golden_digests_from_the_unmodified_encoder_rfc_0_35_004_r2() {
+        let short = build_bundle("fjell-example", 3, 7, 11, FAKE_MANIFEST, FAKE_BINARY).unwrap();
+        assert_eq!(
+            hex(&short.header.bundle_digest.0),
+            "6dbb99f01748931219ac04e0c044a139e1d6be94858c21b629006cdeb4f9a2df"
+        );
+
+        let long_name = "x".repeat(SERVICE_NAME_MAX);
+        let long = build_bundle(&long_name, 3, 7, 11, FAKE_MANIFEST, FAKE_BINARY).unwrap();
+        assert_eq!(
+            hex(&long.header.bundle_digest.0),
+            "4695103a1af29dd0ce0ada5fe6d744f819ad3f18a3025e7e80bba35b62fcbc10"
+        );
+
+        // The stronger golden for the short case: not just "hashes the
+        // same" but "wrote the same bytes", reconstructed here exactly as
+        // compute_bundle_digest's own body does, captured once before the
+        // encoder moves.
+        let mut raw = Vec::new();
+        raw.extend_from_slice(BUNDLE_DOMAIN);
+        raw.extend_from_slice(b"fjell-example");
+        raw.extend_from_slice(&3u32.to_be_bytes());
+        raw.extend_from_slice(&7u32.to_be_bytes());
+        raw.extend_from_slice(&11u32.to_be_bytes());
+        raw.extend_from_slice(&FAKE_MANIFEST);
+        raw.extend_from_slice(&short.header.binary_hash.0);
+        assert_eq!(raw.len(), 88, "GOLDEN raw byte length");
+        assert_eq!(
+            Digest32::of(&raw),
+            short.header.bundle_digest,
+            "GOLDEN raw bytes hash to the same digest"
+        );
+    }
+
+    fn hex(d: &[u8]) -> String {
+        d.iter().map(|b| format!("{b:02x}")).collect()
     }
 
     #[test]

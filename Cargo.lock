@@ -532,6 +532,7 @@ dependencies = [
 name = "fjell-bundle-format"
 version = "0.34.0"
 dependencies = [
+ "fjell-canon",
  "fjell-cap-manifest",
  "fjell-measure-format",
 ]
@@ -766,6 +767,9 @@ dependencies = [
 [[package]]
 name = "fjell-measure-format"
 version = "0.34.0"
+dependencies = [
+ "fjell-canon",
+]
 
 [[package]]
 name = "fjell-measuredd"
@@ -949,6 +953,7 @@ name = "fjell-schema"
 version = "0.34.0"
 dependencies = [
  "fjell-attestation-format",
+ "fjell-bundle-format",
  "fjell-canon",
  "fjell-diag-format",
  "fjell-fleet-format",

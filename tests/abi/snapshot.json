@@ -1,5 +1,5 @@
 [
-  {"count":453},
+  {"count":454},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"56754281cea80cb5"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_AUDIT_DRAIN","sig":"c16a6ada82892290"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
@@ -109,6 +109,7 @@
   {"crate":"fjell-bundle-format","module":"","impl_type":"","kind":"fn","name":"build_bundle","sig":"9f573973d1dff555"},
   {"crate":"fjell-bundle-format","module":"","impl_type":"","kind":"fn","name":"is_valid_lifecycle_transition","sig":"e96592786a94fbad"},
   {"crate":"fjell-bundle-format","module":"","impl_type":"","kind":"fn","name":"verify_bundle","sig":"ddc34ace7ccb5648"},
+  {"crate":"fjell-bundle-format","module":"","impl_type":"","kind":"fn","name":"write_bundle_canonical","sig":"0e8c98d7aa60d1d5"},
   {"crate":"fjell-bundle-format","module":"","impl_type":"","kind":"struct","name":"ServiceBundle","sig":"7d5fea17e866c30b"},
   {"crate":"fjell-bundle-format","module":"","impl_type":"","kind":"struct","name":"ServiceBundleHeader","sig":"d84a4c7e81514ad5"},
   {"crate":"fjell-bundle-format","module":"","impl_type":"BundleLifecycle","kind":"fn","name":"from_u8","sig":"ca9f22a7263ab485"},

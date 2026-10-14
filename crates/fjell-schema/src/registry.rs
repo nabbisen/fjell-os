@@ -50,6 +50,31 @@ fn keyring(c: &mut dyn Canon) {
 fn diag(c: &mut dyn Canon) {
     s::diag_bundle().write_canonical(c)
 }
+fn chain(c: &mut dyn Canon) {
+    let e = s::chain_event_with_metadata();
+    fjell_measure_format::event::write_chain_canonical(
+        c,
+        e.seq,
+        e.kind,
+        e.source,
+        e.subject,
+        &e.subject_digest,
+        e.metadata_digest.as_ref(),
+        &e.previous_chain_digest,
+    );
+}
+fn bundle(c: &mut dyn Canon) {
+    let b = s::service_bundle();
+    fjell_bundle_format::write_bundle_canonical(
+        c,
+        b.header.service_name.as_bytes(),
+        b.header.bundle_version,
+        b.header.sdk_api_rev,
+        b.header.catalog_version,
+        &b.header.manifest_digest,
+        &b.header.binary_hash,
+    );
+}
 fn identity(c: &mut dyn Canon) {
     fjell_identity_format::digest::write_canonical(&s::node_identity(), c)
 }
@@ -361,6 +386,34 @@ pub const FORMATS: &[Format] = &[
         caveats: &[],
         samples: &[boot_control],
     },
+    Format {
+        id: "chain-digest-v1",
+        krate: "fjell-measure-format",
+        name: "MeasurementEvent::compute_chain_digest",
+        version: "first generated in v0.35.0",
+        path: "crates/formats/fjell-measure-format/schema/chain-digest-v1.frozen",
+        notes: &[],
+        format_version: Some((|| fjell_measure_format::SCHEMA_VERSION, "chain")),
+        caveats: &[
+            "nothing reads these bytes back -- the measurement chain's whole point is a digest, not a decoded record -- so this file and the encoder are the only description a second implementation of the chain has",
+        ],
+        samples: &[chain],
+    },
+    Format {
+        id: "service-bundle-digest-v1",
+        krate: "fjell-bundle-format",
+        name: "compute_bundle_digest",
+        version: "first generated in v0.35.0",
+        path: "crates/formats/fjell-bundle-format/schema/service-bundle-digest-v1.frozen",
+        notes: &[
+            "this stream carries no version field of its own: `BUNDLE_SCHEMA_VERSION` exists in the crate and is written into the bundle header, but `compute_bundle_digest` never reads it (RFC-0.35-004 R6) -- None here states that rather than leaving the header below to imply a format version this digest does not have",
+        ],
+        format_version: None,
+        caveats: &[
+            "nothing reads these bytes back -- `verify_bundle` only recomputes and compares, it does not decode a reader's independent reading -- so this file and the encoder are the only description a second implementation has",
+        ],
+        samples: &[bundle],
+    },
 ];
 
 /// Why a crate under `crates/formats/` has no generated file.
@@ -404,20 +457,6 @@ pub const EXCLUSIONS: &[(&str, Exclusion)] = &[
         Exclusion::Survivor {
             erratum: "E-073",
             what: "`AuditRecordBin` (written raw by the kernel's `sys_audit_drain`), `AuditPersistRecord` and `AuditLogHeader` are `#[repr(C)]` layouts, padding-free with asserted sizes, and have no encoder to record",
-        },
-    ),
-    (
-        "fjell-bundle-format",
-        Exclusion::Survivor {
-            erratum: "E-065",
-            what: "`compute_bundle_digest` writes big-endian integers, which `Canon` does not yet express",
-        },
-    ),
-    (
-        "fjell-measure-format",
-        Exclusion::Survivor {
-            erratum: "E-065",
-            what: "`MeasurementEvent::compute_chain_digest` is a digest stream over `of_parts`; not yet on `Canon`",
         },
     ),
 ];
