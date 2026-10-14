@@ -50,4 +50,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "historical-status-lines",
     "security-advisories",
     "ci-test-jobs",
+    "capability-topology",
 ];

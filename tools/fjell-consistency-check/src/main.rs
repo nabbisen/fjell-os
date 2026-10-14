@@ -47,6 +47,7 @@ use std::fs;
 use std::process::ExitCode;
 
 mod book_structure;
+mod capability_topology;
 mod ci_test_jobs;
 mod citation;
 mod doc_counts;
@@ -113,6 +114,9 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("security-advisories", security_advisories::check),
     // RFC-0.33-004 D2: a CI test job may not hand-list packages.
     ("ci-test-jobs", ci_test_jobs::check),
+    // RFC-0.35-001 R4: a service's declared CSpace slot and the kernel's
+    // install must agree.
+    ("capability-topology", capability_topology::check),
 ];
 
 #[cfg(test)]
