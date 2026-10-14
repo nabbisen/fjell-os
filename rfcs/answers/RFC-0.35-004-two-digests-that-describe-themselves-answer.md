@@ -148,7 +148,7 @@ round trip) all re-run clean.
 | `consistency-check --all` | **exit 0 — PASS, 20 subchecks** (unchanged count — no subcheck added or removed this line); `errata-limitations: PASS (10 ACCEPTED)` |
 | `cargo test -p fjell-schema --test frozen` | **16/16**, including the four bookkeeping tests the move touches |
 | `fjell-canon`, `fjell-measure-format`, `fjell-bundle-format` host tests | **11, 12, 13 passed, 0 failed** |
-| `test-all` | *(filled after the background run completes)* |
+| `test-all` | **30 PASS, 0 FAIL, 1 NOT-GATED** (tier 26, QEMU negative: store — pre-existing, documented in v1-limitations.md, not introduced by this line) |
 | `repro-check` | `--skip-build` **PASS, 32 artefacts identical** — no guest code touched this line (every change is in host-side format/schema crates), no rebuild, no baseline re-record |
 | CI run id | none — nothing pushed |
 
