@@ -4957,14 +4957,36 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `fjell-repro-check -- --help` fell through to a real two-build run beside a live
   `test-all` — disclosed by the implementer, killed by a broken pipe before any write
   completed, and verified afterwards to have corrupted nothing.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-13), tracked **RFC-0.35-003**
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-13), tracked **RFC-0.35-003**
   (accepted 2026-10-14; re-tracked from the bare milestone `0.35` once the closing
   RFC existed), in `v1-limitations.md`. An unknown flag must **exit non-zero with
   the usage**, and
   `--help` must print it; closing it needs the failing case shown — an unknown flag
   that used to start a build and now does not. It is also release-handoff trap 7's
   rule in a second instrument: *one `test-all` at a time per tree*, which an
-  accidental build violates.
+  accidental build violates.~~ → **CLOSED** by **RFC-0.35-003**.
+
+  > **Closed by RFC-0.35-003, 2026-10-14.** Demonstrated both ways: a scratch-tree
+  > transcript of `fjell-repro-check -- --help` starting a full two-build run
+  > (`build 1 took 7.83s`, `PASS (33 artefacts identical)`, never a usage line) and
+  > the same invocation, after the fix, printing usage and exiting 0. An
+  > unrecognised argument now exits non-zero with the usage; `--help`/`-h` prints
+  > it and exits 0; neither starts a build. `--artefacts <dir>`, documented and
+  > never implemented, is removed rather than carried forward as a second instance
+  > of this entry's own defect.
+  >
+  > **The sweep (R4) found a live instance, not just the pattern.** Two other tools
+  > in `tools/` shared the shape (no `--help`, no rejection) and are fixed the same
+  > way — `fjell-unsafe-audit`, `fjell-mmio-audit`. Fixing `fjell-unsafe-audit`
+  > surfaced a real bug its old silence had been hiding: **four call sites**
+  > (`release-rehearsal` Gate 2, `test-all` tier 3, the trust report's §5, and CI's
+  > own `ci-unsafe-audit` job) pass `--workspace .` — `fjell-mmio-audit`'s flag
+  > name, not this tool's own (`--root`) — silently ignored before this line,
+  > harmless only because the ignored value equalled `root`'s own default either
+  > way. All four, plus three documentation pages giving the same wrong command,
+  > corrected to `--root`; each command run for real before being written down.
+  > Full detail in
+  > `rfcs/answers/RFC-0.35-003-instruments-that-answer-the-question-you-asked-answer.md`.
 
 ## E-072 — five services declare CSpace slots the kernel never installs, and two of them spin forever on the absence
 
@@ -5238,6 +5260,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   that reads as a measurement. The same question then applies to every other field
   filled from a slot nobody installs.
 
+## E-077 — `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo
+
+- **Claim:** `cargo xtask bench [--baseline] [--check]` — `--baseline` writes a
+  fresh `benches/baseline.json`; `--check` fails if any metric exceeds its
+  tolerance band.
+- **Tree, observed 2026-10-14:** `crates/fjell-tools/src/bench.rs::cmd_bench`
+  reads both with `args.iter().any(|a| a == "--baseline")` / `"--check"`. A
+  typo'd or misremembered flag — `--basline`, `--record` — matches neither,
+  and `cmd_bench` silently falls to its **default** arm: run the benches,
+  print the results, exit `SUCCESS`. A user who meant to write a new baseline
+  gets a printout and believes they recorded one; a user who meant to gate on
+  tolerance gets a printout and believes they checked it, with `cargo xtask
+  bench`'s own exit status reporting success either way.
+- **Found by:** the implementer, 2026-10-14, during RFC-0.35-003 R4's own sweep
+  of `crates/fjell-tools/` and `tools/` for the same unrecognised-argument
+  shape E-071 named — filed rather than fixed, per that requirement's own
+  instruction.
+- **A different defect from E-071's own shape, named rather than folded in
+  (R4's own instruction).** E-071 was an unrecognised argument silently
+  triggering the **more expensive** of two modes; this is an unrecognised
+  argument silently triggering the **cheapest** of three, with the two
+  consequential modes — write, check — both skipped without a word said about
+  it. Every path already runs the one genuinely expensive step (`cargo bench`
+  itself), so there is no race-with-`test-all` hazard E-071 had; the hazard
+  here is silent loss of the caller's actual intent.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-14), **unscheduled**. An
+  unrecognised argument to `cmd_bench` should be rejected with a usage line,
+  the same shape `fjell-repro-check`, `fjell-unsafe-audit` and
+  `fjell-mmio-audit` now use — not repaired here, per R4's own scope: report
+  the same defect, fix it; file what turns out to be a different one.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5302,7 +5355,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented — **closed by retraction**: the sub-protocol is deleted, not implemented; its consequence was corrected from "returns nothing, silently" to a hang, and every bundle now states its audit section unavailable rather than silently empty | RFC-0.35-002 | CLOSED |
 | E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin — **closed by retraction**: the two never-served endpoint constants are deleted, the comment no longer claims a round-robin | RFC-0.35-002 | CLOSED |
 | E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario — **closed as to the vanishing message, not as to the fetch**: it still returns `None`, now because the TLS handshake correctly fails closed against an unprovisioned trust anchor, a separate limitation already in `v1-limitations.md` | RFC-0.35-001 | CLOSED |
-| E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | RFC-0.35-003 | ACCEPTED |
+| E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now — **closed by rejection**: an unrecognised argument exits non-zero, `--help` prints the usage, neither builds; the sweep for the same shape found and fixed two more tools and a real four-site caller bug it had been hiding | RFC-0.35-003 | CLOSED |
 | E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | RFC-0.35-001 | CLOSED |
 | E-057 `qemu_run.rs::load_profile` splits `expected_markers` on every comma and the first `]`, including inside a quoted string, so a marker can be silently split or truncated — both failing open | RFC-0.33-004 | CLOSED |
 | E-058 an absent or crashed presentation stalls the publishers the design claims are independent of it: `semantic-stream` forwards to the proxy with a blocking call before replying, measured at 313 → 125 output lines with the proxy absent | RFC-0.34-001 | CLOSED |
@@ -5317,6 +5370,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
 | E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | unscheduled | ACCEPTED |
 | E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | unscheduled | ACCEPTED |
+| E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

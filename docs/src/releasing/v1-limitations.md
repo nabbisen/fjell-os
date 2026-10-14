@@ -1284,14 +1284,47 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   decoder that read different fields would not be caught by the file; a round trip per sample
   is the only check), nor are the values behind a tag byte or the encoder's refusals. **For the
   four:** the bytes are described by nothing a gate compares.
-- **An instrument that builds when you ask it for help** (Erratum **E-071**,
-  unscheduled, tracked **RFC-0.35-003**; filed 2026-10-13 at RFC-0.34-004's
-  review). `fjell-repro-check` **silently ignores an unrecognised flag** and falls
-  through to its full two-build mode, and has no `--help` — so the natural way to
-  ask for usage starts a build that can race a concurrent `test-all`. It has
-  happened twice. `fjell-upgraded`'s update-index fetch and the two request paths
-  formerly listed here (`diagnosticsd`'s audit query, `secure-transportd`'s claimed
-  round-robin) are **closed** — see below.
+- **An instrument that reports on less than it claims, twice over** was Erratum
+  **E-071**, **CLOSED** by **RFC-0.35-003** (filed 2026-10-13 at RFC-0.34-004's
+  review). `fjell-repro-check` used to **silently ignore an unrecognised flag**
+  and fall through to its full two-build mode — so the natural way to ask for
+  usage, `--help`, started a build that could race a concurrent `test-all`. It had
+  happened twice. **Demonstrated both ways**, in a scratch tree: the unmodified
+  tool given `--help` runs two real builds and reports `PASS (33 artefacts
+  identical)`, never printing a usage line; the fixed tool given the same flag
+  prints usage and exits 0. An unrecognised argument now exits non-zero with the
+  usage; neither it nor `--help` ever builds. The sweep this line's R4 required
+  (`crates/fjell-tools/` and `tools/`, for the same shape — no `--help`, no
+  rejection) found and fixed two more: `fjell-unsafe-audit`, `fjell-mmio-audit`.
+  **Fixing `fjell-unsafe-audit` surfaced a real bug its old silence had hidden**:
+  four call sites (`release-rehearsal` Gate 2, `test-all` tier 3, the trust
+  report's §5, CI's `ci-unsafe-audit` job) and three documentation pages all
+  passed `--workspace .` — `fjell-mmio-audit`'s flag, not this tool's own
+  (`--root`) — silently accepted and ignored, harmless only because the ignored
+  value happened to equal `root`'s own default either way. All corrected to
+  `--root`, each command run for real before being written down.
+
+  **The second half of this entry — the readiness-summary gap — had no erratum
+  number of its own** (the governing RFC's own words: found and corrected by hand
+  twice, nothing checked it). `docs/src/releasing/v1-readiness.md`'s own *"Summary
+  at …"* block disagreed with its own rows in three ways on 2026-10-13, and the
+  correction note itself went stale by 2026-10-14 — **twice, with Gate 5 green
+  throughout**, because that gate only ever checks `open == 0` and never compares
+  the document's claims with its contents. `readiness-summary`, Gate 12's 20th
+  subcheck, is the comparison: the table's four counts against what the rows
+  actually produce, the prose against the table, and the heading's version against
+  the workspace's. It **fails** against a fixture reconstructing the 2026-10-12
+  disagreement and **passes** against the tree. `fjell-upgraded`'s update-index
+  fetch and the two request paths formerly listed here (`diagnosticsd`'s audit
+  query, `secure-transportd`'s claimed round-robin) are **closed** — see below.
+- **`cargo xtask bench`'s flags fail open to "just print"** (Erratum **E-077**,
+  unscheduled; filed 2026-10-14 during RFC-0.35-003's own sweep for E-071's
+  shape). A typo'd or misremembered `--baseline`/`--check` matches neither
+  flag and `cmd_bench` silently runs the cheapest default (print only) instead
+  of writing a baseline or checking tolerance — a different defect from
+  E-071's (silent loss of intent, not a wrong *expensive* mode), named rather
+  than repaired here, per that requirement's own "report, fix the same
+  defect, file the rest."
 - **Two protocols retracted, not answered** were Errata **E-068** and **E-069**,
   both **CLOSED** by **RFC-0.35-002**. `diagnosticsd`'s `AUDIT_QUERY` sub-protocol
   (three constants in `fjell-service-api`, `collect_audit_events`, the declared

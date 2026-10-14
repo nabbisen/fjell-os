@@ -148,6 +148,15 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > two RFCs touch no cell of this matrix — so only the heading and this clause
 > moved. A note that corrects a stale claim is not exempt from going stale
 > itself.
+>
+> **Carried by RFC-0.35-003, 2026-10-14 (closes E-071).** `readiness-summary`,
+> Gate 12's 20th subcheck, now compares this table's four counts and this
+> paragraph's own prose against what counting every `|`-prefixed row in the
+> matrix actually produces, and the heading above against the workspace
+> version — failing on the 2026-10-12 disagreement this note describes,
+> reconstructed as a fixture, before passing on the tree at this tip. The
+> figures above are still `readiness-check`'s; something now checks that
+> they stay its.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
