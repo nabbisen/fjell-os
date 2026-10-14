@@ -1284,25 +1284,28 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   decoder that read different fields would not be caught by the file; a round trip per sample
   is the only check), nor are the values behind a tag byte or the encoder's refusals. **For the
   four:** the bytes are described by nothing a gate compares.
-- **Two request paths that nothing answers, and an instrument that builds when you
-  ask it for help** (Errata **E-068**, **E-069** unscheduled; **E-071** tracked
-  **RFC-0.35-003**; all filed 2026-10-13 at RFC-0.34-004's review). `fjell-upgraded`'s
-  update-index fetch, formerly the third request path here, is **closed** — see
-  below.
-  - `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that
-    **`fjell-auditd` has never implemented** — zero mentions of it there — so a
-    diagnostics audit query returns nothing and the caller cannot tell that apart
-    from "no records" (**E-068**).
-  - `fjell-secure-transportd` declares **four** client endpoints and polls exactly
-    **one**, under a comment saying it polls three in round-robin, so
-    `diagnosticsd` and `attestd` can never be served by it (**E-069**; the
-    `upgraded` leg of this same comment's claim is now true — RFC-0.35-001
-    installed its capability — so only the `diagnosticsd`/`attestd` legs remain
-    open, both RFC-0.35-002's decision).
-  - `fjell-repro-check` **silently ignores an unrecognised flag** and falls through
-    to its full two-build mode, and has no `--help` — so the natural way to ask for
-    usage starts a build that can race a concurrent `test-all`. It has happened
-    twice (**E-071**).
+- **An instrument that builds when you ask it for help** (Erratum **E-071**,
+  unscheduled, tracked **RFC-0.35-003**; filed 2026-10-13 at RFC-0.34-004's
+  review). `fjell-repro-check` **silently ignores an unrecognised flag** and falls
+  through to its full two-build mode, and has no `--help` — so the natural way to
+  ask for usage starts a build that can race a concurrent `test-all`. It has
+  happened twice. `fjell-upgraded`'s update-index fetch and the two request paths
+  formerly listed here (`diagnosticsd`'s audit query, `secure-transportd`'s claimed
+  round-robin) are **closed** — see below.
+- **Two protocols retracted, not answered** were Errata **E-068** and **E-069**,
+  both **CLOSED** by **RFC-0.35-002**. `diagnosticsd`'s `AUDIT_QUERY` sub-protocol
+  (three constants in `fjell-service-api`, `collect_audit_events`, the declared
+  `CAP_AUDITD_EP`) is deleted outright — `fjell-auditd` never implemented it, and
+  the wait for a reply that could never come did not merely return nothing: it
+  **hung the service** (E-068's consequence, corrected in its own entry above;
+  demonstrated in a scratch build, shown gone after). `secure-transportd`'s
+  declared endpoints for `diagnosticsd` and `attestd`, and the comment claiming a
+  round-robin over them, are deleted the same way (E-069). Neither is implemented
+  under a different name: a `DiagnosticBundle` now carries `audit_available: bool`
+  so a caller can tell "no records" from "not implemented," and `v1-limitations.md`
+  — here — is where the capability question implementing the query for real would
+  require (who may read the audit log, which right, revocable how) is named for
+  whoever takes that line next.
 - **`fjell-upgraded`'s update-index fetch has never completed** was Erratum
   **E-070**, **CLOSED** by **RFC-0.35-001**. The uncarried channel-kind word was a
   symptom, not the cause: the capability `secure-transportd` received on did not
@@ -1341,29 +1344,37 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   per-outcome lines, ever (re-derived live for this line: 4.38 million further
   iterations, still none). This line installs the two slots the update path needs
   — `secure-transportd`'s slot 2 and `upgraded`'s slot 6, onto one shared endpoint —
-  and leaves the other nine declared-but-uninstalled slots to RFC-0.35-002,
-  **named, not silently dropped**, by the new `capability-topology` consistency-check
-  gate, which now compares the two independent declarations this erratum found and
-  fails on any non-waived divergence — **of the shape every declaration in this
-  tree takes**: a `const` whose slot is a decimal literal, in any `.rs` file under a
-  service's `src/`. A slot whose number is a named constant, or a binding that is not
-  such a `const`, is **not** discovered; the check says so in its own module doc
-  rather than implying a reach it does not have (architect probes, 2026-10-14 —
-  the `channel.rs` case was a real miss and is fixed, the constant-expression case is
-  a stated limit of a text scanner). A recv error is also no longer a tight loop in
-  either service, independent of which slot caused it — `fjell-diagnosticsd`'s own
-  `CAP_TOOLS_EP` remains unfixed (RFC-0.35-002's decision) and will keep erroring on
-  every boot, but it now yields instead of spinning. Two readiness notifications are
+  and left the other nine declared-but-uninstalled slots to RFC-0.35-002, **named,
+  not silently dropped**, by the new `capability-topology` consistency-check gate,
+  which compares the two independent declarations this erratum found and fails on
+  any non-waived divergence — **of the shape every declaration in this tree
+  takes**: a `const` whose slot is a decimal literal, in any `.rs` file under a
+  service's `src/`. A slot whose number is a named constant, or a binding that is
+  not such a `const`, is **not** discovered; the check says so in its own module
+  doc rather than implying a reach it does not have (architect probes, 2026-10-14 —
+  the `channel.rs` case was a real miss and is fixed, the constant-expression case
+  is a stated limit of a text scanner). **RFC-0.35-002 retired five of the nine**
+  by deleting the declaration outright, closing E-068/E-069/E-074 (below): the gate
+  now reports `2 installed, 4 waived, 6 checked`, not eleven. The four still
+  waived — `secure-transportd`'s smgr-readiness slot, `diagnosticsd`'s tools,
+  secure-transportd and measuredd slots — remain RFC-0.35-002's own residual
+  decisions, each still named with its reason. A recv error is also no longer a
+  tight loop in either service, independent of which slot caused it —
+  `fjell-diagnosticsd`'s own `CAP_TOOLS_EP` remains unfixed (still RFC-0.35-002's
+  decision not to install it; this line's own non-goals forbid it too) and will
+  keep erroring on every boot, but it now yields and discloses once, rather than
+  spinning or erroring silently (RFC-0.35-002 R5). Two readiness notifications are
   still wrong — one sends into an empty slot, one into the service's **own** shared
-  endpoint instead of `service-manager`'s — untouched by this line.
-- **Two capability-addressing functions that no caller reaches** (Erratum **E-074**,
-  ACCEPTED 2026-10-14, tracked **RFC-0.35-002**; split from E-072 at its closure, so
-  a closed entry does not carry live residuals). The two survivors above are a
+  endpoint instead of `service-manager`'s — untouched by either line.
+- **Two capability-addressing functions that no caller reaches** was Erratum
+  **E-074**, **CLOSED** by **RFC-0.35-002** (split from E-072 at its closure, so a
+  closed entry does not carry live residuals). The two survivors above were a
   **different defect with a different remedy**: E-072 was *declared but not
-  installed*, fixed by installing or waiving; this is *built and never wired to a
-  caller*, fixed by calling it or deleting it. Neither path runs today, which is why
-  neither spins — but a function that addresses a peer through a capability nobody
-  installed, with no caller, is a promise in the shape of code: the next person to
-  call it meets E-072's failure with an `Err(_) => (0, 0)` arm underneath that turns
-  it into a plausible zero. **Serve it or retract it**, the same decision
-  RFC-0.35-002 is already making for `diagnosticsd` and `secure-transportd`.
+  installed*, fixed by installing or waiving; this was *built and never wired to a
+  caller*, fixed by calling it or deleting it. Retracted, as ruled: `attestd`'s
+  whole "Remote attestation push" section (`push_attestation`, `CAP_SXT_EP`, the
+  SXT helpers only it called) and `netd`'s `CAP_DRV_EP` are deleted. Found in
+  passing: `push_attestation`'s own write to a `static mut` nonce cache would have
+  page-faulted the moment it ran — a service's image is mapped `R | X | U`, never
+  `W` — a second, previously-latent defect this deletion removes rather than needing
+  to fix.

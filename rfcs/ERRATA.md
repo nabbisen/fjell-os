@@ -4824,16 +4824,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   sends it (`main.rs:98`, with the protocol written out at `:51` and `:87`).
 - **Tree, observed 2026-10-13:** `fjell-auditd` mentions `AUDIT_QUERY` **zero**
   times — it drains the audit ring and never serves a query. So a diagnostics audit
-  query is sent to a service with no arm for it and **returns nothing, silently**;
-  the caller cannot tell the difference between "no audit records" and "nobody
-  listening".
+  query is sent to a service with no arm for it.
+- **Consequence corrected, RFC-0.35-002, 2026-10-14.** This entry originally said
+  the query *"returns nothing, silently."* That understates it: `collect_audit_events`
+  loops on `recv_msg` until it sees `AUDIT_STREAM_END`, a tag `auditd` never sends,
+  and a recv error maps to `(0, 0, 0)` — neither `AUDIT_STREAM_END` nor
+  `AUDIT_RECORD` — so the loop `continue`s forever. **The first
+  operator-triggered diagnostic bundle hangs the service**, not silently returns
+  nothing; nothing in the tree had ever sent the trigger (`BUILD_BUNDLE`/`PUSH`
+  each have exactly two sites — their declaration and `diagnosticsd`'s own
+  comparison), which is why this had never been seen.
 - **Found by:** the implementer, while sweeping comments for RFC-0.34-004 D3; they
   corrected `diagnosticsd`'s comment to say the protocol is unimplemented and raised
   the gap rather than filing it themselves.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-13), **unscheduled**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-13), **unscheduled**, in
   `v1-limitations.md`. Either `auditd` answers the query or `diagnosticsd` stops
   sending it; what is not acceptable is a request path that reports nothing and
-  cannot say why.
+  cannot say why.~~ → **CLOSED** by **RFC-0.35-002**.
+
+  > **Closed by RFC-0.35-002, 2026-10-14.** The hang demonstrated in a scratch
+  > build before any fix (a `BUILD_BUNDLE` call that never returns, killed only by
+  > the harness's own 30-second timeout) and shown gone after. **Retracted, not
+  > answered**: the owner's ruling was to retract rather than build `auditd` an
+  > `AUDIT_QUERY` arm it was never designed to carry (see the governing RFC's
+  > ruling section). `AUDIT_QUERY`/`AUDIT_RECORD`/`AUDIT_STREAM_END` leave
+  > `fjell-service-api`; `collect_audit_events` and `diagnosticsd`'s declared
+  > `CAP_AUDITD_EP` (slot 3) are deleted. Every `DiagnosticBundle` now carries an
+  > `audit_available: bool` (`fjell-diag-format`, schema regenerated) so a caller
+  > can tell "no records" from "not implemented" — the distinction this erratum
+  > was filed over — rather than inferring it from a zero count. What designing
+  > the query for real requires: a capability decision (who may read the audit
+  > log, which right, what badge, revocable how, observed by which tier) that has
+  > not been made; see the governing RFC's ruling §1. Full detail in
+  > `rfcs/answers/RFC-0.35-002-protocols-and-authority-nobody-serves-answer.md`.
 
 ## E-069 — `fjell-secure-transportd` declares four client endpoints, polls one, and says it polls three
 
@@ -4848,10 +4871,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Why nothing saw it:** nothing calls the unserved endpoints, so nothing blocks or
   errors; the comment describes the intended loop and reads as a description of the
   code beneath it.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-13), **unscheduled**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-13), **unscheduled**, in
   `v1-limitations.md`. The comment must stop claiming a loop that does not exist
   whatever else is done; serving the other endpoints is a design decision, not a
-  correction.
+  correction.~~ → **CLOSED** by **RFC-0.35-002**.
+
+  > **Closed by RFC-0.35-002, 2026-10-14.** Retracted, not served: `CAP_DIAG_EP`
+  > and `CAP_ATTEST_EP`, the two declared-and-never-received-on client endpoints
+  > this entry named, are deleted — re-derived at this line's own tip, unchanged
+  > from the original finding. `CAP_SMGR_EP` (send-only, readiness) and
+  > `CAP_UPGRAD_EP` (this service's one real receive) stay. The comment at the
+  > top of the IPC loop no longer claims a round-robin; it describes the one
+  > endpoint this service receives on. Full detail in
+  > `rfcs/answers/RFC-0.35-002-protocols-and-authority-nobody-serves-answer.md`.
 
 ## E-070 — the update-index fetch has never completed, and its tier is one of the two that are not gated
 
@@ -5112,13 +5144,26 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   promise in the shape of code — the next person to call it gets E-072's failure,
   and the `Err(_) => (0, 0)` arm underneath it will convert that into a plausible
   zero.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-14), tracked **RFC-0.35-002**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-14), tracked **RFC-0.35-002**, in
   `v1-limitations.md`. It belongs there and not in RFC-0.35-001 because the decision
   is the same one that line is already making for `diagnosticsd` and `transportd`:
   **serve it or retract it**, and the ruling in that RFC — retract — applies by the
   same four arguments. Deleting a dead `pub fn` is the cheapest honest outcome; if
   either is kept, it needs a caller and a capability in the same line, not a
-  declaration waiting for one.
+  declaration waiting for one.~~ → **CLOSED** by **RFC-0.35-002**.
+
+  > **Closed by RFC-0.35-002, 2026-10-14.** Retracted, as ruled. `attestd`'s whole
+  > "Remote attestation push" section — `push_attestation`, `CAP_SXT_EP` (slot 5),
+  > and the `sxt_send`/`sxt_recv` helpers only it called — is deleted, not just
+  > the function: nothing else in the tree referenced any of it. `netd`'s
+  > `CAP_DRV_EP` (slot 1) is deleted the same way. Found in passing, worth
+  > recording rather than silently sidestepped: `push_attestation`'s own write to
+  > `CACHED_NONCE`, a `static mut`, would have page-faulted the moment it ran —
+  > a service's image is mapped `R | X | U`, never `W`, the same constraint
+  > `fjell-semantic-stream`'s own module doc already documents for a different
+  > service — a second, previously-latent defect this deletion removes rather
+  > than needing to fix. Full detail in
+  > `rfcs/answers/RFC-0.35-002-protocols-and-authority-nobody-serves-answer.md`.
 
 ## Summary
 
@@ -5181,8 +5226,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-055 `fjell-init` writes struct padding to disk through four raw `from_raw_parts` views — E-046 Finding 4's class on the write side; the probe that reported "0 sites outside the kernel" in E-046's closure, the 0.32.0 CHANGELOG and the 0.32.0 record was a `grep` that silently skips NUL-containing files, and `fjell-init` was the only one | RFC-0.33-003 | CLOSED |
 | E-056 the ABI snapshot hashes an enum's declaration line, not its variants, so `Reboot = 120`'s removal and `PlatformReboot`'s addition — both syscall-ABI changes — registered zero drift; `pub fn`/`pub const` items are caught correctly | RFC-0.33-004 | CLOSED |
 | E-067 the ABI snapshot's hash of a braced struct or a trait is its declaration line, so adding a field or a method is zero drift (E-056's class, beyond enums) | 0.34 | CLOSED |
-| E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented, so a diagnostics audit query returns nothing and cannot say why | unscheduled | ACCEPTED |
-| E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin, so `diagnosticsd`, `attestd` and `service-manager` can never be served by it | unscheduled | ACCEPTED |
+| E-068 `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY` protocol that `fjell-auditd` has never implemented — **closed by retraction**: the sub-protocol is deleted, not implemented; its consequence was corrected from "returns nothing, silently" to a hang, and every bundle now states its audit section unavailable rather than silently empty | RFC-0.35-002 | CLOSED |
+| E-069 `fjell-secure-transportd` declares four client endpoints and polls exactly one, under a comment saying it polls three in round-robin — **closed by retraction**: the two never-served endpoint constants are deleted, the comment no longer claims a round-robin | RFC-0.35-002 | CLOSED |
 | E-070 `fjell-upgraded`'s update-index fetch has never completed — the channel-kind word its open request should carry is never carried — in the one area whose QEMU tiers are not release-gated and have no emitting scenario — **closed as to the vanishing message, not as to the fetch**: it still returns `None`, now because the TLS handshake correctly fails closed against an unprovisioned trust anchor, a separate limitation already in `v1-limitations.md` | RFC-0.35-001 | CLOSED |
 | E-071 `fjell-repro-check` silently ignores an unrecognised flag and falls through to its full two-build mode, and has no `--help`, so asking for usage starts a build that can race a concurrent `test-all` — twice now | RFC-0.35-003 | ACCEPTED |
 | E-072 five services declare CSpace slots the kernel never installs (eleven slots, zero installs); `secure-transportd` and `diagnosticsd` busy-spin for the lifetime of every boot on the recv error, each under a comment describing the work it is doing; E-070 sits on top of this | RFC-0.35-001 | CLOSED |
@@ -5196,7 +5241,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-064 the boot shim's BSS zero-fill overwrites the DTB pointer in `a1` three lines above the comment saying it does not, so the kernel receives `__bss_end` as `dtb_pa`, the reserve meant to protect the device tree fails on its first frame and is discarded, and the real DTB page stays allocatable | 0.34 | CLOSED |
 | E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose big-endian integers `Canon` cannot yet express) still have no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 | 0.35 | ACCEPTED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
-| E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — built and never wired, a different defect from E-072's declared-but-not-installed, split out at its closure so a CLOSED entry does not carry live residuals | RFC-0.35-002 | ACCEPTED |
+| E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
