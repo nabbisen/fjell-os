@@ -1,5 +1,5 @@
 [
-  {"count":456},
+  {"count":453},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"56754281cea80cb5"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_AUDIT_DRAIN","sig":"c16a6ada82892290"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"SLOT_BOOTSTRAP_EP","sig":"affeed722c212b15"},
@@ -253,9 +253,6 @@
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"commit","sig":"36a70ceb284c3ac9"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"new","sig":"5607879020b06992"},
   {"crate":"fjell-service-api","module":"chunked","impl_type":"Reassembler","kind":"fn","name":"reset","sig":"8e0a6eaa52598031"},
-  {"crate":"fjell-service-api","module":"diagnosticsd","impl_type":"","kind":"const","name":"AUDIT_QUERY","sig":"873e224417a0f020"},
-  {"crate":"fjell-service-api","module":"diagnosticsd","impl_type":"","kind":"const","name":"AUDIT_RECORD","sig":"11c11bcb9135e61a"},
-  {"crate":"fjell-service-api","module":"diagnosticsd","impl_type":"","kind":"const","name":"AUDIT_STREAM_END","sig":"469c641450fd44c6"},
   {"crate":"fjell-service-api","module":"diagnosticsd","impl_type":"","kind":"const","name":"BUILD_BUNDLE","sig":"df32476c7c5c84d1"},
   {"crate":"fjell-service-api","module":"diagnosticsd","impl_type":"","kind":"const","name":"BUNDLE_READY","sig":"a3daf250f8e84b3b"},
   {"crate":"fjell-service-api","module":"diagnosticsd","impl_type":"","kind":"const","name":"PUSH","sig":"a73eff1746a5880a"},
