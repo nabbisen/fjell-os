@@ -301,6 +301,12 @@ pub fn spawn(
                 // previously fell to the shared default (0), one of the two
                 // extra receivers RFC-0.28-001's own comment already named.
                 fjell_abi::service::ImageId::BOOTCTL => fjell_abi::service::BOOTCTL_EP_OBJECT,
+                // RFC-0.35-001 R7: verifyd's own dedicated endpoint —
+                // previously fell to the same shared default (0); `neg-test`
+                // is its first real caller and a shared object would have
+                // risked the exact ambiguity RFC-0.28-001 removed for
+                // service-manager, auditd and bootctl.
+                fjell_abi::service::ImageId::VERIFYD => fjell_abi::service::VERIFYD_EP_OBJECT,
                 _ => 0,
             };
             let _ = cs.install_raw(
@@ -579,6 +585,32 @@ pub fn spawn(
                         lease: None,
                     },
                 );
+            }
+            // Slots 18-19 (RFC-0.35-001 R7): CALL-only capabilities for
+            // NEG_TEST to drive bootctl's `BOOT_PROBE_ACTIVE_SLOT_WRITE` and
+            // verifyd's `VERIFY` — the first real callers of either.
+            // CALL and nothing else: `sys_ipc_call`/`sys_ipc_call_words`
+            // check `CapRights::CALL` alone, and this task has no other
+            // business with either endpoint.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                for (slot, object_id) in [
+                    (18, fjell_abi::service::BOOTCTL_EP_OBJECT),
+                    (19, fjell_abi::service::VERIFYD_EP_OBJECT),
+                ] {
+                    let _ = cs.install_raw(
+                        slot,
+                        Capability {
+                            kind: CapKind::Endpoint,
+                            object_id,
+                            rights: CapRights::CALL,
+                            badge: 0,
+                            scope: ObjectScope::Any,
+                            state: CapState::Active,
+                            parent: None,
+                            lease: None,
+                        },
+                    );
+                }
             }
             // RFC-0.28-001: SAMPLE_SERVICE's old slot-2 patch ("shared-endpoint
             // cap so its SERVICE_READY signal still reaches service-manager")
@@ -886,6 +918,60 @@ pub fn spawn(
                         kind: CapKind::CapInstall,
                         object_id: 0,
                         rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+        }
+    }
+
+    // RFC-0.35-001 R5 (closes E-072, E-070): the update path's metadata
+    // channel. `secure-transportd` (slot 2, its own declared name for this
+    // peer) and `upgraded` (slot 6) each get a SEND|RECV capability to the
+    // SAME shared endpoint object — not a one-way wake like
+    // `semantic-stream`'s presentations, because both sides both send a
+    // request/reply and block waiting for one on this exact slot. Nothing
+    // else is installed for either service: the other nine slots E-072
+    // named are RFC-0.35-002's decision, not this line's (least privilege —
+    // installing authority a component does not exercise yet is the
+    // violation this project exists to refuse).
+    {
+        use fjell_cap::slot::Capability;
+        use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
+        const UPDATE_CHANNEL_RIGHTS: CapRights = CapRights(CapRights::SEND.0 | CapRights::RECV.0);
+        if image_id == fjell_abi::service::ImageId::SECURE_TRANSPORTD {
+            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+            if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+                let _ = cs.install_raw(
+                    2,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::UPDATE_CHANNEL_EP_OBJECT,
+                        rights: UPDATE_CHANNEL_RIGHTS,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+        }
+        if image_id == fjell_abi::service::ImageId::UPGRADED {
+            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+            if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+                let _ = cs.install_raw(
+                    6,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::UPDATE_CHANNEL_EP_OBJECT,
+                        rights: UPDATE_CHANNEL_RIGHTS,
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,

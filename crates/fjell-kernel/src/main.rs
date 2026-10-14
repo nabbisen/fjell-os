@@ -873,10 +873,28 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         fjell_abi::service::SVC_PRESENTATION_LIAR_EP_OBJECT,
         "SVC_PRESENTATION_LIAR_EP_OBJECT does not name the object just allocated"
     );
+    // RFC-0.35-001 R5/R6 (closes E-072, E-070): the update path's metadata
+    // channel — the one shared object `secure-transportd` and `upgraded`
+    // both hold a SEND|RECV capability to.
+    let update_channel_ep_id = et.alloc().expect("alloc update-channel endpoint");
+    assert_eq!(
+        update_channel_ep_id,
+        fjell_abi::service::UPDATE_CHANNEL_EP_OBJECT,
+        "UPDATE_CHANNEL_EP_OBJECT does not name the object just allocated"
+    );
+    // RFC-0.35-001 R7: `verifyd`'s own dedicated endpoint — `neg-test` is
+    // its first real caller, and a shared default object would have risked
+    // a collision neither service chose.
+    let verifyd_ep_id = et.alloc().expect("alloc verifyd endpoint");
+    assert_eq!(
+        verifyd_ep_id,
+        fjell_abi::service::VERIFYD_EP_OBJECT,
+        "VERIFYD_EP_OBJECT does not name the object just allocated"
+    );
     // ...and the whole table, so the total cannot drift from the constant the
     // host test counts allocations against (`ENDPOINT_OBJECT_COUNT`).
     assert_eq!(
-        svc_presentation_liar_ep_id + 1,
+        verifyd_ep_id + 1,
         fjell_abi::service::ENDPOINT_OBJECT_COUNT,
         "ENDPOINT_OBJECT_COUNT is not one past the last endpoint allocated"
     );

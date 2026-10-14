@@ -257,6 +257,31 @@ pub const NEG_TEST_TRIGGER_RECV_SLOT: u32 = 8;
 /// The CSpace slot in `init` that sends to `NEG_TEST_EP_OBJECT`, SEND only.
 pub const INIT_NEG_TEST_SEND_SLOT: u32 = 9;
 
+// ── RFC-0.35-001: the update path's metadata channel (E-072, E-070) ──────────
+//
+// `secure-transportd` and `fjell-upgraded` each address the other through a
+// `CapHandle` their own source has always named — slot 2 on transportd's
+// side, slot 6 on upgraded's — and the kernel has never installed a
+// capability at either. Both sides both send and receive on their one slot
+// (a request, then a blocking wait for the reply, in both directions), so
+// this is one shared Endpoint object with a SEND|RECV capability in both
+// CSpaces, not a one-way wake pattern like `semantic-stream`'s presentations.
+
+/// The endpoint object the update path's metadata channel rendezvouses on.
+/// `secure-transportd` (CSpace slot 2) and `fjell-upgraded` (CSpace slot 6)
+/// each hold a SEND|RECV capability to it — see `spawn.rs`'s install, the
+/// only other place this object id appears.
+pub const UPDATE_CHANNEL_EP_OBJECT: u32 = 17;
+
+/// `verifyd`'s own dedicated endpoint object (RFC-0.35-001 R7). Before this
+/// line `verifyd` was never in `spawn.rs`'s `ep_obj` match, so its slot-0
+/// capability defaulted to the shared object every untouched image falls
+/// back to — harmless only because nothing had ever called it
+/// (`VERIFY`'s dispatch arm was dead code). `neg-test` is the first real
+/// caller; a shared object would have risked it, or `verifyd`, receiving a
+/// message meant for whichever other default-path service got there first.
+pub const VERIFYD_EP_OBJECT: u32 = 18;
+
 /// How many endpoint objects the kernel allocates at boot: the highest object
 /// id above, plus one. `crates/fjell-kernel/src/main.rs` asserts that each
 /// `et.alloc()` returns the object its constant names, and a host test counts
@@ -265,7 +290,7 @@ pub const INIT_NEG_TEST_SEND_SLOT: u32 = 9;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 17;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 19;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -342,6 +367,8 @@ mod endpoint_allocation_tests {
                 "SVC_PRESENTATION_LIAR_EP_OBJECT",
                 SVC_PRESENTATION_LIAR_EP_OBJECT,
             ),
+            ("UPDATE_CHANNEL_EP_OBJECT", UPDATE_CHANNEL_EP_OBJECT),
+            ("VERIFYD_EP_OBJECT", VERIFYD_EP_OBJECT),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
         }
