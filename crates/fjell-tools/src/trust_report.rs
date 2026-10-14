@@ -262,13 +262,18 @@ fn section_5_unsafe_inventory() -> String {
     s.push_str("§5. UNSAFE SITE INVENTORY\n");
     s.push_str("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
 
+    // RFC-0.35-003 (E-071's sweep, R4): `--workspace` is `fjell-mmio-audit`'s
+    // flag name, not this tool's (`--root`) -- silently ignored here until
+    // this line tightened `fjell-unsafe-audit` to reject an unrecognised
+    // argument, and only ever harmless because the ignored flag's value
+    // equalled `root`'s own default (".") either way.
     let out = Command::new("cargo")
         .args([
             "run",
             "-p",
             "fjell-unsafe-audit",
             "--",
-            "--workspace",
+            "--root",
             ".",
             "--check",
         ])

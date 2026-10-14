@@ -31,8 +31,8 @@ rather than annotating it.
 ## Running it
 
 ```bash
-cargo run -p fjell-unsafe-audit -- --workspace . --check   # exit 0 or 1
-cargo run -p fjell-unsafe-audit -- --workspace . --json    # the inventory
+cargo run -p fjell-unsafe-audit -- --root . --check   # exit 0 or 1
+cargo run -p fjell-unsafe-audit -- --root . --json    # the inventory
 ```
 
 The `--check` form is what CI and Gate 2 run. The `--json` form prints the

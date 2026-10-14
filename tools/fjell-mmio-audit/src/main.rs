@@ -12,9 +12,16 @@
 //!   - `poll`              — busy-wait read; ordering benign.
 //!
 //! Usage:
-//!   `fjell-mmio-audit --workspace <root> [--check]`
+//!   `fjell-mmio-audit [--workspace <root>] [--check]`
+//!   `fjell-mmio-audit --help | -h`
 //!
 //!   `--check`: exit 1 if any site is missing its annotation.
+//!
+//! RFC-0.35-003 (E-071's sweep, R4): an unrecognised argument used to be
+//! silently ignored and the scan ran anyway — the same shape named for
+//! `fjell-repro-check`, found by sweeping this directory for it. An
+//! unrecognised argument now exits 2 with the usage; `--help`/`-h` prints
+//! it and exits 0.
 
 use std::fs;
 use std::io;
@@ -39,8 +46,41 @@ const MMIO_ORDER_VALUES: &[&str] = &[
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+const USAGE: &str =
+    "Usage: fjell-mmio-audit [--workspace <root>] [--check]\n       fjell-mmio-audit --help | -h";
+const KNOWN_FLAGS: &[&str] = &["--check", "--help", "-h"];
+const KNOWN_VALUE_FLAGS: &[&str] = &["--workspace"];
+
+fn first_unrecognized(args: &[String]) -> Option<&str> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if KNOWN_VALUE_FLAGS.contains(&a) {
+            i += 2;
+            continue;
+        }
+        if KNOWN_FLAGS.contains(&a) {
+            i += 1;
+            continue;
+        }
+        return Some(a);
+    }
+    None
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    if let Some(bad) = first_unrecognized(&args) {
+        eprintln!("mmio-audit: unrecognised argument: {bad}");
+        eprintln!("{USAGE}");
+        return ExitCode::FAILURE;
+    }
+
     let check_mode = args.iter().any(|a| a == "--check");
     let workspace = args
         .windows(2)
@@ -195,6 +235,28 @@ fn strip_string_literals_and_comments(line: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn strs(args: &[&str]) -> Vec<String> {
+        args.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn no_args_is_recognised() {
+        assert_eq!(first_unrecognized(&strs(&[])), None);
+    }
+
+    #[test]
+    fn known_flags_are_recognised() {
+        assert_eq!(
+            first_unrecognized(&strs(&["--check", "--workspace", "."])),
+            None
+        );
+    }
+
+    #[test]
+    fn an_unrecognised_flag_is_named() {
+        assert_eq!(first_unrecognized(&strs(&["--bogus"])), Some("--bogus"));
+    }
 
     #[test]
     fn strip_does_not_flag_string_patterns() {

@@ -45,6 +45,14 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     // `fjell-unsafe-audit --check` now also exits non-zero on an
     // unrecognised/missing category tag (Slice 3), which the old
     // `"missing comment    : 0"` substring check could never see.
+    //
+    // RFC-0.35-003 (E-071's sweep, R4): this passed `--workspace .` --
+    // `fjell-mmio-audit`'s flag name, not this tool's own (`--root`).
+    // `--workspace` silently matched nothing before this line's fix
+    // tightened `fjell-unsafe-audit` to reject an unrecognised argument,
+    // and only worked because the ignored flag's value happened to equal
+    // `root`'s own default (".") either way. Found by running this exact
+    // invocation after the fix, not assumed safe.
     gates.push(run_gate("2", "Unsafe audit (0 missing)", || {
         let (ok, _out) = sh_status(&[
             "cargo",
@@ -53,7 +61,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
             "-p",
             "fjell-unsafe-audit",
             "--",
-            "--workspace",
+            "--root",
             ".",
             "--check",
         ]);

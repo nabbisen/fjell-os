@@ -12,7 +12,7 @@
 //!     `--lib` alone leaves every crate with no lib target — the gate
 //!     tools among them — untested by this runner)
 //! 2. **proptest**   — `cargo test -p fjell-proptest --release`
-//! 3. **unsafe-audit**— `cargo run -p fjell-unsafe-audit -- --workspace . --check`
+//! 3. **unsafe-audit**— `cargo run -p fjell-unsafe-audit -- --root . --check`
 //! 4. **qemu-smoke** — `cargo xtask qemu-test <profile>` × 4 profiles
 //! 5. **qemu-neg**   — `cargo xtask qemu-negative <category>`, once per
 //!     category `qemu_run::discover_negative_categories` derives from
@@ -124,6 +124,11 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
     ));
 
     // ── Tier 3: unsafe audit ─────────────────────────────────────────────────
+    // RFC-0.35-003 (E-071's sweep, R4): `--workspace` is `fjell-mmio-audit`'s
+    // flag name, not this tool's (`--root`) -- silently ignored here until
+    // this line tightened `fjell-unsafe-audit` to reject an unrecognised
+    // argument, and only ever harmless because the ignored flag's value
+    // equalled `root`'s own default (".") either way.
     results.push(run_tier(
         &run_dir,
         "03-unsafe-audit",
@@ -134,7 +139,7 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
             "-p",
             "fjell-unsafe-audit",
             "--",
-            "--workspace",
+            "--root",
             ".",
             "--check",
         ],

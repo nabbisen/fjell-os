@@ -399,7 +399,7 @@ jobs:
       - name: Install toolchain
         uses: ./.github/actions/toolchain
       - name: Unsafe audit (category= check)
-        run: cargo run -p fjell-unsafe-audit -- --workspace . --check
+        run: cargo run -p fjell-unsafe-audit -- --root . --check
 
   ci-host-bins:
     name: host-bins

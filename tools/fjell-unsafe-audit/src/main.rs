@@ -2,10 +2,18 @@
 //!
 //! Usage:
 //!   fjell-unsafe-audit [--root <path>] [--json] [--check]
+//!   fjell-unsafe-audit --help | -h
 //!
 //! Exits 0 if every unsafe site has a `// SAFETY: category=raw-pointer-deref` comment within 4 lines.
 //! Exits 1 if any unsafe site is missing a SAFETY comment.
 //! With `--json`, prints a JSON-lines inventory to stdout.
+//!
+//! RFC-0.35-003 (E-071's sweep, R4): an unrecognised argument used to be
+//! silently discarded (`_ => {}` in the argument loop) and the scan ran
+//! anyway — the same "ignores the unrecognised" shape named for
+//! `fjell-repro-check`, found by sweeping this directory for it. An
+//! unrecognised argument now exits 2 with the usage; `--help`/`-h` prints
+//! it and exits 0.
 
 use std::{
     env, fs, io,
@@ -328,13 +336,21 @@ fn discover_rs_files(root: &Path) -> io::Result<Vec<PathBuf>> {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+const USAGE: &str = "Usage: fjell-unsafe-audit [--root <path>] [--json] [--check]\n       fjell-unsafe-audit --help | -h";
+
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<String> = env::args().skip(1).collect();
+
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{USAGE}");
+        return;
+    }
+
     let mut root = PathBuf::from(".");
     let mut json = false;
     let mut check = false;
 
-    let mut i = 1;
+    let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
             "--root" => {
@@ -345,7 +361,11 @@ fn main() {
             }
             "--json" => json = true,
             "--check" => check = true,
-            _ => {}
+            other => {
+                eprintln!("fjell-unsafe-audit: unrecognised argument: {other}");
+                eprintln!("{USAGE}");
+                process::exit(2);
+            }
         }
         i += 1;
     }

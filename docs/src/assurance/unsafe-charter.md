@@ -22,7 +22,7 @@ tool. See the permitted categories below.
 The CI job `ci-unsafe-audit` (and `cargo xtask test-all` tier 2) runs:
 
 ```sh
-cargo run -p fjell-unsafe-audit -- --workspace . --check
+cargo run -p fjell-unsafe-audit -- --root . --check
 ```
 
 A PR that introduces an unsafe site without a `SAFETY:` comment is blocked.
@@ -55,7 +55,7 @@ The gate passes only when the missing-annotation count is zero.
 Run the audit to get the live count:
 
 ```sh
-cargo run -p fjell-unsafe-audit -- --workspace . --check
+cargo run -p fjell-unsafe-audit -- --root . --check
 ```
 
 The gate passes with 0 missing annotations. The site count grows with

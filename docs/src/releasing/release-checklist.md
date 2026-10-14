@@ -50,7 +50,7 @@ cargo test -p fjell-proptest --release
 ## Step 3a — Unsafe-audit gate
 
 ```bash run-verified
-cargo run -p fjell-unsafe-audit -- --workspace . --check
+cargo run -p fjell-unsafe-audit -- --root . --check
 # Expected: missing comment : 0
 ```
 
