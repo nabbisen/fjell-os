@@ -106,14 +106,6 @@ struct Waiver {
 /// the slot. Re-check these whenever a line named here closes.
 const WAIVERS: &[Waiver] = &[
     Waiver {
-        image: "SECURE_TRANSPORTD",
-        slot: 1,
-        purpose: "smgr readiness (superseded by SERVICE_READY_SEND_SLOT)",
-        reason: "E-075 — the readiness send fails and the claim is withdrawn; \
-                 adopting SERVICE_READY_SEND_SLOT needs an assertion that \
-                 service-manager observes it",
-    },
-    Waiver {
         image: "DIAGNOSTICSD",
         slot: 1,
         purpose: "tools",
@@ -133,9 +125,11 @@ const WAIVERS: &[Waiver] = &[
         image: "DIAGNOSTICSD",
         slot: 4,
         purpose: "measuredd",
-        reason: "E-076 — `query_measurement_head` folds the absence into a \
-                 32-byte zero digest the bundle presents as a measurement, \
-                 which is the one of these four that is not yet honest",
+        reason: "E-078 — nothing can ask diagnosticsd for a bundle at all, so \
+                 installing this slot has no caller to serve yet; E-076 (the \
+                 zero-digest fallback this slot fed) closed by RFC-0.36-001 \
+                 without installing it, so the open question is E-078's now, \
+                 not E-076's",
     },
 ];
 
@@ -569,7 +563,7 @@ mod tests {
     }
 
     #[test]
-    fn discovery_on_the_current_tree_matches_the_known_six() {
+    fn discovery_on_the_current_tree_matches_the_known_five() {
         // `cargo test` runs with this crate's own directory as the working
         // directory, not the workspace root `check()` assumes in
         // production (`cargo xtask consistency-check` always runs from the
@@ -585,11 +579,14 @@ mod tests {
             .expect("discovery must succeed on the real tree");
         // E-072's eleven, less the five RFC-0.35-002 closed by deleting the
         // declaration outright (SECURE_TRANSPORTD slots 3/4, DIAGNOSTICSD
-        // slot 3, E-068/E-069; ATTESTD slot 5, NETD slot 1, E-074).
+        // slot 3, E-068/E-069; ATTESTD slot 5, NETD slot 1, E-074), less one
+        // more RFC-0.36-001 closed the same way (SECURE_TRANSPORTD's
+        // `CAP_SMGR_EP`, slot 1, E-075 — adopted `SERVICE_READY_SEND_SLOT`
+        // instead, which needs no local constant).
         assert_eq!(
             discovered.len(),
-            6,
-            "expected exactly the six slots RFC-0.35-002 did not retire: {discovered:#?}",
+            5,
+            "expected exactly the five slots RFC-0.35-002/RFC-0.36-001 did not retire: {discovered:#?}",
         );
         let unwaived = discovered
             .iter()
