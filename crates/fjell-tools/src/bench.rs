@@ -10,6 +10,15 @@
 //!
 //! Note: full criterion runs are slow. In CI the bench tier in `test-all`
 //! uses `--check` with `--sample-size 10` for speed.
+//!
+//! RFC-0.36-002 (closes E-077): an unrecognised argument used to fall
+//! through to the default (just-print) arm silently — a caller who meant
+//! `--baseline` or `--check` believed one had happened when neither did.
+//! An unrecognised argument now exits **2** with the usage printed;
+//! `--help`/`-h` exits 0 without running anything. `1` stays reserved for
+//! "a metric exceeded its tolerance" and "the baseline write failed" — the
+//! loudest things this command says, which a usage error must not be
+//! confused with.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -18,7 +27,35 @@ use std::process::{Command, ExitCode, Stdio};
 
 const BASELINE_PATH: &str = "benches/baseline.json";
 
+const USAGE: &str = "Usage:
+  fjell-tools bench [--baseline | --check] [--fast]
+  fjell-tools bench --help | -h
+
+(default)    run benches, print results, do not compare
+  --baseline run and write a fresh benches/baseline.json
+  --check    run and fail if any metric exceeds its tolerance band
+             (implies --fast)
+  --fast     use a short criterion profile (--sample-size 10, etc.)
+  --help, -h print this usage and exit";
+
+/// The first argument that is neither a recognised flag nor `--help`/`-h`.
+fn first_unrecognized(args: &[String]) -> Option<&str> {
+    args.iter()
+        .map(String::as_str)
+        .find(|a| !matches!(*a, "--baseline" | "--check" | "--fast" | "--help" | "-h"))
+}
+
 pub fn cmd_bench(args: &[String]) -> ExitCode {
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    if let Some(unknown) = first_unrecognized(args) {
+        eprintln!("[bench] unrecognised argument: {unknown}");
+        eprintln!("{USAGE}");
+        return ExitCode::from(2);
+    }
+
     let write_baseline = args.iter().any(|a| a == "--baseline");
     let check = args.iter().any(|a| a == "--check");
     let fast = args.iter().any(|a| a == "--fast") || check;
@@ -251,6 +288,41 @@ fn extract_json_f64(line: &str, key: &str) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn strs(a: &[&str]) -> Vec<String> {
+        a.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn combining_recognised_flags_is_fine() {
+        assert_eq!(
+            first_unrecognized(&strs(&["--check", "--fast"])).map(str::to_string),
+            None
+        );
+        assert_eq!(
+            first_unrecognized(&strs(&["--baseline"])).map(str::to_string),
+            None
+        );
+    }
+
+    #[test]
+    fn help_is_not_unrecognised() {
+        assert_eq!(first_unrecognized(&strs(&["--help"])), None);
+        assert_eq!(first_unrecognized(&strs(&["-h"])), None);
+    }
+
+    #[test]
+    fn an_unrecognised_flag_is_named() {
+        assert_eq!(first_unrecognized(&strs(&["--basline"])), Some("--basline"));
+    }
+
+    #[test]
+    fn an_unrecognised_flag_after_recognised_ones_is_still_found() {
+        assert_eq!(
+            first_unrecognized(&strs(&["--check", "--nonsense"])),
+            Some("--nonsense")
+        );
+    }
 
     #[test]
     fn to_ns_conversions() {
