@@ -5,6 +5,124 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.35.0] — 2026-10-15 — The capabilities the update path never had
+
+Four RFCs, **seven errata closed** (**E-065**, **E-068**, **E-069**, **E-070**,
+**E-071**, **E-072**, **E-074**). The milestone's spine is that a service
+plane which had never exchanged a message now does, and that a gate exists to
+notice when the next one cannot.
+
+### Fixed — eleven capability slots services address and the kernel never installs, and the update-index fetch that never completed (RFC-0.35-001)
+
+Five services addressed their peers through CSpace slots `spawn.rs` never
+installs; two of them busy-spun on the absence for the lifetime of every
+boot. `fjell-upgraded`'s update-index fetch had never completed against a
+real `secure-transportd`, and the vanishing message underneath it is what
+the same gap looks like from inside the service that needed the channel.
+A new capability-topology check discovers the universe of declared slots
+from the services' own sources — recursively, not just `main.rs` — rather
+than enumerating a list someone maintains by hand, and fails on any slot
+that is neither installed nor waived to a named line; the busy-spins now
+yield and disclose the receive error once instead of spinning silently.
+Verified by probe against three shapes the mechanism did not originally
+catch: a slot declared in a non-`main.rs` source file, a service naming
+another tool's flag by accident, and `cargo fmt --all --check` itself,
+which neither of this line's two review rounds had in its own evidence
+table until the gate found it missing a third time.
+
+Closes **E-070**, **E-072** (the two remaining installs, `attestd` and
+`netd`, carried out as **E-074** rather than left inside a closed entry).
+
+### Fixed — a documented protocol nobody answers, and a round-robin that polls one of three (RFC-0.35-002)
+
+`fjell-diagnosticsd` sent an `AUDIT_QUERY` protocol `fjell-auditd` had
+never implemented, and `fjell-secure-transportd` declared four client
+endpoints while receiving on one, under a comment claiming a round-robin
+over three. Both were a component claiming a conversation that does not
+happen — once in a shared API's protocol constants, once in a service's
+endpoint set. The audit query protocol is retracted rather than
+implemented against nothing: `recv_msg` now returns a `Result` a caller
+can tell "no records" from "not implemented" with, and
+`DiagnosticBundle::audit_available` says honestly when the audit section
+is empty rather than leaving it silently so. The false round-robin claim
+is withdrawn from its own comment.
+
+Closes **E-068**, **E-069**, **E-074**.
+
+### Fixed — three instruments that reported on less than they claimed (RFC-0.35-003)
+
+`fjell-repro-check` silently accepted any unrecognised flag — including
+`--help`, which it did not have — and fell through to its full two-build
+mode, so asking for usage could start a build racing a live `test-all`.
+The same defect was found and fixed in `fjell-mmio-audit` and
+`fjell-unsafe-audit` by the same sweep, which also surfaced a live caller
+bug: four call sites and three documentation pages passed
+`fjell-unsafe-audit` the other tool's flag name, silently discarded and
+harmless only by coincidence. All three tools now reject an unrecognised
+argument, answer `--help` without building anything, and exit 2 for a
+usage error and 1 for a real finding — one consistent contract instead of
+three.
+
+`docs/src/releasing/v1-readiness.md`'s own summary — a table and a
+paragraph that could silently disagree with the matrix they summarise,
+and twice had — is now Gate 12's 20th subcheck, `readiness-summary`,
+compared against what counting every row in the matrix actually
+produces, with a dated instruction for the next cut (it is designed to
+go red the moment a release bumps the version, and that is correct).
+
+Closes **E-071**.
+
+### Fixed — two digest streams hashed and described by nothing a gate compares (RFC-0.35-004)
+
+`fjell-measure-format`'s measurement-chain digest and
+`fjell-bundle-format`'s service-bundle digest were each a byte stream
+with no generated description — the last two of the format census RFC-
+0.33-003 began. Both moved onto the project's own `Canon` trait, which
+gained exactly one new primitive (a big-endian `u32`) and left the
+eighteen existing descriptions unchanged, checked against digests and
+raw byte streams captured from the unmodified encoders before either
+moved. The bundle digest's `name` field carries no length prefix; the
+argument for why that is safe is written into the generated file itself,
+not only into this document. Review found one more gap in the same
+spirit before it closed: the chain digest's fixed, always-32-byte
+metadata slot was not stated as such, so a second implementation reading
+only the field's type could have padded or omitted it and produced a
+different digest — fixed with a note on the field, the same mechanism
+already used for the bundle's unlengthed name.
+
+Closes **E-065** — the census is complete: twenty generated files, down
+to two remaining survivors (**E-073**, below).
+
+### Known, disclosed, not fixed here
+
+**A diagnostic bundle can report a measurement head of zeros when it
+could not ask for one, indistinguishable from a real digest.**
+`fjell-diagnosticsd`'s `query_measurement_head` addresses `CAP_MEASUREDD_EP`
+(slot 4), which nothing installs, and on failure returns a 32-byte zero
+digest in the field that attests what the system measured — with no flag
+saying the value was never obtained. This milestone added
+`DiagnosticBundle::audit_available` precisely so the audit section could
+not be silently empty, in the same struct, and left the measurement head
+failing open: the bundle now states honestly that it has no audit events
+and claims falsely that it measured nothing. Filed as **E-076**,
+unscheduled; closing it means the field carries its own availability, or
+the bundle refuses to be built without one.
+
+Also filed, both unscheduled: two services (`fjell-secure-transportd`,
+`fjell-diagnosticsd`) announce readiness to nobody under a comment saying
+otherwise — the send targets a slot nothing installs or reaches no
+listener, and each comment now withdraws the claim rather than stating it
+(**E-075**); `fjell-tools`' `bench.rs` silently drops a caller's intent to
+write or to check on a typo rather than rejecting it, a cheaper variant of
+this milestone's own repeated defect (**E-077**). **E-073** — two format
+crates' `#[repr(C)]` layouts still undescribed, one of them
+(`fjell-audit-format`) needing a kernel-side change to where
+`sys_audit_drain` writes before it can close honestly, the other
+(`fjell-net-format`) with no such dependency — is untouched by this
+milestone and remains the census's only two survivors.
+
+---
+
 ## [0.34.0] — 2026-10-13 — A word that claims an authority it does not carry
 
 Two RFCs, **three errata closed** (**E-034**, **E-059**, **E-060**) — and
