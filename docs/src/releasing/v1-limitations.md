@@ -1458,14 +1458,22 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   closed and replying `PUSH_FAULT`, which is honest), and its readiness
   announcement reaches its own endpoint (**E-075**). Six protocol constants are
   declared in `fjell-service-api` for a conversation nobody has. **This is the
-  premise E-075 and E-076 are latent because of**, and it is filed rather than
-  scheduled because closing it needs a decision the owner has deferred: serving
-  `BUILD_BUNDLE` for real requires the **input path** (readiness row 26,
-  `IN PROGRESS → v1.x`), and retracting instead means deleting a designed
-  capability with a bundle format, a trust provider and a signed digest behind it.
-  Either answer is defensible; the present state — a service that announces
-  readiness to itself, cannot be asked, and would answer with zeros if it were — is
-  not.
+  premise E-075 and E-076 are latent because of**. *(Corrected 2026-10-15, hours
+  after filing: this first said closing it needs the deferred **input path**. It
+  does not. `fjell-remote-diag-format` (RFC v0.8-005) already specifies the
+  conversation — a fleet manager sends a `RemoteDiagRequest`, the node answers with
+  a signed bundle — so the initiator is a fleet manager over the network, not a
+  person at a console. `fjell-fleetd` is the designated node-side endpoint and
+  already depends on that crate; it constructs a request as a **self-check** and
+  makes **zero** IPC calls. Two stubs facing each other across a designed
+  protocol.)* What closing it needs is the wiring, `diagnosticsd`'s three slots,
+  a tier in which a request produces a signed bundle, **and a threat-model entry
+  for the export boundary** — the path exports measurement head, audit events and
+  semantic intents off-box, and `threat-model-v1.md`'s T21–T23 cover presentations,
+  not export. Retraction remains available and is the heavier act, since it
+  withdraws an accepted RFC's deliverable. The present state — a service that
+  announces readiness to itself, cannot be asked, and would answer with zeros if it
+  were — is not an answer.
 - **A diagnostic bundle reports a measurement head of zeros when it could not ask for
   one** (Erratum **E-076**, ACCEPTED 2026-10-14, unscheduled).
   `fjell-diagnosticsd`'s `query_measurement_head` addresses **slot 4, which nothing

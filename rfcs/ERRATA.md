@@ -5379,22 +5379,42 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   wires a caller, and E-074's own entry predicted exactly that chain one line
   before it closed. But it does not make the service work, and a reader of a
   release that closes them should not be able to conclude it did.
-- **The decision this needs is one the owner has deferred, and that is why this is
-  filed rather than scheduled.** Serving `BUILD_BUNDLE` for real needs a path by
-  which a person or a tool asks for a bundle — the **input path**, readiness row
-  26, `IN PROGRESS → v1.x`, left open by the owner's *"No v1 yet"* (2026-10-14).
-  Retracting instead means deleting a designed capability with a bundle format, a
-  trust provider and a signed digest behind it, which is a different weight from
-  RFC-0.35-002's retraction of a comment and three constants.
+- **Corrected 2026-10-15, within hours of filing: this does *not* need the deferred
+  input path, and saying it did was the load-bearing error in this entry.** The
+  owner asked what they should decide on, which sent me to look for the asker
+  instead of assuming one. **The asker is already designed and already named.**
+  `crates/formats/fjell-remote-diag-format` (RFC v0.8-005) defines the whole
+  conversation in its own header: *"the fleet manager sends a `RemoteDiagRequest`;
+  the node responds with a `RemoteDiagResponse` containing a signed `DiagBundle`
+  snapshot… No general remote execution. The node always controls what it
+  exports."* The initiator is **a fleet manager over the network, not a person at a
+  console**, so no operator input path is involved. `fjell-fleetd` is the node-side
+  endpoint and already depends on that format crate.
+- **What is actually missing is the wiring, and it is missing at both ends.**
+  `fleetd` constructs a `RemoteDiagRequest` as a **self-check** (`let _req = …`,
+  then prints *"fleetd: remote diag format verified"*) and makes **zero** IPC calls
+  — `sys_ipc_send`/`sys_ipc_call` appear **0** times in that file. `diagnosticsd`
+  cannot receive. Two stubs facing each other across a designed protocol.
+- **So "retract" is the harder half to justify, not the easier one.** It would mean
+  withdrawing an accepted RFC's deliverable, with a format crate, a trust provider
+  and a signed digest behind it — a different weight from RFC-0.35-002's retraction
+  of a comment and three constants.
+- **The weight on the other side is a security surface, not a schedule.** Wiring
+  this makes real a path that **exports node state off-box**: measurement head,
+  audit events, semantic intents, signed. RFC v0.8-005 anticipated that and
+  constrains it, but `threat-model-v1.md`'s T21–T23 are about **presentations**,
+  not export, so the model does not yet carry this boundary. That is the argument
+  for giving it its own line rather than a corner of a small milestone — the same
+  argument RFC-0.34-005 made for the presentation.
 - **Resolution:** **ACCEPTED** (architect, 2026-10-15), **unscheduled**, in
   `v1-limitations.md`. What closing it needs, stated so it is not re-derived:
-  **decide whether `fjell-diagnosticsd` is a service or a shape.** If a service:
-  the input path first, then its slots installed with a tier that shows a bundle
-  being asked for and produced. If a shape: the six constants and the service go
-  the way `AUDIT_QUERY` went, with the bundle format kept only if something else
-  uses it. **What is not acceptable is the present state** — a service that
-  announces readiness to itself, cannot be asked, and would answer with zeros if
-  it were.
+  **wire `fleetd` to `diagnosticsd` across the protocol RFC v0.8-005 already
+  specifies**: an IPC pair between the two, `diagnosticsd`'s three slots installed,
+  and a tier in which a `RemoteDiagRequest` produces a signed bundle — **plus a
+  threat-model entry for the export boundary**, because that is what changes when
+  the path becomes real. Retraction remains available and remains the heavier act.
+  **What is not acceptable is the present state** — a service that announces
+  readiness to itself, cannot be asked, and would answer with zeros if it were.
 
 ## Summary
 
