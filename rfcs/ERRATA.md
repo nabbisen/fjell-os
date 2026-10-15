@@ -5256,6 +5256,23 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   corrected now, in this review, because a comment claiming a delivery that fails is
   the defect class this milestone exists to remove.
 
+> **CLOSED by RFC-0.36-001, 2026-10-15.** Both services send readiness through
+> `fjell_service_api::ready::SERVICE_READY_SEND_SLOT` now, matching the nine that
+> already did; their own `CAP_SMGR_EP` constants are gone (`capability-topology`'s
+> `SECURE_TRANSPORTD` slot-1 waiver is gone with it — the declaration no longer
+> exists to discover). The "something asserts service-manager observes them" half
+> this entry named as the real cost is a new per-service observable,
+> `NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS`, set only when
+> `service-manager`'s own endpoint has received `SERVICE_READY` from **both**
+> `DIAGNOSTICSD` and `SECURE_TRANSPORTD` — not merely that `READY_ACCEPTED`'s
+> aggregate threshold was met, which neither service's absence from the prior
+> eight could prove either way. `READY_ACCEPTED_THRESHOLD` raised **8 → 10**, since
+> the true count of images that send `tags::SERVICE_READY` is now 10 and leaving it
+> at 8 would itself have become the stale claim this register exists to catch.
+> Asserted in `tests/qemu/profiles/svc.toml`, confirmed live: both readiness lines
+> and the new marker appear in the profile's own serial log, in order, before
+> `READY_ACCEPTED` fires.
+
 ## E-076 — a diagnostic bundle reports a measurement head of zeros when it could not ask for one
 
 - **Claim:** `fjell-diagnosticsd`'s `build_bundle` fills
@@ -5295,6 +5312,18 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   does, or the bundle refuses to be built without a measurement head — **not** a zero
   that reads as a measurement. The same question then applies to every other field
   filled from a slot nobody installs.
+
+> **CLOSED by RFC-0.36-001, 2026-10-15.** `DiagnosticBundle` gains
+> `measurement_head_available`, adjacent to the field it qualifies, set `true` only
+> by `query_measurement_head` itself when a real `MEASUREDD_HEAD_REPLY` was
+> received — the code that obtains the value is the only code that may say so
+> (confirmed: no other call site can set it). `write_canonical` zeroes
+> `measurement_head` in the digest whenever the flag is `0`, regardless of what the
+> struct happens to hold, so a stale or mismatched raw value cannot leak through
+> either. `DIAG_BUNDLE_VERSION` 2 → 3; `bundle-v1.frozen` regenerated; `golden.rs`'s
+> stored digest updated with a note citing the bump. The sweep this entry asked for
+> ("the same question then applies to every other field") is what found E-079 and,
+> through it, E-080.
 
 ## E-077 — `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo
 
@@ -5387,7 +5416,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     zero digest.
   - **It cannot push** (slot 2, uninstalled) — `push_bundle` fails closed and
     replies `PUSH_FAULT`, which is honest.
-  - **Its readiness announcement reaches its own endpoint** — E-075.
+  - ~~**Its readiness announcement reaches its own endpoint** — E-075.~~
+    **Corrected 2026-10-15, by RFC-0.36-001's own closure of E-075:** it now
+    reaches `service-manager`, confirmed live. Every other symptom above is
+    unchanged — this service still cannot receive, cannot be asked, cannot
+    reach `measuredd`, and cannot push.
 - **Why this is the entry and the others are its symptoms.** E-075 and E-076 are
   both *claims a component cannot keep*, and both are harmless **today** only
   because nothing reaches the component. Fixing them makes an unreachable service
@@ -5490,6 +5523,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   honest and a bundle with an invented one is not; gathering real intents is a
   feature, and inventing one is not a down payment on it.
 
+> **CLOSED by RFC-0.36-001, 2026-10-15.** All three. `last_attestation_available`
+> and `keyring_anchor_epoch_available` are new fields, each adjacent to the field
+> they qualify, and — unlike `measurement_head_available` — permanently `false`:
+> nothing in this crate or `fjell-diagnosticsd` has ever obtained either value, so
+> `BundleBuilder::new` no longer has a parameter to receive either one. A literal
+> cannot be fabricated into a field the constructor does not accept. The fabricated
+> `add_intent` call in `build_bundle` is deleted outright, no flag, no placeholder;
+> `semantic_intent_count` is `0` on every bundle this crate can build today, and
+> `audit_available: false` beside it already says what an empty section means.
+> Verified both ways: `bundle_digest_covers_all_fields` (named for E-080, below)
+> and `unavailable_fields_are_zeroed_not_the_callers_raw_value` pin the zeroing
+> behaviour directly, bypassing the builder to construct hypothetical available
+> cases the builder itself can no longer produce.
+
 ## E-080 — the diagnostic bundle's signed digest does not cover two of the fields its own specification lists
 
 - **Found 2026-10-15 by the implementer**, while checking E-079's third instance,
@@ -5536,6 +5583,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   regenerated so it describes the complete stream. **This reconciles the encoder to
   an accepted RFC — it does not design a new format**, which is why it belongs with
   the version bump rather than in a line of its own.
+
+> **CLOSED by RFC-0.36-001, 2026-10-15.** `write_canonical` now writes `provider_id`
+> then `keyring_anchor_epoch` (with its own availability flag), right after
+> `created_tick` and before `measurement_head` — the specification's own order.
+> `bundle_digest_covers_all_fields` is written and demonstrated both ways: stashed
+> against the unmodified encoder, two bundles differing only in `provider_id`
+> produced **identical** digests (the bug, reproduced); restored, the same test
+> passes. `bundle-v1.frozen` regenerated, header reading `v3 wire`. Both fields are
+> now inside the signature; the asymmetry E-079 named — `keyring_anchor_epoch` both
+> fabricated and unauthenticated — is resolved on both halves by the same version
+> bump, since the fabrication fix (E-079) removed the value's source entirely and
+> this fix covers whatever the field legitimately becomes once E-078 or a
+> successor gives it one.
 
 ## Summary
 
@@ -5614,12 +5674,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose one big-endian `u32` `Canon` did not yet express) still had no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 — **closed by moving both onto `Canon`**, against goldens captured first, with the existing eighteen descriptions unchanged | RFC-0.35-004 | CLOSED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
-| E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | RFC-0.36-001 | ACCEPTED |
-| E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | RFC-0.36-001 | ACCEPTED |
+| E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed — closed by adopting `SERVICE_READY_SEND_SLOT` and a new per-service observable | RFC-0.36-001 | CLOSED |
+| E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty — closed by an availability flag the querying code alone may set true | RFC-0.36-001 | CLOSED |
 | E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed — closed by rejecting an unrecognised argument with usage, exit 2 | RFC-0.36-002 | CLOSED |
 | E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), it cannot reach `measuredd` or push, and it announces readiness to its own endpoint — every path dead behind a six-constant protocol; the premise E-075 and E-076 are latent because of, and it needs the deferred input-path decision | unscheduled | ACCEPTED |
-| E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance) and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs, found by the sweep E-076 asked for | RFC-0.36-001 | ACCEPTED |
-| E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree | RFC-0.36-001 | ACCEPTED |
+| E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance), a literal `1` as `keyring_anchor_epoch` the same way (found by the implementer's own sweep), and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs — closed by removing both literals' constructor parameters and deleting the fabricated call | RFC-0.36-001 | CLOSED |
+| E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree — closed by writing both fields and the named test, demonstrated failing against the unmodified encoder first | RFC-0.36-001 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

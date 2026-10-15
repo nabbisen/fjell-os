@@ -1447,30 +1447,42 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `fjell-diagnosticsd`'s own `CAP_TOOLS_EP` remains unfixed (still RFC-0.35-002's
   decision not to install it; this line's own non-goals forbid it too) and will
   keep erroring on every boot, but it now yields and discloses once, rather than
-  spinning or erroring silently (RFC-0.35-002 R5). Two readiness notifications are
+  spinning or erroring silently (RFC-0.35-002 R5). Two readiness notifications were
   still wrong — one sends into an empty slot, one into the service's **own** shared
-  endpoint instead of `service-manager`'s — untouched by either line.
-- **Two services announce their readiness to nobody, each under a comment saying
-  otherwise** (Erratum **E-075**, ACCEPTED 2026-10-14, unscheduled; carried out of
+  endpoint instead of `service-manager`'s — untouched by either line. *(Closed by
+  RFC-0.36-001, 2026-10-15, below under E-075: both now send through
+  `SERVICE_READY_SEND_SLOT`, `secure-transportd`'s smgr-readiness waiver is retired
+  with its declaration, and the gate reports `2 installed, 3 waived, 5 checked`.)*
+- **Two services announced their readiness to nobody, each under a comment saying
+  otherwise** was Erratum **E-075**, **CLOSED** by **RFC-0.36-001** (carried out of
   E-072 at its closure, where it was named in the body and then left behind).
-  `fjell-secure-transportd` sends readiness on **slot 1**, which nothing installs, so
-  the send fails and the error is discarded; `fjell-diagnosticsd` sends it on **slot
-  0**, its **own** identity endpoint on the shared object, so the tag reaches whichever
-  service receives there and not `service-manager`. RFC-0.28-001 installed
-  `SERVICE_READY_SEND_SLOT` uniformly for exactly this reason and **nine** services use
-  it; these two kept their own constant. The comments are corrected now; the fix needs
-  both services to adopt that slot **and** something that asserts `service-manager`
-  actually observes them, which is why it is not a two-line edit.
+  `fjell-secure-transportd` sent readiness on **slot 1**, which nothing installs, and
+  `fjell-diagnosticsd` sent it on **slot 0**, its **own** identity endpoint on the
+  shared object — neither ever reached `service-manager`. Both now send through
+  `fjell_service_api::ready::SERVICE_READY_SEND_SLOT`, matching the nine services
+  that already did; their own `CAP_SMGR_EP` constants are gone, and
+  `capability-topology`'s `secure-transportd` smgr-readiness waiver is retired with
+  the declaration it named. The harder half — something asserting `service-manager`
+  actually observes them — is a new per-service observable,
+  `NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS`, set only once `service-manager`'s
+  own endpoint has received `SERVICE_READY` from **both** services, asserted in
+  `tests/qemu/profiles/svc.toml` and confirmed live. `READY_ACCEPTED_THRESHOLD`
+  raised **8 → 10** in the same commit, since the true count of images sending
+  `tags::SERVICE_READY` is now 10 and leaving the threshold at 8 would itself have
+  become a stale claim.
 - **`fjell-diagnosticsd` cannot be asked for anything, and every path inside it is
   dead** (Erratum **E-078**, ACCEPTED 2026-10-15, unscheduled). It cannot receive —
   `CAP_TOOLS_EP` is slot 1, which `spawn.rs` installs for no image, so its loop
   errors every iteration and yields. **Nothing can ask it**: `BUILD_BUNDLE` and
   `PUSH` each have exactly two sites tree-wide, the declaration and the service's
-  own comparison. It cannot reach `measuredd` (**E-076**) or push (slot 2, failing
-  closed and replying `PUSH_FAULT`, which is honest), and its readiness
-  announcement reaches its own endpoint (**E-075**). Six protocol constants are
-  declared in `fjell-service-api` for a conversation nobody has. **This is the
-  premise E-075 and E-076 are latent because of**. *(Corrected 2026-10-15, hours
+  own comparison. It cannot reach `measuredd` (**E-076**, closed — the slot stays
+  declared, not installed; see below) or push (slot 2, failing closed and replying
+  `PUSH_FAULT`, which is honest). Six protocol constants are declared in
+  `fjell-service-api` for a conversation nobody has. **This was the premise E-075
+  and E-076 were latent because of**; E-075 is closed (below) and its own readiness
+  send genuinely reaches `service-manager` now, which changes nothing else here —
+  this service still cannot receive, be asked, reach `measuredd`, or push.
+  *(Corrected 2026-10-15, hours
   after filing: this first said closing it needs the deferred **input path**. It
   does not. `fjell-remote-diag-format` (RFC v0.8-005) already specifies the
   conversation — a fleet manager sends a `RemoteDiagRequest`, the node answers with
@@ -1484,50 +1496,61 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   semantic intents off-box, and `threat-model-v1.md`'s T21–T23 cover presentations,
   not export. Retraction remains available and is the heavier act, since it
   withdraws an accepted RFC's deliverable. The present state — a service that
-  announces readiness to itself, cannot be asked, and would answer with zeros if it
-  were — is not an answer.
-- **The diagnostic bundle's signed digest does not cover two fields its own
-  specification lists** (Erratum **E-080**, ACCEPTED 2026-10-15, tracked
-  **RFC-0.36-001**). `RFC-v0.4-005` §6.4's formula includes `provider_id u32 LE ||
-  keyring_anchor_epoch u32 LE`; `DiagnosticBundle::write_canonical` writes
-  **neither**, though both exist as struct fields. So **the trust provider a signed
-  bundle claims to come from, and the key epoch it claims to be anchored at, are
-  outside the signature** and can be altered without invalidating it — in an
-  artefact whose purpose is to let a fleet manager believe its provenance. The test
-  §8 names, `bundle_digest_covers_all_fields`, has **zero occurrences** in the tree.
-  The generated description offers no protection here, because it is generated *from*
-  `write_canonical`: it faithfully describes a stream missing two fields, and the
-  question is not whether the description matches the encoder but whether the
-  encoder matches the **specification**. Compounds with **E-079**:
-  `keyring_anchor_epoch` is both a fabricated literal and unauthenticated.
-- **The same bundle carries an attestation digest nobody asked for and a fabricated
-  semantic intent** (Erratum **E-079**, ACCEPTED 2026-10-15, tracked
-  **RFC-0.36-001**). Found by doing the sweep **E-076**'s own entry called for.
-  `build_bundle` passes `Digest32([0u8; 32])` as `last_attestation` — a **literal
-  zero, never queried at all**, where the measurement head at least asks and fails.
-  And it calls `add_intent` with literal arguments, so the bundle's semantic-intents
-  section is **one hardcoded record asserting an update staging was confirmed two
-  seconds ago**, whether or not anything of the kind happened; `add_intent` has no
-  other caller in the tree outside that crate's own unit tests. **This second half
-  is a worse class than E-076**: absence dressed as data can be spotted by a reader
-  who knows an all-zero digest is suspicious, but this is **fabricated** data —
-  well-formed, plausible, and inside an artefact the builder **signs**, which is
-  what signing it was supposed to settle. Both are latent only because of
-  **E-078**. The fix is the `audit_available` treatment for the digest and
-  **deletion** for the intent: a bundle with no intents is honest and one with an
-  invented intent is not.
-- **A diagnostic bundle reports a measurement head of zeros when it could not ask for
-  one** (Erratum **E-076**, ACCEPTED 2026-10-14, unscheduled).
+  announces its readiness correctly but cannot be asked for anything, and would
+  answer honestly (not with zeros) if it were — is not an answer.
+- **The diagnostic bundle's signed digest did not cover two fields its own
+  specification lists** was Erratum **E-080**, **CLOSED** by **RFC-0.36-001**.
+  `RFC-v0.4-005` §6.4's formula includes `provider_id u32 LE ||
+  keyring_anchor_epoch u32 LE`; `DiagnosticBundle::write_canonical` wrote
+  **neither**, though both exist as struct fields — the trust provider a signed
+  bundle claims to come from, and the key epoch it claims to be anchored at, were
+  **outside the signature** and could be altered without invalidating it. The test
+  §8 names, `bundle_digest_covers_all_fields`, now exists and was demonstrated both
+  ways: stashed against the unmodified encoder, two bundles differing only in
+  `provider_id` produced identical digests (the bug, reproduced); restored, the
+  same test passes. `write_canonical` now writes both fields, in the
+  specification's own order, right after `created_tick` and before
+  `measurement_head`; `bundle-v1.frozen` regenerated, header reading `v3 wire`.
+  Compounded with **E-079** (also closed): `keyring_anchor_epoch` was both a
+  fabricated literal and unauthenticated — E-079 removed the fabrication by
+  deleting the literal's only path in; this entry closes the authentication half
+  for whatever value the field legitimately carries once one exists.
+- **The same bundle carried an attestation digest, a key epoch, and a semantic
+  intent — one never queried, one never queried, one invented** was Erratum
+  **E-079**, **CLOSED** by **RFC-0.36-001**. Found by doing the sweep **E-076**'s own
+  entry called for, and widened once more during implementation (escalated, then
+  ruled by the architect): `build_bundle` passed `Digest32([0u8; 32])` as
+  `last_attestation` and the literal `1` as `keyring_anchor_epoch` — both **literal,
+  never queried at all**, where the measurement head at least asked and failed. And
+  it called `add_intent` with literal arguments, so the bundle's semantic-intents
+  section was **one hardcoded record asserting an update staging was confirmed two
+  seconds ago**, whether or not anything of the kind happened. **The intent was a
+  worse class than the two literals**: absence dressed as data can be spotted by a
+  reader who knows an all-zero digest is suspicious, but this was **fabricated**
+  data — well-formed, plausible, and inside an artefact the builder **signs**. All
+  three were latent only because of **E-078**, which remains open. The fix: a
+  permanently-unavailable flag for the epoch and the attestation digest (neither
+  has ever had a real source, so `BundleBuilder::new` no longer accepts either as a
+  parameter — a literal cannot be fabricated into a constructor that does not take
+  one), and outright **deletion** for the intent — a bundle with no intents is
+  honest and one with an invented intent is not.
+- **A diagnostic bundle reported a measurement head of zeros when it could not ask
+  for one** was Erratum **E-076**, **CLOSED** by **RFC-0.36-001**.
   `fjell-diagnosticsd`'s `query_measurement_head` addresses **slot 4, which nothing
-  installs**, and on failure returns `Digest32([0u8; 32])` — thirty-two zero bytes in
-  the field that attests what the system measured, **indistinguishable from a real
-  digest**, with no flag saying the value was never obtained. This is the mechanism
-  E-074's entry predicted one line before it closed. The asymmetry is the point:
-  RFC-0.35-002 added `audit_available` so the audit section could not be silently
-  empty, and the measurement head in the same struct still fails open, so the bundle
-  now states honestly that it has no audit events and claims falsely that it measured
-  nothing. `push_bundle` shares the shape on slot 2 but fails **closed**, replying
-  `PUSH_FAULT`, so this is the measurement head alone.
+  installs**, and used to return `Digest32([0u8; 32])` on failure — thirty-two zero
+  bytes in the field that attests what the system measured, **indistinguishable
+  from a real digest**, with no flag saying the value was never obtained. This was
+  the mechanism E-074's entry predicted one line before it closed. `DiagnosticBundle`
+  now carries `measurement_head_available`, adjacent to the field it qualifies, set
+  `true` only by `query_measurement_head` itself when a real `MEASUREDD_HEAD_REPLY`
+  arrived — the code that obtains the value is the only code that may say so —
+  and `write_canonical` zeroes the field in the digest whenever the flag is `0`,
+  regardless of what the struct holds. `DIAG_BUNDLE_VERSION` bumped 2 → 3;
+  `bundle-v1.frozen` regenerated; `golden.rs`'s stored digest updated with a note
+  citing the bump. `push_bundle` still shares the shape on slot 2 but fails
+  **closed**, replying `PUSH_FAULT`, which was already honest. The sweep this entry
+  asked for ("the same question applies to every other field filled from a slot
+  nobody installs") is what found E-079 and, through it, E-080.
 - **Two capability-addressing functions that no caller reaches** was Erratum
   **E-074**, **CLOSED** by **RFC-0.35-002** (split from E-072 at its closure, so a
   closed entry does not carry live residuals). The two survivors above were a
