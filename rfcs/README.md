@@ -471,7 +471,7 @@ Four lines, all drafted for this milestone and all shipped in it.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 2 RFCs
 
 Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
 folder in a fresh clone.

@@ -1474,6 +1474,22 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   withdraws an accepted RFC's deliverable. The present state — a service that
   announces readiness to itself, cannot be asked, and would answer with zeros if it
   were — is not an answer.
+- **The same bundle carries an attestation digest nobody asked for and a fabricated
+  semantic intent** (Erratum **E-079**, ACCEPTED 2026-10-15, tracked
+  **RFC-0.36-001**). Found by doing the sweep **E-076**'s own entry called for.
+  `build_bundle` passes `Digest32([0u8; 32])` as `last_attestation` — a **literal
+  zero, never queried at all**, where the measurement head at least asks and fails.
+  And it calls `add_intent` with literal arguments, so the bundle's semantic-intents
+  section is **one hardcoded record asserting an update staging was confirmed two
+  seconds ago**, whether or not anything of the kind happened; `add_intent` has no
+  other caller in the tree outside that crate's own unit tests. **This second half
+  is a worse class than E-076**: absence dressed as data can be spotted by a reader
+  who knows an all-zero digest is suspicious, but this is **fabricated** data —
+  well-formed, plausible, and inside an artefact the builder **signs**, which is
+  what signing it was supposed to settle. Both are latent only because of
+  **E-078**. The fix is the `audit_available` treatment for the digest and
+  **deletion** for the intent: a bundle with no intents is honest and one with an
+  invented intent is not.
 - **A diagnostic bundle reports a measurement head of zeros when it could not ask for
   one** (Erratum **E-076**, ACCEPTED 2026-10-14, unscheduled).
   `fjell-diagnosticsd`'s `query_measurement_head` addresses **slot 4, which nothing

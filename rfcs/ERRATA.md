@@ -5416,6 +5416,41 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   **What is not acceptable is the present state** — a service that announces
   readiness to itself, cannot be asked, and would answer with zeros if it were.
 
+## E-079 — a signed diagnostic bundle carries a fabricated semantic intent and an attestation digest nobody asked for
+
+- **Found 2026-10-15, by doing the sweep E-076's own entry called for** — *"the same
+  question then applies to every other field filled from a slot nobody installs"* —
+  while scoping 0.36. Two more fields in the same struct, and one of them is a
+  **different and worse class** than E-076's.
+- **E-076's class, second instance — `last_attestation`.**
+  `fjell-diagnosticsd::build_bundle` passes `Digest32([0u8; 32])` as the bundle's
+  `last_attestation`: a **literal zero, never queried at all**. The measurement head
+  at least asks and fails; this one does not ask. Thirty-two zero bytes in a field
+  named for an attestation, with no flag saying none was obtained.
+- **A different class — the semantic intent is invented.** The same function calls
+  `builder.add_intent(1, INTENT_UPDATE_STAGING_CONFIRMED, 0, tick - 2000)` with
+  literal arguments. `add_intent` has **no other caller anywhere in the tree** except
+  `fjell-diag-format`'s own unit tests, so nothing gathers a real intent from the
+  running system. **The bundle's semantic-intents section is one hardcoded record
+  asserting that an update staging was confirmed, two seconds ago, whether or not
+  anything of the kind happened.**
+- **Why this is worse than E-076.** E-076 is *absent* data presented as present —
+  bad, and a reader who knew the convention could spot an all-zero digest. This is
+  **fabricated** data, well-formed, plausible, and inside an artefact the bundle
+  builder **signs**. A consumer cannot distinguish it from a real record by
+  inspection, which is the whole purpose of signing it.
+- **Why nothing saw it:** E-078 — nothing can ask `diagnosticsd` for a bundle, so no
+  bundle is ever built and no consumer has ever read one. And the intent is a valid
+  `INTENT_UPDATE_STAGING_CONFIRMED` with a plausible tick, so no decoder would
+  refuse it.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-15), tracked **RFC-0.36-001**,
+  in `v1-limitations.md`. Both halves go with E-076's fix, in one line, because they
+  are the same struct, the same function and the same question: **a field must say
+  what it is.** For `last_attestation`, the same availability treatment as the
+  measurement head. For the intent, **delete it** — a bundle with no intents is
+  honest and a bundle with an invented one is not; gathering real intents is a
+  feature, and inventing one is not a down payment on it.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5493,10 +5528,11 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-065 two digest streams that produce bytes (the measurement chain digest, and the bundle digest, whose one big-endian `u32` `Canon` did not yet express) still had no generated description — named survivors of E-045's census; the semantic wire codec was resolved by RFC-0.34-003, and the two `#[repr(C)]` layouts split to E-073 — **closed by moving both onto `Canon`**, against goldens captured first, with the existing eighteen descriptions unchanged | RFC-0.35-004 | CLOSED |
 | E-073 `fjell-audit-format`'s and `fjell-net-format`'s `#[repr(C)]` layouts are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`, so closing it honestly is a kernel-side change — split from E-065 | unscheduled | ACCEPTED |
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
-| E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | unscheduled | ACCEPTED |
-| E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | unscheduled | ACCEPTED |
-| E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed | unscheduled | ACCEPTED |
+| E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | RFC-0.36-001 | ACCEPTED |
+| E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | RFC-0.36-001 | ACCEPTED |
+| E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed | RFC-0.36-002 | ACCEPTED |
 | E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), it cannot reach `measuredd` or push, and it announces readiness to its own endpoint — every path dead behind a six-constant protocol; the premise E-075 and E-076 are latent because of, and it needs the deferred input-path decision | unscheduled | ACCEPTED |
+| E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance) and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs, found by the sweep E-076 asked for | RFC-0.36-001 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
