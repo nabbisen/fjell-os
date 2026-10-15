@@ -1,6 +1,6 @@
 # RFC-0.35-001: The capabilities the update path never had
 
-**Status:** Accepted (0.35) — accepted 2026-10-14
+**Status:** Implemented (0.35.0) — accepted 2026-10-14
 **Milestone:** 0.35
 **Tracks.** **E-072** — five services address their peers through eleven CSpace
 slots the kernel never installs, and two of them busy-spin on the absence for the

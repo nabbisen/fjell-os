@@ -1,6 +1,6 @@
 # RFC-0.35-003: Instruments that answer the question you asked
 
-**Status:** Accepted (0.35) — accepted 2026-10-14
+**Status:** Implemented (0.35.0) — accepted 2026-10-14
 **Milestone:** 0.35
 **Tracks.** **E-071** — `fjell-repro-check` silently ignores an unrecognised flag
 and falls through to its full two-build mode, and has no `--help`, so the natural

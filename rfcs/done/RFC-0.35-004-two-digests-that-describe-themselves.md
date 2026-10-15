@@ -1,6 +1,6 @@
 # RFC-0.35-004: Two digests that describe themselves
 
-**Status:** Accepted (0.35) — accepted 2026-10-15
+**Status:** Implemented (0.35.0) — accepted 2026-10-15
 **Milestone:** 0.35
 **Tracks.** **E-065**, in the scope left after RFC-0.34-003 took the semantic wire
 codec and E-073 took the two `#[repr(C)]` layouts: **`fjell-measure-format`'s

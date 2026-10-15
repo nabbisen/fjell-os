@@ -1,6 +1,6 @@
 # RFC-0.35-003 R1–R8: a build that --help no longer starts, and a summary nothing compared
 
-**Governing RFC:** [../accepted/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md](../accepted/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md)
+**Governing RFC:** [../done/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md](../done/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md)
 **Handoff:** [../handoffs/RFC-0.35-003-instruments-that-answer-the-question-you-asked/implementation-handoff.md](../handoffs/RFC-0.35-003-instruments-that-answer-the-question-you-asked/implementation-handoff.md)
 
 Written in the order the handoff requires: R1 with controls first, R3's

@@ -1,6 +1,6 @@
 # RFC-0.35-001 R1–R9, the two live transcripts, and the two re-derived survivors
 
-**Governing RFC:** [../accepted/RFC-0.35-001-the-capabilities-the-update-path-never-had.md](../accepted/RFC-0.35-001-the-capabilities-the-update-path-never-had.md)
+**Governing RFC:** [../done/RFC-0.35-001-the-capabilities-the-update-path-never-had.md](../done/RFC-0.35-001-the-capabilities-the-update-path-never-had.md)
 **Handoff:** [../handoffs/RFC-0.35-001-the-capabilities-the-update-path-never-had/implementation-handoff.md](../handoffs/RFC-0.35-001-the-capabilities-the-update-path-never-had/implementation-handoff.md)
 
 Written in the order the handoff requires: R1 and both transcripts before any

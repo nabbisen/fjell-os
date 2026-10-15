@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 197 files
+## Implemented (done/) — 201 files
 
-196 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+200 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -458,12 +458,23 @@ focused cut by design.
 | 0.34-004 | [A word that claims an authority it does not carry](./done/RFC-0.34-004-a-word-that-claims-an-authority.md) — closed **E-059**, **E-034**; the authority decision reads a kernel-attested sender's own compiled policy row, never a payload word a presentation could forge | 0.34.0 |
 | 0.34-005 | [The presentation in the threat model](./done/RFC-0.34-005-the-presentation-in-the-threat-model.md) — closed **E-060**; T21–T23, including the first entry in this model with no defence at all | 0.34.0 |
 
+### 0.35 — a service plane that had never exchanged a message, and a census closed
+
+Four lines, all drafted for this milestone and all shipped in it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.35-001 | [The capabilities the update path never had](./done/RFC-0.35-001-the-capabilities-the-update-path-never-had.md) — closed **E-070**, **E-072**; five services address their peers through CSpace slots the kernel never installs, and the update-index fetch that never completed is what that looks like from inside the service that needed the channel | 0.35.0 |
+| 0.35-002 | [Protocols and authority nobody serves](./done/RFC-0.35-002-protocols-and-authority-nobody-serves.md) — closed **E-068**, **E-069**, **E-074**; a component claiming a conversation that does not happen, once in a shared API's protocol constants and once in a service's endpoint set | 0.35.0 |
+| 0.35-003 | [Instruments that answer the question you asked](./done/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md) — closed **E-071**; an instrument that reports on less than it claims, once in a tool's argument handling and once in the document that is the v1.0 gate; readiness-summary added as Gate 12's 20th subcheck | 0.35.0 |
+| 0.35-004 | [Two digests that describe themselves](./done/RFC-0.35-004-two-digests-that-describe-themselves.md) — closed **E-065**; the measurement chain digest and the bundle digest moved onto `Canon`, against goldens captured from the unmodified encoders first | 0.35.0 |
+
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — none
 
-Signed off by the owner; implementation may begin; not yet shipped.
-`accepted/README.md` keeps the folder in a fresh clone.
+Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
+folder in a fresh clone.
 
 ---
 

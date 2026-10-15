@@ -1,6 +1,6 @@
 # RFC-0.35-002: Protocols and authority nobody serves
 
-**Status:** Accepted (0.35) — accepted 2026-10-14
+**Status:** Implemented (0.35.0) — accepted 2026-10-14
 **Milestone:** 0.35
 **Tracks.** **E-068** — `fjell-diagnosticsd` documents and sends an `AUDIT_QUERY`
 protocol `fjell-auditd` has never implemented — and **E-069**,

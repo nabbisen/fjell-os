@@ -1,6 +1,6 @@
 # RFC-0.35-002 R1–R8, the hang demonstrated and gone, and E-074 closed alongside
 
-**Governing RFC:** [../accepted/RFC-0.35-002-protocols-and-authority-nobody-serves.md](../accepted/RFC-0.35-002-protocols-and-authority-nobody-serves.md)
+**Governing RFC:** [../done/RFC-0.35-002-protocols-and-authority-nobody-serves.md](../done/RFC-0.35-002-protocols-and-authority-nobody-serves.md)
 **Handoff:** [../handoffs/RFC-0.35-002-protocols-and-authority-nobody-serves/implementation-handoff.md](../handoffs/RFC-0.35-002-protocols-and-authority-nobody-serves/implementation-handoff.md)
 
 Written in the order the handoff requires: R1 and the reachability question

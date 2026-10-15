@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.35-003
 
-**Governing RFC:** [RFC-0.35-003](../../accepted/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md)
+**Governing RFC:** [RFC-0.35-003](../../done/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md)
 **Milestone:** 0.35
-**Status:** inherited from the governing RFC (Accepted, 0.35)
+**Status:** inherited from the governing RFC (Implemented, 0.35.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

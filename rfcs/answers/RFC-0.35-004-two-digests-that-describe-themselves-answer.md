@@ -1,6 +1,6 @@
 # RFC-0.35-004 R1–R8: two digests move onto `Canon`, against goldens captured first
 
-**Governing RFC:** [../accepted/RFC-0.35-004-two-digests-that-describe-themselves.md](../accepted/RFC-0.35-004-two-digests-that-describe-themselves.md)
+**Governing RFC:** [../done/RFC-0.35-004-two-digests-that-describe-themselves.md](../done/RFC-0.35-004-two-digests-that-describe-themselves.md)
 **Handoff:** [../handoffs/RFC-0.35-004-two-digests-that-describe-themselves/implementation-handoff.md](../handoffs/RFC-0.35-004-two-digests-that-describe-themselves/implementation-handoff.md)
 
 Written in the order the handoff requires: goldens from the unmodified
