@@ -5347,6 +5347,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   to a caller as a real finding. All three now exit **2** for a usage error and
   keep **1** for a finding, which is what `fjell-unsafe-audit` had right first.
 
+> **CLOSED by RFC-0.36-002, 2026-10-15.** `cmd_bench` now rejects an
+> unrecognised argument with its usage printed, exiting **2** — confirmed at
+> the shell (`cargo xtask bench --nonsense`; `$? == 2`), not merely from the
+> function's own return value: unlike the three precedents, `cmd_bench`
+> returns its `ExitCode` to `fjell-tools`' own dispatcher rather than from a
+> standalone `main`, and the dispatcher was shown to preserve it rather than
+> assumed to. `--help`/`-h` print the usage and exit 0 without running a
+> benchmark; every flag `--help` names (`--baseline`, `--check`, `--fast`,
+> `--help`, `-h`) exists. `1` is unchanged: a metric exceeding tolerance or a
+> failed baseline write. The typo this entry was filed over
+> (`cargo xtask bench --basline`) now exits 2 instead of running the full
+> benches and exiting 0 — demonstrated before and after the fix, not only
+> the absent case. The fourth application of E-071's remedy, same exit-code
+> contract as the three precedents (RFC-0.35-003), the mistake in that
+> family's second application (the `1`-vs-`2` split) not repeated.
+
 ## E-078 — `fjell-diagnosticsd` cannot be asked for anything, and every path inside it is dead
 
 - **Filed 2026-10-15, at 0.36's scoping.** Not a new discovery: the fact appears
@@ -5530,7 +5546,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-074 `fjell-attestd`'s `push_attestation` and `fjell-netd`'s `CAP_DRV_EP` address a peer through a capability nobody installs and have no caller at all — split from E-072 at its closure so a CLOSED entry does not carry live residuals; **closed by deletion**, as ruled | RFC-0.35-002 | CLOSED |
 | E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | RFC-0.36-001 | ACCEPTED |
 | E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | RFC-0.36-001 | ACCEPTED |
-| E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed | RFC-0.36-002 | ACCEPTED |
+| E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed — closed by rejecting an unrecognised argument with usage, exit 2 | RFC-0.36-002 | CLOSED |
 | E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), it cannot reach `measuredd` or push, and it announces readiness to its own endpoint — every path dead behind a six-constant protocol; the premise E-075 and E-076 are latent because of, and it needs the deferred input-path decision | unscheduled | ACCEPTED |
 | E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance) and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs, found by the sweep E-076 asked for | RFC-0.36-001 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |

@@ -1356,14 +1356,26 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   disagreement and **passes** against the tree. `fjell-upgraded`'s update-index
   fetch and the two request paths formerly listed here (`diagnosticsd`'s audit
   query, `secure-transportd`'s claimed round-robin) are **closed** — see below.
-- **`cargo xtask bench`'s flags fail open to "just print"** (Erratum **E-077**,
-  unscheduled; filed 2026-10-14 during RFC-0.35-003's own sweep for E-071's
-  shape). A typo'd or misremembered `--baseline`/`--check` matches neither
-  flag and `cmd_bench` silently runs the cheapest default (print only) instead
-  of writing a baseline or checking tolerance — a different defect from
-  E-071's (silent loss of intent, not a wrong *expensive* mode), named rather
-  than repaired here, per that requirement's own "report, fix the same
-  defect, file the rest."
+- **A benchmark flag that fell open to "just print" instead of its named mode**
+  was Erratum **E-077**, **CLOSED** by **RFC-0.36-002** (filed 2026-10-14
+  during RFC-0.35-003's own sweep for E-071's shape; a different defect from
+  E-071's own — silent loss of the caller's intent, not a wrong *expensive*
+  mode, since every path already ran the one genuinely slow step — named
+  rather than repaired on that line, per its own "report, fix the same
+  defect, file the rest"). A typo'd or misremembered `--baseline`/`--check`
+  matched neither flag and `cmd_bench` silently ran the cheapest default
+  (print only): a caller who meant to write a baseline or check tolerance
+  believed one had happened when neither did. **Demonstrated both ways**:
+  the unmodified tool given `--basline` ran the full benches and exited 0;
+  the fixed tool given the same flag exits **2** with its usage, confirmed
+  at the shell (`$? == 2`) rather than only from the function's own return
+  value — `cmd_bench` returns its `ExitCode` to `fjell-tools`' own
+  dispatcher, unlike the three standalone-binary precedents, and that
+  dispatcher was shown to preserve it. `--help`/`-h` print the usage and
+  exit 0 without running a benchmark; every flag it names exists. `1` is
+  unchanged: a metric exceeding tolerance or a failed baseline write — the
+  fourth application of E-071's remedy, with the three precedents' own
+  exit-code mistake (`1` vs `2`) not repeated.
 - **Two protocols retracted, not answered** were Errata **E-068** and **E-069**,
   both **CLOSED** by **RFC-0.35-002**. `diagnosticsd`'s `AUDIT_QUERY` sub-protocol
   (three constants in `fjell-service-api`, `collect_audit_events`, the declared
