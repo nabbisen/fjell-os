@@ -33,21 +33,33 @@ pub struct BundleBuilder {
 
 impl BundleBuilder {
     /// Construct a new builder seeded with metadata.
+    ///
+    /// RFC-0.36-001 (closes E-079's third instance, E-079): `keyring_anchor_epoch`
+    /// and `last_attestation` are **not** parameters here, on purpose. Nothing in
+    /// this crate or `fjell-diagnosticsd` has ever obtained either value —
+    /// `diagnosticsd` has no `fjell-keyring` dependency at all, and nothing
+    /// queries a real last attestation — so a constructor that accepted them
+    /// would only ever be handed a literal standing in for state that should
+    /// vary, which is the exact defect this line closes. Both stay at
+    /// `DiagnosticBundle::zeroed()`'s defaults (`0`, flagged unavailable) until a
+    /// future line gives this service a real path to either value, at which
+    /// point that line adds the parameter back alongside the capability to fill
+    /// it honestly. `measurement_head` keeps its parameter, plus the
+    /// availability the caller must supply, because `query_measurement_head`
+    /// already has a real, sometimes-succeeding path today (closes E-076).
     pub fn new(
         bundle_id: [u8; 8],
         created_tick: u64,
         provider_id: TrustProviderId,
-        keyring_anchor_epoch: u32,
         measurement_head: Digest32,
-        last_attestation: Digest32,
+        measurement_head_available: bool,
     ) -> Self {
         let mut b = DiagnosticBundle::zeroed();
         b.bundle_id = bundle_id;
         b.created_tick = created_tick;
         b.provider_id = provider_id;
-        b.keyring_anchor_epoch = keyring_anchor_epoch;
         b.measurement_head = measurement_head;
-        b.last_attestation = last_attestation;
+        b.measurement_head_available = measurement_head_available;
         Self { bundle: b }
     }
 
@@ -109,23 +121,33 @@ impl BundleBuilder {
     /// Finalise the bundle: compute the canonical SHA-256 digest and return
     /// the sealed `DiagnosticBundle`.
     ///
-    /// The digest covers (§6.4):
+    /// The digest covers (§6.4; RFC-0.36-001 closes E-080, which found
+    /// `provider_id` and `keyring_anchor_epoch` missing from this list despite
+    /// being part of the specification's own formula):
     /// ```text
     /// SHA256("FJELL-DIAG-V1" || schema u16 LE || bundle_id 8 B ||
-    ///        created_tick u64 LE || measurement_head 32 B ||
-    ///        last_attestation 32 B || audit_available u8 ||
+    ///        created_tick u64 LE ||
+    ///        provider_id u32 LE ||
+    ///        keyring_anchor_epoch_available u8 || keyring_anchor_epoch u32 LE ||
+    ///        measurement_head_available u8 || measurement_head 32 B ||
+    ///        last_attestation_available u8 || last_attestation 32 B ||
+    ///        audit_available u8 ||
     ///        audit_event_count u8 ||
     ///        [per-event: seq u32 LE || kind_tag u16 LE || code u16 LE || tick u64 LE] ||
     ///        semantic_intent_count u8 ||
     ///        [per-intent: seq u32 LE || intent_tag u16 LE || code u16 LE || tick u64 LE])
     /// ```
+    /// Each `_available` flag's own field is zeroed in this stream whenever
+    /// that flag is `0` — `write_canonical` enforces this on write, not left to
+    /// whatever the struct happens to hold (RFC-0.36-001 R3).
     pub fn finalise(mut self) -> DiagnosticBundle {
         self.bundle.bundle_digest = self.compute_digest();
         self.bundle
     }
 
     fn compute_digest(&self) -> Digest32 {
-        // Maximum size: 13 (prefix) + 2 + 8 + 8 + 32 + 32 + 1 + 1 + 64*16 + 1 + 32*16 = 1606 bytes.
+        // Maximum size: 13 (prefix) + 2 + 8 + 8 + 4 + 1 + 4 + 1 + 32 + 1 + 32 +
+        // 1 + 1 + 64*16 + 1 + 32*16 = 1645 bytes.
         let mut sink = BufSink::<1700>::new();
         self.bundle.write_canonical(&mut sink);
         Digest32::of(sink.bytes())

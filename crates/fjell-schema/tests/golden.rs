@@ -59,10 +59,20 @@ fn diag_bundle() {
     // "not implemented" from "queried, zero records" for a caller reading
     // the bundle). A version bump and this note, as this file's own header
     // requires before a stored digest may change.
+    //
+    // RFC-0.36-001 (closes E-076, E-079, E-080), DIAG_BUNDLE_VERSION 2 -> 3:
+    // the one line in this project's history where a changed digest is the
+    // point, not a defect — `write_canonical` now writes `provider_id` and
+    // `keyring_anchor_epoch` (E-080: both were struct fields the signed
+    // digest silently omitted, though RFC-v0.4-005 §6.4 lists both) and
+    // three new availability flags, each adjacent to the field it qualifies
+    // (`keyring_anchor_epoch_available`, `measurement_head_available`,
+    // `last_attestation_available`). The sample's `measurement_head` is now
+    // marked available (`true`), the "a real query succeeded" case.
     check(
         "diag_bundle",
         &s::diag_bundle().bundle_digest.0,
-        "f0d00a584db4f4a11d510f1231d715138279a4e4dddd3b15107209c4ee2b9d3e",
+        "06332d60d5f3043a01e112a3730d33191de7dbe04a54f629eae01591196d4548",
     );
 }
 

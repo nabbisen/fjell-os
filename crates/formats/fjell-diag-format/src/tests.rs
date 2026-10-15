@@ -1,6 +1,7 @@
 //! Host unit tests for `fjell-diag-format` (RFC v0.4-005 §11).
 
 use crate::builder::{BuilderError, BundleBuilder};
+use crate::bundle::DiagnosticBundle;
 use crate::events::{
     AUDIT_KERNEL_BOOT_BANNER, AUDIT_NET_DRIVER_FAULTED, AUDIT_RECOVERY_ENTERED,
     AUDIT_SXT_HANDSHAKE_FAILED, AUDIT_UPGRADE_ROLLBACK_REJECTED, is_audit_event_allowed,
@@ -10,6 +11,7 @@ use crate::intents::{
     INTENT_UPDATE_STAGING_FAILED, is_intent_allowed,
 };
 use crate::{DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS};
+use fjell_canon::BufSink;
 use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
 
@@ -20,9 +22,8 @@ fn default_builder() -> BundleBuilder {
         *b"test0001",
         42_000,
         TrustProviderId(1),
-        7,
         Digest32([0xAAu8; 32]),
-        Digest32([0xBBu8; 32]),
+        true,
     )
 }
 
@@ -191,4 +192,116 @@ fn builder_preserves_event_fields_in_bundle() {
     assert_eq!(ev.kind_tag, AUDIT_UPGRADE_ROLLBACK_REJECTED);
     assert_eq!(ev.code, 0x0007);
     assert_eq!(ev.at_tick, 9999);
+}
+
+// ── RFC-0.36-001: a field must say what it is (E-076, E-079, E-080) ─────────────
+
+fn digest_of(b: &DiagnosticBundle) -> [u8; 32] {
+    let mut sink = BufSink::<1700>::new();
+    b.write_canonical(&mut sink);
+    Digest32::of(sink.bytes()).0
+}
+
+/// RFC-v0.4-005 §8 names this test; it did not exist, and `write_canonical`
+/// did not write `provider_id` or `keyring_anchor_epoch` (E-080). Two
+/// bundles differing in exactly one of those fields must not share a digest.
+#[test]
+fn bundle_digest_covers_all_fields() {
+    let base = default_builder().finalise();
+
+    let mut changed_provider = base;
+    changed_provider.provider_id = TrustProviderId(base.provider_id.0 + 1);
+    assert_ne!(
+        digest_of(&base),
+        digest_of(&changed_provider),
+        "provider_id must be covered by the digest"
+    );
+
+    let mut epoch_a = base;
+    epoch_a.keyring_anchor_epoch_available = true;
+    epoch_a.keyring_anchor_epoch = 99;
+    let mut epoch_b = base;
+    epoch_b.keyring_anchor_epoch_available = true;
+    epoch_b.keyring_anchor_epoch = 100;
+    assert_ne!(
+        digest_of(&epoch_a),
+        digest_of(&epoch_b),
+        "keyring_anchor_epoch must be covered by the digest"
+    );
+}
+
+/// RFC-0.36-001 R3: an availability flag must zero its field in the digest,
+/// not merely accompany whatever the caller happened to store — the exact
+/// shape of E-079's `last_attestation`/`keyring_anchor_epoch` fabrication,
+/// now made unrepresentable in the encoder rather than trusted away.
+#[test]
+fn unavailable_fields_are_zeroed_not_the_callers_raw_value() {
+    let mut a = DiagnosticBundle::zeroed();
+    a.keyring_anchor_epoch_available = false;
+    a.keyring_anchor_epoch = 123;
+    let mut b = DiagnosticBundle::zeroed();
+    b.keyring_anchor_epoch_available = false;
+    b.keyring_anchor_epoch = 456;
+    assert_eq!(
+        digest_of(&a),
+        digest_of(&b),
+        "two different raw epoch values must hash identically while unavailable"
+    );
+
+    let mut c = DiagnosticBundle::zeroed();
+    c.last_attestation_available = false;
+    c.last_attestation = Digest32([0x77u8; 32]);
+    let mut d = DiagnosticBundle::zeroed();
+    d.last_attestation_available = false;
+    d.last_attestation = Digest32([0x88u8; 32]);
+    assert_eq!(
+        digest_of(&c),
+        digest_of(&d),
+        "two different raw attestation digests must hash identically while unavailable"
+    );
+
+    let mut e = DiagnosticBundle::zeroed();
+    e.measurement_head_available = false;
+    e.measurement_head = Digest32([0x11u8; 32]);
+    let mut f = DiagnosticBundle::zeroed();
+    f.measurement_head_available = false;
+    f.measurement_head = Digest32([0x22u8; 32]);
+    assert_eq!(
+        digest_of(&e),
+        digest_of(&f),
+        "two different raw measurement heads must hash identically while unavailable"
+    );
+}
+
+/// RFC-0.36-001 (closes E-076): whatever sets `measurement_head_available`
+/// true must be the code that obtained the value -- here, demonstrated as a
+/// digest difference between the available and unavailable cases for the
+/// identical underlying bytes.
+#[test]
+fn measurement_head_availability_changes_the_digest() {
+    let same_bytes = Digest32([0x33u8; 32]);
+    let mut available = DiagnosticBundle::zeroed();
+    available.measurement_head_available = true;
+    available.measurement_head = same_bytes;
+    let mut unavailable = DiagnosticBundle::zeroed();
+    unavailable.measurement_head_available = false;
+    unavailable.measurement_head = same_bytes;
+    assert_ne!(
+        digest_of(&available),
+        digest_of(&unavailable),
+        "the same bytes must hash differently depending on availability"
+    );
+}
+
+/// RFC-0.36-001 (closes E-079's third instance): `BundleBuilder::new` has no
+/// parameter for `keyring_anchor_epoch` or `last_attestation` any more --
+/// nothing obtains either value, so there is nothing honest to accept. Both
+/// stay at `zeroed()`'s unavailable defaults through the builder.
+#[test]
+fn builder_cannot_be_asked_for_an_epoch_or_an_attestation_it_never_obtained() {
+    let bundle = default_builder().finalise();
+    assert!(!bundle.keyring_anchor_epoch_available);
+    assert_eq!(bundle.keyring_anchor_epoch, 0);
+    assert!(!bundle.last_attestation_available);
+    assert_eq!(bundle.last_attestation.0, [0u8; 32]);
 }

@@ -125,9 +125,8 @@ pub fn diag_bundle() -> fjell_diag_format::DiagnosticBundle {
         *b"DG123456",
         0x0102_0304_0506_0708,
         TrustProviderId::new(0x1112_1314),
-        0x2122_2324,
         digest(0x30),
-        digest(0x50),
+        true,
     );
     b.add_audit_event(
         0x3132_3334,
