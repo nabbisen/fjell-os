@@ -586,6 +586,21 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   unreachable regardless; and `fjell-auditd` never implements the
   `AUDIT_QUERY` protocol `diagnosticsd` speaks to it over IPC at all.
 
+  > **Amended 2026-10-15, exit criterion 8 of the 0.35.0 cut — three present-tense
+  > claims above are history now.** They were true when written at RFC-0.34-004 and
+  > 0.35 changed all three. **The words are carried**: RFC-0.35-001 sends both the
+  > channel kind and the channel id for real through `sys_ipc_send_words`, and made
+  > channel id `0` invalid by construction. **`fetch_update_index` still returns
+  > `None`**, but no longer because a receiver reads `0` — the TLS handshake fails
+  > closed against an unprovisioned trust anchor, a separate limitation recorded
+  > elsewhere on this page (E-070, **CLOSED** as to the vanishing message, not as to
+  > the fetch). **The three unserved endpoints are gone**: RFC-0.35-002 deleted
+  > `CAP_DIAG_EP` and `CAP_ATTEST_EP` and corrected the round-robin comment (E-069),
+  > and **retracted the `AUDIT_QUERY` sub-protocol entirely** — `fjell-auditd` still
+  > does not implement it, and nothing asks it to any more (E-068). This bullet is
+  > kept as written because it records what RFC-0.34-004 found; the correction is
+  > here rather than in its text for that reason.
+
 - **`fjell-syscall`'s own helpers carried the register-contract defect the
   crate exists to protect everyone else from** (Errata **E-033**, **CLOSED**
   by **RFC-0.28-004**). `sys_ipc_recv` lost the delivery's words and attested
@@ -1202,6 +1217,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   exist as marker specifications but have **no emitting scenarios yet** and
   are explicitly **not v1 release-gated**; running them manually fails
   honestly rather than placeholder-passing.
+
+  > **Amended 2026-10-15, exit criterion 8 of the 0.35.0 cut: `upgrade` is no
+  > longer one of them.** RFC-0.35-001 gave its four markers a real emitting
+  > scenario — each asserted at the deciding service's own output (`verifyd`'s
+  > `VERIFY_FAIL` arm, `bootctl`'s active-slot refusal and its `NoFallback` health
+  > verdict) as well as by `neg-test`'s own independent read — and flipped
+  > `release_gated` to `true`. **`store` is now the only tier in the project that is
+  > not release-gated**, and its four markers are the remaining four of the eight:
+  > closing them needs a store that can *reject*, because `fjell-storaged` has no
+  > CRC, superblock, mirror or recovery code to exercise (E-065's own amendment
+  > records why that is a feature line and not a test line).
 
 - Several services in the QEMU image are **smoke-test stubs** that signal
   ready and exit by design (`fjell-netd`, `fjell-driver-virtio-net`,

@@ -122,6 +122,21 @@ failure, and five of them **look like success at the moment they happen**.
 - **`releases/trust-report.txt` is committed at a cut.** Mid-line it is
   regenerated incidentally and reverted; **at a cut the regenerated file is the
   artifact** and goes in. This is the one place that rule inverts.
+  - **What regenerates it, named — because "incidentally" is not an instruction.**
+    `cargo xtask release-rehearsal` writes this file for real, inside **Gate 6**,
+    as part of checking it has six sections; so does `cargo xtask test-all`. Either
+    one leaves it modified in your tree whether or not you meant to run it.
+    *(Added 2026-10-15, at the 0.35.0 cut's review: the implementer hit this and
+    said it was named nowhere they had read. They were right — §0.2 said the file
+    "is regenerated incidentally" without saying by what, which tells you the
+    weather and not the cause.)*
+  - **So the order matters: `test-all` must finish before you run the rehearsal
+    for criterion 6.** §6 of the report cites the latest run directory, and a
+    rehearsal run taken while `test-all` is still going writes
+    `(no summary.json found)` into it — a real report, with a real gap, ready to be
+    committed by anyone who does not look. Run `test-all` to completion, then the
+    rehearsal, then regenerate deliberately for step 10 and **read the diff** before
+    committing it.
 - **You do not apply the tag or publish.** You prepare everything and stop. The
   tag and `cargo publish` stay with the owner and architect — publishing is
   irreversible and `v1.0.0` specifically is under owner publication control
