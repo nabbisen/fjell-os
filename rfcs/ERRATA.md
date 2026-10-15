@@ -5459,13 +5459,83 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   bundle is ever built and no consumer has ever read one. And the intent is a valid
   `INTENT_UPDATE_STAGING_CONFIRMED` with a plausible tick, so no decoder would
   refuse it.
+- **A third instance, found by the implementer and escalated rather than absorbed,
+  2026-10-15.** `keyring_anchor_epoch` is the **same defect as `last_attestation`**
+  and this entry did not name it: `build_bundle` passes the bare literal **`1`** as
+  `BundleBuilder::new`'s fourth argument, into a real `u32` struct field, never
+  queried. **`fjell-diagnosticsd` does not depend on `fjell-keyring` at all**, so
+  unlike `fjell-attestd` — which reads
+  `keyring.anchors_for(KeyPurpose::AttestationSigning).next().map(|a| a.epoch.raw()).unwrap_or(1)`,
+  a real query with its fallback visible in its own code — there is no local path to
+  a real epoch and no fallback, just a literal indistinguishable from a rotated
+  epoch to anything reading the struct. Folded in here rather than given a number,
+  because the defect and the remedy are identical to `last_attestation`'s; splitting
+  on instance count rather than on remedy is how a register grows without becoming
+  clearer.
+- **Where the implementer drew the line, and why I agree.** They excluded
+  `provider_id` and `bundle_id`, both also compile-time constants in the same
+  function, on the ground that every service uses that convention for its **own
+  identity** (`ATTESTD_PROVIDER_ID`, `MEASUREDD_PROVIDER_ID`,
+  `VERIFYD_PROVIDER_ID`, `UPGRADED_PROVIDER_ID` — all `const`, none queried), and
+  that an identity which never varies is not the same shape as a literal standing
+  in for state that is supposed to vary. **That is the right line.** An epoch is
+  supposed to track real key rotation; a provider id is supposed to be a name.
+  They flagged their own uncertainty about it instead of asserting it, which is why
+  it is recorded here as a ruling rather than left as a judgement nobody reviewed.
 - **Resolution:** **ACCEPTED** (architect, 2026-10-15), tracked **RFC-0.36-001**,
-  in `v1-limitations.md`. Both halves go with E-076's fix, in one line, because they
+  in `v1-limitations.md`. All three go with E-076's fix, in one line, because they
   are the same struct, the same function and the same question: **a field must say
   what it is.** For `last_attestation`, the same availability treatment as the
   measurement head. For the intent, **delete it** — a bundle with no intents is
   honest and a bundle with an invented one is not; gathering real intents is a
   feature, and inventing one is not a down payment on it.
+
+## E-080 — the diagnostic bundle's signed digest does not cover two of the fields its own specification lists
+
+- **Found 2026-10-15 by the implementer**, while checking E-079's third instance,
+  and **escalated without being fixed** — correctly, since it is a different shape
+  from the line they were on.
+- **Claim:** `RFC-v0.4-005` §6.4 states the digest formula, in the specification's
+  own words: `bundle_digest = SHA256("FJELL-DIAG-V1" || schema u16 LE || bundle_id
+  8 B || created_tick u64 LE || provider_id u32 LE || keyring_anchor_epoch u32 LE ||
+  measurement_head 32 B || last_attestation 32 B || …)`. §8's test checklist names
+  **`bundle_digest_covers_all_fields`**.
+- **Tree, observed 2026-10-15 at `d110d74`:** `DiagnosticBundle::write_canonical` —
+  the function the digest is computed from and the frozen description generated from
+  — writes `schema_version`, `bundle_id`, `created_tick`, `measurement_head`,
+  `last_attestation`, `audit_available`, the audit events and the intents. It does
+  **not** write **`provider_id`** or **`keyring_anchor_epoch`**, which exist as
+  struct fields (`bundle.rs:33`, `:34`) and are set by `BundleBuilder::new`. The
+  named test **does not exist**: zero occurrences of
+  `bundle_digest_covers_all_fields` anywhere in the tree.
+- **Why this is worse than a divergence from a spec.** The digest is what the
+  bundle builder **signs**. Two fields of a signed attestation artefact — the
+  **trust provider it claims to come from** and the **key epoch it claims to be
+  anchored at** — are **outside the signature**. They can be altered without
+  invalidating it. The purpose of signing a diagnostic bundle is to let a fleet
+  manager believe its provenance, and provenance is precisely what these two fields
+  carry.
+- **It compounds with E-079.** `keyring_anchor_epoch` is both a **fabricated
+  literal** (E-079) and **unauthenticated** (this entry). The field says something
+  untrue, and nothing would detect it being changed to something else untrue.
+- **Why nothing saw it:** the frozen description is generated **from
+  `write_canonical`**, so it faithfully describes a stream missing two fields and
+  cannot disagree with it — the one case where "the encoder is the description"
+  offers no protection, because the question is not whether the description matches
+  the encoder but whether the encoder matches the **specification**. The test that
+  would have asked was named in the spec and never written. And nothing can ask
+  `diagnosticsd` for a bundle (**E-078**), so no bundle has ever been verified by a
+  consumer.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-15), tracked **RFC-0.36-001**,
+  because that line is already bumping `DIAG_BUNDLE_VERSION` and re-taking this
+  struct's goldens: fixing coverage later would mean a **second** version bump and
+  a second goldens cycle on the same digest, invalidating the first. What closing
+  it needs: `write_canonical` writes both fields **in the specification's own
+  order**, the `bundle_digest_covers_all_fields` test §8 names is written and
+  **fails against the present encoder first**, and the generated description is
+  regenerated so it describes the complete stream. **This reconciles the encoder to
+  an accepted RFC — it does not design a new format**, which is why it belongs with
+  the version bump rather than in a line of its own.
 
 ## Summary
 
@@ -5549,6 +5619,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed — closed by rejecting an unrecognised argument with usage, exit 2 | RFC-0.36-002 | CLOSED |
 | E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), it cannot reach `measuredd` or push, and it announces readiness to its own endpoint — every path dead behind a six-constant protocol; the premise E-075 and E-076 are latent because of, and it needs the deferred input-path decision | unscheduled | ACCEPTED |
 | E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance) and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs, found by the sweep E-076 asked for | RFC-0.36-001 | ACCEPTED |
+| E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree | RFC-0.36-001 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

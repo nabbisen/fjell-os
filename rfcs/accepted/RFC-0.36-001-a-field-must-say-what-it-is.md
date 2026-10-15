@@ -4,10 +4,11 @@
 **Milestone:** 0.36
 **Tracks.** **E-076** — a diagnostic bundle reports a 32-byte zero digest as a
 measurement head when it could not ask for one — **E-079**, the same struct's
-`last_attestation` set from a literal zero that was never queried **and** a
-fabricated semantic intent the builder signs, and **E-075**, two services
-announcing readiness to somewhere that is not `service-manager` under comments
-saying otherwise. One line because all three are one defect: **a value that does
+`last_attestation` **and `keyring_anchor_epoch`** set from literals that were never
+queried **and** a fabricated semantic intent the builder signs, **E-080** (added
+2026-10-15), the signed digest omitting two fields its own specification lists, and
+**E-075**, two services announcing readiness to somewhere that is not
+`service-manager` under comments saying otherwise. One line because all three are one defect: **a value that does
 not say what it is.** Twice it is absence dressed as data; once it is invention
 dressed as data; once it is a delivery that does not happen dressed as one that
 does.
@@ -75,6 +76,24 @@ says "none". Inventing a record is not a down payment on gathering real ones.
 or is absent. E-076's entry asked for this sweep and it is how E-079 was found; if
 it finds a fifth, **stop and escalate** rather than widening this line silently.
 
+> **R1 was exercised and it worked, 2026-10-15.** The implementer ran the sweep,
+> **found a fifth, wrote no code, and escalated** — which is what R1 asked for and
+> is the reason this RFC is amended rather than quietly larger. Two outcomes:
+>
+> - **`keyring_anchor_epoch` is the same defect as `last_attestation`**, folded
+>   into **E-079** rather than given a number of its own: `build_bundle` passes the
+>   bare literal `1` into a real `u32` field, and `fjell-diagnosticsd` has **no
+>   `fjell-keyring` dependency at all**, so unlike `attestd` there is no query and
+>   no visible fallback. It gets the same treatment as the attestation digest.
+> - **`provider_id` and `bundle_id` are correctly *excluded*.** The implementer's
+>   reasoning — every service uses a `const` for its own identity, and an identity
+>   that never varies is not the same shape as a literal standing in for state that
+>   should — is right, and they flagged their uncertainty about it rather than
+>   asserting it. Ruled, in E-079, so the line is reviewed rather than assumed.
+>
+> **R10 below is the second thing the sweep turned up**, and it is a different
+> shape.
+
 **R2 — Goldens from the unmodified encoder, first.** The digest and the byte
 stream, before the first edit, for the cases you will change — as RFC-0.35-004 did
 in a `no_std` crate and RFC-0.35-002 learned from `golden.rs`'s refusal. Every
@@ -117,6 +136,30 @@ and **E-078 untouched and visibly open**. The register and the release notes mus
 not let three closures read as *the diagnostics path works now*: it still cannot be
 asked for a bundle.
 
+**R10 — The signed digest covers what its specification says it covers
+(E-080).** Added 2026-10-15, from the same escalation. `write_canonical` omits
+**`provider_id`** and **`keyring_anchor_epoch`**, both of which `RFC-v0.4-005`
+§6.4's own formula lists — so **the trust provider and key epoch a signed
+diagnostic bundle claims are outside the signature** and can be altered without
+invalidating it. Write both, **in the specification's order**, and write the
+`bundle_digest_covers_all_fields` test §8 names and the tree does not have (zero
+occurrences). **That test must fail against the present encoder before it passes
+against yours** — a coverage test first seen passing has tested nothing.
+
+This is in **this** line and not a later one for a concrete reason: this line
+already bumps `DIAG_BUNDLE_VERSION` and re-takes this struct's goldens. Fixing
+coverage afterwards would mean a **second** bump and a second goldens cycle on the
+same digest, invalidating the first. And it **reconciles the encoder to an accepted
+RFC** rather than designing a format, which is the only reason a digest change
+belongs beside four honesty fixes.
+
+Note what this does to R2's order: take the goldens of the **present** stream
+first, as R2 says — they pin what the encoder wrote before anything moved and are
+the evidence that the only intended change is the one you made — and then expect
+the digest to change, deliberately, under the version bump. **A changed digest is
+expected here, which is the opposite of RFC-0.35-004's rule**; say which change
+each golden reflects.
+
 **R9 — The gates**, each by its own exit status, reported as the **required set**
 with failures included: `release-rehearsal`, `abi-snapshot --verify`,
 `consistency-check --all`, `cargo fmt --all --check`, `test-all`, `repro-check`.
@@ -145,3 +188,12 @@ baseline in the same commit** as the rebuild.
   before assuming the new line is free.
 - **Three closures in a component that still cannot run** is the misreading this
   line most invites. R8 exists for that.
+- **R10 makes a digest change expected**, which inverts the discipline of the three
+  previous format lines. The danger is that "the digest changed" stops being a
+  stop-and-escalate signal for the rest of the work. Pin each golden to the one
+  change it reflects, and treat any digest movement you cannot name that way as a
+  defect.
+- **E-080 is a security property, not a formatting detail.** If R10 turns out to be
+  larger than writing two fields and a test — if, say, the order in §6.4 cannot be
+  reconciled with what `Canon` emits — **stop and escalate**; do not reconcile the
+  specification to the code.

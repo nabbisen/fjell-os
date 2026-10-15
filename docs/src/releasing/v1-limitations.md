@@ -1486,6 +1486,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   withdraws an accepted RFC's deliverable. The present state — a service that
   announces readiness to itself, cannot be asked, and would answer with zeros if it
   were — is not an answer.
+- **The diagnostic bundle's signed digest does not cover two fields its own
+  specification lists** (Erratum **E-080**, ACCEPTED 2026-10-15, tracked
+  **RFC-0.36-001**). `RFC-v0.4-005` §6.4's formula includes `provider_id u32 LE ||
+  keyring_anchor_epoch u32 LE`; `DiagnosticBundle::write_canonical` writes
+  **neither**, though both exist as struct fields. So **the trust provider a signed
+  bundle claims to come from, and the key epoch it claims to be anchored at, are
+  outside the signature** and can be altered without invalidating it — in an
+  artefact whose purpose is to let a fleet manager believe its provenance. The test
+  §8 names, `bundle_digest_covers_all_fields`, has **zero occurrences** in the tree.
+  The generated description offers no protection here, because it is generated *from*
+  `write_canonical`: it faithfully describes a stream missing two fields, and the
+  question is not whether the description matches the encoder but whether the
+  encoder matches the **specification**. Compounds with **E-079**:
+  `keyring_anchor_epoch` is both a fabricated literal and unauthenticated.
 - **The same bundle carries an attestation digest nobody asked for and a fabricated
   semantic intent** (Erratum **E-079**, ACCEPTED 2026-10-15, tracked
   **RFC-0.36-001**). Found by doing the sweep **E-076**'s own entry called for.
