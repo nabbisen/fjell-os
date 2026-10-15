@@ -17,7 +17,7 @@
 mod rt;
 
 use fjell_cap::CapHandle;
-use fjell_diag_format::{BundleBuilder, intents::INTENT_UPDATE_STAGING_CONFIRMED};
+use fjell_diag_format::BundleBuilder;
 use fjell_measure_format::Digest32;
 use fjell_service_api::diagnosticsd as proto;
 use fjell_syscall::{sys_debug_writeln, sys_exit, sys_yield};
@@ -35,7 +35,15 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // retracted audit-query sub-protocol addressed — is gone. Least privilege:
 // a slot for a protocol nobody implements grants standing authority this
 // service does not exercise (RFC-0.35-002's own ruling, reason 3).
-const CAP_SMGR_EP: CapHandle = CapHandle(0);
+//
+// RFC-0.36-001 (closes E-075): `CAP_SMGR_EP` (slot 0) is gone, not reused —
+// it was this service's own identity endpoint, not a path to
+// `service-manager`, so the readiness send over it reached whichever
+// service received there instead (see E-075). Readiness now goes out via
+// `fjell_service_api::ready::SERVICE_READY_SEND_SLOT`, the slot every
+// correctly-wired service uses, which needs no local constant. The
+// remaining slots keep their original numbers: `capability_topology`'s
+// waivers and E-076/E-078's own text cite them by number.
 const CAP_TOOLS_EP: CapHandle = CapHandle(1);
 const CAP_SXT_EP: CapHandle = CapHandle(2);
 const CAP_MEASUREDD_EP: CapHandle = CapHandle(4);
@@ -96,18 +104,23 @@ fn recv_msg(ep: CapHandle) -> Result<(usize, usize, usize), ()> {
 
 // ── Measurement head query ────────────────────────────────────────────────────
 
-fn query_measurement_head() -> Digest32 {
+/// RFC-0.36-001 (closes E-076): the second element is `true` only when a
+/// real `MEASUREDD_HEAD_REPLY` was received — the code that obtains the
+/// value is the only code that may say so. A recv error or an unexpected
+/// tag now returns `(zero digest, false)` instead of a zero digest alone,
+/// so `build_bundle` cannot forward a failure as if it were data.
+fn query_measurement_head() -> (Digest32, bool) {
     send_tag(CAP_MEASUREDD_EP, MEASUREDD_HEAD_QUERY);
     let Ok((tag, w0_lo, w0_hi)) = recv_msg(CAP_MEASUREDD_EP) else {
-        return Digest32([0u8; 32]);
+        return (Digest32([0u8; 32]), false);
     };
     if tag != MEASUREDD_HEAD_REPLY {
-        return Digest32([0u8; 32]);
+        return (Digest32([0u8; 32]), false);
     }
     let mut d = [0u8; 32];
     d[..8].copy_from_slice(&(w0_lo as u64).to_le_bytes());
     d[8..16].copy_from_slice(&(w0_hi as u64).to_le_bytes());
-    Digest32(d)
+    (Digest32(d), true)
 }
 
 // ── Bundle assembly ───────────────────────────────────────────────────────────
@@ -118,24 +131,25 @@ fn query_measurement_head() -> Digest32 {
 /// stubbed: `BundleBuilder::new` leaves `audit_available` at its default
 /// `false`, so every bundle states its audit section unavailable rather
 /// than silently reporting zero records.
+///
+/// RFC-0.36-001 (closes E-079): this used to also pass a literal zero as
+/// `last_attestation` (never queried) and call `add_intent` with literal
+/// arguments claiming an update staging was confirmed two seconds ago,
+/// whether or not anything of the kind happened. Both are gone:
+/// `BundleBuilder::new` has no parameter to receive a fabricated
+/// attestation digest any more, and no call here invents an intent. A
+/// bundle with no intents is honest; one with an invented one was not.
 fn build_bundle(
     provider_id: TrustProviderId,
     tick: u64,
 ) -> fjell_diag_format::bundle::DiagnosticBundle {
-    let measurement_head = query_measurement_head();
-    let mut builder = BundleBuilder::new(
+    let (measurement_head, measurement_head_available) = query_measurement_head();
+    let builder = BundleBuilder::new(
         *b"diag0001",
         tick,
         provider_id,
-        1,
         measurement_head,
-        Digest32([0u8; 32]),
-    );
-    let _ = builder.add_intent(
-        1,
-        INTENT_UPDATE_STAGING_CONFIRMED,
-        0,
-        tick.saturating_sub(2000),
+        measurement_head_available,
     );
     builder.finalise()
 }
@@ -164,12 +178,16 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("diagnosticsd: starting");
     const PROVIDER_ID: TrustProviderId = TrustProviderId(1);
 
-    // E-075: `CAP_SMGR_EP` is slot 0 — this service's OWN identity endpoint
-    // on the shared object — so this tag reaches whichever service receives
-    // there, not service-manager. `SERVICE_READY_SEND_SLOT` is what the
-    // other nine use. Unchanged behaviour, claim withdrawn: see E-075 for
-    // why adopting that slot is not a two-line edit.
-    send_tag(CAP_SMGR_EP, proto::READY);
+    // RFC-0.36-001 (closes E-075): used to send `proto::READY` on
+    // `CAP_SMGR_EP` (slot 0), this service's own identity endpoint, so the
+    // tag reached whichever service received there, never
+    // `service-manager`. Now sends the generic readiness tag on the
+    // uniformly-installed slot every other correctly-wired service uses,
+    // matching e.g. `fjell-measuredd`'s `send_ready`.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
     sys_debug_writeln("diagnosticsd: ready");
 
     // RFC-0.35-002 R5: `CAP_TOOLS_EP` (slot 1) is declared but not installed

@@ -8,6 +8,13 @@
 # Both now fire reliably (confirmed over repeated runs): service-manager has
 # its own dedicated, uncontested endpoint, and every image that sends
 # `tags::SERVICE_READY` reaches it.
+#
+# RFC-0.36-001 (closes E-075): a fifth marker. `diagnosticsd` and
+# `secure-transportd` previously sent their readiness tag to a local,
+# uninstalled or misdirected slot and never reached service-manager at all —
+# `READY_ACCEPTED` alone does not prove either arrived specifically, only
+# that some threshold of *any* services did. This marker fires only once
+# service-manager has itself observed `SERVICE_READY` from both.
 
 name             = "svc"
 timeout_secs     = 90
@@ -16,5 +23,6 @@ expected_markers = [
   "NEG:SVC:FAULT_DETECTED:PASS",
   "NEG:SVC:READY_ACCEPTED:PASS",
   "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS",
+  "NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS",
 ]
 extra_args       = []

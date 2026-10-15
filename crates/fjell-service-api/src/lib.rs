@@ -407,6 +407,16 @@ pub mod negative_markers {
     pub const SVC_READY_ACCEPTED: &str = "NEG:SVC:READY_ACCEPTED:PASS";
     pub const SVC_UNAUTHORIZED_READY: &str = "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS";
     pub const SVC_FAULT: &str = "NEG:SVC:FAULT_DETECTED:PASS";
+    /// RFC-0.36-001 (closes E-075): `service-manager` observed `SERVICE_READY`
+    /// from *both* `diagnosticsd` and `secure-transportd` — the two services
+    /// whose readiness sends previously went nowhere `service-manager` could
+    /// see. `READY_ACCEPTED` alone does not show this: it fires once a fixed
+    /// threshold of *any* services have reported, and neither of these two
+    /// was ever one of the threshold's own eight before this line. A fix
+    /// whose only evidence is that a send no longer targets an empty slot
+    /// has not shown the message arriving.
+    pub const SVC_FORMERLY_SILENT_READY_OBSERVED: &str =
+        "NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS";
 
     // ── audit evidence (RFC 041) ──────────────────────────────────────────────
     /// Snapshot continuity check reports dropped records correctly.

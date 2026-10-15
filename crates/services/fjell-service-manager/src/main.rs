@@ -75,15 +75,20 @@ const REGISTER_POLL_BUDGET: u32 = 2_000;
 // the old topology, at most 3 messages could ever arrive here regardless
 // (see rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3), so `10`
 // was unreachable by construction and had been since RFC 058 shipped.
-// With every announcer now addressing this endpoint correctly (the fix
-// this RFC makes), the real count is exactly **8**:
-// sample-service, verifyd, neg-test, storaged, measuredd, attestd,
-// recoveryd, netd — every image in this project that currently sends
-// `tags::SERVICE_READY` at all, confirmed live (`cargo xtask qemu-negative
-// svc`, `cargo xtask qemu-test m8`). Not lowered to make the marker fire;
-// raised to the number of services actually capable of firing it, which
-// happens to be smaller than the original guess.
-const READY_ACCEPTED_THRESHOLD: u32 = 8;
+// With every announcer now addressing this endpoint correctly (that RFC's
+// fix), the count was exactly **8**: sample-service, verifyd, neg-test,
+// storaged, measuredd, attestd, recoveryd, netd.
+//
+// RFC-0.36-001 (closes E-075): raised **8 -> 10**. `diagnosticsd` and
+// `secure-transportd` previously sent their readiness tag to their own
+// local, uninstalled or misdirected slots and never reached this endpoint
+// at all — now fixed to use `SERVICE_READY_SEND_SLOT` like the other
+// eight, so the true count of images that send `tags::SERVICE_READY` is
+// 10, confirmed live (`cargo xtask qemu-negative svc`). Leaving this at 8
+// after the fix would have been a stale claim about "every image... that
+// currently sends `tags::SERVICE_READY`" the moment two more started
+// doing so.
+const READY_ACCEPTED_THRESHOLD: u32 = 10;
 
 /// RFC-0.28-001: relay a required service's own readiness tag to `init`
 /// once it reports `SERVICE_READY` here. `init` no longer holds a receive
@@ -153,6 +158,13 @@ pub extern "C" fn service_main() -> ! {
     let mut services: [Option<ServiceEntry>; MAX_TRACKED] = [const { None }; MAX_TRACKED];
     let mut n_ready = 0u32;
     let mut ready_emitted = false;
+    // RFC-0.36-001 (closes E-075): per-service observables for the two
+    // readiness sends that previously went nowhere. `READY_ACCEPTED`
+    // alone does not prove either arrived specifically — only that *some*
+    // ten reports did.
+    let mut diag_ready = false;
+    let mut sxt_ready = false;
+    let mut formerly_silent_ready_emitted = false;
     let mut yields: u32 = 0;
     // RFC-0.33-001 D9: the verdict sent to bootctl, latched — see the module
     // doc comment for why an unhealthy verdict is never followed by a
@@ -291,6 +303,20 @@ pub extern "C" fn service_main() -> ! {
                             health_ok_sent = true;
                             let _ = sys_ipc_send(BOOTCTL_HEALTH_SEND_SLOT, tags::BOOT_HEALTH_OK);
                         }
+                    }
+
+                    // RFC-0.36-001 (closes E-075): the per-service observable.
+                    // Both booleans are set only by a `SERVICE_READY` this
+                    // endpoint itself received — the code that observes the
+                    // message is the only code that may say so.
+                    if sender_img == ImageId::DIAGNOSTICSD.0 {
+                        diag_ready = true;
+                    } else if sender_img == ImageId::SECURE_TRANSPORTD.0 {
+                        sxt_ready = true;
+                    }
+                    if !formerly_silent_ready_emitted && diag_ready && sxt_ready {
+                        formerly_silent_ready_emitted = true;
+                        sys_debug_writeln(M::SVC_FORMERLY_SILENT_READY_OBSERVED);
                     }
 
                     // RFC 058: check for unauthorized READY claim via spoofed identity.

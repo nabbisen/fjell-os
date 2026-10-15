@@ -59,8 +59,13 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // RFC-0.35-002 (closes E-069): slots 3 and 4 — endpoints for `diagnosticsd`
 // and `attestd` — are gone. Nothing ever received on either; declaring them
 // granted standing authority this service does not exercise.
+//
+// RFC-0.36-001 (closes E-075): `CAP_SMGR_EP` (slot 1) is gone, not reused —
+// `spawn.rs` installs nothing there, so the readiness send over it always
+// failed and the error was discarded (see E-075). Readiness now goes out
+// via `fjell_service_api::ready::SERVICE_READY_SEND_SLOT`, the slot every
+// correctly-wired service uses, which needs no local constant.
 const CAP_SESSION: CapHandle = CapHandle(0);
-const CAP_SMGR_EP: CapHandle = CapHandle(1);
 const CAP_UPGRAD_EP: CapHandle = CapHandle(2);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
@@ -157,18 +162,15 @@ pub extern "C" fn service_main() -> ! {
 
     let mut channels = ChannelTable::new();
 
-    // E-075: this send does NOT reach service-manager and never has.
-    // `CAP_SMGR_EP` is slot 1, which `spawn.rs` installs for no image, so
-    // the send fails the capability check and `send_tag` discards the
-    // error. Nine services announce readiness through
-    // `SERVICE_READY_SEND_SLOT`, installed uniformly for every image by
-    // RFC-0.28-001 precisely so this could not go to the wrong place; this
-    // service kept its own constant. Left in place rather than deleted
-    // because adopting that slot needs something that asserts
-    // service-manager observes it — see E-075. The comment that used to
-    // say "Notify service-manager we are ready" is the claim being
-    // withdrawn here, not the behaviour.
-    send_tag(CAP_SMGR_EP, SxtTag::Opened as u16, 0);
+    // RFC-0.36-001 (closes E-075): used to send on `CAP_SMGR_EP` (slot 1),
+    // which `spawn.rs` installs for no image, so the send always failed and
+    // the error was discarded — this never reached `service-manager`. Now
+    // sends the generic readiness tag on the uniformly-installed slot every
+    // other correctly-wired service uses.
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
     sys_debug_writeln("secure-transportd: ready");
 
     // IPC event loop.
