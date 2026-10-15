@@ -990,6 +990,7 @@ version = "0.35.0"
 dependencies = [
  "fjell-cap",
  "fjell-net-format",
+ "fjell-service-api",
  "fjell-sxt-crypto",
  "fjell-syscall",
 ]
