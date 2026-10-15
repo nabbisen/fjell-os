@@ -5347,6 +5347,55 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   to a caller as a real finding. All three now exit **2** for a usage error and
   keep **1** for a finding, which is what `fjell-unsafe-audit` had right first.
 
+## E-078 — `fjell-diagnosticsd` cannot be asked for anything, and every path inside it is dead
+
+- **Filed 2026-10-15, at 0.36's scoping.** Not a new discovery: the fact appears
+  inside **E-068**'s closure (*"nothing in the tree had ever sent the trigger"*) and
+  inside **E-076**'s own *"why nothing saw it"*. It has never been an entry, and it
+  is **absent from `v1-limitations.md`**. That is the third time this milestone a
+  live fact has been found living only inside another erratum's body — E-074 and
+  E-075 were the first two — and the reason it matters here is that it is the
+  **premise** of E-075 and E-076: both are latent *because* of it.
+- **Claim:** `fjell-service-api::diagnosticsd` declares a six-constant protocol —
+  `READY`, `BUILD_BUNDLE`, `BUNDLE_READY`, `PUSH`, `PUSH_ACK`, `PUSH_FAULT` — and
+  `fjell-diagnosticsd` implements a service that builds and pushes signed
+  diagnostic bundles (RFC v0.4-005).
+- **Tree, observed 2026-10-15 at `8c53796`:** every path is dead.
+  - **It cannot receive.** `CAP_TOOLS_EP` is slot **1**, which `spawn.rs` installs
+    for no image. The main loop errors on every iteration and yields, disclosing
+    once (RFC-0.35-002 R5).
+  - **Nothing can ask it.** `BUILD_BUNDLE` and `PUSH` each have exactly **two**
+    sites tree-wide: the declaration, and `diagnosticsd`'s own comparison. No
+    sender exists.
+  - **It cannot reach `measuredd`** (slot 4, uninstalled) — which is E-076, the
+    zero digest.
+  - **It cannot push** (slot 2, uninstalled) — `push_bundle` fails closed and
+    replies `PUSH_FAULT`, which is honest.
+  - **Its readiness announcement reaches its own endpoint** — E-075.
+- **Why this is the entry and the others are its symptoms.** E-075 and E-076 are
+  both *claims a component cannot keep*, and both are harmless **today** only
+  because nothing reaches the component. Fixing them makes an unreachable service
+  honest, which is worth doing — a latent falsehood becomes live the day someone
+  wires a caller, and E-074's own entry predicted exactly that chain one line
+  before it closed. But it does not make the service work, and a reader of a
+  release that closes them should not be able to conclude it did.
+- **The decision this needs is one the owner has deferred, and that is why this is
+  filed rather than scheduled.** Serving `BUILD_BUNDLE` for real needs a path by
+  which a person or a tool asks for a bundle — the **input path**, readiness row
+  26, `IN PROGRESS → v1.x`, left open by the owner's *"No v1 yet"* (2026-10-14).
+  Retracting instead means deleting a designed capability with a bundle format, a
+  trust provider and a signed digest behind it, which is a different weight from
+  RFC-0.35-002's retraction of a comment and three constants.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-15), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs, stated so it is not re-derived:
+  **decide whether `fjell-diagnosticsd` is a service or a shape.** If a service:
+  the input path first, then its slots installed with a tier that shows a bundle
+  being asked for and produced. If a shape: the six constants and the service go
+  the way `AUDIT_QUERY` went, with the bundle format kept only if something else
+  uses it. **What is not acceptable is the present state** — a service that
+  announces readiness to itself, cannot be asked, and would answer with zeros if
+  it were.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5427,6 +5476,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed | unscheduled | ACCEPTED |
 | E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty | unscheduled | ACCEPTED |
 | E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed | unscheduled | ACCEPTED |
+| E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), it cannot reach `measuredd` or push, and it announces readiness to its own endpoint — every path dead behind a six-constant protocol; the premise E-075 and E-076 are latent because of, and it needs the deferred input-path decision | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

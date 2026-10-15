@@ -1449,6 +1449,23 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it; these two kept their own constant. The comments are corrected now; the fix needs
   both services to adopt that slot **and** something that asserts `service-manager`
   actually observes them, which is why it is not a two-line edit.
+- **`fjell-diagnosticsd` cannot be asked for anything, and every path inside it is
+  dead** (Erratum **E-078**, ACCEPTED 2026-10-15, unscheduled). It cannot receive —
+  `CAP_TOOLS_EP` is slot 1, which `spawn.rs` installs for no image, so its loop
+  errors every iteration and yields. **Nothing can ask it**: `BUILD_BUNDLE` and
+  `PUSH` each have exactly two sites tree-wide, the declaration and the service's
+  own comparison. It cannot reach `measuredd` (**E-076**) or push (slot 2, failing
+  closed and replying `PUSH_FAULT`, which is honest), and its readiness
+  announcement reaches its own endpoint (**E-075**). Six protocol constants are
+  declared in `fjell-service-api` for a conversation nobody has. **This is the
+  premise E-075 and E-076 are latent because of**, and it is filed rather than
+  scheduled because closing it needs a decision the owner has deferred: serving
+  `BUILD_BUNDLE` for real requires the **input path** (readiness row 26,
+  `IN PROGRESS → v1.x`), and retracting instead means deleting a designed
+  capability with a bundle format, a trust provider and a signed digest behind it.
+  Either answer is defensible; the present state — a service that announces
+  readiness to itself, cannot be asked, and would answer with zeros if it were — is
+  not.
 - **A diagnostic bundle reports a measurement head of zeros when it could not ask for
   one** (Erratum **E-076**, ACCEPTED 2026-10-14, unscheduled).
   `fjell-diagnosticsd`'s `query_measurement_head` addresses **slot 4, which nothing
