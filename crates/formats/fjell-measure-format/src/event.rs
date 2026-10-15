@@ -153,6 +153,21 @@ pub fn write_chain_canonical(
     c.u8("subject", subject.as_u8());
     c.bytes("subject_digest", &subject_digest.0);
     c.u8("metadata_present", metadata_digest.is_some() as u8);
+    // RFC-0.35-004 review, 2026-10-15: the description must be sufficient to
+    // reproduce the digest, and without this it is not. `metadata_digest` is
+    // thirty-two bytes **whatever `metadata_present` says** — zero-filled when
+    // absent, never omitted and never arbitrary. A second implementation
+    // reading only `field metadata_digest u8 [32]` could write 0xFF padding
+    // and match the text while producing a different digest, or omit the field
+    // and produce a different length. Both are refused here in words, because
+    // nothing reads these bytes back to refuse them in code. `note` writes no
+    // bytes (`fjell-canon`'s `notes_are_not_written`), so this cannot move the
+    // digest.
+    c.note(
+        "metadata_fill",
+        "fixed width: 32 bytes whether or not metadata_present is 1; \
+         zero-filled when absent, not omitted and not arbitrary",
+    );
     c.bytes(
         "metadata_digest",
         &metadata_digest.map(|d| d.0).unwrap_or([0u8; 32]),

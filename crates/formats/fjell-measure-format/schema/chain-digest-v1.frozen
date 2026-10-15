@@ -11,6 +11,7 @@ field source                 u8
 field subject                u8
 field subject_digest         u8 [32]
 field metadata_present       u8
+note metadata_fill fixed width: 32 bytes whether or not metadata_present is 1; zero-filled when absent, not omitted and not arbitrary
 field metadata_digest        u8 [32]
 field previous_chain_digest  u8 [32]
 end
