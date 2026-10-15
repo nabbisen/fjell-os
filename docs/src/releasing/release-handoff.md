@@ -123,13 +123,19 @@ failure, and five of them **look like success at the moment they happen**.
   regenerated incidentally and reverted; **at a cut the regenerated file is the
   artifact** and goes in. This is the one place that rule inverts.
   - **What regenerates it, named — because "incidentally" is not an instruction.**
-    `cargo xtask release-rehearsal` writes this file for real, inside **Gate 6**,
-    as part of checking it has six sections; so does `cargo xtask test-all`. Either
-    one leaves it modified in your tree whether or not you meant to run it.
+    **`cargo xtask release-rehearsal` writes this file for real, inside Gate 6**,
+    as part of checking it has six sections — it shells out to the `trust-report`
+    subcommand (`release_rehearsal.rs:148`). **Nothing else does**, and in
+    particular **`cargo xtask test-all` does not**: it contains no reference to the
+    report at all. So the file turning up modified in your tree means a rehearsal
+    ran, which is the one thing you need to know to reason about it.
     *(Added 2026-10-15, at the 0.35.0 cut's review: the implementer hit this and
     said it was named nowhere they had read. They were right — §0.2 said the file
     "is regenerated incidentally" without saying by what, which tells you the
-    weather and not the cause.)*
+    weather and not the cause. **Corrected within the hour**: the sentence first
+    added here also blamed `test-all`, inherited from the 0.34.0 record's own
+    unverified claim and never checked. Measured instead: a full `test-all` run
+    left the file untouched, and `grep` finds no mention of it in `test_all.rs`.)*
   - **So the order matters: `test-all` must finish before you run the rehearsal
     for criterion 6.** §6 of the report cites the latest run directory, and a
     rehearsal run taken while `test-all` is still going writes
