@@ -25,7 +25,6 @@
 //! The explicit slot-release function is [`enforcement::cap_drop`] (RFC 032).
 
 #![no_std]
-#![allow(dead_code)]
 
 pub use fjell_abi::task::TaskId;
 

@@ -1,4 +1,3 @@
-#![allow(unused_assignments)] // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;

@@ -4,7 +4,6 @@
 //! Reads the persisted `RollbackRecord` (represented in-process as
 //! `min_counter` since storaged IPC is complete in v0.4) and rejects any
 //! candidate whose `release_counter` is below the floor.
-#![allow(unused_assignments)] // IPC polling idiom: t/w* are overwritten by sys_ipc_recv
 #![no_std]
 #![no_main]
 mod rt;

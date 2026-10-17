@@ -10,7 +10,6 @@
 //! - [`reply`]    — One-shot `ReplyEdge`
 
 #![no_std]
-#![allow(dead_code)]
 
 pub mod endpoint;
 pub mod message;
