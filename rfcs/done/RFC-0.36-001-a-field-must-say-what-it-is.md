@@ -1,6 +1,6 @@
 # RFC-0.36-001: A field must say what it is
 
-**Status:** Accepted (0.36) — accepted 2026-10-15
+**Status:** Implemented (0.36.0) — accepted 2026-10-15
 **Milestone:** 0.36
 **Tracks.** **E-076** — a diagnostic bundle reports a 32-byte zero digest as a
 measurement head when it could not ask for one — **E-079**, the same struct's

@@ -1,6 +1,6 @@
 # RFC-0.36-001 R1–R10: a field must say what it is
 
-**Governing RFC:** [../accepted/RFC-0.36-001-a-field-must-say-what-it-is.md](../accepted/RFC-0.36-001-a-field-must-say-what-it-is.md)
+**Governing RFC:** [../done/RFC-0.36-001-a-field-must-say-what-it-is.md](../done/RFC-0.36-001-a-field-must-say-what-it-is.md)
 **Handoff:** [../handoffs/RFC-0.36-001-a-field-must-say-what-it-is/implementation-handoff.md](../handoffs/RFC-0.36-001-a-field-must-say-what-it-is/implementation-handoff.md)
 **Escalation and ruling:** `.git-exclude/review-request/review-request-rfc-0.36-001-a-field-must-say-what-it-is.md`, ruled at `928afa9`
 

@@ -1,6 +1,6 @@
 # RFC-0.36-002: A benchmark flag that does what it says
 
-**Status:** Accepted (0.36) — accepted 2026-10-15
+**Status:** Implemented (0.36.0) — accepted 2026-10-15
 **Milestone:** 0.36
 **Tracks.** **E-077** — `cargo xtask bench`'s `--baseline` and `--check` are read
 with `args.iter().any(…)`, so a typo matches neither and `cmd_bench` falls silently

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.36-002
 
-**Governing RFC:** [RFC-0.36-002](../../accepted/RFC-0.36-002-a-benchmark-flag-that-does-what-it-says.md)
+**Governing RFC:** [RFC-0.36-002](../../done/RFC-0.36-002-a-benchmark-flag-that-does-what-it-says.md)
 **Milestone:** 0.36
-**Status:** inherited from the governing RFC (Accepted, 0.36)
+**Status:** inherited from the governing RFC (Implemented, 0.36.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

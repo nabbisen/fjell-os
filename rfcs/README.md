@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 201 files
+## Implemented (done/) — 203 files
 
-200 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+202 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -469,9 +469,18 @@ Four lines, all drafted for this milestone and all shipped in it.
 | 0.35-003 | [Instruments that answer the question you asked](./done/RFC-0.35-003-instruments-that-answer-the-question-you-asked.md) — closed **E-071**; an instrument that reports on less than it claims, once in a tool's argument handling and once in the document that is the v1.0 gate; readiness-summary added as Gate 12's 20th subcheck | 0.35.0 |
 | 0.35-004 | [Two digests that describe themselves](./done/RFC-0.35-004-two-digests-that-describe-themselves.md) — closed **E-065**; the measurement chain digest and the bundle digest moved onto `Canon`, against goldens captured from the unmodified encoders first | 0.35.0 |
 
+### 0.36 — a field must say what it is
+
+Two lines, both drafted for this milestone and both shipped in it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.36-001 | [A field must say what it is](./done/RFC-0.36-001-a-field-must-say-what-it-is.md) — closed **E-075**, **E-076**, **E-079**, **E-080**; a signed diagnostic bundle stopped claiming measurements it never took, stopped carrying a record it invented, and started covering the two fields its own specification always said it signed | 0.36.0 |
+| 0.36-002 | [A benchmark flag that does what it says](./done/RFC-0.36-002-a-benchmark-flag-that-does-what-it-says.md) — closed **E-077**; an unrecognised `bench` flag now refuses with usage and exit 2 instead of silently running the cheapest default | 0.36.0 |
+
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — none
 
 Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
 folder in a fresh clone.
