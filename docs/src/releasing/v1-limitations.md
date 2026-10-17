@@ -1240,6 +1240,21 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   > CRC, superblock, mirror or recovery code to exercise (E-065's own amendment
   > records why that is a feature line and not a test line).
 
+- **`fjell-diagnosticsd` invents tag numbers for a conversation the server already
+  speaks, and two of them are already taken** (Erratum **E-083**, ACCEPTED
+  2026-10-17, unscheduled). `fjell-measuredd` serves the shared
+  `measuredd::GET_HEAD` (`0x303`) and replies `HEAD_REPLY` (`0x304`), with a real
+  head digest. `fjell-diagnosticsd` sends its **own locally declared**
+  `MEASUREDD_HEAD_QUERY` (`0x320`), expecting `0x321` — so the query would match no
+  arm **even with the capability installed**. And `0x320`/`0x321` are already
+  `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API: invented values the API had
+  assigned elsewhere. Five `SXT_*` constants in the same file are hand-copied from
+  `secure-transportd` too — the shape RFC-0.36-001 removed for `verifyd`, by moving
+  the tags into one shared declaration. **E-076's closure holds under this**:
+  `measurement_head_available` reads `false`, which is correct, so the honesty
+  mechanism works under a defect it was not designed for; what would be wrong is a
+  line that installs slot 4, assumes the head is real, and sets the flag `true`.
+  **Anyone scheduling that install must close this first.**
 - **Two services' event loops do not run — one is a comment, one is unreachable**
   (Erratum **E-081**, ACCEPTED 2026-10-17, unscheduled). **`fjell-fleetd` has no
   event loop at all**: it runs format self-checks, prints `fleetd: ready`, and calls

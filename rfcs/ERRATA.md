@@ -5698,6 +5698,53 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   question for whoever takes it, and the answer this project usually reaches is that
   an instrument should report what it cannot see.
 
+## E-083 — `fjell-diagnosticsd` invents tag numbers for a conversation the server already speaks, and two of them are already taken
+
+- **Found 2026-10-17, scoping 0.37**, while checking whether installing
+  `diagnosticsd`'s slot 4 would give its bundle a real measurement head. It would
+  not, for a reason no entry named.
+- **The server speaks a different protocol than the client sends.**
+  `fjell-measuredd` serves the shared `fjell_service_api::measuredd::GET_HEAD`
+  (**`0x303`**) and replies `HEAD_REPLY` (**`0x304`**) — a real arm, with a real
+  head digest (`main.rs:212`). `fjell-diagnosticsd` sends **its own locally
+  declared** `MEASUREDD_HEAD_QUERY` (**`0x320`**) and expects
+  `MEASUREDD_HEAD_REPLY` (**`0x321`**) (`main.rs:59`–`:60`, `:113`, `:117`). The
+  numbers do not match, so the query would reach `measuredd`, match no arm, and get
+  no reply **even with the capability installed**.
+- **And those two numbers are already taken.**
+  `fjell_service_api::recoveryd::READY` is **`0x320`** and
+  `recoveryd::LIST_SNAPSHOTS` is **`0x321`** (`lib.rs:186`, `:188`). So
+  `diagnosticsd` invented tag values that the shared API had already assigned to
+  another service's protocol. Tags are interpreted per endpoint, so nothing
+  misfires today; what is gone is any guarantee that they cannot, and the tag space
+  has no registry that would have refused the collision.
+- **A third hand-kept copy in the same file.** `diagnosticsd` also declares
+  `SXT_OPEN_CHANNEL`/`SXT_OPENED`/`SXT_DIAG_PUSH`/`SXT_DIAG_ACK`/`SXT_CLOSE`
+  (`:52`–`:56`) by hand, duplicating `secure-transportd`'s own `SxtTag` values.
+  **This is precisely the shape RFC-0.36-001 removed for `verifyd`**, by moving
+  `VERIFY`/`VERIFY_OK`/`VERIFY_FAIL` into `fjell_service_api::tags` so that
+  *"neg-test reads the same declaration verifyd dispatches on, not a second
+  hand-kept copy of the same three numbers."* The same argument applies here and
+  nobody made it.
+- **What this means for E-076's closure, and it is good news.** 0.36 made
+  `measurement_head_available` tell the truth, and it still does: with the tag
+  mismatch the flag reads `false`, which is correct. **The honesty mechanism holds
+  under a defect it was not designed for** — the bundle says it could not obtain a
+  measurement head, and it could not. What would have been wrong is a line that
+  installed slot 4, assumed the head was now real, and set the flag `true`.
+- **Why nothing saw it:** **E-078** — nothing can ask `diagnosticsd` for a bundle,
+  so `query_measurement_head` has never run against a live `measuredd`; and the
+  slot it would use is uninstalled, so the tag never reaches a dispatcher that
+  could reject it.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs: `diagnosticsd` reads the **shared**
+  `fjell_service_api::measuredd::{GET_HEAD, HEAD_REPLY}` and its local `0x320`/
+  `0x321` go; the five hand-copied `SXT_*` constants likewise come from one
+  declaration with `secure-transportd`; and **whoever schedules "install slot 4 and
+  get a real measurement head" must close this first**, or the install will look
+  like a fix and change nothing. Whether the tag space should have a registry that
+  refuses a collision is a larger question this entry raises and does not answer.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5783,6 +5830,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree — closed by writing both fields and the named test, demonstrated failing against the unmodified encoder first | RFC-0.36-001 | CLOSED |
 | E-081 `fjell-fleetd` has no event loop at all — it prints `ready` then `sys_exit(0)` directly beneath a section header naming one, and declares no capability slots; `fjell-netd` has a complete IPC event loop that is statically unreachable after `sys_exit(0)`. E-078 calls these "two stubs facing each other"; one of them has exited | unscheduled | ACCEPTED |
 | E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | unscheduled | ACCEPTED |
+| E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
