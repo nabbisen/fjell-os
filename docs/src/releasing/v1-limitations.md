@@ -1262,11 +1262,14 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `// ── IPC event loop (v0.8.1 …) ───`. `loop {` appears **zero** times in that
   file and it declares no capability slots — so the service **terminates**, and it
   is **not** among the services listed below as exiting by design.
-  **`fjell-netd` has a complete IPC event loop that can never execute**: `sys_exit(0)`
-  precedes it and `sys_exit` is `-> !`, so the loop — which receives messages,
-  handles `LinkUp` and pre-allocates an update-metadata session for
-  `secure-transportd` — is **statically unreachable**. `netd`'s *exit* is disclosed
-  below; its unreachable loop is not. **This is also why E-078 understates itself**:
+  **`fjell-netd` has a complete IPC event loop that can never execute**
+  (**E-084**, split from E-081 on 2026-10-18 and tracked **RFC-0.37-002**, because
+  the remedy differs — `fleetd` must *become* a service while `netd` must *say*
+  that it exits): `sys_exit(0)` precedes it and `sys_exit` is `-> !`, so the loop —
+  which receives messages, handles `LinkUp` and pre-allocates an update-metadata
+  session for `secure-transportd` — is **statically unreachable**, and the crate
+  suppresses `unreachable_code` so the compiler never says so (**E-082**).
+  `netd`'s *exit* is disclosed below; its unreachable loop is not. **This is also why E-078 understates itself**:
   that entry calls `fleetd` and `diagnosticsd` "two stubs facing each other", and
   one of them has exited, so E-078's named asker cannot ask because it is not
   running.
