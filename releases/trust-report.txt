@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-10-15 01:11:09 UTC
-Version   : 0.35.0
+Generated : 2026-10-17 10:56:27 UTC
+Version   : 0.36.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -35,7 +35,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-configd.bin (472 bytes)
     fjell-cap-broker.bin (1576 bytes)
     fjell-auditd.bin (2760 bytes)
-    fjell-service-manager.bin (1800 bytes)
+    fjell-service-manager.bin (1992 bytes)
     fjell-sample-service.bin (7352 bytes)
     fjell-neg-test.bin (9584 bytes)
     fjell-svc-timeout.bin (32 bytes)
@@ -57,8 +57,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-syncd.bin (3886 bytes)
     fjell-driver-virtio-net.bin (1030 bytes)
     fjell-netd.bin (831 bytes)
-    fjell-secure-transportd.bin (1773 bytes)
-    fjell-diagnosticsd.bin (4124 bytes)
+    fjell-secure-transportd.bin (1765 bytes)
+    fjell-diagnosticsd.bin (3852 bytes)
     fjell-driver-uart.bin (686 bytes)
     fjell-proxy-braille.bin (13008 bytes)
     fjell-svc-presentation-fault.bin (169 bytes)
@@ -87,15 +87,15 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261015-004324
-  31    QEMU negative: user-copy                            60.2s  PASS
+  Latest test-all run: 20261017-102923
+  31    QEMU negative: user-copy                            60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 31  |  PASS: 30  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
   
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 708 passed, 0 failed  [PASS]
+    Host tests   : 712 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 
