@@ -2,6 +2,15 @@
 //! QEMU virt RISC-V: virtio-mmio version 1 (legacy), QueueAlign=64, QueuePFN=pa>>12.
 #![no_std]
 #![no_main]
+// RFC-0.37-002 (closes E-082): re-derived, not inherited -- confirmed real
+// by deleting this allow and building. Covers: the nine v2-only virtio-mmio
+// register offsets (`R_DEV_FEAT_SEL`..`R_QUEUE_DEV_HI`, already commented
+// "unused in v1 mode" -- this driver runs the v1 legacy register set only),
+// plus `OFF_DESC`, `READ_DATA`, `REGION_BASE` and `BUS_OFFSETS`, each
+// declared for documentation/future use alongside constants this file does
+// read. Kept crate-level: 13 single-purpose constants scattered through a
+// hardware register map, not a handful of loop-local bindings -- item-level
+// annotation on each would not narrow what it covers, only how it is spelled.
 #![allow(dead_code)]
 mod rt;
 
