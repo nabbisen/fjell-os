@@ -5,31 +5,31 @@
 //! loop using `sys_irq_wait` / `sys_irq_ack` (RFC v0.4-001 §7.3).
 //!
 //! Full virtio register reads and ring ops land in v0.4.0-alpha.2.
-// SMOKE-TEST STUB (v1.0 limitation; see docs/src/releasing/v1-limitations.md):
-// this service signals readiness and exits before its main loop by design,
-// so the kernel can emit the milestone marker. The full implementation is
-// post-v1.0 roadmap work; the allows below keep the intentional dead paths
-// from polluting the workspace warning baseline.
-#![allow(
-    dead_code,
-    unused_variables,
-    unreachable_code,
-    unused_imports,
-    unused_assignments,
-    unused_mut
-)]
+//!
+//! RFC-0.37-002 (closes E-082): this crate's own top comment, and
+//! `v1-limitations.md`'s smoke-test-stub list, both used to say this
+//! service "signals readiness and exits before its main loop by design" —
+//! **false of this code**: there is no `sys_exit(0)` anywhere in it, and
+//! `service_main` reaches a real `loop { sys_irq_wait(...) }` after
+//! binding its IRQ. That claim was copied boilerplate from `netd`'s own
+//! stub comment (the same text, verbatim) and was never true here;
+//! `fjell-secure-transportd` and `fjell-proxy-text` were already removed
+//! from the same `v1-limitations.md` list by earlier lines for the
+//! identical reason — this is a third instance, found while re-deriving
+//! this crate's lint inventory rather than inheriting the RFC's own list
+//! of three `unreachable_code` suppressors.
 #![no_std]
 #![no_main]
 mod rt;
 
 use fjell_cap::CapHandle;
-use fjell_net_format::{NetDeviceDescriptor, NetDeviceState, NetIpcTag};
+use fjell_net_format::{NetDeviceDescriptor, NetIpcTag};
 use fjell_syscall::{sys_debug_writeln, sys_exit, sys_irq_ack, sys_irq_wait};
 
 // Re-use the host-testable core types.
 use fjell_driver_virtio_net::{
     DriverState, DriverStateBlock, FeatureError, Ring, VirtQueue, VirtioFeatureFlags,
-    negotiate_features, negotiate_features_checked,
+    negotiate_features_checked,
 };
 
 #[panic_handler]
@@ -49,8 +49,16 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //   slot 4 — Endpoint    (netd send-end; driver posts RX events here)
 //   slot 5 — Endpoint    (service-manager ready endpoint)
 //
+// RFC-0.37-002 (closes E-082): these three name slots `devmgr` installs,
+// not referenced by code yet -- full MMIO register reads and DMA ring ops
+// land in v0.4.0-alpha.2 (this file's own top comment); feature negotiation
+// today uses compile-time QEMU-known constants, not a live register read.
+// Re-derived, not inherited from the crate-level blanket this line removed.
+#[allow(dead_code)]
 const CAP_MMIO: CapHandle = CapHandle(0);
+#[allow(dead_code)]
 const CAP_DMA_RX: CapHandle = CapHandle(1);
+#[allow(dead_code)]
 const CAP_DMA_TX: CapHandle = CapHandle(2);
 const CAP_IRQ: CapHandle = CapHandle(3);
 const CAP_NETD_EP: CapHandle = CapHandle(4);
@@ -83,7 +91,11 @@ pub extern "C" fn service_main() -> ! {
 
     // Read device descriptor from static QEMU defaults (devmgr will provide
     // via IPC in v0.4.0-alpha.2; for now use the known QEMU virt parameters).
-    let dev = NetDeviceDescriptor::QEMU_VIRT_DEFAULT;
+    // Not read by anything below yet -- feature negotiation uses its own
+    // compile-time constants. Named `_dev` rather than allowed: the
+    // underscore prefix is the narrower fix for a genuinely unused local
+    // (RFC-0.37-002, E-082).
+    let _dev = NetDeviceDescriptor::QEMU_VIRT_DEFAULT;
     sys_debug_writeln("driver-virtio-net: device descriptor loaded");
 
     // Feature negotiation — RFC-v0.7.3-001: use negotiate_features_checked
@@ -111,7 +123,11 @@ pub extern "C" fn service_main() -> ! {
 
     // Initialise per-direction VirtQueues (RFC-v0.7.3-001).
     let mut rx_virtq = VirtQueue::new();
-    let mut tx_virtq = VirtQueue::new();
+    // Not read or posted to below yet -- TX path lands with full ring ops in
+    // v0.4.0-alpha.2 (this file's own top comment). `_tx_virtq`, not `mut`:
+    // the narrower fix for a genuinely unused, never-mutated local
+    // (RFC-0.37-002, E-082).
+    let _tx_virtq = VirtQueue::new();
 
     // Pre-fill RX queue with empty receive buffers.
     // DMA buffer addresses are known from sys_dma_alloc at boot;
