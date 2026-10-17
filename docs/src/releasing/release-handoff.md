@@ -188,8 +188,14 @@ order once.
 8. **CHANGELOG entry**, dated, under the version being released.
 9. **Exit criteria 1-7**, capturing real command output for the record.
 10. **Regenerate and commit `trust-report.txt`** (§0.2).
-11. **Release record** at `releases/<version>.md` (§4). **Written after steps
-    13–15, not before them**: the record carries their results (§4.10–§4.12),
+11. **Release record** at `releases/<version>.md` (§4). **End it with a
+    `## Tag and publish` section reading "Tag: Not applied."** — a record handed
+    over at step 18 must show the tag as a *pending step*, not as a missing
+    section. The architect replaces that section after tagging, with the tag
+    object, the signature, both version ids and the logo-URL checks. *(Added
+    2026-10-17: the architect supplied this stub by hand at the 0.35.0 cut and
+    again at 0.36.0. Twice is a missing instruction, not a habit.)*
+    **Written after steps 13–15, not before them**: the record carries their results (§4.10–§4.12),
     and step 13's dispatched run must be *of the release commit*, so the cut
     commits are pushed first. The order that works — found by the 0.32.0 cut,
     the first to dispatch — is: cut commits → push → steps 13–15 → this record →
