@@ -8,24 +8,28 @@
 // SMOKE-TEST STUB (v1.0 limitation; see docs/src/releasing/v1-limitations.md):
 // this service signals readiness and exits before its main loop by design,
 // so the kernel can emit the milestone marker. The full implementation is
-// post-v1.0 roadmap work; the allows below keep the intentional dead paths
-// from polluting the workspace warning baseline.
-#![allow(
-    dead_code,
-    unused_variables,
-    unreachable_code,
-    unused_imports,
-    unused_assignments,
-    unused_mut
-)]
+// post-v1.0 roadmap work.
+//
+// RFC-0.37-002 (closes E-084): the event loop below used to live inside
+// `service_main`, after its own `sys_exit(0)` -- statically unreachable,
+// and hidden from the compiler's own `unreachable_code` lint by a
+// crate-level `#![allow(...)]` that also suppressed five other lints
+// across the whole file. It is real, finished code (`NET_LINK_UP`/
+// `NET_PACKET_RX`/`NET_LINK_DOWN`/`NET_DEVICE_REVOKED` handling,
+// pre-allocating a session for `secure-transportd`) and deleting it would
+// be a real loss for whichever future line wires session/cap-broker
+// integration in (this line's own non-goals forbid wiring it in here).
+// Kept, as `run_event_loop` below: a free function `service_main` never
+// calls, so a reader meets it as `dead_code` the compiler names
+// explicitly ("function is never used") rather than as a code path buried
+// after a diverging call in the function that runs.
 #![no_std]
 #![no_main]
 mod rt;
 
 use fjell_cap::CapHandle;
 use fjell_net_format::{
-    ChannelKind, MAX_CHANNELS, MAX_SESSIONS, NetDeviceDescriptor, NetDeviceState, NetIpcTag,
-    NetSession, SessionError, SessionId, SessionState,
+    MAX_SESSIONS, NetDeviceDescriptor, NetIpcTag, NetSession, SessionError, SessionId, SessionState,
 };
 use fjell_syscall::{sys_debug_writeln, sys_exit};
 
@@ -52,9 +56,10 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // RFC-0.35-002 (closes E-074): slot 1 — "Endpoint to driver" — is gone.
 // `recv_msg` below hardcodes slot 0, not this constant; nothing anywhere
 // in the tree referenced it outside its own declaration (re-derived,
-// RFC-0.35-001 R8). `service_main` exits before its main loop by design
-// (the smoke-test stub this file's own top comment already discloses), so
-// even the loop that would have used it never runs.
+// RFC-0.35-001 R8). `service_main` exits before calling `run_event_loop`
+// by design (the smoke-test stub this file's own top comment already
+// discloses), so even that function never runs.
+#[allow(dead_code)] // RFC-0.37-002 (closes E-082): re-derived, still true
 const CAP_NETDEV: CapHandle = CapHandle(0);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
@@ -85,6 +90,11 @@ struct SessionTable {
 }
 
 impl SessionTable {
+    // RFC-0.37-002 (closes E-082): `new` is only called from `run_event_loop`
+    // below, itself never called (E-084) -- re-derived by building with the
+    // crate-level blanket this line removed. One allow for the three
+    // `SessionTable` methods only `run_event_loop` would ever call.
+    #[allow(dead_code)]
     const fn new() -> Self {
         Self {
             sessions: [NetSession::EMPTY; MAX_SESSIONS],
@@ -109,6 +119,10 @@ impl SessionTable {
         Err(SessionError::SessionCapacityExhausted)
     }
 
+    // RFC-0.37-002 (closes E-082): not called by `run_event_loop` either --
+    // a second, genuinely-unreached method, not inherited from the
+    // crate-level blanket this line removed.
+    #[allow(dead_code)]
     fn activate(&mut self, id: SessionId) -> bool {
         for slot in &mut self.sessions {
             if slot.session_id == id && slot.state == SessionState::Pending {
@@ -119,6 +133,7 @@ impl SessionTable {
         false
     }
 
+    #[allow(dead_code)]
     fn count_active(&self) -> usize {
         self.sessions
             .iter()
@@ -132,16 +147,23 @@ impl SessionTable {
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("netd: starting");
-
-    let mut sessions = SessionTable::new();
-    let dev = NetDeviceDescriptor::QEMU_VIRT_DEFAULT;
-    let mut link_up = false;
-
     sys_debug_writeln("netd: session table initialised");
     send_ready();
     sys_debug_writeln("netd ready");
     // Smoke test: exit cleanly so kernel can emit TEST:V0.4-NET:PASS.
     sys_exit(0);
+}
+
+/// RFC-0.37-002 (closes E-084): the v0.4.0-alpha.1 event loop, written but
+/// never called -- `service_main` exits before reaching it, by design, and
+/// this line's own non-goals forbid wiring it in ("do not make `netd`
+/// serve traffic here"). See this file's top comment for why it is kept
+/// rather than deleted. `dev` is constructed here, not in `service_main`,
+/// since nothing reads it before this loop would.
+#[allow(dead_code)]
+fn run_event_loop(mut sessions: SessionTable) -> ! {
+    let _dev = NetDeviceDescriptor::QEMU_VIRT_DEFAULT;
+    let mut link_up = false;
 
     loop {
         let (tag_raw, w0, _w1) = recv_msg();
