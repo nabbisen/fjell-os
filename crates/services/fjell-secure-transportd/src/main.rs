@@ -24,22 +24,22 @@
 // verification (`fjell-sxt-crypto`'s own doc comment) remains a separate,
 // already-documented stub.
 
-#![allow(
-    dead_code,
-    unused_variables,
-    unreachable_code,
-    unused_imports,
-    unused_assignments,
-    unused_mut
-)]
 #![no_std]
 #![no_main]
 mod channel;
 mod rt;
 
 use fjell_cap::CapHandle;
-use fjell_net_format::{ChannelKind, MAX_SXT_CHANNELS};
-use fjell_sxt_crypto::tls_state::{SxtError as TlsSxtError, TlsHandshakeState, TlsState};
+use fjell_net_format::ChannelKind;
+// RFC-0.37-002 (closes E-082): only the `simulated-transport` dev build's
+// `perform_tls_handshake` uses this; moved behind the same `cfg` that gates
+// that function instead of a crate-level `#[allow(unused_imports)]`, so the
+// release build needs no allow for this import at all. Found in passing:
+// `SxtError as TlsSxtError` and `TlsState` were unused even with the
+// feature on (`perform_tls_handshake`'s own errors map to this crate's own
+// `SxtError`, not the crypto crate's); dropped rather than allowed.
+#[cfg(feature = "simulated-transport")]
+use fjell_sxt_crypto::tls_state::TlsHandshakeState;
 use fjell_syscall::{sys_debug_writeln, sys_exit, sys_yield};
 
 use channel::{ChannelState, ChannelTable, SxtError, SxtTag};
@@ -65,6 +65,11 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // failed and the error was discarded (see E-075). Readiness now goes out
 // via `fjell_service_api::ready::SERVICE_READY_SEND_SLOT`, the slot every
 // correctly-wired service uses, which needs no local constant.
+// RFC-0.37-002 (closes E-082): declared per the module doc's "Receives a
+// `Session` cap from `netd` via cap-broker", never read by name elsewhere —
+// the cap-broker wiring that would consume it is not yet live. Re-derived,
+// not inherited from the crate-level blanket this line removed.
+#[allow(dead_code)]
 const CAP_SESSION: CapHandle = CapHandle(0);
 const CAP_UPGRAD_EP: CapHandle = CapHandle(2);
 

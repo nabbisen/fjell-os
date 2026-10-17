@@ -46,6 +46,15 @@ impl SxtTag {
 // ── Error codes ───────────────────────────────────────────────────────────────
 
 /// RFC v0.4-003 §7.3 error codes.
+///
+/// RFC-0.37-002 (closes E-082): of these eleven, only `Internal` and
+/// `HandshakeFailed` are returned in the default build today
+/// (`CertVerifyFailed` only from the `simulated-transport`-gated dev path).
+/// The rest are the full §7.3 code set, declared ahead of the paths that
+/// will return them. One enum-level allow rather than nine per-variant
+/// ones; re-derived, not inherited from the crate-level blanket this line
+/// removed.
+#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u16)]
 pub enum SxtError {
@@ -70,7 +79,13 @@ pub enum ChannelState {
     Free = 0x00,
     Negotiating = 0x01,
     Established = 0x02,
+    // RFC-0.37-002 (closes E-082): declared for the full channel lifecycle
+    // this type models; no code constructs either yet (open/close today
+    // move straight between Negotiating/Established and Free). Re-derived,
+    // not inherited from the crate-level blanket this line removed.
+    #[allow(dead_code)]
     Draining = 0x03,
+    #[allow(dead_code)]
     Faulted = 0x04,
 }
 
@@ -157,6 +172,10 @@ impl ChannelTable {
         }
     }
 
+    // RFC-0.37-002 (closes E-082): a diagnostic accessor nothing calls yet.
+    // Re-derived, not inherited from the crate-level blanket this line
+    // removed.
+    #[allow(dead_code)]
     pub fn count_established(&self) -> usize {
         self.channels
             .iter()
