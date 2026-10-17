@@ -5457,6 +5457,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   argument RFC-0.34-005 made for the presentation.
 - **Resolution:** **ACCEPTED** (architect, 2026-10-15), **unscheduled**, in
   `v1-limitations.md`. What closing it needs, stated so it is not re-derived:
+  **Corrected again 2026-10-17, at 0.37's scoping — the second load-bearing error
+  in this entry.** It calls `fleetd` and `diagnosticsd` *"two stubs facing each
+  other across a designed protocol."* **One of them has exited.** `fjell-fleetd`
+  has **no event loop at all**: `loop {` appears zero times, it declares no
+  capability slots, and it calls `sys_exit(0)` directly beneath a section header
+  naming an event loop (**E-081**). So this entry's named asker **cannot ask because
+  it is not running**, and "wire the two together" is a larger job than the sentence
+  above admits: the asker must become a service first. Measured by looking at
+  `fleetd`, which I had described without reading to the end of its `main`.
   **wire `fleetd` to `diagnosticsd` across the protocol RFC v0.8-005 already
   specifies**: an IPC pair between the two, `diagnosticsd`'s three slots installed,
   and a tier in which a `RemoteDiagRequest` produces a signed bundle — **plus a
@@ -5613,6 +5622,82 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > comparing those two places, and a reader doing that comparison again should find
 > the answer rather than the question.
 
+## E-081 — two services' event loops do not run: one is a comment, one is unreachable
+
+- **Found 2026-10-17, scoping 0.37**, by measuring what E-078 actually drags with it
+  rather than trusting that entry's own description of it.
+- **`fjell-fleetd` has no event loop at all.** `main.rs` runs a series of format
+  self-checks, prints `fleetd: ready`, and then — directly beneath the section
+  header `// ── IPC event loop (v0.8.1 — storaged + cap-broker wiring) ───` — calls
+  **`sys_exit(0)`** (`:118`–`:119`). `loop {` appears **zero** times in the file; it
+  declares **no** capability slots. The header names a loop that was never written,
+  and the service **terminates**.
+- **`fjell-netd` has a complete event loop that can never execute.** `sys_exit(0)`
+  at `:144`, then `loop {` at `:146` — receiving messages, handling
+  `NetIpcTag::LinkUp`, pre-allocating an update-metadata session for
+  `secure-transportd`. `fjell_syscall::sys_exit` is `-> !`, so everything after it
+  is **statically unreachable**.
+- **Why E-078 understated this, and it is my error.** That entry calls `fleetd` and
+  `diagnosticsd` *"two stubs facing each other across a designed protocol."* One of
+  them is not facing anything: it has exited. **E-078's named asker cannot ask
+  because it is not running**, which makes "wire `fleetd` to `diagnosticsd`" a
+  larger job than that entry describes — the asker must become a service first.
+  This is the **second** load-bearing error in E-078, after the claim that it needed
+  the deferred input path.
+- **What is and is not already disclosed.** `fjell-netd` **is** in
+  `v1-limitations.md`'s list of smoke-test stubs that *"signal ready and exit by
+  design"*, so its exit is disclosed — **its unreachable loop is not**, and a reader
+  of that file would not expect a full IPC implementation sitting behind the exit.
+  **`fjell-fleetd` is in no such list**: its only mention in that file is inside
+  E-078's own bullet, calling it *"the designated node-side endpoint"*.
+- **Why nothing saw it:** `netd`'s case is invisible because the crate suppresses
+  the lint that names it — see **E-082**. `fleetd`'s is invisible because nothing
+  asserts that it is alive: it prints `fleetd: ready`, which is what a tier would
+  look for, and then exits.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs: for each service, **the code and the
+  comment must say the same thing as the behaviour.** If a service exits, the
+  section header for its event loop goes and `v1-limitations.md` names it among the
+  services that exit by design. If it is meant to run, the loop runs and something
+  asserts it is still alive after `ready` — printing `ready` and exiting is
+  indistinguishable, to every instrument this project has, from printing `ready`
+  and serving.
+
+## E-082 — exit criterion 2's "0 warning lines" is partly bought by crate-level lint suppression
+
+- **Claim:** exit criterion 2 of the release cycle is *"Build clean"* — `cargo xtask
+  build` at **0 warning lines** — and every cut since 0.30.0 has recorded it met.
+- **Tree, observed 2026-10-17:** **13 crates** carry a crate-level
+  `#![allow(...)]`. The suppressed lints, by frequency: `unused_assignments` (10),
+  `dead_code` (7), `unused_imports` (4), `unused_variables` (3),
+  **`unreachable_code` (3)**, `unused_mut` (3). The three suppressing
+  `unreachable_code` are `fjell-netd`, `fjell-driver-virtio-net` and
+  `fjell-secure-transportd`, each with the identical six-lint block.
+- **What the suppression is actually hiding, measured rather than assumed:**
+  - **`fjell-netd`** — a complete, statically unreachable IPC event loop
+    (**E-081**). This is the lint doing exactly the job it exists for, switched
+    off.
+  - **`fjell-secure-transportd`** and **`fjell-driver-virtio-net`** — **nothing.**
+    Their only `sys_exit` is the panic handler's `exit(1)`, and their loops are
+    reachable. The allow suppresses no current warning in either; it is copied
+    boilerplate that would silently hide the next instance.
+- **Why this is an erratum and not a tidying task.** *"0 warning lines"* is a
+  **gate**, and a gate whose result can be bought by a crate-level `allow` reports
+  on less than it claims — the E-014 class, in the criterion the release cycle
+  checks second. It is not that suppression is never right; it is that the gate
+  cannot tell a crate with nothing to warn about from a crate that turned the
+  warning off, and the record says *"0 warning lines"* either way.
+- **Found by:** the architect, 2026-10-17, while establishing why `fjell-netd`'s
+  unreachable event loop produced no build warning.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs: **remove every allow that suppresses
+  nothing** (demonstrated by deleting it and building), and for each that remains,
+  **state the reason in the file** and prefer the narrowest scope — an item-level
+  `#[allow]` with a comment over a crate-level blanket. Then the gate can say what
+  it means. Whether criterion 2 should also *count* surviving allows is a design
+  question for whoever takes it, and the answer this project usually reaches is that
+  an instrument should report what it cannot see.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5696,6 +5781,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), and it cannot reach `measuredd` or push — every path dead behind a six-constant protocol; the premise E-075 and E-076 were latent because of (both closed by RFC-0.36-001, which also fixed the readiness send this row used to name); the asker is already specified — RFC-v0.8-005's fleet manager, not an operator console — so what is missing is the wiring at both ends plus a threat-model entry for the export boundary | unscheduled | ACCEPTED |
 | E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance), a literal `1` as `keyring_anchor_epoch` the same way (found by the implementer's own sweep), and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs — closed by removing both literals' constructor parameters and deleting the fabricated call | RFC-0.36-001 | CLOSED |
 | E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree — closed by writing both fields and the named test, demonstrated failing against the unmodified encoder first | RFC-0.36-001 | CLOSED |
+| E-081 `fjell-fleetd` has no event loop at all — it prints `ready` then `sys_exit(0)` directly beneath a section header naming one, and declares no capability slots; `fjell-netd` has a complete IPC event loop that is statically unreachable after `sys_exit(0)`. E-078 calls these "two stubs facing each other"; one of them has exited | unscheduled | ACCEPTED |
+| E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

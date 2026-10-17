@@ -1240,6 +1240,32 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   > CRC, superblock, mirror or recovery code to exercise (E-065's own amendment
   > records why that is a feature line and not a test line).
 
+- **Two services' event loops do not run — one is a comment, one is unreachable**
+  (Erratum **E-081**, ACCEPTED 2026-10-17, unscheduled). **`fjell-fleetd` has no
+  event loop at all**: it runs format self-checks, prints `fleetd: ready`, and calls
+  `sys_exit(0)` directly beneath the section header
+  `// ── IPC event loop (v0.8.1 …) ───`. `loop {` appears **zero** times in that
+  file and it declares no capability slots — so the service **terminates**, and it
+  is **not** among the services listed below as exiting by design.
+  **`fjell-netd` has a complete IPC event loop that can never execute**: `sys_exit(0)`
+  precedes it and `sys_exit` is `-> !`, so the loop — which receives messages,
+  handles `LinkUp` and pre-allocates an update-metadata session for
+  `secure-transportd` — is **statically unreachable**. `netd`'s *exit* is disclosed
+  below; its unreachable loop is not. **This is also why E-078 understates itself**:
+  that entry calls `fleetd` and `diagnosticsd` "two stubs facing each other", and
+  one of them has exited, so E-078's named asker cannot ask because it is not
+  running.
+- **Exit criterion 2's "0 warning lines" is partly bought by lint suppression**
+  (Erratum **E-082**, ACCEPTED 2026-10-17, unscheduled). **13 crates** carry a
+  crate-level `#![allow(...)]`; the suppressed lints include **`unreachable_code`
+  in three** — `fjell-netd`, `fjell-driver-virtio-net` and
+  `fjell-secure-transportd`. Measured rather than assumed: in `netd` the allow hides
+  E-081's unreachable event loop, which is the lint doing exactly its job with the
+  switch off; in the other two it hides **nothing at all** — their loops are
+  reachable and their only `sys_exit` is the panic handler's — so it is copied
+  boilerplate that would silently absorb the next instance. A gate whose result can
+  be bought by a crate-level `allow` reports on less than it claims, and the record
+  says "0 warning lines" either way.
 - Several services in the QEMU image are **smoke-test stubs** that signal
   ready and exit by design (`fjell-netd`, `fjell-driver-virtio-net`,
   `fjell-driver-virtio-blk`, `fjell-powerd`, among others). Their full
