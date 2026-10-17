@@ -3,11 +3,17 @@
 //! v0.3.0: produces `AttestationRecordV2` when the trust-provider registry
 //! is in Enforcing phase (RFC v0.3-004).  Falls back to the v1 dev path
 //! when still in Bootstrap (development / early boot).
-#![allow(unused_assignments, unused_imports, dead_code)] // M7 stub: IPC polling + planned fields
 #![no_std]
 #![no_main]
 mod rt;
 
+// RFC-0.37-002 (closes E-082): narrowed from a crate-level
+// `#![allow(unused_assignments, unused_imports, dead_code)]` -- re-derived,
+// only `unused_imports` still fires, and only for these five names.
+// `unused_assignments` and `dead_code` suppress nothing today (confirmed by
+// deleting the blanket and building clean).
+#[allow(unused_imports)]
+// M7 stub: v2 claim types this service will construct once Enforcing-phase signing lands
 use fjell_attestation_format::v2::{
     AttestationRecordV2, FreshnessClaimsV2, KeyringClaims, NonceClass, ProviderClaims,
     RollbackClaims, SignedAttestationRecordV2, SignedByDescriptor,
