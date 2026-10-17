@@ -4,7 +4,12 @@
 //!
 //! Subcommands:
 //!   build-services                     — build service crates → prebuilt/*.bin
-//!   build                              — build-services + fjell-kernel
+//!   build                              — build-services + fjell-kernel,
+//!                                        then the crate-level-allow census
+//!                                        (RFC-0.37-002 R5, below)
+//!   lint-allow-report                  — crate-level #![allow(...)] census
+//!                                        alone, as a record figure, never
+//!                                        a gate (RFC-0.37-002 R5)
 //!   qemu                               — build + launch QEMU interactively
 //!   qemu-test [m1..m8]                 — build + run smoke test, check
 //!                                        TEST:M*:PASS  (RFC 025)
@@ -41,6 +46,7 @@ mod dev_modes;
 mod evidence; // RFC-0.27-004 evidence promotion
 mod fleet_demo;
 mod key_crypto; // RFC-v0.16-006 encrypted key storage
+mod lint_allow_report; // RFC-0.37-002 R5: crate-level #![allow(...)] census
 mod negative;
 mod package_release;
 mod policy_eval; // RFC 040 cap-broker policy unit tests
@@ -74,6 +80,7 @@ fn main() -> ExitCode {
             qemu::build_all();
             ExitCode::SUCCESS
         }
+        Some("lint-allow-report") => lint_allow_report::cmd_lint_allow_report(),
         Some("qemu") => qemu::cmd_qemu(),
         Some("qemu-test") => smoke::cmd_qemu_test(args.get(1).map(String::as_str)),
         Some("qemu-negative") => negative::cmd_qemu_negative(args.get(1).map(String::as_str)),

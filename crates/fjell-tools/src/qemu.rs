@@ -131,7 +131,12 @@ pub fn build_all() -> String {
         eprintln!("[xtask] aborting: service build failed");
         std::process::exit(1);
     }
-    build_kernel()
+    let kernel = build_kernel();
+    // RFC-0.37-002 R5: a figure alongside "0 warning lines", never a gate
+    // that fails this build — printed here because this function is what
+    // `cargo xtask build`, exit criterion 2's own command, actually runs.
+    crate::lint_allow_report::print_report(&PathBuf::from("."));
+    kernel
 }
 
 /// Build the kernel and launch QEMU interactively.
