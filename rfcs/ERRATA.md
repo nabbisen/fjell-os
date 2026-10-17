@@ -5690,14 +5690,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   warning off, and the record says *"0 warning lines"* either way.
 - **Found by:** the architect, 2026-10-17, while establishing why `fjell-netd`'s
   unreachable event loop produced no build warning.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
   `v1-limitations.md`. What closing it needs: **remove every allow that suppresses
   nothing** (demonstrated by deleting it and building), and for each that remains,
   **state the reason in the file** and prefer the narrowest scope — an item-level
   `#[allow]` with a comment over a crate-level blanket. Then the gate can say what
   it means. Whether criterion 2 should also *count* surviving allows is a design
   question for whoever takes it, and the answer this project usually reaches is that
-  an instrument should report what it cannot see.
+  an instrument should report what it cannot see.~~ → **CLOSED** by **RFC-0.37-002**.
+
+  > **Closed by RFC-0.37-002, 2026-10-18.** Re-derived at the tip rather than
+  > inherited (R1): of the 13 crate-level `#![allow(...)]` blocks, **9 suppressed
+  > nothing** and were deleted outright (`fjell-cap`, `fjell-ipc`, `fjell-measuredd`,
+  > `fjell-proxy-text`, `fjell-recoveryd`, `fjell-semantic-stream`, `fjell-upgraded`,
+  > `fjell-verifyd`, and one of the three `unreachable_code` suppressors —
+  > `fjell-driver-virtio-net`, whose loop was already reachable), each confirmed by
+  > deleting it and rebuilding with a forced (`touch`) recompile — a plain rebuild
+  > without forcing one gave a false "clean" reading once (`fjell-attestd`,
+  > corrected before trusting the rest). The other **3** survive, narrowed and
+  > reasoned at item/enum scope per R3: `fjell-attestd` (one `#[allow(unused_imports)]`
+  > on five v2 claim-type names), `fjell-secure-transportd` (three, across
+  > `main.rs` and `channel.rs` — a declared-not-yet-wired cap slot, an unconstructed
+  > enum variant pair, a diagnostic accessor), and `fjell-storaged` (kept
+  > crate-level, deliberately: 13 single-purpose VirtIO register constants
+  > scattered through a hardware register map, where item-level annotation would
+  > only change how the allow is spelled, not what it covers). **The 13th,
+  > `fjell-netd`, is E-084** — closed separately below, since its allow was hiding
+  > a complete event loop rather than nothing. Criterion 2 now additionally reports
+  > a count via `cargo xtask build` / `cargo xtask lint-allow-report`
+  > (`crates/fjell-tools/src/lint_allow_report.rs`): **1 crate-level allow survives
+  > tree-wide** (`fjell-storaged`), a figure, never a gate (R5) — demonstrated
+  > moving (R6) both by an isolated unit test and live, against the real tree, by
+  > adding and removing a scratch allow. Full detail in
+  > `rfcs/answers/RFC-0.37-002-instruments-that-cannot-be-bought-answer.md`.
 
 ## E-083 — `fjell-diagnosticsd` invents tag numbers for a conversation the server already speaks, and two of them are already taken
 
@@ -5767,7 +5792,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   disclosed and intentional. **The unreachable loop is not** — a reader of that
   list would not expect a full IPC implementation sitting behind the exit, and
   anyone reading `netd`'s source top-down finds a service that handles messages.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-18), tracked **RFC-0.37-002**.
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-18), tracked **RFC-0.37-002**.
   What closing it needs: **the code says what the service does.** Either the loop
   runs — which is a networking feature, not this line's business — or the
   unreachable code goes and what remains is an exit the stub list already
@@ -5775,7 +5800,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   chosen must be stated with its reason in the file, and if the loop is kept for a
   future line it belongs somewhere a reader cannot mistake for live code. What is
   not acceptable is a complete event loop that the compiler knows is dead and the
-  crate has told the compiler to stop mentioning.
+  crate has told the compiler to stop mentioning.~~ → **CLOSED** by **RFC-0.37-002**.
+
+  > **Closed by RFC-0.37-002, 2026-10-18.** The loop was not deleted — a working
+  > implementation deleted for tidiness would be a real loss (R4) — and it was not
+  > wired live either (out of this line's business). Instead it was extracted out
+  > of `service_main`, which now ends cleanly at `sys_exit(0)` with nothing after
+  > it, into a free function, `run_event_loop(sessions: SessionTable) -> !`, that
+  > `service_main` never calls. A reader now meets it as `dead_code` the compiler
+  > names explicitly ("function `run_event_loop` is never used") rather than as a
+  > code path sitting, unreachable and unremarked, after a diverging call in the
+  > function that runs — which is what the crate-level `#![allow(unreachable_code,
+  > ...)]` this line also removed (see **E-082**) had been hiding. `run_event_loop`
+  > and the three `SessionTable` methods only it would ever call
+  > (`new`/`activate`/`count_active`) each carry an item-level `#[allow(dead_code)]`
+  > stating this reason. Full detail in
+  > `rfcs/answers/RFC-0.37-002-instruments-that-cannot-be-bought-answer.md`.
 
 ## Summary
 
@@ -5861,9 +5901,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance), a literal `1` as `keyring_anchor_epoch` the same way (found by the implementer's own sweep), and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs — closed by removing both literals' constructor parameters and deleting the fabricated call | RFC-0.36-001 | CLOSED |
 | E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree — closed by writing both fields and the named test, demonstrated failing against the unmodified encoder first | RFC-0.36-001 | CLOSED |
 | E-081 `fjell-fleetd` has no event loop at all — it prints `ready` then `sys_exit(0)` directly beneath a section header naming one, and declares no capability slots. E-078 calls it one of "two stubs facing each other"; it has exited, so E-078's named asker cannot ask. `fjell-netd`'s same-class defect split to E-084 | RFC-0.37-001 | ACCEPTED |
-| E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | RFC-0.37-002 | ACCEPTED |
+| E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | RFC-0.37-002 | CLOSED |
 | E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | RFC-0.37-001 | ACCEPTED |
-| E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | ACCEPTED |
+| E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

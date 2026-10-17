@@ -1262,30 +1262,43 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   `// ── IPC event loop (v0.8.1 …) ───`. `loop {` appears **zero** times in that
   file and it declares no capability slots — so the service **terminates**, and it
   is **not** among the services listed below as exiting by design.
-  **`fjell-netd` has a complete IPC event loop that can never execute**
-  (**E-084**, split from E-081 on 2026-10-18 and tracked **RFC-0.37-002**, because
-  the remedy differs — `fleetd` must *become* a service while `netd` must *say*
-  that it exits): `sys_exit(0)` precedes it and `sys_exit` is `-> !`, so the loop —
-  which receives messages, handles `LinkUp` and pre-allocates an update-metadata
-  session for `secure-transportd` — is **statically unreachable**, and the crate
-  suppresses `unreachable_code` so the compiler never says so (**E-082**).
-  `netd`'s *exit* is disclosed below; its unreachable loop is not. **This is also why E-078 understates itself**:
-  that entry calls `fleetd` and `diagnosticsd` "two stubs facing each other", and
-  one of them has exited, so E-078's named asker cannot ask because it is not
-  running.
-- **Exit criterion 2's "0 warning lines" is partly bought by lint suppression**
-  (Erratum **E-082**, ACCEPTED 2026-10-17, unscheduled). **13 crates** carry a
-  crate-level `#![allow(...)]`; the suppressed lints include **`unreachable_code`
-  in three** — `fjell-netd`, `fjell-driver-virtio-net` and
-  `fjell-secure-transportd`. Measured rather than assumed: in `netd` the allow hides
-  E-081's unreachable event loop, which is the lint doing exactly its job with the
-  switch off; in the other two it hides **nothing at all** — their loops are
-  reachable and their only `sys_exit` is the panic handler's — so it is copied
-  boilerplate that would silently absorb the next instance. A gate whose result can
-  be bought by a crate-level `allow` reports on less than it claims, and the record
-  says "0 warning lines" either way.
+  **`fjell-netd` had a complete IPC event loop that could never execute** — Erratum
+  **E-084**, split from E-081 on 2026-10-18, **CLOSED** by **RFC-0.37-002**: the
+  loop was real, finished code (receiving messages, handling `LinkUp`,
+  pre-allocating an update-metadata session for `secure-transportd`), statically
+  unreachable after `sys_exit(0)` (`sys_exit` is `-> !`), and hidden from the
+  compiler's own `unreachable_code` lint by a crate-level `#![allow(...)]` — see
+  E-082, below. Deleting a working implementation would have been a real loss, so
+  it was kept, extracted into `run_event_loop`, a free function `service_main`
+  never calls; a reader now meets it as `dead_code` the compiler names explicitly
+  ("function is never used") rather than as a code path sitting, unremarked, after
+  a diverging call. **This is also why E-078 understates itself**: that entry calls
+  `fleetd` and `diagnosticsd` "two stubs facing each other", and one of them has
+  exited, so E-078's named asker cannot ask because it is not running.
+- **Exit criterion 2's "0 warning lines" was partly bought by lint suppression** —
+  Erratum **E-082**, **CLOSED** by **RFC-0.37-002**. At `226544d`, **13 crates**
+  carried a crate-level `#![allow(...)]`; the suppressed lints included
+  **`unreachable_code` in three** — `fjell-netd`, `fjell-driver-virtio-net` and
+  `fjell-secure-transportd`. Measured rather than assumed: in `netd` the allow hid
+  E-081's (E-084's) unreachable event loop, the lint doing exactly its job with the
+  switch off; in the other two it hid **nothing at all** — their loops were
+  reachable and their only `sys_exit` was the panic handler's — copied boilerplate
+  that would have silently absorbed the next instance. Re-derived at the tip
+  (not inherited) and fixed: **9** of the 13 allows suppressed nothing and were
+  deleted outright (including `fjell-driver-virtio-net`'s, whose own top comment
+  had independently and falsely claimed an early exit "by design" — the same
+  copied sentence `fjell-secure-transportd` and `fjell-proxy-text` carried before
+  earlier lines corrected it, a third instance); **3** survive, narrowed to
+  item/enum-level `#[allow]`s with a stated reason (`fjell-attestd`,
+  `fjell-secure-transportd`, and `fjell-storaged` — the last kept crate-level,
+  deliberately, for 13 single-purpose register constants scattered through a
+  hardware map); and `fjell-netd`'s — the 13th — is E-084, above. Exit criterion 2
+  now also reports a count, as a record figure rather than a gate that fails
+  (`cargo xtask build` / `cargo xtask lint-allow-report`,
+  `crates/fjell-tools/src/lint_allow_report.rs`): **1 crate-level allow survives
+  tree-wide** today.
 - Several services in the QEMU image are **smoke-test stubs** that signal
-  ready and exit by design (`fjell-netd`, `fjell-driver-virtio-net`,
+  ready and exit by design (`fjell-netd`,
   `fjell-driver-virtio-blk`, `fjell-powerd`, among others). Their full
   implementations are tracked on the post-v1.0 roadmap; their early-exit
   pattern is intentional. **`fjell-secure-transportd` is not one of these**
@@ -1297,7 +1310,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   does not serve `diagnosticsd` or `attestd` (E-069, RFC-0.35-002).
   `fjell-proxy-text` is also not an early-exit stub (RFC-0.34-001 converted
   it to ask-and-park); left in a prior cut's list and not corrected here,
-  outside this line's scope.
+  outside this line's scope. **`fjell-driver-virtio-net` is also not one of
+  these** (removed from this list by RFC-0.37-002, E-082): it has no
+  `sys_exit(0)` anywhere, and `service_main` reaches a real
+  `loop { sys_irq_wait(...) }` after binding its IRQ — the same early-exit
+  sentence was copied, verbatim, from `netd`'s own stub comment into this
+  crate's top comment and was never true of this code. A third instance of
+  the same copied claim, found while re-deriving this crate's lint
+  inventory for E-082 rather than trusting the earlier two corrections to
+  have caught every copy.
 - The repro-check baseline (`tests/repro/baseline-digests.txt`) tracks the
   committed `prebuilt/*.bin` artefacts and must be re-recorded whenever the
   prebuilt service binaries are rebuilt — see `tools/fjell-repro-check`.
