@@ -1213,7 +1213,18 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   **svc 4/4 — Errata E-024/E-031, closed by RFC-0.28-001**, evidence:
   [`tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log`](https://github.com/nabbisen/fjell-os/blob/main/tests/evidence/RFC-0.28-001/svc-ready-accepted-unauthorized-rejected.log));
   the ipc profile is restored to 3/3 in v0.20.0 after fixing the IPC words ABI and the
-  reply-edge cancellation path. The `store` and `upgrade` negative profiles
+  reply-edge cancellation path.
+
+  > **Amended 2026-10-17, exit criterion 8 of the 0.36.0 cut: `svc` is 5/5, not
+  > 4/4.** The counts above are the **v0.19/v0.20** ones this bullet records, and
+  > the word *"now"* in front of them stopped being true when RFC-0.36-001 added
+  > `NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS` — `tests/qemu/profiles/svc.toml`
+  > lists **five** `expected_markers` and the tier reports
+  > `PASS (5 marker(s) matched)`. The historical figures keep their text, as this
+  > bullet's heading says they are v0.19/v0.20's; what is corrected is the present
+  > tense. **Reported by the implementer's own sweep** under §6 of the cut handoff,
+  > as a candidate and without editing — the boundary that sweep was given, and it
+  > held. The `store` and `upgrade` negative profiles
   exist as marker specifications but have **no emitting scenarios yet** and
   are explicitly **not v1 release-gated**; running them manually fails
   honestly rather than placeholder-passing.
