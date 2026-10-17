@@ -5,6 +5,92 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.36.0] — 2026-10-17 — A field must say what it is
+
+Two RFCs, **five errata closed** (**E-075**, **E-076**, **E-077**,
+**E-079**, **E-080**). Four of the five are inside one component,
+`fjell-diagnosticsd` — a signed diagnostic bundle stopped claiming
+measurements it never took, stopped carrying a record it invented, and
+started covering the two fields its own specification always said it
+signed.
+
+### Fixed — a signed diagnostic bundle claimed measurements, an attestation and a key epoch it never had, and carried a fabricated record (RFC-0.36-001)
+
+`fjell-diagnosticsd`'s bundle builder reported a 32-byte zero digest as a
+measurement head whenever the query to `measuredd` failed, with nothing
+distinguishing "absent" from "a real digest that happens to be zero"
+(**E-076**). The same function passed a literal zero as the bundle's
+attestation digest and a literal `1` as its keyring anchor epoch — neither
+ever queried from anywhere — and called `add_intent` with hardcoded
+arguments asserting an update staging was confirmed two seconds ago,
+whether or not anything of the kind happened: a fabricated record inside
+an artefact the builder signs (**E-079**, found by a sweep the E-076 entry
+itself called for, including a fifth instance — the key epoch — found
+mid-implementation and escalated to the architect before any code was
+written against it). Separately, the signed digest never covered the
+trust provider or the key epoch at all, though the governing specification
+has always listed both: two fields of a signed attestation that could be
+altered without invalidating the signature (**E-080**).
+
+`DiagnosticBundle` gains three availability flags, each placed directly
+beside the field it qualifies rather than appended to the end of the
+struct, settable `true` only by the code that actually obtained a value;
+`write_canonical` zeroes a field in the digest whenever its flag says
+unavailable, regardless of what the struct happens to hold, so a stale
+value cannot leak through. The fabricated intent is deleted outright — no
+flag, no placeholder, since nothing was ever unobtainable, it was
+invented — and the bundle builder's constructor no longer has a
+parameter that could accept a fabricated epoch or attestation digest at
+all. The digest now covers the trust provider and key epoch, in the order
+the specification states, with a new test demonstrated failing against
+the unmodified encoder before passing against the fix.
+
+Also closed: two services (`fjell-secure-transportd`,
+`fjell-diagnosticsd`) announced readiness to a slot nobody installed or
+their own identity endpoint, never reaching `service-manager`, each under
+a comment claiming otherwise (**E-075**). Both now send through the same
+slot every other service uses, and a new observable confirms
+`service-manager` genuinely saw both arrive — not only that an aggregate
+threshold was met.
+
+Closes **E-075**, **E-076**, **E-079**, **E-080**.
+
+### Fixed — `cargo xtask bench`'s unrecognised flags ran the benches and reported success (RFC-0.36-002)
+
+A typo'd or misremembered `--baseline`/`--check` matched neither flag and
+silently fell through to the cheapest default: run the benches, print the
+results, exit success. A caller who meant to write a baseline or check
+tolerance believed one had happened when neither did. An unrecognised
+argument now exits 2 with its usage printed; `--help`/`-h` print the same
+usage and exit 0 without running a benchmark. `1` is unchanged: a metric
+exceeding tolerance or a failed baseline write. The exit code was shown
+surviving `fjell-tools`' own dispatcher at the shell, not only returned
+from the function — the one thing genuinely new versus this family's
+three prior applications.
+
+Closes **E-077**.
+
+### Known, disclosed, not fixed here
+
+**`fjell-diagnosticsd` still cannot be asked for anything, and closing
+four errata inside it does not change that.** `CAP_TOOLS_EP` is installed
+for no image, so nothing in the tree can send it `BUILD_BUNDLE` or `PUSH`
+— each has exactly two sites tree-wide, the declaration and the service's
+own comparison. It cannot reach `measuredd`, and it cannot push. Six
+protocol constants are declared in `fjell-service-api` for a conversation
+nobody has. This release makes the service **honest about what it would
+report if it could run** — it does not make it run. Filed as **E-078**,
+unscheduled, ruled a service and recommended as the next milestone's
+first candidate, with a threat-model entry needed for the export boundary
+before it ships.
+
+Also filed, unscheduled: two format crates' `#[repr(C)]` layouts are
+still described by nothing a gate compares, one of them needing a
+kernel-side change to close honestly (**E-073**, untouched by this
+milestone).
+
+---
+
 ## [0.35.0] — 2026-10-15 — The capabilities the update path never had
 
 Four RFCs, **seven errata closed** (**E-065**, **E-068**, **E-069**, **E-070**,
