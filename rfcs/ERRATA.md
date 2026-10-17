@@ -5596,6 +5596,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 > bump, since the fabrication fix (E-079) removed the value's source entirely and
 > this fix covers whatever the field legitimately becomes once E-078 or a
 > successor gives it one.
+>
+> **One thing this closure must say, or the next reader files its inverse**
+> (architect, at review, 2026-10-17). Closing this entry made the encoder match
+> §6.4 **for the two fields it omitted** — and the stream now carries **four
+> availability flags §6.4 does not list**: `audit_available` (RFC-0.35-002) and
+> `keyring_anchor_epoch_available`, `measurement_head_available`,
+> `last_attestation_available` (this line). So `RFC-v0.4-005` §6.4 and
+> `write_canonical` still disagree, now in the opposite direction, and extra fields
+> **inside** the digest are strictly more coverage rather than less — the security
+> property this entry was about is not at risk. **§6.4 describes v1; the stream is
+> `DIAG_BUNDLE_VERSION` 3.** The authoritative, current formula is the one in
+> `crates/formats/fjell-diag-format/src/builder.rs`'s `finalise` doc comment, which
+> lists all four flags and cites this entry; §6.4's text stands as the v1 record, as
+> a done RFC's text does. Recorded here because this entry was itself found by
+> comparing those two places, and a reader doing that comparison again should find
+> the answer rather than the question.
 
 ## Summary
 
