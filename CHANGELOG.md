@@ -5,6 +5,96 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.37.0] — 2026-10-19 — A bundle gets asked for and produced
+
+Two RFCs, **five errata closed** (**E-078**, **E-081**, **E-082**, **E-083**,
+**E-084**). A service that had never been built into the image now runs and
+is asked a question; the answer it gives is honest and almost entirely
+negative; and the gate that reports "0 warning lines" can no longer be
+bought with a crate-level `allow`.
+
+### Fixed — `fjell-fleetd` had never run at all, and `fjell-diagnosticsd` could not be asked anything (RFC-0.37-001)
+
+`fjell-fleetd` was not merely a stub with a dead event loop, which is what
+**E-081** described: it had no `ImageId`, was absent from the build list and
+the kernel's embedded image table, and its own runtime file had no `_start`
+symbol — the one thing every other service's does and the linker script
+requires. It had never been cross-compiled and linked as a bootable image,
+confirmed by a control: with its panic handler removed, the cross-compile
+failed outright. It now is one: a real event loop, never exiting, that asks
+`fjell-diagnosticsd` for a diagnostic bundle on a console-byte trigger — not
+a real `RemoteDiagRequest` arriving over the network, which stays out of
+scope.
+
+`fjell-diagnosticsd`'s receive capability is installed for the first time
+(**E-078**), with `fjell-fleetd` as its first real caller. Reaching it
+exposed a second defect nothing had ever triggered: it addressed
+`fjell-measuredd`'s measurement-head query by tag numbers the server has
+never answered — numbers the shared protocol table had, separately, already
+assigned to a different service's protocol (**E-083**). Demonstrated failing
+against the real `measuredd` before being fixed, and closed on both sides:
+`fjell-diagnosticsd` now reads the shared tag declaration, and
+`fjell-secure-transportd`'s own tag enum (the source of a second, unrelated
+duplication E-083 also named) now reads the same shared declaration rather
+than repeating its own copy.
+
+**Fixing the tag mismatch alone would have made the bundle lie.** Sweeping
+the defect before writing a line of code against it found that
+`fjell-measuredd`'s reply can carry only eight of the chain digest's
+thirty-two bytes through its three-word reply — the protocol cannot return
+the digest it names, for any consumer, tags or no tags. Installing the
+capability and fixing only the tags would have landed a sequence number
+inside a 32-byte digest field and reported it as a real, available
+measurement. Escalated and ruled before any of that shipped: the
+capability stays uninstalled, filed as **E-085** (below), and the
+measurement-head field in every bundle this release can produce reads
+honestly unavailable instead.
+
+Closes **E-078**, **E-081**, **E-083**.
+
+### Fixed — exit criterion 2's "0 warning lines" could be bought by a crate-level `allow` (RFC-0.37-002)
+
+Thirteen crates carried a crate-level lint suppression; re-derived rather
+than trusted, nine suppressed nothing at all and were deleted outright, three
+were narrowed to item-level allows each stating its own reason, and one
+(`fjell-storaged`, thirteen single-purpose hardware register constants) was
+kept crate-level with its reason stated in the file. The thirteenth was
+`fjell-netd`'s, and it was hiding something real: a complete, finished IPC
+event loop, statically unreachable after an early exit, that the suppressed
+`unreachable_code` lint would otherwise have named (**E-084**). The loop was
+not deleted — a working implementation is a real loss to lose — and not
+wired live, which is a networking feature and out of scope here; it moved
+into a function the service never calls, so a reader now meets it as
+`dead_code` the compiler names explicitly rather than as a code path sitting
+silently after a diverging call.
+
+`cargo xtask build` now also reports a count of surviving crate-level
+allows — a figure in the release record, never a gate that can fail the
+build on a legitimate, reasoned suppression. Today: one.
+
+Closes **E-082**, **E-084**.
+
+### Known, disclosed, not fixed here
+
+**Every availability flag in the bundle this release can produce reads
+`false`, and that is this release's honest answer, not a shortfall.** A
+bundle still cannot leave the node: the push capability stays uninstalled
+and the push path fails closed every time. The measurement head still
+cannot be obtained: `fjell-measuredd`'s reply protocol cannot carry a whole
+chain digest in either direction, for any caller (**E-085**, unscheduled —
+filed and ruled this milestone, found while wiring the first real caller the
+protocol has ever had). The other three fields have never had a source,
+unchanged since 0.36.0. A release that closes five errata and makes a dead
+service plane live must not read as having made diagnostics work: what it
+produces is a bundle that says, correctly, that it could not obtain anything
+it was asked for.
+
+Also filed, unscheduled: two format crates' `#[repr(C)]` layouts are still
+described by nothing a gate compares, one of them needing a kernel-side
+change to close honestly (**E-073**, untouched by this milestone).
+
+---
+
 ## [0.36.0] — 2026-10-17 — A field must say what it is
 
 Two RFCs, **five errata closed** (**E-075**, **E-076**, **E-077**,
