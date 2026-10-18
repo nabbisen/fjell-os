@@ -1,0 +1,40 @@
+# Negative-test profile: remote-diag
+# RFC-0.37-001: the conversation RFC-v0.8-005 specifies, made real within one
+# node. `fleetd` has no event loop at all before this line (E-081); this
+# profile is the first exercise of its real one.
+#
+# 'D' injected right after "driver-uart: ready" (the same console-byte-trigger
+# mechanism `health-fail.toml`/`upgrade.toml` already use): `init` sends
+# `fleetd` its own trigger tag over an endpoint that is `fleetd`'s alone;
+# `fleetd` sends `diagnosticsd` `BUILD_BUNDLE` over the capability RFC-0.37-001
+# R4 installs and blocks for the reply.
+#
+# Both the instigator's own read (`fleetd: bundle ready (...)`,
+# `NEG:REMOTE_DIAG:BUNDLE_READY:PASS`) and the deciding service's own output
+# are asserted, the pattern `health-fail.toml`/`upgrade.toml` already
+# established: `diagnosticsd` prints each of the bundle's four availability
+# flags by name. **Every flag reads `false`** — not a shortfall. `audit_available`
+# and the keyring/attestation flags have never had a source
+# (RFC-0.36-001); `measurement_head_available` reads `false` because slot 4
+# (`CAP_MEASUREDD_EP`) stays uninstalled in this line (E-085, filed and ruled
+# separately: `measuredd`'s `GET_HEAD` reply cannot carry a whole chain
+# digest, so there is nothing honest to install this for yet). A bundle that
+# says "I could not obtain a measurement head" is the true one — the flags
+# are the assertion, not merely that a bundle was built.
+
+name                 = "remote-diag"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "D"
+expected_markers = [
+    "init: remote-diag trigger received; asking fleetd to run its scenario",
+    "fleetd: remote-diag trigger received; asking diagnosticsd for a bundle",
+    "diagnosticsd: bundle built",
+    "diagnosticsd: measurement_head_available=false",
+    "diagnosticsd: keyring_anchor_epoch_available=false",
+    "diagnosticsd: last_attestation_available=false",
+    "diagnosticsd: audit_available=false",
+    "fleetd: bundle ready (audit_event_count=0)",
+    "NEG:REMOTE_DIAG:BUNDLE_READY:PASS",
+]
+extra_args       = []

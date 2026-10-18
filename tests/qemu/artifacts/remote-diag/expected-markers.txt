@@ -1,0 +1,9 @@
+init: remote-diag trigger received; asking fleetd to run its scenario
+fleetd: remote-diag trigger received; asking diagnosticsd for a bundle
+diagnosticsd: bundle built
+diagnosticsd: measurement_head_available=false
+diagnosticsd: keyring_anchor_epoch_available=false
+diagnosticsd: last_attestation_available=false
+diagnosticsd: audit_available=false
+fleetd: bundle ready (audit_event_count=0)
+NEG:REMOTE_DIAG:BUNDLE_READY:PASS
