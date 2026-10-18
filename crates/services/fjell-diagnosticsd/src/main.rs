@@ -12,6 +12,17 @@
 //! (`DiagnosticBundle::audit_available`) rather than silently containing
 //! nothing. See `rfcs/ERRATA.md`'s E-068 entry for what implementing it
 //! for real requires.
+//!
+//! RFC-0.37-001 (closes E-078, E-083): `CAP_TOOLS_EP` (slot 1) is installed
+//! now — `fleetd` is this service's first real caller, over a console-byte
+//! trigger (RFC-v0.8-005's conversation, made real within one node rather
+//! than over the network). The tag mismatch E-083 found
+//! (`query_measurement_head` addressing numbers `measuredd` never answered,
+//! two of which the shared API had already assigned to `recoveryd`) is
+//! fixed; `CAP_MEASUREDD_EP` (slot 4) stays uninstalled regardless (E-085:
+//! `measuredd`'s reply cannot carry a whole chain digest, so there is
+//! nothing honest to install it for yet) and `measurement_head_available`
+//! reads `false` for that reason, not a leftover one.
 #![no_std]
 #![no_main]
 mod rt;
@@ -20,7 +31,8 @@ use fjell_cap::CapHandle;
 use fjell_diag_format::BundleBuilder;
 use fjell_measure_format::Digest32;
 use fjell_service_api::diagnosticsd as proto;
-use fjell_syscall::{sys_debug_writeln, sys_exit, sys_yield};
+use fjell_service_api::{measuredd, sxt};
+use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit, sys_yield};
 use fjell_trust_provider::ids::TrustProviderId;
 
 #[panic_handler]
@@ -48,16 +60,19 @@ const CAP_TOOLS_EP: CapHandle = CapHandle(1);
 const CAP_SXT_EP: CapHandle = CapHandle(2);
 const CAP_MEASUREDD_EP: CapHandle = CapHandle(4);
 
-// SXT tags mirrored from secure-transportd.
-const SXT_OPEN_CHANNEL: usize = 0x0100;
-const SXT_OPENED: usize = 0x0101;
-const SXT_DIAG_PUSH: usize = 0x0104;
-const SXT_DIAG_ACK: usize = 0x0105;
-const SXT_CLOSE: usize = 0x0109;
-
-// measuredd head-query protocol.
-const MEASUREDD_HEAD_QUERY: usize = 0x320;
-const MEASUREDD_HEAD_REPLY: usize = 0x321;
+// RFC-0.37-001 R2 (closes E-083): this used to hand-copy five of
+// `secure-transportd`'s own `SxtTag` values under local `SXT_*` names, and
+// separately declare `MEASUREDD_HEAD_QUERY`/`MEASUREDD_HEAD_REPLY` as
+// `0x320`/`0x321` — numbers `fjell-measuredd` has never answered (its real
+// `GET_HEAD`/`HEAD_REPLY` arm is `0x303`/`0x304`) and that the shared API had
+// already assigned to `recoveryd::READY`/`LIST_SNAPSHOTS`. Demonstrated
+// failing first (see the review request): with `CAP_MEASUREDD_EP`
+// temporarily installed against the real `measuredd` and these old tags
+// still in place, `query_measurement_head` got no reply and the flag stayed
+// `false`. Both now read `fjell_service_api::{measuredd, sxt}` (imported
+// above) — the single declaration `secure-transportd`'s own `SxtTag` enum
+// also reads (`channel.rs`) and `measuredd`'s own dispatch arm already
+// used, not a second hand-kept copy.
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
@@ -105,16 +120,32 @@ fn recv_msg(ep: CapHandle) -> Result<(usize, usize, usize), ()> {
 // ── Measurement head query ────────────────────────────────────────────────────
 
 /// RFC-0.36-001 (closes E-076): the second element is `true` only when a
-/// real `MEASUREDD_HEAD_REPLY` was received — the code that obtains the
-/// value is the only code that may say so. A recv error or an unexpected
-/// tag now returns `(zero digest, false)` instead of a zero digest alone,
-/// so `build_bundle` cannot forward a failure as if it were data.
+/// real `HEAD_REPLY` was received — the code that obtains the value is the
+/// only code that may say so. A recv error or an unexpected tag now returns
+/// `(zero digest, false)` instead of a zero digest alone, so `build_bundle`
+/// cannot forward a failure as if it were data.
+///
+/// RFC-0.37-001 (closes E-083, **not** E-085): the tags this sends/matches
+/// are now the shared, real `measuredd::{GET_HEAD, HEAD_REPLY}` — the local
+/// `0x320`/`0x321` this used to use were never `measuredd`'s own numbers, so
+/// a real reply could never arrive at all (demonstrated failing against the
+/// live service before this fix, in the review request). **What this does
+/// not fix, deliberately**: the two words below are still read as if they
+/// were the first 16 bytes of the chain digest, which they are not — `w0` is
+/// `measuredd`'s `latest_seq`, not digest content (E-085, filed and ruled
+/// separately: the digest travels whole or not at all, which this protocol
+/// cannot do today). That is moot in practice here: slot 4
+/// (`CAP_MEASUREDD_EP`) stays uninstalled in this line (the amended R5), so
+/// every call below still hits the `recv_msg` error path and returns
+/// `(zero digest, false)` — this function's *reachable* behaviour is
+/// unchanged by this line; only the tags it would use if it ever did reach
+/// `measuredd` are now the real ones.
 fn query_measurement_head() -> (Digest32, bool) {
-    send_tag(CAP_MEASUREDD_EP, MEASUREDD_HEAD_QUERY);
+    send_tag(CAP_MEASUREDD_EP, measuredd::GET_HEAD);
     let Ok((tag, w0_lo, w0_hi)) = recv_msg(CAP_MEASUREDD_EP) else {
         return (Digest32([0u8; 32]), false);
     };
-    if tag != MEASUREDD_HEAD_REPLY {
+    if tag != measuredd::HEAD_REPLY {
         return (Digest32([0u8; 32]), false);
     }
     let mut d = [0u8; 32];
@@ -157,18 +188,28 @@ fn build_bundle(
 // ── Push via secure-transportd ────────────────────────────────────────────────
 
 fn push_bundle(_bundle: &fjell_diag_format::bundle::DiagnosticBundle) -> bool {
-    send_tag(CAP_SXT_EP, SXT_OPEN_CHANNEL);
+    send_tag(CAP_SXT_EP, sxt::OPEN_CHANNEL);
     let Ok((reply, w0, _)) = recv_msg(CAP_SXT_EP) else {
         return false;
     };
-    if reply != SXT_OPENED {
+    if reply != sxt::OPENED {
         return false;
     }
     let _channel_id = w0;
-    send_tag(CAP_SXT_EP, SXT_DIAG_PUSH);
+    send_tag(CAP_SXT_EP, sxt::DIAG_PUSH);
     let ack = recv_msg(CAP_SXT_EP).map(|(t, _, _)| t).unwrap_or(0);
-    send_tag(CAP_SXT_EP, SXT_CLOSE);
-    ack == SXT_DIAG_ACK
+    send_tag(CAP_SXT_EP, sxt::CLOSE);
+    ack == sxt::DIAG_ACK
+}
+
+/// RFC-0.37-001 R6: one line per flag, at the deciding service's own
+/// output — `diagnosticsd: measurement_head_available=false`, and so on for
+/// each of the four. The tier asserts these, not just that a bundle exists.
+fn print_bool(name: &str, value: bool) {
+    sys_debug_write("diagnosticsd: ");
+    sys_debug_write(name);
+    sys_debug_write("=");
+    sys_debug_writeln(if value { "true" } else { "false" });
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -190,27 +231,23 @@ pub extern "C" fn service_main() -> ! {
     );
     sys_debug_writeln("diagnosticsd: ready");
 
-    // RFC-0.35-002 R5: `CAP_TOOLS_EP` (slot 1) is declared but not installed
-    // (RFC-0.35-001 R5 waived it to this line; this line's own non-goals
-    // forbid installing it too — "finally clean" does not mean "finally
-    // patched over"), so `recv_msg` errors here on every iteration for the
-    // rest of every boot, by design, for as long as that stands. Disclosed
-    // once, not once per iteration: the condition does not change between
-    // iterations, and a line printed on every yield would flood the
-    // console and tell an operator nothing the first line did not already
-    // say. Chosen behaviour: yield and keep listening, not exit — a future
-    // line installing this slot should not require this service to be
-    // respawned to notice — and not block, since there is no capability to
-    // block on.
+    // RFC-0.37-001 R4 (closes E-078): `CAP_TOOLS_EP` (slot 1) is installed
+    // now — `fleetd` is its first real caller. The error path below is no
+    // longer the expected, unchanging per-iteration condition RFC-0.35-002
+    // R5 described (that was true only while this slot stayed uninstalled);
+    // it is now genuine defensive handling for a recv failure that should
+    // not happen once the capability is correctly installed, kept rather
+    // than removed on the same "yield and keep listening, not exit"
+    // principle — a transient failure should not take the service down.
     let mut recv_error_disclosed = false;
     loop {
         let (tag, w0) = match recv_msg(CAP_TOOLS_EP) {
             Err(()) => {
                 if !recv_error_disclosed {
                     sys_debug_writeln(
-                        "diagnosticsd: CAP_TOOLS_EP cannot receive (capability not \
-                         installed) -- yielding and listening, not exiting; this will \
-                         recur every iteration and is only disclosed once",
+                        "diagnosticsd: CAP_TOOLS_EP recv error -- yielding and listening, \
+                         not exiting; this will recur every iteration and is only \
+                         disclosed once",
                     );
                     recv_error_disclosed = true;
                 }
@@ -221,6 +258,24 @@ pub extern "C" fn service_main() -> ! {
         if tag == proto::BUILD_BUNDLE {
             let bundle = build_bundle(PROVIDER_ID, w0 as u64);
             sys_debug_writeln("diagnosticsd: bundle built");
+            // RFC-0.37-001 R6: the deciding service's own output, not only
+            // the instigator's (`fleetd`'s) — the tier asserts flags, not
+            // merely "a bundle was built", so each flag's value is printed
+            // by name here, the only place that knows why each is what it
+            // is.
+            print_bool(
+                "measurement_head_available",
+                bundle.measurement_head_available,
+            );
+            print_bool(
+                "keyring_anchor_epoch_available",
+                bundle.keyring_anchor_epoch_available,
+            );
+            print_bool(
+                "last_attestation_available",
+                bundle.last_attestation_available,
+            );
+            print_bool("audit_available", bundle.audit_available);
             let _ = bundle.audit_event_count;
             send_tag(CAP_TOOLS_EP, proto::BUNDLE_READY);
         } else if tag == proto::PUSH {
