@@ -42,6 +42,8 @@ pub const SERVICES: &[&str] = &[
     "fjell-netd",
     "fjell-secure-transportd",
     "fjell-diagnosticsd",
+    // RFC-0.37-001: fleetd becomes a service.
+    "fjell-fleetd",
     // RFC-0.25-001
     "fjell-driver-uart",
     // RFC-0.34-001: presentations that ask the stream (D8).

@@ -891,10 +891,28 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         fjell_abi::service::VERIFYD_EP_OBJECT,
         "VERIFYD_EP_OBJECT does not name the object just allocated"
     );
+    // RFC-0.37-001 R2/R4: the one shared object `fleetd` and `diagnosticsd`
+    // both hold a SEND|RECV capability to — the same shape as
+    // `update_channel_ep_id` above, not a one-way wake.
+    let diagnosticsd_tools_ep_id = et.alloc().expect("alloc diagnosticsd-tools endpoint");
+    assert_eq!(
+        diagnosticsd_tools_ep_id,
+        fjell_abi::service::DIAGNOSTICSD_TOOLS_EP_OBJECT,
+        "DIAGNOSTICSD_TOOLS_EP_OBJECT does not name the object just allocated"
+    );
+    // RFC-0.37-001 R3: `fleetd`'s own endpoint, where `init` sends the
+    // console-byte trigger. Asserted, like every other dedicated endpoint
+    // above.
+    let fleetd_trigger_ep_id = et.alloc().expect("alloc fleetd-trigger endpoint");
+    assert_eq!(
+        fleetd_trigger_ep_id,
+        fjell_abi::service::FLEETD_TRIGGER_EP_OBJECT,
+        "FLEETD_TRIGGER_EP_OBJECT does not name the object just allocated"
+    );
     // ...and the whole table, so the total cannot drift from the constant the
     // host test counts allocations against (`ENDPOINT_OBJECT_COUNT`).
     assert_eq!(
-        verifyd_ep_id + 1,
+        fleetd_trigger_ep_id + 1,
         fjell_abi::service::ENDPOINT_OBJECT_COUNT,
         "ENDPOINT_OBJECT_COUNT is not one past the last endpoint allocated"
     );
@@ -1313,6 +1331,25 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 Capability {
                     kind: CapKind::Endpoint,
                     object_id: fjell_abi::service::NEG_TEST_EP_OBJECT,
+                    rights: CapRights::SEND,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+            // Slot `INIT_FLEETD_SEND_SLOT` (RFC-0.37-001 R3): SEND only, to
+            // `fleetd`'s own endpoint — mirrors `INIT_NEG_TEST_SEND_SLOT`
+            // immediately above. `init` reads a console byte and sends one
+            // message; that byte's only power is to ask `fleetd` to run its
+            // one scenario (ask `diagnosticsd` for a bundle), and `fleetd`
+            // still does the asking itself.
+            let _ = cs.install_raw(
+                fjell_abi::service::INIT_FLEETD_SEND_SLOT as usize,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: fjell_abi::service::FLEETD_TRIGGER_EP_OBJECT,
                     rights: CapRights::SEND,
                     badge: 0,
                     scope: ObjectScope::Any,

@@ -929,6 +929,78 @@ pub fn spawn(
         }
     }
 
+    // RFC-0.37-001 R4 (closes E-078, R2 closes E-083): the conversation
+    // RFC-v0.8-005 specifies, made real within one node. `fleetd` (slot 1,
+    // its own declared name for this peer, `CAP_DIAGNOSTICSD_EP`) and
+    // `diagnosticsd` (slot 1, `CAP_TOOLS_EP`) each get a SEND|RECV
+    // capability to the SAME shared endpoint object — the same shape as the
+    // update-path channel below, not a one-way wake, because both sides
+    // both send a request and block waiting for a reply on this exact slot.
+    // Nothing else is installed for `fleetd`'s own slot 1: least privilege,
+    // the same argument RFC-0.35-001 R5 made for the update-path channel.
+    {
+        use fjell_cap::slot::Capability;
+        use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
+        const DIAGNOSTICSD_TOOLS_RIGHTS: CapRights =
+            CapRights(CapRights::SEND.0 | CapRights::RECV.0);
+        if image_id == fjell_abi::service::ImageId::FLEETD {
+            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+            if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+                let _ = cs.install_raw(
+                    1,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::DIAGNOSTICSD_TOOLS_EP_OBJECT,
+                        rights: DIAGNOSTICSD_TOOLS_RIGHTS,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+                // RFC-0.37-001 R3: `fleetd`'s own trigger-receive slot,
+                // where `init` sends the console-byte trigger. RECV only —
+                // mirrors `NEG_TEST_TRIGGER_RECV_SLOT`. Not declared as a
+                // named `CapHandle` constant in `fleetd`'s own source (see
+                // `fjell_abi::service::FLEETD_TRIGGER_RECV_SLOT`'s own doc).
+                let _ = cs.install_raw(
+                    fjell_abi::service::FLEETD_TRIGGER_RECV_SLOT as usize,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::FLEETD_TRIGGER_EP_OBJECT,
+                        rights: CapRights::RECV,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+        }
+        if image_id == fjell_abi::service::ImageId::DIAGNOSTICSD {
+            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+            if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+                let _ = cs.install_raw(
+                    1,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::DIAGNOSTICSD_TOOLS_EP_OBJECT,
+                        rights: DIAGNOSTICSD_TOOLS_RIGHTS,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
+        }
+    }
+
     // RFC-0.35-001 R5 (closes E-072, E-070): the update path's metadata
     // channel. `secure-transportd` (slot 2, its own declared name for this
     // peer) and `upgraded` (slot 6) each get a SEND|RECV capability to the
