@@ -5455,7 +5455,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   not export, so the model does not yet carry this boundary. That is the argument
   for giving it its own line rather than a corner of a small milestone — the same
   argument RFC-0.34-005 made for the presentation.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-15), **unscheduled**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-15), **unscheduled**, in
   `v1-limitations.md`. What closing it needs, stated so it is not re-derived:
   **Corrected again 2026-10-17, at 0.37's scoping — the second load-bearing error
   in this entry.** It calls `fleetd` and `diagnosticsd` *"two stubs facing each
@@ -5472,7 +5472,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   threat-model entry for the export boundary**, because that is what changes when
   the path becomes real. Retraction remains available and remains the heavier act.
   **What is not acceptable is the present state** — a service that announces
-  readiness to itself, cannot be asked, and would answer with zeros if it were.
+  readiness to itself, cannot be asked, and would answer with zeros if it were.~~
+  → **CLOSED** by **RFC-0.37-001**.
+
+  > **Closed by RFC-0.37-001, 2026-10-18.** Wired, not retracted. `fjell-fleetd` was
+  > not even a bootable image before this line — no `_start` symbol in its own
+  > `rt.rs`, absent from the kernel's image table, the build list, and `init`'s own
+  > spawn sequence (found while re-deriving this line's own R1, a more literal
+  > reading of "becomes a service" than the entry's own text names). It now is: a
+  > real event loop, never exiting, asking `diagnosticsd` for a bundle on a
+  > console-byte trigger (not a real `RemoteDiagRequest` over the network — that
+  > stays out of scope, per the governing RFC's own non-goals). `diagnosticsd`'s
+  > `CAP_TOOLS_EP` (slot 1) is installed; `BUILD_BUNDLE`/`BUNDLE_READY` now have a
+  > real caller. Demonstrated live (`tests/qemu/profiles/remote-diag.toml`): inject
+  > `D`, `init` relays the trigger, `fleetd` asks, `diagnosticsd` answers — printing
+  > each of the bundle's four availability flags by name, all `false`, each for a
+  > stated reason (E-085 is why `measurement_head_available` is one of them; the
+  > other three have never had a source, per RFC-0.36-001). **No threat-model entry
+  > was needed**: `push_bundle` still addresses slot 2, still uninstalled, so no
+  > bundle leaves the node — the export boundary this entry's own text anticipated
+  > does not yet exist to carry one. Full detail in
+  > `rfcs/answers/RFC-0.37-001-a-bundle-gets-asked-for-and-produced-answer.md`.
 
 ## E-079 — a signed diagnostic bundle carries a fabricated semantic intent and an attestation digest nobody asked for
 
@@ -5655,14 +5675,25 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the lint that names it — see **E-082**. `fleetd`'s is invisible because nothing
   asserts that it is alive: it prints `fleetd: ready`, which is what a tier would
   look for, and then exits.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
   `v1-limitations.md`. What closing it needs: for each service, **the code and the
   comment must say the same thing as the behaviour.** If a service exits, the
   section header for its event loop goes and `v1-limitations.md` names it among the
   services that exit by design. If it is meant to run, the loop runs and something
   asserts it is still alive after `ready` — printing `ready` and exiting is
   indistinguishable, to every instrument this project has, from printing `ready`
-  and serving.
+  and serving.~~ → **CLOSED** by **RFC-0.37-001** (`netd`'s own half is **E-084**,
+  closed separately by **RFC-0.37-002**).
+
+  > **Closed by RFC-0.37-001, 2026-10-18.** The section header now names a loop
+  > that exists: `service_main` sends readiness and calls `run_event_loop() -> !`,
+  > which blocks on `fleetd`'s own trigger endpoint and never returns. Something
+  > now does assert it is alive after `ready` — the console-byte-triggered
+  > `remote-diag` tier, which only passes if `fleetd` genuinely received the
+  > trigger, genuinely asked `diagnosticsd`, and genuinely read back a reply;
+  > printing `ready` and going quiet would not produce `fleetd: bundle ready
+  > (audit_event_count=0)` on the next line. Full detail in
+  > `rfcs/answers/RFC-0.37-001-a-bundle-gets-asked-for-and-produced-answer.md`.
 
 ## E-082 — exit criterion 2's "0 warning lines" is partly bought by crate-level lint suppression
 
@@ -5762,14 +5793,31 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   so `query_measurement_head` has never run against a live `measuredd`; and the
   slot it would use is uninstalled, so the tag never reaches a dispatcher that
   could reject it.
-- **Resolution:** **ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
+- **Resolution:** ~~**ACCEPTED** (architect, 2026-10-17), **unscheduled**, in
   `v1-limitations.md`. What closing it needs: `diagnosticsd` reads the **shared**
   `fjell_service_api::measuredd::{GET_HEAD, HEAD_REPLY}` and its local `0x320`/
   `0x321` go; the five hand-copied `SXT_*` constants likewise come from one
   declaration with `secure-transportd`; and **whoever schedules "install slot 4 and
   get a real measurement head" must close this first**, or the install will look
   like a fix and change nothing. Whether the tag space should have a registry that
-  refuses a collision is a larger question this entry raises and does not answer.
+  refuses a collision is a larger question this entry raises and does not answer.~~
+  → **CLOSED** by **RFC-0.37-001**.
+
+  > **Closed by RFC-0.37-001, 2026-10-18.** Demonstrated failing first: with
+  > `CAP_MEASUREDD_EP` temporarily installed against the real `measuredd` and the
+  > old `0x320`/`0x321` tags still in place, `query_measurement_head` got no reply
+  > and the flag stayed `false` — confirmed, not assumed. `diagnosticsd` now reads
+  > `fjell_service_api::measuredd::{GET_HEAD, HEAD_REPLY}`; the five hand-copied
+  > `SXT_*` constants now read `fjell_service_api::sxt`, the single declaration
+  > `secure-transportd`'s own `SxtTag` enum's five matching discriminants also
+  > reference (`channel.rs`), closing the second hand-kept copy this entry named.
+  > **"Install slot 4 and get a real measurement head" was scheduled by this very
+  > line and did not close this first** — it found, before writing a line against
+  > it, that fixing only the tags would have landed a sequence number in a
+  > `Digest32` and reported it available: filed as **E-085**, ruled, and slot 4
+  > stays uninstalled. The tag-registry question this entry raised remains
+  > unanswered, same as the entry left it. Full detail in
+  > `rfcs/answers/RFC-0.37-001-a-bundle-gets-asked-for-and-produced-answer.md`.
 
 ## E-084 — `fjell-netd`'s event loop is statically unreachable, behind a lint the crate switches off
 
@@ -5949,12 +5997,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-075 `fjell-secure-transportd` and `fjell-diagnosticsd` each announce readiness to somewhere that is not `service-manager` — one into an uninstalled slot, one into its own shared identity endpoint — each under a comment saying it notifies `service-manager`; named inside E-072 and left behind when that entry closed — closed by adopting `SERVICE_READY_SEND_SLOT` and a new per-service observable | RFC-0.36-001 | CLOSED |
 | E-076 `fjell-diagnosticsd`'s `query_measurement_head` addresses a slot nobody installs and returns a 32-byte zero digest on failure, so a diagnostic bundle claims it measured nothing rather than saying it could not ask — in the same struct and commit as the `audit_available` flag added so the audit section could not be silently empty — closed by an availability flag the querying code alone may set true | RFC-0.36-001 | CLOSED |
 | E-077 `cargo xtask bench`'s `--baseline`/`--check` flags fail open to "just print" on a typo or misremembered flag, so a caller believes a baseline was written or checked when it was only printed — closed by rejecting an unrecognised argument with usage, exit 2 | RFC-0.36-002 | CLOSED |
-| E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), and it cannot reach `measuredd` or push — every path dead behind a six-constant protocol; the premise E-075 and E-076 were latent because of (both closed by RFC-0.36-001, which also fixed the readiness send this row used to name); the asker is already specified — RFC-v0.8-005's fleet manager, not an operator console — so what is missing is the wiring at both ends plus a threat-model entry for the export boundary | RFC-0.37-001 | ACCEPTED |
+| E-078 `fjell-diagnosticsd` cannot receive (slot 1 uninstalled), nothing in the tree can ask it (`BUILD_BUNDLE`/`PUSH` have no sender), and it cannot reach `measuredd` or push — every path dead behind a six-constant protocol; the premise E-075 and E-076 were latent because of (both closed by RFC-0.36-001, which also fixed the readiness send this row used to name); the asker is already specified — RFC-v0.8-005's fleet manager, not an operator console — so what is missing is the wiring at both ends plus a threat-model entry for the export boundary | RFC-0.37-001 | CLOSED |
 | E-079 `fjell-diagnosticsd::build_bundle` passes a literal zero as `last_attestation` without ever querying one (E-076's class, second instance), a literal `1` as `keyring_anchor_epoch` the same way (found by the implementer's own sweep), and calls `add_intent` with literal arguments, so the bundle's semantic-intents section is one fabricated record claiming an update staging was confirmed — invented data inside an artefact the builder signs — closed by removing both literals' constructor parameters and deleting the fabricated call | RFC-0.36-001 | CLOSED |
 | E-080 `DiagnosticBundle::write_canonical` omits `provider_id` and `keyring_anchor_epoch`, which RFC-v0.4-005 §6.4's own digest formula lists, so the trust provider and key epoch a signed diagnostic bundle claims are outside the signature and can be altered without invalidating it; the `bundle_digest_covers_all_fields` test §8 names has zero occurrences in the tree — closed by writing both fields and the named test, demonstrated failing against the unmodified encoder first | RFC-0.36-001 | CLOSED |
-| E-081 `fjell-fleetd` has no event loop at all — it prints `ready` then `sys_exit(0)` directly beneath a section header naming one, and declares no capability slots. E-078 calls it one of "two stubs facing each other"; it has exited, so E-078's named asker cannot ask. `fjell-netd`'s same-class defect split to E-084 | RFC-0.37-001 | ACCEPTED |
+| E-081 `fjell-fleetd` has no event loop at all — it prints `ready` then `sys_exit(0)` directly beneath a section header naming one, and declares no capability slots. E-078 calls it one of "two stubs facing each other"; it has exited, so E-078's named asker cannot ask. `fjell-netd`'s same-class defect split to E-084 | RFC-0.37-001 | CLOSED |
 | E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | RFC-0.37-002 | CLOSED |
-| E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | RFC-0.37-001 | ACCEPTED |
+| E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | RFC-0.37-001 | CLOSED |
 | E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | CLOSED |
 | E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |

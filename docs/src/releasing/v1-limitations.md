@@ -1256,28 +1256,36 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   payloads is chunking — `measuredd`'s own `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE`.
   Until then **`measurement_head_available` stays `false`**, which is correct and is
   what that flag was built for.
-- **`fjell-diagnosticsd` invents tag numbers for a conversation the server already
-  speaks, and two of them are already taken** (Erratum **E-083**, ACCEPTED
-  2026-10-17, unscheduled). `fjell-measuredd` serves the shared
-  `measuredd::GET_HEAD` (`0x303`) and replies `HEAD_REPLY` (`0x304`), with a real
-  head digest. `fjell-diagnosticsd` sends its **own locally declared**
-  `MEASUREDD_HEAD_QUERY` (`0x320`), expecting `0x321` — so the query would match no
-  arm **even with the capability installed**. And `0x320`/`0x321` are already
-  `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API: invented values the API had
-  assigned elsewhere. Five `SXT_*` constants in the same file are hand-copied from
-  `secure-transportd` too — the shape RFC-0.36-001 removed for `verifyd`, by moving
-  the tags into one shared declaration. **E-076's closure holds under this**:
-  `measurement_head_available` reads `false`, which is correct, so the honesty
-  mechanism works under a defect it was not designed for; what would be wrong is a
-  line that installs slot 4, assumes the head is real, and sets the flag `true`.
-  **Anyone scheduling that install must close this first.**
-- **Two services' event loops do not run — one is a comment, one is unreachable**
-  (Erratum **E-081**, ACCEPTED 2026-10-17, unscheduled). **`fjell-fleetd` has no
-  event loop at all**: it runs format self-checks, prints `fleetd: ready`, and calls
-  `sys_exit(0)` directly beneath the section header
-  `// ── IPC event loop (v0.8.1 …) ───`. `loop {` appears **zero** times in that
-  file and it declares no capability slots — so the service **terminates**, and it
-  is **not** among the services listed below as exiting by design.
+- **`fjell-diagnosticsd` invented tag numbers for a conversation the server already
+  spoke, and two of them were already taken** — Erratum **E-083**, **CLOSED** by
+  **RFC-0.37-001**. `fjell-measuredd` serves the shared `measuredd::GET_HEAD`
+  (`0x303`) and replies `HEAD_REPLY` (`0x304`), with a real head digest.
+  `fjell-diagnosticsd` used to send its own locally declared `MEASUREDD_HEAD_QUERY`
+  (`0x320`), expecting `0x321` — so the query would have matched no arm **even with
+  the capability installed**, demonstrated failing exactly that way before the fix.
+  And `0x320`/`0x321` were already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared
+  API. Five `SXT_*` constants in the same file were hand-copied from
+  `secure-transportd` too — the shape RFC-0.36-001 removed for `verifyd`.
+  `diagnosticsd` now reads the shared `measuredd::{GET_HEAD, HEAD_REPLY}` and
+  `sxt::{OPEN_CHANNEL, OPENED, DIAG_PUSH, DIAG_ACK, CLOSE}`, the latter the single
+  declaration `secure-transportd`'s own `SxtTag` enum now also reads. **Whoever
+  scheduled "install slot 4 and get a real measurement head" was this very line,
+  and it did not close E-083 and stop there**: it found, before installing
+  anything, that the fix alone would have landed a sequence number in a `Digest32`
+  and reported it available (**E-085**, filed and ruled) — slot 4 stays
+  uninstalled, and `measurement_head_available` reads `false` for that reason now,
+  not E-083's.
+- **Two services' event loops did not run — one was a comment, one was
+  unreachable.** **`fjell-fleetd` had no event loop at all** — Erratum **E-081**,
+  **CLOSED** by **RFC-0.37-001**: it ran format self-checks, printed `fleetd:
+  ready`, and called `sys_exit(0)` directly beneath the section header
+  `// ── IPC event loop (v0.8.1 …) ───`. `loop {` appeared **zero** times in that
+  file and it declared no capability slots — the service terminated, and was not
+  among the services listed below as exiting by design; it had, in fact, never
+  even been cross-compiled as a bootable image (no `_start` symbol, absent from
+  the kernel's image table). It now has a real event loop, asking `diagnosticsd`
+  for a bundle on a console-byte trigger, demonstrated alive by
+  `tests/qemu/profiles/remote-diag.toml`.
   **`fjell-netd` had a complete IPC event loop that could never execute** — Erratum
   **E-084**, split from E-081 on 2026-10-18, **CLOSED** by **RFC-0.37-002**: the
   loop was real, finished code (receiving messages, handling `LinkUp`,
@@ -1288,9 +1296,11 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   it was kept, extracted into `run_event_loop`, a free function `service_main`
   never calls; a reader now meets it as `dead_code` the compiler names explicitly
   ("function is never used") rather than as a code path sitting, unremarked, after
-  a diverging call. **This is also why E-078 understates itself**: that entry calls
-  `fleetd` and `diagnosticsd` "two stubs facing each other", and one of them has
-  exited, so E-078's named asker cannot ask because it is not running.
+  a diverging call. **This is also why E-078 understated itself**, at the time
+  E-084 was split out from this entry: that entry called `fleetd` and
+  `diagnosticsd` "two stubs facing each other", and one of them had exited, so
+  E-078's named asker could not ask because it was not running. **Both are now
+  closed** — E-078 by RFC-0.37-001 (above), E-082 and this entry by RFC-0.37-002.
 - **Exit criterion 2's "0 warning lines" was partly bought by lint suppression** —
   Erratum **E-082**, **CLOSED** by **RFC-0.37-002**. At `226544d`, **13 crates**
   carried a crate-level `#![allow(...)]`; the suppressed lints included
@@ -1562,34 +1572,27 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   raised **8 → 10** in the same commit, since the true count of images sending
   `tags::SERVICE_READY` is now 10 and leaving the threshold at 8 would itself have
   become a stale claim.
-- **`fjell-diagnosticsd` cannot be asked for anything, and every path inside it is
-  dead** (Erratum **E-078**, ACCEPTED 2026-10-15, unscheduled). It cannot receive —
-  `CAP_TOOLS_EP` is slot 1, which `spawn.rs` installs for no image, so its loop
-  errors every iteration and yields. **Nothing can ask it**: `BUILD_BUNDLE` and
-  `PUSH` each have exactly two sites tree-wide, the declaration and the service's
-  own comparison. It cannot reach `measuredd` (**E-076**, closed — the slot stays
-  declared, not installed; see below) or push (slot 2, failing closed and replying
-  `PUSH_FAULT`, which is honest). Six protocol constants are declared in
-  `fjell-service-api` for a conversation nobody has. **This was the premise E-075
-  and E-076 were latent because of**; E-075 is closed (below) and its own readiness
-  send genuinely reaches `service-manager` now, which changes nothing else here —
-  this service still cannot receive, be asked, reach `measuredd`, or push.
-  *(Corrected 2026-10-15, hours
-  after filing: this first said closing it needs the deferred **input path**. It
-  does not. `fjell-remote-diag-format` (RFC v0.8-005) already specifies the
-  conversation — a fleet manager sends a `RemoteDiagRequest`, the node answers with
-  a signed bundle — so the initiator is a fleet manager over the network, not a
-  person at a console. `fjell-fleetd` is the designated node-side endpoint and
-  already depends on that crate; it constructs a request as a **self-check** and
-  makes **zero** IPC calls. Two stubs facing each other across a designed
-  protocol.)* What closing it needs is the wiring, `diagnosticsd`'s three slots,
-  a tier in which a request produces a signed bundle, **and a threat-model entry
-  for the export boundary** — the path exports measurement head, audit events and
-  semantic intents off-box, and `threat-model-v1.md`'s T21–T23 cover presentations,
-  not export. Retraction remains available and is the heavier act, since it
-  withdraws an accepted RFC's deliverable. The present state — a service that
-  announces its readiness correctly but cannot be asked for anything, and would
-  answer honestly (not with zeros) if it were — is not an answer.
+- **`fjell-diagnosticsd` could not be asked for anything, and every path inside it
+  was dead** was Erratum **E-078**, **CLOSED** by **RFC-0.37-001**. It could not
+  receive — `CAP_TOOLS_EP` (slot 1) was declared but `spawn.rs` installed it for no
+  image, so its loop errored every iteration and yielded. **Nothing could ask it**:
+  `BUILD_BUNDLE` and `PUSH` each had exactly two sites tree-wide, the declaration
+  and the service's own comparison. It could not reach `measuredd` (**E-076**,
+  closed earlier — the slot stayed declared, not installed) or push (slot 2,
+  failing closed and replying `PUSH_FAULT`, which was honest). **This was the
+  premise E-075 and E-076 were latent because of**. The asker specified by
+  `RFC-v0.8-005` — `fjell-fleetd`, the node-side endpoint — turned out not to be
+  running at all: no event loop (**E-081**), and, found while wiring this line, no
+  `_start` symbol in its own runtime and absent from the kernel's image table and
+  build list — it had never been cross-compiled and linked as a bootable image.
+  `fleetd` now has a real event loop that asks `diagnosticsd` for a bundle on a
+  console-byte trigger (not a real `RemoteDiagRequest` over the network — out of
+  scope), `diagnosticsd`'s `CAP_TOOLS_EP` is installed, and the whole round trip is
+  demonstrated live (`tests/qemu/profiles/remote-diag.toml`): `diagnosticsd` prints
+  each of the bundle's four availability flags by name, all `false`, each for a
+  stated reason. **No threat-model entry was needed**: `push_bundle` still
+  addresses slot 2, still uninstalled, so no bundle leaves the node — the export
+  boundary this entry anticipated does not yet exist to carry one.
 - **The diagnostic bundle's signed digest did not cover two fields its own
   specification lists** was Erratum **E-080**, **CLOSED** by **RFC-0.36-001**.
   `RFC-v0.4-005` §6.4's formula includes `provider_id u32 LE ||
@@ -1620,7 +1623,7 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   worse class than the two literals**: absence dressed as data can be spotted by a
   reader who knows an all-zero digest is suspicious, but this was **fabricated**
   data — well-formed, plausible, and inside an artefact the builder **signs**. All
-  three were latent only because of **E-078**, which remains open. The fix: a
+  three were latent only because of **E-078**, closed by RFC-0.37-001 above. The fix: a
   permanently-unavailable flag for the epoch and the attestation digest (neither
   has ever had a real source, so `BundleBuilder::new` no longer accepts either as a
   parameter — a literal cannot be fabricated into a constructor that does not take
