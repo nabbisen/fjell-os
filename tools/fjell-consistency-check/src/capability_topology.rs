@@ -87,32 +87,23 @@ struct Waiver {
     reason: &'static str,
 }
 
-/// E-072's remaining four survivors, 2026-10-14, named with the reason this
-/// line does not install them. Updated in the same commit as whichever
-/// line changes a service's disposition. RFC-0.35-002 retired the other
-/// five: `SECURE_TRANSPORTD` slots 3 and 4, and `DIAGNOSTICSD` slot 3,
-/// closed E-068/E-069 by deleting the declarations outright (the protocols
-/// they addressed were retracted, not merely left unserved); `ATTESTD`
-/// slot 5 and `NETD` slot 1 closed E-074 the same way (built, never wired
-/// to a caller — deleted rather than waived further). None of the five is
-/// discovered any more, so none would be matched here even if left in —
-/// removed anyway, so this list does not claim a slot exists that does not.
-/// **A waiver names where the slot's disposition lives, and that name has to
-/// keep meaning something.** All four of these said `RFC-0.35-002` until
-/// 2026-10-14; that line then finished without installing or deleting any of
-/// them, which left every reason here pointing at a completed line as though
-/// it were a pending decision — a waiver that cites nothing is a silence with
-/// a citation on it. Each now names the entry or closure that actually holds
-/// the slot. Re-check these whenever a line named here closes.
+/// E-072's remaining survivors, named with the reason this line does not
+/// install them. Updated in the same commit as whichever line changes a
+/// service's disposition. RFC-0.35-002 retired five by deleting the
+/// declaration outright: `SECURE_TRANSPORTD` slots 3 and 4, and
+/// `DIAGNOSTICSD` slot 3, closed E-068/E-069 (the protocols they addressed
+/// were retracted, not merely left unserved); `ATTESTD` slot 5 and `NETD`
+/// slot 1 closed E-074 the same way (built, never wired to a caller —
+/// deleted rather than waived further). None of those five is discovered
+/// any more, so none would be matched here even if left in — removed
+/// anyway, so this list does not claim a slot exists that does not.
+/// RFC-0.37-001 retired a sixth **differently**: `DIAGNOSTICSD` slot 1
+/// (`tools`) still exists and is still discovered — `fleetd` is now its
+/// first real caller, so the slot is **installed**, not waived, and simply
+/// no longer needs an entry here. **A waiver names where the slot's
+/// disposition lives, and that name has to keep meaning something.**
+/// Re-check these whenever a line named here closes.
 const WAIVERS: &[Waiver] = &[
-    Waiver {
-        image: "DIAGNOSTICSD",
-        slot: 1,
-        purpose: "tools",
-        reason: "decided by RFC-0.35-002 (E-068 closed): deliberately not \
-                 installed, and the loop discloses the recv error once and \
-                 yields rather than spinning or failing silently",
-    },
     Waiver {
         image: "DIAGNOSTICSD",
         slot: 2,
@@ -125,11 +116,14 @@ const WAIVERS: &[Waiver] = &[
         image: "DIAGNOSTICSD",
         slot: 4,
         purpose: "measuredd",
-        reason: "E-078 — nothing can ask diagnosticsd for a bundle at all, so \
-                 installing this slot has no caller to serve yet; E-076 (the \
-                 zero-digest fallback this slot fed) closed by RFC-0.36-001 \
-                 without installing it, so the open question is E-078's now, \
-                 not E-076's",
+        reason: "RFC-0.37-001 (closes E-078): fleetd can now ask diagnosticsd \
+                 for a bundle, but this slot stays out deliberately -- E-085, \
+                 filed by that line: measuredd's GET_HEAD reply cannot carry a \
+                 whole chain digest (eight of thirty-two bytes through a \
+                 three-word reply), so there is nothing honest to install this \
+                 for yet. measurement_head_available reads false for that \
+                 reason. Installing this slot belongs to whichever line closes \
+                 E-085",
     },
 ];
 
@@ -563,7 +557,7 @@ mod tests {
     }
 
     #[test]
-    fn discovery_on_the_current_tree_matches_the_known_five() {
+    fn discovery_on_the_current_tree_matches_the_known_six() {
         // `cargo test` runs with this crate's own directory as the working
         // directory, not the workspace root `check()` assumes in
         // production (`cargo xtask consistency-check` always runs from the
@@ -582,11 +576,13 @@ mod tests {
         // slot 3, E-068/E-069; ATTESTD slot 5, NETD slot 1, E-074), less one
         // more RFC-0.36-001 closed the same way (SECURE_TRANSPORTD's
         // `CAP_SMGR_EP`, slot 1, E-075 — adopted `SERVICE_READY_SEND_SLOT`
-        // instead, which needs no local constant).
+        // instead, which needs no local constant), plus one RFC-0.37-001
+        // added: `FLEETD`'s own `CAP_DIAGNOSTICSD_EP` (slot 1), a new
+        // declaration this line installs rather than leaves dangling.
         assert_eq!(
             discovered.len(),
-            5,
-            "expected exactly the five slots RFC-0.35-002/RFC-0.36-001 did not retire: {discovered:#?}",
+            6,
+            "expected exactly the six slots the tree carries today: {discovered:#?}",
         );
         let unwaived = discovered
             .iter()
@@ -597,8 +593,11 @@ mod tests {
             })
             .count();
         assert_eq!(
-            unwaived, 2,
-            "exactly two slots are this line's own business"
+            unwaived, 4,
+            "four slots are installed outright: the update-path channel's two \
+             (SECURE_TRANSPORTD slot 2, UPGRADED slot 6), and RFC-0.37-001's \
+             two (FLEETD slot 1, DIAGNOSTICSD slot 1 -- newly installed, no \
+             longer waived)"
         );
     }
 }
