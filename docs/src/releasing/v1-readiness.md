@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.36.0
+## Summary at 0.37.0
 
 | Status | Count |
 |--------|-------|
@@ -172,6 +172,15 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > whose two RFCs (a diagnostic bundle's honesty, a benchmark flag's exit
 > code) touch no cell of this matrix — so only the heading and this clause
 > moved.
+>
+> **Re-taken 2026-10-19, at the 0.37.0 cut.** `readiness-summary` fired
+> immediately on the version bump, as designed: the heading still said
+> `0.36.0` against a `0.37.0` workspace. `readiness-check` still counts
+> **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0** — unchanged by 0.37.0,
+> whose two RFCs (a service that had never been built into the image now
+> runs and is asked a question; exit criterion 2's "0 warning lines" can no
+> longer be bought with a crate-level `allow`) touch no cell of this matrix
+> — so only the heading and this clause moved.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
