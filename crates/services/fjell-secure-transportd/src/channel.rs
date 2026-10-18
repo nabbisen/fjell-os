@@ -6,19 +6,33 @@ use fjell_net_format::{ChannelKind, MAX_SXT_CHANNELS};
 
 // ── IPC tag constants ─────────────────────────────────────────────────────────
 
+// RFC-0.37-001 R2 (closes E-083): five of these twelve were also hand-copied
+// by `fjell-diagnosticsd` under its own local `SXT_*` names — two
+// independently-kept copies of one protocol. Moved to
+// `fjell_service_api::sxt` as the single declaration both sides now read
+// (the shape RFC-0.36-001 already used for `verifyd`'s tags); these five
+// discriminants and match arms reference it rather than repeating the
+// literal. The other seven have no second copy anywhere and keep their own
+// literals.
+const OPEN_CHANNEL: u16 = fjell_service_api::sxt::OPEN_CHANNEL as u16;
+const OPENED: u16 = fjell_service_api::sxt::OPENED as u16;
+const DIAG_PUSH: u16 = fjell_service_api::sxt::DIAG_PUSH as u16;
+const DIAG_ACK: u16 = fjell_service_api::sxt::DIAG_ACK as u16;
+const CLOSE: u16 = fjell_service_api::sxt::CLOSE as u16;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u16)]
 pub enum SxtTag {
-    OpenChannel = 0x0100,
-    Opened = 0x0101,
+    OpenChannel = OPEN_CHANNEL,
+    Opened = OPENED,
     UpdateMetadataFetch = 0x0102,
     UpdateMetadataReply = 0x0103,
-    DiagPush = 0x0104,
-    DiagAck = 0x0105,
+    DiagPush = DIAG_PUSH,
+    DiagAck = DIAG_ACK,
     AttestPush = 0x0106,
     AttestChallenge = 0x0107,
     FleetEnrollStep = 0x0108,
-    Close = 0x0109,
+    Close = CLOSE,
     Closed = 0x010a,
     Faulted = 0x010b,
 }
@@ -26,16 +40,16 @@ pub enum SxtTag {
 impl SxtTag {
     pub fn from_u16(v: u16) -> Option<Self> {
         match v {
-            0x0100 => Some(Self::OpenChannel),
-            0x0101 => Some(Self::Opened),
+            OPEN_CHANNEL => Some(Self::OpenChannel),
+            OPENED => Some(Self::Opened),
             0x0102 => Some(Self::UpdateMetadataFetch),
             0x0103 => Some(Self::UpdateMetadataReply),
-            0x0104 => Some(Self::DiagPush),
-            0x0105 => Some(Self::DiagAck),
+            DIAG_PUSH => Some(Self::DiagPush),
+            DIAG_ACK => Some(Self::DiagAck),
             0x0106 => Some(Self::AttestPush),
             0x0107 => Some(Self::AttestChallenge),
             0x0108 => Some(Self::FleetEnrollStep),
-            0x0109 => Some(Self::Close),
+            CLOSE => Some(Self::Close),
             0x010a => Some(Self::Closed),
             0x010b => Some(Self::Faulted),
             _ => None,
