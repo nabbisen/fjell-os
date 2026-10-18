@@ -5646,6 +5646,21 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 
 - **Found 2026-10-17, scoping 0.37**, by measuring what E-078 actually drags with it
   rather than trusting that entry's own description of it.
+- **Corrected at this entry's closure, 2026-10-18: it never ran at all, and this
+  entry described its source as behaviour.** The text below says the service
+  *"prints `fleetd: ready`"* and *"terminates"*. **Neither happened.** `fleetd` had
+  **no `ImageId`** (zero occurrences of `FLEETD` in `fjell-abi/src/service.rs` at
+  `4d82005`), was absent from the build list and the kernel's image table, and its
+  own `rt.rs` had no `_start` — it had never been cross-compiled and linked as a
+  bootable image, and its only appearance in any run log is inside a `--exclude`
+  list. **So it was not a program that ran and exited; it was a crate that was never
+  built into the image.** Found by the implementer while doing R3, reported without
+  escalation as a more literal reading of *"fleetd becomes a service"* than this
+  entry's text names — **the right call**, since making it bootable is implied by
+  that requirement and escalating it would have cost a round for nothing. The
+  architect's third description-as-behaviour error in this area, after E-078's
+  input-path claim and its *"two stubs facing each other"*; the cause is the same
+  each time — reading source and narrating it as what the system does.
 - **`fjell-fleetd` has no event loop at all.** `main.rs` runs a series of format
   self-checks, prints `fleetd: ready`, and then — directly beneath the section
   header `// ── IPC event loop (v0.8.1 — storaged + cap-broker wiring) ───` — calls
