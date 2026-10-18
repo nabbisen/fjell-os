@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-10-17 10:56:27 UTC
-Version   : 0.36.0
+Generated : 2026-10-18 22:00:42 UTC
+Version   : 0.37.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -30,8 +30,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §3. MEASUREMENT AND BUNDLE DIGEST CHAIN
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Service binaries in prebuilt/: 32
-    fjell-init.bin (28784 bytes)
+  Service binaries in prebuilt/: 33
+    fjell-init.bin (29016 bytes)
     fjell-configd.bin (472 bytes)
     fjell-cap-broker.bin (1576 bytes)
     fjell-auditd.bin (2760 bytes)
@@ -56,9 +56,10 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-recoveryd.bin (581 bytes)
     fjell-syncd.bin (3886 bytes)
     fjell-driver-virtio-net.bin (1030 bytes)
-    fjell-netd.bin (831 bytes)
+    fjell-netd.bin (235 bytes)
     fjell-secure-transportd.bin (1765 bytes)
-    fjell-diagnosticsd.bin (3852 bytes)
+    fjell-diagnosticsd.bin (4172 bytes)
+    fjell-fleetd.bin (5772 bytes)
     fjell-driver-uart.bin (686 bytes)
     fjell-proxy-braille.bin (13008 bytes)
     fjell-svc-presentation-fault.bin (169 bytes)
@@ -78,8 +79,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 282
-  with SAFETY comment: 282
+  total unsafe sites : 284
+  with SAFETY comment: 284
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -87,15 +88,15 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261017-102923
-  31    QEMU negative: user-copy                            60.0s  PASS
+  Latest test-all run: 20261018-213250
+  32    QEMU negative: user-copy                            60.0s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 31  |  PASS: 30  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
+  Total: 32  |  PASS: 31  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
   
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 712 passed, 0 failed  [PASS]
+    Host tests   : 713 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 
