@@ -453,6 +453,14 @@ pub mod negative_markers {
     /// read for this one.
     pub const UPGRADE_HEALTH_FAILURE_NOT_CONFIRMED: &str =
         "NEG:UPGRADE:HEALTH_FAILURE_NOT_CONFIRMED:PASS";
+
+    // ── RFC-0.37-001: fleetd asks, diagnosticsd answers ──────────────────────
+    /// `fleetd` received a real `BUNDLE_READY` reply from `diagnosticsd` — the
+    /// instigator's own read. `diagnosticsd`'s own printed flags
+    /// (`measurement_head_available=false` and the other three) are the
+    /// deciding service's own output for this one, the same split
+    /// `health-fail.toml`/`upgrade.toml` already established.
+    pub const REMOTE_DIAG_BUNDLE_READY: &str = "NEG:REMOTE_DIAG:BUNDLE_READY:PASS";
 }
 
 // ── RFC v0.4-005: diagnosticsd IPC protocol ───────────────────────────────────
@@ -536,6 +544,40 @@ pub mod neg_test {
     /// `init` → `neg-test`, one-way, no words. Only ever sent on the endpoint
     /// that is `neg-test`'s alone (`fjell_abi::service::NEG_TEST_EP_OBJECT`).
     pub const RUN_REBOOT: usize = 0x5F0;
+}
+
+// RFC-0.37-001 R2 (closes E-083): `secure-transportd`'s own `SxtTag` enum
+// (`crates/services/fjell-secure-transportd/src/channel.rs`) declared these
+// five values, and `fjell-diagnosticsd` separately hand-copied the same
+// five numbers under its own `SXT_*` names — two independently-kept copies
+// of one protocol, the shape RFC-0.36-001 already moved `verifyd`'s
+// `VERIFY`/`VERIFY_OK`/`VERIFY_FAIL` out of. Moved here, the single
+// declaration both sides now read: `SxtTag`'s five matching discriminants
+// reference these constants directly rather than repeating the literals,
+// and `diagnosticsd` reads the same declaration instead of a second,
+// independently hand-kept copy. The other seven `SxtTag` variants
+// (`UpdateMetadataFetch`, `UpdateMetadataReply`, `AttestPush`,
+// `AttestChallenge`, `FleetEnrollStep`, `Closed`, `Faulted`) have no second
+// copy anywhere and stay exactly where they are.
+pub mod sxt {
+    pub const OPEN_CHANNEL: usize = 0x0100;
+    pub const OPENED: usize = 0x0101;
+    pub const DIAG_PUSH: usize = 0x0104;
+    pub const DIAG_ACK: usize = 0x0105;
+    pub const CLOSE: usize = 0x0109;
+}
+
+// RFC-0.37-001 R3/R6: `fleetd` becomes the node-side endpoint of the
+// conversation RFC-v0.8-005 specifies. The trigger is a console byte
+// (`init` reads it, like `neg_test::RUN_REBOOT` above), not a real
+// `RemoteDiagRequest` arriving over the network — that remains out of
+// scope (the governing RFC's own non-goals).
+pub mod fleetd {
+    /// `init` → `fleetd`, one-way, no words. Only ever sent on the endpoint
+    /// that is `fleetd`'s own trigger-receive slot
+    /// (`fjell_abi::service::FLEETD_TRIGGER_EP_OBJECT`). Asks `fleetd` to
+    /// run its one scenario: ask `diagnosticsd` for a bundle.
+    pub const RUN_REMOTE_DIAG: usize = 0x410;
 }
 
 /// The machine's own configuration, read the way any driver reads a device.

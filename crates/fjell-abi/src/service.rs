@@ -228,6 +228,44 @@ impl ImageId {
 /// The endpoint object `proxy-braille` receives its wake on.
 pub const PROXY_BRAILLE_EP_OBJECT: u32 = 13;
 
+// ── RFC-0.37-001 (closes E-078, E-081, E-083): fleetd becomes a service ──────
+//
+// `fjell-fleetd` was never spawned at all before this line — not merely a
+// stub with a dead loop (E-081's own description), but absent from
+// `image.rs`'s table, `qemu.rs`'s build list, and `init`'s own spawn
+// sequence. "fleetd becomes a service" (R3) is literal.
+
+impl ImageId {
+    /// RFC-0.37-001: the node-side endpoint RFC-v0.8-005 specifies. `init`
+    /// starts it only on the console byte `D`.
+    pub const FLEETD: ImageId = ImageId(0x22); // 34
+}
+
+/// The one shared endpoint object `fjell-diagnosticsd` (slot 1,
+/// `CAP_TOOLS_EP`) and `fjell-fleetd` (slot 1, `CAP_DIAGNOSTICSD_EP`) both
+/// hold a SEND|RECV capability to — `fleetd` sends `BUILD_BUNDLE`/`PUSH` and
+/// blocks for a reply, `diagnosticsd` receives and replies on the same
+/// capability, the same shape as `UPDATE_CHANNEL_EP_OBJECT` above (not a
+/// one-way wake: both sides both send a request and block on a reply).
+pub const DIAGNOSTICSD_TOOLS_EP_OBJECT: u32 = 19;
+
+/// The endpoint object `fleetd` receives its console-byte trigger on,
+/// deliberately not object 0 (shared) — the same reasoning as
+/// `NEG_TEST_EP_OBJECT`.
+pub const FLEETD_TRIGGER_EP_OBJECT: u32 = 20;
+
+/// The CSpace slot in `fleetd` that receives on `FLEETD_TRIGGER_EP_OBJECT`.
+/// Not declared as a named `CapHandle` constant in `fleetd`'s own source —
+/// `NEG_TEST_TRIGGER_RECV_SLOT` sets the precedent: a trigger-only slot is
+/// passed as a raw slot number at its one call site, not given a local
+/// name, because it addresses no peer `fleetd` needs to name for itself
+/// (contrast `CAP_DIAGNOSTICSD_EP`, which does).
+pub const FLEETD_TRIGGER_RECV_SLOT: u32 = 2;
+
+/// The CSpace slot in `init` that sends to `FLEETD_TRIGGER_EP_OBJECT`, SEND
+/// only — mirrors `INIT_NEG_TEST_SEND_SLOT`.
+pub const INIT_FLEETD_SEND_SLOT: u32 = 10;
+
 /// The endpoint object `svc-presentation-fault` receives its wake on.
 pub const SVC_PRESENTATION_FAULT_EP_OBJECT: u32 = 15;
 
@@ -290,7 +328,7 @@ pub const VERIFYD_EP_OBJECT: u32 = 18;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 19;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 21;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -316,6 +354,14 @@ mod image_id_v07_tests {
         // v0.3 max was SVC_FAULT = 22 = 0x16
         assert_eq!(ImageId::SVC_FAULT.0, 22);
         assert!(ImageId::DRIVER_VIRTIO_NET.0 > ImageId::SVC_FAULT.0);
+    }
+
+    #[test]
+    fn image_id_fleetd_value_stable() {
+        // RFC-0.37-001: one past SVC_PRESENTATION_LIAR (0x21 = 33), the
+        // highest id before this line.
+        assert_eq!(ImageId::FLEETD.0, 0x22);
+        assert!(ImageId::FLEETD.0 > ImageId::SVC_PRESENTATION_LIAR.0);
     }
 }
 
@@ -369,6 +415,8 @@ mod endpoint_allocation_tests {
             ),
             ("UPDATE_CHANNEL_EP_OBJECT", UPDATE_CHANNEL_EP_OBJECT),
             ("VERIFYD_EP_OBJECT", VERIFYD_EP_OBJECT),
+            ("DIAGNOSTICSD_TOOLS_EP_OBJECT", DIAGNOSTICSD_TOOLS_EP_OBJECT),
+            ("FLEETD_TRIGGER_EP_OBJECT", FLEETD_TRIGGER_EP_OBJECT),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
         }
