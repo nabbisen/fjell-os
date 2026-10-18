@@ -1240,6 +1240,22 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   > CRC, superblock, mirror or recovery code to exercise (E-065's own amendment
   > records why that is a feature line and not a test line).
 
+- **`fjell-measuredd`'s `GET_HEAD` has never been able to answer with the chain
+  digest it names** (Erratum **E-085**, ACCEPTED 2026-10-18, unscheduled). Its
+  handler replies `reply(HEAD_REPLY, latest_seq, cd_lo, dropped)` where `cd_lo` is
+  `chain_digest.0[0..8]` — **eight of thirty-two bytes** — in a three-word `reply`,
+  one word of which carries digest content. **The protocol cannot return a chain
+  digest, for any consumer.** `GET_HEAD` has two occurrences tree-wide, its
+  declaration and that arm, so no caller has ever existed to notice. **The trap**:
+  fixing E-083's tags alone would make a real reply arrive and land `latest_seq` in
+  a `Digest32`'s first eight bytes, reported `measurement_head_available: true` —
+  passing both RFC-0.36-001's zeroing test and RFC-0.37-001's trap 3. **Ruled: the
+  digest travels whole or not at all.** A partial digest is refused (a `Digest32`
+  has no partial presence), and so is squeezing 32 bytes into four words by dropping
+  `latest_seq` or `dropped`. The mechanism this project already uses for oversized
+  payloads is chunking — `measuredd`'s own `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE`.
+  Until then **`measurement_head_available` stays `false`**, which is correct and is
+  what that flag was built for.
 - **`fjell-diagnosticsd` invents tag numbers for a conversation the server already
   speaks, and two of them are already taken** (Erratum **E-083**, ACCEPTED
   2026-10-17, unscheduled). `fjell-measuredd` serves the shared

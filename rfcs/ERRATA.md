@@ -5817,6 +5817,58 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > stating this reason. Full detail in
   > `rfcs/answers/RFC-0.37-002-instruments-that-cannot-be-bought-answer.md`.
 
+## E-085 — `measuredd`'s `GET_HEAD` has never been able to answer with the chain digest it names
+
+- **Found 2026-10-18 by the implementer**, during RFC-0.37-001's R1 sweep, and
+  **escalated with no code written** — correctly, and the governing RFC's own Risks
+  section predicted this shape: *"the first thing that runs on a path nothing has
+  ever exercised tends to find the next defect."*
+- **Claim:** `fjell_service_api::measuredd::GET_HEAD` asks for the measurement
+  chain's head; `HEAD_REPLY` returns it. `fjell-diagnosticsd` fills a `Digest32`
+  from that reply.
+- **Tree, observed 2026-10-18:** `fjell-measuredd`'s handler
+  (`main.rs:211`–`:219`) replies
+  `reply(HEAD_REPLY, h.latest_seq, cd_lo, h.dropped)` where
+  `cd_lo = chain_digest.0[0..8]` — **eight of the digest's thirty-two bytes.**
+  `reply`'s own signature is `fn reply(tag, w0, w1, w2)`: three data words, of
+  which **one** carries digest content, the others a sequence number and a
+  dropped-event count. **So this protocol cannot return a chain digest, and never
+  could** — for any consumer, not just `diagnosticsd`.
+- **The trap it sets for the obvious fix.** `diagnosticsd`'s
+  `query_measurement_head` reads the two words it keeps as two halves of a digest
+  prefix: `w0 → d[0..8]`, `w1 → d[8..16]`. **Fixing only E-083's tags** would make
+  a real `HEAD_REPLY` arrive and land `latest_seq` in the first eight bytes, the
+  digest's first eight in the second, and zeros after — **a `Digest32` that is
+  neither the chain digest nor an honest zero, reported
+  `measurement_head_available: true`**, because the flag would be set by the code
+  that asked, from a reply that genuinely came back. It would pass
+  RFC-0.36-001's `unavailable_fields_are_zeroed_not_the_callers_raw_value` and
+  RFC-0.37-001's own trap 3. **The implementer saw this before writing it**, which
+  is the whole value of the escalation.
+- **Why it is a fifth entry and not E-083 widened** (the implementer asked, and did
+  not decide it themselves): E-083 is `diagnosticsd` choosing tag numbers the
+  server does not answer — the client's side, fixed by reading a shared constant.
+  This is `measuredd`'s **reply layout** — the server's side, fixed by carrying the
+  whole digest — and it misleads **every** consumer of `GET_HEAD`, present and
+  future. Different side, different remedy, different blast radius.
+- **Why nothing saw it:** `GET_HEAD` has exactly **two** occurrences tree-wide — its
+  declaration and `measuredd`'s own arm. **No caller has ever existed**, so the
+  truncation has never reached a consumer, and E-078 kept `diagnosticsd` from
+  becoming the first.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-18), **unscheduled**, in
+  `v1-limitations.md`. **Ruled: the digest travels whole or not at all.** A
+  genuinely partial digest — eight real bytes and twenty-four zeros — is refused:
+  a `Digest32` is not a thing that has partial presence, nothing comparing it to a
+  real digest would match, and `available: true` beside it is the defect
+  RFC-0.36-001 closed. Equally refused is squeezing thirty-two bytes into four
+  reply words by silently dropping `latest_seq` or `dropped`, which trades a
+  truncated digest for truncated metadata. **The mechanism this project already
+  uses for payloads larger than the register window is chunking** — `measuredd`'s
+  own `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE` (`0x307`–`0x309`) is the pattern,
+  and `fjell-service-api`'s ABDD note records the same choice for nodes. Until the
+  head can travel whole, **`measurement_head_available` stays `false`** and the
+  bundle says so, which is correct and is what RFC-0.36-001 built the flag for.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -5904,6 +5956,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | RFC-0.37-002 | CLOSED |
 | E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | RFC-0.37-001 | ACCEPTED |
 | E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | CLOSED |
+| E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

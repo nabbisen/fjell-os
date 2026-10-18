@@ -5,7 +5,9 @@
 **Tracks.** **E-078** — `fjell-diagnosticsd` cannot be asked for anything and every
 path inside it is dead — **E-081**, `fjell-fleetd` having no event loop at all, and
 **E-083**, `diagnosticsd` sending tag numbers `measuredd` does not answer and the
-shared API had already assigned elsewhere. One line because they are one defect in
+shared API had already assigned elsewhere. **Does not track E-085** (added
+2026-10-18): `measuredd`'s reply cannot carry a chain digest, which is why R5 was
+withdrawn rather than implemented. One line because they are one defect in
 three places: **a conversation the design specifies and the code cannot hold.**
 E-078 cannot close without E-081 (its named asker has exited) and must not close
 with E-083 open (the install would look like a fix and change nothing).
@@ -86,11 +88,31 @@ and say in writing which slots and why each was necessary — slot 2 (`sxt`) sta
 out, by §Non-goals, and the least-privilege argument is the same one RFC-0.35-001's
 R5 made.
 
-**R5 — Slot 4 installed, and the measurement head real.** After R2, with the
-shared tags, `query_measurement_head` reaches `measuredd`'s `GET_HEAD` arm and gets
-a live digest. `measurement_head_available` then reads **`true`**, set by the code
-that obtained the value and by nothing else — RFC-0.36-001's own risk, now
-exercised for the first time against a live caller.
+**R5 — ~~Slot 4 installed, and the measurement head real.~~ WITHDRAWN, and
+replaced.** *(Amended by the architect 2026-10-18, on the implementer's escalation.
+They swept R1, found the conflict, wrote no code, and asked — which is what R1 and
+the handoff demanded, and the RFC's own Risks section predicted.)*
+
+**Why it is withdrawn.** `measuredd`'s `GET_HEAD` handler replies
+`reply(HEAD_REPLY, latest_seq, cd_lo, dropped)` where `cd_lo` is
+`chain_digest.0[0..8]` — **eight of thirty-two digest bytes** — through a
+three-word `reply`. **The protocol cannot return a chain digest and never could.**
+Had R5 been implemented as written, a real reply would have landed `latest_seq` in
+the first eight bytes of a `Digest32` and reported it
+`measurement_head_available: true` — passing RFC-0.36-001's zeroing test and this
+RFC's own trap 3. R5 asked for something the wire cannot carry. Filed as
+**E-085**, unscheduled, with the ruling that **the digest travels whole or not at
+all**: no partial digest, and no squeezing thirty-two bytes into four words by
+dropping `latest_seq` or `dropped`. The mechanism is chunking, which `measuredd`
+already has in `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE`.
+
+**R5 (replacement) — slot 4 is *not* installed, and the flag says so.**
+`measurement_head_available` reads **`false`**, and R6's tier asserts that it does.
+That is not a shortfall: it is RFC-0.36-001's mechanism doing exactly its job
+against a defect it was not designed for, and it is the second time this milestone
+that flag has held under one. A bundle that says *"I could not obtain a measurement
+head"* is **true**; the bundle this line now produces is honest about every field
+it carries. Installing slot 4 belongs to whichever line closes **E-085**.
 
 **R6 — A tier, triggered by a console byte**, as `semantic-liar`, `health-fail`
 and `upgrade` all are. Inject; `fleetd` asks; `diagnosticsd` answers. Assert **at
@@ -125,10 +147,12 @@ with failures included. Guest services change, so prebuilts will move: rebuild
 
 ## Risks
 
-- **Installing slot 4 before R2 lands would look like success.** The query would
-  reach a service that does not match the tag, and a careless line would set
-  `measurement_head_available: true` on a digest it never received. R2 is ordered
-  first for this reason and the demonstration is required.
+- **~~Installing slot 4 before R2 lands would look like success.~~** Superseded by
+  R5's withdrawal: slot 4 is not installed at all in this line. The risk was real
+  and understated — fixing the tags alone, **with** slot 4 installed, would have
+  produced a plausible non-digest reported as available (E-085), which is worse
+  than the "looks like success" I wrote. The implementer found that before writing
+  a line of it.
 - **`fleetd` is the first program this project gives an event loop to.** Every
   previous line fixed a loop that misbehaved. Expect the task-table, stack and
   endpoint limits that `project_adding_a_service…` records, and expect

@@ -40,8 +40,10 @@ received. **Fix the tags, demonstrate the mismatch first, then install.**
 3. **R3** — `fleetd` becomes a service, with something asserting it is alive after
    `ready`.
 4. **R4** — `diagnosticsd`'s receive slot installed; the install list justified.
-5. **R5** — slot 4, and `measurement_head_available` reading `true` from the code
-   that obtained the value.
+5. **R5 (replaced 2026-10-18)** — slot 4 is **not** installed; the flag reads
+   `false` and R6 asserts that it does. Your escalation withdrew the original R5:
+   `measuredd`'s reply carries eight of thirty-two digest bytes, so there is no
+   live digest to obtain (**E-085**). **Proceed with R2, R3, R4, R6 onward.**
 6. **R6** — the console-triggered tier, asserting the flags at the deciding
    service's own output.
 7. **R7** — `capability-topology` counts and waivers.
@@ -50,6 +52,9 @@ received. **Fix the tags, demonstrate the mismatch first, then install.**
 
 ## 2. Traps specific to this line
 
+0. **R5 is withdrawn — do not install slot 4.** See the governing RFC's amended
+   R5 and E-085. The flag reading `false` is the correct outcome and the tier must
+   assert it.
 1. **Installing a slot is not evidence the conversation works.** The tag mismatch
    is invisible from the install side: both sides compile, the capability exists,
    and nothing is received. Only a live exchange proves it.
