@@ -1,6 +1,6 @@
 # RFC-0.37-001: A bundle gets asked for and produced
 
-**Status:** Accepted (0.37) — accepted 2026-10-18
+**Status:** Implemented (0.37.0) — accepted 2026-10-18
 **Milestone:** 0.37
 **Tracks.** **E-078** — `fjell-diagnosticsd` cannot be asked for anything and every
 path inside it is dead — **E-081**, `fjell-fleetd` having no event loop at all, and

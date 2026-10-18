@@ -1,6 +1,6 @@
 # RFC-0.37-001 R1–R9: a bundle gets asked for and produced
 
-**Governing RFC:** [../accepted/RFC-0.37-001-a-bundle-gets-asked-for-and-produced.md](../accepted/RFC-0.37-001-a-bundle-gets-asked-for-and-produced.md)
+**Governing RFC:** [../done/RFC-0.37-001-a-bundle-gets-asked-for-and-produced.md](../done/RFC-0.37-001-a-bundle-gets-asked-for-and-produced.md)
 **Handoff:** [../handoffs/RFC-0.37-001-a-bundle-gets-asked-for-and-produced/implementation-handoff.md](../handoffs/RFC-0.37-001-a-bundle-gets-asked-for-and-produced/implementation-handoff.md)
 **Escalation and ruling:** `.git-exclude/review-request/review-request-rfc-0.37-001-a-bundle-gets-asked-for-and-produced.md`, ruled at `4d82005` — R5 withdrawn, **E-085** filed, R2/R3/R4/R6 onward unaffected.
 

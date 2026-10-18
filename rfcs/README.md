@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 203 files
+## Implemented (done/) — 205 files
 
-202 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+204 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -480,7 +480,7 @@ Two lines, both drafted for this milestone and both shipped in it.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — none
 
 Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
 folder in a fresh clone.

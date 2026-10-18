@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.37-002
 
-**Governing RFC:** [RFC-0.37-002](../../accepted/RFC-0.37-002-instruments-that-cannot-be-bought.md)
+**Governing RFC:** [RFC-0.37-002](../../done/RFC-0.37-002-instruments-that-cannot-be-bought.md)
 **Milestone:** 0.37
-**Status:** inherited from the governing RFC (Accepted, 0.37)
+**Status:** inherited from the governing RFC (Implemented, 0.37.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

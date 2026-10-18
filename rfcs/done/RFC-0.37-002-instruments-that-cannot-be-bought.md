@@ -1,6 +1,6 @@
 # RFC-0.37-002: Instruments that cannot be bought
 
-**Status:** Accepted (0.37) — accepted 2026-10-18
+**Status:** Implemented (0.37.0) — accepted 2026-10-18
 **Milestone:** 0.37
 **Tracks.** **E-082** — exit criterion 2's *"0 warning lines"* is partly bought by
 crate-level lint suppression — and **E-084**, `fjell-netd`'s complete IPC event

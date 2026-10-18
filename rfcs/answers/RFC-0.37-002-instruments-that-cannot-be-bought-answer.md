@@ -1,6 +1,6 @@
 # RFC-0.37-002 R1–R8: instruments that cannot be bought
 
-**Governing RFC:** [../accepted/RFC-0.37-002-instruments-that-cannot-be-bought.md](../accepted/RFC-0.37-002-instruments-that-cannot-be-bought.md)
+**Governing RFC:** [../done/RFC-0.37-002-instruments-that-cannot-be-bought.md](../done/RFC-0.37-002-instruments-that-cannot-be-bought.md)
 **Handoff:** [../handoffs/RFC-0.37-002-instruments-that-cannot-be-bought/implementation-handoff.md](../handoffs/RFC-0.37-002-instruments-that-cannot-be-bought/implementation-handoff.md)
 
 Written in the handoff's own numbered order (R1, R2, R3, R4, R6, R5, R7, R8 —
