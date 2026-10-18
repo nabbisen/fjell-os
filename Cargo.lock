@@ -701,11 +701,14 @@ dependencies = [
 name = "fjell-fleetd"
 version = "0.36.0"
 dependencies = [
+ "fjell-abi",
+ "fjell-cap",
  "fjell-fleet-format",
  "fjell-identity-format",
  "fjell-measure-format",
  "fjell-policy-format",
  "fjell-remote-diag-format",
+ "fjell-service-api",
  "fjell-syscall",
 ]
 

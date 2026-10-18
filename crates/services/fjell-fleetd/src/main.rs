@@ -9,18 +9,54 @@
 //!
 //! v0.8.0 status: roster/policy persistence skeleton; full IPC wiring
 //! in v0.8.1 once the fleet identity provisioning flow is complete.
+//!
+//! RFC-0.37-001 (closes E-078, E-081): this service was never spawned at
+//! all before this line — absent from the kernel's image table, the build
+//! list, and `init`'s own spawn sequence, and its own `src/rt.rs` had no
+//! `_start` symbol, so it could not even have been cross-compiled and
+//! linked as a bootable image. `main.rs`'s own section header below
+//! (`// ── IPC event loop (v0.8.1 ...) ───`) sat directly above a
+//! `sys_exit(0)`, naming a loop this file never wrote. This line gives it
+//! one: the format self-checks above are unchanged, but `service_main` now
+//! sends readiness and enters a real loop rather than exiting, becoming the
+//! node-side endpoint of the conversation RFC-v0.8-005 specifies — not a
+//! real `RemoteDiagRequest` arriving over the network (that stays out of
+//! scope; the trigger is a console byte `init` relays, like
+//! `fjell_service_api::neg_test::RUN_REBOOT`), but a genuine IPC round trip
+//! with `diagnosticsd`, asking for a bundle and reading back what it says.
 #![no_std]
 #![no_main]
 mod rt;
 
+use fjell_cap::CapHandle;
 use fjell_fleet_format::{
     FleetAction, FleetActionKind, FleetPolicy, FleetRolloutPlan, NodeRoster, PolicyAction,
     PolicyCondition, PolicyStatement, RolloutStage, RolloutStrategy, policy_digest, roster_digest,
 };
-use fjell_measure_format::Digest32;
 use fjell_policy_format::{PolicyBundle, PolicySubject};
 use fjell_remote_diag_format::{DiagRequestKind, RemoteDiagRequest};
-use fjell_syscall::{sys_debug_writeln, sys_exit};
+use fjell_service_api::diagnosticsd as proto;
+use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit, sys_yield};
+
+#[panic_handler]
+fn panic(_: &core::panic::PanicInfo) -> ! {
+    sys_debug_writeln("fleetd: panic");
+    sys_exit(1);
+}
+
+// ── CSpace layout ─────────────────────────────────────────────────────────────
+//
+//   slot 1 — `diagnosticsd`'s CAP_TOOLS_EP, the one endpoint this line
+//            installs a capability to (RFC-0.37-001 R4, least privilege:
+//            the same argument RFC-0.35-001 R5 made for the update-path
+//            channel). SEND|RECV: both sides send a request and block on a
+//            reply, the same shape as that channel.
+//
+// The trigger-receive slot (`init` → `fleetd`) is not declared here as a
+// named `CapHandle` constant — see
+// `fjell_abi::service::FLEETD_TRIGGER_RECV_SLOT`'s own doc for why
+// (`NEG_TEST_TRIGGER_RECV_SLOT` sets the precedent).
+const CAP_DIAGNOSTICSD_EP: CapHandle = CapHandle(1);
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
@@ -113,8 +149,74 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("fleetd: policy bundle verified");
 
     sys_debug_writeln("fleetd: all v0.8 format self-checks passed");
+
+    let _ = fjell_syscall::sys_ipc_send(
+        fjell_service_api::ready::SERVICE_READY_SEND_SLOT,
+        fjell_service_api::tags::SERVICE_READY,
+    );
     sys_debug_writeln("fleetd: ready");
 
-    // ── IPC event loop (v0.8.1 — storaged + cap-broker wiring) ───────────────
-    sys_exit(0)
+    run_event_loop()
+}
+
+// ── IPC event loop (RFC-0.37-001) ───────────────────────────────────────────────
+
+/// Blocks on the console-byte trigger `init` relays
+/// (`fjell_service_api::fleetd::RUN_REMOTE_DIAG`), and on each one asks
+/// `diagnosticsd` for a bundle. Never exits — the structural fact E-081
+/// named missing.
+fn run_event_loop() -> ! {
+    loop {
+        match fjell_syscall::sys_ipc_recv_msg(fjell_abi::service::FLEETD_TRIGGER_RECV_SLOT) {
+            Ok((tag, ..)) if tag == fjell_service_api::fleetd::RUN_REMOTE_DIAG => {
+                sys_debug_writeln(
+                    "fleetd: remote-diag trigger received; asking diagnosticsd for a bundle",
+                );
+                request_remote_diag();
+            }
+            Ok(_) => {
+                sys_debug_writeln("fleetd: unexpected tag on trigger endpoint");
+            }
+            Err(_) => {
+                // Mirrors `diagnosticsd::recv_msg`'s own reasoning (RFC-0.35-001
+                // R5): a recv error must not be a tight loop.
+                sys_debug_writeln("fleetd: trigger endpoint recv error; yielding");
+                sys_yield();
+            }
+        }
+    }
+}
+
+/// RFC-0.37-001 R6: the instigator's own read, alongside `diagnosticsd`'s
+/// own output (printed by `diagnosticsd` itself) — the pattern
+/// RFC-0.34-004's `semantic-liar` tier established.
+fn request_remote_diag() {
+    let _ = fjell_syscall::sys_ipc_send(CAP_DIAGNOSTICSD_EP.0, proto::BUILD_BUNDLE);
+    match fjell_syscall::sys_ipc_recv_msg(CAP_DIAGNOSTICSD_EP.0) {
+        Ok((tag, w0, ..)) if tag == proto::BUNDLE_READY => {
+            sys_debug_write("fleetd: bundle ready (audit_event_count=");
+            write_u64(w0 as u64);
+            sys_debug_writeln(")");
+            sys_debug_writeln(fjell_service_api::negative_markers::REMOTE_DIAG_BUNDLE_READY);
+        }
+        Ok(_) => sys_debug_writeln("fleetd: unexpected reply from diagnosticsd"),
+        Err(_) => sys_debug_writeln("fleetd: diagnosticsd recv error"),
+    }
+}
+
+fn write_u64(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    if n == 0 {
+        sys_debug_write("0");
+        return;
+    }
+    while n > 0 {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
 }
