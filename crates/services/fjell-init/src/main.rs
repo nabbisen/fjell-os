@@ -918,6 +918,11 @@ pub extern "C" fn service_main() -> ! {
     );
     spawn(ImageId::DIAGNOSTICSD, "v0.4: diagnosticsd started");
 
+    // v0.8: Fleet Operations Plane (RFC-0.37-001, closes E-078/E-081). The
+    // node-side endpoint of the conversation RFC-v0.8-005 specifies; asks
+    // `diagnosticsd` for a bundle only on the console byte `D` (below).
+    spawn(ImageId::FLEETD, "v0.8: fleetd started");
+
     // Start M8 services.
     spawn(ImageId::MEASUREDD, "M8: measuredd started");
     spawn(ImageId::ATTESTD, "M8: attestd started");
@@ -1156,6 +1161,13 @@ pub extern "C" fn service_main() -> ! {
         // whether the claim was believed. Injected once, by an external
         // agent, absent on the next boot.
         const PRESENTATION_LIAR_TRIGGER: u8 = b'L';
+        // RFC-0.37-001 R3/R6: this byte's only power is to ask `fleetd` to
+        // run its one scenario (ask `diagnosticsd` for a bundle), over an
+        // endpoint that is `fleetd`'s alone. `fleetd` still does the
+        // asking itself. Injected once, by an external agent; `fleetd`
+        // keeps listening for it on every subsequent boot (unlike `R`,
+        // this trigger does not cause a reset).
+        const REMOTE_DIAG_TRIGGER: u8 = b'D';
         let mut received = false;
         for _ in 0..POLL_BUDGET {
             match sys_ipc_try_recv(UART_RX_EP) {
@@ -1195,6 +1207,15 @@ pub extern "C" fn service_main() -> ! {
                             handle,
                         );
                         sys_debug_writeln("init: svc-fault spawned and registered as required");
+                    }
+                    if byte as u8 == REMOTE_DIAG_TRIGGER {
+                        sys_debug_writeln(
+                            "init: remote-diag trigger received; asking fleetd to run its scenario",
+                        );
+                        let _ = fjell_syscall::sys_ipc_send(
+                            fjell_abi::service::INIT_FLEETD_SEND_SLOT,
+                            fjell_service_api::fleetd::RUN_REMOTE_DIAG,
+                        );
                     }
                     break;
                 }
