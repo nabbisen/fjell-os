@@ -117,9 +117,16 @@ it carries. Installing slot 4 belongs to whichever line closes **E-085**.
 **R6 — A tier, triggered by a console byte**, as `semantic-liar`, `health-fail`
 and `upgrade` all are. Inject; `fleetd` asks; `diagnosticsd` answers. Assert **at
 the deciding service's own output**, not only at the instigator's: the bundle
-exists, `measurement_head_available` is `true`, and the fields that genuinely have
-no source read `false`. **The flags are the assertion** — a tier that only checks
-a bundle was built would pass on a bundle full of honest zeros.
+exists, ~~`measurement_head_available` is `true`~~ **`measurement_head_available`
+is `false`** *(corrected 2026-10-18, with R5's withdrawal: this paragraph was not
+updated when R5 was amended, and the amended R5's own text already says what this
+tier must assert — "R6's tier asserts that it does [read `false`]". Slot 4 is not
+installed in this line, so there is no live digest for the flag to report; a
+bundle that says "I could not obtain a measurement head" is the true one.)*, and
+the fields that genuinely have no source — which, after R5's withdrawal, is now
+every field this line's bundle carries — read `false`. **The flags are the
+assertion** — a tier that only checks a bundle was built would pass on a bundle
+full of honest zeros.
 
 **R7 — `capability-topology` stays honest.** Its discovered-slot count moves;
 waivers for the slots this line installs are retired, and any slot still waived

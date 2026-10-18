@@ -84,8 +84,11 @@ received. **Fix the tags, demonstrate the mismatch first, then install.**
 - The tag mismatch demonstrated failing, then fixed.
 - `fleetd`'s loop, its installed slots with the necessity argument for each, and
   the evidence it is alive after `ready`.
-- The tier's output: the bundle, and **each flag's value with the reason** —
-  `true` for the measurement head, `false` for what has no source.
+- The tier's output: the bundle, and **each flag's value with the reason** — every
+  flag `false`, including `measurement_head_available` (corrected 2026-10-18: this
+  line said `true` for it before R5's withdrawal; slot 4 is not installed in this
+  line, so there is no live digest for the flag to report true of — see the
+  governing RFC's amended R5 and its own R6 correction).
 - `capability-topology`'s new counts and any re-pointed waiver.
 - E-078, E-081, E-083 closed; E-082 and E-084 visibly untouched.
 - Each gate by its own exit status, as the required set, failures included; the
