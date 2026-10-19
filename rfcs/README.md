@@ -480,7 +480,7 @@ Two lines, both drafted for this milestone and both shipped in it.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
 Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
 folder in a fresh clone.
