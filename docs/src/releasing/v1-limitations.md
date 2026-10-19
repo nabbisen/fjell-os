@@ -1240,6 +1240,33 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   > CRC, superblock, mirror or recovery code to exercise (E-065's own amendment
   > records why that is a feature line and not a test line).
 
+- **The measurement chain is fed placeholder literals on every boot, because
+  nothing measures anything** (Erratum **E-086**, ACCEPTED 2026-10-19,
+  unscheduled). **This one is live, not latent.** `fjell-init` appends four
+  measurement events per boot whose "subject digest" is a literal — `0x0011` for
+  boot evidence, `0xAB` for each of three verification results — with the remaining
+  words zero, and `measuredd` rebuilds only `sd[0..16]`, leaving the rest zero. Each
+  recorded measurement is a magic number followed by twenty-four zero bytes.
+  **Nothing computes a real digest**: `init`'s other digest fields are
+  `Digest32([0xBB; 32])` and `[0xCC; 32]`, and the kernel embeds every service
+  binary with `include_bytes!` without ever hashing one. The chain is the node's
+  attestation root; `attestd` takes its provider measurement from that head and a
+  diagnostic bundle would report it in a **signed** artefact. Every step is
+  faithful and the value is a constant. **This also fixes E-085's ordering**:
+  closing that entry alone would transmit the complete placeholder and set
+  `measurement_head_available: true` on it, which is worse than today's honest
+  `false`. Closing E-086 means **something must measure something** — the obvious
+  candidate being the kernel hashing the images it already embeds — which is a
+  feature, not a wiring fix.
+- **`measuredd`'s `EXPORT_LOG` exports nothing** (Erratum **E-087**, ACCEPTED
+  2026-10-19, unscheduled). The handler replies `EXPORT_CHUNK` with a sequence
+  number and zeros, then `EXPORT_DONE` with zeros: no loop, no chunk sequence, no
+  log content, and no caller has ever existed. **E-085's own resolution — and the
+  bullet below — cited this as the working chunking pattern to follow**, from the
+  constants' existence in the shared API without reading the handler. The genuinely
+  working pattern is `fjell-storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT`,
+  which `fjell-service-api`'s own ABDD note already names as the model. Corrected
+  below.
 - **`fjell-measuredd`'s `GET_HEAD` has never been able to answer with the chain
   digest it names** (Erratum **E-085**, ACCEPTED 2026-10-18, unscheduled). Its
   handler replies `reply(HEAD_REPLY, latest_seq, cd_lo, dropped)` where `cd_lo` is
@@ -1253,7 +1280,12 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   digest travels whole or not at all.** A partial digest is refused (a `Digest32`
   has no partial presence), and so is squeezing 32 bytes into four words by dropping
   `latest_seq` or `dropped`. The mechanism this project already uses for oversized
-  payloads is chunking — `measuredd`'s own `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE`.
+  payloads is chunking — ~~`measuredd`'s own
+  `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE`~~ **`fjell-storaged`'s
+  `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT`** *(corrected 2026-10-19: the
+  `measuredd` export named here is a stub that sends no content — **E-087** — and in
+  any case no chunking is needed, because the kernel's `sys_ipc_reply` copies four
+  words, exactly one `Digest32`)*.
   Until then **`measurement_head_available` stays `false`**, which is correct and is
   what that flag was built for.
 - **`fjell-diagnosticsd` invented tag numbers for a conversation the server already

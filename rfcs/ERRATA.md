@@ -5931,6 +5931,103 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   and `fjell-service-api`'s ABDD note records the same choice for nodes. Until the
   head can travel whole, **`measurement_head_available` stays `false`** and the
   bundle says so, which is correct and is what RFC-0.36-001 built the flag for.
+- **Corrected 2026-10-19, at 0.38's scoping — two errors in the resolution above,
+  both mine.**
+  1. **It names `measuredd`'s own `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE` as "the
+     pattern".** That handler is a **stub**: two replies, a sequence number and
+     zeros, no loop, no content, and no caller has ever existed (**E-087**). I cited
+     constants in the shared API as evidence of a working mechanism without reading
+     the handler. The genuinely working pattern is **`fjell-storaged`'s
+     `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT`** — 32 bytes per message into a
+     bounded buffer, then a commit — which `fjell-service-api`'s own ABDD note
+     already names as the model.
+  2. **Chunking is not needed at all.** The kernel's `sys_ipc_reply` copies **four**
+     words — `for i in 0..4 { caller.trap_frame.gpr[12 + i] = tf.gpr[12 + i] }` in
+     `cap/syscall.rs` — so a reply carries **4 × 8 = 32 bytes, exactly one
+     `Digest32`**. `measuredd`'s `reply` helper sets only three (`a2..a4`), leaving
+     `a5` unused, and its own doc comment already says the kernel copies `a2..a5`.
+     The remedy is therefore small: widen the helper, let `HEAD_REPLY` carry the
+     digest in all four words, give `latest_seq`/`dropped` their own tag, and have
+     the caller stop discarding `w2`/`w3`.
+- **And the ordering this entry did not know about: E-086 comes first.** Closing
+  this one alone would transmit a **complete placeholder** rather than a truncated
+  one and set `measurement_head_available: true` on it — strictly worse than
+  today's honest `false`, because nothing in the system measures anything
+  (**E-086**).
+
+## E-086 — the measurement chain is fed placeholder literals on every boot, because nothing measures anything
+
+- **Found 2026-10-19, scoping 0.38**, by following E-085's remedy to what it would
+  actually deliver. **This is live on every boot, not latent** — unlike every other
+  entry in the diagnostics family.
+- **Claim:** `fjell-measuredd` maintains the measurement chain — `APPEND_EVENT`
+  records a measurement of a subject, `compute_chain_digest` hashes it into the
+  chain, `attestd` takes its provider measurement from `chain.head`, and a
+  diagnostic bundle reports that head. The chain is the node's attestation root.
+- **Tree, observed 2026-10-19 at `1337d23`:** `fjell-init` appends **four** events
+  on every boot (`main.rs:955`, `:970` ×3) and the "subject digest" it sends is a
+  **literal constant** — `0x0011` for boot evidence, `0xAB` for each of the three
+  verification results — with the remaining words **0**. `measuredd` rebuilds
+  `sd[0..8]` from `w1` and `sd[8..16]` from `w2`, leaving `sd[16..32]` **zero**
+  (`main.rs:198`–`:199`). Each recorded measurement is a magic number followed by
+  twenty-four zero bytes. **It is not a digest of anything.**
+- **Nothing computes one, which is why.** `fjell-init` has no real digest to send:
+  its other digest fields are `Digest32([0xBBu8; 32])` and `Digest32([0xCCu8; 32])`
+  (`:990`, `:1104`). The kernel embeds every service binary with `include_bytes!`
+  and **never hashes one** — `Digest32::of` does not appear in
+  `crates/fjell-kernel/src/task/image.rs`. There is no measurement in the
+  measurement subsystem.
+- **It compounds through the whole attestation path.** `measuredd` receives 16 of
+  32 bytes (discarding `w3`, which `recv_call` already hands it), replies with 8 of
+  32 (**E-085**), `attestd` sets its provider measurement from that head, and
+  `diagnosticsd` would report it in a **signed** bundle. Every step is faithful; the
+  value they are faithful about is a constant.
+- **Why this changes E-085's remedy.** Closing E-085 alone would transmit the
+  **complete placeholder** instead of a truncated one, and set
+  `measurement_head_available: true` on it — strictly worse than today, where the
+  flag reads `false` and the bundle is honest. **E-086 closes before or with
+  E-085**, the same ordering E-083 required before slot 4 one milestone ago.
+- **Why nothing saw it:** the appends print `M8: boot evidence imported` and
+  succeed; the chain accepts any `Digest32`; `compute_chain_digest` hashes whatever
+  it is given; and until RFC-0.37-001 no consumer had ever read the head. **No
+  instrument here compares a recorded measurement against the thing it claims to
+  measure**, because nothing in the tree produces the latter.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-19), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs: **something must measure something.**
+  The obvious candidate is the kernel hashing each service image it already embeds
+  and handing that digest to the chain, which makes a recorded measurement a fact
+  about what booted. That is a **feature**, not a wiring fix, and the first one in
+  this family. Until then the placeholders must be **disclosed**: a release that
+  reports a measurement head at all implies it measured, and nothing in
+  `v1-limitations.md` has ever said otherwise.
+
+## E-087 — `measuredd`'s `EXPORT_LOG` exports nothing, and E-085 cited it as the working pattern
+
+- **Found 2026-10-19, scoping 0.38**, while checking whether E-085's ruling could be
+  implemented as written. It could not: the mechanism that ruling named does not
+  exist.
+- **Claim:** `fjell_service_api::measuredd` declares `EXPORT_LOG` (`0x307`),
+  `EXPORT_CHUNK` (`0x308`) and `EXPORT_DONE` (`0x309`) — a chunked export of the
+  measurement log.
+- **Tree, observed 2026-10-19:** the handler is two lines (`main.rs:221`–`:223`):
+  `reply(EXPORT_CHUNK, chain.head.latest_seq, 0, 0)` then
+  `reply(EXPORT_DONE, 0, 0, 0)`. **No loop, no chunk sequence, no log content** —
+  one sequence number and zeros. `EXPORT_LOG` has **two** occurrences tree-wide, its
+  declaration and that arm: **no caller has ever existed.**
+- **The architect's error this exposes.** **E-085's resolution names this very
+  mechanism as the pattern to follow**, and `v1-limitations.md` repeats it. I cited
+  constants in the shared API as evidence of a working implementation **without
+  reading the handler** — the same mistake, in the same subsystem, that E-085 itself
+  was filed about. The genuinely working pattern is `fjell-storaged`'s
+  `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT`, which accumulates 32 bytes per message
+  into a bounded 512-byte buffer and commits it, and which `fjell-service-api`'s own
+  ABDD note already names as the model. E-085 is corrected.
+- **Resolution:** **ACCEPTED** (architect, 2026-10-19), **unscheduled**, in
+  `v1-limitations.md`. What closing it needs: the export either works —
+  accumulating real log content across chunks as `storaged` does — or the three
+  constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the
+  decision recorded. **A declared export that replies "done" having sent nothing is
+  not acceptable**, least of all one cited elsewhere as proof the capability exists.
 
 ## Summary
 
@@ -6020,6 +6117,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | RFC-0.37-001 | CLOSED |
 | E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | CLOSED |
 | E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | unscheduled | ACCEPTED |
+| E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | unscheduled | ACCEPTED |
+| E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
