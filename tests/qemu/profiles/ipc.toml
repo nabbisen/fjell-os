@@ -1,5 +1,5 @@
 # RFC 034 (v0.2): blocked IPC revocation semantics.
-# Three scenarios exercised by neg-test + sample-service cooperation.
+# Four scenarios exercised by neg-test + sample-service cooperation.
 
 name             = "ipc"
 timeout_secs     = 90
@@ -7,6 +7,8 @@ expected_markers = [
   "NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS",
   "NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS",
   "NEG:IPC:LATE_REPLY_REJECTED:PASS",
+  # RFC-0.38-003 R4 (E-089): a call dequeued by sys_ipc_try_recv gets its reply.
+  "NEG:IPC:TRY_RECV_CALL_REPLIED:PASS",
 ]
 # All three markers confirmed real in v0.20.0 after three stacked fixes:
 # (1) IPC words ABI — sys_ipc_call_words never packed the word count and

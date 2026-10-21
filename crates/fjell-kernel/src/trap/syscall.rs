@@ -1490,6 +1490,6 @@ fn dispatch_ipc_try_recv(tf: &mut TrapFrame) {
     use crate::cap::syscall::sys_ipc_try_recv;
     let tidx = crate::trap::dispatch::current_task_idx();
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
-    let (table, _, ct, et) = unsafe { crate::get_kernel_state() };
-    sys_ipc_try_recv(tf, tidx, ct, et, table);
+    let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
+    sys_ipc_try_recv(tf, tidx, ct, et, table, sched);
 }

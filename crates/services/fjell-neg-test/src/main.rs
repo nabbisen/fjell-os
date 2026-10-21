@@ -271,6 +271,48 @@ fn test_cap_rebind_after_revoke() {
     let _ = _sys_cap_drop(copied);
 }
 
+/// IPC: a call dequeued by `sys_ipc_try_recv` can be replied to
+/// (RFC-0.38-003 R4, E-089).
+///
+/// No service in the tree serves a *call* through the non-blocking receive, so
+/// this builds the smallest one. `sample-service` is asked to call us back on
+/// its dedicated endpoint (object 6, which we hold `RECV` on through
+/// `SLOT_SAMPLE_EP`); we drain that endpoint with `sys_ipc_try_recv` **only**
+/// and reply. The reply is asserted by the caller, which prints
+/// `NEG:IPC:TRY_RECV_CALL_REPLIED:PASS` only if it receives the label sent here.
+/// Where `sys_ipc_try_recv` installs no reply edge, our `sys_ipc_reply` is refused
+/// (`NEG:HARNESS:TRY_RECV_REPLY_REFUSED`, with the error) and the caller is never
+/// woken, so the marker is absent.
+fn test_try_recv_serves_a_call() {
+    const POLL_BUDGET: u32 = 20_000;
+    match sys_ipc_call_words(SLOT_SAMPLE_EP, tags::TRY_RECV_CALL_TEST, 0, 0, 0) {
+        Ok(0) => {}
+        _ => {
+            setup_failed("try_recv_call: handshake with sample-service");
+            return;
+        }
+    }
+    let mut arrived = false;
+    for _ in 0..POLL_BUDGET {
+        match fjell_syscall::sys_ipc_try_recv(CapHandle(SLOT_SAMPLE_EP)) {
+            Ok(tag) => {
+                arrived = tag & 0xFFFF == tags::TRY_RECV_CALL_MSG;
+                break;
+            }
+            Err(fjell_abi::error::SysError::WouldBlock) => sys_yield(),
+            Err(_) => break,
+        }
+    }
+    if !arrived {
+        setup_failed("try_recv_call: the call never arrived through try_recv");
+        return;
+    }
+    if let Err(e) = fjell_syscall::sys_ipc_reply(tags::TRY_RECV_CALL_REPLY) {
+        sys_debug_writeln("NEG:HARNESS:TRY_RECV_REPLY_REFUSED");
+        debug_err(e);
+    }
+}
+
 /// CAP: `sys_cap_bind_lease` needs `LeaseAdmin` with `LEASE_CREATE`
 /// (RFC-0.38-002 R2/R5, E-088) — and a revoked capability cannot be revived by
 /// a task without it.
@@ -1203,6 +1245,8 @@ pub extern "C" fn service_main() -> ! {
     // coordination stall can never shadow the policy/audit/svc scenarios.
     test_ipc_blocked_recv();
     test_ipc_blocked_call_and_late_reply();
+    // RFC-0.38-003 R4: the one call in the tree served through try_recv.
+    test_try_recv_serves_a_call();
 
     // RFC-0.38-002 R5: deliberately after every scenario that needs LeaseAdmin;
     // this one drops this task's own LeaseAdmin capability.

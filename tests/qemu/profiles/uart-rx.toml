@@ -14,14 +14,24 @@
 # array at the first `]` inside a string -- E-057, closed by RFC-0.33-004 D6; see
 # semantic.toml. They are left as they were.)
 
+# RFC-0.38-003 (E-089): TWO bytes are typed, and BOTH are asserted -- by value and
+# by order, through the `(#n)` ordinal init prints. Every injecting profile used
+# to type a single character, so a console that delivered exactly one byte per
+# boot passed every tier (the driver blocked in its send for good because
+# `sys_ipc_try_recv` never woke it, and so never acknowledged the interrupt).
+# The second byte can only arrive if the first send returned. `Q` and `W` are
+# deliberately not trigger bytes: a trigger (F, R, P, L, D) starts a scenario
+# and closes init's console window, as before.
+
 name                 = "uart-rx"
 timeout_secs         = 60
 inject_after_marker  = "driver-uart: ready"
-inject_bytes         = "Q"
+inject_bytes         = "QW"
 expected_markers = [
     "irq: external interrupt plane enabled",
     "driver-uart: ready",
     "driver-uart: byte received",
-    "v0.25: uart byte='Q' delivered over IPC",
+    "v0.25: uart byte='Q' delivered over IPC (#1)",
+    "v0.25: uart byte='W' delivered over IPC (#2)",
 ]
 extra_args = []

@@ -571,6 +571,40 @@ pub fn sys_ipc_send(
     }
 }
 
+/// What a receiver does with a message it has just taken off an endpoint's
+/// send queue — shared by `sys_ipc_recv` and `sys_ipc_try_recv`, so the two
+/// cannot disagree about it (RFC-0.38-003, E-089).
+///
+/// * a **call**: record the reply edge (with the call's lease binding, RFC 034).
+///   The caller is *not* woken — it waits for an explicit `ipc_reply`, and waking
+///   it here would let it continue on stale data;
+/// * a **one-way send**: wake the sender. `sys_ipc_send` blocks its caller when it
+///   queues with no receiver waiting, so a receiver that does not wake it strands
+///   it for good.
+///
+/// Then deliver the message into the receiver's registers and record the audit
+/// event.
+fn complete_receive(
+    tf: &mut TrapFrame,
+    tidx: usize,
+    ct: &mut CapTable,
+    tasks: &mut TaskTable,
+    sched: &mut Scheduler,
+    msg: &PendingMessage,
+) {
+    if msg.is_call {
+        if let Some(lb) = msg.lease {
+            ct.set_reply_with_lease(tidx, msg.sender_tid, lb);
+        } else {
+            ct.set_reply(tidx, msg.sender_tid);
+        }
+    } else {
+        wake(tasks, sched, msg.sender_tid);
+    }
+    deliver(tf, msg);
+    AUDIT.lock_free_append(AuditKindInternal::IpcRecv, tidx, msg.sender_tid as usize, 0);
+}
+
 pub fn sys_ipc_recv(
     tf: &mut TrapFrame,
     tidx: usize,
@@ -614,22 +648,7 @@ pub fn sys_ipc_recv(
     };
     match ep.recv(waiter) {
         Ok(RecvResult::Delivered(msg)) => {
-            if msg.is_call {
-                // RFC 034: store the call's lease binding in the reply edge.
-                if let Some(lb) = msg.lease {
-                    ct.set_reply_with_lease(tidx, msg.sender_tid, lb);
-                } else {
-                    ct.set_reply(tidx, msg.sender_tid);
-                }
-                // For ipc_call, the sender waits for an explicit ipc_reply — do NOT
-                // wake it here.  Waking prematurely would give the caller stale data
-                // and allow it to continue before the server has replied.
-            } else {
-                // One-way send: sender can proceed immediately.
-                wake(tasks, sched, msg.sender_tid);
-            }
-            deliver(tf, &msg);
-            AUDIT.lock_free_append(AuditKindInternal::IpcRecv, tidx, msg.sender_tid as usize, 0);
+            complete_receive(tf, tidx, ct, tasks, sched, &msg);
         }
         Ok(RecvResult::Queued) => {
             block(tasks, sched, cur_id);
@@ -804,12 +823,21 @@ pub fn cancel_blocked_ipc_for_lease(
 /// RFC 019: Non-blocking receive.  Returns `WouldBlock` immediately if no
 /// message is pending on the endpoint, without sleeping the calling task.
 /// Used by cooperative service loops to avoid deadlock without preemption.
+///
+/// RFC-0.38-003 (E-089): on delivery it does exactly what `sys_ipc_recv` does —
+/// [`complete_receive`] — so a one-way sender blocked in `sys_ipc_send` is woken
+/// and a call gets its reply edge. It used to deliver and stop, which stranded
+/// the sender (`driver-uart` never reached `sys_irq_ack`) and would have
+/// stranded any caller. That needs the task table and scheduler mutably, so the
+/// signature takes them and `dispatch_ipc_try_recv` passes the ones it already
+/// holds from its single `get_kernel_state()`.
 pub fn sys_ipc_try_recv(
     tf: &mut TrapFrame,
     tidx: usize,
-    ct: &CapTable,
+    ct: &mut CapTable,
     et: &mut EndpointTable,
-    table: &crate::task::tcb::TaskTable,
+    tasks: &mut TaskTable,
+    sched: &mut Scheduler,
 ) {
     // Validate endpoint cap (including lease).
     if let Err(e) = check_right(tf, tidx, ct, CapRights::RECV) {
@@ -817,21 +845,25 @@ pub fn sys_ipc_try_recv(
         return;
     }
     let ep_h = CapHandle(tf.gpr[10] as u32);
-    let cs = match ct.cspace(tidx) {
-        Some(c) => c,
-        None => {
-            err(tf, SysError::InternalError);
-            return;
+    // Resolve the endpoint id in a scope of its own: the shared borrow of `ct`
+    // ends here, before `complete_receive` takes it mutably.
+    let ep_id = {
+        let cs = match ct.cspace(tidx) {
+            Some(c) => c,
+            None => {
+                err(tf, SysError::InternalError);
+                return;
+            }
+        };
+        match cs.get(ep_h) {
+            Ok(cap) => cap.object_id,
+            Err(e) => {
+                err(tf, e);
+                return;
+            }
         }
     };
-    let cap = match cs.get(ep_h) {
-        Ok(c) => c,
-        Err(e) => {
-            err(tf, e);
-            return;
-        }
-    };
-    let ep = match et.get_mut(cap.object_id) {
+    let ep = match et.get_mut(ep_id) {
         Some(e) => e,
         None => {
             err(tf, SysError::InvalidCap);
@@ -841,11 +873,10 @@ pub fn sys_ipc_try_recv(
 
     use fjell_ipc::endpoint::EndpointError;
     match ep.try_recv() {
-        Ok(msg) => deliver(tf, &msg),
+        Ok(msg) => complete_receive(tf, tidx, ct, tasks, sched, &msg),
         Err(EndpointError::WouldBlock) => err(tf, SysError::WouldBlock),
         Err(_) => err(tf, SysError::InternalError),
     }
-    let _ = table; // future: per-task stats
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

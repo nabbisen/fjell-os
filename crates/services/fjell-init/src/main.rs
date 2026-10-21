@@ -1169,12 +1169,19 @@ pub extern "C" fn service_main() -> ! {
         // this trigger does not cause a reset).
         const REMOTE_DIAG_TRIGGER: u8 = b'D';
         let mut received = false;
+        // RFC-0.38-003 R3: bytes delivered so far, printed as an ordinal so a
+        // profile can assert the bytes AND their order. The line keeps its old
+        // text as a prefix (`...delivered over IPC`), so existing markers match.
+        let mut delivered: u32 = 0;
         for _ in 0..POLL_BUDGET {
             match sys_ipc_try_recv(UART_RX_EP) {
                 Ok(byte) => {
+                    delivered += 1;
                     sys_debug_write("v0.25: uart byte='");
                     sys_debug_write_byte(byte as u8);
-                    sys_debug_writeln("' delivered over IPC");
+                    sys_debug_write("' delivered over IPC (#");
+                    debug_dec(delivered);
+                    sys_debug_writeln(")");
                     received = true;
                     if byte as u8 == RESET_TRIGGER {
                         sys_debug_writeln(
@@ -1217,7 +1224,21 @@ pub extern "C" fn service_main() -> ! {
                             fjell_service_api::fleetd::RUN_REMOTE_DIAG,
                         );
                     }
-                    break;
+                    // RFC-0.38-003 R3: a trigger byte starts one scenario and ends the
+                    // console window, exactly as before. Any other byte leaves the window
+                    // open, so the next one is delivered too: with the window closed
+                    // after the first byte there is no receiver for a second, and
+                    // `driver-uart` would block in its send for good (E-089's other half).
+                    if matches!(
+                        byte as u8,
+                        RESET_TRIGGER
+                            | PRESENTATION_FAULT_TRIGGER
+                            | PRESENTATION_LIAR_TRIGGER
+                            | HEALTH_FAIL_TRIGGER
+                            | REMOTE_DIAG_TRIGGER
+                    ) {
+                        break;
+                    }
                 }
                 Err(_) => sys_yield(),
             }

@@ -109,6 +109,17 @@ pub mod tags {
     /// only of *identity*; the wait itself is still the `sys_task_status`
     /// poll, which starts only after this message is drained.
     pub const IPC_TEST_ABOUT_TO_BLOCK: usize = 0x063;
+
+    // ── RFC-0.38-003 R4: a call served through the non-blocking receive ──────
+    /// Sent by neg-test to a helper service: "call me back on your own
+    /// endpoint (object 6) and expect a reply." neg-test then drains that
+    /// endpoint with `sys_ipc_try_recv` only and replies — the one place in the
+    /// tree where a *call* is dequeued by the non-blocking receive.
+    pub const TRY_RECV_CALL_TEST: usize = 0x064;
+    /// The call the helper service makes in answer to `TRY_RECV_CALL_TEST`.
+    pub const TRY_RECV_CALL_MSG: usize = 0x065;
+    /// The reply label neg-test sends; the helper service asserts it arrives.
+    pub const TRY_RECV_CALL_REPLY: usize = 0x066;
 }
 
 // ── RFC 019: storaged IPC protocol ────────────────────────────────────────────
@@ -387,6 +398,9 @@ pub mod negative_markers {
     /// `ipc_reply` is rejected (silently dropped) when the call's lease
     /// was revoked while the caller was blocked.
     pub const IPC_LATE_REPLY: &str = "NEG:IPC:LATE_REPLY_REJECTED:PASS";
+    /// A call dequeued by `sys_ipc_try_recv` can be replied to: the caller is
+    /// woken with the reply (RFC-0.38-003 R4, E-089).
+    pub const IPC_TRY_RECV_CALL_REPLIED: &str = "NEG:IPC:TRY_RECV_CALL_REPLIED:PASS";
 
     // ── MMIO boundary (RFC 035) ───────────────────────────────────────────────
     /// `sys_mmio_map` rejects a cap without `MMIO_MAP` right.

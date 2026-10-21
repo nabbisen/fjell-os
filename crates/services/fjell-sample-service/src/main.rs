@@ -311,6 +311,37 @@ pub extern "C" fn service_main() -> ! {
                 let _ = sys_cap_drop(call_h);
             }
 
+            // ── RFC-0.38-003 R4: a call that is served through try_recv ──────
+            //
+            // neg-test sends TRY_RECV_CALL_TEST. We reply (so neg-test, blocked
+            // in its own call, goes on to drain this endpoint), then CALL our own
+            // dedicated endpoint (object 6) and block. neg-test dequeues that
+            // call with the non-blocking receive only and replies. The marker is
+            // printed by the CALLER, on the reply label it was told to expect:
+            // the property is "the caller got its reply", not "the server's
+            // reply returned Ok".
+            l if l == (tags::TRY_RECV_CALL_TEST & 0xFFFF) => {
+                let _ = sys_ipc_reply(0);
+                // `sys_ipc_call_words` returns the reply label; `sys_ipc_call` returns
+                // only the status, which cannot tell a reply from another reply.
+                match fjell_syscall::sys_ipc_call_words(
+                    SLOT_OWN_EP,
+                    tags::TRY_RECV_CALL_MSG,
+                    0,
+                    0,
+                    0,
+                ) {
+                    Ok(v) if v & 0xFFFF == tags::TRY_RECV_CALL_REPLY => {
+                        sys_debug_writeln(M::IPC_TRY_RECV_CALL_REPLIED);
+                    }
+                    Ok(_) => sys_debug_writeln("sample: try_recv call: unexpected reply label"),
+                    Err(e) => {
+                        sys_debug_writeln("sample: try_recv call errored:");
+                        debug_err(e);
+                    }
+                }
+            }
+
             // ── Unknown label ────────────────────────────────────────────────
             _ => {
                 let _ = sys_ipc_reply(0);
