@@ -29,8 +29,16 @@ evidence, `0xAB` for each of three verification results, remaining words **0**.
 twenty-four zero bytes.**
 
 **Nothing computes a real digest anywhere.** `init`'s other digest fields are
-`Digest32([0xBB; 32])` and `[0xCC; 32]`. The kernel embeds **34** service binaries
+`Digest32([0xBB; 32])` and `[0xCC; 32]`. The kernel embeds **33** service binaries
 with `include_bytes!` in `task/image.rs` and **never hashes one**.
+
+> **Correction, 2026-10-21 (architect).** This paragraph said **34**. The count
+> is **33**: `/usr/bin/grep -a -c 'include_bytes!("'` on
+> `crates/fjell-kernel/src/task/image.rs` returns 33, and the 33 tracked `.bin`
+> files and 33 repro-baseline lines agree. The loose pattern `include_bytes!`
+> returns 34 because line 5 of that file is a `//!` doc comment naming the
+> macro — which is how the wrong figure was arrived at. Found by the newly
+> onboarded developer, who supplied that control. **R1 states 33.**
 
 The chain is the node's attestation root: `attestd` sets its provider measurement
 from `chain.head`, and a diagnostic bundle reports that head in a **signed**

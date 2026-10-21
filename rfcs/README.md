@@ -478,12 +478,25 @@ Two lines, both drafted for this milestone and both shipped in it.
 | 0.36-001 | [A field must say what it is](./done/RFC-0.36-001-a-field-must-say-what-it-is.md) — closed **E-075**, **E-076**, **E-079**, **E-080**; a signed diagnostic bundle stopped claiming measurements it never took, stopped carrying a record it invented, and started covering the two fields its own specification always said it signed | 0.36.0 |
 | 0.36-002 | [A benchmark flag that does what it says](./done/RFC-0.36-002-a-benchmark-flag-that-does-what-it-says.md) — closed **E-077**; an unrecognised `bench` flag now refuses with usage and exit 2 instead of silently running the cheapest default | 0.36.0 |
 
+### 0.37 — a bundle gets asked for, and the instruments are not bought
+
+Two lines, both drafted for this milestone and both shipped in it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.37-001 | [A bundle gets asked for and produced](./done/RFC-0.37-001-a-bundle-gets-asked-for-and-produced.md) — closed **E-078**, **E-081**, **E-083**; a diagnostic export whose every path was dead behind a six-constant protocol, facing a fleet manager that had printed `ready` and exited. `fleetd` was given the event loop RFC-v0.8-005 always specified for it, rather than being retracted | 0.37.0 |
+| 0.37-002 | [Instruments that cannot be bought](./done/RFC-0.37-002-instruments-that-cannot-be-bought.md) — closed **E-082**, **E-084**; exit criterion 2's "0 warning lines" was partly purchased with crate-level `#![allow(…)]`, and behind one of those suppressions sat a complete IPC event loop the compiler already knew was unreachable | 0.37.0 |
+
 ---
 
 ## Accepted (accepted/) — 1 RFC
 
-Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
-folder in a fresh clone.
+Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
+fresh clone.
+
+| RFC | Title | Target |
+|-----|-------|--------|
+| 0.38-001 | [The measurement chain measures something](./accepted/RFC-0.38-001-the-measurement-chain-measures-something.md) — closes **E-086**, **E-085**; the attestation root is rebuilt from placeholder literals on every boot, and the head query cannot return the digest it names. Slot 4 stays uninstalled and `measurement_head_available` stays `false` — that half is 0.39's | 0.38.0 |
 
 ---
 
