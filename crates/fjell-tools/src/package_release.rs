@@ -68,6 +68,15 @@ pub fn cmd_package_release() -> ExitCode {
         .arg(format!("--transform={transform}"))
         .arg("--exclude=*/target")
         .arg("--exclude=*/.git")
+        // `*/.git` does not cover this: tar matches the pattern against each
+        // leading directory, and `<root>/.git-exclude` is not `<root>/.git`.
+        // The directory holds the owner's private rules, role documents,
+        // handoffs, review records and scratch clones of the repository. A
+        // release tarball is the one artefact that leaves the machine, so the
+        // exclusion is unconditional rather than contingent on where any
+        // particular tarball is going. E-025 recorded this same hazard for
+        // `trust_report.rs` only.
+        .arg("--exclude=*/.git-exclude")
         .arg("--exclude=*/*.img")
         .arg("--exclude=*/fjell-os-v*.tar.gz") // exclude prior release archives
         .arg("--exclude=*/tests/runs")
