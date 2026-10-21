@@ -6029,6 +6029,135 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   decision recorded. **A declared export that replies "done" having sent nothing is
   not acceptable**, least of all one cited elsewhere as proof the capability exists.
 
+## E-088 — `sys_cap_bind_lease` performs no authority check, fails open, and its own justification is false
+
+- **Found 2026-10-21 by the newly onboarded developer** (onboarding notes, finding
+  F1), by reading `crates/fjell-kernel/src/cap/syscall.rs:408`–`:477` against its own
+  doc comment. **Re-derived independently by the architect the same day**; every
+  element below was confirmed in the tree, not inherited.
+- **Claim:** the function's doc comment (`:413`–`:415`) — *"Requires: caller holds
+  `CapKind::LeaseAdmin` with `CapRights::LEASE_CREATE`. This ensures only privileged
+  services (init, service-manager) can create lease-bound caps, preventing
+  unprivileged escalation."*
+- **Tree, observed 2026-10-21 at `4d8044a`:** **the body contains no check of any
+  kind.** In its place is a comment recording that the enforcement was reverted over
+  a `&mut` aliasing concern, with a follow-up *"targets v0.8.x"*, and this
+  justification: *"For now the check passes (all spawned services receive a
+  LeaseAdmin cap at slot 4 with LEASE_CREATE right, so the invariant holds
+  implicitly)."* Then `:464`–`:466` sets `cap.lease = Some(binding)`
+  **unconditionally**, overwriting any existing binding.
+- **The justification is false in both halves.** `LeaseAdmin` is granted to exactly
+  **three** tasks: `SAMPLE_SERVICE` at **slot 1** (`spawn.rs:622`–`:629`),
+  `NEG_TEST` at **slot 4** (`:657`–`:663`), and `init` at **slot 30**
+  (`main.rs:1141`–`:1145`). Not "all spawned services", and only one of them at
+  slot 4.
+- **And it is self-defeating even if it were true.** If *every* service held
+  `LeaseAdmin` with `LEASE_CREATE`, a check for it would gate nothing, and the doc
+  comment's actual claim — *"only privileged services … preventing unprivileged
+  escalation"* — would still be false. There is no reading on which the
+  documentation describes the shipped behaviour.
+- **It is reachable by any task.** `CapBindLease` (syscall 16) is routed into
+  `dispatch_m3` (`trap/syscall.rs:29`) and dispatched at `:393` with **no
+  per-syscall gate**, and the function performs none. So any task that can issue the
+  syscall can bind any **Active** lease to any capability in its own CSpace.
+- **Consequence — sharper than the finder's reading, and derived in the tree.** The
+  finder wrote that a task could rebind to "any other Active lease it can name." It
+  needs no other lease and no guessing: **a task can rebind its capability to its own
+  revoked lease and recover it.** `LeaseTable::revoke` (`lease/mod.rs:135`) sets
+  `state = Revoked` and advances the epoch, after which capabilities holding the old
+  `epoch_at_issue` fail. But `sys_cap_bind_lease` reads the epoch through
+  `current_epoch` → **`get` (`lease/mod.rs:172`), which refuses only a generation
+  mismatch or an `Empty` slot — a `Revoked` slot passes** — and then writes
+  `cap.lease = Some(LeaseBinding { lease_id, epoch_at_issue: <current epoch> })`. One
+  ungated syscall, on the caller's own lease id, re-stamps the capability with the
+  post-revocation epoch, and the step-7 check passes again. **Epoch revocation is
+  undone at the binding step** — the invariant ADR-0003
+  (`docs/src/adr/0003-lease-epoch-revocation.md`) and the Verus target
+  `verification/verus/lease/lease_epoch.rs` are built on.
+- **The check was installed everywhere except the step that feeds it.** RFC 006
+  introduced `Capability::check_lease()`; RFC 015 installed it in `check_right()`
+  (IPC), `sys_cap_copy`, `sys_cap_mint` and `sys_cap_inspect`, its stated consequence
+  for omitting it being *"a revoked cap can still be used for IPC and capability
+  operations"*. **`sys_cap_bind_lease` appears in neither list**: the call that
+  decides which lease and which epoch a capability answers to was never brought under
+  the guard it supplies.
+- **Two further claims inside the same function are false.** The step-2 comment reads
+  *"Get the current epoch for the lease (must be Active)"* — it need not be, and that
+  is exactly what makes the paragraph above work. And the doc comment's provenance,
+  *"RFC 042: bind a lease to an existing capability so that `require_cap` step 7
+  verifies the lease is still active on every use,"* names the wrong RFC:
+  `rfcs/done/042-v02-negative-test-expansion.md` is v0.2.0 negative-test expansion
+  and mentions neither `bind_lease` nor `LeaseBinding`. The mechanism is RFC 006's.
+- **Why this is OPEN and not ACCEPTED, with the precedent that decides it.** The
+  closest entry is **E-011**, a capability-rights-validation gap classified ACCEPTED
+  — and its own resolution gives the ground: *"Not a live security hole — the
+  syscall fails closed (`UnknownSyscall`) rather than installing with excess
+  rights."* **This one fails open**: it is dispatched, it performs no check, and it
+  **succeeds**. The register's legend defines ACCEPTED as *"drift is a documented,
+  deliberate v1.0 limitation"*, and labelling a fail-open authority gap deliberate
+  would be a false label. By the same legend this is **OPEN — drift live**.
+- **What that costs, stated plainly:** Gate 7 refuses while any entry is OPEN, so
+  this blocks a 0.38.0 cut. That is the gate doing its job, and the remedy is the
+  owner's to choose: fix it inside 0.38, schedule it as its own line, or record an
+  accepted-risk rationale that says why a fail-open authority gap is tolerable —
+  which is a decision the standing instruction reserves and the architect does not
+  make alone.
+- **Status:** **OPEN** (architect, 2026-10-21), unscheduled. What closing it needs:
+  the check the doc comment already describes, implemented against the `ct`
+  parameter the function already holds — which is what the reverted version got
+  wrong and what its own follow-up note describes — plus the lease-state check the
+  step-2 comment already claims (the epoch read must refuse a `Revoked` slot), a
+  negative tier proving an unprivileged task is refused, and a tier proving a revoked
+  lease cannot be rebound. **No negative test covers this path today.**
+
+## E-089 — `sys_ipc_try_recv` neither wakes a blocked sender nor installs a reply edge, and UART RX delivers one byte per boot
+
+- **Found 2026-10-21 by the newly onboarded developer** (onboarding notes, finding
+  F2). **Re-derived independently by the architect the same day.**
+- **Claim:** `fjell-driver-uart` forwards each received byte to `init` over IPC, and
+  ROADMAP 0.25 describes the console as interactive.
+- **Tree, observed 2026-10-21 at `4d8044a`:** `sys_ipc_try_recv`
+  (`cap/syscall.rs:785`–`:827`) takes `table: &TaskTable` and **discards it** —
+  `let _ = table; // future: per-task stats` — and on success calls `deliver(tf,
+  &msg)` and nothing else. `sys_ipc_recv` (`:593`–`:608`) does two further things:
+  for a call it installs the reply edge, and for a one-way send it
+  **`wake`s the sender** (*"One-way send: sender can proceed immediately"*).
+- **The chain, each link confirmed:**
+  1. `sys_ipc_send` on `SendResult::Queued` calls **`block(tasks, sched, cur_id)`**
+     (`:540`–`:543`) — a sender with no waiting receiver blocks.
+  2. `fjell-driver-uart` calls `sys_ipc_send(CAP_INIT_EP.0, byte)` and then
+     `sys_irq_ack(CAP_IRQ)` on the **next line** (`main.rs:89`, `:91`).
+  3. The only receive on that endpoint is `init`'s **polling**
+     `sys_ipc_try_recv(UART_RX_EP)` (`main.rs:1173`). There is no blocking recv on
+     `UART_RX_EP` anywhere.
+- **So:** the first byte queues; the driver **blocks inside the send**; `init`'s
+  `try_recv` takes the message but never wakes the driver; the driver never reaches
+  `sys_irq_ack`; the UART interrupt is never acknowledged; **no second byte is ever
+  delivered.** The same defect strands any caller whose `ipc_call` is dequeued by a
+  `try_recv` receiver, because no reply edge is installed.
+- **Why nothing saw it, and this is the part that matters.** **Every QEMU profile
+  that injects input injects exactly one byte** — nine profiles, each a single
+  character (`"D"`, `"F"` ×2, `"L"`, `"P"`, `"Q"`, `"R"` ×2, `"Z"`). The tiers pass
+  because no test has ever sent a second byte. The defect is not hidden by a weak
+  assertion; it is hidden by the **shape of the test inputs**, which is a harder
+  thing to notice and exactly what an outside reader found on their first pass.
+- **A gap in the original design, not a regression.** RFC 019
+  (`rfcs/done/019-ipc-try-recv-cooperative-services.md`, Implemented v0.1.0) added
+  `sys_ipc_try_recv` precisely to escape a deadlock — *"spawned services cannot
+  signal readiness without blocking on recv (which deadlocks without preemption)"* —
+  and specified it as `EndpointTable::try_recv()` *"without blocking"*, returning
+  `Ok` / `WouldBlock` / `InvalidCap`. Waking a blocked sender and installing a reply
+  edge appear nowhere in that specification. The receiver-side deadlock it was built
+  to avoid is now reproduced on the **sender** side, by the same absence of
+  preemption.
+- **Status:** **OPEN** (architect, 2026-10-21), unscheduled. Live drift, not a
+  deliberate limitation, by the same reasoning as E-088 — and it fails open in its
+  own way: the driver is stranded rather than erroring, so nothing reports a
+  failure. What closing it needs: `try_recv` takes `&mut TaskTable` and a scheduler
+  and does what `recv` does on delivery — wake a one-way sender, install a reply
+  edge for a call — **and a tier that injects at least two bytes**, which no profile
+  has ever done. The second half is the one that keeps it closed.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -6119,6 +6248,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | RFC-0.38-001 | ACCEPTED |
 | E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | ACCEPTED |
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
+| E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. Because the epoch read admits a `Revoked` slot, a task can rebind its capability to its own revoked lease and pick up the post-revocation epoch — **epoch revocation is undone at the binding step**, the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | unscheduled | OPEN |
+| E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | unscheduled | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
