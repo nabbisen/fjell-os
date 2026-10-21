@@ -23,6 +23,18 @@ The crypto primitives live in the `fjell-sxt-crypto` crate, which is
 
 - **AES-128-GCM**: table-free, constant-time reference implementation.
   NIST SP 800-38D test vectors pass.
+
+> **Correction, 2026-10-21.** The AES-128-GCM bullet is wrong on both counts.
+> `fjell-sxt-crypto/src/aes128.rs` holds a 256-byte S-box and indexes it with
+> state bytes in `SubBytes` and with key bytes in the key schedule, which on a
+> cache-bearing target leaks key material through cache timing. The crate's own
+> header has disclosed this since RFC-v0.7.3-002 — it requires an explicit
+> `crypto-profile-development` feature to compile and says the `constant-time`
+> claim "has been removed" — but the removal missed this record and the
+> `aes128.rs` module header, so both went on asserting it. The decision this
+> ADR records, one suite with no negotiation, is unaffected. The bullet is left
+> as written, with the correction beside it, because this is a published
+> decision record.
 - **X25519**: 5×51-bit limb Montgomery ladder with the standard djb
   `fe_invert` addition chain (z^(2^255−21)).  Verified against the Python
   `cryptography` library.

@@ -1,8 +1,19 @@
-//! AES-128 block cipher — table-free, constant-time reference implementation.
+//! AES-128 block cipher — development reference implementation.
 //!
-//! Uses only bitwise operations and byte lookups into 16-byte constants.
-//! Suitable for correctness testing and production use on small targets;
-//! swap for a SIMD-optimised version at link time on high-throughput targets.
+//! **Not table-free, not constant-time, and not for production.** `SBOX` is a
+//! 256-byte table: `SubBytes` indexes it with state bytes and the key schedule
+//! indexes it with key bytes, so on a cache-bearing target this leaks key
+//! material through cache timing.
+//!
+//! `lib.rs` carries the full Development Profile Notice (RFC-v0.7.3-002), gates
+//! compilation behind an explicit `crypto-profile-development` feature, and
+//! states that the `constant-time` claim "has been removed". The removal missed
+//! two sites, this header and ADR-v0.4-003 §4's AES-128-GCM bullet, which both
+//! kept asserting "table-free, constant-time" until 2026-10-21. This header
+//! also called the implementation suitable for "production use on small
+//! targets", which `lib.rs` prohibits outright.
+//!
+//! Correctness, not timing, is what this module claims.
 
 /// AES block length in bytes.
 pub const AES_BLOCK_LEN: usize = 16;
