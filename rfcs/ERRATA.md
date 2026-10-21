@@ -6314,6 +6314,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the precedent for splitting at all is **E-074** from **E-072**, "so a closed entry
   does not carry live residuals". The body above is left as written.
 
+- **Resolution (rebind half):** ~~**ACCEPTED**, `unscheduled`~~ → **CLOSED** by
+  **RFC-0.38-004**. The *first-bind* half stays open as **E-091** (ACCEPTED,
+  unscheduled) and is not touched by this closure.
+
+  > **Closed by RFC-0.38-004, 2026-10-22.** `sys_cap_bind_lease` refuses a capability
+  > that already carries a `LeaseBinding` with `BadState` — to a different `Active`
+  > lease and to the very same lease and epoch alike; there is no idempotent
+  > exception, no unbind, and `cap_copy` still inherits the source's binding. The
+  > order inside the handler is authority (RFC-0.38-002), then the target (an
+  > occupied slot, not already bound), then the lease's state, then the write — so a
+  > caller without authority gets `PermissionDenied` whatever the target's state.
+  > `BadState` is the existing error that says "the object is in a state that forbids
+  > this"; no `SysError` was added. Evidence: the `capability` profile gained
+  > `SAME_LEASE_REBIND_REFUSED`, `SECOND_BIND_REFUSED` and, the property,
+  > `ORIGINAL_LEASE_STILL_KILLS` (revoke the first lease; the capability dies) —
+  > run against the unfixed kernel first, where the second bind succeeded and the
+  > capability survived the revocation. Premise checked: the only writer of
+  > `Capability.lease` is this syscall; every bootstrap capability is `lease: None`;
+  > the live callers bind fresh copies of unbound slots.
+  >
+  > **Not done, and why.** The audit record for a bind is still
+  > `AuditKindInternal::CapMint`. The kernel's kind value is the `u16` user space
+  > decodes through `fjell_audit_format::AuditKind` (a published enum in the ABI
+  > snapshot; unknown values decode to `Internal`), so a distinct kind is an ABI
+  > addition and was left, as the RFC directs. The same check found an older
+  > mismatch: the kernel's enum defines `LeaseRevoked = 40` and `CapDenied = 41`, which that
+  > decoder does not know (it has `LeaseRevoked = 16`); a record of either would read as
+  > `Internal`. (Whether the kernel appends them was not checked here.)
+  > The dated correction to RFC-v0.7.4-003's "recursive primitive" paragraph is in
+  > that RFC beside its text.
+
 ## E-091 — the `LEASE_BIND` right and lease-scope check `RFC-v0.7.4-003` specified still do not exist: nothing limits *which* lease a holder may bind to
 
 - **Split from E-090 on 2026-10-22** when the owner accepted RFC-0.38-004 for that
@@ -6446,7 +6477,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
 | E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. The epoch read admitted a `Revoked` slot too; the closure records that rebinding to the *same* revoked lease was measured **not** to revive the capability (`check_active` needs `Active`), and that a task with no `LeaseAdmin` binding it to a *different* `Active` lease did — the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | CLOSED |
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |
-| E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | ACCEPTED |
+| E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | CLOSED |
 | E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
