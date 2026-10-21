@@ -6115,14 +6115,57 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   accepted-risk rationale that says why a fail-open authority gap is tolerable —
   which is a decision the standing instruction reserves and the architect does not
   make alone.
-- **Status:** **OPEN** (architect, 2026-10-21), scheduled to **RFC-0.38-002** on
+- **Status:** ~~**OPEN** (architect, 2026-10-21), scheduled to **RFC-0.38-002** on
   2026-10-21 by the owner's acceptance of a separate line for it. What closing it needs:
   the check the doc comment already describes, implemented against the `ct`
   parameter the function already holds — which is what the reverted version got
   wrong and what its own follow-up note describes — plus the lease-state check the
   step-2 comment already claims (the epoch read must refuse a `Revoked` slot), a
   negative tier proving an unprivileged task is refused, and a tier proving a revoked
-  lease cannot be rebound. **No negative test covers this path today.**
+  lease cannot be rebound. **No negative test covers this path today.**~~ →
+  **CLOSED** by **RFC-0.38-002**.
+
+  > **Closed by RFC-0.38-002, 2026-10-22.** `sys_cap_bind_lease` now refuses a caller
+  > that holds no `Active` `LeaseAdmin` capability carrying `LEASE_CREATE`
+  > (`PermissionDenied`), then refuses a lease that is not `Active`
+  > (`LeaseRevoked`; `InvalidCap` if there is no such lease), then binds. The
+  > authority is found by scanning the caller's CSpace through the `ct` and `tidx`
+  > the function already holds (`ct.cspace(tidx)`, a shared reborrow that ends before
+  > `cspace_mut`) — no second `get_kernel_state()`, no `unsafe`, which is what the
+  > reverted attempt got wrong. `LeaseTable::active_epoch` is the new accessor;
+  > `current_epoch` keeps admitting a `Revoked` slot because `sys_lease_inspect`
+  > reads it. The doc comment now describes the behaviour, the "reverted … targets
+  > v0.8.x" note is gone, and the `RFC 042` provenance is corrected to RFC 006 at
+  > both sites. Five markers in the `capability` profile: `REBIND_AFTER_REVOKE_REFUSED`,
+  > `REVOKED_STAYS_REVOKED`, `BIND_LEASE_WITHOUT_RIGHT_REJECTED`,
+  > `BIND_LEASE_WITHOUT_AUTHORITY_REJECTED`, `REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND`
+  > — the tier was run against the unfixed kernel first and failed (three
+  > `NEG:HARNESS:UNEXPECTED_OK`, the last of them a dead capability usable again).
+  >
+  > **Correction to this entry's own "Consequence" paragraph, found by that run
+  > (the original text above is left as written).** *A task cannot recover a
+  > revoked capability by rebinding it to its own revoked lease.* Before the fix the
+  > kernel did accept that bind (the epoch read admitted a `Revoked` slot), but the
+  > capability stayed unusable afterwards: `LeaseTable::check_active`
+  > (`lease/mod.rs`) requires `state == Active` as well as an epoch match, and a
+  > revoked slot is never `Active` again, so re-stamping the epoch cannot satisfy
+  > step 7. Measured, not argued — `NEG:CAP:REVOKED_STAYS_REVOKED:PASS` appeared in
+  > the pre-fix run beside the accepted bind. What **did** recover authority before
+  > the fix was the finder's original path: **binding the dead capability to a
+  > different `Active` lease, by a task holding no `LeaseAdmin` at all.** That is
+  > the case the last marker above now refuses, and it was shown reviving the
+  > capability before the fix. Refusing a bind to a `Revoked` lease is kept as
+  > fail-closed hardening (a binding that can never pass is only a way to hide the
+  > revocation from the binder), not as the recovery fix.
+  >
+  > **What the check does not do, stated so it is not read as more.** A task that
+  > *does* hold `LeaseAdmin` (`init`, `sample-service`, `neg-test`) can still bind
+  > any capability it owns to any `Active` lease, replacing an earlier binding —
+  > that is what the authority means, and the ABI carries no way to name which
+  > lease a particular administrator may use. Whether a bound capability should be
+  > immutable once bound is a design question for the architect; it is not
+  > answered here. Nothing about lease or task-slot lifetimes changed. Full detail
+  > in `rfcs/answers/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims-answer.md`.
 
 ## E-089 — `sys_ipc_try_recv` neither wakes a blocked sender nor installs a reply edge, and UART RX delivers one byte per boot
 
@@ -6263,7 +6306,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | RFC-0.38-001 | ACCEPTED |
 | E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | ACCEPTED |
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
-| E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. Because the epoch read admits a `Revoked` slot, a task can rebind its capability to its own revoked lease and pick up the post-revocation epoch — **epoch revocation is undone at the binding step**, the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | OPEN |
+| E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. The epoch read admitted a `Revoked` slot too; the closure records that rebinding to the *same* revoked lease was measured **not** to revive the capability (`check_active` needs `Active`), and that a task with no `LeaseAdmin` binding it to a *different* `Active` lease did — the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | CLOSED |
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
