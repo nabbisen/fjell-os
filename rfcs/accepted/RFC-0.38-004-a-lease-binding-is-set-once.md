@@ -8,12 +8,12 @@ it before anyone revokes that lease. The architecture's only cascading-revocatio
 mechanism therefore has an opt-out available to the party being revoked.
 **Touches** *(indicative)*: `crates/fjell-kernel/src/cap/syscall.rs`,
 `crates/fjell-cap/src/cspace.rs` *(doc comment)*,
-`docs/src/adr/ADR-v0.7.4-003-*.md` *(dated correction)*, `tests/qemu/profiles/`,
+`rfcs/done/RFC-v0.7.4-003-capability-authority-hardening.md` *(dated correction)*, `tests/qemu/profiles/`,
 `crates/services/fjell-neg-test/`, `rfcs/ERRATA.md`,
 `docs/src/releasing/v1-limitations.md`.
 **Relates to:** **RFC-0.38-002**, which gave this syscall the authority check its own
 doc comment had always promised — the same defect class one privilege level down, at
-**E-088**; **ADR-v0.7.4-003**, whose `parent = None` decision rests on the promise this
+**E-088**; **RFC-v0.7.4-003**, whose `parent = None` decision rests on the promise this
 line makes true; and **E-091**, the first-bind half of E-090, which this line
 deliberately leaves open.
 
@@ -24,7 +24,7 @@ task holding `CapKind::LeaseAdmin` + `CapRights::LEASE_CREATE` can therefore tak
 capability in its own CSpace and move it from the lease that governs it to any other
 `Active` lease.
 
-That matters because of what `ADR-v0.7.4-003` decided. `CSpace::copy` sets
+That matters because of what `RFC-v0.7.4-003` decided. `CSpace::copy` sets
 `parent = None` — kernel `cap_revoke` deliberately does **not** cascade across copies —
 and the ADR justifies that choice on a promise, quoted from the doc comment above
 `copy`:
@@ -123,7 +123,7 @@ overstate it and one understates what is needed:
   inherits the binding and nothing further is needed; when it is not, each is bound
   once. Under this line the original instruction would be refused in exactly the case
   it was written for.
-- `ADR-v0.7.4-003`'s cascading-revocation promise can now be stated without
+- `RFC-v0.7.4-003`'s cascading-revocation promise can now be stated without
   qualification. It is a published decision record, so **add a dated correction
   alongside it rather than rewriting it** — the treatment E-028 describes and the one
   RFC-0.38-002 received.
@@ -168,6 +168,16 @@ baseline and commit the binaries with it. One `test-all` at a time.
   `BootInfo` field, a `CapRights` bit. Escalate. (Marker and tag constants in
   `fjell-service-api` are not that; regenerate the snapshot in this line so the cut
   sees `Added: 0`.)
+
+## Correction, 2026-10-22 (architect)
+
+This RFC cited **`ADR-v0.7.4-003`**, at a path under `docs/src/adr/`. **No such file
+exists.** The decision record is
+`rfcs/done/RFC-v0.7.4-003-capability-authority-hardening.md`, and the name `ADR-v0.7.4-003`
+survives only inside that RFC's own text and in a `cspace.rs` doc comment that pointed
+at it — which is where I took it from, without opening it. Corrected above. The
+implementer caught it, fixed the code comment, and recorded the naming in the RFC
+itself.
 
 ## Risks
 

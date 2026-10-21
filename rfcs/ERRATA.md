@@ -6385,6 +6385,82 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   about whether lease ownership alone should constrain the target. None of that is
   decided here.
 
+## E-092 — the kernel audits lease revocation under a code the published decoder does not know, and the decoder's own `LeaseRevoked` is unreachable
+
+- **Noticed 2026-10-22 by the implementer of RFC-0.38-004** while establishing whether
+  a distinct audit kind for a bind would be an ABI addition (it would be, so the
+  `CapMint` mislabel was correctly left). They flagged the discrepancy and said they had
+  **not** checked whether the kernel appends the values. **The architect checked: it
+  does.**
+- **Tree, observed 2026-10-22 at `b118465`:**
+  - Kernel: `AuditKindInternal::LeaseRevoked = 40` and `CapDenied = 41`
+    (`crates/fjell-kernel/src/audit/ring.rs:45`–`:46`). `LeaseRevoked` **is appended on
+    every lease revocation** (`crates/fjell-kernel/src/lease/mod.rs:343`).
+  - User space: `AuditKind::LeaseRevoked = 16` and `Internal = 255`
+    (`crates/formats/fjell-audit-format/src/lib.rs:40`, `:49`), and `from_u16` ends
+    `_ => Self::Internal` with **no arm for 40**.
+- **So two things are true at once.** Every lease-revocation record the kernel writes
+  decodes as **`Internal`** — `fjell-auditd` reads it that way — and the published ABI's
+  `LeaseRevoked` variant is **unreachable**, because nothing anywhere emits 16. The
+  audit trail silently loses the classification of the one event class the lease
+  mechanism exists to record, which is also the event three lines of this milestone
+  (RFC-0.38-002, -004) were spent making trustworthy.
+- `CapDenied = 41` has **no emitter and no decoder arm** — a dead declaration on both
+  sides.
+- **Cheaper than the mislabel it was found beside.** The `CapMint`-for-a-bind defect
+  needs a new `AuditKind` variant, which is an ABI addition, and RFC-0.38-004 therefore
+  left it. **This one does not**: it is a disagreement between two existing values, and
+  nothing depends on the current wire value because nothing successfully decodes it.
+  Whichever line takes it should pick one direction deliberately and say which — adding
+  a `40 =>` arm preserves the wire format; changing the kernel to emit 16 preserves the
+  published enum.
+- **Why ACCEPTED and not OPEN.** No authority is granted or withheld wrongly and
+  nothing fails open; the defect is observability, and the record is still written, just
+  classified `Internal`. Same ground as **E-011** and **E-028**. Recorded in
+  `docs/src/releasing/v1-limitations.md` row 11.
+- **Status:** **ACCEPTED**, `unscheduled`. What closing it needs: one of the two
+  directions above, a check that no other kernel audit kind is undecodable (the two
+  enums should be compared wholesale, not just for these values), and a disposition for
+  `CapDenied`.
+
+## E-093 — `RFC-v0.7.4-003` removed recursive revocation on the premise that "every meaningful cap MUST have a lease"; that was never enforced, so most capabilities have neither mechanism
+
+- **Found 2026-10-22 by the implementer of RFC-0.38-004**, in the course of R5's
+  correction to that RFC, and offered unasked with a request to check that it belonged.
+  **It belongs**, and it is the larger half of what R5 uncovered. **Re-derived by the
+  architect.**
+- **Claim:** `rfcs/done/RFC-v0.7.4-003-capability-authority-hardening.md:243`–`:246`:
+  "The behaviour is preserved (`parent = None`) but the rationale is codified:
+  kernel-local recursive revocation is intentionally not supported **because every
+  meaningful cap MUST have a lease**, and lease revocation is the recursive primitive."
+- **Tree:** nothing enforces it, and it is not true. `CSpace::install` sets
+  `lease: None` (`crates/fjell-cap/src/cspace.rs:140`), documented at
+  `crates/fjell-cap/src/slot.rs:14` — "Bootstrap capabilities carry `lease: None`" — and
+  `CSpace::copy` inherits a source's binding *or its absence*. Only a capability a
+  `LeaseAdmin` holder has explicitly bound is lease-governed, and in the shipped tree
+  the only callers that bind are `sample-service` and `neg-test`.
+- **The consequence is architectural, not cosmetic.** Parent-based recursive revocation
+  was *removed* on this premise. Where the premise does not hold — which is the common
+  case — a copied capability has **no recursive revocation at all**: not parent links,
+  which were deleted, and not a lease, because it has none. `cap_revoke` clears one slot
+  and copies survive, which is documented as intentional on the understanding that
+  leases cover the recursive case. For unbound capabilities nothing covers it.
+- **Distinct from E-090 and E-091**, both of which concern a capability that *is* bound:
+  E-090 was that a binding could be replaced (closed by RFC-0.38-004); E-091 is that
+  nothing limits which lease a bind may target. This is about the capabilities that were
+  never bound at all — the coverage of the mechanism rather than its behaviour.
+- **Why ACCEPTED and not OPEN.** No live delegation path in the shipped tree depends on
+  revoking a delegated capability: production services receive fixed bootstrap
+  capabilities and do not delegate, and the two services that bind leases are test
+  fixtures. So nothing fails open today. It is a real limit on the design and is
+  recorded as one, in `docs/src/releasing/v1-limitations.md` row 12.
+- **Status:** **ACCEPTED**, `unscheduled`. What closing it would need is a decision, not
+  an implementation: either enforce the premise (every capability that may be delegated
+  is bound at creation, which needs E-091's scope work first), or withdraw it and state
+  plainly that recursive revocation covers only lease-bound capabilities. The second is
+  the honest short path and is what row 12 says today. **Not the architect's to choose
+  alone** — it changes what the capability model promises.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -6479,6 +6555,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |
 | E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | CLOSED |
 | E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own | unscheduled | ACCEPTED |
+| E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | unscheduled | ACCEPTED |
+| E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all — neither parent links, which were deleted, nor a lease. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

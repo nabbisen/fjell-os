@@ -55,7 +55,7 @@ line needs rethinking. **Escalate before the refusal lands**, not after a tier g
 4. **Re-run R3 green.**
 5. **R6, the audit kind — check whether it is ABI before touching it.** Leaving the
    mislabel is an acceptable outcome of that check.
-6. **R5, the two documents.** `cspace.rs`'s doc comment corrected; `ADR-v0.7.4-003`
+6. **R5, the two documents.** `cspace.rs`'s doc comment corrected; `RFC-v0.7.4-003`
    gets a dated correction beside its text, not a rewrite.
 7. **R7**, closing E-090 only, and **R8**, the gates.
 
@@ -78,7 +78,7 @@ line needs rethinking. **Escalate before the refusal lands**, not after a tier g
    a blind "0 sites" has closed an erratum wrongly in this project before. Control every
    absence probe against a file you know contains the string — R1's sweep especially.
 5. **The published-record distinction.** `cspace.rs`'s doc comment describes current
-   behaviour, so correct it outright. `ADR-v0.7.4-003` is a decision record, so the
+   behaviour, so correct it outright. `RFC-v0.7.4-003` is a decision record, so the
    correction sits beside it and the original stays. Getting these the wrong way round
    either erases history or leaves a live lie.
 6. **Rebuild before re-recording the repro baseline**, and commit the `.bin`s in the
