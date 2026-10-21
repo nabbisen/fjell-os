@@ -42,7 +42,18 @@ pub enum LeaseState {
 /// Matches RFC 033 §2.1 `LeaseObject`.
 struct LeaseObject {
     pub state: LeaseState,
-    /// Slot generation — incremented when the slot is freed.
+    /// Slot generation, carried in the high half of a `LeaseId` and checked on
+    /// every lookup.
+    ///
+    /// **Never incremented today.** No lease slot is ever freed: nothing in
+    /// this module returns a slot to `Empty` (the public surface is `create`,
+    /// `current_epoch`, `revoke`, `check_active`, `revoke_owned_by`), and
+    /// `revoke` leaves the state `Revoked`. So this stays `0` for every lease
+    /// a boot ever creates, which makes `LeaseId` equal to the slot index,
+    /// `0..32`. Recorded 2026-10-21; the generation check is live and correct,
+    /// it simply has nothing to discriminate yet. Whether slots should be
+    /// recycled at all is the lifetime question the register tracks, not a
+    /// claim to make here.
     pub generation: u16,
     /// Monotonically-increasing epoch counter; incremented on revoke.
     ///
@@ -120,8 +131,14 @@ impl LeaseTable {
         // retire-before-wrap): the epoch never wraps. At u32::MAX the slot is
         // retired permanently — state stays Revoked and the epoch stays at
         // MAX, so every epoch-bound capability keeps failing. (Unreachable in
-        // practice: requires 2^32 revocations of one slot; slot reuse bumps
-        // the generation, which invalidates old LeaseIds independently.)
+        // practice: it requires 2^32 revocations of one slot.)
+        //
+        // This note used to add "slot reuse bumps the generation, which
+        // invalidates old LeaseIds independently" as a second ground. That is
+        // false — no slot is ever reused and the generation is never
+        // incremented (see `LeaseObject::generation`) — and it was removed on
+        // 2026-10-21 rather than left propping up the argument. The first
+        // ground carries it on its own.
         match fjell_abi::lease::lease_revoke(slot.epoch) {
             fjell_abi::lease::RevokeOutcome::Advanced(e) => slot.epoch = e,
             fjell_abi::lease::RevokeOutcome::MustRetire => {

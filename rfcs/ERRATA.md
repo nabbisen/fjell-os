@@ -6060,9 +6060,22 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `dispatch_m3` (`trap/syscall.rs:29`) and dispatched at `:393` with **no
   per-syscall gate**, and the function performs none. So any task that can issue the
   syscall can bind any **Active** lease to any capability in its own CSpace.
-- **Consequence — sharper than the finder's reading, and derived in the tree.** The
-  finder wrote that a task could rebind to "any other Active lease it can name." It
-  needs no other lease and no guessing: **a task can rebind its capability to its own
+- **The finder's "32 slots, never recycled" is exact, and the architect's first
+  draft of this entry wrongly softened it.** `LeaseId` is
+  `(generation << 16) | index` over 32 slots. Nothing in `lease/mod.rs` ever returns
+  a slot to `Empty` and nothing increments a lease slot's `generation` — the public
+  surface is `create`, `current_epoch`, `revoke`, `check_active`, `revoke_owned_by`,
+  and `revoke` leaves the state `Revoked`. So the generation is `0` for every lease
+  a boot creates and **`LeaseId` is literally the slot index, `0..32`**: a small
+  integer, exactly as filed. (Two comments in that module claimed otherwise — `:45`
+  that the generation is "incremented when the slot is freed", and `revoke`'s
+  retire-before-wrap note that "slot reuse bumps the generation, which invalidates
+  old LeaseIds independently". Neither happens; both were corrected on 2026-10-21.
+  The retire-before-wrap conclusion stands on its first ground, 2^32 revocations of
+  one slot.)
+- **Consequence — sharper still than the finder's reading, and derived in the tree.**
+  The finder wrote that a task could rebind to "any other Active lease it can name."
+  It needs no other lease and no guessing at all: **a task can rebind its capability to its own
   revoked lease and recover it.** `LeaseTable::revoke` (`lease/mod.rs:135`) sets
   `state = Revoked` and advances the epoch, after which capabilities holding the old
   `epoch_at_issue` fail. But `sys_cap_bind_lease` reads the epoch through
