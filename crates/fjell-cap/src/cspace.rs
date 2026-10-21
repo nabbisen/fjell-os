@@ -170,15 +170,25 @@ impl CSpace {
     ///     single slot being revoked; other copies of the same object remain valid.
     ///   - **Recursive revocation is done via lease revocation**, not cap-parent
     ///     links. Any copied cap that shares the same `LeaseBinding` as the
-    ///     original is automatically invalidated when that lease is revoked.
+    ///     original is automatically invalidated when that lease is revoked. A
+    ///     binding is **set once** (RFC-0.38-004) — `sys_cap_bind_lease` refuses a
+    ///     capability that already has one, even to the same lease — so this holds
+    ///     without qualification: the holder cannot move a capability off its lease
+    ///     before the lease is revoked.
     ///
-    /// If your code expects recursive revocation across copies you MUST:
-    ///   1. Bind both source and copy to the same lease via `sys_cap_bind_lease`
-    ///      (the caller must hold `LeaseAdmin` with `LEASE_CREATE`, and the lease
-    ///      must be `Active`; anything else is refused).
-    ///   2. Use `sys_lease_revoke` rather than `sys_cap_revoke`.
+    /// The copy is a clone with only `parent` cleared, so **it inherits its
+    /// source's binding**. If your code expects recursive revocation across copies:
+    ///   1. If the source is already bound, the copy is already governed by the
+    ///      same lease and nothing further is needed — binding it again would be
+    ///      refused.
+    ///   2. If the source is not bound, bind each capability once via
+    ///      `sys_cap_bind_lease` (the caller must hold `LeaseAdmin` with
+    ///      `LEASE_CREATE`, and the lease must be `Active`; anything else is
+    ///      refused). To move a capability to another lease, drop it and copy again
+    ///      from an unbound source — there is deliberately no unbind.
+    ///   3. Use `sys_lease_revoke` rather than `sys_cap_revoke`.
     ///
-    /// See ADR-v0.7.4-003.
+    /// See RFC-v0.7.4-003 (referred to as ADR-v0.7.4-003 in older text).
     pub fn copy(&mut self, src: CapHandle, dst_slot: usize) -> Result<CapHandle, SysError> {
         let (src_idx, _) = self.resolve(src)?;
         let cap = self.slots[src_idx]

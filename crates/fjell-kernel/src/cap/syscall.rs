@@ -411,22 +411,32 @@ pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 /// step 7 verifies the lease is still active on every use (RFC 006, which added
 /// `LeaseBinding`; RFC 015 put the check into the use paths).
 ///
+/// **A binding is set once** (RFC-0.38-004): a capability that already carries
+/// one is never rebound, to a different lease *or the same one*. Cascading
+/// revocation — "revoke lease L and every capability bound to L dies" — is the
+/// only recursive revocation there is (`CSpace::copy` clears `parent`), and it is
+/// only as strong as the binding's immutability. There is deliberately no unbind;
+/// to move a capability off its lease, drop it and copy again from an unbound
+/// source.
+///
 /// Checked in this order, and refused closed at each step:
 ///
 /// 1. **Authority** — the caller holds an `Active` `CapKind::LeaseAdmin`
 ///    capability that carries `CapRights::LEASE_CREATE` and whose own lease
-///    binding, if it has one, is still live. Otherwise `PermissionDenied`. The
-///    syscall's ABI carries no handle for the authority, so the caller's CSpace
-///    is scanned for one. Today `init`, `sample-service` and `neg-test` hold it.
-/// 2. **The lease is `Active`** — a binding to a `Revoked` lease is dead on
-///    arrival, so it is refused with `LeaseRevoked`; a lease that does not
-///    exist is `InvalidCap`.
-/// 3. **The capability exists** — `cap_handle` names an occupied slot of the
-///    caller's CSpace (generation-checked), else `InvalidCap`.
+///    binding, if it has one, is still live. Otherwise `PermissionDenied`. It is
+///    first so a caller without authority learns nothing about the target or the
+///    lease. The syscall's ABI carries no handle for the authority, so the
+///    caller's CSpace is scanned for one. Today `init`, `sample-service` and
+///    `neg-test` hold it.
+/// 2. **The target** — `cap_handle` names an occupied slot of the caller's CSpace
+///    (generation-checked), else `InvalidCap`; and it is **not already bound**,
+///    else `BadState`. No existing `SysError` says "this capability already has a
+///    lease" more exactly, and a new one would be an ABI addition.
+/// 3. **The lease is `Active`** — a binding to a `Revoked` lease is dead on
+///    arrival, so it is refused with `LeaseRevoked`; a lease that does not exist
+///    is `InvalidCap`.
 ///
-/// On success the capability's binding is replaced by one stamped with the
-/// lease's current epoch; a previous binding of that capability is overwritten,
-/// which is part of what holding `LeaseAdmin` allows.
+/// Only then is the capability stamped with the lease's current epoch.
 pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     use fjell_abi::lease::LeaseId;
     use fjell_cap::CapState;
@@ -458,7 +468,36 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
         return;
     }
 
-    // 2. The lease must be Active (fail closed on Revoked).
+    // 2. The target: an occupied slot (generation-validated lookup), not yet
+    // bound. Refused before the lease is looked at, so the answer to "is this
+    // capability already bound" does not depend on the lease's state.
+    let cs = match ct.cspace_mut(tidx) {
+        Some(c) => c,
+        None => {
+            err(tf, SysError::InternalError);
+            return;
+        }
+    };
+    let idx = cap_h.slot() as usize;
+    let cap = match cs.slot_by_handle_mut(cap_h) {
+        Ok(slot) => match &mut slot.cap {
+            Some(cap) => cap,
+            None => {
+                err(tf, SysError::InvalidCap);
+                return;
+            }
+        },
+        Err(_) => {
+            err(tf, SysError::InvalidCap);
+            return;
+        }
+    };
+    if cap.lease.is_some() {
+        err(tf, SysError::BadState);
+        return;
+    }
+
+    // 3. The lease must be Active (fail closed on Revoked).
     let epoch = match lt.active_epoch(lease_id) {
         Ok(e) => e,
         Err(e) => {
@@ -467,35 +506,12 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
         }
     };
 
-    // 3. Bind the lease to the cap in the caller's CSpace, through a
-    // generation-validated lookup (`slot_by_handle_mut`).
-    let cs = match ct.cspace_mut(tidx) {
-        Some(c) => c,
-        None => {
-            err(tf, SysError::InternalError);
-            return;
-        }
-    };
-    let binding = fjell_cap::slot::LeaseBinding {
+    cap.lease = Some(fjell_cap::slot::LeaseBinding {
         lease_id,
         epoch_at_issue: epoch,
-    };
-    match cs.slot_by_handle_mut(cap_h) {
-        Ok(slot) => {
-            let idx = cap_h.slot() as usize;
-            match &mut slot.cap {
-                Some(cap) => {
-                    cap.lease = Some(binding);
-                    ok(tf);
-                    AUDIT.lock_free_append(AuditKindInternal::CapMint, idx, lease_id.0 as usize, 0);
-                }
-                None => err(tf, SysError::InvalidCap),
-            }
-        }
-        Err(_) => {
-            err(tf, SysError::InvalidCap);
-        }
-    }
+    });
+    ok(tf);
+    AUDIT.lock_free_append(AuditKindInternal::CapMint, idx, lease_id.0 as usize, 0);
 }
 
 /// Deliver a PendingMessage into the current task's TrapFrame (for recv/call).

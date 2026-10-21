@@ -256,10 +256,12 @@ fn test_cap_rebind_after_revoke() {
         let _ = _sys_cap_drop(copied);
         return;
     }
-    // The attempt: bind the same capability to the same, revoked, lease.
+    // The attempt: bind the same capability to the same, revoked, lease. The
+    // capability is already bound, so since RFC-0.38-004 this is refused as a
+    // second bind (`BadState`) — that check comes before the lease's state.
     check_err(
         sys_cap_bind_lease(copied, lease_id),
-        SysError::LeaseRevoked,
+        SysError::BadState,
         M::CAP_REBIND_AFTER_REVOKE_REFUSED,
     );
     // The property: the capability is still unusable.
@@ -267,6 +269,87 @@ fn test_cap_rebind_after_revoke() {
         sys_cap_inspect(copied),
         SysError::LeaseRevoked,
         M::CAP_REVOKED_STAYS_REVOKED,
+    );
+    let _ = _sys_cap_drop(copied);
+
+    // RFC-0.38-002 R3, which the set-once check now shadows for a bound
+    // capability: an UNBOUND capability bound to the revoked lease is refused
+    // with `LeaseRevoked`.
+    let fresh = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("bind_to_revoked_lease: copy");
+            return;
+        }
+    };
+    check_err(
+        sys_cap_bind_lease(fresh, lease_id),
+        SysError::LeaseRevoked,
+        M::CAP_BIND_TO_REVOKED_LEASE_REFUSED,
+    );
+    let _ = _sys_cap_drop(fresh);
+}
+
+/// CAP: a lease binding is set once (RFC-0.38-004 R2-R4, E-090).
+///
+/// A `LeaseAdmin` holder must not be able to move a capability off the lease
+/// that governs it, or revoking that lease stops being reliable. The scenario
+/// binds a copied capability to lease L1, then tries to bind it again — to a
+/// different `Active` lease L2, and to L1 itself — and asserts both are refused
+/// with `BadState`. Then the requirement: **revoke L1 and assert the capability
+/// dies.** A refusal that left the binding corrupted would satisfy the first two
+/// and fail the third. L2 is still `Active` throughout, so a bind that had
+/// succeeded would have moved the capability somewhere L1's revocation cannot
+/// reach.
+fn test_cap_binding_is_set_once() {
+    use fjell_abi::error::SysError;
+    let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("set_once: copy");
+            return;
+        }
+    };
+    let (l1, l2) = match (
+        sys_lease_create(SLOT_LEASE_ADMIN, 0),
+        sys_lease_create(SLOT_LEASE_ADMIN, 0),
+    ) {
+        (Ok(a), Ok(b)) => (a, b),
+        _ => {
+            setup_failed("set_once: lease_create");
+            let _ = _sys_cap_drop(copied);
+            return;
+        }
+    };
+    if sys_cap_bind_lease(copied, l1).is_err() || sys_cap_inspect(copied).is_err() {
+        setup_failed("set_once: first bind, or the capability does not work while L1 is live");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    // Same lease first, the move to L2 LAST: against a kernel that lets a bind
+    // replace a binding, the capability must end up on L2 — if the order were
+    // reversed the same-lease bind would move it back to L1 and the property
+    // step below would pass against the very defect it is there to catch.
+    check_err(
+        sys_cap_bind_lease(copied, l1),
+        SysError::BadState,
+        M::CAP_SAME_LEASE_REBIND_REFUSED,
+    );
+    check_err(
+        sys_cap_bind_lease(copied, l2),
+        SysError::BadState,
+        M::CAP_SECOND_BIND_REFUSED,
+    );
+    // The property: L1 still governs the capability.
+    if sys_lease_revoke(SLOT_LEASE_ADMIN, l1).is_err() {
+        setup_failed("set_once: revoke L1");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    check_err(
+        sys_cap_inspect(copied),
+        SysError::LeaseRevoked,
+        M::CAP_ORIGINAL_LEASE_STILL_KILLS,
     );
     let _ = _sys_cap_drop(copied);
 }
@@ -1196,6 +1279,7 @@ pub extern "C" fn service_main() -> ! {
     test_cap_lease_revoked();
     test_cap_drop_on_revoked();
     test_cap_rebind_after_revoke();
+    test_cap_binding_is_set_once();
     test_cap_wrong_kind();
     test_irq_bind_without_right();
     // ── RFC 049: capability management rights ─────────────────────────────────

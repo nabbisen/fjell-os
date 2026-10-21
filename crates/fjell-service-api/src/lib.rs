@@ -362,10 +362,16 @@ pub mod negative_markers {
     pub const CAP_INSPECT_WITHOUT_RIGHT: &str = "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS";
 
     // ── RFC-0.38-002: binding a lease needs the authority it claims (E-088) ───
-    /// Binding a capability to a lease that has been revoked is refused with
-    /// `LeaseRevoked` (fail closed: a binding to a `Revoked` lease is dead on
-    /// arrival and its only effect is to hide the revocation from the caller).
+    /// Re-binding a capability that is already bound — here to the very lease
+    /// it was bound to, which has since been revoked — is refused with
+    /// `BadState` (a binding is set once, RFC-0.38-004).
     pub const CAP_REBIND_AFTER_REVOKE_REFUSED: &str = "NEG:CAP:REBIND_AFTER_REVOKE_REFUSED:PASS";
+    /// Binding an *unbound* capability to a lease that has been revoked is
+    /// refused with `LeaseRevoked` (fail closed: a binding to a `Revoked` lease
+    /// is dead on arrival and its only effect is to hide the revocation from
+    /// the caller; RFC-0.38-002 R3).
+    pub const CAP_BIND_TO_REVOKED_LEASE_REFUSED: &str =
+        "NEG:CAP:BIND_TO_REVOKED_LEASE_REFUSED:PASS";
     /// After that refusal the capability still fails the lease check — the
     /// property, as opposed to the return code.
     pub const CAP_REVOKED_STAYS_REVOKED: &str = "NEG:CAP:REVOKED_STAYS_REVOKED:PASS";
@@ -381,6 +387,17 @@ pub mod negative_markers {
     /// to another, `Active`, lease.
     pub const CAP_REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND: &str =
         "NEG:CAP:REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND:PASS";
+
+    // ── RFC-0.38-004: a lease binding is set once (E-090) ─────────────────────
+    /// A second bind of an already-bound capability, to a *different* `Active`
+    /// lease, is refused with `BadState`.
+    pub const CAP_SECOND_BIND_REFUSED: &str = "NEG:CAP:SECOND_BIND_REFUSED:PASS";
+    /// A second bind to the *same* lease and epoch is refused too — there is no
+    /// idempotent exception.
+    pub const CAP_SAME_LEASE_REBIND_REFUSED: &str = "NEG:CAP:SAME_LEASE_REBIND_REFUSED:PASS";
+    /// After the refusals, revoking the lease the capability was first bound to
+    /// still kills it — the property, as opposed to the return codes.
+    pub const CAP_ORIGINAL_LEASE_STILL_KILLS: &str = "NEG:CAP:ORIGINAL_LEASE_STILL_KILLS:PASS";
 
     // ── RFC-0.33-001 D15: the reset mechanism, on its own ────────────────────
     /// `sys_reboot` through a `Reboot`-kind capability minted down to lack the

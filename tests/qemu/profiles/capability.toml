@@ -7,6 +7,11 @@
 # without a LeaseAdmin capability holding LEASE_CREATE; and a revoked
 # capability is not revived by an unprivileged bind to another lease.
 #
+# RFC-0.38-004 (E-090) adds four: a lease binding is set once -- a second bind
+# (to another Active lease, or the same one) is refused, and revoking the lease
+# the capability was first bound to still kills it; and 0.38-002's bind-to-a-
+# revoked-lease refusal is kept, on an unbound capability.
+#
 # RFC-0.25-001 Demonstration 4 adds NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED: a
 # task without IRQ_BIND is refused.
 #
@@ -31,5 +36,9 @@ expected_markers = [
   "NEG:CAP:BIND_LEASE_WITHOUT_RIGHT_REJECTED:PASS",
   "NEG:CAP:BIND_LEASE_WITHOUT_AUTHORITY_REJECTED:PASS",
   "NEG:CAP:REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND:PASS",
+  "NEG:CAP:BIND_TO_REVOKED_LEASE_REFUSED:PASS",
+  "NEG:CAP:SECOND_BIND_REFUSED:PASS",
+  "NEG:CAP:SAME_LEASE_REBIND_REFUSED:PASS",
+  "NEG:CAP:ORIGINAL_LEASE_STILL_KILLS:PASS",
 ]
 extra_args       = []
