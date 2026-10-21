@@ -295,6 +295,18 @@ folder-as-source-of-truth rule it had been cited for without containing.
 capability-checked, interrupt-driven path.** Not usable — there is no shell, no
 command set, no line editing. Interactive.
 
+*Corrected 2026-10-22 (RFC-0.38-003, E-089).* "Interactive" was more than the tree
+delivered. One byte reached `init` per boot: `sys_ipc_try_recv` never woke the
+blocked `driver-uart`, which therefore never acknowledged the interrupt, and every
+injecting profile typed a single character. What holds now, measured: bytes
+typed while `init` is polling are delivered **in order, every one** (`uart-rx`
+types two and asserts both). `init` polls for a bounded window (20 000 iterations,
+ended early by a trigger byte `F`/`R`/`P`/`L`/`D`) and then exits; **after that
+nothing receives**, so the driver takes one more byte, blocks in its send and reads
+no more — measured by typing two bytes after the window closed. There is still no
+long-lived console consumer, no echo, no line editing and no shell. A console that
+loses nothing *while someone listens* is not an interactive console.
+
 Two things the line turned up that outlive it. `fjell-driver-virtio-net` gets
 past `sys_irq_bind` for the first time since v0.4 and now fails one layer
 further along for an honest reason (nothing ever populated its `CAP_IRQ` slot),
