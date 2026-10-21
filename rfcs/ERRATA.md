@@ -6207,14 +6207,48 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   edge appear nowhere in that specification. The receiver-side deadlock it was built
   to avoid is now reproduced on the **sender** side, by the same absence of
   preemption.
-- **Status:** **OPEN** (architect, 2026-10-21), scheduled to **RFC-0.38-003** on
+- **Status:** ~~**OPEN** (architect, 2026-10-21), scheduled to **RFC-0.38-003** on
   2026-10-21. Live drift, not a
   deliberate limitation, by the same reasoning as E-088 — and it fails open in its
   own way: the driver is stranded rather than erroring, so nothing reports a
   failure. What closing it needs: `try_recv` takes `&mut TaskTable` and a scheduler
   and does what `recv` does on delivery — wake a one-way sender, install a reply
   edge for a call — **and a tier that injects at least two bytes**, which no profile
-  has ever done. The second half is the one that keeps it closed.
+  has ever done. The second half is the one that keeps it closed.~~ →
+  **CLOSED** by **RFC-0.38-003**.
+
+  > **Closed by RFC-0.38-003, 2026-10-22.** `sys_ipc_try_recv` and `sys_ipc_recv`
+  > now share one function, `complete_receive` (`cap/syscall.rs`), for what happens
+  > to a message once it is off an endpoint's send queue: a call gets its reply edge
+  > (with its lease binding, RFC 034) and is not woken; a one-way send wakes its
+  > sender; then the message is delivered and the audit event recorded. The handler
+  > takes `&mut CapTable`, `&mut TaskTable` and the scheduler — the ones
+  > `dispatch_ipc_try_recv` already holds from its single `get_kernel_state()`, so
+  > no second borrow and no `unsafe`. The wake helper is the existing `wake`.
+  > Two tiers, both run against the unfixed kernel first and failing:
+  > `uart-rx` now types **two** bytes and asserts both, by value and by order
+  > (`uart byte='Q' … (#1)`, `uart byte='W' … (#2)`); and `ipc` gained
+  > `NEG:IPC:TRY_RECV_CALL_REPLIED`, the one call in the tree served through the
+  > non-blocking receive (`neg-test` drains with `try_recv` only; `sample-service`
+  > is the caller and prints the marker only on the reply label it was told to
+  > expect). Before the fix the reply was refused
+  > (`NEG:HARNESS:TRY_RECV_REPLY_REFUSED`) and the caller was never woken.
+  >
+  > **A second cause the chain above did not name, found by the first run.**
+  > With the kernel fixed and the two-byte profile otherwise unchanged, the
+  > driver took *both* bytes (two `driver-uart: byte received`) but the second was
+  > never delivered: `fjell-init`'s poll loop `break`s after the first byte it
+  > receives and then exits, so there was no receiver. The kernel defect was real
+  > and is fixed; it was not the only thing making the console deliver one byte.
+  > `init` now ends the window at a trigger byte (`F`, `R`, `P`, `L`, `D`), as
+  > before, and otherwise keeps polling until its budget runs out.
+  >
+  > **What this does not make true.** The ROADMAP's "interactive" (0.25) was more
+  > than the tree delivers and carries a dated correction: bytes are delivered, in
+  > order, while `init` is polling; after `init` exits nothing receives, and the
+  > driver, measured, takes one further byte, blocks in its send and reads no more.
+  > A long-lived console consumer is not built and was not this line's. Full detail
+  > in `rfcs/answers/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender-answer.md`.
 
 ## Summary
 
@@ -6307,7 +6341,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | ACCEPTED |
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
 | E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. The epoch read admitted a `Revoked` slot too; the closure records that rebinding to the *same* revoked lease was measured **not** to revive the capability (`check_active` needs `Active`), and that a task with no `LeaseAdmin` binding it to a *different* `Active` lease did — the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | CLOSED |
-| E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | OPEN |
+| E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
