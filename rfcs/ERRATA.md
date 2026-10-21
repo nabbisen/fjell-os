@@ -6115,7 +6115,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   accepted-risk rationale that says why a fail-open authority gap is tolerable —
   which is a decision the standing instruction reserves and the architect does not
   make alone.
-- **Status:** **OPEN** (architect, 2026-10-21), unscheduled. What closing it needs:
+- **Status:** **OPEN** (architect, 2026-10-21), scheduled to **RFC-0.38-002** on
+  2026-10-21 by the owner's acceptance of a separate line for it. What closing it needs:
   the check the doc comment already describes, implemented against the `ct`
   parameter the function already holds — which is what the reverted version got
   wrong and what its own follow-up note describes — plus the lease-state check the
@@ -6163,7 +6164,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   edge appear nowhere in that specification. The receiver-side deadlock it was built
   to avoid is now reproduced on the **sender** side, by the same absence of
   preemption.
-- **Status:** **OPEN** (architect, 2026-10-21), unscheduled. Live drift, not a
+- **Status:** **OPEN** (architect, 2026-10-21), scheduled to **RFC-0.38-003** on
+  2026-10-21. Live drift, not a
   deliberate limitation, by the same reasoning as E-088 — and it fails open in its
   own way: the driver is stranded rather than erroring, so nothing reports a
   failure. What closing it needs: `try_recv` takes `&mut TaskTable` and a scheduler
@@ -6261,8 +6263,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | RFC-0.38-001 | ACCEPTED |
 | E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | ACCEPTED |
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
-| E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. Because the epoch read admits a `Revoked` slot, a task can rebind its capability to its own revoked lease and pick up the post-revocation epoch — **epoch revocation is undone at the binding step**, the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | unscheduled | OPEN |
-| E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | unscheduled | OPEN |
+| E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. Because the epoch read admits a `Revoked` slot, a task can rebind its capability to its own revoked lease and pick up the post-revocation epoch — **epoch revocation is undone at the binding step**, the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | OPEN |
+| E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
