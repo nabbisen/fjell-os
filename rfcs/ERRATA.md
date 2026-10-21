@@ -6305,6 +6305,54 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   unbound capability. What remains of this entry is the *first-bind* question — which
   lease a holder may bind to at all — which immutability does not answer. Placement
   is the owner's.
+- **Scope narrowed 2026-10-22, and the remainder split to E-091.** The owner accepted
+  RFC-0.38-004 for the ruling above, so **this entry is now the *rebind* half only**:
+  that `sys_cap_bind_lease` replaces an existing binding. The *first-bind* half — the
+  unbuilt `LEASE_BIND` right, the unbuilt scope check, and the question of which lease
+  a holder may bind to at all — is **E-091**, ACCEPTED and unscheduled. Split before
+  closure rather than at it, so the implementing line has one unambiguous target;
+  the precedent for splitting at all is **E-074** from **E-072**, "so a closed entry
+  does not carry live residuals". The body above is left as written.
+
+## E-091 — the `LEASE_BIND` right and lease-scope check `RFC-v0.7.4-003` specified still do not exist: nothing limits *which* lease a holder may bind to
+
+- **Split from E-090 on 2026-10-22** when the owner accepted RFC-0.38-004 for that
+  entry's rebind half. Originally found 2026-10-22 by the implementer of RFC-0.38-002.
+  Split before closure so that a closed entry carries no live residual — the **E-074
+  from E-072** precedent.
+- **Claim:** `rfcs/done/RFC-v0.7.4-003-capability-authority-hardening.md` (Status:
+  Implemented) specifies at `:54` that "sys_cap_bind_lease requires LeaseAdmin +
+  LEASE_BIND right and" a scope check; writes the handler at `:155`–`:156` as
+  `require_cap_on_ct(CapKind::LeaseAdmin, LEASE_BIND)?` with "scope must cover the
+  target lease"; declares `pub const LEASE_BIND: Self = CapRights(1 << 25);` at `:196`;
+  and allocates `AUDIT_LEASE_BIND_REJECTED = 0x0604` at `:359`.
+- **Tree, observed 2026-10-22 at `3683f04`:** `crates/fjell-cap/src/rights.rs` has
+  `LEASE_CREATE` (`1 << 16`), `LEASE_REVOKE` (`1 << 17`), `LEASE_INSPECT` (`1 << 18`).
+  **No `LEASE_BIND` bit exists**, `1 << 25` is unallocated, no scope check exists on any
+  lease path, and that audit code is unallocated. The identifier's only occurrences in
+  the tree are inside that RFC's own text.
+- **What remains at risk once RFC-0.38-004 lands.** That line makes a binding
+  immutable, so a capability can no longer *escape* the lease governing it. It does not
+  constrain the **first** bind: the right that gates *creating* a lease still gates
+  *binding* one, and with no scope check a holder of `LeaseAdmin` + `LEASE_CREATE` may
+  bind an unbound capability to **any** `Active` lease, including one it does not own.
+  Three tasks hold such a capability (`sample-service` slot 1, `neg-test` slot 4,
+  `init` slot 30).
+- **Third instance of a shape the register now tracks three times**: an RFC marked
+  `Implemented` while a named, checkable piece of its own specified deliverable was
+  never built — with **E-023** and **E-028**. `rfc-status-folder` verifies that a
+  Status matches its folder; **nothing verifies that an RFC's named deliverables
+  exist**, which is the gap all three share and which may deserve an instrument of its
+  own.
+- **Why ACCEPTED and not OPEN.** It does not fail open: `sys_cap_bind_lease` refuses a
+  caller without authority (RFC-0.38-002, closing E-088) and, once RFC-0.38-004 lands,
+  refuses to replace a binding. The residual is a coarse grant to three privileged
+  tasks, not an escalation path for an unprivileged one — the distinction **E-011**'s
+  ACCEPTED status rests on. Recorded in `docs/src/releasing/v1-limitations.md` row 10.
+- **Status:** **ACCEPTED**, `unscheduled`. What closing it would need: the `LEASE_BIND`
+  bit, the scope representation a lease-scoped capability would carry, and a decision
+  about whether lease ownership alone should constrain the target. None of that is
+  decided here.
 
 ## Summary
 
@@ -6398,7 +6446,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
 | E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. The epoch read admitted a `Revoked` slot too; the closure records that rebinding to the *same* revoked lease was measured **not** to revive the capability (`check_active` needs `Active`), and that a task with no `LeaseAdmin` binding it to a *different* `Active` lease did — the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | CLOSED |
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |
-| E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028) | unscheduled | ACCEPTED |
+| E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | ACCEPTED |
+| E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
