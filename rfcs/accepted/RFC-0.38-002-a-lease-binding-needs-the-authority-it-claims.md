@@ -50,6 +50,30 @@ gate, and the function performs none.
 
 ### The part that makes this urgent
 
+> **Correction, 2026-10-22 (architect). The mechanism this subsection describes is
+> wrong, and the paragraph below is left as written because the implementation line
+> was run from it.** A task cannot recover a revoked capability by rebinding it to
+> **its own revoked lease**. The pre-fix kernel did accept that bind — the epoch read
+> admitted a `Revoked` slot, as stated — but the capability stayed dead:
+> `LeaseTable::check_active` (`lease/mod.rs:182`) tests `state == Active` *before* it
+> compares epochs, and a revoked slot is never `Active` again, so re-stamping the
+> epoch cannot satisfy step 7. Measured by the implementer, not argued:
+> `NEG:CAP:REVOKED_STAYS_REVOKED:PASS` appeared in the pre-fix run beside the
+> accepted bind.
+>
+> **What did recover authority is the finder's original path**, the one this
+> subsection claimed to sharpen: a task holding **no `LeaseAdmin` at all** binding the
+> dead capability to a **different `Active` lease**, which then passes both of
+> `check_active`'s tests. That was measured reviving the capability before the fix.
+>
+> The error was mine and it is the second time in two days I have overridden this
+> finder's correct reading with a mechanism I inferred instead of read: I had looked
+> at `get`, seen `current_epoch` call it, and concluded the *use* path admitted a
+> revoked slot without ever opening `check_active`. The requirements are unaffected —
+> R3 stands as fail-closed hardening rather than as the recovery fix, which is how the
+> implementer kept it — and E-088 carries the same correction.
+
+
 `LeaseTable::get` (`lease/mod.rs:172`) refuses only a generation mismatch or an
 `Empty` slot. A **`Revoked`** slot passes. `revoke` (`:135`) sets
 `state = Revoked` and advances the epoch; capabilities still holding the old
@@ -177,8 +201,15 @@ rebuild **before** re-recording the repro baseline and commit the binaries with 
   `MmioUnmap`, `DmaShare`). Out of scope.
 - **Widening `LeaseId` or changing the generation scheme.** The generation check is
   live and correct; it simply has nothing to discriminate yet.
-- **Any ABI addition.** If you believe one is needed, that is an escalation, not an
-  implementation step.
+- **Any addition to the kernel's ABI surface** — a syscall, a syscall number, a
+  `BootInfo` field, a `CapRights` bit. If you believe one is needed, that is an
+  escalation, not an implementation step.
+
+  *Clarified 2026-10-22, because the original wording said only "any ABI addition"
+  and the implementer rightly asked.* Marker and tag constants in
+  `fjell-service-api` are enumerated by `abi-snapshot` but are not an ABI commitment
+  of that kind; adding them is ordinary work for this line, with the snapshot
+  regenerated in the same line (RFC-0.30-002 §5) so the cut still sees `Added: 0`.
 
 ## Risks
 

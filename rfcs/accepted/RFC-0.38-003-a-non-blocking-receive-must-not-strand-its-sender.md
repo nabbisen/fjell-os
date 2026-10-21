@@ -163,8 +163,13 @@ binaries in the same commit. Only one `test-all` at a time — it shares
   exist, and changing it is not this line's work.
 - **Redesigning the console.** Line editing, echo and an input protocol are separate
   questions. This line makes delivery correct.
-- **`sys_ipc_try_recv_msg`** or any other new syscall surface. If you conclude the fix
-  needs one, escalate — it lands in the ABI snapshot and the cut checks `Added: 0`.
+- **`sys_ipc_try_recv_msg`** or any other new **kernel** ABI surface — a syscall, a
+  syscall number, a `BootInfo` field. If you conclude the fix needs one, escalate.
+
+  *Clarified 2026-10-22.* Changing an existing handler's internal signature is not
+  that, and neither are tag or marker constants in `fjell-service-api`, even though
+  `abi-snapshot` enumerates them: regenerate the snapshot in this line so the cut
+  sees `Added: 0`.
 - **The other `try_recv`-shaped question**, whether polling is the right pattern for
   `init` at all. Out of scope.
 
