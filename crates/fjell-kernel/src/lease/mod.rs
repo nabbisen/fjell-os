@@ -106,9 +106,28 @@ impl LeaseTable {
         Err(SysError::NoMemory)
     }
 
-    /// Return the current epoch for the given lease.
+    /// Return the current epoch for the given lease, whatever its state.
+    ///
+    /// A `Revoked` lease is reported with its post-revocation epoch — this is
+    /// what `sys_lease_inspect` wants. To *bind* a capability use
+    /// [`Self::active_epoch`], which refuses a lease that is not `Active`.
     pub fn current_epoch(&self, id: LeaseId) -> Result<LeaseEpoch, SysError> {
         Ok(LeaseEpoch(self.get(id)?.epoch))
+    }
+
+    /// Return the current epoch for the given lease only while it is `Active`.
+    ///
+    /// `LeaseRevoked` for a `Revoked` lease (the same error `check_active`
+    /// gives a use of such a binding); `InvalidCap` for a lease that does not
+    /// exist. Used by `sys_cap_bind_lease` (RFC-0.38-002): a binding stamped
+    /// against a `Revoked` lease can never pass `check_active` again, so
+    /// accepting one would only hide the revocation from the binder.
+    pub fn active_epoch(&self, id: LeaseId) -> Result<LeaseEpoch, SysError> {
+        let slot = self.get(id)?;
+        if slot.state != LeaseState::Active {
+            return Err(SysError::LeaseRevoked);
+        }
+        Ok(LeaseEpoch(slot.epoch))
     }
 
     /// Revoke a lease: O(1) epoch increment (RFC 033 §2.4, invariant LEASE-001).

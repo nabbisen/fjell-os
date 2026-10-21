@@ -2,6 +2,11 @@
 # RFCs 048: handle-based require_cap for task/lease syscalls.
 # RFC 049: COPY/MINT/REVOKE/INSPECT management rights.
 
+# RFC-0.38-002 (E-088) adds five markers: a capability cannot be re-bound to a
+# revoked lease and stays unusable afterwards; `sys_cap_bind_lease` is refused
+# without a LeaseAdmin capability holding LEASE_CREATE; and a revoked
+# capability is not revived by an unprivileged bind to another lease.
+#
 # RFC-0.25-001 Demonstration 4 adds NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED: a
 # task without IRQ_BIND is refused.
 #
@@ -21,5 +26,10 @@ expected_markers = [
   "NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS",
   "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS",
   "NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED:PASS",
+  "NEG:CAP:REBIND_AFTER_REVOKE_REFUSED:PASS",
+  "NEG:CAP:REVOKED_STAYS_REVOKED:PASS",
+  "NEG:CAP:BIND_LEASE_WITHOUT_RIGHT_REJECTED:PASS",
+  "NEG:CAP:BIND_LEASE_WITHOUT_AUTHORITY_REJECTED:PASS",
+  "NEG:CAP:REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND:PASS",
 ]
 extra_args       = []

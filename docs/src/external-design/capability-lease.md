@@ -34,6 +34,11 @@ A 25+-bit rights lattice: `READ`, `WRITE`, `EXECUTE`, `SEND`, `RECV`, `CALL`,
 `cap_copy` (equal-rights copy), `cap_mint` (strict subset), `cap_delete`,
 `cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease`.
 
+`cap_bind_lease` binds a capability the caller owns to a lease. The caller must hold
+an `Active` `LeaseAdmin` capability carrying `LEASE_CREATE` (otherwise
+`PermissionDenied`) and the lease must be `Active` (otherwise `LeaseRevoked`) —
+RFC-0.38-002. It replaces any earlier binding of that capability.
+
 `cap_install` and `cap_install_with_rights` are declared in `fjell-abi` and
 have user-space wrappers, but `trap/syscall.rs` has no dispatch arm for
 `CapInstall` — see [Kernel](./kernel.md) §2 "Declared, not dispatched".

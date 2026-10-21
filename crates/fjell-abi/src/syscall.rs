@@ -35,11 +35,13 @@ pub enum SyscallNumber {
     /// Unlike `CapDelete`, this succeeds even when the capability's lease has
     /// been revoked.  Existence check (ownership + generation) still applies.
     CapDrop = 15,
-    /// Bind a lease to an existing capability (RFC 042 §"cap_bind_lease").
+    /// Bind a lease to an existing capability (RFC 006 `LeaseBinding`).
     ///
     /// After binding, `require_cap` step 7 checks whether the lease is still
-    /// active before allowing the cap to be used.  Used by the neg-test service
-    /// to create lease-bound caps for negative testing.
+    /// active before allowing the cap to be used.  The caller must hold a
+    /// `LeaseAdmin` capability with `LEASE_CREATE` (otherwise
+    /// `PermissionDenied`), and the lease must be `Active` (otherwise
+    /// `LeaseRevoked`).
     CapBindLease = 16,
     /// RFC 056: install a cap directly into another task's CSpace.
     CapInstall = 17,

@@ -350,6 +350,27 @@ pub mod negative_markers {
     pub const CAP_REVOKE_WITHOUT_RIGHT: &str = "NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS";
     pub const CAP_INSPECT_WITHOUT_RIGHT: &str = "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS";
 
+    // ── RFC-0.38-002: binding a lease needs the authority it claims (E-088) ───
+    /// Binding a capability to a lease that has been revoked is refused with
+    /// `LeaseRevoked` (fail closed: a binding to a `Revoked` lease is dead on
+    /// arrival and its only effect is to hide the revocation from the caller).
+    pub const CAP_REBIND_AFTER_REVOKE_REFUSED: &str = "NEG:CAP:REBIND_AFTER_REVOKE_REFUSED:PASS";
+    /// After that refusal the capability still fails the lease check — the
+    /// property, as opposed to the return code.
+    pub const CAP_REVOKED_STAYS_REVOKED: &str = "NEG:CAP:REVOKED_STAYS_REVOKED:PASS";
+    /// A `LeaseAdmin` capability without `LEASE_CREATE` does not authorise
+    /// `sys_cap_bind_lease`.
+    pub const CAP_BIND_LEASE_WITHOUT_RIGHT: &str = "NEG:CAP:BIND_LEASE_WITHOUT_RIGHT_REJECTED:PASS";
+    /// A task holding no `LeaseAdmin` capability at all is refused by
+    /// `sys_cap_bind_lease`.
+    pub const CAP_BIND_LEASE_WITHOUT_AUTHORITY: &str =
+        "NEG:CAP:BIND_LEASE_WITHOUT_AUTHORITY_REJECTED:PASS";
+    /// After both refusals a capability whose lease was revoked is still
+    /// unusable — a task without `LeaseAdmin` could not revive it by binding it
+    /// to another, `Active`, lease.
+    pub const CAP_REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND: &str =
+        "NEG:CAP:REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND:PASS";
+
     // ── RFC-0.33-001 D15: the reset mechanism, on its own ────────────────────
     /// `sys_reboot` through a `Reboot`-kind capability minted down to lack the
     /// `REBOOT` right is refused with `PermissionDenied`. The machine reset the

@@ -173,7 +173,9 @@ impl CSpace {
     ///     original is automatically invalidated when that lease is revoked.
     ///
     /// If your code expects recursive revocation across copies you MUST:
-    ///   1. Bind both source and copy to the same lease via `sys_cap_bind_lease`.
+    ///   1. Bind both source and copy to the same lease via `sys_cap_bind_lease`
+    ///      (the caller must hold `LeaseAdmin` with `LEASE_CREATE`, and the lease
+    ///      must be `Active`; anything else is refused).
     ///   2. Use `sys_lease_revoke` rather than `sys_cap_revoke`.
     ///
     /// See ADR-v0.7.4-003.

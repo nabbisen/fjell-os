@@ -203,6 +203,165 @@ fn test_cap_drop_on_revoked() {
     check(result.is_ok(), M::CAP_DROP_ON_REVOKED);
 }
 
+/// CAP: revocation survives a rebind attempt (RFC-0.38-002 R3/R4, E-088).
+///
+/// A task whose lease has been revoked must not be able to bind its capability
+/// back to that lease and recover the authority revocation took away. The
+/// scenario creates a lease, binds a copied capability, uses it, revokes the
+/// lease, and then tries to bind the same capability to the same (now
+/// `Revoked`) lease. Two things are asserted, and the second is the property:
+///
+/// 1. the bind is refused with exactly `LeaseRevoked`;
+/// 2. the capability **still fails** the lease check afterwards. A refusal that
+///    left a usable binding in place would satisfy (1) and not (2).
+///
+/// The capability is exercised with `sys_cap_inspect`, which runs the lease
+/// check (RFC 015) without blocking or touching an endpoint queue.
+fn test_cap_rebind_after_revoke() {
+    use fjell_abi::error::SysError;
+    let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("rebind_after_revoke: copy");
+            return;
+        }
+    };
+    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(id) => id,
+        Err(_) => {
+            setup_failed("rebind_after_revoke: lease_create");
+            let _ = _sys_cap_drop(copied);
+            return;
+        }
+    };
+    if sys_cap_bind_lease(copied, lease_id).is_err() {
+        setup_failed("rebind_after_revoke: bind");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    // Control: while the lease is live the capability is usable. Without this a
+    // later failure could just be a capability that never worked.
+    if sys_cap_inspect(copied).is_err() {
+        setup_failed("rebind_after_revoke: control inspect while the lease is live");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() {
+        setup_failed("rebind_after_revoke: revoke");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    if !matches!(sys_cap_inspect(copied), Err(SysError::LeaseRevoked)) {
+        setup_failed("rebind_after_revoke: capability not revoked by the revoke");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    // The attempt: bind the same capability to the same, revoked, lease.
+    check_err(
+        sys_cap_bind_lease(copied, lease_id),
+        SysError::LeaseRevoked,
+        M::CAP_REBIND_AFTER_REVOKE_REFUSED,
+    );
+    // The property: the capability is still unusable.
+    check_err(
+        sys_cap_inspect(copied),
+        SysError::LeaseRevoked,
+        M::CAP_REVOKED_STAYS_REVOKED,
+    );
+    let _ = _sys_cap_drop(copied);
+}
+
+/// CAP: `sys_cap_bind_lease` needs `LeaseAdmin` with `LEASE_CREATE`
+/// (RFC-0.38-002 R2/R5, E-088) — and a revoked capability cannot be revived by
+/// a task without it.
+///
+/// The authority-recovery path is a bind to a *different*, still-`Active`
+/// lease: re-stamping a capability against its own revoked lease revives
+/// nothing (`check_active` requires the slot to be `Active`, and a revoked slot
+/// never is again — see `test_cap_rebind_after_revoke`). So this scenario:
+///
+/// 1. binds a copied capability to lease L1 and revokes L1 — the capability is
+///    now dead (asserted, not assumed);
+/// 2. creates L2, which stays `Active`;
+/// 3. gives up this task's `LeaseAdmin` in two steps — first down to a
+///    `LeaseAdmin` capability **without** `LEASE_CREATE`, then to none — and at
+///    each step tries to bind the dead capability to L2 and is refused with
+///    `PermissionDenied`, so the right is checked and not only the kind;
+/// 4. asserts the capability is **still** dead (the property), not merely that
+///    the calls returned errors.
+///
+/// Before the fix both binds succeed and the capability is usable again. Because
+/// this task drops its own `LeaseAdmin`, the scenario must run after every
+/// scenario that creates or revokes leases.
+fn test_cap_bind_lease_without_authority() {
+    use fjell_abi::error::SysError;
+    let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("bind_lease_authority: copy");
+            return;
+        }
+    };
+    let (l1, l2) = match (
+        sys_lease_create(SLOT_LEASE_ADMIN, 0),
+        sys_lease_create(SLOT_LEASE_ADMIN, 0),
+    ) {
+        (Ok(a), Ok(b)) => (a, b),
+        _ => {
+            setup_failed("bind_lease_authority: lease_create");
+            let _ = _sys_cap_drop(copied);
+            return;
+        }
+    };
+    if sys_cap_bind_lease(copied, l1).is_err() || sys_lease_revoke(SLOT_LEASE_ADMIN, l1).is_err() {
+        setup_failed("bind_lease_authority: bind and revoke L1");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    if !matches!(sys_cap_inspect(copied), Err(SysError::LeaseRevoked)) {
+        setup_failed("bind_lease_authority: capability not dead after L1 was revoked");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    // A LeaseAdmin capability that lacks LEASE_CREATE. SLOT_NARROW_CAP is empty
+    // here: every earlier user of it drops it again.
+    let without_create =
+        fjell_cap::CapRights::ALL_NON_META.0 & !fjell_cap::CapRights::LEASE_CREATE.0;
+    let narrow = match sys_cap_mint(CapHandle(SLOT_LEASE_ADMIN), SLOT_NARROW_CAP, without_create) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("bind_lease_authority: mint LeaseAdmin without LEASE_CREATE");
+            let _ = _sys_cap_drop(copied);
+            return;
+        }
+    };
+    // Give up the full authority. Slot 4 was never dropped, so generation 0.
+    if _sys_cap_drop(CapHandle(SLOT_LEASE_ADMIN)).is_err() {
+        setup_failed("bind_lease_authority: drop LeaseAdmin");
+        let _ = _sys_cap_drop(narrow);
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    check_err(
+        sys_cap_bind_lease(copied, l2),
+        SysError::PermissionDenied,
+        M::CAP_BIND_LEASE_WITHOUT_RIGHT,
+    );
+    let _ = _sys_cap_drop(narrow);
+    check_err(
+        sys_cap_bind_lease(copied, l2),
+        SysError::PermissionDenied,
+        M::CAP_BIND_LEASE_WITHOUT_AUTHORITY,
+    );
+    // The property: neither attempt revived the capability.
+    check_err(
+        sys_cap_inspect(copied),
+        SysError::LeaseRevoked,
+        M::CAP_REVOKED_NOT_REVIVED_BY_UNPRIVILEGED_BIND,
+    );
+    let _ = _sys_cap_drop(copied);
+}
+
 /// MMIO: map a region that straddles RAM_BASE → RAM-guard rejects it (RFC 005).
 ///
 /// Region 4 (neg-test-RAM): base=0x7FFE_0000, size=0x30000.
@@ -994,6 +1153,7 @@ pub extern "C" fn service_main() -> ! {
     test_cap_rights_denied();
     test_cap_lease_revoked();
     test_cap_drop_on_revoked();
+    test_cap_rebind_after_revoke();
     test_cap_wrong_kind();
     test_irq_bind_without_right();
     // ── RFC 049: capability management rights ─────────────────────────────────
@@ -1043,6 +1203,10 @@ pub extern "C" fn service_main() -> ! {
     // coordination stall can never shadow the policy/audit/svc scenarios.
     test_ipc_blocked_recv();
     test_ipc_blocked_call_and_late_reply();
+
+    // RFC-0.38-002 R5: deliberately after every scenario that needs LeaseAdmin;
+    // this one drops this task's own LeaseAdmin capability.
+    test_cap_bind_lease_without_authority();
 
     sys_debug_writeln("neg-test: all scenarios complete");
 

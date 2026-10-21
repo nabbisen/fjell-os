@@ -407,35 +407,59 @@ pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 
 /// `sys_cap_bind_lease(a0=cap_handle, a1=lease_id) -> a0=status`
 ///
-/// RFC 042: bind a lease to an existing capability so that `require_cap`
-/// step 7 verifies the lease is still active on every use.
+/// Bind a lease to a capability in the caller's CSpace so that `require_cap`
+/// step 7 verifies the lease is still active on every use (RFC 006, which added
+/// `LeaseBinding`; RFC 015 put the check into the use paths).
 ///
-/// Requires: caller holds `CapKind::LeaseAdmin` with `CapRights::LEASE_CREATE`.
-/// This ensures only privileged services (init, service-manager) can create
-/// lease-bound caps, preventing unprivileged escalation.
+/// Checked in this order, and refused closed at each step:
+///
+/// 1. **Authority** — the caller holds an `Active` `CapKind::LeaseAdmin`
+///    capability that carries `CapRights::LEASE_CREATE` and whose own lease
+///    binding, if it has one, is still live. Otherwise `PermissionDenied`. The
+///    syscall's ABI carries no handle for the authority, so the caller's CSpace
+///    is scanned for one. Today `init`, `sample-service` and `neg-test` hold it.
+/// 2. **The lease is `Active`** — a binding to a `Revoked` lease is dead on
+///    arrival, so it is refused with `LeaseRevoked`; a lease that does not
+///    exist is `InvalidCap`.
+/// 3. **The capability exists** — `cap_handle` names an occupied slot of the
+///    caller's CSpace (generation-checked), else `InvalidCap`.
+///
+/// On success the capability's binding is replaced by one stamped with the
+/// lease's current epoch; a previous binding of that capability is overwritten,
+/// which is part of what holding `LeaseAdmin` allows.
 pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     use fjell_abi::lease::LeaseId;
+    use fjell_cap::CapState;
 
     let cap_h = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
 
-    // LeaseAdmin check (RFC-v0.7.4-003 §C-RB-05):
-    //
-    // IMPLEMENTATION NOTE: The enforcement check that scans the CSpace via
-    // a second get_kernel_state() call has been reverted.  That approach
-    // creates two &mut references to the same CapTable (the function already
-    // holds `ct: &mut CapTable` as a parameter), which is undefined behaviour
-    // when optimisation is enabled.  The correct implementation passes the
-    // already-borrowed `ct` slice directly; that refactor is tracked as
-    // RFC-v0.7.4-003 §follow-up and targets v0.8.x.
-    //
-    // For now the check passes (all spawned services receive a LeaseAdmin cap
-    // at slot 4 with LEASE_CREATE right, so the invariant holds implicitly).
-
-    // 2. Get the current epoch for the lease (must be Active).
     // SAFETY: category=kernel-global-mutable  lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
-    let epoch = match lt.current_epoch(lease_id) {
+
+    // 1. Authority. `ct.cspace(tidx)` is a shared reborrow of the `ct` this
+    // function already holds; it ends with the `match`, before `cspace_mut`
+    // below. No second `get_kernel_state()`, so no second `&mut` to the table
+    // (the aliasing that sank the earlier attempt at this check).
+    let authorised = match ct.cspace(tidx) {
+        Some(cs) => cs.iter_occupied().any(|c| {
+            c.kind == CapKind::LeaseAdmin
+                && c.state == CapState::Active
+                && c.rights.contains(CapRights::LEASE_CREATE)
+                && c.check_lease(&*lt).is_ok()
+        }),
+        None => {
+            err(tf, SysError::InternalError);
+            return;
+        }
+    };
+    if !authorised {
+        err(tf, SysError::PermissionDenied);
+        return;
+    }
+
+    // 2. The lease must be Active (fail closed on Revoked).
+    let epoch = match lt.active_epoch(lease_id) {
         Ok(e) => e,
         Err(e) => {
             err(tf, e);
@@ -443,10 +467,8 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
         }
     };
 
-    // 3. Bind the lease to the cap in the caller's CSpace.
-    // Fixed in v0.2.9 (RB-03): use slot_by_handle_mut for generation-validated
-    // lookup.  v0.2.8 used `cap_h.0 as usize` which conflated handle with slot
-    // index — fine while generations stayed at 0, but incorrect by design.
+    // 3. Bind the lease to the cap in the caller's CSpace, through a
+    // generation-validated lookup (`slot_by_handle_mut`).
     let cs = match ct.cspace_mut(tidx) {
         Some(c) => c,
         None => {

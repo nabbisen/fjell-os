@@ -20,7 +20,7 @@ full list and disposition. This page lists only the 26 that are live.
 | 13 | `CapRevoke` | `sys_cap_revoke` | Capability |
 | 14 | `CapInspect` | `sys_cap_inspect` | Capability |
 | 15 | `CapDrop` | `sys_cap_drop` | Capability |
-| 16 | `CapBindLease` | `sys_cap_bind_lease` | Capability |
+| 16 | `CapBindLease` | `sys_cap_bind_lease` (needs an `Active` `LeaseAdmin` cap with `LEASE_CREATE`, and an `Active` lease) | Capability |
 | 20 | `IpcSend` | `sys_ipc_send` | IPC |
 | 21 | `IpcRecv` | `sys_ipc_recv` (also reached via `sys_ipc_recv_msg`) | IPC |
 | 22 | `IpcCall` | `sys_ipc_call` (also reached via `sys_ipc_call_words`) | IPC |
