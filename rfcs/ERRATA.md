@@ -6290,10 +6290,21 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `docs/src/releasing/v1-limitations.md` row 9.
 - **Status:** **ACCEPTED**, `unscheduled`. What closing it would need: the
   `LEASE_BIND` bit, the scope representation a lease-scoped capability would carry,
-  and a decision the architect has flagged to the owner separately — **whether a
-  bound capability should be immutable once bound**, which would make the scope
-  question moot for the rebind case. That decision is the owner's and is not made
-  here.
+  and the scope representation a lease-scoped capability would carry.
+- **Ruled 2026-10-22 (architect, at the owner's delegation): a lease binding is set
+  once and cannot be replaced.** This removes the *rebind* half of the gap above
+  without any of RFC-v0.7.4-003's machinery. The ground: ADR-v0.7.4-003 removed
+  parent-based cascading revocation (`parent = None`) on the promise that lease
+  revocation invalidates every copy sharing a binding — a promise only as strong as
+  the binding's immutability, since a mutable one lets the party being revoked move
+  off the lease first. A scope check would shrink that hole, not close it: a holder
+  could still move a capability between two in-scope leases. Immutability is one
+  rule, needs no new rights bit or ABI, and **is a no-op for every current caller**:
+  bootstrap capabilities carry `lease: None` (`cspace.rs:140`, `slot.rs:14`), a copy
+  inherits its source's binding, and all three live call sites bind a copy of an
+  unbound capability. What remains of this entry is the *first-bind* question — which
+  lease a holder may bind to at all — which immutability does not answer. Placement
+  is the owner's.
 
 ## Summary
 
