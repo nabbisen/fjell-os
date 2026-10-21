@@ -74,7 +74,7 @@ spawn path.
 building it.** That is an ABI addition, it lands in the snapshot, and it is not a
 decision to make inside an implementation step.
 
-**R3 — Hashing cost is measured, not assumed.** Thirty-four images hashed at boot
+**R3 — Hashing cost is measured, not assumed.** Thirty-three images hashed at boot
 is work on a path that currently does none. Report the boot-time effect from a real
 run; if a tier's 60-second timeout moves materially, say so rather than tuning the
 timeout.
