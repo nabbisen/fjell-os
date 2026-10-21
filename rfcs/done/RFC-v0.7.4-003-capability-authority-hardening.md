@@ -245,6 +245,28 @@ codified: kernel-local recursive revocation is intentionally not
 supported because every meaningful cap MUST have a lease, and lease
 revocation is the recursive primitive.
 
+> **Correction, 2026-10-22 (RFC-0.38-004, E-090; the paragraph above is left as
+> written).** Two things this paragraph did not say, and one it should not have.
+>
+> 1. *"Lease revocation is the recursive primitive"* held only for as long as the
+>    binding could not be changed. `sys_cap_bind_lease` replaced an existing
+>    binding unconditionally, so a `LeaseAdmin` holder could move a capability off
+>    the lease that governed it before that lease was revoked. **Since RFC-0.38-004 a
+>    binding is set once** — a second bind is refused (`BadState`), even to the same
+>    lease — and the promise now holds without that qualification. There is
+>    deliberately no unbind; to move a capability, drop it and copy again from an
+>    unbound source.
+> 2. *"Every meaningful cap MUST have a lease"* was never enforced and is not true
+>    of the tree: every capability installed at bootstrap carries `lease: None`
+>    (`CSpace::install`, `crates/fjell-cap/src/slot.rs`), and a copy inherits its
+>    source's binding or lack of one. Only a capability a `LeaseAdmin` holder has
+>    bound is governed by a lease.
+> 3. The "ADR-v0.7.4-003" this text and the code comments cite is this RFC; no file
+>    under `docs/src/adr/` has that name.
+>
+> Which lease a holder may bind to at all — the `LEASE_BIND` right and scope check
+> this RFC specified — is unbuilt and is **E-091**, not addressed by RFC-0.38-004.
+
 ### Unified lease revocation
 
 ```rust
