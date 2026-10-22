@@ -5982,6 +5982,18 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   32 (**E-085**), `attestd` sets its provider measurement from that head, and
   `diagnosticsd` would report it in a **signed** bundle. Every step is faithful; the
   value they are faithful about is a constant.
+
+  > **Correction, 2026-10-22 (architect); the two paragraphs above are left as
+  > written.** The `attestd` step does not exist. `provider.set_measurement(chain.head)`
+  > has one call site, `fjell-measuredd/src/main.rs:204`, on **`measuredd`'s own**
+  > provider in its own address space, which nothing else reads. `attestd` holds no
+  > endpoint to `measuredd` and never receives the head; `init` passes `GENERATE` the
+  > literal `4u64`. So this entry's "compounds through the whole attestation path" is
+  > wrong in its middle link: the chain does not reach the signed record, and
+  > **repairing the chain will not change what any attestation record says.** The
+  > signed record is its own, larger defect — built from constants including three
+  > `*_verified: true` flags — filed separately as **E-094**. Found by the
+  > implementer of RFC-0.38-001 extending R1's sweep; re-derived by the architect.
 - **Why this changes E-085's remedy.** Closing E-085 alone would transmit the
   **complete placeholder** instead of a truncated one, and set
   `measurement_head_available: true` on it — strictly worse than today, where the
@@ -6461,6 +6473,60 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the honest short path and is what row 12 says today. **Not the architect's to choose
   alone** — it changes what the capability model promises.
 
+## E-094 — the signed attestation record is built from constants, including three `*_verified: true` flags, and is independent of the measurement chain
+
+- **Found 2026-10-22 by the implementer of RFC-0.38-001**, extending R1's placeholder
+  sweep past the three crates it had covered — the sweep that requirement asked for,
+  which the earlier pass had scoped too narrowly. **Re-derived by the architect the same
+  day.** Filed rather than folded into RFC-0.38-001, on the architect's ruling, because
+  it is a separate defect one hop downstream and widening that line would delay E-086
+  behind it.
+- **Claim:** `attestd` produces a signed attestation record describing this node's boot,
+  verification and measurement state. **E-086** and RFC-0.38-001 both say the
+  measurement chain is that record's root — "`attestd` sets its provider measurement
+  from `chain.head` … Every step is faithful."
+- **Tree, observed 2026-10-22 at `88f03d4`:** `attestd` always runs `sign_v2`
+  (`registry.enter_enforcing()` is unconditional), and `sign_v2` builds the record with
+  `AttestationRecordV2::dev`
+  (`crates/formats/fjell-attestation-format/src/v2.rs:321`–`:336`), which supplies:
+  `boot.kernel_digest` `Digest32([0x11; 32])`; `verification.release_digest`
+  `[0x22; 32]`, `rootfs_digest` `[0x33; 32]`, `policy_digest` `[0x44; 32]`;
+  `measurement.head_seq: 1`, `measurement.chain_digest` `[0x55; 32]`,
+  `included_from_seq: 1`, `included_to_seq: 1`; and
+  **`release_verified: true`, `rootfs_verified: true`, `policy_verified: true`**.
+  `sign_v1` (the Bootstrap fallback, unreachable in practice) carries the same shape.
+- **The sequence number is accepted and discarded.** `sign_v2`'s parameter is
+  `#[allow(dead_code)] _meas_seq: u64`, commented "v0.7: forwarded to measurement chain
+  header", and is never read. `init` passes `GENERATE` the literal `4u64`
+  (`fjell-init/src/main.rs:1019`–`:1023`), so even the discarded value was a literal.
+- **`attestd` has no route to the chain.** `provider.set_measurement(chain.head)` has
+  exactly one call site — `fjell-measuredd/src/main.rs:204` — on `measuredd`'s own
+  `DevelopmentTrustProvider`, in `measuredd`'s address space. `attestd` holds no
+  endpoint to `measuredd`. **So RFC-0.38-001 making the chain real cannot change what
+  any attestation record says**, and E-086's "compounds through the whole attestation
+  path" is wrong in its middle link. Both carry dated corrections.
+- **Why this is worse than E-086, which it was found beside.** E-086 is placeholders in
+  a chain nothing yet reads. This is placeholders in an artefact that **is signed,
+  transmitted and verified** — the three `*_verified: true` flags assert that release,
+  rootfs and policy verification succeeded, and no verification runs. A consumer
+  checking the signature gets `VERIFY_OK` over assertions with nothing behind them. It
+  is the E-086 shape at the point where it is hardest to notice, because the
+  cryptography is real and the content is not.
+- **Why ACCEPTED and not OPEN.** The crate is a development profile: `attestd`'s
+  provider is `DevelopmentTrustProvider`, the keyed-SHA-256 dev signer (see **E-028**,
+  and the `development-ed25519` label the onboarding review flagged), and nothing in a
+  shipped deployment consumes these records as authority — there is no deployment. It
+  does not fail open against an attacker; it misreports to a reader. By the same ground
+  as **E-011** and **E-028**, ACCEPTED. Recorded in
+  `docs/src/releasing/v1-limitations.md` row 13.
+- **Status:** **ACCEPTED**, `unscheduled`. What closing it needs, and it is a line of
+  its own, not a patch: a route from the chain to `attestd` (an endpoint, which is the
+  capability-topology question RFC-0.38-001 defers to 0.39), real values for
+  `kernel_digest` and the three verification digests, and — first — a decision about
+  the three `*_verified` flags, which must not be `true` until something verifies.
+  Asserting `false` honestly is available immediately and is probably the right first
+  step.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -6557,6 +6623,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own | unscheduled | ACCEPTED |
 | E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | unscheduled | ACCEPTED |
 | E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all — neither parent links, which were deleted, nor a lease. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage | unscheduled | ACCEPTED |
+| E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

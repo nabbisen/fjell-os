@@ -44,6 +44,26 @@ The chain is the node's attestation root: `attestd` sets its provider measuremen
 from `chain.head`, and a diagnostic bundle reports that head in a **signed**
 artefact. Every step is faithful. The value is a constant.
 
+> **Correction, 2026-10-22 (architect). The paragraph above is wrong about
+> `attestd`, and the original is left as written because the line was scoped from
+> it.** `provider.set_measurement(chain.head)` has exactly one call site in the
+> tree — `fjell-measuredd/src/main.rs:204` — and it is on **`measuredd`'s own**
+> `DevelopmentTrustProvider`, in `measuredd`'s address space, which nothing else
+> reads. **`attestd` never receives the chain head**: it holds no endpoint to
+> `measuredd`, and `init` passes `GENERATE` the literal `4u64`. The signed record
+> is built by `AttestationRecordV2::dev`, which supplies `kernel_digest`
+> `[0x11;32]`, `release_digest` `[0x22;32]`, `rootfs_digest` `[0x33;32]`,
+> `policy_digest` `[0x44;32]`, `chain_digest` `[0x55;32]`, `head_seq: 1` and
+> `release_verified`/`rootfs_verified`/`policy_verified: **true**`; `sign_v2`
+> receives the sequence number as `_meas_seq` and never uses it.
+>
+> **So making the chain real will not change what any attestation record says.**
+> "Every step is faithful" described a chain feeding a signed artefact; the signed
+> artefact is independent constants. Found by the implementer's extended sweep,
+> re-derived by the architect, and filed as **E-094** — a defect larger than E-086
+> and one hop downstream of it. It is **not** in this line's scope (ruling 4
+> below), and R7 now forbids this line from implying that attestation became real.
+
 ## The owner's scoping decision, 2026-10-19
 
 **This line closes E-086 and E-085 and stops there.** Slot 4 stays uninstalled,
@@ -52,12 +72,120 @@ artefact. Every step is faithful. The value is a constant.
 makes the chain true without yet making it visible — which is the right order,
 because a visible measurement of a placeholder is the thing E-086 is about.
 
+## Design ruling (R2 escalation), 2026-10-22
+
+The implementer escalated before building, as R2 requires, twice: a first request on
+the transfer shape and a dated addendum after extending R1's sweep past the three
+crates it had covered. Both were right to stop. The sweep found a placeholder feeding
+a signed artefact this RFC does not name, which is R1's own stop condition. Rulings,
+in the order asked:
+
+**1. Transfer shape: extend `BootInfo`. Not the entry registers.** This overrules the
+implementer's recommendation, and the reason is this line's own subject.
+
+Option D — four entry registers carrying a 32-byte digest — is **the shape that
+produced E-085**: a digest squeezed into a fixed, unversioned register payload with no
+room to grow, which is why `GET_HEAD` returns eight of thirty-two bytes and why R4
+exists. Choosing it in the line that repairs E-085 would re-make the error being
+repaired. It also makes the service entry contract non-uniform and invisible: every
+service's `rt.rs` is `la sp, __stack_top; tail service_main`, so `init`'s
+`service_main` would silently take four arguments that no other service's does and
+that no `rt.rs` mentions.
+
+`BootInfo` is the designed home and its own doc comment already says so — *"Passed as
+a pointer in `a1` at `fjell-init` entry. All fields are ABI-stable; new fields are
+appended and the `version` field bumped."* **That comment is false today** (the kernel
+sets `a1 = 0` and builds no struct). Option A makes a false claim true and uses the
+extension mechanism the struct documents; Option D leaves the claim false and adds a
+second, undocumented channel beside it. Given that claims matching mechanism is what
+this entire milestone has been about, that settles it.
+
+The cost the implementer correctly surfaced — `BootInfo` is snapshot-tracked, so a new
+field is a **Changed sig**, which `abi-snapshot --verify` reports as breaking — is
+real but **formal**: nothing in the tree constructs or reads a `BootInfo`, so there is
+no consumer to break. Pay it properly: regenerate the snapshot **in this line**
+(RFC-0.30-002 §5) and write the `### Breaking` CHANGELOG entry. Do not route around a
+gate by choosing a weaker design.
+
+**Do not use `BootEvidence`.** The implementer's sweep found
+`fjell-verify-format::BootEvidence::for_slot`'s `kernel_digest: [0u8; 32]` has one
+write site and **zero** read sites. By name it looks exactly like R2's home. It is
+not: it feeds nothing, and putting a real digest into a struct nothing reads would
+produce the appearance of a measurement with no consumer. Reporting it rather than
+reaching for it was the right call, and it is named here because the next reader will
+reach for it.
+
+**Escalate if the `a1` plumbing grows.** Mapping one page into `init`'s address space
+and writing the struct is the expected shape. If it forces a change to the
+address-space layout constants or to how `init`'s space is built, stop — that is a
+different line.
+
+**2. Granularity: the two-level digest, approved, with three constraints.**
+`digest_i = SHA-256(bytes_i)` per image, then one digest over the per-image results in
+ascending `ImageId` order, as proposed. Constraints:
+
+- **Include the image count in the preimage.** The proposal omits it. With the count
+  bound in, "there were 33 images" becomes part of what is covered, and an image added
+  or dropped cannot coincide with a reordering.
+- **The domain string and the byte layout live in `fjell-measure-format` as a named
+  constant and a documented encoding** — not as a literal at the kernel call site.
+  Otherwise the kernel and R6's host recomputation drift, which is the E-014 family.
+- **This is a different digest from `compute_chain_digest`**, whose byte stream
+  RFC-0.35-004 froze. Adding this one does not touch that stream, so the non-goal
+  "stop if the frozen stream moves" is not triggered — confirm it stays untouched
+  rather than assuming it.
+
+**3. R7 scope: approved as described.** The three verification-result events stay
+placeholders, disclosed as such; the non-goals exclude release/rootfs/policy
+verification and this line does not implement it.
+`docs/src/releasing/v1-limitations.md` must say, **in the same commit**, that three of
+the chain's four recorded measurement kinds remain placeholders — and now also that
+the attestation record is independent of the chain (ruling 4).
+
+**4. The attestation record: filed, not widened. Agreed.** Filed as **E-094**,
+ACCEPTED. This line stays as scoped. Two consequences:
+
+- The premise paragraph above is corrected, because it was mine and it was wrong.
+- **R7 gains a clause:** nothing in this line, its commits, its limitations entry or
+  its release note may say or imply that attestation is now real. The chain measuring
+  something does not make a signed record of constants true, and the two will be read
+  as one thing unless the disclosure says otherwise.
+
+**5. Kernel dependency: take `fjell-measure-format`.** Verified: it depends only on
+`fjell-canon`, which has **no dependencies at all**, is `#![forbid(unsafe_code)]` and
+allocation-free; `fjell-measure-format` itself contains zero `unsafe`. So the kernel's
+TCB grows by two auditable crates with no unsafe code, no external dependencies, and a
+terminating graph.
+
+A third SHA-256 in a tree that already has two is the worse outcome — divergence
+risk, and this project already polices duplicated mechanism. The decisive reason is
+R6: reusing the same `Digest32::of_parts` the chain digest uses means R6 compares one
+implementation against an **independent host recomputation**, which is evidence. Two
+in-tree implementations agreeing with each other is not.
+
+Expect Gate 2's audited set to move when the kernel gains crates, and say so rather
+than letting the count drift unexplained.
+
+**6. `init`'s literal `measurement.seq = 4`: in scope for R2's wiring, replace it.**
+It is true only because there are four appends today, and this line changes what the
+appends contain. Take the sequence from `APPEND_OK`'s reply; the same applies to
+`emit_measurement_status(4, 0)`. A number that is accidentally correct is the E-014
+family with a smaller blast radius.
+
+**Proceeding:** start **R4** and the shell of **R5/R6** now, in parallel with the
+`BootInfo` work — R4 is independent of the transfer shape and is the E-085 repair.
+**E-085 still must not close before E-086**, unchanged.
+
 ## Requirements
 
 **R1 — Re-derive, with controls.** The four append sites and their literal
 arguments; `measuredd`'s 16-of-32 reconstruction and its discarded `w3`; the
 8-of-32 reply; that `Digest32::of` appears nowhere in `task/image.rs`; and that
-`GET_HEAD` has exactly two occurrences tree-wide. **Sweep for other placeholder
+`GET_HEAD` has exactly two occurrences tree-wide — **corrected 2026-10-22: there
+are three code sites plus the declaration.** RFC-0.37-001 gave `diagnosticsd` a
+real call site (`main.rs:144`) after E-085 was filed, and I wrote this requirement
+without re-deriving it against a line I had myself reviewed. Re-derive the current
+count; the remedy is unaffected. **Sweep for other placeholder
 digests** beyond the four I name — `[0xBB; 32]` and `[0xCC; 32]` are two more in
 `init` alone, and I have not looked past that file. Report what you find; if a
 placeholder turns out to feed something I have not named, **stop and escalate**.
@@ -88,7 +216,13 @@ the caller stops discarding `w2`/`w3`. **No chunking** — and do not use
 `EXPORT_LOG` as a model, which is a stub that sends no content (**E-087**).
 
 **R5 — Demonstrate the whole digest arriving, with a temporary capability.**
-Nothing can call `GET_HEAD`: it has no caller, and slot 4 is 0.39's. So the only
+Nothing can call `GET_HEAD`: it has no caller, and slot 4 is 0.39's.
+**Corrected 2026-10-22: it does have a caller** — `diagnosticsd/src/main.rs:144`
+sends it — and the accurate statement is that the caller **cannot reach**
+`measuredd`, because DIAGNOSTICSD slot 4 is declared and uninstalled (the waiver
+`capability-topology` already prints). The requirement is unchanged: the scratch
+capability is still the only way to exercise the reply, and now for a stated
+reason rather than a wrong one. So the only
 way to show R4 works is the technique RFC-0.37-001 used for E-083 — **install slot
 4 in a scratch change, call it, capture the transcript, revert, and prove the
 revert** (`grep` for the scratch marker on the committed tree returning nothing).
