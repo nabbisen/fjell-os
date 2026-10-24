@@ -114,6 +114,18 @@ pub struct Profile {
     /// banners and the harness's own timeout/shutdown text are not being asserted
     /// here, only opted-in tiers that want the console-cleanliness claim checked.
     pub clean_console: bool,
+    /// RFC-0.38-001 R6: line prefixes. For **each**, the run must print that
+    /// prefix followed by the 64 hex digits of the service-image set digest **as
+    /// the host recomputes it** from `crates/fjell-kernel/prebuilt/*.bin` when
+    /// the run is judged (`image_set::image_set_digest`: external `sha2`, the
+    /// documented layout assembled by hand, file names mapped to `ImageId`s
+    /// without the kernel's own table). The value is *derived at judging time*,
+    /// never written in the profile, so it cannot be a stale literal; and it is
+    /// compared for **equality** — a digest that is merely present, non-zero or
+    /// well-formed passes nothing. Several prefixes make the agreement
+    /// three-way (the kernel's line, `measuredd`'s recorded line, and the host),
+    /// which also says *where* a disagreement is. Empty for every other profile.
+    pub expect_image_set_digest: Vec<String>,
 }
 
 impl Profile {
@@ -136,6 +148,7 @@ impl Profile {
             per_boot_markers: vec![],
             once_markers: vec![],
             clean_console: false,
+            expect_image_set_digest: vec![],
         }
     }
 }
@@ -411,6 +424,14 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             p.expect_boots.unwrap_or(0)
         ));
     }
+    for prefix in &p.expect_image_set_digest {
+        // The value is derived when the run is judged, so the committed record
+        // states the rule, not a digest that would go stale with the next build.
+        expected_text.push_str(&format!(
+            "\n{prefix}<64 hex: the service-image set digest, recomputed on the host from \
+             crates/fjell-kernel/prebuilt/*.bin>    [equality]"
+        ));
+    }
     art.write_summary("expected-markers.txt", expected_text.as_bytes());
 
     // A run that expects a particular ending needs the exit status and QMP's
@@ -475,6 +496,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         && p.once_markers.is_empty()
         && p.expect_shutdown.is_none()
         && p.expect_boots.is_none()
+        && p.expect_image_set_digest.is_empty()
     {
         art.write_summary(
             "result-summary.txt",
@@ -609,6 +631,58 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         if let Err(why) = qemu_shutdown::judge_once(n, m) {
             eprintln!("[xtask] once-marker check FAILED — {why}");
             all_ok = false;
+        }
+    }
+    // RFC-0.38-001 R6: the recorded measurement must EQUAL the host's independent
+    // recomputation. Recorded before it is judged, so a failure can be read
+    // without re-running.
+    if !p.expect_image_set_digest.is_empty() {
+        match crate::image_set::image_set_digest(Path::new(".")) {
+            Err(why) => {
+                eprintln!("[xtask] image-set digest cannot be recomputed on the host — {why}");
+                all_ok = false;
+            }
+            Ok((count, want)) => {
+                let text = String::from_utf8_lossy(&combined);
+                let mut record = format!("images = {count}\nhost_recomputed = {want}\n");
+                for prefix in &p.expect_image_set_digest {
+                    let wanted_line = format!("{prefix}{want}");
+                    let seen: Vec<&str> = text
+                        .lines()
+                        .filter(|l| l.contains(prefix.as_str()))
+                        .collect();
+                    // Equal, and not merely a prefix of a longer run of hex.
+                    let found = seen.iter().any(|l| {
+                        l.find(&wanted_line).is_some_and(|at| {
+                            !l[at + wanted_line.len()..]
+                                .starts_with(|c: char| c.is_ascii_hexdigit())
+                        })
+                    });
+                    record.push_str(&format!(
+                        "prefix = {prefix}\nlines_with_prefix = {}\nequal = {found}\n",
+                        seen.join(" | ")
+                    ));
+                    if found {
+                        println!(
+                            "[xtask] `{prefix}…` equals the host recomputation \
+                             ({count} images, sha256:{want}) ✓"
+                        );
+                    } else {
+                        eprintln!(
+                            "[xtask] image-set digest MISMATCH at `{prefix}…` — the host \
+                             recomputes sha256:{want} over {count} prebuilt image(s); the run \
+                             printed: {}",
+                            if seen.is_empty() {
+                                format!("no line containing `{prefix}`")
+                            } else {
+                                seen.join(" | ")
+                            }
+                        );
+                        all_ok = false;
+                    }
+                }
+                let _ = fs::write(run_dir.join("image-set-digest.txt"), record);
+            }
         }
     }
     for marker in &p.expected_markers {
@@ -870,6 +944,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut per_boot_v: Vec<String> = Vec::new();
     let mut once_v: Vec<String> = Vec::new();
     let mut clean_console_v = false;
+    let mut expect_image_set_digest_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -955,6 +1030,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             "clean_console" => {
                 clean_console_v = parse_bool(v).map_err(|e| format!("bad clean_console: {e}"))?
             }
+            "expect_image_set_digest" => expect_image_set_digest_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -1032,6 +1108,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         per_boot_markers: per_boot_v,
         once_markers: once_v,
         clean_console: clean_console_v,
+        expect_image_set_digest: expect_image_set_digest_v,
     })
 }
 
@@ -1697,6 +1774,53 @@ mod discover_tests {
                 .any(|m| m == "driver-uart: ready"),
             "at least one per-boot marker must be a service's line"
         );
+    }
+
+    // ── RFC-0.38-001 R6: expect_image_set_digest ────────────────────────────
+
+    #[test]
+    fn expect_image_set_digest_is_opt_in_and_loads_a_list() {
+        let r = scratch_root("eisd1", "name = \"p\"\nexpected_markers = [\"a\"]\n");
+        assert!(
+            load_profile(&r, "p")
+                .unwrap()
+                .expect_image_set_digest
+                .is_empty()
+        );
+        let r = scratch_root(
+            "eisd2",
+            "name = \"p\"\nexpect_image_set_digest = [\"one: \", \"two, sha256:\"]\n",
+        );
+        let p = load_profile(&r, "p").unwrap();
+        assert_eq!(p.expect_image_set_digest, ["one: ", "two, sha256:"]);
+    }
+
+    #[test]
+    fn an_empty_digest_prefix_is_refused() {
+        // The array reader refuses an empty entry for every key: it would match the
+        // digest anywhere in the log.
+        let r = scratch_root(
+            "eisd3",
+            "name = \"p\"\nexpect_image_set_digest = [\"ok: \", \"\"]\n",
+        );
+        let e = load_profile(&r, "p").unwrap_err();
+        assert!(
+            e.contains("expect_image_set_digest") && e.contains("empty marker"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn a_digest_expectation_alone_is_not_a_placeholder_profile() {
+        // `expected_markers` empty must not make the profile pass vacuously when
+        // it states a digest to be checked: it loads with that expectation intact.
+        let r = scratch_root(
+            "eisd4",
+            "name = \"p\"\nexpect_image_set_digest = [\"d: \"]\n",
+        );
+        let p = load_profile(&r, "p").unwrap();
+        assert!(p.expected_markers.is_empty());
+        assert_eq!(p.expect_image_set_digest.len(), 1);
     }
 
     #[test]

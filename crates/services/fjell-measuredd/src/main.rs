@@ -12,7 +12,7 @@ use fjell_measure_format::{
     MeasurementSource, MeasurementSubject,
 };
 use fjell_service_api::measuredd as proto;
-use fjell_syscall::{sys_debug_writeln, sys_exit};
+use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit};
 use fjell_trust_provider::descriptor::TrustProviderDescriptor;
 use fjell_trust_provider::development::DevelopmentTrustProvider;
 use fjell_trust_provider::ids::TrustProviderId;
@@ -55,7 +55,7 @@ fn recv_call() -> (usize, usize, usize, usize, usize) {
 }
 
 /// RFC-0.28-002 (E-032 audit, kept — escalated, not deleted): `IpcReply`
-/// with a 3-word payload has no wrapper in `fjell-syscall` —
+/// with a word payload has no wrapper in `fjell-syscall` —
 /// `sys_ipc_reply` only carries the tag; the kernel's `sys_ipc_reply`
 /// (`crates/fjell-kernel/src/cap/syscall.rs`) unconditionally copies the
 /// replier's `a2..a5` into the caller's frame, so a real word payload can
@@ -63,16 +63,29 @@ fn recv_call() -> (usize, usize, usize, usize, usize) {
 /// governing RFC's answer document (§ "Finding 1") for why this is kept
 /// rather than deleted, and for the allowlisted-guard rule this site must
 /// satisfy.
-fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
+///
+/// RFC-0.38-001 R4 (closes E-085): widened from three words to **four**. The
+/// kernel copies four, so a reply is exactly 32 bytes — one whole digest — and
+/// the old helper, which declared `a2..a4` and left `a5` to whatever the
+/// register held, could not return one. Whatever a caller does not need it
+/// passes as zero: nothing is left to chance in a register the kernel reads.
+fn reply(tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) {
     // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
     unsafe {
         core::arch::asm!(
             "li a7, 23", "ecall",
             inlateout("a0") 0usize => _, in("a1") tag,
-            in("a2") w0, in("a3") w1, in("a4") w2,
+            in("a2") w0, in("a3") w1, in("a4") w2, in("a5") w3,
             lateout("a7") _, options(nostack)
         );
     }
+}
+
+/// Print one hex line: `<label><64 hex digits>`. R6's recorded value.
+fn print_digest_line(label: &str, d: &Digest32) {
+    let mut hex = [0u8; 64];
+    sys_debug_write(label);
+    sys_debug_writeln(d.to_hex(&mut hex));
 }
 
 // ── Measurement chain ────────────────────────────────────────────────────────
@@ -114,6 +127,15 @@ impl Chain {
         };
         self.next_seq = seq + 1;
         Ok((seq, ev.chain_digest))
+    }
+
+    /// The event recorded at `seq`, read back out of the chain — what is
+    /// *stored*, not what the caller sent. `None` once the ring has overwritten
+    /// it.
+    fn event(&self, seq: u64) -> Option<&MeasurementEvent> {
+        self.events[((seq - 1) as usize) % MAX_EVENTS]
+            .as_ref()
+            .filter(|e| e.seq == seq)
     }
 }
 
@@ -188,9 +210,13 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("measuredd ready");
 
     loop {
-        let (tag_packed, w0, w1, w2, _w3) = recv_call();
+        let (tag_packed, w0, w1, w2, w3) = recv_call();
         let tag = tag_packed & 0xFFFF;
         match tag {
+            // The three verification-result events. Their subject digests are
+            // placeholders `init` sends as literals, and only 16 of the 32 bytes
+            // travel (see `proto::APPEND_EVENT`): RFC-0.38-001 R7 leaves them
+            // disclosed as such rather than pretending they measure anything.
             proto::APPEND_EVENT => {
                 let kind = decode_kind(((w0 >> 24) & 0xFF) as u8);
                 let source = decode_source(((w0 >> 16) & 0xFF) as u8);
@@ -199,30 +225,61 @@ pub extern "C" fn service_main() -> ! {
                 sd[0..8].copy_from_slice(&w1.to_le_bytes());
                 sd[8..16].copy_from_slice(&w2.to_le_bytes());
                 match chain.append(kind, source, subject, Digest32(sd), None) {
-                    Ok((seq, cd)) => {
+                    Ok((seq, _)) => {
                         // v0.3: keep provider chain-head view current.
                         provider.set_measurement(chain.head);
-                        let cd_lo = u64::from_le_bytes(cd.0[0..8].try_into().unwrap_or([0; 8]));
-                        reply(proto::APPEND_OK, seq as usize, cd_lo as usize, 0);
+                        reply(proto::APPEND_OK, seq as usize, 0, 0, 0);
                     }
-                    Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0),
+                    Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),
                 }
             }
+            // RFC-0.38-001 R2: the boot-time measurement of the service images
+            // the kernel embeds. All 32 bytes arrive (w0..w3), and the
+            // classification is fixed here so a caller cannot relabel it.
+            proto::APPEND_IMAGE_SET => {
+                let sd = Digest32(proto::words_to_digest([w0, w1, w2, w3]));
+                match chain.append(
+                    MeasurementKind::BootEvidenceImported,
+                    MeasurementSource::Kernel,
+                    MeasurementSubject::BootEvidence,
+                    sd,
+                    None,
+                ) {
+                    Ok((seq, _)) => {
+                        provider.set_measurement(chain.head);
+                        // R6: print what the chain RECORDED, read back out of the
+                        // stored event. A tier compares this line with a digest it
+                        // recomputes from the images on the host.
+                        if let Some(ev) = chain.event(seq) {
+                            print_digest_line("measuredd: image-set digest ", &ev.subject_digest);
+                        }
+                        reply(proto::APPEND_OK, seq as usize, 0, 0, 0);
+                    }
+                    Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),
+                }
+            }
+            // RFC-0.38-001 R4 (closes E-085): the chain digest, whole.
             proto::GET_HEAD => {
+                let w = proto::digest_to_words(&chain.head.chain_digest.0);
+                reply(proto::HEAD_REPLY, w[0], w[1], w[2], w[3]);
+            }
+            // ...and the head's bookkeeping, which no longer fits beside it.
+            proto::GET_HEAD_STATS => {
                 let h = chain.head;
-                let cd_lo = u64::from_le_bytes(h.chain_digest.0[0..8].try_into().unwrap_or([0; 8]));
                 reply(
-                    proto::HEAD_REPLY,
+                    proto::HEAD_STATS_REPLY,
                     h.latest_seq as usize,
-                    cd_lo as usize,
                     h.dropped as usize,
+                    h.last_event_kind.as_u8() as usize,
+                    0,
                 );
             }
+            // E-087: still a stub that sends no content; only its arity changed.
             proto::EXPORT_LOG => {
-                reply(proto::EXPORT_CHUNK, chain.head.latest_seq as usize, 0, 0);
-                reply(proto::EXPORT_DONE, 0, 0, 0);
+                reply(proto::EXPORT_CHUNK, chain.head.latest_seq as usize, 0, 0, 0);
+                reply(proto::EXPORT_DONE, 0, 0, 0, 0);
             }
-            _ => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0),
+            _ => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),
         }
     }
 }

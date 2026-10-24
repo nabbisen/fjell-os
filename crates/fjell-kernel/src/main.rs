@@ -13,6 +13,7 @@
 mod arch;
 mod audit;
 mod boot;
+mod boot_info;
 mod cap;
 mod console;
 mod irq;
@@ -1057,6 +1058,45 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 .expect("init stack map");
         }
 
+        // RFC-0.38-001 R2: the BootInfo record. Hash the embedded service
+        // images (this is the boot-time cost R3 measures), put the result in a
+        // read-only user page, and tell init where it is through `a1`.
+        let (image_count, image_digest) = boot_info::image_set().expect("image set digest");
+        {
+            let bi_f = fa!()
+                .alloc_frame(FrameOwner::UserData { task: tid })
+                .expect("init boot info");
+            let record = fjell_abi::boot::BootInfo::new(
+                (RAM_END - RAM_BASE) as u64,
+                image_count,
+                image_digest.0,
+            )
+            .to_bytes();
+            // SAFETY: category=phys-id-map-assumption the frame was allocated one statement ago and is identity-mapped in the kernel; nothing else holds it yet.
+            unsafe {
+                let dst = core::slice::from_raw_parts_mut(bi_f.pa() as *mut u8, 4096);
+                dst.fill(0);
+                dst[..record.len()].copy_from_slice(&record);
+            }
+            aspace
+                .map_page(
+                    VirtAddr(boot_info::BOOT_INFO_VA),
+                    bi_f,
+                    VmPerms::R | VmPerms::U,
+                    VmRegionKind::UserRodata,
+                    fa!(),
+                )
+                .expect("init boot info map");
+        }
+        {
+            let mut hex = [0u8; 64];
+            kprintln!(
+                "boot: service image set: {} images, digest sha256:{}",
+                image_count,
+                image_digest.to_hex(&mut hex)
+            );
+        }
+
         let kstack_f = fa!()
             .alloc_frame(FrameOwner::KernelStack)
             .expect("init kstack");
@@ -1071,7 +1111,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         t.satp_root_pfn = root_f.pfn as usize;
         t.trap_frame.sepc = SERVICE_BASE_VA;
         t.trap_frame.gpr[2] = SERVICE_STACK_TOP; // sp
-        t.trap_frame.gpr[11] = 0; // a1 = BootInfo ptr (0 = use defaults)
+        t.trap_frame.gpr[11] = boot_info::BOOT_INFO_VA; // a1 = BootInfo (RFC-0.38-001 R2)
         t.trap_frame.sstatus = 1 << 5; // SPIE, SPP=0
         t.state = TaskState::Runnable;
         // RFC-v0.23-002: init is spawned directly here rather than through

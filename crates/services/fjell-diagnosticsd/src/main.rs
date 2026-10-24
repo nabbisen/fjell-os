@@ -19,10 +19,16 @@
 //! than over the network). The tag mismatch E-083 found
 //! (`query_measurement_head` addressing numbers `measuredd` never answered,
 //! two of which the shared API had already assigned to `recoveryd`) is
-//! fixed; `CAP_MEASUREDD_EP` (slot 4) stays uninstalled regardless (E-085:
-//! `measuredd`'s reply cannot carry a whole chain digest, so there is
-//! nothing honest to install it for yet) and `measurement_head_available`
-//! reads `false` for that reason, not a leftover one.
+//! fixed.
+//!
+//! RFC-0.38-001 (closes E-085, E-086): `measuredd`'s `HEAD_REPLY` now carries
+//! the chain digest whole (four words), and `query_measurement_head` reads all
+//! four. `CAP_MEASUREDD_EP` (slot 4) **stays uninstalled** all the same — by the
+//! owner's scoping decision (2026-10-19), not because the reply is still too
+//! narrow: installing it and letting `measurement_head_available` read `true`
+//! is the next milestone's, so the head is not made visible in a signed bundle
+//! in the same line that makes it true. `measurement_head_available` therefore
+//! still reads `false`, and for that reason.
 #![no_std]
 #![no_main]
 mod rt;
@@ -121,37 +127,35 @@ fn recv_msg(ep: CapHandle) -> Result<(usize, usize, usize), ()> {
 
 /// RFC-0.36-001 (closes E-076): the second element is `true` only when a
 /// real `HEAD_REPLY` was received — the code that obtains the value is the
-/// only code that may say so. A recv error or an unexpected tag now returns
+/// only code that may say so. A call error or an unexpected tag returns
 /// `(zero digest, false)` instead of a zero digest alone, so `build_bundle`
 /// cannot forward a failure as if it were data.
 ///
-/// RFC-0.37-001 (closes E-083, **not** E-085): the tags this sends/matches
-/// are now the shared, real `measuredd::{GET_HEAD, HEAD_REPLY}` — the local
-/// `0x320`/`0x321` this used to use were never `measuredd`'s own numbers, so
-/// a real reply could never arrive at all (demonstrated failing against the
-/// live service before this fix, in the review request). **What this does
-/// not fix, deliberately**: the two words below are still read as if they
-/// were the first 16 bytes of the chain digest, which they are not — `w0` is
-/// `measuredd`'s `latest_seq`, not digest content (E-085, filed and ruled
-/// separately: the digest travels whole or not at all, which this protocol
-/// cannot do today). That is moot in practice here: slot 4
-/// (`CAP_MEASUREDD_EP`) stays uninstalled in this line (the amended R5), so
-/// every call below still hits the `recv_msg` error path and returns
-/// `(zero digest, false)` — this function's *reachable* behaviour is
-/// unchanged by this line; only the tags it would use if it ever did reach
-/// `measuredd` are now the real ones.
+/// RFC-0.37-001 (closes E-083): the tags this sends/matches are the shared,
+/// real `measuredd::{GET_HEAD, HEAD_REPLY}`.
+///
+/// RFC-0.38-001 R4 (closes E-085): this used to send `GET_HEAD` one-way and
+/// then `recv` on the same endpoint, reading two words as if they were the
+/// first 16 bytes of the digest. Neither half could ever have worked.
+/// `measuredd` answers with `sys_ipc_reply`, which needs the reply edge only an
+/// `IpcCall` creates — a one-way send is never answered — and a `recv` on
+/// `measuredd`'s own endpoint would take whatever its other clients sent. It is
+/// now a call, and the four reply words are the whole 32-byte digest. The slot
+/// needs `CALL`, not `SEND`/`RECV`, when it is installed.
+///
+/// Slot 4 (`CAP_MEASUREDD_EP`) is still uninstalled (see the module doc), so
+/// today the call fails at once with a capability error and this returns
+/// `(zero digest, false)`: this function's *reachable* behaviour is unchanged.
 fn query_measurement_head() -> (Digest32, bool) {
-    send_tag(CAP_MEASUREDD_EP, measuredd::GET_HEAD);
-    let Ok((tag, w0_lo, w0_hi)) = recv_msg(CAP_MEASUREDD_EP) else {
+    let Ok((label, words)) =
+        fjell_syscall::sys_ipc_call4(CAP_MEASUREDD_EP.0, measuredd::GET_HEAD, [0; 4])
+    else {
         return (Digest32([0u8; 32]), false);
     };
-    if tag != measuredd::HEAD_REPLY {
+    if label != measuredd::HEAD_REPLY {
         return (Digest32([0u8; 32]), false);
     }
-    let mut d = [0u8; 32];
-    d[..8].copy_from_slice(&(w0_lo as u64).to_le_bytes());
-    d[8..16].copy_from_slice(&(w0_hi as u64).to_le_bytes());
-    (Digest32(d), true)
+    (Digest32(measuredd::words_to_digest(words)), true)
 }
 
 // ── Bundle assembly ───────────────────────────────────────────────────────────

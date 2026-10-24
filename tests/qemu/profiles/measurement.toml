@@ -1,0 +1,44 @@
+# RFC-0.38-001 (E-086, E-085): the measurement chain measures something.
+#
+# The kernel hashes the service images it embeds and hands the result to `init`
+# in `BootInfo`; `init` gives it to `measuredd`, which records it as the chain's
+# first event. This tier asserts that what was RECORDED is what the images HASH
+# TO -- not that a digest is present, non-zero or well-formed, but that it is
+# EQUAL to a value the host derives on its own.
+#
+# `expect_image_set_digest` names two lines the run must print, each followed by
+# the 64 hex digits the host recomputes when the run is judged:
+#
+#   * the kernel's own boot line (what it computed), and
+#   * `measuredd`'s line (what the chain recorded, read back out of the stored
+#     event, not echoed from the request).
+#
+# The host value comes from `crates/fjell-kernel/prebuilt/*.bin` through the
+# external `sha2` crate, the documented layout assembled by hand and a file ->
+# ImageId table that does not use the kernel's own (see `fjell-tools`'
+# `image_set.rs`). It is derived at judging time, so this file holds no digest to
+# go stale. Two lines make the agreement three-way, which also says where a
+# disagreement is: kernel vs host is the content; kernel vs measuredd is the
+# transfer.
+#
+# What this does NOT show, and the limitations page says: only the service
+# images are measured (not the kernel's own image, configuration or runtime
+# state); and three of the chain's four recorded events are still placeholders
+# (RFC-0.38-001 R7). It says nothing about the attestation record, which is
+# built from constants independently of the chain (E-094).
+
+name                    = "measurement"
+timeout_secs            = 60
+expected_markers = [
+  "M8: boot evidence imported",
+  "M8: verification results appended",
+  "M8: measurement chain ready",
+]
+once_markers = [
+  "measuredd: image-set digest ",
+]
+expect_image_set_digest = [
+  "images, digest sha256:",
+  "measuredd: image-set digest ",
+]
+extra_args              = []

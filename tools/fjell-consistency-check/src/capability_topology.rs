@@ -116,14 +116,17 @@ const WAIVERS: &[Waiver] = &[
         image: "DIAGNOSTICSD",
         slot: 4,
         purpose: "measuredd",
-        reason: "RFC-0.37-001 (closes E-078): fleetd can now ask diagnosticsd \
-                 for a bundle, but this slot stays out deliberately -- E-085, \
-                 filed by that line: measuredd's GET_HEAD reply cannot carry a \
-                 whole chain digest (eight of thirty-two bytes through a \
-                 three-word reply), so there is nothing honest to install this \
-                 for yet. measurement_head_available reads false for that \
-                 reason. Installing this slot belongs to whichever line closes \
-                 E-085",
+        reason: "RFC-0.38-001 (closes E-085, E-086): measuredd's GET_HEAD now \
+                 replies with the whole chain digest, and the digest is a \
+                 measurement of the service images, so neither is the reason \
+                 any more. This slot stays out because the owner scoped \
+                 installing it -- and letting measurement_head_available read \
+                 true -- to the next milestone (0.39), so that the chain is \
+                 shown to be true before anything reports it. \
+                 measurement_head_available reads false for that reason. \
+                 Installing this slot, as a CALL capability (query_measurement_head \
+                 is a call now, not a send and a recv), belongs to the line \
+                 that flips the flag",
     },
 ];
 

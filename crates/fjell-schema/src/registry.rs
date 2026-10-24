@@ -63,6 +63,22 @@ fn chain(c: &mut dyn Canon) {
         &e.previous_chain_digest,
     );
 }
+fn image_set(c: &mut dyn Canon) {
+    use fjell_measure_format::{Digest32, ImageEntry};
+    // Two representative images: the recorder learns an element's shape from
+    // the first, and a set of one would not show that the group repeats.
+    let entries = [
+        ImageEntry {
+            image_id: 0,
+            digest: Digest32::of(b"image zero"),
+        },
+        ImageEntry {
+            image_id: 1,
+            digest: Digest32::of(b"image one"),
+        },
+    ];
+    fjell_measure_format::write_image_set_canonical(c, &entries);
+}
 fn bundle(c: &mut dyn Canon) {
     let b = s::service_bundle();
     fjell_bundle_format::write_bundle_canonical(
@@ -399,6 +415,19 @@ pub const FORMATS: &[Format] = &[
             "nothing reads these bytes back -- the measurement chain's whole point is a digest, not a decoded record -- so this file and the encoder are the only description a second implementation of the chain has",
         ],
         samples: &[chain],
+    },
+    Format {
+        id: "image-set-digest-v1",
+        krate: "fjell-measure-format",
+        name: "compute_image_set_digest",
+        version: "first generated in v0.38.0",
+        path: "crates/formats/fjell-measure-format/schema/image-set-digest-v1.frozen",
+        notes: &[],
+        format_version: None,
+        caveats: &[
+            "nothing reads these bytes back -- the digest is the whole point, and the kernel and a host tool each recompute it from the same images -- so this file and the encoder are the only description a second implementation has; the format carries no version field of its own, its domain tag (`FJELL-IMAGE-SET-V1`) is the version (RFC-0.38-001 R2)",
+        ],
+        samples: &[image_set],
     },
     Format {
         id: "service-bundle-digest-v1",

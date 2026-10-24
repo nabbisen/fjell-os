@@ -155,15 +155,23 @@ pub mod storaged {
 pub mod measuredd {
     /// Service is ready.
     pub const READY: usize = 0x300;
-    /// Append one measurement event.
-    /// words[0] = kind<<24|source<<16|subject<<8|flags
-    /// words[1] = subject_digest lo64
-    /// words[2] = subject_digest hi64 (bytes 8-15)
+    /// Append one measurement event whose subject digest is **not** a full
+    /// digest: words[0] = kind<<24|source<<16|subject<<8|flags,
+    /// words[1] = subject_digest bytes 0-7, words[2] = bytes 8-15 (the rest of
+    /// the 32-byte digest is recorded as zero). Used for the three
+    /// verification-result events, which remain placeholders (RFC-0.38-001 R7).
+    /// A request carries four words and the kind word takes one, so a whole
+    /// 32-byte digest cannot ride here — see `APPEND_IMAGE_SET`.
     /// Reply: APPEND_OK (seq in words[0]) or ERR.
     pub const APPEND_EVENT: usize = 0x301;
+    /// Reply to an append: words[0] = the event's sequence number.
     pub const APPEND_OK: usize = 0x302;
-    /// Get chain head (latest seq + chain_digest).
+    /// Get the chain head's digest. Reply: HEAD_REPLY.
     pub const GET_HEAD: usize = 0x303;
+    /// Reply to `GET_HEAD`: words[0..4] = the chain digest, **whole** — all
+    /// 32 bytes, little-endian words (RFC-0.38-001 R4, closes E-085). A reply
+    /// carries exactly four words, so there is no room for anything else; the
+    /// head's sequence number and drop count are `GET_HEAD_STATS`.
     pub const HEAD_REPLY: usize = 0x304;
     /// Get a specific event by seq.
     pub const GET_EVENT: usize = 0x305;
@@ -172,7 +180,50 @@ pub mod measuredd {
     pub const EXPORT_LOG: usize = 0x307;
     pub const EXPORT_CHUNK: usize = 0x308;
     pub const EXPORT_DONE: usize = 0x309;
+    /// Append the boot-time **service image set** measurement: words[0..4] =
+    /// the 32-byte set digest, whole (RFC-0.38-001 R2). The classification is
+    /// fixed by this operation, not chosen by the caller — kind
+    /// `BootEvidenceImported`, source `Kernel`, subject `BootEvidence` — so a
+    /// caller cannot label some other digest as the kernel's image set.
+    /// `measuredd` takes the digest on the caller's word: only `init` holds a
+    /// capability to send this, and what it sends is what the kernel put in
+    /// `BootInfo`. Reply: APPEND_OK (seq in words[0]) or ERR.
+    pub const APPEND_IMAGE_SET: usize = 0x30A;
+    /// Get the chain head's bookkeeping: its sequence number and the number of
+    /// events dropped. Reply: HEAD_STATS_REPLY.
+    pub const GET_HEAD_STATS: usize = 0x30B;
+    /// Reply to `GET_HEAD_STATS`: words[0] = latest_seq, words[1] = dropped,
+    /// words[2] = the last event's kind.
+    pub const HEAD_STATS_REPLY: usize = 0x30C;
     pub const ERR: usize = 0x30F;
+
+    // A message carries four machine words. On this 64-bit target that is
+    // exactly 32 bytes, one whole digest; the conversion below is only
+    // well-defined there, so refuse to build anywhere else.
+    const _: () = assert!(usize::BITS == 64);
+
+    /// A 32-byte digest as the four words a message carries: word `i` is bytes
+    /// `8i..8i+8`, little-endian. The one definition `init`, `measuredd` and
+    /// `diagnosticsd` share, so the writer and the reader of a digest cannot
+    /// disagree about its word order.
+    pub fn digest_to_words(d: &[u8; 32]) -> [usize; 4] {
+        let mut w = [0usize; 4];
+        for (i, word) in w.iter_mut().enumerate() {
+            let mut b = [0u8; 8];
+            b.copy_from_slice(&d[i * 8..i * 8 + 8]);
+            *word = u64::from_le_bytes(b) as usize;
+        }
+        w
+    }
+
+    /// The inverse of [`digest_to_words`].
+    pub fn words_to_digest(w: [usize; 4]) -> [u8; 32] {
+        let mut d = [0u8; 32];
+        for (i, word) in w.iter().enumerate() {
+            d[i * 8..i * 8 + 8].copy_from_slice(&(*word as u64).to_le_bytes());
+        }
+        d
+    }
 }
 
 // ── M8: attestd IPC protocol ──────────────────────────────────────────────────

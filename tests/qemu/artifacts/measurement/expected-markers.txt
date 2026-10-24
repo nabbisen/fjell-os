@@ -1,0 +1,6 @@
+M8: boot evidence imported
+M8: verification results appended
+M8: measurement chain ready
+measuredd: image-set digest     [exactly 1x]
+images, digest sha256:<64 hex: the service-image set digest, recomputed on the host from crates/fjell-kernel/prebuilt/*.bin>    [equality]
+measuredd: image-set digest <64 hex: the service-image set digest, recomputed on the host from crates/fjell-kernel/prebuilt/*.bin>    [equality]

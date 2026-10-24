@@ -756,6 +756,7 @@ dependencies = [
  "fjell-cap",
  "fjell-fdt-header",
  "fjell-ipc",
+ "fjell-measure-format",
 ]
 
 [[package]]
@@ -1207,9 +1208,11 @@ dependencies = [
  "fjell-cap-manifest",
  "fjell-consistency-check",
  "fjell-dev-harness",
+ "fjell-measure-format",
  "fjell-schema",
  "fjell-sig-ed25519",
  "getrandom 0.2.17",
+ "sha2",
 ]
 
 [[package]]

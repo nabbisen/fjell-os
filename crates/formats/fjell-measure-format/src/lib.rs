@@ -24,6 +24,7 @@
 pub mod digest;
 pub mod event;
 pub mod export;
+pub mod image_set;
 
 pub use digest::Digest32;
 pub use event::{
@@ -31,6 +32,10 @@ pub use event::{
     MeasurementSubject,
 };
 pub use export::ExportFormat;
+pub use image_set::{
+    IMAGE_SET_DOMAIN, IMAGE_SET_MAX, IMAGE_SET_PREIMAGE_MAX, ImageEntry, ImageSetError,
+    compute_image_set_digest, write_image_set_canonical,
+};
 
 /// Schema version embedded in every chain digest computation.
 pub const SCHEMA_VERSION: u16 = 1;

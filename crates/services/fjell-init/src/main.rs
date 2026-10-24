@@ -23,8 +23,8 @@ use fjell_snapshot_format::*;
 use fjell_store_format::*;
 use fjell_syscall::{
     sys_debug_write, sys_debug_write_byte, sys_debug_writeln, sys_exit, sys_ipc_call_words,
-    sys_ipc_send_words, sys_ipc_try_recv, sys_platform_info_get, sys_task_spawn, sys_task_start,
-    sys_yield,
+    sys_ipc_call4, sys_ipc_send_words, sys_ipc_try_recv, sys_platform_info_get, sys_task_spawn,
+    sys_task_start, sys_yield,
 };
 use fjell_upgrade_format::*;
 use fjell_verify_format::*;
@@ -502,6 +502,44 @@ fn presentation_liar_test() {
     }
 }
 
+/// Read the `BootInfo` the kernel put at `ptr` (the `a1` register at entry).
+///
+/// RFC-0.38-001 R2: the kernel writes a read-only page of `BootInfo::WIRE_BYTES`
+/// bytes into this address space and passes its address in `a1`. `None` for a
+/// null pointer, a short record, or a version older than this build requires —
+/// the caller must not invent a record in its place.
+fn read_boot_info(ptr: usize) -> Option<fjell_abi::boot::BootInfo> {
+    if ptr == 0 {
+        return None;
+    }
+    let mut raw = [0u8; fjell_abi::boot::BootInfo::WIRE_BYTES];
+    // SAFETY: category=raw-pointer-deref the kernel maps exactly one read-only user page at this address (a1) holding the record before init runs; WIRE_BYTES is far smaller than the page.
+    unsafe {
+        core::ptr::copy_nonoverlapping(ptr as *const u8, raw.as_mut_ptr(), raw.len());
+    }
+    fjell_abi::boot::BootInfo::from_bytes(&raw).ok()
+}
+
+/// Append one **placeholder** verification-result event to `measuredd`'s chain
+/// and return the sequence number it was recorded at.
+///
+/// RFC-0.38-001 R7: these three events (release / rootfs / policy manifest
+/// "verified") record a literal `0xAB`, not a digest of anything — nothing in
+/// this tree verifies a release, a rootfs or a policy bundle yet, and the RFC's
+/// non-goals exclude doing so here. They are kept so the chain's shape does not
+/// change, and `v1-limitations.md` says that three of the chain's four recorded
+/// measurement kinds are placeholders.
+fn append_placeholder_event(measuredd_ep: usize, kind: u8, src: u8, subj: u8) -> Option<u64> {
+    let kw = (kind as usize) << 24 | (src as usize) << 16 | (subj as usize) << 8;
+    let (label, words) = sys_ipc_call4(
+        measuredd_ep as u32,
+        measuredd_proto::APPEND_EVENT,
+        [kw, 0xABu64 as usize, 0, 0],
+    )
+    .ok()?;
+    (label == measuredd_proto::APPEND_OK).then_some(words[0] as u64)
+}
+
 fn spawn(img: ImageId, label: &str) -> usize {
     match sys_task_spawn(INIT_SLOT_TASK_CREATE, img) {
         Ok(h) => {
@@ -584,7 +622,12 @@ fn fact_text(k: &str, v: &str) -> StateFact {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 #[unsafe(no_mangle)]
-pub extern "C" fn service_main() -> ! {
+pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
+    // `a0`/`a1` are the registers the kernel sets at init's entry (`_start` is
+    // `la sp, __stack_top; tail service_main`, so they arrive untouched): `a1`
+    // is the address of the `BootInfo` page (RFC-0.38-001 R2). No other
+    // service's `service_main` takes arguments; init's does because it is the
+    // only task the kernel hands a record to.
     // ── M4 ───────────────────────────────────────────────────────────────────
     spawn(ImageId::CONFIGD, "M4: configd started");
     spawn(ImageId::CAP_BROKER, "M4: cap-broker started");
@@ -946,33 +989,48 @@ pub extern "C" fn service_main() -> ! {
     // specific order among the three).
     wait_relay_all_m8_ready();
 
-    // 1. Import boot evidence into measurement chain.
-    {
-        // kind=BootEvidenceImported(1), source=Kernel(1), subject=BootEvidence(1)
-        let kind_word: usize = (1usize << 24) | (1usize << 16) | (1usize << 8);
-        let _ = ipc_call(
-            measuredd_ep,
-            measuredd_proto::APPEND_EVENT,
-            kind_word,
-            0x0011u64 as usize,
-            0,
-            0,
+    // 1. Record the measurement of the service images the kernel embeds.
+    //
+    // RFC-0.38-001 R2: the digest is the kernel's (`BootInfo`), computed from the
+    // bytes of every embedded image — not a literal. If there is no usable
+    // `BootInfo`, nothing is recorded in its place: a chain that quietly held
+    // a made-up first measurement is the defect (E-086) this replaces, so the
+    // boot stops, loudly.
+    let Some(boot_info) = read_boot_info(boot_info_va) else {
+        sys_debug_writeln(
+            "init: BootInfo missing or malformed; refusing to record a boot measurement",
         );
+        sys_exit(1);
+    };
+    if boot_info.image_set_count == 0 {
+        sys_debug_writeln(
+            "init: BootInfo covers no service images; refusing to record a boot measurement",
+        );
+        sys_exit(1);
+    }
+    {
+        match sys_ipc_call4(
+            measuredd_ep as u32,
+            measuredd_proto::APPEND_IMAGE_SET,
+            measuredd_proto::digest_to_words(&boot_info.image_set_digest),
+        ) {
+            Ok((label, _)) if label == measuredd_proto::APPEND_OK => {}
+            _ => {
+                sys_debug_writeln("M8: image-set measurement FAILED");
+                sys_exit(1);
+            }
+        }
         sys_debug_writeln("M8: boot evidence imported");
     }
 
-    // 2. Append verification results (release, rootfs, policy).
+    // 2. Append verification results (release, rootfs, policy) -- placeholders,
+    // see `append_placeholder_event`.
     {
         for (kind, src, subj) in [(2u8, 2u8, 2u8), (3u8, 2u8, 3u8), (4u8, 2u8, 4u8)] {
-            let kw = (kind as usize) << 24 | (src as usize) << 16 | (subj as usize) << 8;
-            let _ = ipc_call(
-                measuredd_ep,
-                measuredd_proto::APPEND_EVENT,
-                kw,
-                0xABu64 as usize,
-                0,
-                0,
-            );
+            if append_placeholder_event(measuredd_ep, kind, src, subj).is_none() {
+                sys_debug_writeln("M8: verification-result placeholder append FAILED");
+                sys_exit(1);
+            }
         }
         sys_debug_writeln("M8: verification results appended");
     }
@@ -1015,14 +1073,21 @@ pub extern "C" fn service_main() -> ! {
         }
     }
 
-    // 4. Get measurement head (receive seq from measuredd reply words, not tag).
-    let meas_seq: u64 = {
-        // Use ipc_call_full to get w0 (seq) from reply.
-        // For now, approximate: seq = number of APPEND_EVENT calls made = 4.
-        4u64
-    };
+    // 4. Ask measuredd where its chain stands (RFC-0.38-001 ruling 6). These were
+    // the literals `4` and `0` -- true only because there happened to be four
+    // appends -- and are now what the chain reports.
+    let (meas_seq, meas_dropped): (u64, u64) =
+        match sys_ipc_call4(measuredd_ep as u32, measuredd_proto::GET_HEAD_STATS, [0; 4]) {
+            Ok((label, w)) if label == measuredd_proto::HEAD_STATS_REPLY => {
+                (w[0] as u64, w[1] as u64)
+            }
+            _ => {
+                sys_debug_writeln("M8: measurement head stats FAILED");
+                sys_exit(1);
+            }
+        };
     sys_debug_writeln("M8: measurement chain ready");
-    emit_measurement_status(4, 0); // seq=4 events, dropped=0
+    emit_measurement_status(meas_seq, meas_dropped);
 
     // 5. Generate local attestation record.
     {

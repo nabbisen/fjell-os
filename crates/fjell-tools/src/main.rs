@@ -45,6 +45,7 @@ mod dev; // RFC v0.9-005 developer workflow
 mod dev_modes;
 mod evidence; // RFC-0.27-004 evidence promotion
 mod fleet_demo;
+mod image_set; // RFC-0.38-001 R6: the independent host recomputation of the image-set digest
 mod key_crypto; // RFC-v0.16-006 encrypted key storage
 mod lint_allow_report; // RFC-0.37-002 R5: crate-level #![allow(...)] census
 mod negative;

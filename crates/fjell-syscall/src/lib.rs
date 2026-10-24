@@ -681,6 +681,52 @@ pub fn sys_ipc_call_words(
     Ok(r1)
 }
 
+/// `IpcCall` with four request words and **all four reply words returned**
+/// (RFC-0.38-001 R4).
+///
+/// `sys_ipc_call_words` sends three words and returns one result word;
+/// `sys_ipc_call` returns the label alone. A reply carries four words —
+/// `sys_ipc_reply` copies the replier's `a2..a5` into this caller's frame
+/// unconditionally — and a service that must receive a whole 32-byte value
+/// (`measuredd`'s `HEAD_REPLY`) needs them all. Returns
+/// `Ok((reply_label, [w0, w1, w2, w3]))`.
+///
+/// All of `a1`..`a5` are declared `inlateout`: the kernel writes the reply's
+/// label into `a1` and its words into `a2..a5` (the registers
+/// `SYSCALL-CALLSITE-002` requires an `IpcCall` block to declare).
+pub fn sys_ipc_call4(
+    ep: u32,
+    tag: usize,
+    words: [usize; 4],
+) -> Result<(usize, [usize; 4]), SysError> {
+    let status: usize;
+    let label: usize;
+    let (w0, w1, w2, w3): (usize, usize, usize, usize);
+    #[cfg(target_arch = "riscv64")]
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    unsafe {
+        core::arch::asm!(
+            "li a7, 22", "ecall",
+            inlateout("a0") ep as usize => status,
+            // Word count 4 in tag bits 16-23, as `ipc_call4` does.
+            inlateout("a1") (tag & 0xFFFF) | (4usize << 16) => label,
+            inlateout("a2") words[0] => w0,
+            inlateout("a3") words[1] => w1,
+            inlateout("a4") words[2] => w2,
+            inlateout("a5") words[3] => w3,
+            lateout("a7") _,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        let _ = (ep, tag, words);
+        (status, label, w0, w1, w2, w3) = (0, 0, 0, 0, 0, 0);
+    }
+    to_result(status)?;
+    Ok((label & 0xFFFF, [w0, w1, w2, w3]))
+}
+
 // ── Cap manipulation wrappers (RFC 042) ───────────────────────────────────────
 
 /// `sys_cap_copy(src, dst_slot) → Ok(new_handle)` (SyscallNumber::CapCopy = 10)

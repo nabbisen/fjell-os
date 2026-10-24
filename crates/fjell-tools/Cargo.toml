@@ -25,3 +25,12 @@ fjell-schema           = { path = "../fjell-schema" }
 getrandom           = { version = "0.2", features = ["std"] }
 argon2              = "0.5"
 aes-gcm             = "0.10"
+# RFC-0.38-001 R6: an SHA-256 that is not the in-tree one the kernel runs, so the
+# host recomputation of the image-set digest is evidence and not an echo. Already
+# in Cargo.lock (`fjell-repro-check` uses the same version).
+sha2                = "0.10"
+
+[dev-dependencies]
+# RFC-0.38-001 R6: one test checks the host recomputation against the in-tree
+# implementation on the real prebuilt images. Test-only.
+fjell-measure-format = { path = "../formats/fjell-measure-format" }
