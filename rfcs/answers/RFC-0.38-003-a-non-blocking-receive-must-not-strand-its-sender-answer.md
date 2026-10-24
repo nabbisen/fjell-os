@@ -1,6 +1,6 @@
 # RFC-0.38-003 R1–R8: a non-blocking receive must not strand its sender
 
-**Governing RFC:** [../accepted/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md](../accepted/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md)
+**Governing RFC:** [../done/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md](../done/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md)
 **Handoff:** [../handoffs/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender/implementation-handoff.md](../handoffs/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender/implementation-handoff.md)
 
 Written against base `58b6404` (RFC-0.38-002's tip), in the handoff's order: R1, then

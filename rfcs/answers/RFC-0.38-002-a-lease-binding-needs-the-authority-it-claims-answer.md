@@ -1,6 +1,6 @@
 # RFC-0.38-002 R1–R9: a lease binding needs the authority it claims
 
-**Governing RFC:** [../accepted/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md](../accepted/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md)
+**Governing RFC:** [../done/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md](../done/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md)
 **Handoff:** [../handoffs/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims/implementation-handoff.md](../handoffs/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims/implementation-handoff.md)
 
 Written against base `1b403af`, in the handoff's order: R1, R3 and R4 against the

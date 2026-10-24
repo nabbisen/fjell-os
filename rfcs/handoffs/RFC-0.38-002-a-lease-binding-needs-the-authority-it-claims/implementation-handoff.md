@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.38-002
 
-**Governing RFC:** [RFC-0.38-002](../../accepted/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md)
+**Governing RFC:** [RFC-0.38-002](../../done/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md)
 **Milestone:** 0.38
-**Status:** inherited from the governing RFC (Accepted, 0.38)
+**Status:** inherited from the governing RFC (Implemented, 0.38.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

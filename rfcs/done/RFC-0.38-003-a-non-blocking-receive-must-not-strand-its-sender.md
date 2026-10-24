@@ -1,6 +1,6 @@
 # RFC-0.38-003: A non-blocking receive must not strand its sender
 
-**Status:** Accepted (0.38) — accepted 2026-10-21
+**Status:** Implemented (0.38.0) — accepted 2026-10-21
 **Milestone:** 0.38
 **Tracks.** **E-089** — `sys_ipc_try_recv` neither wakes a blocked one-way sender
 nor installs a reply edge, both of which `sys_ipc_recv` does. `driver-uart` blocks

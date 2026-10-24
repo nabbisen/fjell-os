@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.38-003
 
-**Governing RFC:** [RFC-0.38-003](../../accepted/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md)
+**Governing RFC:** [RFC-0.38-003](../../done/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md)
 **Milestone:** 0.38
-**Status:** inherited from the governing RFC (Accepted, 0.38)
+**Status:** inherited from the governing RFC (Implemented, 0.38.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

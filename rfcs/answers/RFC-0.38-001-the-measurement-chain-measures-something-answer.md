@@ -1,6 +1,6 @@
 # RFC-0.38-001 R1–R9: the measurement chain measures something
 
-**Governing RFC:** [../accepted/RFC-0.38-001-the-measurement-chain-measures-something.md](../accepted/RFC-0.38-001-the-measurement-chain-measures-something.md)
+**Governing RFC:** [../done/RFC-0.38-001-the-measurement-chain-measures-something.md](../done/RFC-0.38-001-the-measurement-chain-measures-something.md)
 **Handoff:** [../handoffs/RFC-0.38-001-the-measurement-chain-measures-something/implementation-handoff.md](../handoffs/RFC-0.38-001-the-measurement-chain-measures-something/implementation-handoff.md)
 **Design ruling followed:** the RFC's "Design ruling (R2 escalation), 2026-10-22", recorded in `.git-exclude/reviewed/review-record-rfc-0.38-001-r2-escalation.md`.
 

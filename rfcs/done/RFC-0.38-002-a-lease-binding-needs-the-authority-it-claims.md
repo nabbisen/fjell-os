@@ -1,6 +1,6 @@
 # RFC-0.38-002: A lease binding needs the authority it claims
 
-**Status:** Accepted (0.38) — accepted 2026-10-21
+**Status:** Implemented (0.38.0) — accepted 2026-10-21
 **Milestone:** 0.38
 **Tracks.** **E-088** — `sys_cap_bind_lease` performs no authority check, is
 dispatched ungated, overwrites any existing binding, and reads the epoch through a

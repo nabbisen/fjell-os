@@ -1,6 +1,6 @@
 # RFC-0.38-004 R1–R8: a lease binding is set once
 
-**Governing RFC:** [../accepted/RFC-0.38-004-a-lease-binding-is-set-once.md](../accepted/RFC-0.38-004-a-lease-binding-is-set-once.md)
+**Governing RFC:** [../done/RFC-0.38-004-a-lease-binding-is-set-once.md](../done/RFC-0.38-004-a-lease-binding-is-set-once.md)
 **Handoff:** [../handoffs/RFC-0.38-004-a-lease-binding-is-set-once/implementation-handoff.md](../handoffs/RFC-0.38-004-a-lease-binding-is-set-once/implementation-handoff.md)
 
 Written against base `ea0e9a8`, in the handoff's order: R1, the tier red (R3/R4), the

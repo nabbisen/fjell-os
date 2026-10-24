@@ -1,6 +1,6 @@
 # RFC-0.38-001: The measurement chain measures something
 
-**Status:** Accepted (0.38) — accepted 2026-10-19
+**Status:** Implemented (0.38.0) — accepted 2026-10-19
 **Milestone:** 0.38
 **Tracks.** **E-086** — the measurement chain is fed placeholder literals on every
 boot because nothing in the tree computes a digest of anything — and **E-085**,

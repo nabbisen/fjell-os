@@ -1,6 +1,6 @@
 # RFC-0.38-004: A lease binding is set once
 
-**Status:** Accepted (0.38) — accepted 2026-10-22
+**Status:** Implemented (0.38.0) — accepted 2026-10-22
 **Milestone:** 0.38
 **Tracks.** **E-090** — `sys_cap_bind_lease` replaces an existing `LeaseBinding`
 unconditionally, so the holder of a capability can move it off the lease that governs

@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 205 files
+## Implemented (done/) — 209 files
 
-204 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+208 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -487,19 +487,23 @@ Two lines, both drafted for this milestone and both shipped in it.
 | 0.37-001 | [A bundle gets asked for and produced](./done/RFC-0.37-001-a-bundle-gets-asked-for-and-produced.md) — closed **E-078**, **E-081**, **E-083**; a diagnostic export whose every path was dead behind a six-constant protocol, facing a fleet manager that had printed `ready` and exited. `fleetd` was given the event loop RFC-v0.8-005 always specified for it, rather than being retracted | 0.37.0 |
 | 0.37-002 | [Instruments that cannot be bought](./done/RFC-0.37-002-instruments-that-cannot-be-bought.md) — closed **E-082**, **E-084**; exit criterion 2's "0 warning lines" was partly purchased with crate-level `#![allow(…)]`, and behind one of those suppressions sat a complete IPC event loop the compiler already knew was unreachable | 0.37.0 |
 
+### 0.38 — the measurement chain measures something, and three authority gaps close
+
+Four lines, all drafted for this milestone and all shipped in it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.38-001 | [The measurement chain measures something](./done/RFC-0.38-001-the-measurement-chain-measures-something.md) — closed **E-086**, **E-085**; the attestation root was rebuilt from placeholder literals on every boot, and the head query could not return the digest it names. The kernel now hashes the 33 service images it embeds and hands `init` the digest, and the head query returns all 32 bytes. Slot 4 stays uninstalled and `measurement_head_available` stays `false` — that half is 0.39's | 0.38.0 |
+| 0.38-002 | [A lease binding needs the authority it claims](./done/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md) — closed **E-088**; `sys_cap_bind_lease` enforced nothing, and because the epoch read admits a `Revoked` slot a task could rebind its capability to its own revoked lease and recover what revocation took away | 0.38.0 |
+| 0.38-003 | [A non-blocking receive must not strand its sender](./done/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md) — closed **E-089**; `try_recv` woke no sender and installed no reply edge, so the UART driver blocked in its send, never acknowledged the interrupt, and the console delivered one byte per boot — behind nine profiles that each inject a single character | 0.38.0 |
+| 0.38-004 | [A lease binding is set once](./done/RFC-0.38-004-a-lease-binding-is-set-once.md) — closed **E-090**; a `LeaseAdmin` holder could move a capability off the lease governing it, so the cascading revocation `ADR-v0.7.4-003` promised when it dropped parent links had an opt-out available to the party being revoked. A binding is now set once — a no-op for every current caller | 0.38.0 |
+
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — none
 
-Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
-fresh clone.
-
-| RFC | Title | Target |
-|-----|-------|--------|
-| 0.38-001 | [The measurement chain measures something](./accepted/RFC-0.38-001-the-measurement-chain-measures-something.md) — closes **E-086**, **E-085**; the attestation root is rebuilt from placeholder literals on every boot, and the head query cannot return the digest it names. Slot 4 stays uninstalled and `measurement_head_available` stays `false` — that half is 0.39's | 0.38.0 |
-| 0.38-002 | [A lease binding needs the authority it claims](./accepted/RFC-0.38-002-a-lease-binding-needs-the-authority-it-claims.md) — closes **E-088**; `sys_cap_bind_lease` enforces nothing, and because the epoch read admits a `Revoked` slot a task can rebind its capability to its own revoked lease and recover what revocation took away | 0.38.0 |
-| 0.38-003 | [A non-blocking receive must not strand its sender](./accepted/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md) — closes **E-089**; `try_recv` wakes no sender and installs no reply edge, so the UART driver blocks in its send, never acknowledges the interrupt, and the console delivers one byte per boot — behind nine profiles that each inject a single character | 0.38.0 |
-| 0.38-004 | [A lease binding is set once](./accepted/RFC-0.38-004-a-lease-binding-is-set-once.md) — closes **E-090**; a `LeaseAdmin` holder could move a capability off the lease governing it, so the cascading revocation `ADR-v0.7.4-003` promised when it dropped parent links had an opt-out available to the party being revoked. A binding is now set once — a no-op for every current caller | 0.38.0 |
+Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
+folder in a fresh clone.
 
 ---
 
