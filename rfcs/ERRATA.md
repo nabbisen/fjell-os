@@ -5834,6 +5834,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > unanswered, same as the entry left it. Full detail in
   > `rfcs/answers/RFC-0.37-001-a-bundle-gets-asked-for-and-produced-answer.md`.
 
+> **Addendum, 2026-10-24 (architect).** This entry named **one** reason
+> `diagnosticsd`'s head query could not work — the wrong tag constants — and there
+> were **two**. The call site also sent `GET_HEAD` **one-way** and then `recv`d on
+> `measuredd`'s own endpoint, reading two words as if they were a reply: a one-way
+> send is never answered, so the query was structurally incapable of working even
+> with the right tags and the capability installed. RFC-0.37-001 fixed the tags, which
+> is what this entry asked for; the shape survived it. Found and fixed by
+> **RFC-0.38-001** R4, which made it a real `IpcCall`, so no new entry is filed — but
+> this entry's analysis was incomplete, and the architect accepted RFC-0.37-001
+> without noticing the second half.
+
 ## E-084 — `fjell-netd`'s event loop is statically unreachable, behind a lint the crate switches off
 
 - **Split from E-081, 2026-10-18**, because the remedy differs: `fleetd` must become
@@ -6094,9 +6105,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > (`GET_HEAD_STATS`), not the literal `4`.
   >
   > **Cost, measured (R3).** 25 boots each with the hashing and with it skipped:
-  > the span that contains it went from 0.25 ms to 3.43 ms, i.e. **about 3.2 ms** for
-  > 154,972 bytes under QEMU TCG; the two batches' boot-to-init-exit medians differ
-  > by less than their own spread. No tier's timeout moved.
+  > the span that contains it went from 0.25 ms to 3.43 ms, i.e. **about 3.2 ms**
+  > under QEMU TCG; the two batches' boot-to-init-exit medians differ by less than
+  > their own spread. No tier's timeout moved.
+  >
+  > *Byte count corrected by the architect, 2026-10-24: this read "for 154,972
+  > bytes". The 33 prebuilts total **158,660** bytes at this line's tip — 154,972 was
+  > the total before the line rebuilt three of the very images it measures. A 2.4%
+  > difference that does not touch the conclusion, but the measured set includes the
+  > measurer, which is worth stating rather than leaving as a stale figure.*
   >
   > **Survivors, named so they are not read as closed.** (1) **Three of the chain's
   > four recorded events are still placeholders** — release, rootfs and policy
@@ -6113,9 +6130,50 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > call; this entry carries them as named survivors, the form E-045, E-048, E-056
   > and E-070 use.*
   >
+  > **Architect's ruling, 2026-10-24: survivor (1) is split to E-095; (2)–(5) stay
+  > as named survivors.** The question was asked well and both forms have precedent,
+  > so the test is E-074's own — is the residual *a different defect with a different
+  > remedy*, or a statement of this line's scope? Survivor (1) is the former: making
+  > release, rootfs and policy verification real is substantial work this line's
+  > non-goals exclude, and nobody can schedule what the register does not carry.
+  > Survivors (2), (3) and (5) are scope statements already recorded where they
+  > belong — row 14, the `capability-topology` waiver, and 0.39 — and (4) is already
+  > **E-094**. So only the one with its own remedy becomes its own entry.
+  >
   > **Nothing is retro-claimed.** Boots before this line recorded `0x0011` and `0xAB`
   > for all four events; those were not measurements, and no document written here
   > says they were.
+
+## E-095 — three of the measurement chain's four recorded events are placeholders, because nothing in the tree verifies a release, a rootfs or a policy bundle
+
+- **Split from E-086 on 2026-10-24**, at that entry's closure, by the architect's
+  ruling on the implementer's own question of whether to split or name survivors. The
+  test applied is **E-074**'s, split from **E-072** for the same reason: a residual
+  with *a different defect and a different remedy* becomes its own entry, where a
+  statement of the closing line's scope stays a named survivor. A closed entry must
+  not be the only record of live work.
+- **Claim:** the measurement chain records four events per boot and is the node's
+  measurement record.
+- **Tree, observed 2026-10-24 at `eb09691`:** RFC-0.38-001 made **one** of the four
+  real — the boot-evidence event now carries the digest of the 33 service images the
+  kernel embeds, computed by the kernel over the bytes it booted. The other **three**
+  — release, rootfs and policy "verified" — still record the literal `0xAB` with the
+  remaining bytes zero, appended by `fjell-init`'s `append_placeholder_event`, which
+  is named so a reader of the call site can see what it is.
+- **Why they are placeholders and not a bug in the chain.** Nothing in the tree
+  verifies a release, a rootfs or a policy bundle. The events are placeholders because
+  the verifications they would record do not happen; the chain is faithfully recording
+  that nothing verified anything. RFC-0.38-001's non-goals exclude release, rootfs and
+  policy attestation explicitly, and that scoping was the owner's.
+- **Distinct from E-094**, which is the signed attestation record asserting
+  `release_verified`/`rootfs_verified`/`policy_verified: **true**`. E-094 is a false
+  claim; this is an honest placeholder. They have the same root — no verification
+  exists — and different remedies: E-094 must stop asserting `true`, while this needs
+  the verification itself.
+- **Status:** **ACCEPTED**, `unscheduled`. A documented v1.0 limitation, recorded in
+  `docs/src/releasing/v1-limitations.md` row 14. What closing it needs is real release,
+  rootfs and policy-bundle verification — a milestone, not a line, and one that should
+  take E-094 with it so the record and the chain become true together.
 
 ## E-087 — `measuredd`'s `EXPORT_LOG` exports nothing, and E-085 cited it as the working pattern
 
@@ -6728,6 +6786,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | unscheduled | ACCEPTED |
 | E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all — neither parent links, which were deleted, nor a lease. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage | unscheduled | ACCEPTED |
 | E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | unscheduled | ACCEPTED |
+| E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

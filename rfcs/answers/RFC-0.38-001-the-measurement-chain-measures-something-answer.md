@@ -78,7 +78,7 @@ cost was measured from the host: timestamping serial lines as they arrive, 25 bo
 | with the hash | 3.43 ms | ≈ 452 ms |
 | control: hash removed, everything else identical | 0.25 ms | ≈ 478 ms |
 
-The hash costs **about 3.2 ms for 154,972 bytes** of images. The end-to-end difference is
+The hash costs **about 3.2 ms** for the embedded images. *(Architect, 2026-10-24: this said "for 154,972 bytes"; the 33 prebuilts total **158,660** bytes at the tip — 154,972 was the total before this line rebuilt three of the images it measures. The conclusion is unaffected.)* The end-to-end difference is
 inside the noise (the control was slower). No tier's timeout was moved; the new tier has a
 60 s timeout and the `m8` tier is unchanged.
 
