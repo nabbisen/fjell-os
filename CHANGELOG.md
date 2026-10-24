@@ -5,10 +5,65 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [Unreleased]
+## [0.38.0] — 2026-10-24 — The measurement chain measures something, and three authority gaps close
 
-*Written in the line that made the change (RFC-0.38-001's design ruling asks for
-it there) and folded into the 0.38.0 entry at the cut. Not a release record.*
+Four RFCs, **five errata closed** (**E-085**, **E-086**, **E-088**, **E-089**,
+**E-090**). The kernel hashes the 33 service images it embeds and hands `init`
+the digest, so one of the measurement chain's four recorded events is now a fact
+about the bytes that booted, checked against an independent host recomputation
+for equality. `sys_cap_bind_lease` performs the authority check its
+documentation always claimed and a binding can no longer be replaced;
+`sys_ipc_try_recv` stops stranding the sender that fed it, and the console
+delivers more than one byte per boot.
+
+### Fixed — the measurement chain recorded literals, and its head could not be read whole (RFC-0.38-001)
+
+Every digest `fjell-init` appended to the chain was a literal, so a recorded
+"measurement" was not a fact about anything (**E-086**); and `fjell-measuredd`
+replied with eight of a digest's thirty-two bytes and rebuilt it from sixteen
+(**E-085**). Now:
+
+- **The kernel computes the digest.** At boot it hashes each embedded service
+  image and folds the results into one image-set digest —
+  `SHA-256("FJELL-IMAGE-SET-V1" ‖ u16 count ‖ Σ(u16 image_id ‖ SHA-256(image)))`,
+  ascending ids, the count bound in. The encoding lives in `fjell-measure-format`
+  with a frozen description; `compute_chain_digest`'s stream is untouched. Hashing
+  33 images (158,660 bytes) costs about 3 ms of boot.
+- **It reaches the chain through `BootInfo`.** The kernel maps a read-only page in
+  `init` and passes its address in `a1`; `init` sends the digest with the new
+  `APPEND_IMAGE_SET` op and `fjell-measuredd` — not `init` — fixes that event's
+  kind, source and subject. `init` exits non-zero if it cannot measure.
+- **The whole digest travels.** `measuredd`'s reply carries four words;
+  `GET_HEAD` returns the full 32 bytes, and `GET_HEAD_STATS` carries the sequence
+  and drop count. `init` no longer prints a literal `seq=4`.
+- **`diagnosticsd`'s head query is a real call.** It used to send one way and
+  then wait on `measuredd`'s own endpoint, which could never have worked.
+  `fjell-syscall` gains `sys_ipc_call4`, a wrapper over the existing `IpcCall`.
+- **An instrument compares recorded to measured.** The new `measurement` QEMU
+  tier demands that both serial digest lines equal a digest the host recomputes
+  from `prebuilt/*.bin` with an external SHA-256 — equality, not "non-zero".
+  Shown failing on the pre-change tree, on an image altered after the kernel was
+  built, and on a digest corrupted in transit.
+
+### Fixed — `sys_cap_bind_lease` checked no authority, and a binding could be replaced (RFC-0.38-002, RFC-0.38-004)
+
+The authority check the syscall's documentation described had been reverted over
+an aliasing concern and never reinstated (**E-088**): any task could bind a
+capability to any lease, and could rebind to its own revoked lease. It now
+requires an active `LeaseAdmin` capability carrying `LEASE_CREATE`
+(`PermissionDenied` otherwise) and refuses a revoked lease (`LeaseRevoked`).
+A binding is also set once (**E-090**): rebinding an already-bound capability —
+to another lease or the same one — is refused with `BadState`, so the cascading
+revocation a lease promises cannot be opted out of by the party being revoked.
+No current caller depended on the old behaviour.
+
+### Fixed — a non-blocking receive stranded its sender (RFC-0.38-003)
+
+`sys_ipc_try_recv` neither woke a one-way sender blocked in `sys_ipc_send` nor
+installed a call's reply edge (**E-089**), so the UART driver blocked in its
+send, never acknowledged the interrupt, and the console delivered one byte per
+boot — behind nine profiles that each inject a single character. Both receives
+now share one completion path.
 
 ### Breaking — `fjell_abi::boot::BootInfo` (RFC-0.38-001)
 
@@ -38,6 +93,22 @@ affected; an out-of-tree consumer would be.
 
 Migration: read the page with `BootInfo::from_bytes` over `WIRE_BYTES` bytes and
 handle `BootInfoError`; do not cast it to the struct.
+
+### Known, disclosed, not fixed here
+
+**Only one of the chain's four recorded events is real.** The other three —
+release, rootfs and policy "verified" — still record the literal `0xAB`, because
+nothing in the tree verifies a release, a rootfs or a policy bundle (**E-095**,
+unscheduled; `init` labels them as placeholders). The chain measures the service
+images only: not the kernel image, configuration, or runtime state. The signed
+attestation record is still built from constants and does not capture the chain
+(**E-094**, unscheduled). `measurement_head_available` still reads `false` and
+`DIAGNOSTICSD` slot 4 stays uninstalled; that half is 0.39's.
+
+Also filed, unscheduled: which lease a bind may target (**E-091**), lease
+revocation audited under a code nothing decodes (**E-092**), cascading
+revocation covering only bound capabilities (**E-093**), and `measuredd`'s
+`EXPORT_LOG` replying with no content (**E-087**, untouched).
 
 ---
 
