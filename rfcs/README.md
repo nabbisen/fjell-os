@@ -500,10 +500,15 @@ Four lines, all drafted for this milestone and all shipped in it.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 2 RFCs
 
-Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
-folder in a fresh clone.
+Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
+fresh clone.
+
+| RFC | Title | Target |
+|-----|-------|--------|
+| 0.39-001 | [The chain records who actually said it](./accepted/RFC-0.39-001-the-chain-records-who-actually-said-it.md) — closes **E-096**; the measurement chain's `source` is decoded from the caller's own word while the kernel-attested sender is discarded, and three events per boot declare a service that had no part in them | 0.39.0 |
+| 0.39-002 | [The head is readable, and says how much of it is real](./accepted/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md) — installs `DIAGNOSTICSD` slot 4 so the chain head can be read, and makes the bundle state how much of the chain carries a digest something computed, so `measurement_head_available: 1` cannot be read as "fully measured". Depends on 0.39-001 | 0.39.0 |
 
 ---
 
