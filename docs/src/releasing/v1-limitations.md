@@ -19,6 +19,7 @@ require updating the governing record first, then this page.*
 | 11 | **Lease revocation is audited under a code nothing decodes** — the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation (`crates/fjell-kernel/src/lease/mod.rs:343`), while the published decoder has `LeaseRevoked = 16` and falls back `_ => Internal`, with no arm for 40. So every revocation record is read as `Internal` and the ABI's own `LeaseRevoked` variant is unreachable. No authority consequence; an observability one, on the event class the lease mechanism exists to record | Errata **E-092** (ACCEPTED) |
 | 12 | **Cascading revocation covers only explicitly bound capabilities** — `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease", which was never enforced: bootstrap capabilities carry `lease: None` and a copy inherits that. So a copied capability that was never lease-bound has no recursive revocation at all — neither parent links, which were removed, nor a lease. In the shipped tree only the test services bind leases | Errata **E-093** (ACCEPTED); `RFC-v0.7.4-003` |
 | 13 | **The signed attestation record is constants** — `attestd` always signs a record built by `AttestationRecordV2::dev` from literals (`kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1`), and it asserts `release_verified`, `rootfs_verified` and `policy_verified` **true** while nothing verifies. The sequence number passed to `sign_v2` is never read, and `attestd` has no endpoint to `measuredd`, so the measurement chain does not reach the record — repairing the chain (RFC-0.38-001) does not make attestation real. Development profile only; the signer is the keyed-SHA-256 dev provider (row for E-028) | Errata **E-094** (ACCEPTED) |
+| 14 | **What the measurement chain measures, and what it does not** — one of its four recorded events is a real measurement: the digest of the **33 service images** the kernel embeds (RFC-0.38-001). The other three (release, rootfs and policy "verified") still record the literal `0xAB`, because nothing in the tree verifies a release, a rootfs or a policy bundle. **The kernel's own image, configuration and runtime state are not measured.** `measuredd` takes the digest on `init`'s word (the kernel's, via `BootInfo`); the relay is not attested. `measurement_head_available` is `false` in every bundle. **None of this is attestation** — see row 13: the signed record is independent of the chain. Boots before RFC-0.38-001 recorded placeholders for all four events | Errata **E-086** (CLOSED, survivors named in its closure), **E-085** (CLOSED); **E-094** (row 13); `tests/qemu/profiles/measurement.toml` |
 
 ## Accessibility and inclusion — what does not exist yet
 
@@ -1246,8 +1247,15 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   > records why that is a feature line and not a test line).
 
 - **The measurement chain is fed placeholder literals on every boot, because
-  nothing measures anything** (Erratum **E-086**, ACCEPTED 2026-10-19,
-  unscheduled). **This one is live, not latent.** `fjell-init` appends four
+  nothing measures anything** (Erratum **E-086**, ~~ACCEPTED 2026-10-19,
+  unscheduled~~ **CLOSED 2026-10-24** by **RFC-0.38-001**, with survivors in
+  row 14). **Closed:** the kernel now hashes the 33 service images it embeds and
+  the chain's first event records that digest; the `measurement` tier requires it
+  to equal a digest the host recomputes independently. **Three of the chain's four
+  recorded events are still placeholders, and only the service images are
+  measured — row 14.** *What follows is the entry as it stood before that line,
+  kept as the record; its present tense is not the present.* **This one is live,
+  not latent.** `fjell-init` appends four
   measurement events per boot whose "subject digest" is a literal — `0x0011` for
   boot evidence, `0xAB` for each of three verification results — with the remaining
   words zero, and `measuredd` rebuilds only `sd[0..16]`, leaving the rest zero. Each
@@ -1273,7 +1281,13 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   which `fjell-service-api`'s own ABDD note already names as the model. Corrected
   below.
 - **`fjell-measuredd`'s `GET_HEAD` has never been able to answer with the chain
-  digest it names** (Erratum **E-085**, ACCEPTED 2026-10-18, unscheduled). Its
+  digest it names** (Erratum **E-085**, ~~ACCEPTED 2026-10-18, unscheduled~~
+  **CLOSED 2026-10-24** by **RFC-0.38-001**). **Closed:** `GET_HEAD` now replies
+  with the whole 32-byte digest in four words, and the caller (`diagnosticsd`) makes
+  a real call and reads all four — demonstrated with a temporary capability, since
+  reverted. `measurement_head_available` still reads `false`, now only because slot 4
+  stays uninstalled by the owner's scoping (the next milestone). *What follows is the
+  entry as it stood before that line.* Its
   handler replies `reply(HEAD_REPLY, latest_seq, cd_lo, dropped)` where `cd_lo` is
   `chain_digest.0[0..8]` — **eight of thirty-two bytes** — in a three-word `reply`,
   one word of which carries digest content. **The protocol cannot return a chain

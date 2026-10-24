@@ -5,6 +5,42 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [Unreleased]
+
+*Written in the line that made the change (RFC-0.38-001's design ruling asks for
+it there) and folded into the 0.38.0 entry at the cut. Not a release record.*
+
+### Breaking — `fjell_abi::boot::BootInfo` (RFC-0.38-001)
+
+`BootInfo`, in the published `fjell-abi` crate, changed shape. Nothing in the tree
+constructed or read one before this line, so no consumer in the workspace is
+affected; an out-of-tree consumer would be.
+
+- **Fields added (version 2):** `image_set_count: u16` and
+  `image_set_digest: [u8; 32]`, appended after `ram_bytes`.
+- **`#[repr(C)]` removed.** The record crosses an address-space boundary as an
+  explicit, padding-free, little-endian encoding of
+  `BootInfo::WIRE_BYTES` (56) bytes — `BootInfo::to_bytes` / `from_bytes` — and a
+  reader that cast the page to the struct would have read a different record from
+  the one written. The wire layout is documented field by field on the type.
+- **`BootInfo::VERSION` is now 2.** `from_bytes` accepts `version >= 2` (ignoring
+  fields a later version appends) and refuses a shorter buffer or an older version.
+- **New items:** `BootInfo::{VERSION, WIRE_BYTES, ABSENT, new, to_bytes,
+  from_bytes}` and `BootInfoError`.
+- **The five version-1 capability-slot fields are kept and hold `BootInfo::ABSENT`
+  (`0xFFFF`).** They were specified and never filled by any kernel; they are no
+  longer left looking as if they carried a slot number. The `SLOT_*` constants
+  beside them are unchanged and were never accurate (init's `TaskCreate` slot is
+  28, not 0); that is recorded here, not changed in this line.
+- **The kernel now does what the module doc always said:** it writes the record
+  into a read-only page of `init`'s address space and passes its address in `a1`.
+  Until now it set `a1 = 0`.
+
+Migration: read the page with `BootInfo::from_bytes` over `WIRE_BYTES` bytes and
+handle `BootInfoError`; do not cast it to the struct.
+
+---
+
 ## [0.37.0] — 2026-10-19 — A bundle gets asked for and produced
 
 Two RFCs, **five errata closed** (**E-078**, **E-081**, **E-082**, **E-083**,

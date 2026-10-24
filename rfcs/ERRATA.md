@@ -5955,6 +5955,47 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   today's honest `false`, because nothing in the system measures anything
   (**E-086**).
 
+- **Status (2026-10-24):** the **ACCEPTED**, **unscheduled** resolution above is
+  superseded → **CLOSED** by **RFC-0.38-001**, after **E-086**, in the order this
+  entry itself required.
+
+  > **Closed by RFC-0.38-001, 2026-10-24.** R4 as corrected on 2026-10-19 above — no
+  > chunking. `measuredd`'s `reply` helper now sets all four words (`a2..a5`), so
+  > `HEAD_REPLY` carries the **whole 32-byte chain digest**: word *i* is bytes
+  > `8i..8i+8`, little-endian, and
+  > `fjell_service_api::measuredd::{digest_to_words, words_to_digest}` is the one
+  > definition `init`, `measuredd` and `diagnosticsd` share. `latest_seq`, `dropped`
+  > and the last event's kind moved to their own request, `GET_HEAD_STATS` →
+  > `HEAD_STATS_REPLY` (`0x30B`/`0x30C`). `APPEND_OK` now carries only the sequence
+  > number; it used to carry, in its second word, an eight-byte fragment of the chain
+  > digest that no caller read — the same truncation, in a second reply.
+  >
+  > **The caller was wrong in a way this entry did not name, and "stops discarding
+  > `w2`/`w3`" would not have fixed it.** `diagnosticsd::query_measurement_head`
+  > sent `GET_HEAD` **one-way** and then **received on `measuredd`'s own endpoint**.
+  > `measuredd` answers with `sys_ipc_reply`, which needs the reply edge only an
+  > `IpcCall` creates — a one-way send is never answered — and a `recv` on that
+  > endpoint would have taken its other clients' requests. It could not have received
+  > a reply in any configuration. It is now a call (`fjell_syscall::sys_ipc_call4`,
+  > new: four request words, all four reply words returned) and reads all four.
+  >
+  > **Demonstrated, with the technique RFC-0.37-001 used for E-083.** A temporary
+  > `CALL` capability to `measuredd` in `diagnosticsd`'s slot 4, run under the
+  > `remote-diag` tier: `measuredd` sent
+  > `248b098422c551b9f2577387755d91f10a41c3f7c1dcde4ba3fddc2846ec2a9c`, `diagnosticsd`
+  > received the identical 64 hex digits, and a Python replay of the four recorded
+  > events from the documented stream (`chain-digest-v1.frozen`) produced the same
+  > head — all 32 bytes. Reverted and proved: the scratch marker is absent from the
+  > tree, the 33 prebuilt hashes and the kernel binary hash are identical to before,
+  > and the committed `remote-diag` tier passes unchanged with
+  > `measurement_head_available=false`.
+  >
+  > **`measurement_head_available` still reads `false`.** Slot 4 stays uninstalled
+  > by the owner's scoping decision of 2026-10-19: installing it and flipping the
+  > flag is the next milestone's, so the head is not made visible in a signed bundle
+  > in the line that makes it true. That is now the *only* reason, and the
+  > `capability-topology` waiver says so.
+
 ## E-086 — the measurement chain is fed placeholder literals on every boot, because nothing measures anything
 
 - **Found 2026-10-19, scoping 0.38**, by following E-085's remedy to what it would
@@ -6012,6 +6053,69 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   this family. Until then the placeholders must be **disclosed**: a release that
   reports a measurement head at all implies it measured, and nothing in
   `v1-limitations.md` has ever said otherwise.
+
+- **Status (2026-10-24):** the **ACCEPTED**, **unscheduled** resolution above is
+  superseded → **CLOSED** by **RFC-0.38-001**, with the survivors named below.
+
+  > **Closed by RFC-0.38-001, 2026-10-24. Something now measures something; not
+  > everything, and not the whole attestation path.**
+  >
+  > **What changed.** The kernel hashes each of the **33** service images it embeds
+  > (`SHA-256` of the flat binary) and then hashes those results, with their ids and
+  > the image count, into one *image-set digest* — an encoding written through
+  > `Canon` and described by a generated file,
+  > `crates/formats/fjell-measure-format/schema/image-set-digest-v1.frozen`
+  > (domain `FJELL-IMAGE-SET-V1`; a different digest from the chain's, whose frozen
+  > stream is untouched). It writes the result into a read-only `BootInfo` page in
+  > `init`'s address space and passes the page's address in `a1` (the module doc of
+  > `fjell_abi::boot` always said so; the kernel set `a1 = 0`). `init` sends the
+  > digest to `measuredd` with a new operation, `APPEND_IMAGE_SET` (`0x30A`) —
+  > the existing `APPEND_EVENT` carries four words, one of which is its kind word, so
+  > it cannot carry 32 bytes — and `measuredd` fixes the event's classification
+  > itself (`BootEvidenceImported`, source `Kernel`, subject `BootEvidence`), so a
+  > caller cannot relabel another digest as the image set. If `BootInfo` is absent or
+  > malformed `init` stops the boot rather than record anything in its place.
+  >
+  > **The instrument this entry said was missing.** *"No instrument here compares a
+  > recorded measurement against the thing it claims to measure."* The new
+  > `measurement` tier requires the kernel's own boot line **and** the line
+  > `measuredd` prints from the event it *stored* to **equal** a digest the host
+  > recomputes when the run is judged — with the external `sha2` crate, the
+  > documented layout assembled by hand, and a file → `ImageId` table derived from
+  > file names and `fjell-abi`, not from the kernel's `task/image.rs`. A present,
+  > non-zero, well-formed digest passes nothing. Demonstrated failing three ways
+  > (review request): against the unchanged kernel (no such lines); with one byte of
+  > one prebuilt changed after the kernel was built (a well-formed non-zero digest in
+  > both lines, **MISMATCH** on both); and with `init` zeroing one word of the digest
+  > in transit (kernel line equal, `measuredd` line **MISMATCH**, the last eight bytes
+  > zero) — which is also how a disagreement is *located*. The same value was derived
+  > a fourth way, with coreutils `sha256sum` and a separate script, and agreed.
+  > `init`'s status line `measurement.seq` is now what `measuredd` reports
+  > (`GET_HEAD_STATS`), not the literal `4`.
+  >
+  > **Cost, measured (R3).** 25 boots each with the hashing and with it skipped:
+  > the span that contains it went from 0.25 ms to 3.43 ms, i.e. **about 3.2 ms** for
+  > 154,972 bytes under QEMU TCG; the two batches' boot-to-init-exit medians differ
+  > by less than their own spread. No tier's timeout moved.
+  >
+  > **Survivors, named so they are not read as closed.** (1) **Three of the chain's
+  > four recorded events are still placeholders** — release, rootfs and policy
+  > "verified" record the literal `0xAB`; nothing in the tree verifies a release, a
+  > rootfs or a policy bundle, and this line's non-goals exclude doing so. (2) **Only
+  > the service images are measured** — not the kernel's own image, configuration or
+  > runtime state. (3) **`measuredd` takes the digest on `init`'s word**, which is the
+  > kernel's; the relay is not attested. (4) **The attestation record is untouched and
+  > independent of the chain** (**E-094**): this line does not make attestation
+  > real, and nothing it says should be read as if it did. (5)
+  > `measurement_head_available` is `false` (see **E-085**). These are in
+  > `docs/src/releasing/v1-limitations.md` as row 14. *Whether they should instead be
+  > split to an erratum of their own, as E-074 was from E-072, is the architect's
+  > call; this entry carries them as named survivors, the form E-045, E-048, E-056
+  > and E-070 use.*
+  >
+  > **Nothing is retro-claimed.** Boots before this line recorded `0x0011` and `0xAB`
+  > for all four events; those were not measurements, and no document written here
+  > says they were.
 
 ## E-087 — `measuredd`'s `EXPORT_LOG` exports nothing, and E-085 cited it as the working pattern
 
@@ -6614,8 +6718,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-082 exit criterion 2's "0 warning lines" is partly bought by crate-level `#![allow(...)]` in 13 crates, 3 of them suppressing `unreachable_code` — behind which `fjell-netd` hides E-081's unreachable loop while `fjell-secure-transportd` and `fjell-driver-virtio-net` suppress nothing at all | RFC-0.37-002 | CLOSED |
 | E-083 `fjell-diagnosticsd` sends `0x320`/`0x321` for a head query `fjell-measuredd` serves as the shared `GET_HEAD`/`HEAD_REPLY` (`0x303`/`0x304`), so the query would match no arm even with the capability installed — and `0x320`/`0x321` are already `recoveryd::READY`/`LIST_SNAPSHOTS` in the shared API; plus five hand-copied `SXT_*` values, the shape RFC-0.36-001 removed for `verifyd` | RFC-0.37-001 | CLOSED |
 | E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | CLOSED |
-| E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | RFC-0.38-001 | ACCEPTED |
-| E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | ACCEPTED |
+| E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | RFC-0.38-001 | CLOSED |
+| E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | CLOSED |
 | E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
 | E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. The epoch read admitted a `Revoked` slot too; the closure records that rebinding to the *same* revoked lease was measured **not** to revive the capability (`check_active` needs `Active`), and that a task with no `LeaseAdmin` binding it to a *different* `Active` lease did — the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | CLOSED |
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |

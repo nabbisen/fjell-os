@@ -16,11 +16,13 @@
 # flags by name. **Every flag reads `false`** — not a shortfall. `audit_available`
 # and the keyring/attestation flags have never had a source
 # (RFC-0.36-001); `measurement_head_available` reads `false` because slot 4
-# (`CAP_MEASUREDD_EP`) stays uninstalled in this line (E-085, filed and ruled
-# separately: `measuredd`'s `GET_HEAD` reply cannot carry a whole chain
-# digest, so there is nothing honest to install this for yet). A bundle that
-# says "I could not obtain a measurement head" is the true one — the flags
-# are the assertion, not merely that a bundle was built.
+# (`CAP_MEASUREDD_EP`) stays uninstalled. (Until RFC-0.38-001 the reason was
+# E-085: `measuredd`'s `GET_HEAD` reply could not carry a whole chain digest.
+# That is fixed and the digest is a measurement of the service images; the slot
+# now stays out because the owner scoped installing it, and flipping this flag,
+# to the next milestone.) A bundle that says "I could not obtain a measurement
+# head" is the true one — the flags are the assertion, not merely that a bundle
+# was built. The assertions below are unchanged by RFC-0.38-001.
 
 name                 = "remote-diag"
 timeout_secs         = 60
