@@ -6689,6 +6689,54 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   Asserting `false` honestly is available immediately and is probably the right first
   step.
 
+## E-096 — the measurement chain's `source` is declared by the caller, not attested, and three events per boot declare a service that had no part in them
+
+- **Found 2026-10-24 by the architect**, scoping 0.39 — the milestone whose purpose is to
+  let a consumer read the chain head — and asking what a reader of that head would be
+  entitled to believe.
+- **Claim:** `MeasurementSource` records "**which service produced** the measurement
+  event" (`crates/formats/fjell-measure-format/src/event.rs`). A signed diagnostic bundle
+  reports the chain head, so a consumer reads the chain as a provenance record.
+- **Tree, observed 2026-10-24 at `ae635f4`:**
+  - `measuredd`'s `APPEND_EVENT` arm decodes `kind`, **`source`** and `subject` from the
+    caller's own word `w0` and appends them verbatim
+    (`crates/services/fjell-measuredd/src/main.rs`).
+  - **The kernel-attested sender is received and thrown away.** measuredd's receive
+    helper returns it and the call site discards it, with the comment *"also returns the
+    sender identity, **unused here**"* (`:50`–`:52`). The kernel attests sender identity
+    in `a6` (`tid | image_id << 16`); measuredd has it and does not look.
+  - **The three placeholder events declare a source that is false.** `fjell-init` appends
+    them as `(kind, src, subj)` of `(2,2,2)`, `(3,2,3)`, `(4,2,4)` — `src = 2` is
+    `MeasurementSource::Verifyd` — while `init` is the sender. `init` only *spawns*
+    `verifyd` and registers its name; it never consults it about any of these. So the
+    chain asserts, three times per boot, that **`verifyd` produced a verification result
+    it had no part in**.
+- **RFC-0.38-001 established the right principle on one path and left the other.** Its
+  `APPEND_IMAGE_SET` arm fixes kind, source and subject inside `measuredd`, with the
+  comment *"the classification is fixed here so a caller cannot relabel it"*. That is
+  exactly the reasoning this entry asks for everywhere; `APPEND_EVENT` still trusts the
+  caller.
+- **Not a digest problem, which is why 0.38 did not touch it.** E-086 was about the
+  *subject digest* being a literal and RFC-0.38-001 made one of the four real. This is
+  about the *provenance* of every event, which no line has addressed. A chain can record
+  a true digest under a false source, and after 0.38 it does.
+- **Also noted, and a dependency for E-095:** `APPEND_EVENT` reconstructs the subject
+  digest from `w1`/`w2` only — **16 of 32 bytes**, with the rest left zero. That is
+  E-085's defect on the append side rather than the reply side. It is harmless while the
+  three events are placeholders and becomes load-bearing the moment they are real, so
+  whichever line closes E-095 must widen this path as well.
+- **Why ACCEPTED and not OPEN.** Nothing reads the chain head yet: `DIAGNOSTICSD` slot 4
+  is uninstalled and `measurement_head_available` reads `false`, so no consumer receives
+  the false provenance. Nothing fails open and no authority is granted from it. This is
+  the same ground on which E-086 was ACCEPTED while nothing read the chain. **It stops
+  being ACCEPTED the moment a consumer can read the head**, which is precisely what 0.39
+  is for — so this entry is 0.39's reason to exist rather than a thing 0.39 may defer.
+- **Status:** **ACCEPTED**, `unscheduled` at filing; proposed for **0.39**. What closing
+  it needs: `measuredd` derives `source` from the attested sender it already receives and
+  stops accepting a declared one, so a service that wants to be the recorded source must
+  append its own event — which is also the end state E-095 needs, where `verifyd` appends
+  when `verifyd` verifies. Recorded in `docs/src/releasing/v1-limitations.md` row 15.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -6787,6 +6835,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all — neither parent links, which were deleted, nor a lease. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage | unscheduled | ACCEPTED |
 | E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | unscheduled | ACCEPTED |
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
+| E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
