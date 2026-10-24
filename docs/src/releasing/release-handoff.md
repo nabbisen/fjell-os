@@ -386,7 +386,7 @@ version number in this sentence goes stale by the next release.)*
 
 ## 6. Review request
 
-Standard format, in `.git-exclude/review-request/`.
+Standard format, in `.git-exclude/review-requests/` (plural). *Corrected at the 0.38.0 cut: this said `review-request/`, which has not existed as a directory for some time. Found by the newly onboarded developer on 2026-10-21 and reported again by the implementer from this cut; the architect had recorded it and not fixed it.*
 
 Flag for focused review:
 

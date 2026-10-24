@@ -45,7 +45,7 @@ the distinction is written here rather than left to the tool.*
 | HardwareTrustProvider interface | RFC v0.3-001 | **DONE** (v0.3.0) |
 | Keyring and KeyEpoch model | RFC v0.3-002 | **DONE** (v0.3.0) |
 | Anti-rollback metadata | RFC v0.3-003 | **DONE** (v0.3.0) |
-| Attestation profile v2 | RFC v0.3-004 | **DONE** (v0.3.0) |
+| Attestation profile v2 | RFC v0.3-004 | **DONE** (v0.3.0) — the *profile* is implemented; the **record it produces is constants** (**E-094**, ACCEPTED, limitations row 13): `AttestationRecordV2::dev` supplies every digest as a literal and asserts `release_verified`/`rootfs_verified`/`policy_verified` **true** while nothing verifies, and `attestd` holds no endpoint to `measuredd`, so 0.38.0 making the measurement chain real did **not** make attestation real. Noted at the 0.38.0 cut, by the implementer, as a possible overstatement; the architect agrees and cites it here rather than restating the verdict |
 | Real Ed25519 signature backend | RFC-v0.11-002 | **DONE** (v0.11.0) |
 | Bundle signing pipeline | RFC-v0.11-003 | **DONE** (v0.11.0) |
 | Key rotation and revocation records | RFC-v0.11-004 | **DONE** (v0.11.0) |
