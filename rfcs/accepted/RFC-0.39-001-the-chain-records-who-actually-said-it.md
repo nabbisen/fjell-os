@@ -46,6 +46,120 @@ provenance to a signed bundle. So this line lands first, and the owner's own ord
 principle from 0.38 is the argument: *the chain is shown to be true before anything
 reports it.*
 
+## Design ruling (R1 escalation), 2026-10-27
+
+The implementer stopped on two things this RFC assumed and the tree does not have, and
+asked five questions. Both stops were right, and the first question exposed an
+inconsistency **I** introduced and did not notice. Rulings in the order asked, after the
+one that governs the rest.
+
+### 0. What `source` means — the thing this RFC failed to say
+
+R2 as written would have produced **one field with two meanings**:
+`APPEND_IMAGE_SET` records `Kernel`, fixed by the op, while `APPEND_EVENT` would record
+the attested appender. "Who computed the fact" and "who appended the event" are different
+questions, and a reader of the chain could not tell which one a given `source` answers.
+That is the misunderstanding this project is not allowed to ship, in the line whose
+subject is the chain not lying.
+
+**Ruling: `source` means *who produced the measured fact*.** `measuredd` determines it
+from the **operation plus the attested sender**, and never from a declaration. Under that
+definition both paths are consistent:
+
+- `APPEND_IMAGE_SET` → **`Kernel`**, because the kernel computed the digest; `init` only
+  carried it.
+- `APPEND_EVENT` → the **attested appender**, because for these events the appender *is*
+  the producer — `init` invents the `0xAB`, so `init` is what produced it.
+
+Write that definition into `MeasurementSource`'s own doc comment. The enum currently says
+"which service produced the measurement event", which is close enough to be read either
+way, and it is the field's contract.
+
+### 1. `MeasurementSource::Init = 0x0D` — **yes, add it**
+
+`init` is the only appender and there is no variant for it, so R4 had nothing true to say.
+The implementer's facts settle the safety: the enum is **not** in `tests/abi/snapshot.json`
+(confirmed, 0 matches), `chain-digest-v1.frozen` describes `source` as a `u8` and carries
+no value list, so **the frozen layout is untouched**, and the only other users are one
+`fjell-schema` sample and `measuredd` itself. Next free value, named `Init`, no aliasing.
+
+### 2. `APPEND_IMAGE_SET`'s sender check (question 3) — **in scope, and it is what makes
+§0 true**
+
+I had this as a possible separate line. It is not: without it, **`source: Kernel` is a
+label any holder of the capability can obtain**, and the field does not mean one thing
+after all. Gate `APPEND_IMAGE_SET` on the attested sender being `INIT`. One comparison,
+and it is the other half of the same property rather than scope creep.
+
+Today only `init` holds the capability, so this changes no behaviour — which is the
+argument for doing it now, while it costs nothing, rather than when a second holder
+exists.
+
+### 3. R5 (question 2) — **option 2, without the probe in production `init`**
+
+Option 1 is refused for the reason given: a permanent `CALL` capability for `neg-test`
+widens who may write the chain, in the line that narrows it. Option 3 is refused: the
+property is about the running chain.
+
+Option 2 is right **except** for the "small test hook in production `init`". The
+implementer wrote that they dislike it. That instinct was correct and I am ruling with it:
+a bootstrap service making a deliberately invalid call on **every boot** to prove a check
+works is a workaround kept in the architecture, and it would pollute the audit trail of
+every live system forever. So:
+
+- **Host table-test over every `ImageId`** — each mapped one records itself, every
+  unmapped one is refused — plus the reserved-byte check, both as pure functions. This is
+  where the logic lives and it runs on every build.
+- **The committed tier** asserts the three events read back `source: Init` from
+  `measuredd`'s stored event. Continuous, and the positive half.
+- **The scratch-capability technique** (0.37/0.38 R5: grant, transcript, revert, **prove
+  the revert**) carries **both** over-IPC halves — a known other service recording
+  itself, *and* a declared source being refused. Not committed.
+- **If the scratch technique cannot reach the refusal case, escalate** rather than falling
+  back to the production probe.
+
+### 4. `decode_kind` / `decode_subject` (question 4) — **in scope, required**
+
+These do not merely fail open, they **fail upward**: `decode_kind`'s `_ =>` arm records an
+unrecognised byte as **`BootEvidenceImported`**, which is the chain's most load-bearing
+kind and the one now carrying the only real measurement in it. `decode_subject`'s does the
+same to `BootEvidence`.
+
+Refuse both. Same `match` statements you are already rewriting, same error shape, and
+leaving a decoder that promotes an unknown byte to the chain's most significant claim
+*inside the line about the chain not lying* would be indefensible. `decode_source`
+disappears entirely, since nothing decodes a declared source any more.
+
+No separate erratum: it is found and fixed in the same line, which is this project's
+practice for a mechanical defect. Record it in the commit.
+
+### 5. The negative sweep (question 5) — **no, what you did is proportionate**
+
+A vocabulary grep across `fjell-service-api`, every service `main.rs` and all 22
+`sys_ipc_recv_msg` call sites, with a positive control that finds `cap-broker`'s attested
+use, is the right cost for the question. Reading fifteen receive loops line by line would
+cost real time for low marginal yield, and you stated the boundary, which is what makes
+the conclusion usable.
+
+I checked the one structural neighbour worth checking myself — the diagnostic bundle's
+`provider_id`, since a persisted identity field is where this defect would hurt most. It
+is passed in by `diagnosticsd` and is **about itself**: a service naming its own trust
+provider, not a claim that another service did something. Not this class, so no second
+instance.
+
+### 6. The answers you proposed, endorsed
+
+- **The mapping table**, as listed, with everything else refused and no `_ =>` default.
+  `Kernel` correctly has no image id — it is reached only through `APPEND_IMAGE_SET`,
+  whose classification `measuredd` fixes and whose sender §2 now gates.
+- **The errors**: `InvalidSource` (0x02) for a declared byte, `PermissionDenied` (0x06)
+  for an unmapped appender. Both already exist, so no new codes. Worth stating in the
+  review request that these are **the first real codes on a path that has only ever
+  replied `Internal`** — that is an improvement in its own right, not a side effect.
+- **Widening `APPEND_EVENT`'s digest is not free**: `w0` holds the kind word, leaving
+  three payload words = 24 bytes against the 32 needed. Confirmed, and it stays a
+  non-goal. Thank you for doing the arithmetic rather than asserting it.
+
 ## Requirements
 
 **R1 — Re-derive, with controls.** The discarded sender and its comment; `APPEND_EVENT`
