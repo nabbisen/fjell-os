@@ -1430,17 +1430,12 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 
     // RFC 036 + RFC 052: record ownership; rollback if table is full.
     if !crate::dma_table().alloc(task_id, user_va_start, first_pa, pages as u8) {
-        // Table full — unmap, zeroize, free the just-allocated frame.
-        // Safety: we own the frame exclusively; no other task has seen it.
-        // SAFETY: category=phys-id-map-assumption all user-supplied pointers are checked against the task address space before dereferencing.
-        unsafe {
-            // Zeroize the physical frame.
-            core::ptr::write_bytes(first_pa as *mut u8, 0, 4096);
-            // Unmap the user VA (best-effort; single-hart guarantees no races).
-            if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(first_pa) {
-                let _ = (*crate::fa_static_ptr()).free_frame(frame);
-            }
-        }
+        // Table full -- zeroize and free the just-allocated frame (checked: a
+        // refused free is reported, RFC-0.39-003). The comment here used to say
+        // "unmap"; it never did: the frame was mapped into the caller's page table
+        // above and stays mapped `R|W|U` after it is freed. Same hazard as
+        // `DmaRegionTable::revoke_by_pa`, E-098's open half.
+        let _released = crate::free_dma_frame(first_pa, task_id);
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; // DMA table full (RFC 052)
         return;
     }

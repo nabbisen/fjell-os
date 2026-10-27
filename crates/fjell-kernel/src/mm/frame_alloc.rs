@@ -56,6 +56,12 @@ impl<'a> FrameAllocator<'a> {
         owner: Option<&'a mut [FrameOwner]>,
     ) -> Self {
         debug_assert!(bitmap.len() as u64 >= (frame_count + 63) / 64);
+        debug_assert!(
+            owner
+                .as_deref()
+                .is_none_or(|o| o.len() as u64 >= frame_count),
+            "the owner array must cover every managed frame"
+        );
         FrameAllocator {
             base_pfn,
             frame_count,
@@ -163,6 +169,21 @@ impl<'a> FrameAllocator<'a> {
         self.owner.as_deref().map(|o| o[off])
     }
 
+    /// The lowest physical address in `[start_pa, end_pa)` whose frame is **free**,
+    /// or `None` if every managed frame in the range is in use.
+    ///
+    /// RFC-0.39-003: the kernel asserts this is `None` over its own image and
+    /// stack at boot. A free frame there is handed to a task, and the kernel then
+    /// writes its stack through that task's memory (E-097).
+    pub fn first_free_in(&self, start_pa: usize, end_pa: usize) -> Option<usize> {
+        let first_pfn = (start_pa >> 12) as u64;
+        let last_pfn = ((end_pa + 0xFFF) >> 12) as u64;
+        (first_pfn..last_pfn)
+            .filter_map(|pfn| self.pfn_to_offset(pfn).map(|off| (pfn, off)))
+            .find(|&(_, off)| !self.is_used(off))
+            .map(|(pfn, _)| (pfn << 12) as usize)
+    }
+
     /// Number of free frames remaining.
     pub fn free_count(&self) -> u64 {
         let used: u64 = self.bitmap.iter().map(|w| w.count_ones() as u64).sum();
@@ -206,6 +227,40 @@ mod tests {
         let f = fa.alloc_frame(FrameOwner::KernelData).unwrap();
         fa.free_frame(f).unwrap();
         assert_eq!(fa.free_frame(f), Err(MmError::DoubleFree));
+    }
+
+    #[test]
+    fn first_free_in_reports_the_lowest_gap() {
+        let bitmap: &'static mut [u64] = Box::leak(vec![0u64; 1].into_boxed_slice());
+        let mut fa = FrameAllocator::new(0, 64, bitmap, None);
+        // Frames 0-3 and 6-9 reserved: the gap at frames 4-5 is the answer.
+        fa.reserve_range(0x0000, 0x4000, FrameOwner::KernelText)
+            .unwrap();
+        fa.reserve_range(0x6000, 0xA000, FrameOwner::KernelStack)
+            .unwrap();
+        assert_eq!(fa.first_free_in(0x0000, 0xA000), Some(0x4000));
+        // A range that is fully reserved has none.
+        assert_eq!(fa.first_free_in(0x0000, 0x4000), None);
+        assert_eq!(fa.first_free_in(0x6000, 0xA000), None);
+        // Closing the gap leaves nothing free across the whole span.
+        fa.reserve_range(0x4000, 0x6000, FrameOwner::KernelData)
+            .unwrap();
+        assert_eq!(fa.first_free_in(0x0000, 0xA000), None);
+        // Frames outside the managed range are not reported.
+        assert_eq!(fa.first_free_in(0x100000, 0x200000), None);
+    }
+
+    #[test]
+    fn the_owner_map_names_who_holds_a_frame() {
+        let bitmap: &'static mut [u64] = Box::leak(vec![0u64; 1].into_boxed_slice());
+        let owners: &'static mut [FrameOwner] =
+            Box::leak(vec![FrameOwner::Free; 64].into_boxed_slice());
+        let mut fa = FrameAllocator::new(0, 64, bitmap, Some(owners));
+        let task = TaskId::new(7, 0);
+        let f = fa.alloc_frame(FrameOwner::UserStack { task }).unwrap();
+        assert_eq!(fa.owner_of(f), Some(FrameOwner::UserStack { task }));
+        fa.free_frame(f).unwrap();
+        assert_eq!(fa.owner_of(f), Some(FrameOwner::Free));
     }
 
     #[test]

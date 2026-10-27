@@ -50,11 +50,94 @@ use trap::entry::init_trap;
 
 unsafe extern "C" {
     static __bss_end: u8;
+    /// Lowest address of the kernel stack (RFC-0.39-003).
+    static __stack_bottom: u8;
     static __stack_top: u8;
     /// RFC 009 (W^X): end of .text section.  Pages below this address get R|X.
     static __text_end: u8;
     /// RFC 009 (W^X): end of .rodata section.  Pages in [text_end, rodata_end) get R only.
     static __rodata_end: u8;
+}
+
+/// The kernel's stack, `[__stack_bottom, __stack_top)` -- 4 MiB by `link.ld`.
+///
+/// Trap entry resets `sp` to `__stack_top` every time, so the kernel's frames
+/// always live just below it. RFC-0.39-003 (E-097): this range was **not** wholly
+/// reserved in the frame allocator -- only the first 2 MiB of it, by the
+/// coincidence that the unused boot-allocator window began where the stack does --
+/// so the other 2 MiB was handed to tasks, and the kernel then wrote its stack
+/// through whichever task's text, stack or page-table frame sat under
+/// `__stack_top`.
+fn kernel_stack_pa() -> (usize, usize) {
+    // SAFETY: category=phys-id-map-assumption linker symbols; only their addresses are taken.
+    unsafe {
+        (
+            &__stack_bottom as *const u8 as usize,
+            &__stack_top as *const u8 as usize,
+        )
+    }
+}
+
+/// Zeroize and return a DMA frame to the allocator -- **after checking it is ours
+/// to release** (RFC-0.39-003 R3, E-098).
+///
+/// The four places that released a DMA frame each zeroed it first and then called
+/// `free_frame` with the result discarded (`let _ =`). Two things followed. A
+/// refused free was invisible, so nobody could test the claim "it cannot happen".
+/// And the zero came *before* anything established that the frame was still the
+/// caller's: if it had already been freed and handed to someone else, the zeroing
+/// destroyed that someone's memory and the free then failed silently.
+///
+/// Now, in order: the frame must be a real frame the allocator manages; the
+/// allocator must record it as held by `owner` (a DMA frame is allocated as
+/// `FrameOwner::UserStack { task: owner }`); only then is it zeroed and freed, and
+/// a refused free is reported. **On any failure the frame is neither zeroed nor
+/// freed** -- it stays allocated, which leaks one 4 KiB frame and says so on the
+/// console, rather than risk zeroing or double-freeing memory that is someone
+/// else's. Returns whether the frame was released.
+pub(crate) fn free_dma_frame(frame_pa: usize, owner: crate::task::TaskId) -> bool {
+    // SAFETY: category=phys-id-map-assumption fa_static_ptr is the physical frame allocator; PA == kernel VA.
+    let fa = unsafe { &mut *crate::fa_static_ptr() };
+    let frame = match crate::mm::frame_alloc::PhysFrame::from_pa(frame_pa) {
+        Ok(f) => f,
+        Err(e) => {
+            kprintln!(
+                "kernel: DMA frame {:#x} (task {}) is not a frame ({:?}); not zeroing or freeing it",
+                frame_pa,
+                owner.index,
+                e
+            );
+            return false;
+        }
+    };
+    match fa.owner_of(frame) {
+        Some(FrameOwner::UserStack { task }) if task.index == owner.index => {}
+        other => {
+            kprintln!(
+                "kernel: DMA frame {:#x} released by task {} is recorded as {:?}; not zeroing or freeing it",
+                frame_pa,
+                owner.index,
+                other
+            );
+            return false;
+        }
+    }
+    // SAFETY: category=phys-id-map-assumption the allocator records this frame as held by `owner`, which is releasing it; PA == kernel VA.
+    unsafe {
+        core::ptr::write_bytes(frame_pa as *mut u8, 0, 4096);
+    }
+    match fa.free_frame(frame) {
+        Ok(()) => true,
+        Err(e) => {
+            kprintln!(
+                "kernel: free of DMA frame {:#x} (task {}) was refused ({:?}); the frame stays allocated",
+                frame_pa,
+                owner.index,
+                e
+            );
+            false
+        }
+    }
 }
 
 fn kernel_end_pa() -> usize {
@@ -70,6 +153,19 @@ pub(crate) struct KS<T>(UnsafeCell<T>);
 unsafe impl<T> Sync for KS<T> {}
 
 static FRAME_BITMAP: KS<[u64; 512]> = KS(UnsafeCell::new([0u64; 512]));
+/// Frames the allocator manages: all of RAM.
+const FRAME_COUNT: usize = (RAM_END - RAM_BASE) / FRAME_SIZE;
+const _: () = assert!(
+    FRAME_COUNT <= 512 * 64,
+    "FRAME_BITMAP covers fewer frames than RAM has"
+);
+/// Who holds each frame (RFC-0.39-003 R2). The allocator used to be built with no
+/// owner array, so `owner_of` always answered `None` and nobody could say who held
+/// a frame -- which is what stalled the first investigation of E-097. One
+/// `FrameOwner` per frame, zero-initialised BSS; the allocator records into it on
+/// every allocation, reservation and free.
+static FRAME_OWNERS: KS<[FrameOwner; FRAME_COUNT]> =
+    KS(UnsafeCell::new([FrameOwner::Free; FRAME_COUNT]));
 static TASK_TABLE: KS<MaybeUninit<TaskTable>> = KS(UnsafeCell::new(MaybeUninit::uninit()));
 /// Static frame allocator storage — must NOT be a kmain local.
 ///
@@ -224,21 +320,11 @@ impl DmaRegionTable {
             return false;
         }
         let e = &mut self.entries[region_id];
-        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-        let fa = unsafe { crate::fa_static_ptr() };
         if e.owner == owner && e.state == DmaRegionState::Active {
             e.state = DmaRegionState::Revoked;
             if e.frame_pa != 0 {
-                // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-                unsafe {
-                    core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096);
-                }
-                e.state = DmaRegionState::Zeroized;
-                if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
-                    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-                    unsafe {
-                        let _ = (*fa).free_frame(frame);
-                    }
+                if free_dma_frame(e.frame_pa, owner) {
+                    e.state = DmaRegionState::Zeroized;
                 }
             }
             *e = DmaRegionEntry::free();
@@ -249,47 +335,39 @@ impl DmaRegionTable {
 
     /// Explicitly revoke a DMA region by physical address.
     ///
-    /// RFC-v0.7.4-001 (closes C-RB-01 CRITICAL): Sequence is now:
-    ///   1. Unmap user PTE for user_va.
-    ///   2. sfence.vma — TLB consistency.
-    ///   3. Zeroize the physical frame.
-    ///   4. Return the frame to the allocator.
+    /// What this does: zeroizes the frame and returns it to the allocator, with the
+    /// release checked ([`free_dma_frame`]).
     ///
-    /// If step 1 fails, the frame is Quarantined (not returned to allocator).
+    /// What it does **not** do, although this comment used to say it did
+    /// (RFC-v0.7.4-001 clause 1 -- "1. Unmap user PTE", "2. sfence.vma"): it does
+    /// not unmap the owner's user PTE. After it returns, the owner's page table
+    /// still maps the user VA to this frame, `R|W|U`, while the frame is back in the
+    /// allocator's free pool. If the allocator gives it to another task, the revoking
+    /// task can still read and write that task's memory through the stale mapping.
+    /// Zeroing the frame does not make that safe: it protects the old contents from
+    /// the next owner, not the next owner's contents from this task. **Nothing in
+    /// the kernel makes it safe today.** That is E-098's open half; RFC-0.39-003
+    /// leaves it, because closing it is a design change to the unmap path.
+    ///
+    /// Why the unmap is skipped: v0.8.x smoke runs showed page-table corruption --
+    /// "clobbering the task's text/rodata PTEs" -- when it ran, and the cause was
+    /// never isolated. RFC-0.39-003 later found that the kernel stack overlapped
+    /// frames the allocator hands to tasks (E-097), which overwrites exactly that
+    /// kind of frame. That may have been the cause; **it has not been tested**, so
+    /// the unmap stays off until someone re-enables it against the fixed layout.
+    /// The deferral recorded here as "to v0.3" lapsed when 0.38.0 shipped; the open
+    /// question is E-098's.
     pub fn revoke_by_pa(&mut self, owner: crate::task::TaskId, frame_pa: usize) -> bool {
-        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
-        let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.frame_pa == frame_pa && e.state == DmaRegionState::Active {
                 e.state = DmaRegionState::Revoked;
                 if e.frame_pa != 0 {
-                    // User VA unmap deferred to v0.3 (RFC-v0.7.4-001 clause 1).
-                    // The unmap path caused page-table corruption in v0.8.x smoke tests:
-                    // revoke_by_pa was called with a stale or wrong user_va, clobbering
-                    // the task's text/rodata PTEs.  Until the root cause is isolated the
-                    // safest fix is to skip the unmap and just zeroize + free the frame.
-                    // The stale PTE is harmless because the frame is zeroed before reuse.
-                    //
-                    // Step 1: Zeroize.
-                    // SAFETY: category=phys-id-map-assumption
-                    //   frame_pa is a valid, exclusively-owned frame; PA == kernel VA in identity map.
-                    unsafe {
-                        core::ptr::write_bytes(e.frame_pa as *mut u8, 0, 4096);
+                    if free_dma_frame(e.frame_pa, owner) {
+                        e.state = DmaRegionState::Zeroized;
                     }
-                    // Step 2: TLB flush (sfence after zeroize is a no-op for correctness
-                    // but good practice; the PTE stays valid and points to zeroed memory).
                     // SAFETY: category=csr-asm
                     unsafe {
                         crate::arch::riscv64::csr::sfence_vma();
-                    }
-                    e.state = DmaRegionState::Zeroized;
-                    // Step 3: Return frame to allocator.
-                    if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(e.frame_pa) {
-                        // SAFETY: category=phys-id-map-assumption
-                        //   frame is exclusively owned by this entry; zeroized above.
-                        unsafe {
-                            let _ = (*fa).free_frame(frame);
-                        }
                     }
                 }
                 *e = DmaRegionEntry::free();
@@ -303,9 +381,9 @@ impl DmaRegionTable {
     /// Returns true if all pages were successfully unmapped.
     ///
     /// Called by `revoke_by_pa` when the deferred PTE-unmap path
-    /// (RFC-v0.7.4-001 clause 1) is re-enabled. Currently bypassed due to
-    /// page-table corruption observed in v0.8.x smoke tests — see the
-    /// comment block in `revoke_by_pa` for the full analysis.
+    /// (RFC-v0.7.4-001 clause 1) is re-enabled. Currently bypassed -- see the
+    /// doc comment on `revoke_by_pa` for why, and for what is and is not known
+    /// about the corruption that led to it (E-098).
     #[allow(dead_code)]
     fn unmap_user_va_for(owner: crate::task::TaskId, user_va: usize, page_count: u8) -> bool {
         // SAFETY: category=page-table-mutation
@@ -336,57 +414,33 @@ impl DmaRegionTable {
     ///
     /// Called on task exit, fault, or restart.  Invariant DMA-004.
     ///
-    /// # Why we do NOT call `unmap_user_va_for` here
+    /// # Why this does not call `unmap_user_va_for`
     ///
-    /// `release_task` runs as part of the task exit sequence, at a point where
-    /// the kernel is about to (or has already begun to) tear down the task's
-    /// Sv39 page table.  The page table root PFN (`satp_root_pfn`) stored in
-    /// the TCB may already be stale: the physical frame it points to could
-    /// have been freed by the page-table teardown and immediately reallocated
-    /// for another task's page table or data.
+    /// The exiting or faulting task is never scheduled again, so its mapping of
+    /// the frame can no longer be used; there is nothing to unmap *for* it. (The
+    /// older text here described a page-table teardown that "may already have
+    /// freed" the root. No such teardown exists -- nothing removes a task's
+    /// address space today -- so that account of the `sepc=0x40150` fault in `init`
+    /// is unverified. RFC-0.39-003 found a different cause of frames being
+    /// overwritten, E-097, that fits it equally well.)
     ///
-    /// Calling `unmap_page(stale_root_pfn, va)` would then corrupt the new
-    /// owner's page table, causing a `LoadPageFault` in that task the next
-    /// time it accesses any mapped page.  This is exactly the fault seen at
-    /// `sepc=0x40150` in `init` after `upgraded` exits.
+    /// Compare `revoke_by_pa`: there the owner keeps running, and its stale mapping
+    /// is the open half of E-098. Here it is not.
     ///
-    /// The correct place for PTE-unmap-before-free is `revoke_by_pa`
-    /// (the `sys_dma_revoke` syscall path), where the owning task is still
-    /// running and its page table is guaranteed to be live.
-    ///
-    /// RFC-v0.7.4-001 clause 1 (DMA unmap) is satisfied by `revoke_by_pa`.
-    /// This path only needs to zeroize and free (DMA-001, DMA-004).
+    /// The release is checked ([`free_dma_frame`]): a frame the allocator does not
+    /// record as this task's is neither zeroed nor freed, and says so.
     pub fn release_task(&mut self, owner: crate::task::TaskId) {
-        // SAFETY: category=phys-id-map-assumption
-        //   fa_static_ptr is the physical frame allocator; PA == kernel VA.
-        let fa = unsafe { crate::fa_static_ptr() };
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.state == DmaRegionState::Active {
                 let pa = e.frame_pa;
-                // Do NOT unmap the user PTE here — see doc comment above.
-                // A global sfence is sufficient: the task's entire address space
-                // is invalidated by page-table teardown, so no stale TLB entry
-                // can be used after this point.
-                // SAFETY: category=csr-asm  sfence after task exit is a no-op for
-                //   correctness (TLB already flushed by ASID invalidation) but
-                //   provides a fence for the zeroize store below.
+                // SAFETY: category=csr-asm  fence before the frame is zeroed and freed.
                 unsafe {
                     crate::arch::riscv64::csr::sfence_vma();
                 }
                 if pa != 0 {
-                    // Zeroize before free — invariant DMA-001.
-                    // SAFETY: category=phys-id-map-assumption
-                    //   pa is valid, exclusively owned; PA == kernel VA.
-                    unsafe {
-                        core::ptr::write_bytes(pa as *mut u8, 0, 4096);
-                    }
-                    if let Ok(frame) = crate::mm::frame_alloc::PhysFrame::from_pa(pa) {
-                        // SAFETY: category=phys-id-map-assumption
-                        //   frame zeroized above; safe to return.
-                        unsafe {
-                            let _ = (*fa).free_frame(frame);
-                        }
-                    }
+                    // Zeroize before free -- invariant DMA-001 -- but only a frame
+                    // that is this task's to release.
+                    let _released = free_dma_frame(pa, owner);
                 }
                 *e = DmaRegionEntry::free();
             }
@@ -593,7 +647,10 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     );
 
     // BootAllocator (watermark used to calculate kernel_end_pa only).
-    let boot_start = kernel_end_pa();
+    // RFC-0.39-003: its window starts after the kernel STACK, not after BSS. It
+    // used to start at `__bss_end`, which is where the stack begins, so it
+    // silently covered the stack's lower half and made the upper half look free.
+    let boot_start = kernel_stack_pa().1;
     let boot_end = boot_start + 2 * 1024 * 1024;
     let _boot = BootAllocator::new(boot_start, boot_end);
     kprintln!("mm: boot allocator ready");
@@ -602,6 +659,8 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     // sp to __stack_top on every entry) cannot overwrite it.
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     let bitmap = unsafe { &mut *FRAME_BITMAP.0.get() };
+    // SAFETY: category=kernel-global-mutable single-hart boot; the owner array is borrowed once, here.
+    let owners = unsafe { &mut *FRAME_OWNERS.0.get() };
     // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
     unsafe {
         FRAME_ALLOC
@@ -611,7 +670,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 (RAM_BASE >> 12) as u64,
                 ((RAM_END - RAM_BASE) / FRAME_SIZE) as u64,
                 bitmap,
-                None,
+                Some(&mut owners[..]),
             )));
     }
     macro_rules! fa { () => {
@@ -628,9 +687,31 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     fa!()
         .reserve_range(RAM_BASE, kernel_end_pa(), FrameOwner::KernelText)
         .expect("rsv kern");
+    // RFC-0.39-003 (E-097): the kernel stack, all of it, as what it is.
+    let (stack_bottom, stack_top) = kernel_stack_pa();
+    fa!()
+        .reserve_range(stack_bottom, stack_top, FrameOwner::KernelStack)
+        .expect("rsv kernel stack");
     fa!()
         .reserve_range(boot_start, boot_end, FrameOwner::ReservedBoot)
         .expect("rsv boot");
+    // The invariant that was false: nothing from RAM_BASE to the top of the stack
+    // may be free. A free frame here goes to a task, and the kernel stack writes
+    // through it. Checked, not assumed -- a changed link.ld or a new reservation
+    // that reintroduces the gap stops the boot instead of corrupting a service.
+    if let Some(pa) = fa!().first_free_in(RAM_BASE, stack_top) {
+        panic!(
+            "mm: frame {:#x} is free but lies inside the kernel image or stack [{:#x}, {:#x}); \
+             the allocator would give it to a task and the kernel stack would overwrite it \
+             (RFC-0.39-003, E-097)",
+            pa, RAM_BASE, stack_top
+        );
+    }
+    kprintln!(
+        "mm: kernel image and stack reserved [{:#x}, {:#x})",
+        RAM_BASE,
+        stack_top
+    );
     if let Ok((pa, len)) = dtb {
         // Keep firmware's device tree out of the free pool: its real extent,
         // not a fixed page. A failure here is HEARD — this call used to have its
