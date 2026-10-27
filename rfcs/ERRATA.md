@@ -6781,7 +6781,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Found 2026-10-27 by the implementer of RFC-0.39-001**, whose first full `test-all` run
   went red on a tier that line does not touch, and who investigated it rather than
   re-running until green. **Reproduced independently by the architect the same day**, at
-  that line's tip: **five of the first six runs failed** (sampling was still running when this was filed; the rate is not the finding, the reproducibility is).
+  that line's tip: **5 of 10 runs failed**, and notably **clustered** — runs 2–6 failed consecutively, 7–10 all passed. The disk image is deleted and recreated per run, so the clustering is not it; what carries across runs is unidentified and is itself a lead.
 - **Signature, observed directly:** `clean-console check FAILED — control character '\0' at
   byte offset 7210`, and the serial log contains exactly one NUL run, of **46** bytes,
   while the string `upgraded: update index fetch returned no index` — **46 characters** —
