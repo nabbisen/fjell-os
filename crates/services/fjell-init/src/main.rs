@@ -529,8 +529,14 @@ fn read_boot_info(ptr: usize) -> Option<fjell_abi::boot::BootInfo> {
 /// non-goals exclude doing so here. They are kept so the chain's shape does not
 /// change, and `v1-limitations.md` says that three of the chain's four recorded
 /// measurement kinds are placeholders.
-fn append_placeholder_event(measuredd_ep: usize, kind: u8, src: u8, subj: u8) -> Option<u64> {
-    let kw = (kind as usize) << 24 | (src as usize) << 16 | (subj as usize) << 8;
+///
+/// RFC-0.39-001 (E-096): there is no `source` argument. `measuredd` records the
+/// kernel-attested sender -- here, `init` -- as the producer, which is true:
+/// `init` is what invented the literal. The wire word's source byte is reserved
+/// and must be zero, and a non-zero one is refused. These events used to be sent
+/// declaring `Verifyd`, which had no part in them.
+fn append_placeholder_event(measuredd_ep: usize, kind: u8, subj: u8) -> Option<u64> {
+    let kw = (kind as usize) << 24 | (subj as usize) << 8;
     let (label, words) = sys_ipc_call4(
         measuredd_ep as u32,
         measuredd_proto::APPEND_EVENT,
@@ -1026,8 +1032,8 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
     // 2. Append verification results (release, rootfs, policy) -- placeholders,
     // see `append_placeholder_event`.
     {
-        for (kind, src, subj) in [(2u8, 2u8, 2u8), (3u8, 2u8, 3u8), (4u8, 2u8, 4u8)] {
-            if append_placeholder_event(measuredd_ep, kind, src, subj).is_none() {
+        for (kind, subj) in [(2u8, 2u8), (3u8, 3u8), (4u8, 4u8)] {
+            if append_placeholder_event(measuredd_ep, kind, subj).is_none() {
                 sys_debug_writeln("M8: verification-result placeholder append FAILED");
                 sys_exit(1);
             }

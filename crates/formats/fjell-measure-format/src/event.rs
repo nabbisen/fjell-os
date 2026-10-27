@@ -33,9 +33,49 @@ impl MeasurementKind {
     pub fn as_u8(self) -> u8 {
         self as u8
     }
+
+    /// The kind with wire value `b`, or `None` for a byte that names no kind.
+    /// There is no default: an unrecognised byte must not be recorded as some
+    /// other, plausible claim (RFC-0.39-001 R2/E-096's neighbour).
+    pub fn from_u8(b: u8) -> Option<Self> {
+        Some(match b {
+            0x01 => Self::BootEvidenceImported,
+            0x02 => Self::ReleaseManifestVerified,
+            0x03 => Self::RootfsManifestVerified,
+            0x04 => Self::PolicyBundleVerified,
+            0x05 => Self::PolicyLoaded,
+            0x06 => Self::ServiceGraphReady,
+            0x07 => Self::SnapshotCreated,
+            0x08 => Self::HealthTargetResult,
+            0x09 => Self::BundleFreshnessChecked,
+            0x0A => Self::RecoveryTargetEntered,
+            0x0B => Self::ManualRollbackRequested,
+            0x0C => Self::AttestationGenerated,
+            0x0D => Self::ProvenanceSidecarChecked,
+            0x0E => Self::VerificationFailed,
+            0x0F => Self::FreshnessRejected,
+            0x10 => Self::PlatformProfileLoaded,
+            0x11 => Self::BoardProfileLoaded,
+            _ => return None,
+        })
+    }
 }
 
-/// Which service produced the measurement event.
+/// Who produced the **measured fact** (RFC-0.39-001, E-096).
+///
+/// This is *not* a field the appender declares. `measuredd` determines it from
+/// the operation plus the kernel-attested identity of the sender, and a caller
+/// that tries to supply one is refused. Two consequences worth stating, because
+/// the two append paths look different and mean the same thing:
+///
+/// * The boot-time image-set digest is [`MeasurementSource::Kernel`]: the
+///   *kernel* computed it; `init` only carried it to the chain.
+/// * An event whose subject the appender itself invented is the appender: the
+///   three placeholder verification results are [`MeasurementSource::Init`],
+///   because `init` produced the literal they record.
+///
+/// "Who produced the fact" and "who sent the message" are therefore different
+/// questions that coincide for `APPEND_EVENT` and differ for the image set.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(u8)]
 pub enum MeasurementSource {
@@ -51,6 +91,9 @@ pub enum MeasurementSource {
     Recoveryd = 0x0A,
     Attestd = 0x0B,
     Measuredd = 0x0C,
+    /// `fjell-init` (RFC-0.39-001). Added because `init` is the only task that
+    /// appends events by message, and there was no value that said so.
+    Init = 0x0D,
 }
 
 impl MeasurementSource {
@@ -81,6 +124,26 @@ impl MeasurementSubject {
     pub fn as_u8(self) -> u8 {
         self as u8
     }
+
+    /// The subject with wire value `b`, or `None` for a byte that names none.
+    /// No default, as for [`MeasurementKind::from_u8`].
+    pub fn from_u8(b: u8) -> Option<Self> {
+        Some(match b {
+            0x01 => Self::BootEvidence,
+            0x02 => Self::ReleaseManifest,
+            0x03 => Self::RootfsManifest,
+            0x04 => Self::PolicyBundle,
+            0x05 => Self::LoadedPolicy,
+            0x06 => Self::ServiceGraph,
+            0x07 => Self::SystemSnapshot,
+            0x08 => Self::HealthResult,
+            0x09 => Self::BundleMetadata,
+            0x0A => Self::RecoveryAction,
+            0x0B => Self::AttestationRecord,
+            0x0C => Self::ProvenanceSidecar,
+            _ => return None,
+        })
+    }
 }
 
 /// Errors that measurement operations can return.
@@ -95,6 +158,11 @@ pub enum MeasurementError {
     PermissionDenied = 0x06,
     Internal = 0x07,
     NotFound = 0x08,
+    /// The kind byte of an append names no `MeasurementKind` (RFC-0.39-001).
+    InvalidKind = 0x09,
+    /// The subject byte of an append names no `MeasurementSubject`
+    /// (RFC-0.39-001).
+    InvalidSubject = 0x0A,
 }
 
 // ── MeasurementEvent ──────────────────────────────────────────────────────────

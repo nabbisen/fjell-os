@@ -9,7 +9,7 @@ mod rt;
 
 use fjell_measure_format::{
     Digest32, MeasurementError, MeasurementEvent, MeasurementHead, MeasurementKind,
-    MeasurementSource, MeasurementSubject,
+    MeasurementSource, MeasurementSubject, decode_append_word, require_init,
 };
 use fjell_service_api::measuredd as proto;
 use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit};
@@ -45,12 +45,31 @@ fn send_ready() {
     );
 }
 
-fn recv_call() -> (usize, usize, usize, usize, usize) {
+/// One received request: the tag, four payload words, and the **kernel-attested
+/// image id of the sender** (RFC-0.39-001). The image id is the stable half of
+/// the attested identity word; nothing in the payload can change it.
+struct Request {
+    tag: usize,
+    w: [usize; 4],
+    sender_image: u16,
+}
+
+fn recv_call() -> Request {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
-    // is a correct superset (also returns the sender identity, unused here).
+    // is a correct superset.
     match fjell_syscall::sys_ipc_recv_msg(EP_SLOT) {
-        Ok((t, w0, w1, w2, w3, _sender)) => (t, w0, w1, w2, w3),
-        Err(_) => (0, 0, 0, 0, 0),
+        Ok((t, w0, w1, w2, w3, sender)) => Request {
+            tag: t,
+            w: [w0, w1, w2, w3],
+            sender_image: fjell_syscall::ipc_sender_image_id(sender),
+        },
+        // A failed receive has no sender to attest. `u16::MAX` is no service's
+        // image id, and the tag is 0, which matches no operation below.
+        Err(_) => Request {
+            tag: 0,
+            w: [0; 4],
+            sender_image: u16::MAX,
+        },
     }
 }
 
@@ -86,6 +105,42 @@ fn print_digest_line(label: &str, d: &Digest32) {
     let mut hex = [0u8; 64];
     sys_debug_write(label);
     sys_debug_writeln(d.to_hex(&mut hex));
+}
+
+/// Print `n` in decimal (no allocation; `sys_debug_write` takes a `&str`).
+fn print_dec(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    // The slice is ASCII digits by construction.
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
+}
+
+/// RFC-0.39-001 R5: print what the chain RECORDED for `seq`, read back out of the
+/// stored event -- not what the caller sent. A tier compares these lines with
+/// the provenance each event ought to carry (the numbers are the wire values of
+/// `MeasurementKind` / `MeasurementSource` / `MeasurementSubject`).
+fn print_event_line(chain: &Chain, seq: u64) {
+    if let Some(ev) = chain.event(seq) {
+        sys_debug_write("measuredd: event seq=");
+        print_dec(ev.seq);
+        sys_debug_write(" kind=");
+        print_dec(ev.kind.as_u8() as u64);
+        sys_debug_write(" source=");
+        print_dec(ev.source.as_u8() as u64);
+        sys_debug_write(" subject=");
+        print_dec(ev.subject.as_u8() as u64);
+        sys_debug_writeln("");
+    }
 }
 
 // ── Measurement chain ────────────────────────────────────────────────────────
@@ -139,45 +194,6 @@ impl Chain {
     }
 }
 
-fn decode_kind(b: u8) -> MeasurementKind {
-    match b {
-        0x02 => MeasurementKind::ReleaseManifestVerified,
-        0x03 => MeasurementKind::RootfsManifestVerified,
-        0x04 => MeasurementKind::PolicyBundleVerified,
-        0x07 => MeasurementKind::SnapshotCreated,
-        0x08 => MeasurementKind::HealthTargetResult,
-        0x09 => MeasurementKind::BundleFreshnessChecked,
-        0x0A => MeasurementKind::RecoveryTargetEntered,
-        0x0C => MeasurementKind::AttestationGenerated,
-        _ => MeasurementKind::BootEvidenceImported,
-    }
-}
-
-fn decode_source(b: u8) -> MeasurementSource {
-    match b {
-        0x02 => MeasurementSource::Verifyd,
-        0x07 => MeasurementSource::Snapshotd,
-        0x09 => MeasurementSource::Upgraded,
-        0x0A => MeasurementSource::Recoveryd,
-        0x0B => MeasurementSource::Attestd,
-        _ => MeasurementSource::Measuredd,
-    }
-}
-
-fn decode_subject(b: u8) -> MeasurementSubject {
-    match b {
-        0x02 => MeasurementSubject::ReleaseManifest,
-        0x03 => MeasurementSubject::RootfsManifest,
-        0x04 => MeasurementSubject::PolicyBundle,
-        0x07 => MeasurementSubject::SystemSnapshot,
-        0x08 => MeasurementSubject::HealthResult,
-        0x09 => MeasurementSubject::BundleMetadata,
-        0x0A => MeasurementSubject::RecoveryAction,
-        0x0B => MeasurementSubject::AttestationRecord,
-        _ => MeasurementSubject::BootEvidence,
-    }
-}
-
 // ── Trust-provider init ──────────────────────────────────────────────────────
 
 const MEASUREDD_PROVIDER_ID: TrustProviderId = TrustProviderId::new(0x02);
@@ -210,32 +226,50 @@ pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("measuredd ready");
 
     loop {
-        let (tag_packed, w0, w1, w2, w3) = recv_call();
-        let tag = tag_packed & 0xFFFF;
+        let req = recv_call();
+        let [w0, w1, w2, w3] = req.w;
+        let tag = req.tag & 0xFFFF;
         match tag {
             // The three verification-result events. Their subject digests are
             // placeholders `init` sends as literals, and only 16 of the 32 bytes
             // travel (see `proto::APPEND_EVENT`): RFC-0.38-001 R7 leaves them
             // disclosed as such rather than pretending they measure anything.
-            proto::APPEND_EVENT => {
-                let kind = decode_kind(((w0 >> 24) & 0xFF) as u8);
-                let source = decode_source(((w0 >> 16) & 0xFF) as u8);
-                let subject = decode_subject(((w0 >> 8) & 0xFF) as u8);
-                let mut sd = [0u8; 32];
-                sd[0..8].copy_from_slice(&w1.to_le_bytes());
-                sd[8..16].copy_from_slice(&w2.to_le_bytes());
-                match chain.append(kind, source, subject, Digest32(sd), None) {
-                    Ok((seq, _)) => {
-                        // v0.3: keep provider chain-head view current.
-                        provider.set_measurement(chain.head);
-                        reply(proto::APPEND_OK, seq as usize, 0, 0, 0);
+            //
+            // RFC-0.39-001 (E-096): the SOURCE is not read from the request. It
+            // is derived from the kernel-attested sender, and a request that
+            // tries to declare one, names an unknown kind or subject, or comes
+            // from an appender with no source is refused with the reason.
+            proto::APPEND_EVENT => match decode_append_word(req.sender_image, w0) {
+                Ok((kind, source, subject)) => {
+                    let mut sd = [0u8; 32];
+                    sd[0..8].copy_from_slice(&w1.to_le_bytes());
+                    sd[8..16].copy_from_slice(&w2.to_le_bytes());
+                    match chain.append(kind, source, subject, Digest32(sd), None) {
+                        Ok((seq, _)) => {
+                            // v0.3: keep provider chain-head view current.
+                            provider.set_measurement(chain.head);
+                            print_event_line(&chain, seq);
+                            reply(proto::APPEND_OK, seq as usize, 0, 0, 0);
+                        }
+                        Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),
                     }
-                    Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),
                 }
-            }
+                Err(e) => reply(proto::ERR, e as usize, 0, 0, 0),
+            },
             // RFC-0.38-001 R2: the boot-time measurement of the service images
             // the kernel embeds. All 32 bytes arrive (w0..w3), and the
             // classification is fixed here so a caller cannot relabel it.
+            //
+            // RFC-0.39-001: and only `init` may send it. `source: Kernel` means
+            // the kernel produced the digest; without this check it would be a
+            // label any holder of the capability could obtain.
+            proto::APPEND_IMAGE_SET if require_init(req.sender_image).is_err() => reply(
+                proto::ERR,
+                MeasurementError::PermissionDenied as usize,
+                0,
+                0,
+                0,
+            ),
             proto::APPEND_IMAGE_SET => {
                 let sd = Digest32(proto::words_to_digest([w0, w1, w2, w3]));
                 match chain.append(
@@ -253,6 +287,7 @@ pub extern "C" fn service_main() -> ! {
                         if let Some(ev) = chain.event(seq) {
                             print_digest_line("measuredd: image-set digest ", &ev.subject_digest);
                         }
+                        print_event_line(&chain, seq);
                         reply(proto::APPEND_OK, seq as usize, 0, 0, 0);
                     }
                     Err(_) => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),

@@ -33,9 +33,23 @@ expected_markers = [
   "M8: boot evidence imported",
   "M8: verification results appended",
   "M8: measurement chain ready",
+  "measuredd: event seq=1 kind=1 source=1 subject=1",
+  "measuredd: event seq=2 kind=2 source=13 subject=2",
+  "measuredd: event seq=3 kind=3 source=13 subject=3",
+  "measuredd: event seq=4 kind=4 source=13 subject=4",
 ]
+# RFC-0.39-001 R5: what the chain RECORDED for each event, read back out of the
+# stored event (`measuredd: event seq=N kind=K source=S subject=J`, wire values).
+# Seq 1 is the image-set digest, produced by the kernel (source 1 = Kernel). Seq
+# 2-4 are the three placeholder verification results, which `init` invented, so
+# the producer is `Init` (source 13); they used to be recorded as source 2
+# (Verifyd), a service that had no part in them (E-096).
 once_markers = [
   "measuredd: image-set digest ",
+  "measuredd: event seq=1 kind=1 source=1 subject=1",
+  "measuredd: event seq=2 kind=2 source=13 subject=2",
+  "measuredd: event seq=3 kind=3 source=13 subject=3",
+  "measuredd: event seq=4 kind=4 source=13 subject=4",
 ]
 expect_image_set_digest = [
   "images, digest sha256:",

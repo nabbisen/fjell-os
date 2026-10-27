@@ -156,12 +156,21 @@ pub mod measuredd {
     /// Service is ready.
     pub const READY: usize = 0x300;
     /// Append one measurement event whose subject digest is **not** a full
-    /// digest: words[0] = kind<<24|source<<16|subject<<8|flags,
+    /// digest: words[0] = kind<<24|**reserved (zero)**<<16|subject<<8|flags,
     /// words[1] = subject_digest bytes 0-7, words[2] = bytes 8-15 (the rest of
     /// the 32-byte digest is recorded as zero). Used for the three
     /// verification-result events, which remain placeholders (RFC-0.38-001 R7).
     /// A request carries four words and the kind word takes one, so a whole
     /// 32-byte digest cannot ride here — see `APPEND_IMAGE_SET`.
+    ///
+    /// **The caller does not declare the event's source** (RFC-0.39-001, E-096).
+    /// `measuredd` derives it from the kernel-attested sender, and the byte that
+    /// used to carry it is reserved: it must be zero, and a non-zero value is
+    /// refused rather than quietly overridden. Refusals reply `ERR` with a
+    /// `MeasurementError` code in words[0]: `PermissionDenied` (0x06) for an
+    /// appender that has no source, `InvalidSource` (0x02) for a non-zero source
+    /// byte, `InvalidKind` (0x09) / `InvalidSubject` (0x0A) for a kind or
+    /// subject byte that names none, checked in that order.
     /// Reply: APPEND_OK (seq in words[0]) or ERR.
     pub const APPEND_EVENT: usize = 0x301;
     /// Reply to an append: words[0] = the event's sequence number.
@@ -187,7 +196,10 @@ pub mod measuredd {
     /// caller cannot label some other digest as the kernel's image set.
     /// `measuredd` takes the digest on the caller's word: only `init` holds a
     /// capability to send this, and what it sends is what the kernel put in
-    /// `BootInfo`. Reply: APPEND_OK (seq in words[0]) or ERR.
+    /// `BootInfo`. RFC-0.39-001: `measuredd` also checks the attested sender is
+    /// `init` and replies `ERR` / `PermissionDenied` to anyone else, so the
+    /// `Kernel` label cannot be obtained by holding the capability alone.
+    /// Reply: APPEND_OK (seq in words[0]) or ERR.
     pub const APPEND_IMAGE_SET: usize = 0x30A;
     /// Get the chain head's bookkeeping: its sequence number and the number of
     /// events dropped. Reply: HEAD_STATS_REPLY.

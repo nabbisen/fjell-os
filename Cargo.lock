@@ -772,6 +772,7 @@ dependencies = [
 name = "fjell-measure-format"
 version = "0.38.0"
 dependencies = [
+ "fjell-abi",
  "fjell-canon",
 ]
 

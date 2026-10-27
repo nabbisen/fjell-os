@@ -7,4 +7,5 @@ license.workspace = true
 publish = false
 
 [dependencies]
+fjell-abi   = { path = "../../fjell-abi" }
 fjell-canon = { path = "../../fjell-canon" }

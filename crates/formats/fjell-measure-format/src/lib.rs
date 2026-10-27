@@ -21,11 +21,13 @@
 //! ```
 #![no_std]
 
+pub mod attest;
 pub mod digest;
 pub mod event;
 pub mod export;
 pub mod image_set;
 
+pub use attest::{decode_append_word, require_init, source_for_sender};
 pub use digest::Digest32;
 pub use event::{
     MeasurementError, MeasurementEvent, MeasurementHead, MeasurementKind, MeasurementSource,
