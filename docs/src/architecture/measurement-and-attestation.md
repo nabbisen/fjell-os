@@ -24,10 +24,24 @@ What that does and does not cover:
 - **The chain was not a measurement before RFC-0.38-001.** Earlier boots recorded
   placeholders for all four events.
 - `measuredd` takes the image-set digest on `init`'s word, which is the kernel's
-  (`BootInfo`); nothing attests that relay.
+  (`BootInfo`); nothing attests that relay's *content*. Since RFC-0.39-001 it does
+  check *who* is relaying: only `init`, by the kernel-attested sender, may send it.
 - A tier compares what `measuredd` recorded with a digest the **host** recomputes
   from `crates/fjell-kernel/prebuilt/*.bin` by an independent route
   (`tests/qemu/profiles/measurement.toml`).
+
+### What an event's `source` says
+
+`MeasurementSource` is *who produced the measured fact*, and the caller does not
+declare it: `measuredd` derives it from the operation plus the kernel-attested
+identity of the sender (`fjell_measure_format::source_for_sender`), and a request
+that tries to supply one is refused. The image-set event is `Kernel` (the kernel
+computed the digest; `init` only carried it). The three placeholder verification
+events are `Init`, because `init` produced the literal they record. An appender
+with no source — a driver, a test service, a service added tomorrow — is refused
+rather than given a default. Chains recorded before RFC-0.39-001 asserted
+`Verifyd` for those three events; that was never attested, it was what `init` put
+in the request, and `verifyd` had no part in them.
 
 `GET_HEAD` returns the chain digest whole (four words, 32 bytes); the head's
 sequence number and drop count are `GET_HEAD_STATS`. Nothing in the committed
