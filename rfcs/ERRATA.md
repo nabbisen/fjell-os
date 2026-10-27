@@ -6781,7 +6781,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Found 2026-10-27 by the implementer of RFC-0.39-001**, whose first full `test-all` run
   went red on a tier that line does not touch, and who investigated it rather than
   re-running until green. **Reproduced independently by the architect the same day**, at
-  that line's tip: **5 of 10 runs failed**, and notably **clustered** — runs 2–6 failed consecutively, 7–10 all passed. The disk image is deleted and recreated per run, so the clustering is not it; what carries across runs is unidentified and is itself a lead.
+  that line's tip: **5 of 10 runs failed** (runs 2–6 failed, 7–10 passed).
+  > **Correction, same day, by the architect against himself.** This first read "notably
+  > clustered … what carries across runs is unidentified and is itself a lead". That was an
+  > over-reading. A run of five or more identical outcomes occurs in **10.9%** of ten fair
+  > trials — a one-in-nine coincidence, and the fair test here, because the failure count was
+  > not fixed in advance. (Conditional on exactly five failures the arrangement is rarer, 2.4%,
+  > but conditioning on a number observed after the fact is not evidence.) **The clustering is
+  > not a lead on this sample and must not be allowed to direct the investigation toward
+  > cross-run state.** A larger sample could change that, which is why the line that takes this
+  > entry is required to measure a rate before it theorises about one.
 - **Signature, observed directly:** `clean-console check FAILED — control character '\0' at
   byte offset 7210`, and the serial log contains exactly one NUL run, of **46** bytes,
   while the string `upgraded: update index fetch returned no index` — **46 characters** —
@@ -6827,7 +6836,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   nothing establishes that it is confined to one. **This blocks a cut.** That is the
   correct outcome: 0.39 must not be released with its own suite intermittently red and the
   cause unknown.
-- **Status:** **OPEN**, `unscheduled`. What closing it needs is a cause, not a quieter
+- **Status:** **OPEN**, scheduled to **RFC-0.39-003** on 2026-10-27; the owner held 0.39
+  for it. What closing it needs is a cause, not a quieter
   tier. Raising a timeout, retrying the tier, or relaxing `clean-console` would convert a
   visible intermittent failure into an invisible one and is explicitly refused here. The
   owner decides whether it takes its own line before 0.39 cuts, or whether 0.39 is held.
@@ -6871,7 +6881,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   DMA-zeroed PAs never overlapping `upgraded`'s text PAs across ten runs, which argues
   against this specific path. Both entries are filed separately for that reason, and the
   relationship between them is a lead, not a finding.
-- **Status:** **OPEN**, `unscheduled`. What closing it needs: the free's result checked
+- **Status:** **OPEN**, scheduled to **RFC-0.39-003** on 2026-10-27. What closing it needs: the free's result checked
   rather than discarded; a decision about the stale PTE that does not rest on the backwards
   claim; and either the isolation of the v0.8.x root cause or an honest statement that it
   is unknown, in the register rather than in a comment. **Kernel memory management, and not
@@ -6976,8 +6986,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | unscheduled | ACCEPTED |
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
 | E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | RFC-0.39-001 | CLOSED |
-| E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | unscheduled | OPEN |
-| E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped | unscheduled | OPEN |
+| E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | OPEN |
+| E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped | RFC-0.39-003 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
