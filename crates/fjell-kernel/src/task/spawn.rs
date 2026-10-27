@@ -46,6 +46,12 @@ fn map_page_err(e: MmError) -> SysError {
     }
 }
 
+/// `measuredd`'s own endpoint object (RFC-0.39-002). The per-image table below
+/// has always said `MEASUREDD => 2` as a bare literal; `DIAGNOSTICSD` now holds a
+/// `CALL` capability to the same object, so the two must name one thing. Kernel-
+/// private on purpose: a `fjell-abi` constant would be an ABI addition.
+const MEASUREDD_EP_OBJECT: u32 = 2;
+
 pub fn spawn(
     image_id: ImageId,
     table: &mut crate::task::tcb::TaskTable,
@@ -265,7 +271,7 @@ pub fn spawn(
             //        RFC-0.28-001-readiness-topology-answer.md §3.
             let ep_obj: u32 = match image_id {
                 fjell_abi::service::ImageId::STORAGED => 1,
-                fjell_abi::service::ImageId::MEASUREDD => 2,
+                fjell_abi::service::ImageId::MEASUREDD => MEASUREDD_EP_OBJECT,
                 fjell_abi::service::ImageId::ATTESTD => 3,
                 fjell_abi::service::ImageId::RECOVERYD => 4,
                 // RFC 040: cap-broker gets its own dedicated endpoint (5)
@@ -990,6 +996,30 @@ pub fn spawn(
                         kind: CapKind::Endpoint,
                         object_id: fjell_abi::service::DIAGNOSTICSD_TOOLS_EP_OBJECT,
                         rights: DIAGNOSTICSD_TOOLS_RIGHTS,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+                // RFC-0.39-002 R2: slot 4, `CAP_MEASUREDD_EP`. `CALL` and nothing
+                // else: the head query is a call (a `SEND` capability would not
+                // serve it).
+                //
+                // **What this capability does NOT do is stop `diagnosticsd` sending
+                // an append.** `CALL` is a right to send a request to the endpoint,
+                // not to a particular operation. What keeps this service from
+                // writing the chain is `measuredd`'s own refusal of any appender it
+                // cannot attest (RFC-0.39-001: `DIAGNOSTICSD` has no
+                // `MeasurementSource`, and `APPEND_IMAGE_SET` is `init`-only). That
+                // is why 0.39-001 had to land before this line.
+                let _ = cs.install_raw(
+                    4,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: MEASUREDD_EP_OBJECT,
+                        rights: CapRights::CALL,
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,

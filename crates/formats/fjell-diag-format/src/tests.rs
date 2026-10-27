@@ -10,7 +10,10 @@ use crate::intents::{
     INTENT_NET_LINK_DOWN, INTENT_RECOVERY_ENTERED, INTENT_UPDATE_STAGING_CONFIRMED,
     INTENT_UPDATE_STAGING_FAILED, is_intent_allowed,
 };
-use crate::{DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS};
+use crate::{
+    DIAG_BUNDLE_VERSION, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS, MeasurementReport,
+    MeasurementReportError,
+};
 use fjell_canon::BufSink;
 use fjell_measure_format::Digest32;
 use fjell_trust_provider::ids::TrustProviderId;
@@ -22,8 +25,7 @@ fn default_builder() -> BundleBuilder {
         *b"test0001",
         42_000,
         TrustProviderId(1),
-        Digest32([0xAAu8; 32]),
-        true,
+        Some(MeasurementReport::new(Digest32([0xAAu8; 32]), 4, 1).unwrap()),
     )
 }
 
@@ -291,6 +293,87 @@ fn measurement_head_availability_changes_the_digest() {
         digest_of(&unavailable),
         "the same bytes must hash differently depending on availability"
     );
+}
+
+// ── RFC-0.39-002: the chain's composition ────────────────────────────────────
+
+/// The counts are written whether or not the head is available, and the
+/// **encoder** zeroes them when it is not -- the same discipline as the head
+/// beside them. Two different raw counts hash identically while unavailable.
+#[test]
+fn measurement_counts_are_zeroed_by_the_encoder_when_unavailable() {
+    let mut a = DiagnosticBundle::zeroed();
+    a.measurement_head_available = false;
+    a.measurement_event_count = 4;
+    a.measurement_events_kernel_digested = 1;
+    let mut b = DiagnosticBundle::zeroed();
+    b.measurement_head_available = false;
+    b.measurement_event_count = 99;
+    b.measurement_events_kernel_digested = 7;
+    assert_eq!(
+        digest_of(&a),
+        digest_of(&b),
+        "raw counts must not count while the head is unavailable"
+    );
+    assert_eq!(
+        digest_of(&a),
+        digest_of(&DiagnosticBundle::zeroed()),
+        "an unavailable section hashes as an all-zero one"
+    );
+}
+
+/// ...and when available they are part of what the signature covers, each on its
+/// own. A reader's "how many events, and how many of them kernel-digested" cannot
+/// be altered without breaking the digest.
+#[test]
+fn measurement_counts_move_the_digest_when_available() {
+    let base = |events: u32, kd: u32| {
+        let mut x = DiagnosticBundle::zeroed();
+        x.measurement_head_available = true;
+        x.measurement_head = Digest32([0x44u8; 32]);
+        x.measurement_event_count = events;
+        x.measurement_events_kernel_digested = kd;
+        digest_of(&x)
+    };
+    assert_ne!(base(4, 1), base(5, 1), "the event count is covered");
+    assert_ne!(
+        base(4, 1),
+        base(4, 2),
+        "the kernel-digested count is covered"
+    );
+    assert_ne!(base(4, 1), base(4, 0), "and zero is not the same as one");
+}
+
+/// The builder takes the measurement section as ONE value. `None` is
+/// unavailable with every field zero; there is no way to pass a head with
+/// "unavailable" or a count with no head.
+#[test]
+fn the_builder_takes_the_measurement_section_all_or_nothing() {
+    let none = BundleBuilder::new(*b"nomeasur", 1, TrustProviderId(1), None).finalise();
+    assert!(!none.measurement_head_available);
+    assert_eq!(none.measurement_head, Digest32([0u8; 32]));
+    assert_eq!(none.measurement_event_count, 0);
+    assert_eq!(none.measurement_events_kernel_digested, 0);
+
+    let some = default_builder().finalise();
+    assert!(some.measurement_head_available);
+    assert_eq!(some.measurement_head, Digest32([0xAAu8; 32]));
+    assert_eq!(some.measurement_event_count, 4);
+    assert_eq!(some.measurement_events_kernel_digested, 1);
+}
+
+/// A report that says more events were kernel-digested than the chain holds
+/// describes no possible chain, and is refused rather than repeated in a signed
+/// artefact.
+#[test]
+fn an_incoherent_measurement_report_is_refused() {
+    let head = Digest32([1u8; 32]);
+    assert_eq!(
+        MeasurementReport::new(head, 1, 2),
+        Err(MeasurementReportError::Incoherent)
+    );
+    assert!(MeasurementReport::new(head, 2, 2).is_ok());
+    assert!(MeasurementReport::new(head, 0, 0).is_ok());
 }
 
 /// RFC-0.36-001 (closes E-079's third instance): `BundleBuilder::new` has no

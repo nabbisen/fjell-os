@@ -16,7 +16,7 @@ pub mod intents;
 pub use builder::BundleBuilder;
 pub use bundle::{
     DIAG_BUNDLE_VERSION, DiagAuditEvent, DiagIntent, DiagnosticBundle, MAX_AUDIT_EVENTS,
-    MAX_SEMANTIC_INTENTS,
+    MAX_SEMANTIC_INTENTS, MeasurementReport, MeasurementReportError,
 };
 pub use events::is_audit_event_allowed;
 pub use intents::is_intent_allowed;

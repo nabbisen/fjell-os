@@ -25,7 +25,15 @@ use fjell_trust_provider::ids::TrustProviderId;
 /// lists both); `measurement_head_available` and `last_attestation_available`
 /// are new fields, each adjacent to the field it qualifies; the fabricated
 /// semantic intent is gone from every bundle this crate can build.
-pub const DIAG_BUNDLE_VERSION: u16 = 3;
+///
+/// RFC-0.39-002 (R4): bumped 3 -> 4. Two fixed-width fields are written beside
+/// `measurement_head`, **zeroed by the encoder** whenever the head is unavailable:
+/// `measurement_event_count` and `measurement_events_kernel_digested`. They exist
+/// because installing the capability that makes the head readable would
+/// otherwise let a signed bundle say "here is this node's measurement root" while
+/// withholding that three of the chain's four events carry a digest the appending
+/// service supplied (E-095). Both move the bundle digest, by design.
+pub const DIAG_BUNDLE_VERSION: u16 = 4;
 /// Maximum audit events stored per bundle.
 pub const MAX_AUDIT_EVENTS: usize = 64;
 /// Maximum semantic intents stored per bundle.
@@ -58,6 +66,23 @@ pub struct DiagnosticBundle {
     pub measurement_head_available: bool,
     /// SHA-256 of the current measurement chain head.
     pub measurement_head: Digest32,
+    /// How many events the chain had appended when the head was read
+    /// (RFC-0.39-002 R3/R4). Written whether or not the head is available, and
+    /// **zero when it is not**: `write_canonical` does not trust the caller's raw
+    /// value.
+    pub measurement_event_count: u32,
+    /// How many of those events arrived by the path where **the kernel produced
+    /// the digest** (`measuredd`'s `APPEND_IMAGE_SET`), as opposed to the path
+    /// where the appending service supplied it (`APPEND_EVENT`).
+    ///
+    /// **A structural count, not a semantic one.** `measuredd` cannot look at 32
+    /// bytes and know whether they are a hash or a literal, so this does not say
+    /// how many events are "real". `measurement_event_count` minus this is the
+    /// number of events whose digest a service supplied; what those digests are
+    /// is not knowable here (today they are `init`'s literal `0xAB` -- E-095). A
+    /// reader who treats this field as "how much of the chain is trustworthy"
+    /// has read more into it than it says. Zero when the head is unavailable.
+    pub measurement_events_kernel_digested: u32,
     /// `false` until something queries a real last-attestation digest —
     /// RFC-0.36-001 (closes E-079): nothing has ever obtained one, the same
     /// shape as `audit_available` and `keyring_anchor_epoch_available`.
@@ -135,6 +160,8 @@ impl DiagnosticBundle {
             keyring_anchor_epoch: 0,
             measurement_head_available: false,
             measurement_head: Digest32([0u8; 32]),
+            measurement_event_count: 0,
+            measurement_events_kernel_digested: 0,
             last_attestation_available: false,
             last_attestation: Digest32([0u8; 32]),
             audit_available: false,
@@ -144,6 +171,55 @@ impl DiagnosticBundle {
             semantic_intents: [DiagIntent::EMPTY; MAX_SEMANTIC_INTENTS],
             bundle_digest: Digest32([0u8; 32]),
         }
+    }
+}
+
+/// What `measuredd` reported about its chain, when the bundle was built
+/// (RFC-0.39-002). One value for the whole measurement section: a bundle either
+/// has one of these or has **no** measurement section, so "unavailable" cannot be
+/// combined with a head or a count -- the combination the previous
+/// `(head, available)` pair allowed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MeasurementReport {
+    head: Digest32,
+    event_count: u32,
+    kernel_digested: u32,
+}
+
+/// Why a [`MeasurementReport`] was refused.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MeasurementReportError {
+    /// More events claimed to be kernel-digested than the chain holds. No chain
+    /// can be in that state, so a service reporting it is wrong, and the bundle
+    /// must not repeat it: the caller treats the whole section as unavailable.
+    Incoherent,
+}
+
+impl MeasurementReport {
+    /// A report, or [`MeasurementReportError::Incoherent`] if `kernel_digested >
+    /// event_count`.
+    pub fn new(
+        head: Digest32,
+        event_count: u32,
+        kernel_digested: u32,
+    ) -> Result<Self, MeasurementReportError> {
+        if kernel_digested > event_count {
+            return Err(MeasurementReportError::Incoherent);
+        }
+        Ok(Self {
+            head,
+            event_count,
+            kernel_digested,
+        })
+    }
+    pub fn head(&self) -> Digest32 {
+        self.head
+    }
+    pub fn event_count(&self) -> u32 {
+        self.event_count
+    }
+    pub fn kernel_digested(&self) -> u32 {
+        self.kernel_digested
     }
 }
 
@@ -197,6 +273,33 @@ impl DiagnosticBundle {
                 &self.measurement_head.0
             } else {
                 &[0u8; 32]
+            },
+        );
+        c.note(
+            "measurement_counts_zeroed_when_unavailable",
+            "fixed width: two u32 written whether or not measurement_head_available \
+             is 1; zero when unavailable, not omitted and not the caller's raw value",
+        );
+        c.u32(
+            "measurement_event_count",
+            if self.measurement_head_available {
+                self.measurement_event_count
+            } else {
+                0
+            },
+        );
+        c.note(
+            "measurement_events_kernel_digested_is",
+            "a structural count: the events whose digest arrived by the path where \
+             the kernel produced it. It is not a count of 'real' measurements; the \
+             rest are events whose digest the appending service supplied",
+        );
+        c.u32(
+            "measurement_events_kernel_digested",
+            if self.measurement_head_available {
+                self.measurement_events_kernel_digested
+            } else {
+                0
             },
         );
         c.u8(

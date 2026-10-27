@@ -126,6 +126,16 @@ pub struct Profile {
     /// three-way (the kernel's line, `measuredd`'s recorded line, and the host),
     /// which also says *where* a disagreement is. Empty for every other profile.
     pub expect_image_set_digest: Vec<String>,
+    /// RFC-0.39-002 R5: the same discipline for the **measurement chain head**.
+    /// For each prefix the run must print that prefix followed by the 64 hex
+    /// digits of the chain head after the four events a boot appends, as the
+    /// host derives it (`chain_head::boot_chain_head`: external `sha2`, the
+    /// preimage assembled by hand, the events written out in the module, the
+    /// image-set digest recomputed from the prebuilt images). Equality, not
+    /// "non-zero": a tier asserting only that the flag is `true` and the head
+    /// is non-zero would pass against a placeholder chain reported as a
+    /// measured one. Empty for every other profile.
+    pub expect_chain_head: Vec<String>,
 }
 
 impl Profile {
@@ -149,8 +159,58 @@ impl Profile {
             once_markers: vec![],
             clean_console: false,
             expect_image_set_digest: vec![],
+            expect_chain_head: vec![],
         }
     }
+}
+
+/// For each `prefix`, the run output must contain a line with `prefix` followed
+/// by exactly the 64 hex digits `want` (equal, and not merely a prefix of a
+/// longer run of hex). Prints a `✓` or a MISMATCH naming what was seen, appends
+/// the evidence to `record`, and returns whether **every** prefix matched.
+/// Shared by the image-set digest (RFC-0.38-001 R6) and the chain head
+/// (RFC-0.39-002 R5), so the two cannot drift into judging differently.
+fn judge_hex_prefixes(
+    text: &str,
+    prefixes: &[String],
+    want: &str,
+    label: &str,
+    over: &str,
+    detail: &str,
+    record: &mut String,
+) -> bool {
+    let mut all = true;
+    for prefix in prefixes {
+        let wanted_line = format!("{prefix}{want}");
+        let seen: Vec<&str> = text
+            .lines()
+            .filter(|l| l.contains(prefix.as_str()))
+            .collect();
+        let found = seen.iter().any(|l| {
+            l.find(&wanted_line).is_some_and(|at| {
+                !l[at + wanted_line.len()..].starts_with(|c: char| c.is_ascii_hexdigit())
+            })
+        });
+        record.push_str(&format!(
+            "prefix = {prefix}\nlines_with_prefix = {}\nequal = {found}\n",
+            seen.join(" | ")
+        ));
+        if found {
+            println!("[xtask] `{prefix}…` equals the host recomputation ({detail}) ✓");
+        } else {
+            eprintln!(
+                "[xtask] {label} MISMATCH at `{prefix}…` — the host recomputes sha256:{want} \
+                 {over}; the run printed: {}",
+                if seen.is_empty() {
+                    format!("no line containing `{prefix}`")
+                } else {
+                    seen.join(" | ")
+                }
+            );
+            all = false;
+        }
+    }
+    all
 }
 
 /// Where artefacts are written for one run.
@@ -432,6 +492,12 @@ pub fn run_profile(p: &Profile) -> ExitCode {
              crates/fjell-kernel/prebuilt/*.bin>    [equality]"
         ));
     }
+    for prefix in &p.expect_chain_head {
+        expected_text.push_str(&format!(
+            "\n{prefix}<64 hex: the measurement chain head after the four events a boot \
+             appends, recomputed on the host (chain_head.rs)>    [equality]"
+        ));
+    }
     art.write_summary("expected-markers.txt", expected_text.as_bytes());
 
     // A run that expects a particular ending needs the exit status and QMP's
@@ -497,6 +563,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         && p.expect_shutdown.is_none()
         && p.expect_boots.is_none()
         && p.expect_image_set_digest.is_empty()
+        && p.expect_chain_head.is_empty()
     {
         art.write_summary(
             "result-summary.txt",
@@ -645,43 +712,46 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             Ok((count, want)) => {
                 let text = String::from_utf8_lossy(&combined);
                 let mut record = format!("images = {count}\nhost_recomputed = {want}\n");
-                for prefix in &p.expect_image_set_digest {
-                    let wanted_line = format!("{prefix}{want}");
-                    let seen: Vec<&str> = text
-                        .lines()
-                        .filter(|l| l.contains(prefix.as_str()))
-                        .collect();
-                    // Equal, and not merely a prefix of a longer run of hex.
-                    let found = seen.iter().any(|l| {
-                        l.find(&wanted_line).is_some_and(|at| {
-                            !l[at + wanted_line.len()..]
-                                .starts_with(|c: char| c.is_ascii_hexdigit())
-                        })
-                    });
-                    record.push_str(&format!(
-                        "prefix = {prefix}\nlines_with_prefix = {}\nequal = {found}\n",
-                        seen.join(" | ")
-                    ));
-                    if found {
-                        println!(
-                            "[xtask] `{prefix}…` equals the host recomputation \
-                             ({count} images, sha256:{want}) ✓"
-                        );
-                    } else {
-                        eprintln!(
-                            "[xtask] image-set digest MISMATCH at `{prefix}…` — the host \
-                             recomputes sha256:{want} over {count} prebuilt image(s); the run \
-                             printed: {}",
-                            if seen.is_empty() {
-                                format!("no line containing `{prefix}`")
-                            } else {
-                                seen.join(" | ")
-                            }
-                        );
-                        all_ok = false;
-                    }
+                let detail = format!("{count} images, sha256:{want}");
+                if !judge_hex_prefixes(
+                    &text,
+                    &p.expect_image_set_digest,
+                    &want,
+                    "image-set digest",
+                    &format!("over {count} prebuilt image(s)"),
+                    &detail,
+                    &mut record,
+                ) {
+                    all_ok = false;
                 }
                 let _ = fs::write(run_dir.join("image-set-digest.txt"), record);
+            }
+        }
+    }
+    // RFC-0.39-002 R5: the chain head a signed bundle carries must EQUAL the
+    // host's independent derivation, not merely be present.
+    if !p.expect_chain_head.is_empty() {
+        match crate::chain_head::boot_chain_head(Path::new(".")) {
+            Err(why) => {
+                eprintln!("[xtask] chain head cannot be recomputed on the host — {why}");
+                all_ok = false;
+            }
+            Ok((events, want)) => {
+                let text = String::from_utf8_lossy(&combined);
+                let mut record = format!("events = {events}\nhost_recomputed = {want}\n");
+                let detail = format!("{events} events, sha256:{want}");
+                if !judge_hex_prefixes(
+                    &text,
+                    &p.expect_chain_head,
+                    &want,
+                    "chain head",
+                    &format!("over the {events} events a boot appends"),
+                    &detail,
+                    &mut record,
+                ) {
+                    all_ok = false;
+                }
+                let _ = fs::write(run_dir.join("chain-head.txt"), record);
             }
         }
     }
@@ -945,6 +1015,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut once_v: Vec<String> = Vec::new();
     let mut clean_console_v = false;
     let mut expect_image_set_digest_v: Vec<String> = Vec::new();
+    let mut expect_chain_head_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -1031,6 +1102,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
                 clean_console_v = parse_bool(v).map_err(|e| format!("bad clean_console: {e}"))?
             }
             "expect_image_set_digest" => expect_image_set_digest_v = array_items(&path, k, idx, v)?,
+            "expect_chain_head" => expect_chain_head_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -1109,6 +1181,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         once_markers: once_v,
         clean_console: clean_console_v,
         expect_image_set_digest: expect_image_set_digest_v,
+        expect_chain_head: expect_chain_head_v,
     })
 }
 
@@ -1774,6 +1847,67 @@ mod discover_tests {
                 .any(|m| m == "driver-uart: ready"),
             "at least one per-boot marker must be a service's line"
         );
+    }
+
+    // ── RFC-0.39-002 R5: expect_chain_head and the shared judge ─────────────
+    #[test]
+    fn expect_chain_head_is_opt_in_and_loads_a_list() {
+        assert!(Profile::smoke("m1", "x").expect_chain_head.is_empty());
+        let r = scratch_root("ech1", "name = \"p\"\nexpected_markers = [\"a\"]\n");
+        assert!(load_profile(&r, "p").unwrap().expect_chain_head.is_empty());
+        let r = scratch_root(
+            "ech2",
+            "name = \"p\"\nexpect_chain_head = [\"head: \", \"also: \"]\n",
+        );
+        let p = load_profile(&r, "p").unwrap();
+        assert_eq!(p.expect_chain_head, ["head: ", "also: "]);
+    }
+
+    #[test]
+    fn judge_hex_prefixes_demands_equality_not_presence() {
+        let want = "ab".repeat(32);
+        let mut rec = String::new();
+        // Equal: passes.
+        assert!(judge_hex_prefixes(
+            &format!("noise\nhead: {want}\n"),
+            &["head: ".to_string()],
+            &want,
+            "chain head",
+            "over x",
+            "d",
+            &mut rec
+        ));
+        // Present and well-formed but different: fails.
+        let other = "cd".repeat(32);
+        assert!(!judge_hex_prefixes(
+            &format!("head: {other}\n"),
+            &["head: ".to_string()],
+            &want,
+            "chain head",
+            "over x",
+            "d",
+            &mut rec
+        ));
+        // Equal followed by more hex (a longer value): fails.
+        assert!(!judge_hex_prefixes(
+            &format!("head: {want}ff\n"),
+            &["head: ".to_string()],
+            &want,
+            "chain head",
+            "over x",
+            "d",
+            &mut rec
+        ));
+        // Absent: fails.
+        assert!(!judge_hex_prefixes(
+            "nothing here\n",
+            &["head: ".to_string()],
+            &want,
+            "chain head",
+            "over x",
+            "d",
+            &mut rec
+        ));
     }
 
     // ── RFC-0.38-001 R6: expect_image_set_digest ────────────────────────────

@@ -7,6 +7,7 @@ use fjell_trust_provider::ids::TrustProviderId;
 
 use crate::bundle::{
     DiagAuditEvent, DiagIntent, DiagnosticBundle, MAX_AUDIT_EVENTS, MAX_SEMANTIC_INTENTS,
+    MeasurementReport,
 };
 use crate::events::is_audit_event_allowed;
 use crate::intents::is_intent_allowed;
@@ -44,22 +45,31 @@ impl BundleBuilder {
     /// `DiagnosticBundle::zeroed()`'s defaults (`0`, flagged unavailable) until a
     /// future line gives this service a real path to either value, at which
     /// point that line adds the parameter back alongside the capability to fill
-    /// it honestly. `measurement_head` keeps its parameter, plus the
-    /// availability the caller must supply, because `query_measurement_head`
-    /// already has a real, sometimes-succeeding path today (closes E-076).
+    /// it honestly. The measurement section keeps a parameter because
+    /// `query_measurement_head` has a real, sometimes-succeeding path (closes
+    /// E-076). RFC-0.39-002: it is `Option<MeasurementReport>` -- the head, its
+    /// availability and the chain's composition as one value -- not a head and a
+    /// separate boolean the caller could contradict.
     pub fn new(
         bundle_id: [u8; 8],
         created_tick: u64,
         provider_id: TrustProviderId,
-        measurement_head: Digest32,
-        measurement_head_available: bool,
+        measurement: Option<MeasurementReport>,
     ) -> Self {
         let mut b = DiagnosticBundle::zeroed();
         b.bundle_id = bundle_id;
         b.created_tick = created_tick;
         b.provider_id = provider_id;
-        b.measurement_head = measurement_head;
-        b.measurement_head_available = measurement_head_available;
+        // RFC-0.39-002: the head, its availability and the chain's composition
+        // arrive as ONE value. `None` leaves all of them at `zeroed()`'s
+        // unavailable defaults; there is no way to pass a head with "unavailable",
+        // or a count with no head.
+        if let Some(m) = measurement {
+            b.measurement_head_available = true;
+            b.measurement_head = m.head();
+            b.measurement_event_count = m.event_count();
+            b.measurement_events_kernel_digested = m.kernel_digested();
+        }
         Self { bundle: b }
     }
 
@@ -146,8 +156,9 @@ impl BundleBuilder {
     }
 
     fn compute_digest(&self) -> Digest32 {
-        // Maximum size: 13 (prefix) + 2 + 8 + 8 + 4 + 1 + 4 + 1 + 32 + 1 + 32 +
-        // 1 + 1 + 64*16 + 1 + 32*16 = 1645 bytes.
+        // Maximum size: 13 (prefix) + 2 + 8 + 8 + 4 + 1 + 4 + 1 + 32 + 4 + 4 + 1 +
+        // 32 + 1 + 1 + 64*16 + 1 + 32*16 = 1653 bytes (RFC-0.39-002 added the two
+        // u32 counts after the measurement head; it was 1645).
         let mut sink = BufSink::<1700>::new();
         self.bundle.write_canonical(&mut sink);
         Digest32::of(sink.bytes())

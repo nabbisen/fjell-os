@@ -41,6 +41,7 @@
 mod bench;
 mod callsite_audit;
 mod cargo_metadata; // RFC-0.29-001: derived bare-metal crate set for test-all/CI
+mod chain_head;
 mod dev; // RFC v0.9-005 developer workflow
 mod dev_modes;
 mod evidence; // RFC-0.27-004 evidence promotion

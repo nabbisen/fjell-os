@@ -69,9 +69,59 @@ fn diag_bundle() {
     // (`keyring_anchor_epoch_available`, `measurement_head_available`,
     // `last_attestation_available`). The sample's `measurement_head` is now
     // marked available (`true`), the "a real query succeeded" case.
+    //
+    // RFC-0.39-002 (R4), DIAG_BUNDLE_VERSION 3 -> 4: two fixed-width `u32`
+    // fields, `measurement_event_count` and `measurement_events_kernel_digested`,
+    // are written immediately after `measurement_head`, zeroed by the encoder
+    // while the head is unavailable. The sample (head available, 4 events, 1
+    // kernel-digested) therefore has a new digest. **It was not taken from the
+    // encoder on trust:** `diag_bundle_v4_is_v3_plus_two_counts` below proves the
+    // v4 stream is exactly the v3 stream with those eight bytes inserted and the
+    // version word changed, by recovering the v3 golden (the previous constant,
+    // `06332d60...4548`) from it. A version bump and this note, as the header
+    // requires.
     check(
         "diag_bundle",
         &s::diag_bundle().bundle_digest.0,
+        "eee02b623defe888ba34ecad3740137994374c5d2e3edd34ad9bc2296cf8feaa",
+    );
+}
+
+/// What the 3 -> 4 bump did, shown rather than asserted: take the v4 canonical
+/// stream of the sample, delete the two inserted counts (8 bytes, straight after
+/// the 32-byte measurement head) and put the version word back to 3, and the
+/// digest is the **v3 golden** again. Nothing else in the stream moved.
+#[test]
+fn diag_bundle_v4_is_v3_plus_two_counts() {
+    use fjell_canon::BufSink;
+    use fjell_measure_format::Digest32;
+    let bundle = s::diag_bundle();
+    let mut sink = BufSink::<1700>::new();
+    bundle.write_canonical(&mut sink);
+    let v4 = sink.bytes().to_vec();
+
+    // 13 domain + 2 version + 8 id + 8 tick + 4 provider + 1 keyring_avail
+    // + 4 keyring + 1 head_avail + 32 head = 73; the counts are bytes 73..81.
+    const AT: usize = 13 + 2 + 8 + 8 + 4 + 1 + 4 + 1 + 32;
+    assert_eq!(&v4[..13], b"FJELL-DIAG-V1", "the domain tag is first");
+    assert_eq!(&v4[13..15], &4u16.to_le_bytes(), "the version word is 4");
+    assert_eq!(
+        &v4[AT..AT + 4],
+        &4u32.to_le_bytes(),
+        "measurement_event_count follows the head"
+    );
+    assert_eq!(
+        &v4[AT + 4..AT + 8],
+        &1u32.to_le_bytes(),
+        "measurement_events_kernel_digested follows it"
+    );
+
+    let mut v3 = v4.clone();
+    v3.drain(AT..AT + 8);
+    v3[13..15].copy_from_slice(&3u16.to_le_bytes());
+    check(
+        "diag_bundle (v4 stream rewound to v3)",
+        &Digest32::of(&v3).0,
         "06332d60d5f3043a01e112a3730d33191de7dbe04a54f629eae01591196d4548",
     );
 }

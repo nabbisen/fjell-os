@@ -102,33 +102,18 @@ struct Waiver {
 /// first real caller, so the slot is **installed**, not waived, and simply
 /// no longer needs an entry here. **A waiver names where the slot's
 /// disposition lives, and that name has to keep meaning something.**
+/// RFC-0.39-002 satisfied a seventh: `DIAGNOSTICSD` slot 4 (`measuredd`) is now an
+/// installed `CALL` capability, so its waiver is **gone** -- not reworded. A
+/// waiver that has been satisfied is not a waiver with new text.
 /// Re-check these whenever a line named here closes.
-const WAIVERS: &[Waiver] = &[
-    Waiver {
-        image: "DIAGNOSTICSD",
-        slot: 2,
-        purpose: "secure-transportd",
-        reason: "E-069 closed: transportd serves one endpoint and never this \
+const WAIVERS: &[Waiver] = &[Waiver {
+    image: "DIAGNOSTICSD",
+    slot: 2,
+    purpose: "secure-transportd",
+    reason: "E-069 closed: transportd serves one endpoint and never this \
                  one; `push_bundle` fails closed on the absence and the caller \
                  replies PUSH_FAULT, so nothing reads a false value",
-    },
-    Waiver {
-        image: "DIAGNOSTICSD",
-        slot: 4,
-        purpose: "measuredd",
-        reason: "RFC-0.38-001 (closes E-085, E-086): measuredd's GET_HEAD now \
-                 replies with the whole chain digest, and the digest is a \
-                 measurement of the service images, so neither is the reason \
-                 any more. This slot stays out because the owner scoped \
-                 installing it -- and letting measurement_head_available read \
-                 true -- to the next milestone (0.39), so that the chain is \
-                 shown to be true before anything reports it. \
-                 measurement_head_available reads false for that reason. \
-                 Installing this slot, as a CALL capability (query_measurement_head \
-                 is a call now, not a send and a recv), belongs to the line \
-                 that flips the flag",
-    },
-];
+}];
 
 #[derive(Debug)]
 struct DiscoveredSlot {
@@ -596,11 +581,12 @@ mod tests {
             })
             .count();
         assert_eq!(
-            unwaived, 4,
-            "four slots are installed outright: the update-path channel's two \
-             (SECURE_TRANSPORTD slot 2, UPGRADED slot 6), and RFC-0.37-001's \
-             two (FLEETD slot 1, DIAGNOSTICSD slot 1 -- newly installed, no \
-             longer waived)"
+            unwaived, 5,
+            "five slots are installed outright: the update-path channel's two \
+             (SECURE_TRANSPORTD slot 2, UPGRADED slot 6), RFC-0.37-001's two \
+             (FLEETD slot 1, DIAGNOSTICSD slot 1 -- newly installed, no longer \
+             waived), and RFC-0.39-002's one (DIAGNOSTICSD slot 4, a CALL \
+             capability to measuredd)"
         );
     }
 }

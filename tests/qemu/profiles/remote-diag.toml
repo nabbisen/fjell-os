@@ -12,17 +12,26 @@
 # Both the instigator's own read (`fleetd: bundle ready (...)`,
 # `NEG:REMOTE_DIAG:BUNDLE_READY:PASS`) and the deciding service's own output
 # are asserted, the pattern `health-fail.toml`/`upgrade.toml` already
-# established: `diagnosticsd` prints each of the bundle's four availability
-# flags by name. **Every flag reads `false`** — not a shortfall. `audit_available`
-# and the keyring/attestation flags have never had a source
-# (RFC-0.36-001); `measurement_head_available` reads `false` because slot 4
-# (`CAP_MEASUREDD_EP`) stays uninstalled. (Until RFC-0.38-001 the reason was
-# E-085: `measuredd`'s `GET_HEAD` reply could not carry a whole chain digest.
-# That is fixed and the digest is a measurement of the service images; the slot
-# now stays out because the owner scoped installing it, and flipping this flag,
-# to the next milestone.) A bundle that says "I could not obtain a measurement
-# head" is the true one — the flags are the assertion, not merely that a bundle
-# was built. The assertions below are unchanged by RFC-0.38-001.
+# established: `diagnosticsd` prints each of the bundle's availability flags
+# by name.
+#
+# RFC-0.39-002: `measurement_head_available` is `true` now (slot 4 is a CALL
+# capability to `measuredd`), and the tier asserts what that means rather than
+# only that it is so:
+#
+#   * the head EQUALS the value the host derives on its own
+#     (`expect_chain_head`: external `sha2`, the four events a boot appends
+#     written out in `chain_head.rs`, the image-set digest recomputed from the
+#     prebuilt images). Not "non-zero": a non-zero head passes against a
+#     placeholder chain reported as a measured one.
+#   * the COMPOSITION the bundle carries: 4 events, 1 of them with a digest the
+#     kernel produced. The other 3 are `init`'s literal `0xAB` (E-095), and the
+#     bundle says so by number -- that disclosure, not the flag, is the point.
+#
+# The other three flags still read `false`: `audit_available` and the keyring
+# and attestation flags have never had a source (RFC-0.36-001), and
+# `last_attestation_available` stays `false` because the signed attestation
+# record is independent constants (E-094) and this line does not touch it.
 
 name                 = "remote-diag"
 timeout_secs         = 60
@@ -32,11 +41,16 @@ expected_markers = [
     "init: remote-diag trigger received; asking fleetd to run its scenario",
     "fleetd: remote-diag trigger received; asking diagnosticsd for a bundle",
     "diagnosticsd: bundle built",
-    "diagnosticsd: measurement_head_available=false",
+    "diagnosticsd: measurement_head_available=true",
+    "diagnosticsd: measurement_event_count=4",
+    "diagnosticsd: measurement_events_kernel_digested=1",
     "diagnosticsd: keyring_anchor_epoch_available=false",
     "diagnosticsd: last_attestation_available=false",
     "diagnosticsd: audit_available=false",
     "fleetd: bundle ready (audit_event_count=0)",
     "NEG:REMOTE_DIAG:BUNDLE_READY:PASS",
+]
+expect_chain_head = [
+    "diagnosticsd: measurement_head sha256:",
 ]
 extra_args       = []

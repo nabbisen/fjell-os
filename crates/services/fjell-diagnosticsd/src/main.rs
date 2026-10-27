@@ -17,24 +17,30 @@
 //! now — `fleetd` is this service's first real caller, over a console-byte
 //! trigger (RFC-v0.8-005's conversation, made real within one node rather
 //! than over the network). The tag mismatch E-083 found
-//! (`query_measurement_head` addressing numbers `measuredd` never answered,
+//! (the head query addressing numbers `measuredd` never answered,
 //! two of which the shared API had already assigned to `recoveryd`) is
 //! fixed.
 //!
-//! RFC-0.38-001 (closes E-085, E-086): `measuredd`'s `HEAD_REPLY` now carries
-//! the chain digest whole (four words), and `query_measurement_head` reads all
-//! four. `CAP_MEASUREDD_EP` (slot 4) **stays uninstalled** all the same — by the
-//! owner's scoping decision (2026-10-19), not because the reply is still too
-//! narrow: installing it and letting `measurement_head_available` read `true`
-//! is the next milestone's, so the head is not made visible in a signed bundle
-//! in the same line that makes it true. `measurement_head_available` therefore
-//! still reads `false`, and for that reason.
+//! RFC-0.38-001 (closes E-085, E-086): `measuredd`'s `HEAD_REPLY` carries the
+//! chain digest whole (four words), and the head query reads all four.
+//!
+//! RFC-0.39-002: `CAP_MEASUREDD_EP` (slot 4) is **installed**, as a `CALL`
+//! capability (the head query is a call, not a send and a receive), and
+//! `measurement_head_available` reads `true` when the query succeeds. It is not
+//! just "the flag turned on": the bundle also carries the chain's composition --
+//! how many events it holds and how many of them arrived by the path where the
+//! kernel produced the digest -- because a signed bundle that reported a
+//! measurement root while withholding that three of the chain's four events are
+//! `init`'s literal `0xAB` (E-095) would be a misleading artefact. **This does not
+//! make attestation real** (the signed attestation record is independent
+//! constants, E-094; `last_attestation_available` stays `false`) **and it does not
+//! make the chain fully measured** (three of four events are placeholders, E-095).
 #![no_std]
 #![no_main]
 mod rt;
 
 use fjell_cap::CapHandle;
-use fjell_diag_format::BundleBuilder;
+use fjell_diag_format::{BundleBuilder, MeasurementReport};
 use fjell_measure_format::Digest32;
 use fjell_service_api::diagnosticsd as proto;
 use fjell_service_api::{measuredd, sxt};
@@ -125,37 +131,54 @@ fn recv_msg(ep: CapHandle) -> Result<(usize, usize, usize), ()> {
 
 // ── Measurement head query ────────────────────────────────────────────────────
 
-/// RFC-0.36-001 (closes E-076): the second element is `true` only when a
-/// real `HEAD_REPLY` was received — the code that obtains the value is the
-/// only code that may say so. A call error or an unexpected tag returns
-/// `(zero digest, false)` instead of a zero digest alone, so `build_bundle`
-/// cannot forward a failure as if it were data.
+/// What `measuredd` reported, as one snapshot: the head, how many events it had
+/// appended, and how many of those arrived by `APPEND_IMAGE_SET`.
 ///
-/// RFC-0.37-001 (closes E-083): the tags this sends/matches are the shared,
-/// real `measuredd::{GET_HEAD, HEAD_REPLY}`.
+/// RFC-0.36-001 (closes E-076): the result is `Some` only when real replies were
+/// received -- the code that obtains the value is the only code that may say so.
+/// A call error, an unexpected tag, or an incoherent answer is `None`, never a
+/// zero digest that `build_bundle` could forward as if it were data.
 ///
-/// RFC-0.38-001 R4 (closes E-085): this used to send `GET_HEAD` one-way and
-/// then `recv` on the same endpoint, reading two words as if they were the
-/// first 16 bytes of the digest. Neither half could ever have worked.
-/// `measuredd` answers with `sys_ipc_reply`, which needs the reply edge only an
-/// `IpcCall` creates — a one-way send is never answered — and a `recv` on
-/// `measuredd`'s own endpoint would take whatever its other clients sent. It is
-/// now a call, and the four reply words are the whole 32-byte digest. The slot
-/// needs `CALL`, not `SEND`/`RECV`, when it is installed.
+/// RFC-0.37-001 (closes E-083): the tags are the shared, real
+/// `measuredd::{GET_HEAD, HEAD_REPLY, GET_HEAD_STATS, HEAD_STATS_REPLY}`.
+/// RFC-0.38-001 R4 (closes E-085): `measuredd` answers with `sys_ipc_reply`, which
+/// needs the reply edge only an `IpcCall` creates, so every query here is a call
+/// and the slot needs `CALL`.
 ///
-/// Slot 4 (`CAP_MEASUREDD_EP`) is still uninstalled (see the module doc), so
-/// today the call fails at once with a capability error and this returns
-/// `(zero digest, false)`: this function's *reachable* behaviour is unchanged.
-fn query_measurement_head() -> (Digest32, bool) {
-    let Ok((label, words)) =
-        fjell_syscall::sys_ipc_call4(CAP_MEASUREDD_EP.0, measuredd::GET_HEAD, [0; 4])
-    else {
-        return (Digest32([0u8; 32]), false);
-    };
-    if label != measuredd::HEAD_REPLY {
-        return (Digest32([0u8; 32]), false);
+/// RFC-0.39-002: the head and the counts come from **two** calls, and an append
+/// between them would pair a head with the wrong counts. So the statistics are
+/// read before and after the head and must be identical; if they are not, the
+/// chain moved while it was being read and the query tries again, a few times,
+/// then reports `None` rather than a snapshot that never existed.
+fn query_measurement() -> Option<MeasurementReport> {
+    fn stats() -> Option<(u64, u64)> {
+        let (label, w) =
+            fjell_syscall::sys_ipc_call4(CAP_MEASUREDD_EP.0, measuredd::GET_HEAD_STATS, [0; 4])
+                .ok()?;
+        // w[0] = latest_seq (events appended), w[3] = events kernel-digested.
+        (label == measuredd::HEAD_STATS_REPLY).then_some((w[0] as u64, w[3] as u64))
     }
-    (Digest32(measuredd::words_to_digest(words)), true)
+    for _attempt in 0..4 {
+        let before = stats()?;
+        let (label, words) =
+            fjell_syscall::sys_ipc_call4(CAP_MEASUREDD_EP.0, measuredd::GET_HEAD, [0; 4]).ok()?;
+        if label != measuredd::HEAD_REPLY {
+            return None;
+        }
+        if stats()? != before {
+            continue; // the chain moved under us; read it again
+        }
+        let (events, kernel_digested) = before;
+        let events = u32::try_from(events).ok()?;
+        let kernel_digested = u32::try_from(kernel_digested).ok()?;
+        return MeasurementReport::new(
+            Digest32(measuredd::words_to_digest(words)),
+            events,
+            kernel_digested,
+        )
+        .ok();
+    }
+    None
 }
 
 // ── Bundle assembly ───────────────────────────────────────────────────────────
@@ -178,14 +201,7 @@ fn build_bundle(
     provider_id: TrustProviderId,
     tick: u64,
 ) -> fjell_diag_format::bundle::DiagnosticBundle {
-    let (measurement_head, measurement_head_available) = query_measurement_head();
-    let builder = BundleBuilder::new(
-        *b"diag0001",
-        tick,
-        provider_id,
-        measurement_head,
-        measurement_head_available,
-    );
+    let builder = BundleBuilder::new(*b"diag0001", tick, provider_id, query_measurement());
     builder.finalise()
 }
 
@@ -204,6 +220,31 @@ fn push_bundle(_bundle: &fjell_diag_format::bundle::DiagnosticBundle) -> bool {
     let ack = recv_msg(CAP_SXT_EP).map(|(t, _, _)| t).unwrap_or(0);
     send_tag(CAP_SXT_EP, sxt::CLOSE);
     ack == sxt::DIAG_ACK
+}
+
+/// Print `n` in decimal (no allocation; `sys_debug_write` takes a `&str`).
+fn print_dec(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
+}
+
+fn print_count(name: &str, value: u32) {
+    sys_debug_write("diagnosticsd: ");
+    sys_debug_write(name);
+    sys_debug_write("=");
+    print_dec(value as u64);
+    sys_debug_writeln("");
 }
 
 /// RFC-0.37-001 R6: one line per flag, at the deciding service's own
@@ -270,6 +311,20 @@ pub extern "C" fn service_main() -> ! {
             print_bool(
                 "measurement_head_available",
                 bundle.measurement_head_available,
+            );
+            // RFC-0.39-002 R5: the head itself, read back out of the BUNDLE (what
+            // the encoder will sign), so a tier can compare it with the value the
+            // host derives. Only when available -- an unavailable head is zero by
+            // construction and printing it would be noise.
+            if bundle.measurement_head_available {
+                let mut hex = [0u8; 64];
+                sys_debug_write("diagnosticsd: measurement_head sha256:");
+                sys_debug_writeln(bundle.measurement_head.to_hex(&mut hex));
+            }
+            print_count("measurement_event_count", bundle.measurement_event_count);
+            print_count(
+                "measurement_events_kernel_digested",
+                bundle.measurement_events_kernel_digested,
             );
             print_bool(
                 "keyring_anchor_epoch_available",

@@ -201,11 +201,26 @@ pub mod measuredd {
     /// `Kernel` label cannot be obtained by holding the capability alone.
     /// Reply: APPEND_OK (seq in words[0]) or ERR.
     pub const APPEND_IMAGE_SET: usize = 0x30A;
-    /// Get the chain head's bookkeeping: its sequence number and the number of
-    /// events dropped. Reply: HEAD_STATS_REPLY.
+    /// Get the chain head's bookkeeping: its sequence number, the number of
+    /// events dropped, and the chain's composition. Reply: HEAD_STATS_REPLY.
     pub const GET_HEAD_STATS: usize = 0x30B;
-    /// Reply to `GET_HEAD_STATS`: words[0] = latest_seq, words[1] = dropped,
-    /// words[2] = the last event's kind.
+    /// Reply to `GET_HEAD_STATS`: words[0] = latest_seq (the events appended),
+    /// words[1] = dropped, words[2] = the last event's kind, and
+    /// **words[3] = the number of events whose digest arrived by
+    /// `APPEND_IMAGE_SET`** (RFC-0.39-002 R3).
+    ///
+    /// words[3] is a **structural** count, deliberately and by name. `measuredd`
+    /// cannot look at 32 bytes and know whether they are a hash or a literal, so
+    /// it does not report "how many events are real". What it does know is which
+    /// path an event came in by: `APPEND_IMAGE_SET`, where the *kernel* computed
+    /// the digest and `measuredd` fixed the classification, or `APPEND_EVENT`,
+    /// where the appending service supplied the digest (and only 16 of its 32
+    /// bytes travel -- E-095). The remainder, `latest_seq - words[3]`, are events
+    /// whose digest the appending service supplied; this count does not say, and
+    /// cannot say, what those digests are.
+    ///
+    /// The spare fourth word rather than a new op: a reply carries exactly four
+    /// words and this one was unused, so a second round trip would buy nothing.
     pub const HEAD_STATS_REPLY: usize = 0x30C;
     pub const ERR: usize = 0x30F;
 

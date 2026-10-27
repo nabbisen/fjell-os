@@ -125,8 +125,10 @@ pub fn diag_bundle() -> fjell_diag_format::DiagnosticBundle {
         *b"DG123456",
         0x0102_0304_0506_0708,
         TrustProviderId::new(0x1112_1314),
-        digest(0x30),
-        true,
+        Some(
+            fjell_diag_format::MeasurementReport::new(digest(0x30), 0x0000_0004, 0x0000_0001)
+                .expect("coherent"),
+        ),
     );
     b.add_audit_event(
         0x3132_3334,

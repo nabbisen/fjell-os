@@ -151,6 +151,10 @@ struct Chain {
     events: [Option<MeasurementEvent>; MAX_EVENTS],
     head: MeasurementHead,
     next_seq: u64,
+    /// Events whose digest arrived by `APPEND_IMAGE_SET` -- the path where the
+    /// kernel computed it (RFC-0.39-002 R3). A count of the *path*, not of any
+    /// property of the digest bytes; see `proto::HEAD_STATS_REPLY`.
+    kernel_digested: u64,
 }
 
 impl Chain {
@@ -159,6 +163,7 @@ impl Chain {
             events: [None; MAX_EVENTS],
             head: MeasurementHead::EMPTY,
             next_seq: 1,
+            kernel_digested: 0,
         }
     }
 
@@ -280,6 +285,7 @@ pub extern "C" fn service_main() -> ! {
                     None,
                 ) {
                     Ok((seq, _)) => {
+                        chain.kernel_digested += 1;
                         provider.set_measurement(chain.head);
                         // R6: print what the chain RECORDED, read back out of the
                         // stored event. A tier compares this line with a digest it
@@ -306,7 +312,7 @@ pub extern "C" fn service_main() -> ! {
                     h.latest_seq as usize,
                     h.dropped as usize,
                     h.last_event_kind.as_u8() as usize,
-                    0,
+                    chain.kernel_digested as usize,
                 );
             }
             // E-087: still a stub that sends no content; only its arity changed.
