@@ -6184,6 +6184,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > dedicated op like `APPEND_IMAGE_SET`, or chunking). It was recorded in E-096, which
   > closed on 2026-10-27; it is carried here so closing that entry does not drop it.
 
+  > **Disclosed in the signed bundle, 2026-10-28 (RFC-0.39-002).** Installing
+  > `DIAGNOSTICSD` slot 4 makes the chain head readable in a signed diagnostic bundle. So that
+  > the head is not read as more than it is, the bundle (`DIAG_BUNDLE_VERSION` 4) carries
+  > `measurement_event_count` and `measurement_events_kernel_digested` beside it — **4 and 1**
+  > on a normal boot. That *discloses* this entry's condition (three of four events carry a
+  > digest a service supplied) by number; it does **not** close it, and the second count is a
+  > structural one — it cannot say what those digests are. Whoever makes the three events
+  > real must also change `chain_head.rs`'s oracle and this disclosure's expected figures,
+  > or the `remote-diag` tier will say so.
+
 ## E-087 — `measuredd`'s `EXPORT_LOG` exports nothing, and E-085 cited it as the working pattern
 
 - **Found 2026-10-19, scoping 0.38**, while checking whether E-085's ruling could be

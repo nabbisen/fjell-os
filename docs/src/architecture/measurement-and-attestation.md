@@ -44,10 +44,32 @@ rather than given a default. Chains recorded before RFC-0.39-001 asserted
 in the request, and `verifyd` had no part in them.
 
 `GET_HEAD` returns the chain digest whole (four words, 32 bytes); the head's
-sequence number and drop count are `GET_HEAD_STATS`. Nothing in the committed
-tree can ask for the head yet — `diagnosticsd`'s capability to `measuredd` is
-deliberately not installed — so `measurement_head_available` reads `false` in
-every bundle.
+sequence number, drop count and composition are `GET_HEAD_STATS`.
+
+### The head in the diagnostic bundle
+
+Since RFC-0.39-002 `diagnosticsd` holds a `CALL` capability to `measuredd`
+(`CAP_MEASUREDD_EP`, slot 4) and a signed diagnostic bundle carries the head:
+`measurement_head_available` reads `true` when `measuredd` answers. The bundle
+(`DIAG_BUNDLE_VERSION` 4) also carries two numbers beside the head, so that the
+head is not read as more than it is:
+
+* `measurement_event_count` — events the chain had appended (4 on a normal boot);
+* `measurement_events_kernel_digested` — how many of those arrived by the path
+  where **the kernel produced the digest** (1: the image set).
+
+The second is a **structural** count. `measuredd` cannot look at 32 bytes and
+know whether they are a hash or a literal, so it does not claim to count "real"
+measurements; it reports which path an event came in by. The other events'
+digests were supplied by the appending service — today, `init`'s literal `0xAB`
+(E-095) — and the number does not describe them, it only shows that the kernel
+did not produce them. `diagnosticsd` reads the counts before and after the head
+and reports the section unavailable if they changed in between, so a head is never
+paired with another moment's counts.
+
+What this is **not**: attestation (the signed attestation record is independent
+constants, E-094; `last_attestation_available` stays `false`), and a fully
+measured chain (three of four events are placeholders).
 
 ## Attestation
 
