@@ -6841,6 +6841,58 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   tier. Raising a timeout, retrying the tier, or relaxing `clean-console` would convert a
   visible intermittent failure into an invisible one and is explicitly refused here. The
   owner decides whether it takes its own line before 0.39 cuts, or whether 0.39 is held.
+- **Resolution:** ~~**OPEN**~~ → **CLOSED** by **RFC-0.39-003**, with the cause found.
+
+  > **Closed by RFC-0.39-003, 2026-10-28.** **The cause: the kernel's own stack overlapped
+  > frames the allocator hands to tasks.** `link.ld` puts a 4 MiB stack in BSS
+  > (`__stack_bottom`..`__stack_top`); trap entry resets `sp` to `__stack_top` on every trap,
+  > so the kernel's frames always sit just under it. `kmain` reserved `[RAM_BASE,
+  > __bss_end)` and a 2 MiB "boot allocator" window starting at `__bss_end` — which is where
+  > the stack starts, so that window covered the stack's **lower** half by coincidence and
+  > nothing covered the **upper** 2 MiB. Those frames were free, and the allocator gave
+  > them to tasks. Whichever task's text, stack or page-table frame landed in the
+  > top ~16 KiB had the kernel stack written through it. Which task that was depended on
+  > allocation order, hence the "placement" correlation and the bimodal `0x80451000` /
+  > `0x80481000`.
+  >
+  > **How it was established**, not argued: (1) a physical check at `upgraded`'s exit
+  > compared its two text frames with the embedded image — **0 bytes differ in passing runs
+  > and ~1 KB differ in failing runs**, the debris being pointers into kernel statics and
+  > into the same frames, i.e. a stack; (2) the frames (`0x80481000..0x80484000`) lie under
+  > `__stack_top` (`0x80485000` in that build) and above the end of the boot window
+  > (`0x80285000`); (3) a new boot invariant, run on the old reservation layout, **stops
+  > the boot** naming `frame 0x802b5000 is free but lies inside the kernel image or stack`.
+  >
+  > **The two unexplained facts are explained.** *The working-directory dependence* was the
+  > filesystem under the disk image: the main tree is on btrfs over LUKS, the worktree on
+  > tmpfs. Slow or variable host disk I/O changes when the guest's tasks run and therefore
+  > the allocation order. With a low-bandwidth fsync storm on btrfs, **19 of 20** runs
+  > failed with the disk on btrfs and **0 of 20** with it on tmpfs, run alternately in one
+  > tree. *The clustering* was real at 40 runs (6 outcome changes against ~19 expected) —
+  > the earlier retraction was right that it is not cross-run state (the harness recreates
+  > a zero-filled disk every run) but wrong to call it a coincidence on a larger sample:
+  > host storage latency varies slowly, so failures come in stretches.
+  >
+  > **The fix and its measure.** The whole stack is reserved (`KernelStack`), the boot
+  > window starts after it, and `kmain` checks `first_free_in(RAM_BASE, __stack_top)` and
+  > panics if any frame is free. Under the same storm, disk on btrfs: **0 of 40** in the main
+  > tree and **0 of 40** in a scratch worktree (byte-identical kernel, storm mean fsync
+  > latency 7–10 ms against 3.5 ms in the failing baseline); tmpfs control 0 of 40. R1's
+  > nominal rate (23 of 40, then 18 of 40 interleaved, main tree) is not a usable baseline
+  > any more — it varied with host disk load, 0 of 40 in a quiet hour — and the storm is.
+  >
+  > **What this closes and what it does not.** The 46-NUL symptom, which was reproduced and
+  > measured. The second shape seen once (`TEST:M7:FAIL`, `M6: block I/O error`) is
+  > **plausibly** the same cause — a kernel stack written through a page-table or text
+  > frame would produce it — but it was not reproduced after the first, so that is an
+  > inference, not a result. This does not close **E-098** (see its note), and it does not
+  > establish that no *other* frame is wrongly free: the invariant checks the kernel image
+  > and stack only. **Not demonstrated here, but it follows from the mechanism:** any task
+  > whose `R|W|U` stack page landed under `__stack_top` could read the kernel's stack
+  > residue (pointers into kernel statics) from its own stack page, in every release that
+  > shipped the overlap. The kernel overwrites that region on the next trap before reading
+  > it, so no corruption of the kernel's own state is evident; the disclosure is the part
+  > to weigh, and nobody measured whether any shipped boot placed a task's stack there.
 
 ## E-098 — `revoke_by_pa` skips the user unmap over an unisolated page-table corruption, calls the stale mapping harmless on a ground that is the damage mechanism, and discards the frame free's result
 
@@ -6886,6 +6938,30 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   claim; and either the isolation of the v0.8.x root cause or an honest statement that it
   is unknown, in the register rather than in a comment. **Kernel memory management, and not
   a line to fold into a measurement milestone.**
+
+  > **Partly addressed by RFC-0.39-003, 2026-10-28 — still OPEN, narrowed.**
+  > *Done:* (1) the free's result is checked — four release sites (`revoke_by_id`,
+  > `revoke_by_pa`, `release_task`, and `sys_dma_alloc`'s rollback) now go through one
+  > helper that checks the allocator records the frame as held by the releasing task
+  > **before** zeroing it, then zeroes and frees and reports a refused free. On any failure
+  > the frame is neither zeroed nor freed: it stays allocated (one 4 KiB frame leaked) and
+  > the console says why. The old order zeroed first, so a frame already given to someone
+  > else would have been destroyed and the free then failed silently. (2) the comments that
+  > called the stale mapping "harmless … because the frame is zeroed" and claimed a "1.
+  > Unmap user PTE" step that never ran are corrected. (3) "deferred to v0.3" is withdrawn.
+  > *Evidence on the lead:* **the evidence does not support E-098 as E-097's cause.**
+  > E-097's cause is the kernel-stack overlap above, which involves no DMA frame. It does
+  > leave a candidate for the v0.8.x "page-table corruption … clobbering the task's
+  > text/rodata PTEs" that motivated the skipped unmap: the same overlap overwrites page-
+  > table and text frames. **That is untested** — nobody has re-enabled the unmap on the
+  > fixed layout — and this note says so rather than the code comment.
+  > *Still open, and not a cosmetic leftover:* `revoke_by_pa` (and the `sys_dma_alloc`
+  > rollback) free a frame whose `R|W|U` mapping stays in the caller's page table. If the
+  > allocator hands the frame to another task, the first task can read and write that
+  > task's memory. Zeroing does not prevent it. Closing it is a design change to the unmap
+  > path — RFC-0.39-003's non-goal — and the decision is the architect's: re-enable the
+  > unmap against the fixed layout, or record it as an accepted limitation with its
+  > hazard stated.
 
 ## Summary
 
@@ -6986,7 +7062,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | unscheduled | ACCEPTED |
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
 | E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | RFC-0.39-001 | CLOSED |
-| E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | OPEN |
+| E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | CLOSED |
 | E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped | RFC-0.39-003 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
