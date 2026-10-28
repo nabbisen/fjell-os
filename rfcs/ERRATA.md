@@ -6973,6 +6973,82 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > unmap against the fixed layout, or record it as an accepted limitation with its
   > hazard stated.
 
+## E-099 — a revoked DMA frame returns to the allocator with the caller's `R|W|U` mapping intact, so a DMA-capable service can read and write another task's memory
+
+- **Split from E-098 on 2026-10-28**, at that entry's closure, on the implementer's own
+  recommendation and by the **E-090 → E-091** test: a residual with a different defect and
+  a different remedy becomes its own entry rather than keeping a closed one open. The
+  implementer narrowed E-098 to this and deliberately did not file it, because the stale
+  mapping was that line's stated non-goal. **Verified by the architect in the tree.**
+- **Mechanism, each step read:**
+  1. `sys_dma_alloc` maps the frame into the **caller's** page table at
+     `VmPerms::R | VmPerms::W | VmPerms::U` (`crates/fjell-kernel/src/trap/syscall.rs`).
+  2. `sys_dma_revoke(cap, device_pa)` → `revoke_by_pa` → `free_dma_frame`: the frame is
+     zeroed and `fa.free_frame(frame)` returns it to the **general pool**
+     (`mm/frame_alloc.rs:154`). **The user-VA unmap is deliberately skipped** and has been
+     since v0.8.x; the caller's PTE stays valid.
+  3. The allocator hands that frame to any task — `UserText`, `UserStack`,
+     `KernelPageTable`.
+  4. The first task **still maps it `R|W|U`** and can read and write whatever now lives
+     there.
+- **Zeroing does not mitigate it.** The frame is cleared at revoke time, which says nothing
+  about the contents a *later* owner writes into it. This is the same confusion E-098's
+  "harmless because the frame is zeroed before reuse" made, now isolated to the part that
+  the fixes did not address.
+- **Reachable through the documented API, by three services.** `DmaRegion` with
+  `CapRights::ALL_NON_META` is granted to **`STORAGED`**, **`DRIVER_VIRTIO_BLK`** and
+  **`NEG_TEST`** (`task/spawn.rs:528`–`:556`). A holder needs no trickery: allocate, revoke,
+  keep reading. That `NEG_TEST` is one of them means a tier can demonstrate it.
+- **The rollback path too.** `sys_dma_alloc`'s own failure path frees the frame it just
+  mapped; RFC-0.39-003 added the comment that names it — *"'unmap'; it never did: the frame
+  was mapped into the caller's page table above and stays mapped `R|W|U` after it is
+  freed."*
+- **Why OPEN, and why this is the register's most serious entry.** It **fails open**, it is
+  **live**, it is reachable by an ordinary capability holder, and the capability it yields is
+  **read and write access to another task's memory** — which is the boundary the whole
+  capability architecture exists to enforce. Every other OPEN entry this project has had was
+  a gate or a claim; this is the thing the gates are for.
+- **Pre-existing, and not RFC-0.39-003's doing.** The unmap has been skipped since v0.8.x.
+  That line fixed E-098's three verified defects, documented this residual in the code, and
+  stopped at its non-goal — correctly.
+- **The architect's recommendation, as a hypothesis and not a conclusion.** The v0.8.x
+  reason for skipping the unmap was *"page-table corruption … clobbering the task's
+  text/rodata PTEs"*. **That is E-097's symptom exactly**, and E-097 was the kernel stack
+  overwriting task frames, now fixed and verified. So the unmap may have been innocent all
+  along and the corruption it was blamed for may have been E-097. **Re-enabling the unmap
+  against the fixed layout is therefore the first thing to test** — the implementer reached
+  the same reading and marked it untested, which is how it should stay until someone runs it.
+- **Status:** **OPEN**, `unscheduled`. **This blocks a cut, and should.** What closing it
+  needs: the user-VA unmap performed on revoke and on the alloc rollback, against the
+  post-E-097 layout, with a tier that demonstrates a revoked frame is no longer reachable
+  from the revoking task — `NEG_TEST` already holds the capability to prove it. Filing an
+  ACCEPTED limitation instead would be recording that one service may read another's memory,
+  which this project's own standard does not permit.
+
+## E-100 — the frame allocator's unit tests exist and **no gate runs them**
+
+- **Found 2026-10-28 by the implementer of RFC-0.39-003**, who needed them while fixing
+  E-097, discovered nothing runs them, ran them in a scratch harness (5 pass, plus two new
+  ones) and reported it rather than leaving it.
+- **Tree:** the tests are `#[cfg(test)]` inside `fjell-kernel`, which is a `no_std` binary
+  that cannot be host-built, so `cargo test` never reaches them and no `test-all` tier or
+  release gate executes them. They are source that has never run in CI or in a cut.
+- **Why it matters here specifically.** E-097 was a frame-allocator reservation defect that
+  cost 35 milestones of intermittent corruption. The code with the weakest automated
+  coverage in the tree turned out to be the code that held that defect, and the tests that
+  would speak to it have never executed.
+- **The family.** This project's standard is *a gate that cannot run is not a passing
+  gate*; tests that no gate runs are the same shape one level down — coverage that exists
+  as source and never as evidence. Related: **E-027**'s never-built gate and the instrument
+  audit's `UNAUDITED` row.
+- **Why ACCEPTED and not OPEN.** Nothing fails open and no claim is currently false — the
+  tests pass when run by hand. It is a gap in the gate set, not a live defect. **No document
+  may count these as coverage** while this entry stands; if one does, that is a separate
+  claim-versus-reality defect and should be filed as one.
+- **Status:** **ACCEPTED**, `unscheduled`. What closing it needs: a host-buildable crate the
+  allocator's logic can live in or be exercised from, and a gate that runs it. Recorded in
+  `docs/src/releasing/v1-limitations.md` row 16.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -7073,7 +7149,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
 | E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | RFC-0.39-001 | CLOSED |
 | E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | CLOSED |
-| E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped | RFC-0.39-003 | OPEN |
+| E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped. **All three fixed by RFC-0.39-003**; the stale `R/W/U` mapping that survived is split to **E-099**, by the E-090/E-091 test | RFC-0.39-003 | CLOSED |
+| E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | unscheduled | OPEN |
+| E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
