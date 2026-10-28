@@ -161,7 +161,11 @@ order once.
    `readiness-summary` — Gate 12's 20th subcheck since RFC-0.35-003 — fail at
    once, because the matrix's heading still names the previous release:
    `heading says "Summary at 0.34.0"; the workspace version is 0.35.0`. That
-   is the gate working. Update the heading to this release, run
+   is the gate working — but **seeing the red is not part of the step**. Editing the
+   heading in the same commit as the bump, so the gate never fails, is the better
+   outcome and is what the step asks for; the committed state is what matters.
+   *(Clarified at the 0.39.0 cut, where the implementer did it in one edit and asked
+   whether they had skipped something. They had not.)* Update the heading to this release, run
    `cargo xtask readiness-check`, and make the summary table's four counts and
    the prose beneath it agree with what it prints. *(Not a new numbered step,
    deliberately: see the note at step 12 on why this document does not
