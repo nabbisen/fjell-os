@@ -1,3 +1,6 @@
 NEG:DMA:RIGHTS_CHECK:PASS
 NEG:DMA:REVOKE_EXPLICIT:PASS
 NEG:DMA:ZEROIZE_ON_EXIT:PASS
+init: dma-revoked-read trigger received; asking neg-test to run its scenario
+NEG:DMA:REVOKED_VA_READ_ATTEMPTED
+neg-test]: fault(LoadPageFault)    [exactly 1x]

@@ -1239,6 +1239,11 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
         // keeps listening for it on every subsequent boot (unlike `R`,
         // this trigger does not cause a reset).
         const REMOTE_DIAG_TRIGGER: u8 = b'D';
+        // RFC-0.39-004 R4: this byte's only power is to ask `neg-test` to revoke a
+        // DMA region and read through the revoked address, over the endpoint that
+        // is `neg-test`'s alone. `neg-test` takes the fault itself. Injected once,
+        // by the `dma` profile only.
+        const DMA_REVOKED_READ_TRIGGER: u8 = b'V';
         let mut received = false;
         // RFC-0.38-003 R3: bytes delivered so far, printed as an ordinal so a
         // profile can assert the bytes AND their order. The line keeps its old
@@ -1286,6 +1291,15 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
                         );
                         sys_debug_writeln("init: svc-fault spawned and registered as required");
                     }
+                    if byte as u8 == DMA_REVOKED_READ_TRIGGER {
+                        sys_debug_writeln(
+                            "init: dma-revoked-read trigger received; asking neg-test to run its scenario",
+                        );
+                        let _ = fjell_syscall::sys_ipc_send(
+                            fjell_abi::service::INIT_NEG_TEST_SEND_SLOT,
+                            fjell_service_api::neg_test::RUN_DMA_REVOKED_READ,
+                        );
+                    }
                     if byte as u8 == REMOTE_DIAG_TRIGGER {
                         sys_debug_writeln(
                             "init: remote-diag trigger received; asking fleetd to run its scenario",
@@ -1307,6 +1321,7 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
                             | PRESENTATION_LIAR_TRIGGER
                             | HEALTH_FAIL_TRIGGER
                             | REMOTE_DIAG_TRIGGER
+                            | DMA_REVOKED_READ_TRIGGER
                     ) {
                         break;
                     }

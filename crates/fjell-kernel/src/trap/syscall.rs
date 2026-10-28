@@ -1413,15 +1413,32 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
         }
     };
     let first_pa = frame.pa();
+    // RFC-0.39-004 R3 (E-014 family): the map's result is CHECKED. It used to be
+    // `let _ =`, so a failed map returned success to the caller with no mapping
+    // (or, for the rollback below, unmapped a page that was never mapped).
+    // `map_page` installs the leaf PTE as its last step, so a failure leaves
+    // nothing mapped and the frame, never visible to the caller, is simply freed.
     // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
-    unsafe {
-        let _ = crate::mm::page_table::map_page(
+    let mapped = unsafe {
+        crate::mm::page_table::map_page(
             root_pfn << 12,
             VirtAddr(user_va_start),
             frame,
             VmPerms::R | VmPerms::W | VmPerms::U,
             fa,
+        )
+    };
+    if let Err(e) = mapped {
+        crate::kprintln!(
+            "kernel: sys_dma_alloc for task {} could not map frame {:#x} at {:#x} ({:?}); allocation refused",
+            task_id.index,
+            first_pa,
+            user_va_start,
+            e
         );
+        let _released = crate::free_dma_frame(first_pa, task_id);
+        tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
+        return;
     }
     // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
     unsafe {
@@ -1430,12 +1447,15 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 
     // RFC 036 + RFC 052: record ownership; rollback if table is full.
     if !crate::dma_table().alloc(task_id, user_va_start, first_pa, pages as u8) {
-        // Table full -- zeroize and free the just-allocated frame (checked: a
-        // refused free is reported, RFC-0.39-003). The comment here used to say
-        // "unmap"; it never did: the frame was mapped into the caller's page table
-        // above and stays mapped `R|W|U` after it is freed. Same hazard as
-        // `DmaRegionTable::revoke_by_pa`, E-098's open half.
-        let _released = crate::free_dma_frame(first_pa, task_id);
+        // Table full. RFC-0.39-004: this rollback now really unmaps. It used to say
+        // "unmap" and did not -- the frame was freed with the caller's `R|W|U`
+        // mapping still in place (E-099). Unmap (verified) first; only then zero
+        // and free. If the unmap cannot be verified the frame is neither zeroed nor
+        // freed: it stays allocated and mapped in the caller, who was told
+        // `NoMemory` and does not know it is there. A leak, loudly, not a hole.
+        if crate::unmap_dma_region_verified(task_id, user_va_start, first_pa, pages as u8) {
+            let _released = crate::free_dma_frame(first_pa, task_id);
+        }
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize; // DMA table full (RFC 052)
         return;
     }
@@ -1449,7 +1469,17 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 ///
 /// RFC 052: validates DmaRegion cap with DMA_REVOKE right (closes RB-09 right check).
 /// Region identified by device_pa (object_id-based tracking deferred to v0.3).
-/// User VA unmap deferred to v0.3 (frame is zeroized and freed; VA stays mapped).
+///
+/// RFC-0.39-004 (closes E-099): on success the caller **no longer has the frame**.
+/// Its user mapping is removed -- verified to be the mapping the region entry
+/// records -- the TLB is flushed, the frame is zeroed and read back, and only then
+/// returned to the allocator. A read or write through the revoked address now
+/// faults. This comment used to say "User VA unmap deferred to v0.3 ... VA stays
+/// mapped", which was the hole: a mapping to a frame another task could be handed.
+///
+/// `InternalError` means the kernel could not do that safely and so did not do it:
+/// either nothing changed (the region is still Active; the caller keeps its frame
+/// and mapping) or the frame was unmapped but leaked.
 pub fn sys_dma_revoke(tf: &mut TrapFrame) {
     use fjell_cap::{CapKind, CapRights};
     let cap_raw = tf.gpr[REG_A0] as u32;
@@ -1473,11 +1503,14 @@ pub fn sys_dma_revoke(tf: &mut TrapFrame) {
     }
 
     let task_id = crate::task::TaskId::new(tidx as u16, 0);
-    if crate::dma_table().revoke_by_pa(task_id, device_pa) {
-        tf.gpr[REG_A0] = 0;
-    } else {
-        tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
-    }
+    use crate::DmaRevokeError;
+    tf.gpr[REG_A0] = match crate::dma_table().revoke_by_pa(task_id, device_pa) {
+        Ok(()) => 0,
+        Err(DmaRevokeError::NotFound) => SysError::InvalidArg as isize as usize,
+        Err(DmaRevokeError::Unverified | DmaRevokeError::NotReleased) => {
+            SysError::InternalError as isize as usize
+        }
+    };
 }
 
 /// Dispatch `sys_ipc_try_recv` (RFC 019 — non-blocking IPC receive).

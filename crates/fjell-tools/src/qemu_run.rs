@@ -784,6 +784,15 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         // NEG:HARNESS:CSpace_LAYOUT_VALID:PASS, a real passing marker).
         "NEG:HARNESS:BLOCKED_RECV_IDENTITY_EXCHANGE_FAILED",
         "NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED",
+        // RFC-0.39-004: the kernel's own refusals when it will not zero, free or
+        // unmap a DMA frame it cannot verify. They are printed and the frame is
+        // left alone, which is safe -- and invisible to a gate unless named here.
+        // In a normal run none ever appears; if one does, the v0.8.x question
+        // ("was the unmap called with a wrong VA?") has an answer.
+        "kernel: DMA frame",
+        "kernel: DMA region",
+        "kernel: free of DMA frame",
+        "kernel: sys_dma_alloc for task",
         "kernel panic",
         "panicked at",
     ];

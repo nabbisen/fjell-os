@@ -126,6 +126,25 @@ pub(crate) fn free_dma_frame(frame_pa: usize, owner: crate::task::TaskId) -> boo
     unsafe {
         core::ptr::write_bytes(frame_pa as *mut u8, 0, 4096);
     }
+    // RFC-0.39-004: zeroed is *checked*, not assumed. Once the owner's mapping is
+    // unmapped (it is, before this runs) the zeroing can no longer be observed from
+    // user space -- the old test read it back through the surviving mapping, which
+    // was the hole -- so the kernel verifies it where it can.
+    for i in 0..4096usize {
+        // SAFETY: category=phys-id-map-assumption identity-mapped RAM; the frame was just zeroed by this function.
+        // MMIO-ORDER: poll -- not a device: a volatile read-back of RAM that must
+        // observe the zeroing stores above and may not be elided as redundant.
+        let b = unsafe { core::ptr::read_volatile((frame_pa + i) as *const u8) };
+        if b != 0 {
+            kprintln!(
+                "kernel: DMA frame {:#x} (task {}) read back non-zero at +{} after zeroing; not freeing it",
+                frame_pa,
+                owner.index,
+                i
+            );
+            return false;
+        }
+    }
     match fa.free_frame(frame) {
         Ok(()) => true,
         Err(e) => {
@@ -134,6 +153,153 @@ pub(crate) fn free_dma_frame(frame_pa: usize, owner: crate::task::TaskId) -> boo
                 frame_pa,
                 owner.index,
                 e
+            );
+            false
+        }
+    }
+}
+
+/// Why a DMA revoke did not complete (RFC-0.39-004).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DmaRevokeError {
+    /// No Active region matches.
+    NotFound,
+    /// The user mapping could not be unmapped **and proved to be the right one**.
+    /// Nothing changed: the region is still Active, the task still holds its frame
+    /// and its mapping, and nothing was zeroed or freed. Safe, and loud.
+    Unverified,
+    /// Unmapped -- the task can no longer reach the frame -- but the frame could
+    /// not be zeroed-and-freed. It stays allocated (one frame leaks) and the
+    /// region is gone. Safe for everyone else, and loud.
+    NotReleased,
+}
+
+/// Revoke one Active region, in the only order that is safe (RFC-0.39-004 R2):
+///
+/// 1. **unmap** the owner's user page, **verified** ([`unmap_dma_region_verified`]);
+/// 2. only then **zero** the frame and read it back;
+/// 3. only then **free** it.
+///
+/// Zeroing or freeing first would put a frame in the general pool while the owner
+/// still maps it -- the defect this exists to remove -- and if the unmap cannot be
+/// verified nothing is zeroed or freed at all: the region stays Active and the
+/// task keeps what is its own, rather than the kernel guessing.
+fn revoke_entry(e: &mut DmaRegionEntry) -> Result<(), DmaRevokeError> {
+    let owner = e.owner;
+    if e.frame_pa == 0 {
+        *e = DmaRegionEntry::free();
+        return Ok(());
+    }
+    if !unmap_dma_region_verified(owner, e.user_va, e.frame_pa, e.page_count) {
+        return Err(DmaRevokeError::Unverified);
+    }
+    e.state = DmaRegionState::Revoked;
+    let released = free_dma_frame(e.frame_pa, owner);
+    if released {
+        e.state = DmaRegionState::Zeroized;
+    }
+    *e = DmaRegionEntry::free();
+    if released {
+        Ok(())
+    } else {
+        Err(DmaRevokeError::NotReleased)
+    }
+}
+
+/// Remove `owner`'s user mapping of a DMA region and **prove it was the mapping
+/// the region entry says it is** (RFC-0.39-004 R2). Returns whether it did; on
+/// `false` the page table is as it was found. Reports why on the console.
+///
+/// The unmap was skipped from v0.8.x over "page-table corruption ... clobbering
+/// the task's text/rodata PTEs", cause never isolated. Either that was E-097
+/// (the kernel stack, now fixed) or this was called with a wrong VA. **This does
+/// not need to know which:**
+///
+/// * the PTE is first *read* (`translate`) and must point at the frame the entry
+///   records -- `unmap_page` clears the PTE *before* it returns the frame, so
+///   checking only its result would already have cleared a wrong PTE;
+/// * the frame `unmap_page` then returns must equal it again;
+/// * only then the TLB is flushed, so the task cannot keep reaching the frame
+///   through a cached translation.
+///
+/// Under the first history neither check ever fires. Under the second the first
+/// fires *instead of* clobbering. A region of more than one page is refused:
+/// the entry records only the first frame, so the rest could not be verified, and
+/// `DMA-003` allows one page anyway.
+pub(crate) fn unmap_dma_region_verified(
+    owner: crate::task::TaskId,
+    user_va: usize,
+    frame_pa: usize,
+    page_count: u8,
+) -> bool {
+    use crate::mm::address::VirtAddr;
+    // SAFETY: category=kernel-global-mutable single-hart; the task table is read to find the owner's page-table root.
+    let (table, _, _, _) = unsafe { crate::get_kernel_state() };
+    let root_pfn = match table.get(owner) {
+        Some(t) => t.satp_root_pfn,
+        None => 0,
+    };
+    if root_pfn == 0 || user_va == 0 || frame_pa == 0 {
+        kprintln!(
+            "kernel: DMA region of task {} cannot be unmapped: root {:#x}, va {:#x}, frame {:#x}",
+            owner.index,
+            root_pfn,
+            user_va,
+            frame_pa
+        );
+        return false;
+    }
+    if page_count != 1 {
+        kprintln!(
+            "kernel: DMA region of task {} spans {} pages; only the first frame is recorded, so it cannot be verified",
+            owner.index,
+            page_count
+        );
+        return false;
+    }
+    let root = root_pfn << 12;
+    let va = VirtAddr(user_va);
+    // 1. Read the PTE first and require it to be the one we installed.
+    // SAFETY: category=page-table-mutation read-only walk of the owner's live page table.
+    match unsafe { crate::mm::page_table::translate(root, va) } {
+        Ok((f, _)) if f.pa() == frame_pa => {}
+        Ok((f, _)) => {
+            kprintln!(
+                "kernel: DMA region of task {}: va {:#x} maps frame {:#x}, but the region records {:#x}; refusing to unmap",
+                owner.index,
+                user_va,
+                f.pa(),
+                frame_pa
+            );
+            return false;
+        }
+        Err(e) => {
+            kprintln!(
+                "kernel: DMA region of task {}: va {:#x} is not mapped ({:?}); refusing to revoke what cannot be verified",
+                owner.index,
+                user_va,
+                e
+            );
+            return false;
+        }
+    }
+    // 2. Unmap, and require the frame it removed to be the same again.
+    // SAFETY: category=page-table-mutation the PTE was just read and is the DMA mapping installed at alloc time.
+    let removed = unsafe { crate::mm::page_table::unmap_page(root, va) };
+    // 3. Flush before anything else can run with the old translation cached.
+    // SAFETY: category=csr-asm global fence after a PTE clear.
+    unsafe {
+        crate::arch::riscv64::csr::sfence_vma();
+    }
+    match removed {
+        Ok(f) if f.pa() == frame_pa => true,
+        other => {
+            kprintln!(
+                "kernel: DMA region of task {}: unmapping va {:#x} removed {:?}, expected frame {:#x}",
+                owner.index,
+                user_va,
+                other,
+                frame_pa
             );
             false
         }
@@ -310,104 +476,53 @@ impl DmaRegionTable {
         false
     }
 
-    #[allow(dead_code)]
     /// RFC 052: Revoke a DMA region by its `region_id` (table slot index).
     ///
-    /// Used by the new cap-based `sys_dma_revoke(cap_handle)` where the cap's
-    /// `object_id` carries the region index.
-    pub fn revoke_by_id(&mut self, owner: crate::task::TaskId, region_id: usize) -> bool {
+    /// Unused today. Kept on the same path as [`Self::revoke_by_pa`] -- one
+    /// implementation, [`revoke_entry`] -- so the two cannot disagree about what a
+    /// revoke is (RFC-0.39-004: this one used to zero and free with no unmap at
+    /// all).
+    #[allow(dead_code)]
+    pub fn revoke_by_id(
+        &mut self,
+        owner: crate::task::TaskId,
+        region_id: usize,
+    ) -> Result<(), DmaRevokeError> {
         if region_id >= MAX_DMA_REGIONS {
-            return false;
+            return Err(DmaRevokeError::NotFound);
         }
         let e = &mut self.entries[region_id];
         if e.owner == owner && e.state == DmaRegionState::Active {
-            e.state = DmaRegionState::Revoked;
-            if e.frame_pa != 0 {
-                if free_dma_frame(e.frame_pa, owner) {
-                    e.state = DmaRegionState::Zeroized;
-                }
-            }
-            *e = DmaRegionEntry::free();
-            return true;
+            return revoke_entry(e);
         }
-        false
+        Err(DmaRevokeError::NotFound)
     }
 
-    /// Explicitly revoke a DMA region by physical address.
+    /// Explicitly revoke a DMA region by physical address (RFC-0.39-004, E-099).
     ///
-    /// What this does: zeroizes the frame and returns it to the allocator, with the
-    /// release checked ([`free_dma_frame`]).
-    ///
-    /// What it does **not** do, although this comment used to say it did
-    /// (RFC-v0.7.4-001 clause 1 -- "1. Unmap user PTE", "2. sfence.vma"): it does
-    /// not unmap the owner's user PTE. After it returns, the owner's page table
-    /// still maps the user VA to this frame, `R|W|U`, while the frame is back in the
-    /// allocator's free pool. If the allocator gives it to another task, the revoking
-    /// task can still read and write that task's memory through the stale mapping.
-    /// Zeroing the frame does not make that safe: it protects the old contents from
-    /// the next owner, not the next owner's contents from this task. **Nothing in
-    /// the kernel makes it safe today.** That is E-098's open half; RFC-0.39-003
-    /// leaves it, because closing it is a design change to the unmap path.
-    ///
-    /// Why the unmap is skipped: v0.8.x smoke runs showed page-table corruption --
-    /// "clobbering the task's text/rodata PTEs" -- when it ran, and the cause was
-    /// never isolated. RFC-0.39-003 later found that the kernel stack overlapped
-    /// frames the allocator hands to tasks (E-097), which overwrites exactly that
-    /// kind of frame. That may have been the cause; **it has not been tested**, so
-    /// the unmap stays off until someone re-enables it against the fixed layout.
-    /// The deferral recorded here as "to v0.3" lapsed when 0.38.0 shipped; the open
-    /// question is E-098's.
-    pub fn revoke_by_pa(&mut self, owner: crate::task::TaskId, frame_pa: usize) -> bool {
+    /// After this returns `Ok`, the owner **cannot reach the frame**: its mapping
+    /// is gone, the frame was verified zero, and only then was it returned to the
+    /// allocator. The order is in [`revoke_entry`], and the reason for it is
+    /// there too. This comment used to say the opposite for a long time -- first
+    /// that it unmapped (it did not), then that the stale mapping was "harmless
+    /// because the frame is zeroed" (zeroing protects the next owner's view of the
+    /// old contents, not the next owner's contents from this task). Both were
+    /// wrong, and the second let a task read and write whichever other task was
+    /// handed the frame. History: the unmap had been skipped since v0.8.x over a
+    /// page-table corruption "never isolated"; RFC-0.39-003 found the kernel stack
+    /// overlapping task frames (E-097), which fits it, and this line re-enabled
+    /// the unmap *verified*, so it is correct whether or not that was the cause.
+    pub fn revoke_by_pa(
+        &mut self,
+        owner: crate::task::TaskId,
+        frame_pa: usize,
+    ) -> Result<(), DmaRevokeError> {
         for e in self.entries.iter_mut() {
             if e.owner == owner && e.frame_pa == frame_pa && e.state == DmaRegionState::Active {
-                e.state = DmaRegionState::Revoked;
-                if e.frame_pa != 0 {
-                    if free_dma_frame(e.frame_pa, owner) {
-                        e.state = DmaRegionState::Zeroized;
-                    }
-                    // SAFETY: category=csr-asm
-                    unsafe {
-                        crate::arch::riscv64::csr::sfence_vma();
-                    }
-                }
-                *e = DmaRegionEntry::free();
-                return true;
+                return revoke_entry(e);
             }
         }
-        false
-    }
-
-    /// Unmap the DMA frame's user PTE in `owner`'s page table.
-    /// Returns true if all pages were successfully unmapped.
-    ///
-    /// Called by `revoke_by_pa` when the deferred PTE-unmap path
-    /// (RFC-v0.7.4-001 clause 1) is re-enabled. Currently bypassed -- see the
-    /// doc comment on `revoke_by_pa` for why, and for what is and is not known
-    /// about the corruption that led to it (E-098).
-    #[allow(dead_code)]
-    fn unmap_user_va_for(owner: crate::task::TaskId, user_va: usize, page_count: u8) -> bool {
-        // SAFETY: category=page-table-mutation
-        //   We hold the DMA table lock (single-threaded kernel); the task's root PFN
-        //   is obtained from the live task table. Unmap is a single PTE clear.
-        let (table, _, _, _) = unsafe { crate::get_kernel_state() };
-        let root_pfn = match table.get(owner) {
-            Some(t) => t.satp_root_pfn,
-            None => return false,
-        };
-        if root_pfn == 0 || user_va == 0 {
-            return false;
-        }
-        let n = (page_count as usize).max(1);
-        for i in 0..n {
-            let va = crate::mm::address::VirtAddr(user_va + i * 4096);
-            // SAFETY: category=page-table-mutation
-            //   root_pfn is valid; VA is the DMA user mapping we installed at alloc time.
-            let result = unsafe { crate::mm::page_table::unmap_page(root_pfn << 12, va) };
-            if result.is_err() {
-                return false;
-            }
-        }
-        true
+        Err(DmaRevokeError::NotFound)
     }
 
     /// Lifecycle revoke: zeroize and release all Active DMA regions owned by `task`.
@@ -424,8 +539,9 @@ impl DmaRegionTable {
     /// is unverified. RFC-0.39-003 found a different cause of frames being
     /// overwritten, E-097, that fits it equally well.)
     ///
-    /// Compare `revoke_by_pa`: there the owner keeps running, and its stale mapping
-    /// is the open half of E-098. Here it is not.
+    /// Compare `revoke_by_pa`: there the owner keeps running, so its mapping is
+    /// removed and verified before the frame is freed (RFC-0.39-004, E-099). Here
+    /// there is nothing to remove it from.
     ///
     /// The release is checked ([`free_dma_frame`]): a frame the allocator does not
     /// record as this task's is neither zeroed nor freed, and says so.

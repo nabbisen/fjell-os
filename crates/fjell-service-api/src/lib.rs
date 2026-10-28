@@ -506,12 +506,22 @@ pub mod negative_markers {
     pub const MMIO_RAM_GUARD: &str = "NEG:MMIO:RAM_GUARD_REJECTS:PASS";
 
     // ── DMA boundary (RFC 036) ────────────────────────────────────────────────
-    /// Physical DMA page is zeroed when the owning task exits.
+    /// A revoked DMA page was zeroed before it was freed. Since RFC-0.39-004 the
+    /// basis is the revoke's own success: `sys_dma_revoke` returns `Ok` only after
+    /// unmapping the page, reading the zeroed frame back as zero, and freeing it.
+    /// (It used to be a read through the surviving mapping -- the hole itself.)
     pub const DMA_ZEROIZE_ON_EXIT: &str = "NEG:DMA:ZEROIZE_ON_EXIT:PASS";
     /// `sys_dma_revoke` correctly zeroizes and frees the page.
     pub const DMA_REVOKE_EXPLICIT: &str = "NEG:DMA:REVOKE_EXPLICIT:PASS";
     /// `sys_dma_alloc` rejects a cap without `DMA_ALLOC` right.
     pub const DMA_RIGHTS: &str = "NEG:DMA:RIGHTS_CHECK:PASS";
+    /// A "got here" marker, not a PASS (RFC-0.39-004 R4): printed immediately
+    /// before the task reads through a DMA virtual address it has just revoked.
+    /// **The assertion is the kernel's fault line for that read** -- the task
+    /// cannot print after taking the fault -- so this marker only establishes that
+    /// the read was reached. If the read does *not* fault, the task goes on to
+    /// print `NEG:HARNESS:UNEXPECTED_OK`, which every profile treats as a failure.
+    pub const DMA_REVOKED_VA_READ_ATTEMPTED: &str = "NEG:DMA:REVOKED_VA_READ_ATTEMPTED";
 
     // ── cap-broker policy (RFC 040) ───────────────────────────────────────────
     /// An unknown service is denied by the default-deny policy.
@@ -674,6 +684,12 @@ pub mod neg_test {
     /// `init` → `neg-test`, one-way, no words. Only ever sent on the endpoint
     /// that is `neg-test`'s alone (`fjell_abi::service::NEG_TEST_EP_OBJECT`).
     pub const RUN_REBOOT: usize = 0x5F0;
+    /// `init` → `neg-test`, one-way, no words (RFC-0.39-004 R4): run the scenario
+    /// that revokes a DMA region and then reads through the revoked virtual
+    /// address, which must fault. Sent only on the console byte the `dma` profile
+    /// injects, so no other profile ever runs it -- and the scenario ends with
+    /// `neg-test` taking the fault it is demonstrating.
+    pub const RUN_DMA_REVOKED_READ: usize = 0x5F1;
 }
 
 // RFC-0.37-001 R2 (closes E-083): `secure-transportd`'s own `SxtTag` enum

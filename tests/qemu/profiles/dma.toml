@@ -1,11 +1,36 @@
 # RFC 036 (v0.2): DmaRegion state machine + zeroize invariant.
 # Three markers: rights check, explicit revoke, zeroize verification.
+#
+# RFC-0.39-004 (closes E-099): after `sys_dma_revoke` the revoking task must no
+# longer be able to reach the frame. `sys_dma_alloc` maps the frame into the
+# caller R|W|U; revoke used to zero it and free it while leaving that mapping, so
+# the caller kept read/write access to a frame the allocator then gave to another
+# task.
+#
+# The assertion is THE MAPPING'S ABSENCE, not the data: `V` injected right after
+# "driver-uart: ready" makes `init` ask `neg-test` to revoke a region and read
+# through the revoked address, and the evidence is the kernel's own fault line for
+# that read -- the task cannot print after taking the fault. A test that checked
+# the data would pass before and after the fix: the revoke zeroes the frame, so
+# the read of a surviving mapping returns innocent-looking zeros. If the read does
+# NOT fault, `neg-test` prints NEG:HARNESS:UNEXPECTED_OK, which every profile
+# treats as a failure.
+#
+# The fault ends `neg-test`; that is why this is a triggered scenario, run after
+# all the others and only here.
 
-name             = "dma"
-timeout_secs     = 60
+name                 = "dma"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "V"
 expected_markers = [
   "NEG:DMA:RIGHTS_CHECK:PASS",
   "NEG:DMA:REVOKE_EXPLICIT:PASS",
   "NEG:DMA:ZEROIZE_ON_EXIT:PASS",
+  "init: dma-revoked-read trigger received; asking neg-test to run its scenario",
+  "NEG:DMA:REVOKED_VA_READ_ATTEMPTED",
+]
+once_markers = [
+  "neg-test]: fault(LoadPageFault)",
 ]
 extra_args       = []

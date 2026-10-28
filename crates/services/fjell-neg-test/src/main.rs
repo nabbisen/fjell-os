@@ -28,7 +28,7 @@ use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
     ipc_sender_tid, sys_audit_drain, sys_cap_bind_lease, sys_cap_copy,
-    sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_mint, sys_cap_revoke,
+    sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_mint, sys_cap_revoke, sys_debug_write,
     sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv,
     sys_ipc_recv_msg, sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_reboot, sys_task_spawn,
     sys_task_start, sys_task_status, sys_yield,
@@ -502,34 +502,78 @@ fn test_mmio_ram_guard() {
     );
 }
 
-/// DMA: alloc → write pattern → explicit revoke → read zeroed PA.
+/// DMA: alloc → write pattern → explicit revoke → the revoke succeeded.
 ///
-/// The physical frame is zeroed inside `DmaRegionTable::revoke_by_pa` before
-/// being freed.  Because the cooperative scheduler doesn't preempt between
-/// the revoke and the read, the physical address cannot be reallocated, so
-/// the zero is guaranteed to be from our revoke.  Same zeroize code path as
-/// `release_task` (called on task exit).
+/// RFC-0.39-004: this used to read the frame back through the same virtual
+/// address and expect zeros. That read worked only because `sys_dma_revoke` left
+/// the mapping in place (E-099): the task was reading a frame it had given back.
+/// With the mapping removed the read faults -- which is exactly what
+/// `test_dma_revoked_va_faults` now asserts -- so the zeroing can no longer be
+/// observed from here, and this scenario stops pretending it can.
+///
+/// What `Ok` from `sys_dma_revoke` now **means**, and the kernel checks before
+/// returning it: the user mapping was removed and proved to be the one the region
+/// records, the frame was zeroed **and read back as zero** (`free_dma_frame`), and
+/// only then returned to the allocator. A revoke that could not do all of that
+/// returns an error, so `Ok` is the evidence. The marker keeps its name; its basis
+/// moved from a read through a stale mapping to a verified kernel invariant.
 fn test_dma_zeroize() {
     match sys_dma_alloc(SLOT_DMA, 4096) {
         Ok((user_va, device_pa)) => {
-            // Write a non-zero pattern.
-            // SAFETY: category=page-table-mutation intentional negative-test: writes to an unmapped address to trigger a fault.
+            // Write a non-zero pattern, so there is something to zero.
+            // SAFETY: category=raw-pointer-deref the VA is this task's own live DMA mapping at this point.
             unsafe {
                 core::ptr::write_bytes(user_va as *mut u8, 0xAA, 4096);
             }
-            // Explicit revoke — kernel zeroes the physical frame.
-            if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() {
-                setup_failed("dma_zeroize: revoke");
-                return;
+            match sys_dma_revoke(CapHandle(SLOT_DMA), device_pa) {
+                Ok(()) => sys_debug_writeln(M::DMA_ZEROIZE_ON_EXIT),
+                Err(_) => setup_failed("dma_zeroize: revoke"),
             }
-            // Read back: PA was zeroed by revoke (frame not yet reallocated).
-            // SAFETY: category=raw-pointer-deref VA still maps to the freed PA; no preemption between
-            // revoke and this read in the cooperative scheduler.
-            // MMIO-ORDER: poll
-            let byte = unsafe { core::ptr::read_volatile(user_va as *const u8) };
-            check(byte == 0, M::DMA_ZEROIZE_ON_EXIT);
         }
         Err(_) => setup_failed("dma_zeroize: alloc"),
+    }
+}
+
+/// DMA (RFC-0.39-004 R4, E-099): after `sys_dma_revoke`, the revoking task must
+/// no longer be able to reach the frame. The assertion is **the mapping's
+/// absence**: a read of the revoked VA must *fault*.
+///
+/// What this deliberately does not check is that the read returns zeros. The
+/// revoke zeroes the frame before freeing it, so a read that still works returns
+/// innocent-looking zeros -- exactly the shape that let the hole stand from
+/// v0.8.x: the read succeeds and the data looks harmless. Nor does it try to
+/// observe another task's data in the frame: arranging a particular later owner
+/// is allocation-order dependent, and a tier built on that would be flaky.
+///
+/// The fault ends this task, which is why this is a triggered scenario that runs
+/// after all the others and only in the profile that injects the trigger. The
+/// evidence is the kernel's `[task#N neg-test]: fault(LoadPageFault)` line.
+fn test_dma_revoked_va_faults() {
+    match sys_dma_alloc(SLOT_DMA, 4096) {
+        Ok((user_va, device_pa)) => {
+            // SAFETY: category=raw-pointer-deref the VA is this task's own live DMA mapping at this point.
+            unsafe {
+                core::ptr::write_bytes(user_va as *mut u8, 0x5A, 4096);
+            }
+            if sys_dma_revoke(CapHandle(SLOT_DMA), device_pa).is_err() {
+                setup_failed("dma_revoked_va: revoke");
+                return;
+            }
+            // The address, in decimal, so the kernel's fault line (`stval=`, hex) can
+            // be compared with the address this task is about to read.
+            sys_debug_write("neg-test: reading revoked dma va=");
+            debug_dec(user_va as u64);
+            sys_debug_writeln("");
+            sys_debug_writeln(M::DMA_REVOKED_VA_READ_ATTEMPTED);
+            // SAFETY: category=raw-pointer-deref intentional negative test: this VA was just revoked, so
+            // the read is expected to take a LoadPageFault and end this task.
+            // MMIO-ORDER: poll
+            let byte = unsafe { core::ptr::read_volatile(user_va as *const u8) };
+            // Reached only if the read did not fault: the mapping survived the revoke.
+            let _ = byte;
+            sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
+        }
+        Err(_) => setup_failed("dma_revoked_va: alloc"),
     }
 }
 
@@ -639,6 +683,23 @@ fn setup_failed(scenario: &str) {
 }
 
 /// Print a SysError discriminant as a decimal line (no alloc, no fmt).
+/// Print `n` in decimal (no allocation).
+fn debug_dec(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
+}
+
 fn debug_err(e: fjell_abi::error::SysError) {
     let mut buf = [0u8; 24];
     let mut n = e as usize;
@@ -1347,6 +1408,9 @@ pub extern "C" fn service_main() -> ! {
     if let Ok((tag, ..)) = sys_ipc_recv_msg(fjell_abi::service::NEG_TEST_TRIGGER_RECV_SLOT) {
         if tag & 0xFFFF == fjell_service_api::neg_test::RUN_REBOOT {
             test_reboot();
+        }
+        if tag & 0xFFFF == fjell_service_api::neg_test::RUN_DMA_REVOKED_READ {
+            test_dma_revoked_va_faults();
         }
     }
     sys_exit(0)
