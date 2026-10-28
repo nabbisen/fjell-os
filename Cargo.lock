@@ -713,6 +713,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-frame-alloc"
+version = "0.39.0"
+dependencies = [
+ "fjell-abi",
+]
+
+[[package]]
 name = "fjell-identity-format"
 version = "0.39.0"
 dependencies = [
@@ -755,6 +762,7 @@ dependencies = [
  "fjell-audit-format",
  "fjell-cap",
  "fjell-fdt-header",
+ "fjell-frame-alloc",
  "fjell-ipc",
  "fjell-measure-format",
 ]

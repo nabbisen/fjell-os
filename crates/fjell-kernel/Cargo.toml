@@ -15,6 +15,8 @@ fjell-audit-format = { path = "../formats/fjell-audit-format" }
 fjell-abi = { path = "../fjell-abi" }
 fjell-cap = { path = "../fjell-cap" }
 fjell-fdt-header = { path = "../fjell-fdt-header" }
+# RFC-0.40-003: the frame allocator, address types and MmError (E-100).
+fjell-frame-alloc = { path = "../fjell-frame-alloc" }
 fjell-ipc = { path = "../fjell-ipc" }
 # RFC-0.38-001 R2: SHA-256 and the image-set digest. `fjell-canon` (no dependencies,
 # forbid(unsafe_code)) comes with it.

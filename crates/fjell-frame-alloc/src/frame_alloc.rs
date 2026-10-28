@@ -210,6 +210,7 @@ impl<'a> FrameAllocator<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{boxed::Box, vec, vec::Vec};
 
     fn make_allocator(frames: u64) -> (Vec<u64>, FrameAllocator<'static>) {
         // This leaks memory but is fine for unit tests.
@@ -305,5 +306,157 @@ mod tests {
         // The first allocation should skip past the reserved frames.
         let f = fa.alloc_frame(FrameOwner::KernelData).unwrap();
         assert!(f.pfn >= 4);
+    }
+
+    // ── RFC-0.40-003 R5: the tests E-097 would have failed ────────────────────
+    //
+    // E-097 was a reservation defect: a 4 MiB kernel stack of which the allocator
+    // reserved only the first half, so the second half was free, was handed to
+    // tasks, and the kernel stack overwrote them. The six tests above did not
+    // speak to it. These assert the property the boot invariant
+    // (`first_free_in(RAM_BASE, __stack_top)` is `None`) enforces, on the layout
+    // that failed, in miniature: frames are numbered, image = 0..8, stack = 8..40,
+    // and the boot window the kernel reserved was 16 frames starting at the
+    // stack's bottom.
+
+    const PAGE: usize = 0x1000;
+    fn pa(frame: usize) -> usize {
+        frame * PAGE
+    }
+    fn ram(frames: u64) -> FrameAllocator<'static> {
+        let words = ((frames + 63) / 64) as usize;
+        let bitmap: &'static mut [u64] = Box::leak(vec![0u64; words].into_boxed_slice());
+        FrameAllocator::new(0, frames, bitmap, None)
+    }
+
+    #[test]
+    fn e097_a_stack_reserved_by_the_coincidence_of_a_window_leaves_frames_free() {
+        // THE DEFECT, built deliberately: image reserved, then a "boot window" of
+        // 16 frames that begins where the stack begins -- so the stack's first 16
+        // frames look reserved and its last 16 do not.
+        let mut fa = ram(128);
+        fa.reserve_range(pa(0), pa(8), FrameOwner::KernelText)
+            .unwrap();
+        fa.reserve_range(pa(8), pa(24), FrameOwner::ReservedBoot)
+            .unwrap();
+        // This is what the boot invariant looks for, and what it finds: the first
+        // free frame under the stack top is the stack's own 17th frame. If this
+        // returned `None` the test would not be demonstrating the failure.
+        assert_eq!(fa.first_free_in(pa(0), pa(40)), Some(pa(24)));
+        // ...and the allocator would hand it out, which is the damage.
+        let mut given = std::vec::Vec::new();
+        while let Ok(f) = fa.alloc_frame(FrameOwner::Free) {
+            given.push(f.pa());
+            if given.len() > 100 {
+                break;
+            }
+        }
+        assert!(
+            given.contains(&pa(24)) && given.contains(&pa(39)),
+            "frames inside the stack range are allocatable"
+        );
+    }
+
+    #[test]
+    fn e097_the_whole_stack_reserved_leaves_nothing_free_inside_it() {
+        let mut fa = ram(128);
+        fa.reserve_range(pa(0), pa(8), FrameOwner::KernelText)
+            .unwrap();
+        fa.reserve_range(pa(8), pa(40), FrameOwner::KernelStack)
+            .unwrap();
+        fa.reserve_range(pa(40), pa(56), FrameOwner::ReservedBoot)
+            .unwrap();
+        assert_eq!(fa.first_free_in(pa(0), pa(40)), None);
+        // And nothing in that range is ever allocated.
+        while let Ok(f) = fa.alloc_frame(FrameOwner::Free) {
+            assert!(
+                f.pa() >= pa(56),
+                "allocated {:#x} inside a reserved range",
+                f.pa()
+            );
+        }
+    }
+
+    #[test]
+    fn a_range_reserved_across_two_calls_leaves_nothing_free_inside_it() {
+        // Adjacent halves, in either order: the union is reserved.
+        for (first, second) in [((8, 24), (24, 40)), ((24, 40), (8, 24))] {
+            let mut fa = ram(128);
+            fa.reserve_range(pa(first.0), pa(first.1), FrameOwner::KernelStack)
+                .unwrap();
+            fa.reserve_range(pa(second.0), pa(second.1), FrameOwner::KernelStack)
+                .unwrap();
+            assert_eq!(
+                fa.first_free_in(pa(8), pa(40)),
+                None,
+                "order {first:?} then {second:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_range_reserved_after_allocation_has_begun_leaves_nothing_free_inside_it() {
+        let mut fa = ram(128);
+        // Allocation starts first (next-fit from frame 0), then a range above it
+        // is reserved: the next-fit hint must not matter.
+        let early: std::vec::Vec<usize> = (0..5)
+            .map(|_| fa.alloc_frame(FrameOwner::KernelData).unwrap().pa())
+            .collect();
+        assert_eq!(early, [pa(0), pa(1), pa(2), pa(3), pa(4)]);
+        fa.reserve_range(pa(8), pa(40), FrameOwner::KernelStack)
+            .unwrap();
+        assert_eq!(fa.first_free_in(pa(8), pa(40)), None);
+        // Later allocations fill the gap below the range and then skip over it.
+        while let Ok(f) = fa.alloc_frame(FrameOwner::Free) {
+            assert!(
+                f.pa() < pa(8) || f.pa() >= pa(40),
+                "allocated {:#x} inside a range reserved after allocation began",
+                f.pa()
+            );
+        }
+    }
+
+    #[test]
+    fn first_free_in_agrees_with_what_alloc_frame_can_return() {
+        // The invariant is only worth anything if it speaks about the same frames
+        // the allocator hands out: every frame `alloc_frame` yields lies where
+        // `first_free_in` said something was free, and nowhere else.
+        let mut fa = ram(64);
+        fa.reserve_range(pa(0), pa(10), FrameOwner::KernelText)
+            .unwrap();
+        fa.reserve_range(pa(20), pa(30), FrameOwner::KernelStack)
+            .unwrap();
+        let mut seen = std::vec::Vec::new();
+        while let Ok(f) = fa.alloc_frame(FrameOwner::Free) {
+            seen.push(f.pa());
+        }
+        seen.sort_unstable();
+        let want: std::vec::Vec<usize> = (10..20).chain(30..64).map(pa).collect();
+        assert_eq!(seen, want);
+        assert_eq!(
+            fa.first_free_in(pa(0), pa(64)),
+            None,
+            "everything is now taken"
+        );
+    }
+
+    // ── What these tests FOUND (RFC-0.40-003: file and escalate, do not fix) ───
+    //
+    // `reserve_range` stops at the first frame that is already in use and returns
+    // `AlreadyReserved`, but the frames it had NOT reached yet stay free, so an
+    // overlapping reservation silently leaves the tail of its range unreserved --
+    // the E-097 shape, one level down. Its doc comment also says it "does not fail
+    // if a frame is already reserved with the same owner"; the code fails on any
+    // used frame. No caller in the kernel overlaps today (checked), so nothing is
+    // wrong yet. The property below is the one the boot invariant relies on; it is
+    // `#[ignore]`d, not deleted and not passing, until the architect rules.
+    #[test]
+    #[ignore = "FINDING (RFC-0.40-003): reserve_range leaves the unreached tail of an overlapping range free; awaiting the architect's ruling"]
+    fn an_overlapping_reservation_does_not_leave_the_rest_of_its_range_free() {
+        let mut fa = ram(64);
+        fa.reserve_range(pa(0), pa(4), FrameOwner::KernelText)
+            .unwrap();
+        let _ = fa.reserve_range(pa(2), pa(6), FrameOwner::KernelStack);
+        assert_eq!(fa.first_free_in(pa(0), pa(6)), None);
     }
 }

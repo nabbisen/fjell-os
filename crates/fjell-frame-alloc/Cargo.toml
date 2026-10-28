@@ -1,0 +1,16 @@
+[package]
+name = "fjell-frame-alloc"
+description = "The kernel's physical-frame bitmap allocator, its address types and its error type, in a crate the host can build and test (RFC-0.40-003, E-100)."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+# Internal: kernel plumbing, never published.
+publish = false
+
+[lib]
+name = "fjell_frame_alloc"
+path = "src/lib.rs"
+
+[dependencies]
+fjell-abi = { path = "../fjell-abi" }
