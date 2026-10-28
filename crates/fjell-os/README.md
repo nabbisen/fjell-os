@@ -60,7 +60,7 @@ test suite, and
 every divergence between what a document claims and what shipped is recorded in
 the errata register rather than fixed silently.
 
-That register currently carries **13 accepted limitations and 0 open** — including
+That register currently carries **14 accepted limitations and 0 open** — including
 several found by auditing the verification tooling itself, which turned out to
 have instruments that reported success without checking. See
 [`docs/src/assurance/instrument-audit-closeout.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/src/assurance/instrument-audit-closeout.md).
