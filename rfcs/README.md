@@ -500,7 +500,7 @@ Four lines, all drafted for this milestone and all shipped in it.
 
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — 4 RFCs
 
 Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
 fresh clone.
@@ -510,6 +510,7 @@ fresh clone.
 | 0.39-001 | [The chain records who actually said it](./accepted/RFC-0.39-001-the-chain-records-who-actually-said-it.md) — closes **E-096**; the measurement chain's `source` is decoded from the caller's own word while the kernel-attested sender is discarded, and three events per boot declare a service that had no part in them | 0.39.0 |
 | 0.39-002 | [The head is readable, and says how much of it is real](./accepted/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md) — installs `DIAGNOSTICSD` slot 4 so the chain head can be read, and makes the bundle state how much of the chain carries a digest something computed, so `measurement_head_available: 1` cannot be read as "fully measured". Depends on 0.39-001 | 0.39.0 |
 | 0.39-003 | [Find out why a live page reads as zeros](./accepted/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md) — tracks **E-097**, an intermittent failure in which a live service's text page reads back as 46 NUL bytes, and **E-098**, the `revoke_by_pa` workaround that is its strongest lead and a set of verified defects besides. An investigation: it is **explicitly allowed to end with E-097 still OPEN**, provided the reproducer is measured, E-098's defects are fixed and what was ruled out is recorded | 0.39.0 |
+| 0.39-004 | [A revoked frame stops being reachable](./accepted/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md) — closes **E-099**; a revoked DMA frame returns to the general pool while the caller keeps a live mapping to it, so the unmap is performed and **verified against the frame the region entry records** — correct whether the v0.8.x corruption that caused it to be skipped was E-097 or a wrong VA. 0.39's last line | 0.39.0 |
 
 ---
 
