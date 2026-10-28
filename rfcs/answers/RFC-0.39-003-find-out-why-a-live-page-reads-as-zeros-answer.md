@@ -1,6 +1,6 @@
 # RFC-0.39-003 R1–R7: find out why a live page reads as zeros
 
-**Governing RFC:** [../accepted/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md](../accepted/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md)
+**Governing RFC:** [../done/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md](../done/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md)
 **Handoff:** [../handoffs/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros/implementation-handoff.md](../handoffs/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros/implementation-handoff.md)
 
 Written against base `f2e9f06`. The line **found the cause** (R5 ending, not R6): **E-097 is

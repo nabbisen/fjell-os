@@ -1,6 +1,6 @@
 # RFC-0.39-004: A revoked frame stops being reachable
 
-**Status:** Accepted (0.39) — accepted 2026-10-28
+**Status:** Implemented (0.39.0) — accepted 2026-10-28
 **Milestone:** 0.39
 **Tracks.** **E-099** — `sys_dma_alloc` maps a DMA frame into the caller `R|W|U`;
 `sys_dma_revoke` zeroes it and returns it to the general pool while deliberately skipping

@@ -1,6 +1,6 @@
 # RFC-0.39-002 R1–R7: the head is readable, and says how much of it is real
 
-**Governing RFC:** [../accepted/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md](../accepted/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md)
+**Governing RFC:** [../done/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md](../done/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md)
 **Handoff:** [../handoffs/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real/implementation-handoff.md](../handoffs/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real/implementation-handoff.md)
 
 Written against base `7de0fcd` (RFC-0.39-003's tip). Order followed: R1, the tier red (R5), R3, R2, R4,

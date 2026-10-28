@@ -1,6 +1,6 @@
 # RFC-0.39-003: Find out why a live page reads as zeros
 
-**Status:** Accepted (0.39) — accepted 2026-10-27
+**Status:** Implemented (0.39.0) — accepted 2026-10-27
 **Milestone:** 0.39
 **Tracks.** **E-097** — the `semantic` tier fails intermittently because a live service's
 text page reads back as 46 NUL bytes, cause unknown — and **E-098**, the `revoke_by_pa`

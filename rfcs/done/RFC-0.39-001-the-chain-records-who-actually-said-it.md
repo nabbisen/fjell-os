@@ -1,6 +1,6 @@
 # RFC-0.39-001: The chain records who actually said it
 
-**Status:** Accepted (0.39) — accepted 2026-10-24
+**Status:** Implemented (0.39.0) — accepted 2026-10-24
 **Milestone:** 0.39
 **Tracks.** **E-096** — the measurement chain's `source` is decoded from the caller's own
 word while the kernel-attested sender is received and discarded, and three events per boot

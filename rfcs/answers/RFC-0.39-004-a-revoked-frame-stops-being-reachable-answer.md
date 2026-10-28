@@ -1,6 +1,6 @@
 # RFC-0.39-004 R1–R8: a revoked frame stops being reachable
 
-**Governing RFC:** [../accepted/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md](../accepted/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md)
+**Governing RFC:** [../done/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md](../done/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md)
 **Handoff:** [../handoffs/RFC-0.39-004-a-revoked-frame-stops-being-reachable/implementation-handoff.md](../handoffs/RFC-0.39-004-a-revoked-frame-stops-being-reachable/implementation-handoff.md)
 
 Written against base `d2f29ec`. Order followed: R1, the tier red (R4/R5), R2, R3, the tier green, R6, R7,

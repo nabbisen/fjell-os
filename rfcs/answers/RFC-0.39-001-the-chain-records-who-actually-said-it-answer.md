@@ -1,6 +1,6 @@
 # RFC-0.39-001 R1–R8: the chain records who actually said it
 
-**Governing RFC:** [../accepted/RFC-0.39-001-the-chain-records-who-actually-said-it.md](../accepted/RFC-0.39-001-the-chain-records-who-actually-said-it.md)
+**Governing RFC:** [../done/RFC-0.39-001-the-chain-records-who-actually-said-it.md](../done/RFC-0.39-001-the-chain-records-who-actually-said-it.md)
 **Handoff:** [../handoffs/RFC-0.39-001-the-chain-records-who-actually-said-it/implementation-handoff.md](../handoffs/RFC-0.39-001-the-chain-records-who-actually-said-it/implementation-handoff.md)
 **Rulings followed:** the RFC's "Design ruling (R1 escalation), 2026-10-27"
 (`.git-exclude/reviewed/review-record-rfc-0.39-001-r1-escalation.md`).

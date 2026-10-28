@@ -1,6 +1,6 @@
 # RFC-0.39-002: The head is readable, and says how much of it is real
 
-**Status:** Accepted (0.39) — accepted 2026-10-24
+**Status:** Implemented (0.39.0) — accepted 2026-10-24
 **Milestone:** 0.39
 **Tracks.** Nothing in the register. This is the work RFC-0.38-001 deliberately deferred
 at the owner's scoping — installing `DIAGNOSTICSD` slot 4 and letting

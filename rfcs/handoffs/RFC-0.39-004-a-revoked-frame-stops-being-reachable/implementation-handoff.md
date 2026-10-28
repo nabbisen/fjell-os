@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.39-004
 
-**Governing RFC:** [RFC-0.39-004](../../accepted/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md)
+**Governing RFC:** [RFC-0.39-004](../../done/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md)
 **Milestone:** 0.39 — **the last line of it**
-**Status:** inherited from the governing RFC (Accepted, 0.39)
+**Status:** inherited from the governing RFC (Implemented, 0.39.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

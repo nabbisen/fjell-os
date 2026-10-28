@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.39-002
 
-**Governing RFC:** [RFC-0.39-002](../../accepted/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md)
+**Governing RFC:** [RFC-0.39-002](../../done/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md)
 **Milestone:** 0.39
-**Status:** inherited from the governing RFC (Accepted, 0.39)
+**Status:** inherited from the governing RFC (Implemented, 0.39.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 209 files
+## Implemented (done/) — 213 files
 
-208 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+212 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -498,19 +498,23 @@ Four lines, all drafted for this milestone and all shipped in it.
 | 0.38-003 | [A non-blocking receive must not strand its sender](./done/RFC-0.38-003-a-non-blocking-receive-must-not-strand-its-sender.md) — closed **E-089**; `try_recv` woke no sender and installed no reply edge, so the UART driver blocked in its send, never acknowledged the interrupt, and the console delivered one byte per boot — behind nine profiles that each inject a single character | 0.38.0 |
 | 0.38-004 | [A lease binding is set once](./done/RFC-0.38-004-a-lease-binding-is-set-once.md) — closed **E-090**; a `LeaseAdmin` holder could move a capability off the lease governing it, so the cascading revocation `ADR-v0.7.4-003` promised when it dropped parent links had an opt-out available to the party being revoked. A binding is now set once — a no-op for every current caller | 0.38.0 |
 
+### 0.39 — the chain says who, the head can be read, and two memory defects close
+
+Four lines, all drafted for this milestone and all shipped in it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.39-001 | [The chain records who actually said it](./done/RFC-0.39-001-the-chain-records-who-actually-said-it.md) — closed **E-096**; the measurement chain's `source` was decoded from the caller's own word while the kernel-attested sender was discarded, and three events per boot declared a service that had no part in them. `measuredd` now derives it from the attested sender and refuses a declared one | 0.39.0 |
+| 0.39-002 | [The head is readable, and says how much of it is real](./done/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md) — installed `DIAGNOSTICSD` slot 4 as a `CALL` capability so the chain head can be read, and the bundle (`DIAG_BUNDLE_VERSION` 4) states how much of the chain carries a digest the kernel produced (4 events, 1 kernel-digested), so `measurement_head_available: 1` cannot be read as "fully measured". Depended on 0.39-001 | 0.39.0 |
+| 0.39-003 | [Find out why a live page reads as zeros](./done/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md) — closed **E-097**, an intermittent failure in which a live service's text page read back as 46 NUL bytes: the kernel's 4 MiB stack was only half reserved in the frame allocator, so tasks were handed frames the kernel stack then overwrote. Fixed, with a boot invariant that refuses to boot if it recurs; the DMA release paths it touched are **E-098**'s | 0.39.0 |
+| 0.39-004 | [A revoked frame stops being reachable](./done/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md) — closed **E-099**; a revoked DMA frame returned to the general pool while the caller kept a live mapping to it. The unmap is now performed and **verified against the frame the region entry records** — correct whether the v0.8.x corruption that caused it to be skipped was E-097 or a wrong VA. 0.39's last line | 0.39.0 |
+
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — none
 
-Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
-fresh clone.
-
-| RFC | Title | Target |
-|-----|-------|--------|
-| 0.39-001 | [The chain records who actually said it](./accepted/RFC-0.39-001-the-chain-records-who-actually-said-it.md) — closes **E-096**; the measurement chain's `source` is decoded from the caller's own word while the kernel-attested sender is discarded, and three events per boot declare a service that had no part in them | 0.39.0 |
-| 0.39-002 | [The head is readable, and says how much of it is real](./accepted/RFC-0.39-002-the-head-is-readable-and-says-how-much-of-it-is-real.md) — installs `DIAGNOSTICSD` slot 4 so the chain head can be read, and makes the bundle state how much of the chain carries a digest something computed, so `measurement_head_available: 1` cannot be read as "fully measured". Depends on 0.39-001 | 0.39.0 |
-| 0.39-003 | [Find out why a live page reads as zeros](./accepted/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md) — tracks **E-097**, an intermittent failure in which a live service's text page reads back as 46 NUL bytes, and **E-098**, the `revoke_by_pa` workaround that is its strongest lead and a set of verified defects besides. An investigation: it is **explicitly allowed to end with E-097 still OPEN**, provided the reproducer is measured, E-098's defects are fixed and what was ruled out is recorded | 0.39.0 |
-| 0.39-004 | [A revoked frame stops being reachable](./accepted/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md) — closes **E-099**; a revoked DMA frame returns to the general pool while the caller keeps a live mapping to it, so the unmap is performed and **verified against the frame the region entry records** — correct whether the v0.8.x corruption that caused it to be skipped was E-097 or a wrong VA. 0.39's last line | 0.39.0 |
+Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
+folder in a fresh clone.
 
 ---
 

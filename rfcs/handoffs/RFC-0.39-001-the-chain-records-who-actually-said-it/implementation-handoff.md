@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.39-001
 
-**Governing RFC:** [RFC-0.39-001](../../accepted/RFC-0.39-001-the-chain-records-who-actually-said-it.md)
+**Governing RFC:** [RFC-0.39-001](../../done/RFC-0.39-001-the-chain-records-who-actually-said-it.md)
 **Milestone:** 0.39
-**Status:** inherited from the governing RFC (Accepted, 0.39)
+**Status:** inherited from the governing RFC (Implemented, 0.39.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design
