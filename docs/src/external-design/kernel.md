@@ -131,5 +131,5 @@ that the resource exists (NFR-SEC-001).
 | Gap | Impact | Follow-up |
 |---|---|---|
 | Power-state coupled scheduling (FR-KRN-006) is telemetry-only | No active suspend/resume scheduling | post-v1.0 |
-| DMA user-VA unmap bypassed in `revoke_by_pa` | Stale PTE, mitigated by zeroize-before-reuse | post-v1.0 |
+| ~~DMA user-VA unmap bypassed in `revoke_by_pa`~~ **closed 2026-10-28 (RFC-0.39-004, E-099)**: the unmap is performed and verified before the frame is zeroed or freed. *This row said "Stale PTE, mitigated by zeroize-before-reuse" — zeroing did not mitigate it: a task kept `R\|W\|U` access to a frame the allocator then gave to another task, from v0.8.x through 0.38.0.* | none — see `docs/src/internals/memory-model.md` MM-PHY-008 | — |
 | Multi-hart | No SMP | post-v1.0 milestone |

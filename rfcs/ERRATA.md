@@ -7025,6 +7025,48 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   from the revoking task — `NEG_TEST` already holds the capability to prove it. Filing an
   ACCEPTED limitation instead would be recording that one service may read another's memory,
   which this project's own standard does not permit.
+- **Resolution:** ~~**OPEN**~~ → **CLOSED** by **RFC-0.39-004**.
+
+  > **Closed by RFC-0.39-004, 2026-10-28.** After `sys_dma_revoke` returns `Ok` the revoking
+  > task **has no mapping of the frame**. `revoke_by_pa` (and `revoke_by_id`, unused, and
+  > `sys_dma_alloc`'s table-full rollback) now run one sequence: **read** the owner's PTE and
+  > require it to be the frame the region records; **unmap** and require the frame removed to
+  > equal it again; flush the TLB; **only then** zero the frame and read it back as zero; **only
+  > then** free it. The PTE is read *before* it is cleared because `unmap_page` clears it before it
+  > returns the frame: checking only its result would already have clobbered a wrong PTE, which
+  > is the failure v0.8.x blamed the unmap for. If the unmap cannot be verified, **nothing is
+  > zeroed or freed**, the region stays Active, the task keeps what is its own, and the syscall
+  > returns `InternalError`. A region of other than one page is refused (the entry records only
+  > the first frame, so the rest could not be verified; `DMA-003` allows one page).
+  > `sys_dma_alloc` now checks `map_page`'s result (the E-014 family, in the same function): a
+  > failed map refuses the allocation instead of reporting success with no mapping.
+  >
+  > **Evidence.** `dma.toml`'s new scenario revokes a region and reads through the revoked
+  > address; the assertion is the kernel's `LoadPageFault` line, **not** the data, because the
+  > revoke zeroes the frame and a surviving mapping would return innocent-looking zeros. Against
+  > the unfixed kernel the read **succeeded** (`NEG:HARNESS:UNEXPECTED_OK`, no fault line); against
+  > the fixed one it faults with `stval` equal to the address `neg-test` printed beforehand.
+  > `semantic` was run 10 times under the fsync storm that reproduced E-097 and 10 times plain, and
+  > `dma` 10 times: **30 of 30 pass, no NUL byte, no kernel refusal line.**
+  >
+  > **The v0.8.x question, as far as this sample answers it.** The frame-identity check **never
+  > fired** — in those 30 runs or in `test-all`. That is what the explanation "the corruption was
+  > E-097 and the unmap was innocent" predicts; the other explanation ("it was called with a wrong
+  > VA") predicts at least one firing. It supports the first, it does not prove it, and the check
+  > stays because it is correct under both.
+  >
+  > **A consequence the RFC did not name.** `dma_zeroize` read the frame back through the revoked
+  > address and expected zeros — it depended on the hole. It cannot any longer, so the zeroing is now
+  > verified where it can be observed: `free_dma_frame` reads the frame back after zeroing, and
+  > `NEG:DMA:ZEROIZE_ON_EXIT` is emitted when `sys_dma_revoke` returns `Ok`, which now means all of
+  > the above. The kernel's refusal lines are named in the harness's forbidden set, so one appearing
+  > fails any tier.
+  >
+  > **Not done, and why.** `release_task` still does not unmap — an exiting task is never scheduled
+  > again — and that argument was re-checked: `free_dma_frame` is the only caller of `free_frame`, so no
+  > other path frees a frame at all. Intermediate page-table pages are not freed by `unmap_page` (unchanged;
+  > E-093's territory). Reclaiming task memory in general is E-093. The hazard was live from v0.8.x
+  > through 0.38.0.
 
 ## E-100 — the frame allocator's unit tests exist and **no gate runs them**
 
@@ -7151,7 +7193,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | RFC-0.39-001 | CLOSED |
 | E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | CLOSED |
 | E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped. **All three fixed by RFC-0.39-003**; the stale `R/W/U` mapping that survived is split to **E-099**, by the E-090/E-091 test | RFC-0.39-003 | CLOSED |
-| E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | OPEN |
+| E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | CLOSED |
 | E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
