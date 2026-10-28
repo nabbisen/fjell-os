@@ -5,6 +5,103 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.39.0] — 2026-10-28 — The chain says who, the head can be read, and two memory defects close
+
+Four RFCs, **four errata closed** (**E-096**, **E-097**, **E-098**, **E-099**).
+The measurement chain's `source` is now derived from the kernel-attested sender
+instead of the caller's word, so three events per boot stopped claiming a service
+that had no part in them. The chain head is readable by `diagnosticsd` and
+published in the signed bundle beside two counts that say how much of the chain
+the kernel actually digested — one of four — so making it readable does not let
+a mostly-placeholder chain read as measured. And two memory defects close.
+
+**0.39.0 closed a cross-task memory hole that was live from v0.8.x through 0.38.0**
+(**E-099**): a revoked DMA frame returned to the general pool with the revoking
+task's `R`/`W`/`U` mapping intact, so a DMA-capable service (`STORAGED`,
+`DRIVER_VIRTIO_BLK`, `NEG_TEST`) could read and write another task's memory. It is
+stated here because someone deciding whether to try 0.38.0 or earlier should meet
+it without going to the register. There is no security advisory: the kernel has
+never been distributed as a runnable artefact and the product has not been placed
+on the market, so there is no one to notify; that ruling changes if anyone ever
+deploys 0.38.0 or earlier. **The same applies to E-097**, over the same window: the
+kernel's 4 MiB stack was only half reserved in the frame allocator, so the allocator
+handed tasks frames the kernel stack then overwrote on every trap. It showed as a
+live service's text page reading back as zeros. Whether a task's own stack page could
+also have read kernel stack residue was **not demonstrated**.
+
+### Fixed — `source` was the caller's word, and three events per boot claimed a service that had no part in them (RFC-0.39-001, closes E-096)
+
+`measuredd`'s `APPEND_EVENT` decoded `source` from the request and recorded it,
+while the kernel-attested sender it had received went unused. `init` appended its
+three placeholder events declaring `Verifyd`. Now:
+
+- **`source` is `measuredd`'s decision.** It comes from the operation plus the
+  attested sender: `init` records as the new `Init`, eleven services record
+  themselves, every other appender is refused (`PermissionDenied`), and there is no
+  default arm. The old source byte is reserved and a non-zero value is refused
+  (`InvalidSource`), not ignored. `MeasurementSource` now means *who produced the
+  measured fact*, which is why the boot image-set event stays `Kernel`.
+- **`APPEND_IMAGE_SET` is `init`-only**, so `source: Kernel` cannot be obtained by
+  holding the capability. An unknown kind or subject byte is refused instead of
+  being recorded as `BootEvidenceImported` / `BootEvidence`.
+- Chains recorded before this release asserted `Verifyd` for those three events;
+  that was never attested, it was what `init` put in the request.
+
+### Changed — the chain head is readable, and the bundle says how much of it is not computed by the kernel (RFC-0.39-002)
+
+`DIAGNOSTICSD` slot 4 is installed as a `CALL`-only capability to `measuredd`, and
+`measurement_head_available` reads `true` when `measuredd` answers. The signed
+diagnostic bundle (`DIAG_BUNDLE_VERSION` 3 → 4) carries, beside the head,
+`measurement_event_count` and `measurement_events_kernel_digested` (4 and 1 on a
+normal boot), zeroed by the encoder while the head is unavailable. The second is a
+**structural** count — events whose digest arrived by the path where the kernel
+produced it — not a count of "real" measurements, which `measuredd` cannot know.
+`diagnosticsd` reads the counts before and after the head and reports the section
+unavailable if they changed. `remote-diag` asserts the head against an independent
+host derivation, not merely that it is present. The measurement section of
+`BundleBuilder::new` is now one `Option<MeasurementReport>`.
+
+### Fixed — a live service's text page read back as zeros (RFC-0.39-003, closes E-097 and E-098)
+
+`link.ld` places a 4 MiB kernel stack in BSS. The frame allocator reserved only its
+first 2 MiB, by the coincidence that an unused boot-allocator window began where the
+stack does; the upper 2 MiB was free and was handed to tasks. Trap entry resets `sp`
+to the top of the stack on every trap, so the kernel wrote its stack through whichever
+task's text, stack or page-table frame sat under it. Which task depended on allocation
+order, which depended on host disk timing — hence the failure on btrfs and not on
+tmpfs. The whole stack is now reserved, and **`kmain` refuses to boot** if any frame
+under `__stack_top` is free. The allocator now has a real owner map (`owner_of` always
+answered `None`). The four DMA release sites share one helper that checks the allocator
+records the frame as a DMA frame held by the releasing task **before** zeroing it, reads
+the zeroing back, and reports a refused free instead of discarding it (E-098).
+
+### Fixed — a revoked DMA frame stayed reachable (RFC-0.39-004, closes E-099)
+
+`sys_dma_revoke` now unmaps before it frees, in this order: read the owner's page-table
+entry and require it to be the frame the region records; unmap it; require the frame
+removed to match; flush the TLB; zero the frame and read it back; free it. If the unmap
+cannot be verified nothing is zeroed or freed. (`unmap_page` clears the entry before it
+returns the frame, so checking only its result would have cleared a wrong entry — the
+failure the unmap had been blamed for since v0.8.x.) `sys_dma_alloc` checks `map_page`'s
+result. The new `dma` scenario asserts that a read through the revoked address *faults*,
+not that it returns zeros. The old zeroize scenario read the frame back through the
+surviving mapping, so it had depended on the hole.
+
+### Known, disclosed, not fixed here
+
+**The signed attestation record is still independent constants and does not capture the
+chain (E-094); `last_attestation_available` stays `false`. Three of the chain's four
+events are still placeholders (E-095).** Publishing the head does not make attestation
+real and does not make the chain fully measured; the bundle's counts say so by number.
+**The frame allocator's own unit tests are run by no gate (E-100)** — they live in a
+`no_std` binary that cannot be host-built. Also unscheduled: which lease a bind may target
+(E-091), lease revocation audited under a code nothing decodes (E-092), cascading
+revocation covering only bound capabilities (E-093), and `measuredd`'s `EXPORT_LOG`
+(E-087). No published crate (`fjell-abi`, `fjell-os`) changed in this release beyond its
+version.
+
+---
+
 ## [0.38.0] — 2026-10-24 — The measurement chain measures something, and three authority gaps close
 
 Four RFCs, **five errata closed** (**E-085**, **E-086**, **E-088**, **E-089**,
