@@ -7091,6 +7091,39 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Status:** **ACCEPTED**, `unscheduled`. What closing it needs: a host-buildable crate the
   allocator's logic can live in or be exercised from, and a gate that runs it. Recorded in
   `docs/src/releasing/v1-limitations.md` row 16.
+- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-0.40-003**.
+
+  > **Closed by RFC-0.40-003, 2026-10-29.** `mm/frame_alloc.rs`, `mm/address.rs` and
+  > `mm/error.rs` (415 lines, **zero** `crate::` references — checked by command, not taken from
+  > the RFC) moved to a new `no_std` crate, `fjell-frame-alloc`, with `forbid(unsafe_code)`
+  > (the three files contain none, so the unsafe audit's figure did not move: 284). The kernel
+  > re-exports them as `mm::{address, error, frame_alloc}`, so every other kernel file is
+  > unchanged. **No gate needed wiring:** `cargo test --workspace --lib` — the host-lib tier —
+  > picked the crate up as a workspace member. That tier's count went from **742 passed across 54
+  > lib test binaries to 753 across 55** (+11: the six existing tests, which had only ever been
+  > run in a scratch harness, plus five new) with 1 `#[ignore]`d. All 33 prebuilts are
+  > byte-identical, as a pure re-home must leave them.
+  >
+  > **The deliverable was not "the tests now run" but "would they have caught E-097".** Five
+  > tests assert the property RFC-0.39-003's boot invariant enforces — a reserved range contains
+  > no free frame — on E-097's own layout in miniature (image, a 32-frame stack, and a
+  > 16-frame "boot window" that begins where the stack does). One *builds the defect* and
+  > asserts the invariant sees it (`first_free_in` finds the stack's 17th frame, which
+  > `alloc_frame` then hands out); one asserts the fixed layout leaves nothing free; ranges
+  > reserved across two calls in either order; a range reserved after allocation began. Run
+  > against a deliberately half-reserved stack, the whole-stack test **fails** (`Some(0x18000)`
+  > against `None`); the scratch edit was reverted and the revert proved.
+  >
+  > **What the new tests found — filed here as a finding, not fixed, as the RFC directs.**
+  > `FrameAllocator::reserve_range` stops at the first frame already in use and returns
+  > `AlreadyReserved`, but frames it had not reached **stay free**: reserving `[2,6)` after
+  > `[0,4)` returns `Err` and leaves frames 4–5 allocatable. That is E-097's shape one level
+  > down. Its doc comment also says it "does not fail if a frame is already reserved with the
+  > same owner"; the code fails on any used frame and the allocator may not even carry an
+  > owner map. **No kernel caller overlaps today** (every reservation in `kmain` was read), so
+  > nothing is wrong yet. The property is written as an `#[ignore]`d test that fails when run
+  > on purpose, so it exists and is not passing; whether to fix the allocator (reserve atomically
+  > or not at all) or its comment is the architect's ruling.
 
 ## Summary
 
@@ -7194,7 +7227,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | CLOSED |
 | E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped. **All three fixed by RFC-0.39-003**; the stale `R/W/U` mapping that survived is split to **E-099**, by the E-090/E-091 test | RFC-0.39-003 | CLOSED |
 | E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | CLOSED |
-| E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | RFC-0.40-003 | ACCEPTED |
+| E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | RFC-0.40-003 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
