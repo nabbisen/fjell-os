@@ -511,10 +511,16 @@ Four lines, all drafted for this milestone and all shipped in it.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 3 RFCs
 
-Nothing is signed off and not yet shipped. `accepted/README.md` keeps the
-folder in a fresh clone.
+Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
+fresh clone.
+
+| RFC | Title | Target |
+|-----|-------|--------|
+| 0.40-001 | [The attestation record stops asserting what never happened](./accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md) — closes **E-094**; a signed record asserts three verifications that never ran, over five literal digests, with a measurement section of `head_seq: 1` and a constant chain digest. The flags assert `false`, the digests nothing computes are zeroed behind availability flags, the chain head becomes real — and `ATTESTD` comes out of the append mapping, so the new capability grants the read and refuses the append | 0.40.0 |
+| 0.40-002 | [A revocation is audited under a code the decoder knows](./accepted/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md) — closes **E-092**; the kernel emits `LeaseRevoked = 40` and the published decoder knows 16, so every revocation reads as `Internal` and the ABI's own variant is unreachable. One mismatched value and one dead variant, measured wholesale | 0.40.0 |
+| 0.40-003 | [The allocator's tests get a home a gate can run](./accepted/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md) — closes **E-100**; the frame allocator's tests are `std`-flavoured inside a `no_std` binary, so no target builds them. The code with the weakest coverage in the tree held **E-097** for thirty-five milestones, and the line's deliverable is the test that defect would have failed | 0.40.0 |
 
 ---
 
