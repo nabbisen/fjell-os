@@ -27,9 +27,23 @@ pub enum FrameOwner {
     KernelMeta,
     Dtb,
     Mmio,
-    UserText { task: TaskId },
-    UserData { task: TaskId },
-    UserStack { task: TaskId },
+    UserText {
+        task: TaskId,
+    },
+    UserData {
+        task: TaskId,
+    },
+    UserStack {
+        task: TaskId,
+    },
+    /// A page `sys_dma_alloc` gave `task` for device I/O (RFC-0.39-003 follow-up).
+    /// It used to be recorded as `UserStack`, the same label a task's *actual
+    /// stack* frame carries, so an ownership check could not tell the two apart
+    /// and the owner map -- added to make this defect class diagnosable --
+    /// would have told the next investigation that DMA frames were stacks.
+    Dma {
+        task: TaskId,
+    },
 }
 
 /// Bitmap frame allocator.
@@ -261,6 +275,23 @@ mod tests {
         assert_eq!(fa.owner_of(f), Some(FrameOwner::UserStack { task }));
         fa.free_frame(f).unwrap();
         assert_eq!(fa.owner_of(f), Some(FrameOwner::Free));
+    }
+
+    #[test]
+    fn a_dma_frame_is_not_labelled_a_stack() {
+        // The owner map exists to say who holds a frame. A DMA page and a task's
+        // own stack page for the same task must be different answers, or a check
+        // that "this frame is the task's DMA frame" confirms nothing.
+        let bitmap: &'static mut [u64] = Box::leak(vec![0u64; 1].into_boxed_slice());
+        let owners: &'static mut [FrameOwner] =
+            Box::leak(vec![FrameOwner::Free; 64].into_boxed_slice());
+        let mut fa = FrameAllocator::new(0, 64, bitmap, Some(owners));
+        let task = TaskId::new(7, 0);
+        let dma = fa.alloc_frame(FrameOwner::Dma { task }).unwrap();
+        let stack = fa.alloc_frame(FrameOwner::UserStack { task }).unwrap();
+        assert_eq!(fa.owner_of(dma), Some(FrameOwner::Dma { task }));
+        assert_eq!(fa.owner_of(stack), Some(FrameOwner::UserStack { task }));
+        assert_ne!(fa.owner_of(dma), fa.owner_of(stack));
     }
 
     #[test]

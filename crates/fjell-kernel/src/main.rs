@@ -90,7 +90,7 @@ fn kernel_stack_pa() -> (usize, usize) {
 ///
 /// Now, in order: the frame must be a real frame the allocator manages; the
 /// allocator must record it as held by `owner` (a DMA frame is allocated as
-/// `FrameOwner::UserStack { task: owner }`); only then is it zeroed and freed, and
+/// `FrameOwner::Dma { task: owner }`); only then is it zeroed and freed, and
 /// a refused free is reported. **On any failure the frame is neither zeroed nor
 /// freed** -- it stays allocated, which leaks one 4 KiB frame and says so on the
 /// console, rather than risk zeroing or double-freeing memory that is someone
@@ -111,7 +111,7 @@ pub(crate) fn free_dma_frame(frame_pa: usize, owner: crate::task::TaskId) -> boo
         }
     };
     match fa.owner_of(frame) {
-        Some(FrameOwner::UserStack { task }) if task.index == owner.index => {}
+        Some(FrameOwner::Dma { task }) if task.index == owner.index => {}
         other => {
             kprintln!(
                 "kernel: DMA frame {:#x} released by task {} is recorded as {:?}; not zeroing or freeing it",

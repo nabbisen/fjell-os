@@ -1405,7 +1405,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     let user_va_start =
         crate::DMA_VA_NEXT.fetch_add(pages * 4096, core::sync::atomic::Ordering::Relaxed);
 
-    let frame = match fa.alloc_frame(FrameOwner::UserStack { task: task_id }) {
+    let frame = match fa.alloc_frame(FrameOwner::Dma { task: task_id }) {
         Ok(f) => f,
         Err(_) => {
             tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;

@@ -41,7 +41,7 @@ with no benefit.
 | MM-PHY-004 | MMIO frames are never returned by `alloc_frame`. |
 | MM-PHY-005 | `free_frame` succeeds only for currently-allocated frames. |
 | MM-PHY-006 | **No frame from `RAM_BASE` to the top of the kernel stack (`__stack_top`) is ever free.** The 4 MiB kernel stack is BSS, and trap entry resets `sp` to its top; a free frame there is handed to a task and the kernel stack then overwrites it. This was false until RFC-0.39-003 (only the first 2 MiB of the stack was reserved, by the coincidence that the unused boot-allocator window began where the stack does — E-097). `kmain` now reserves the stack as `KernelStack`, starts the boot window after it, and **stops the boot** with the offending frame if the invariant does not hold. |
-| MM-PHY-007 | A DMA frame is zeroed and freed only if the allocator records it as held by the releasing task; otherwise it is left allocated and the console says so (RFC-0.39-003, E-098). |
+| MM-PHY-007 | A DMA frame is zeroed and freed only if the allocator records it as a **DMA** frame (`FrameOwner::Dma`) held by the releasing task — a task's own stack frame carries a different label and cannot be released this way; otherwise it is left allocated and the console says so (RFC-0.39-003, E-098). |
 
 ## Virtual memory — Sv39
 
