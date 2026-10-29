@@ -1,9 +1,17 @@
 # RFC 041 (v0.2): audit evidence gap detection.
 # NEG_TEST overflows the 256-entry audit ring then checks the dropped count.
+#
+# RFC-0.40-002 (closes E-092): a lease revocation must read as a revocation. The
+# kernel recorded it under kind 40 while the published decoder knew 16 and mapped
+# everything else to `internal`, so every revocation decoded as `internal`.
+# `neg-test` revokes a lease, drains the ring and runs the record through the
+# decoder `auditd` uses; the assertion is the DECODED NAME (`lease.revoked`), not
+# the raw kind word, which is what a fix changes and tells a consumer nothing.
 
 name             = "audit"
 timeout_secs     = 90
 expected_markers = [
   "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS",
+  "NEG:AUDIT:LEASE_REVOCATION_DECODES_AS_REVOKED:PASS",
 ]
 extra_args       = []

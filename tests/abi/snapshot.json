@@ -1,5 +1,5 @@
 [
-  {"count":495},
+  {"count":496},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"enum","name":"BootInfoError","sig":"4828e713cf352839"},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"c09a16a24cc0fd6e"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"ABSENT","sig":"92f7c9a87f60ee14"},
@@ -295,6 +295,7 @@
   {"crate":"fjell-service-api","module":"neg_test","impl_type":"","kind":"const","name":"RUN_DMA_REVOKED_READ","sig":"5d48012e229a9d0d"},
   {"crate":"fjell-service-api","module":"neg_test","impl_type":"","kind":"const","name":"RUN_REBOOT","sig":"466a73ccc9d3c851"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"AUDIT_EVIDENCE_GAP","sig":"cb6a9cb72491ed45"},
+  {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"AUDIT_LEASE_REVOCATION_DECODES","sig":"2366d1fae8565bee"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"CAP_BIND_LEASE_WITHOUT_AUTHORITY","sig":"082fc3794e7ff8ff"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"CAP_BIND_LEASE_WITHOUT_RIGHT","sig":"3d3fb88105b51c9d"},
   {"crate":"fjell-service-api","module":"negative_markers","impl_type":"","kind":"const","name":"CAP_BIND_TO_REVOKED_LEASE_REFUSED","sig":"d0a2f00354c6b016"},

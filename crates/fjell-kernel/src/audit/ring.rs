@@ -42,8 +42,16 @@ pub enum AuditKindInternal {
     /// RFC 037 (v0.2.0): task consumed its quantum without voluntary yield.
     TaskQuantumExceeded = 30,
     // Lease events (RFC-v0.7.4-003 / W-H-02)
-    LeaseRevoked = 40,
-    CapDenied = 41,
+    /// RFC-0.40-002 (closes E-092): **16**, the value the published
+    /// `fjell_audit_format::AuditKind::LeaseRevoked` has. It was 40, a number the
+    /// published decoder did not know, so every lease revocation decoded as
+    /// `Internal` and the published variant was never emitted by anything. The
+    /// published enum is the ABI and this is the implementation, so this moved.
+    LeaseRevoked = 16,
+    // `CapDenied = 41` was here until RFC-0.40-002: emitted by nothing and absent
+    // from the published decoder, so a kind nothing emits and nothing decodes. It
+    // is gone rather than left to suggest that capability denials are audited
+    // (they are not). Auditing them would be new behaviour and its own decision.
 }
 
 /// A single audit record stored in the ring.

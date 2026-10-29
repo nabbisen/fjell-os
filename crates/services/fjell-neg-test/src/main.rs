@@ -1051,6 +1051,85 @@ fn test_audit_evidence_gap() {
     }
 }
 
+/// Drain the kernel audit ring until it is empty (bounded), handing each record
+/// to `f`. Returns whether it stopped because the ring was empty.
+fn drain_audit_all(mut f: impl FnMut(&fjell_audit_format::AuditRecordBin)) -> bool {
+    use fjell_audit_format::{AUDIT_RECORD_BIN_SIZE, AuditRecordBin};
+    let mut buf = [0u8; 32 * AUDIT_RECORD_BIN_SIZE];
+    for _ in 0..64 {
+        match sys_audit_drain(SLOT_AUDIT, &mut buf) {
+            Ok((0, _)) => return true,
+            Ok((n, _)) => {
+                for i in 0..n {
+                    if let Some(rec) = AuditRecordBin::from_bytes(&buf[i * AUDIT_RECORD_BIN_SIZE..])
+                    {
+                        f(&rec);
+                    }
+                }
+            }
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
+/// AUDIT (RFC-0.40-002, E-092): a lease revocation must read as a revocation.
+///
+/// The kernel appended `AuditKindInternal::LeaseRevoked = 40` on every revocation
+/// while the published decoder knew `LeaseRevoked = 16` and mapped everything else
+/// to `Internal`, so every revocation decoded as `internal`.
+///
+/// **What this asserts is the decoded name**, not the raw kind word: the raw value
+/// is what a fix changes; the name is what a consumer reads. It runs the record the
+/// kernel really emitted through the same decode `auditd` does on each record --
+/// `AuditRecordBin::from_bytes`, `AuditKind::from_u16`, `label()` -- rather than
+/// through `auditd`'s process, because `auditd` drains the ring once at start-up
+/// and then only when something wakes it, and nothing does: a revocation that
+/// happens afterwards never reaches its output. (Reported in the review request.)
+fn test_audit_lease_revocation_decodes() {
+    use fjell_audit_format::AuditKind;
+    // Start from an empty ring, so the only revocation record is ours.
+    if !drain_audit_all(|_| {}) {
+        setup_failed("audit_lease_revocation: flush");
+        return;
+    }
+    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(id) => id,
+        Err(_) => {
+            setup_failed("audit_lease_revocation: lease_create");
+            return;
+        }
+    };
+    if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() {
+        setup_failed("audit_lease_revocation: revoke");
+        return;
+    }
+    // Find the record this revocation produced: its arg0 is the lease id. The
+    // raw kind words 16 (the published value) and 40 (what the kernel used to emit)
+    // are used ONLY to pick the record out of the ring -- so the same scenario
+    // finds it before and after the fix -- and the assertion below is on how the
+    // published decoder names it.
+    let mut found: Option<&'static str> = None;
+    let drained = drain_audit_all(|rec| {
+        if rec.arg0 as u64 == lease_id.0 as u64 && (rec.kind == 16 || rec.kind == 40) {
+            found = Some(AuditKind::from_u16(rec.kind).label());
+        }
+    });
+    if !drained {
+        setup_failed("audit_lease_revocation: drain");
+        return;
+    }
+    match found {
+        Some(label) => {
+            sys_debug_write("neg-test: audit: the record for the revoked lease decodes as '");
+            sys_debug_write(label);
+            sys_debug_writeln("'");
+            check(label == "lease.revoked", M::AUDIT_LEASE_REVOCATION_DECODES);
+        }
+        None => sys_debug_writeln("neg-test: audit: no record for the revoked lease was drained"),
+    }
+}
+
 /// SVC: spawn svc-timeout; yield N times; it never sent READY → timeout detected.
 ///
 /// The "timeout" is cooperative: after READY_WAIT_YIELDS yields without the
@@ -1373,6 +1452,7 @@ pub extern "C" fn service_main() -> ! {
     test_policy_identity_spoofing();
 
     // ── Audit evidence gap (RFC 041) ─────────────────────────────────────────
+    test_audit_lease_revocation_decodes();
     test_audit_evidence_gap();
 
     // ── Service lifecycle (RFC 038) ───────────────────────────────────────────

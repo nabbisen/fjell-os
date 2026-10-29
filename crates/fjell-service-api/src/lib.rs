@@ -561,6 +561,12 @@ pub mod negative_markers {
     // ── audit evidence (RFC 041) ──────────────────────────────────────────────
     /// Snapshot continuity check reports dropped records correctly.
     pub const AUDIT_EVIDENCE_GAP: &str = "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS";
+    /// A lease revocation the kernel recorded decodes, through the published
+    /// `AuditKind` decoder, as `lease.revoked` -- not as `internal`
+    /// (RFC-0.40-002, closes E-092). The assertion is the decoded name, not the
+    /// raw kind word.
+    pub const AUDIT_LEASE_REVOCATION_DECODES: &str =
+        "NEG:AUDIT:LEASE_REVOCATION_DECODES_AS_REVOKED:PASS";
 
     // ── external interrupt plane (RFC-0.25-001) ───────────────────────────────
     /// `sys_irq_bind` rejects an `Interrupt` capability without `IRQ_BIND`
