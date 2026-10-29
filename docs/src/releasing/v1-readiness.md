@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.39.0
+## Summary at 0.40.0
 
 | Status | Count |
 |--------|-------|
@@ -199,6 +199,15 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > readable and says how much of it is real, a live page that read as zeros,
 > a revoked frame that stays reachable) touch no cell of this matrix — so
 > only the heading and this clause moved.
+
+> **Re-taken 2026-10-29, at the 0.40.0 cut.** `readiness-summary` fired
+> immediately on the version bump, as designed: the heading still said
+> `0.39.0` against a `0.40.0` workspace. `readiness-check` still counts
+> **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0** — unchanged by 0.40.0,
+> whose three RFCs (the attestation record stops asserting what never
+> happened, a revocation is audited under a code the decoder knows, the
+> allocator's tests get a home a gate can run) touch no cell of this matrix
+> — so only the heading and this clause moved.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
