@@ -151,34 +151,15 @@ fn recv_msg(ep: CapHandle) -> Result<(usize, usize, usize), ()> {
 /// chain moved while it was being read and the query tries again, a few times,
 /// then reports `None` rather than a snapshot that never existed.
 fn query_measurement() -> Option<MeasurementReport> {
-    fn stats() -> Option<(u64, u64)> {
-        let (label, w) =
-            fjell_syscall::sys_ipc_call4(CAP_MEASUREDD_EP.0, measuredd::GET_HEAD_STATS, [0; 4])
-                .ok()?;
-        // w[0] = latest_seq (events appended), w[3] = events kernel-digested.
-        (label == measuredd::HEAD_STATS_REPLY).then_some((w[0] as u64, w[3] as u64))
-    }
-    for _attempt in 0..4 {
-        let before = stats()?;
-        let (label, words) =
-            fjell_syscall::sys_ipc_call4(CAP_MEASUREDD_EP.0, measuredd::GET_HEAD, [0; 4]).ok()?;
-        if label != measuredd::HEAD_REPLY {
-            return None;
-        }
-        if stats()? != before {
-            continue; // the chain moved under us; read it again
-        }
-        let (events, kernel_digested) = before;
-        let events = u32::try_from(events).ok()?;
-        let kernel_digested = u32::try_from(kernel_digested).ok()?;
-        return MeasurementReport::new(
-            Digest32(measuredd::words_to_digest(words)),
-            events,
-            kernel_digested,
-        )
-        .ok();
-    }
-    None
+    // RFC-0.40-001: the consistent head-plus-counts read moved to
+    // `fjell_service_api::measuredd::read_chain`, shared with `attestd`.
+    let r = measuredd::read_chain(CAP_MEASUREDD_EP.0)?;
+    MeasurementReport::new(
+        Digest32(r.head),
+        u32::try_from(r.events).ok()?,
+        u32::try_from(r.kernel_digested).ok()?,
+    )
+    .ok()
 }
 
 // ── Bundle assembly ───────────────────────────────────────────────────────────

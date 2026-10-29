@@ -6,7 +6,8 @@
 //! learn a layout, and the golden tests pin the bytes each encoder produces.
 
 use fjell_attestation_format::AttestationRecordId;
-use fjell_attestation_format::v2::AttestationRecordV2;
+use fjell_attestation_format::MeasurementClaims;
+use fjell_attestation_format::v2::{AttestationRecordV2, ClaimAvailability};
 use fjell_keyring::{
     AuthorityClass, KeyEpoch, Keyring, KeyringSnapshot, SignatureAlgorithm, TrustAnchor,
 };
@@ -51,7 +52,10 @@ pub fn release_metadata() -> ReleaseMetadata {
 }
 
 pub fn attestation_v2() -> AttestationRecordV2 {
-    let mut r = AttestationRecordV2::dev(
+    // RFC-0.40-001: the factory produces a record that claims nothing it cannot
+    // back (`local`); the sample sets EVERY claim available and distinct, below, so
+    // that the golden and the frozen schema cover each field.
+    let mut r = AttestationRecordV2::local(
         AttestationRecordId(*b"AT7654 1"),
         TrustProviderId::new(0x0A0B_0C0D),
         *b"chan-x\0\0",
@@ -61,7 +65,21 @@ pub fn attestation_v2() -> AttestationRecordV2 {
         ],
         0x7071_7273_7475_7677,
         0x0E0F_1011,
+        Some(MeasurementClaims {
+            head_seq: 0,
+            chain_digest: Digest32([0u8; 32]),
+            included_from_seq: 0,
+            included_to_seq: 0,
+        }),
     );
+    r.availability = ClaimAvailability {
+        kernel_digest: true,
+        release_digest: true,
+        rootfs_digest: true,
+        policy_digest: true,
+        snapshot_digest: true,
+        measurement: true,
+    };
     r.created_tick = 0x8081_8283_8485_8687;
     r.provider.provider_generation = 0x9091;
     r.keyring.active_epoch_attestation = 0xA1A2_A3A4;

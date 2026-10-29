@@ -28,6 +28,15 @@ use fjell_abi::service::ImageId;
 /// exists to remove, one level up. [`MeasurementSource::Kernel`] has no image:
 /// it is reached only through `APPEND_IMAGE_SET`, whose classification
 /// `measuredd` fixes (and whose sender is gated by [`require_init`]).
+///
+/// **`ATTESTD` is deliberately not mapped** (RFC-0.40-001 R5). It was, to
+/// `MeasurementSource::Attestd`, and nothing ever appended as it. `attestd` now holds
+/// a `CALL` capability to `measuredd` so it can READ the chain head for the record it
+/// signs; the endpoint cannot tell a read from an append, so the only thing keeping
+/// `attestd` from writing the chain is that an append from it is `PermissionDenied`.
+/// Grant the read, refuse the append. (`MeasurementSource::Attestd` stays in the
+/// published enum; it is simply not a source any service may currently be recorded
+/// as.) A service that wants to be a recorded source must be named here, on purpose.
 pub fn source_for_sender(image_id: u16) -> Result<MeasurementSource, MeasurementError> {
     Ok(match ImageId(image_id) {
         ImageId::INIT => MeasurementSource::Init,
@@ -41,7 +50,6 @@ pub fn source_for_sender(image_id: u16) -> Result<MeasurementSource, Measurement
         ImageId::BOOTCTL => MeasurementSource::Bootctl,
         ImageId::UPGRADED => MeasurementSource::Upgraded,
         ImageId::RECOVERYD => MeasurementSource::Recoveryd,
-        ImageId::ATTESTD => MeasurementSource::Attestd,
         _ => return Err(MeasurementError::PermissionDenied),
     })
 }

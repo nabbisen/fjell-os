@@ -251,12 +251,66 @@ pub mod measuredd {
         }
         d
     }
+
+    /// One consistent reading of `measuredd`'s chain (RFC-0.40-001 R4).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct ChainReading {
+        /// The chain head, whole.
+        pub head: [u8; 32],
+        /// Events the chain had appended (`HEAD_STATS_REPLY` word 0).
+        pub events: u64,
+        /// Of those, how many arrived by `APPEND_IMAGE_SET` -- the path where the
+        /// kernel produced the digest (word 3). A structural count; see
+        /// `HEAD_STATS_REPLY`.
+        pub kernel_digested: u64,
+    }
+
+    /// Read the chain's head and its composition **as one moment**, through a
+    /// `CALL` capability to `measuredd` at `ep`, or `None` if it cannot be read.
+    ///
+    /// The head and the counts are separate calls, and an append between them would
+    /// pair a head with another moment's counts. So the statistics are read before
+    /// and after the head and must be identical; if the chain moved, the reading
+    /// is retried a few times and then **abandoned**. `None` -- never a stale
+    /// head, never a zero one -- is what a caller must turn into "unavailable".
+    ///
+    /// Shared by `diagnosticsd` (the bundle) and `attestd` (the signed record) so
+    /// the two cannot come to read the chain differently.
+    pub fn read_chain(ep: u32) -> Option<ChainReading> {
+        fn stats(ep: u32) -> Option<(u64, u64)> {
+            let (label, w) = fjell_syscall::sys_ipc_call4(ep, GET_HEAD_STATS, [0; 4]).ok()?;
+            (label == HEAD_STATS_REPLY).then_some((w[0] as u64, w[3] as u64))
+        }
+        for _attempt in 0..4 {
+            let before = stats(ep)?;
+            let (label, words) = fjell_syscall::sys_ipc_call4(ep, GET_HEAD, [0; 4]).ok()?;
+            if label != HEAD_REPLY {
+                return None;
+            }
+            if stats(ep)? != before {
+                continue; // the chain moved under us; read it again
+            }
+            let (events, kernel_digested) = before;
+            // A chain cannot have kernel-digested more events than it holds.
+            if kernel_digested > events {
+                return None;
+            }
+            return Some(ChainReading {
+                head: words_to_digest(words),
+                events,
+                kernel_digested,
+            });
+        }
+        None
+    }
 }
 
 // ── M8: attestd IPC protocol ──────────────────────────────────────────────────
 pub mod attestd {
     pub const READY: usize = 0x310;
-    /// Generate a local attestation record.
+    /// Generate a local attestation record. **Takes no words** (RFC-0.40-001): the
+    /// record's measurement section is read from `measuredd` by `attestd` itself,
+    /// and a non-zero word is refused with `ERR` rather than ignored.
     pub const GENERATE: usize = 0x311;
     pub const GENERATED: usize = 0x312;
     /// Verify the latest record.

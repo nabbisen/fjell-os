@@ -37,6 +37,9 @@ expected_markers = [
   "measuredd: event seq=2 kind=2 source=13 subject=2",
   "measuredd: event seq=3 kind=3 source=13 subject=3",
   "measuredd: event seq=4 kind=4 source=13 subject=4",
+  "attestd: record verified_flags=0",
+  "attestd: record availability kernel_digest=0 release_digest=0 rootfs_digest=0 policy_digest=0 snapshot_digest=0 measurement=1",
+  "attestd: record measurement head_seq=4 included=1..4",
 ]
 # RFC-0.39-001 R5: what the chain RECORDED for each event, read back out of the
 # stored event (`measuredd: event seq=N kind=K source=S subject=J`, wire values).
@@ -54,5 +57,21 @@ once_markers = [
 expect_image_set_digest = [
   "images, digest sha256:",
   "measuredd: image-set digest ",
+]
+# RFC-0.40-001 R6 (closes E-094): what the signed attestation record CLAIMS, read
+# out of the record `attestd` is signing (nothing outside the service could read it
+# before). The record used to assert that a release, a rootfs and a policy bundle
+# had each been verified (nothing verifies any of them), over five literal digests,
+# with a measurement section of `head_seq: 1` and chain digest `0x55..`. Now:
+#   * `verified_flags=0`  -- none of the three verifications happened;
+#   * every digest nothing computes is `=0` (unavailable), zero beside its flag;
+#   * the measurement section is the REAL chain: `head_seq=4 included=1..4` and a
+#     chain digest EQUAL to the head the host derives independently
+#     (`expect_chain_head`; not merely non-zero).
+# Still true and still NOT claimed: the kernel's own image is unmeasured and
+# release/rootfs/policy verification does not exist (E-095); this makes the
+# record truthful, not complete.
+expect_chain_head = [
+  "attestd: record measurement chain_digest sha256:",
 ]
 extra_args              = []

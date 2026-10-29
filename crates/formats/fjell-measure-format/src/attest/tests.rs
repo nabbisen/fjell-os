@@ -15,7 +15,6 @@ const MAPPED: &[(ImageId, MeasurementSource)] = &[
     (ImageId::BOOTCTL, MeasurementSource::Bootctl),
     (ImageId::UPGRADED, MeasurementSource::Upgraded),
     (ImageId::RECOVERYD, MeasurementSource::Recoveryd),
-    (ImageId::ATTESTD, MeasurementSource::Attestd),
 ];
 
 fn expected(id: u16) -> Option<MeasurementSource> {
@@ -63,6 +62,9 @@ fn the_services_that_must_be_refused_are() {
         ImageId::DEVMGR,
         ImageId::SVC_PRESENTATION_LIAR,
         ImageId::DIAGNOSTICSD,
+        // RFC-0.40-001 R5: attestd holds a CALL capability to measuredd to READ the
+        // head. It must not be able to append through it.
+        ImageId::ATTESTD,
     ] {
         assert_eq!(
             source_for_sender(id.0),

@@ -1031,6 +1031,38 @@ pub fn spawn(
         }
     }
 
+    // RFC-0.40-001 R4: `attestd` reads the measurement chain, to put the real head
+    // in the record it signs, through a `CALL`-only capability to `measuredd`'s
+    // endpoint (slot 4, its `CAP_MEASUREDD_EP`). `CALL` and nothing else.
+    //
+    // **This capability cannot tell a read from an append** -- it is a right to send
+    // a request to the endpoint, not to one operation. What keeps `attestd` from
+    // writing the chain is `measuredd`'s refusal of senders it has no source for
+    // (RFC-0.39-001), and `ATTESTD` was one it mapped to `Attestd`. R5 of this line
+    // removes that mapping in the same change as this install: grant the read,
+    // refuse the append.
+    if image_id == fjell_abi::service::ImageId::ATTESTD {
+        use fjell_cap::slot::Capability;
+        use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
+        // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+        let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+        if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+            let _ = cs.install_raw(
+                4,
+                Capability {
+                    kind: CapKind::Endpoint,
+                    object_id: MEASUREDD_EP_OBJECT,
+                    rights: CapRights::CALL,
+                    badge: 0,
+                    scope: ObjectScope::Any,
+                    state: CapState::Active,
+                    parent: None,
+                    lease: None,
+                },
+            );
+        }
+    }
+
     // RFC-0.35-001 R5 (closes E-072, E-070): the update path's metadata
     // channel. `secure-transportd` (slot 2, its own declared name for this
     // peer) and `upgraded` (slot 6) each get a SEND|RECV capability to the

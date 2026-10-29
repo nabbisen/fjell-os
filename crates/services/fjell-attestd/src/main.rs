@@ -22,6 +22,7 @@ use fjell_attestation_format::{
     AttestationProfile, AttestationRecord, AttestationRecordId, BootClaims, FreshnessClaims,
     HealthClaims, MeasurementClaims, SignedAttestationRecord, SnapshotClaims, VerificationClaims,
 };
+use fjell_cap::CapHandle;
 use fjell_measure_format::Digest32;
 use fjell_service_api::attestd as proto;
 use fjell_syscall::{sys_debug_writeln, sys_exit};
@@ -56,6 +57,14 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // ── IPC helpers ─────────────────────────────────────────────────────────────
 
 const EP_SLOT: u32 = 0;
+
+/// RFC-0.40-001 R4: a `CALL` capability to `measuredd`'s endpoint, so the record's
+/// measurement section can be the chain's real head. `CALL` and nothing else.
+/// Reading the head needs only the endpoint, but this service must not be able to
+/// WRITE the chain: that is refused by `measuredd` (`ATTESTD` is not a source it
+/// maps, RFC-0.40-001 R5), not by this capability, which cannot tell a read from
+/// an append -- so the two changes land together.
+const CAP_MEASUREDD_EP: CapHandle = CapHandle(4);
 
 fn send_ready() {
     // RFC-0.28-001: previously sent `proto::READY` to this service's own
@@ -138,24 +147,99 @@ fn make_record_id(seq: u32) -> AttestationRecordId {
     AttestationRecordId(id)
 }
 
+/// Print `n` in decimal (no allocation).
+fn print_dec(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+        if n == 0 {
+            break;
+        }
+    }
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        fjell_syscall::sys_debug_write(s);
+    }
+}
+
+/// RFC-0.40-001 R6: say what the record being signed CLAIMS, read out of the record
+/// itself with the same accessors the encoder uses, so a tier can compare it with
+/// what is true. (Nothing outside this service could read the record before:
+/// `GENERATE` returns only a digest and `EXPORT` is a stub.)
+fn print_record_summary(record: &AttestationRecordV2) {
+    let a = &record.availability;
+    fjell_syscall::sys_debug_write("attestd: record verified_flags=");
+    print_dec(record.verified_flags() as u64);
+    sys_debug_writeln("");
+    fjell_syscall::sys_debug_write("attestd: record availability kernel_digest=");
+    print_dec(a.kernel_digest as u64);
+    fjell_syscall::sys_debug_write(" release_digest=");
+    print_dec(a.release_digest as u64);
+    fjell_syscall::sys_debug_write(" rootfs_digest=");
+    print_dec(a.rootfs_digest as u64);
+    fjell_syscall::sys_debug_write(" policy_digest=");
+    print_dec(a.policy_digest as u64);
+    fjell_syscall::sys_debug_write(" snapshot_digest=");
+    print_dec(a.snapshot_digest as u64);
+    fjell_syscall::sys_debug_write(" measurement=");
+    print_dec(a.measurement as u64);
+    sys_debug_writeln("");
+    let m = record.measurement_written();
+    fjell_syscall::sys_debug_write("attestd: record measurement head_seq=");
+    print_dec(m.head_seq);
+    fjell_syscall::sys_debug_write(" included=");
+    print_dec(m.included_from_seq);
+    fjell_syscall::sys_debug_write("..");
+    print_dec(m.included_to_seq);
+    sys_debug_writeln("");
+    let mut hex = [0u8; 64];
+    fjell_syscall::sys_debug_write("attestd: record measurement chain_digest sha256:");
+    sys_debug_writeln(m.chain_digest.to_hex(&mut hex));
+}
+
+/// The chain as `measuredd` reports it, as the record's measurement section --
+/// or `None` if it cannot be read. **`None` makes the section unavailable**; there
+/// is no fallback to a stale or literal head (that would be E-094 with extra steps).
+fn read_measurement() -> Option<MeasurementClaims> {
+    let r = fjell_service_api::measuredd::read_chain(CAP_MEASUREDD_EP.0)?;
+    // An empty chain has no head to attest, and `1..0` is not a range.
+    if r.events == 0 {
+        return None;
+    }
+    Some(MeasurementClaims {
+        head_seq: r.events,
+        chain_digest: Digest32(r.head),
+        included_from_seq: 1,
+        included_to_seq: r.events,
+    })
+}
+
 /// Sign a v2 record when the registry is in Enforcing phase.
+///
+/// RFC-0.40-001: this used to take `_meas_seq: u64`, commented "forwarded to
+/// measurement chain header" and never read. It takes the chain reading instead --
+/// the real head, or `None` for "could not be read" -- because a sequence number a
+/// caller passes in is a claim, and this service now reads the chain itself.
 fn sign_v2(
     provider: &DevelopmentTrustProvider,
     keyring: &Keyring,
     rollback: &RollbackRecord,
     seq: u32,
-    #[allow(dead_code)] // v0.7: forwarded to measurement chain header
-    _meas_seq: u64,
     generation: u32,
+    measurement: Option<MeasurementClaims>,
 ) -> (Digest32, bool) {
-    let record = AttestationRecordV2::dev(
+    let record = AttestationRecordV2::local(
         make_record_id(seq),
         ATTESTD_PROVIDER_ID,
         DEV_CHANNEL,
         [0u8; 16], // dev nonce
         rollback.min_counter,
         generation,
+        measurement,
     );
+    print_record_summary(&record);
 
     // Build signed_by from the keyring.
     let epoch = keyring
@@ -194,9 +278,13 @@ fn sign_v1(seq: u32, meas_seq: u64) -> (Digest32, bool) {
             release_digest: Digest32([0x22; 32]),
             rootfs_digest: Digest32([0x33; 32]),
             policy_digest: Digest32([0x44; 32]),
-            release_verified: true,
-            rootfs_verified: true,
-            policy_verified: true,
+            // RFC-0.40-001: nothing verifies a release, a rootfs or a policy bundle,
+            // so no path of this service signs that one was. (The rest of this v1
+            // record is untouched and unreachable: `enter_enforcing()` is
+            // unconditional, so only `sign_v2` runs.)
+            release_verified: false,
+            rootfs_verified: false,
+            policy_verified: false,
         },
         measurement: MeasurementClaims {
             head_seq: meas_seq,
@@ -251,17 +339,29 @@ pub extern "C" fn service_main() -> ! {
         let tag = tag_packed & 0xFFFF;
         match tag {
             proto::GENERATE => {
+                // RFC-0.40-001: GENERATE takes no words. It used to take the
+                // measurement sequence from `init`, which `sign_v2` never read; this
+                // service now reads the chain itself, so a word here would be one the
+                // caller believes it set and nothing uses. Refused, not ignored.
+                if w0 != 0 {
+                    reply(proto::ERR);
+                    continue;
+                }
                 record_seq = record_seq.wrapping_add(1);
                 generation = generation.wrapping_add(1);
-                let meas_seq = w0 as u64;
 
                 // v0.3.0: produce v2 when Enforcing, v1 otherwise.
                 let (digest, ok) = if registry.phase() == RegistryPhase::Enforcing {
                     sign_v2(
-                        &provider, &keyring, &rollback, record_seq, meas_seq, generation,
+                        &provider,
+                        &keyring,
+                        &rollback,
+                        record_seq,
+                        generation,
+                        read_measurement(),
                     )
                 } else {
-                    sign_v1(record_seq, meas_seq)
+                    sign_v1(record_seq, 0)
                 };
                 last_digest = digest;
                 last_ok = ok;

@@ -91,6 +91,43 @@ pub struct FreshnessClaimsV2 {
     pub nonce_bytes: [u8; 16],
 }
 
+/// Which claims in a record are **real values** rather than "nothing computed this"
+/// (RFC-0.40-001 R3, closes E-094).
+///
+/// The record used to carry a literal in each of these places (`0x11`, `0x22`,
+/// `0x33`, `0x44`, `0x55`, `0x66`) and, beside three of them, `verified: true`.
+/// A consumer who checks the signature gets `VERIFY_OK` over assertions with nothing
+/// behind them, which is the strongest available form of permitting the
+/// misunderstanding. The honest value for a claim nothing computes is **zero with
+/// an availability flag beside it**: the pattern `fjell-diag-format` implements and
+/// `bundle-v1.frozen` states -- *a field that may be unavailable carries its own
+/// flag, adjacent to it, zeroed by the encoder.* This is that pattern, not a second
+/// one. A zero digest beside `available = 0` cannot be read as a measurement; `0x22`
+/// beside `verified = true` could.
+///
+/// **Zeroed by the encoder, not trusted from the caller:** `write_canonical` writes
+/// the digest as zero whenever its flag is `false`, whatever the field holds, so a
+/// caller cannot put a value there and have it count. And a `*_verified` bit is only
+/// ever written when its digest is available too -- a verification of nothing is not
+/// a verification.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct ClaimAvailability {
+    /// `boot.kernel_digest` is a measurement of the kernel that booted. Nothing
+    /// computes one (0.39 measures the *service* images, which is not this).
+    pub kernel_digest: bool,
+    /// `verification.release_digest` is the release manifest that was verified.
+    pub release_digest: bool,
+    /// `verification.rootfs_digest` is the rootfs that was verified.
+    pub rootfs_digest: bool,
+    /// `verification.policy_digest` is the policy bundle that was verified.
+    pub policy_digest: bool,
+    /// `snapshot.snapshot_digest` is the snapshot attested.
+    pub snapshot_digest: bool,
+    /// The whole `measurement` section is a real reading of the chain
+    /// (`head_seq`, `chain_digest` and the included range).
+    pub measurement: bool,
+}
+
 // ── AttestationRecordV2 ──────────────────────────────────────────────────────
 
 /// v2 attestation record — binds provider, keyring, rollback, measurement,
@@ -111,10 +148,49 @@ pub struct AttestationRecordV2 {
     pub rollback: RollbackClaims,
     pub freshness: FreshnessClaimsV2,
     pub provenance: Option<ProvenanceClaims>,
+    /// Which of the claims above are real (RFC-0.40-001 R3). Written into the
+    /// canonical stream beside the claims it qualifies.
+    pub availability: ClaimAvailability,
 }
 
 impl AttestationRecordV2 {
-    pub const SCHEMA_VERSION: u16 = 2;
+    /// RFC-0.40-001 (closes E-094): bumped 2 -> 3. Six availability bytes are
+    /// written beside the claims they qualify, and a claim whose flag is `false`
+    /// is written as zero -- so every digest and signature over a version-2 record
+    /// stops verifying against a version-3 one, by design (the stream already
+    /// carries `schema_version`, which is what a reader checks; no new domain
+    /// separator, as for `fjell-diag-format`'s bundle). The attestation format is
+    /// not in the ABI snapshot, so what notices a bump is `tests/golden.rs` (whose
+    /// stored digest may only change with a version bump and a note), the frozen
+    /// schema `v2.frozen` (regenerated from the encoder) and this crate's own tests.
+    pub const SCHEMA_VERSION: u16 = 3;
+
+    /// The measurement section as it is **written**: the real reading when
+    /// `availability.measurement`, otherwise all zero. The encoder and any reader
+    /// of the record call this one function, so what is printed is what is signed.
+    pub fn measurement_written(&self) -> MeasurementClaims {
+        if self.availability.measurement {
+            self.measurement
+        } else {
+            MeasurementClaims {
+                head_seq: 0,
+                chain_digest: Digest32([0u8; 32]),
+                included_from_seq: 0,
+                included_to_seq: 0,
+            }
+        }
+    }
+
+    /// The `verified_flags` byte as it is **written**: a bit is set only when the
+    /// verification is claimed *and* the digest it concerns is available. The
+    /// encoder and any reader of the record call this one function.
+    pub fn verified_flags(&self) -> u8 {
+        let a = &self.availability;
+        let v = &self.verification;
+        ((v.release_verified && a.release_digest) as u8)
+            | (((v.rootfs_verified && a.rootfs_digest) as u8) << 1)
+            | (((v.policy_verified && a.policy_digest) as u8) << 2)
+    }
 
     /// The canonical v2 byte stream (RFC v0.3-004 §6.3) — **the function the
     /// digest is computed from and the frozen schema is generated from**.
@@ -152,39 +228,75 @@ impl AttestationRecordV2 {
         // boot
         c.u8("boot.selected_slot", self.boot.selected_slot);
         c.u64("boot.boot_id", self.boot.boot_id);
-        c.bytes("boot.kernel_digest", &self.boot.kernel_digest.0);
+        let a = &self.availability;
+        // Each digest below is written as 32 bytes WHETHER OR NOT it is available, and
+        // as zero when it is not -- not omitted, and not the caller's raw value.
+        let zeroed = |avail: bool, d: &Digest32| if avail { d.0 } else { [0u8; 32] };
+        c.u8("boot.kernel_digest_available", a.kernel_digest as u8);
+        c.note(
+            "digest_zeroed_when_unavailable",
+            "every *_digest below is fixed width: 32 bytes written whether or not its \
+             availability flag is 1; zero when it is not, not omitted and not the caller's \
+             raw value",
+        );
+        c.bytes(
+            "boot.kernel_digest",
+            &zeroed(a.kernel_digest, &self.boot.kernel_digest),
+        );
         // verification
+        c.u8(
+            "verification.release_digest_available",
+            a.release_digest as u8,
+        );
         c.bytes(
             "verification.release_digest",
-            &self.verification.release_digest.0,
+            &zeroed(a.release_digest, &self.verification.release_digest),
+        );
+        c.u8(
+            "verification.rootfs_digest_available",
+            a.rootfs_digest as u8,
         );
         c.bytes(
             "verification.rootfs_digest",
-            &self.verification.rootfs_digest.0,
+            &zeroed(a.rootfs_digest, &self.verification.rootfs_digest),
+        );
+        c.u8(
+            "verification.policy_digest_available",
+            a.policy_digest as u8,
         );
         c.bytes(
             "verification.policy_digest",
-            &self.verification.policy_digest.0,
+            &zeroed(a.policy_digest, &self.verification.policy_digest),
         );
-        // bit 0 release_verified, bit 1 rootfs_verified, bit 2 policy_verified
-        let vflags: u8 = (self.verification.release_verified as u8)
-            | ((self.verification.rootfs_verified as u8) << 1)
-            | ((self.verification.policy_verified as u8) << 2);
-        c.u8("verification.verified_flags", vflags);
-        // measurement
-        c.u64("measurement.head_seq", self.measurement.head_seq);
-        c.bytes("measurement.chain_digest", &self.measurement.chain_digest.0);
-        c.u64(
-            "measurement.included_from_seq",
-            self.measurement.included_from_seq,
+        c.note(
+            "verified_flags_gated_by_availability",
+            "bit 0 release_verified, bit 1 rootfs_verified, bit 2 policy_verified; a bit is \
+             written 1 only when that verification is claimed AND its digest is available -- \
+             a verification of nothing is not a verification",
         );
-        c.u64(
-            "measurement.included_to_seq",
-            self.measurement.included_to_seq,
+        c.u8("verification.verified_flags", self.verified_flags());
+        // measurement: the whole section is one reading of the chain or none.
+        c.u8("measurement.available", a.measurement as u8);
+        c.note(
+            "measurement_zeroed_when_unavailable",
+            "head_seq, chain_digest and the included range are fixed width and written \
+             whether or not measurement.available is 1; zero when it is not",
         );
+        let m = self.measurement_written();
+        c.u64("measurement.head_seq", m.head_seq);
+        c.bytes("measurement.chain_digest", &m.chain_digest.0);
+        c.u64("measurement.included_from_seq", m.included_from_seq);
+        c.u64("measurement.included_to_seq", m.included_to_seq);
         // snapshot
         c.bytes("snapshot.snapshot_id", &self.snapshot.snapshot_id);
-        c.bytes("snapshot.snapshot_digest", &self.snapshot.snapshot_digest.0);
+        c.u8(
+            "snapshot.snapshot_digest_available",
+            a.snapshot_digest as u8,
+        );
+        c.bytes(
+            "snapshot.snapshot_digest",
+            &zeroed(a.snapshot_digest, &self.snapshot.snapshot_digest),
+        );
         c.u8("snapshot.reason", self.snapshot.reason);
         // health
         c.bytes("health.target", &self.health.target);
@@ -289,17 +401,41 @@ impl SignedAttestationRecordV2 {
     }
 }
 
-// ── Development factory ──────────────────────────────────────────────────────
+// ── Local factory ────────────────────────────────────────────────────────────
 
 impl AttestationRecordV2 {
-    /// Build a development-grade v2 record with deterministic zero-filled fields.
-    pub fn dev(
+    /// Build the local (development-grade) v2 record **that says only what is
+    /// true** (RFC-0.40-001, closes E-094).
+    ///
+    /// This used to be `dev`, which filled the record with literals -- `0x11` for a
+    /// kernel digest, `0x22`/`0x33`/`0x44` for three manifests it had verified,
+    /// `release_verified`/`rootfs_verified`/`policy_verified` all `true`, a chain
+    /// head of `head_seq: 1` / `0x55`, a snapshot of `0x66` -- and signed it. Nothing
+    /// in the tree verifies a release, a rootfs or a policy bundle, nothing measures
+    /// the kernel image, and the record read none of the chain. Now:
+    ///
+    /// * the three `*_verified` flags are **`false`** (not omitted: omitting would
+    ///   change the shape and lose the disclosure; `true` would be a signed lie);
+    /// * the five digests nothing computes are **zero, behind an availability flag
+    ///   that is `false`** ([`ClaimAvailability`]);
+    /// * the measurement section is **the reading the caller took** of the chain, or
+    ///   unavailable if it took none -- `measurement` is `None` when `measuredd`
+    ///   could not be asked, and a record never reports a stale or literal head in
+    ///   its place.
+    ///
+    /// This makes the record *truthful*, not *complete*: the kernel image is still
+    /// unmeasured (0.39 measures the *service* images, which is not that) and
+    /// release/rootfs/policy verification is E-095. The service-image digest is
+    /// deliberately **not** put in `kernel_digest`; it would be the same entry with
+    /// a better-looking value.
+    pub fn local(
         record_id: AttestationRecordId,
         provider_id: TrustProviderId,
         channel_id: [u8; 8],
         nonce_bytes: [u8; 16],
         rollback_min: u64,
         generation: u32,
+        measurement: Option<MeasurementClaims>,
     ) -> Self {
         Self {
             schema_version: Self::SCHEMA_VERSION,
@@ -321,25 +457,25 @@ impl AttestationRecordV2 {
             boot: BootClaims {
                 selected_slot: 0,
                 boot_id: 1,
-                kernel_digest: Digest32([0x11; 32]),
+                kernel_digest: Digest32([0u8; 32]),
             },
             verification: VerificationClaims {
-                release_digest: Digest32([0x22; 32]),
-                rootfs_digest: Digest32([0x33; 32]),
-                policy_digest: Digest32([0x44; 32]),
-                release_verified: true,
-                rootfs_verified: true,
-                policy_verified: true,
+                release_digest: Digest32([0u8; 32]),
+                rootfs_digest: Digest32([0u8; 32]),
+                policy_digest: Digest32([0u8; 32]),
+                release_verified: false,
+                rootfs_verified: false,
+                policy_verified: false,
             },
-            measurement: MeasurementClaims {
-                head_seq: 1,
-                chain_digest: Digest32([0x55; 32]),
-                included_from_seq: 1,
-                included_to_seq: 1,
-            },
+            measurement: measurement.unwrap_or(MeasurementClaims {
+                head_seq: 0,
+                chain_digest: Digest32([0u8; 32]),
+                included_from_seq: 0,
+                included_to_seq: 0,
+            }),
             snapshot: SnapshotClaims {
                 snapshot_id: *b"SN000001",
-                snapshot_digest: Digest32([0x66; 32]),
+                snapshot_digest: Digest32([0u8; 32]),
                 reason: 0,
             },
             health: HealthClaims {
@@ -361,6 +497,14 @@ impl AttestationRecordV2 {
                 nonce_bytes,
             },
             provenance: None,
+            availability: ClaimAvailability {
+                kernel_digest: false,
+                release_digest: false,
+                rootfs_digest: false,
+                policy_digest: false,
+                snapshot_digest: false,
+                measurement: measurement.is_some(),
+            },
         }
     }
 }

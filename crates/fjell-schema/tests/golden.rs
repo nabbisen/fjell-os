@@ -44,9 +44,54 @@ fn release_metadata() {
 
 #[test]
 fn attestation_v2() {
+    // RFC-0.40-001 (closes E-094), AttestationRecordV2::SCHEMA_VERSION 2 -> 3: six
+    // availability bytes are written beside the claims they qualify, and a claim
+    // whose flag is false is written as zero. The sample sets every claim available,
+    // so nothing is zeroed and the stream is the old one plus those six bytes and
+    // the version word. **That is proved, not assumed:**
+    // `attestation_v3_is_v2_plus_six_flags` below removes the six bytes, puts the
+    // version word back to 2, and recovers the previous golden `92913e80...3e`
+    // (the constant this replaced). A version bump and this note, as the header
+    // requires.
     check(
         "attestation_v2",
         &s::attestation_v2().canonical_digest().0,
+        "241d4c919283a08dd86bdece2351d3509087c4c089c55ee1f3a2775008e3f9b9",
+    );
+}
+
+/// What the 2 -> 3 bump did, shown rather than asserted: from the v3 canonical
+/// stream of the sample, delete the six availability bytes, set the version word
+/// back to 2, and the digest is the **v2 golden** again. Nothing else moved.
+#[test]
+fn attestation_v3_is_v2_plus_six_flags() {
+    use fjell_canon::BufSink;
+    use fjell_measure_format::Digest32;
+    let rec = s::attestation_v2();
+    let mut sink = BufSink::<512>::new();
+    rec.write_canonical(&mut sink);
+    let mut v = sink.bytes().to_vec();
+
+    assert_eq!(&v[..15], b"FJELL-ATTEST-V2", "the domain tag is first");
+    assert_eq!(&v[15..17], &3u16.to_le_bytes(), "the version word is 3");
+    // Offsets of the six availability bytes in the v3 stream: after the domain (15),
+    // version (2), record_id (8), created_tick (8), profile (1), provider (8),
+    // keyring (44), boot slot+id (9) -> kernel flag at 95; each following flag sits
+    // right after the previous claim.
+    let flags = [95usize, 128, 161, 194, 228, 293];
+    for &at in &flags {
+        assert_eq!(
+            v[at], 1,
+            "an availability byte (= available) is at offset {at}"
+        );
+    }
+    for &at in flags.iter().rev() {
+        v.remove(at);
+    }
+    v[15..17].copy_from_slice(&2u16.to_le_bytes());
+    check(
+        "attestation_v2 (v3 stream rewound to v2)",
+        &Digest32::of(&v).0,
         "92913e8021da2ff2216e4b7bcc06a507e8023b5d121a4b1a436ab823ffd48d3e",
     );
 }

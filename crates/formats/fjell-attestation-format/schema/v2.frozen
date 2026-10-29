@@ -3,6 +3,7 @@
 # format: AttestationRecordV2
 # version: v0.6.0 (frozen)
 # note: 2026-09-24: this file used to list 16 fields (provider, measurement_head, three digests, health_result, signature); the encoder writes the keyring, boot, verification, measurement, snapshot, health, rollback, freshness and provenance groups as well and has no signature in the digest stream. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).
+# note: 2026-10-29: RFC-0.40-001 (closes E-094) bumped AttestationRecordV2::SCHEMA_VERSION 2 -> 3. Six availability bytes are written beside the claims they qualify (`boot.kernel_digest_available`, `verification.{release,rootfs,policy}_digest_available`, `measurement.available`, `snapshot.snapshot_digest_available`), and a claim whose flag is 0 is written as zero -- fixed width, zeroed by the encoder, the pattern `bundle-v1.frozen` states -- and a `verified_flags` bit is written only when its digest is available. The record used to assert, under a signature, that a release, a rootfs and a policy bundle had each been verified, over five literal digests and a literal chain head; the factory now says only what is true. The 2 -> 3 digest move is proved, not assumed: `tests/golden.rs::attestation_v3_is_v2_plus_six_flags` removes the six bytes, rewinds the version word and recovers the v2 golden.
 domain "FJELL-ATTEST-V2"
 field schema_version                             u16 LE
 field record_id                                  u8 [8]
@@ -18,16 +19,25 @@ field keyring.active_epoch_policy                u32 LE
 field keyring.keyring_snapshot_digest            u8 [32]
 field boot.selected_slot                         u8
 field boot.boot_id                               u64 LE
+field boot.kernel_digest_available               u8
+note digest_zeroed_when_unavailable every *_digest below is fixed width: 32 bytes written whether or not its availability flag is 1; zero when it is not, not omitted and not the caller's raw value
 field boot.kernel_digest                         u8 [32]
+field verification.release_digest_available      u8
 field verification.release_digest                u8 [32]
+field verification.rootfs_digest_available       u8
 field verification.rootfs_digest                 u8 [32]
+field verification.policy_digest_available       u8
 field verification.policy_digest                 u8 [32]
+note verified_flags_gated_by_availability bit 0 release_verified, bit 1 rootfs_verified, bit 2 policy_verified; a bit is written 1 only when that verification is claimed AND its digest is available -- a verification of nothing is not a verification
 field verification.verified_flags                u8
+field measurement.available                      u8
+note measurement_zeroed_when_unavailable head_seq, chain_digest and the included range are fixed width and written whether or not measurement.available is 1; zero when it is not
 field measurement.head_seq                       u64 LE
 field measurement.chain_digest                   u8 [32]
 field measurement.included_from_seq              u64 LE
 field measurement.included_to_seq                u64 LE
 field snapshot.snapshot_id                       u8 [8]
+field snapshot.snapshot_digest_available         u8
 field snapshot.snapshot_digest                   u8 [32]
 field snapshot.reason                            u8
 field health.target                              u8 [8]

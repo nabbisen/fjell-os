@@ -216,6 +216,7 @@ pub const FORMATS: &[Format] = &[
         path: "crates/formats/fjell-attestation-format/schema/v2.frozen",
         notes: &[
             "2026-09-24: this file used to list 16 fields (provider, measurement_head, three digests, health_result, signature); the encoder writes the keyring, boot, verification, measurement, snapshot, health, rollback, freshness and provenance groups as well and has no signature in the digest stream. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).",
+            "2026-10-29: RFC-0.40-001 (closes E-094) bumped AttestationRecordV2::SCHEMA_VERSION 2 -> 3. Six availability bytes are written beside the claims they qualify (`boot.kernel_digest_available`, `verification.{release,rootfs,policy}_digest_available`, `measurement.available`, `snapshot.snapshot_digest_available`), and a claim whose flag is 0 is written as zero -- fixed width, zeroed by the encoder, the pattern `bundle-v1.frozen` states -- and a `verified_flags` bit is written only when its digest is available. The record used to assert, under a signature, that a release, a rootfs and a policy bundle had each been verified, over five literal digests and a literal chain head; the factory now says only what is true. The 2 -> 3 digest move is proved, not assumed: `tests/golden.rs::attestation_v3_is_v2_plus_six_flags` removes the six bytes, rewinds the version word and recovers the v2 golden.",
         ],
         format_version: None,
         caveats: &[],

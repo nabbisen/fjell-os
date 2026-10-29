@@ -545,7 +545,7 @@ mod tests {
     }
 
     #[test]
-    fn discovery_on_the_current_tree_matches_the_known_six() {
+    fn discovery_on_the_current_tree_matches_the_known_seven() {
         // `cargo test` runs with this crate's own directory as the working
         // directory, not the workspace root `check()` assumes in
         // production (`cargo xtask consistency-check` always runs from the
@@ -566,11 +566,13 @@ mod tests {
         // `CAP_SMGR_EP`, slot 1, E-075 — adopted `SERVICE_READY_SEND_SLOT`
         // instead, which needs no local constant), plus one RFC-0.37-001
         // added: `FLEETD`'s own `CAP_DIAGNOSTICSD_EP` (slot 1), a new
-        // declaration this line installs rather than leaves dangling.
+        // declaration this line installs rather than leaves dangling, plus one
+        // RFC-0.40-001 added: `ATTESTD`'s `CAP_MEASUREDD_EP` (slot 4), the CALL
+        // capability it reads the chain head through.
         assert_eq!(
             discovered.len(),
-            6,
-            "expected exactly the six slots the tree carries today: {discovered:#?}",
+            7,
+            "expected exactly the seven slots the tree carries today: {discovered:#?}",
         );
         let unwaived = discovered
             .iter()
@@ -581,12 +583,13 @@ mod tests {
             })
             .count();
         assert_eq!(
-            unwaived, 5,
-            "five slots are installed outright: the update-path channel's two \
+            unwaived, 6,
+            "six slots are installed outright: the update-path channel's two \
              (SECURE_TRANSPORTD slot 2, UPGRADED slot 6), RFC-0.37-001's two \
              (FLEETD slot 1, DIAGNOSTICSD slot 1 -- newly installed, no longer \
-             waived), and RFC-0.39-002's one (DIAGNOSTICSD slot 4, a CALL \
-             capability to measuredd)"
+             waived), RFC-0.39-002's one (DIAGNOSTICSD slot 4, a CALL \
+             capability to measuredd), and RFC-0.40-001's one (ATTESTD slot 4, \
+             a CALL capability to measuredd)"
         );
     }
 }

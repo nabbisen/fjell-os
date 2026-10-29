@@ -16,8 +16,8 @@
 
 pub mod v2;
 pub use v2::{
-    ATTEST_V2_DOMAIN, AttestationRecordV2, FreshnessClaimsV2, KeyringClaims, NonceClass,
-    ProviderClaims, RollbackClaims, SignedAttestationRecordV2, SignedByDescriptor,
+    ATTEST_V2_DOMAIN, AttestationRecordV2, ClaimAvailability, FreshnessClaimsV2, KeyringClaims,
+    NonceClass, ProviderClaims, RollbackClaims, SignedAttestationRecordV2, SignedByDescriptor,
 };
 
 use fjell_measure_format::Digest32;

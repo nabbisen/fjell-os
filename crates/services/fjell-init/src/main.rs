@@ -1100,7 +1100,9 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
         let r = ipc_call(
             attestd_ep,
             attestd_proto::GENERATE,
-            meas_seq as usize,
+            // RFC-0.40-001: no word. `attestd` reads the chain itself and refuses a
+            // non-zero one; the sequence used to be passed here and never read.
+            0,
             0,
             0,
             0,
