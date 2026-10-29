@@ -67,15 +67,32 @@ did not produce them. `diagnosticsd` reads the counts before and after the head
 and reports the section unavailable if they changed in between, so a head is never
 paired with another moment's counts.
 
-What this is **not**: attestation (the signed attestation record is independent
-constants, E-094; `last_attestation_available` stays `false`), and a fully
-measured chain (three of four events are placeholders).
+What this is **not**: strong attestation (the kernel's own image is unmeasured and
+the signature is the development provider's), and a fully measured chain (three of
+four events are placeholders). The bundle's `last_attestation_available` stays
+`false`: the attestation record is a separate artefact.
 
 ## Attestation
 
-`AttestationRecordV2` does **not** capture the chain. `attestd` signs a record
-built by `AttestationRecordV2::dev` from constants (`chain_digest` `0x55…`,
-`head_seq: 1`, and `*_verified: true` flags) and has no endpoint to `measuredd`;
-making the chain real does not change what any record says (Erratum **E-094**).
-The signature is the development trust provider's keyed SHA-256 digest, not a
+`attestd` signs an `AttestationRecordV2` (schema version 3) that **says only what is
+true** (RFC-0.40-001, closes E-094). It used to be built from literals and asserted,
+under a signature, that a release, a rootfs and a policy bundle had been verified.
+Now:
+
+* the three `*_verified` flags are **`false`** — nothing in the tree verifies any of
+  them, and a verified bit is only ever written beside a digest that is available;
+* the five digests nothing computes — kernel, release, rootfs, policy, snapshot — are
+  **zero, behind an availability flag that is `false`**, written fixed-width and zeroed
+  by the encoder (the pattern the diagnostic bundle already uses), so a zero digest
+  beside `available = 0` cannot be read as a measurement;
+* the **measurement section is the real chain**: `attestd` reads the head and its
+  range from `measuredd` through a `CALL` capability, as one consistent reading, and if
+  `measuredd` cannot be read the section is **unavailable** — there is no fallback to a
+  stale or literal head.
+
+`attestd` has no way to write the chain: the capability cannot tell a read from an
+append, so `measuredd` refuses an append from `attestd` (it is not a source
+`measuredd` maps). The record is **truthful, not complete**: the kernel's own image
+is still unmeasured, release/rootfs/policy verification does not exist (E-095), and
+the signature is the development trust provider's keyed SHA-256 digest, not a
 signature scheme; Ed25519 is used by host tooling only.

@@ -6194,6 +6194,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > real must also change `chain_head.rs`'s oracle and this disclosure's expected figures,
   > or the `remote-diag` tier will say so.
 
+  > **Also, from RFC-0.40-001, 2026-10-29.** The signed attestation record now has an
+  > availability flag for each of the release, rootfs and policy digests and a
+  > `verified_flags` bit gated by it, all currently `false`. Whoever makes release, rootfs
+  > and policy verification real must make those available **and** change the `measurement`
+  > tier's expectations (`verified_flags=0`, the availability line), or that tier says so.
+
 ## E-087 — `measuredd`'s `EXPORT_LOG` exports nothing, and E-085 cited it as the working pattern
 
 - **Found 2026-10-19, scoping 0.38**, while checking whether E-085's ruling could be
@@ -6744,6 +6750,52 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the three `*_verified` flags, which must not be `true` until something verifies.
   Asserting `false` honestly is available immediately and is probably the right first
   step.
+- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-0.40-001**.
+
+  > **Closed by RFC-0.40-001, 2026-10-29.** The record stops asserting what never
+  > happened. `AttestationRecordV2::dev` is replaced by `local`, and the record's
+  > `SCHEMA_VERSION` goes 2 → 3: the three `*_verified` flags are **`false`**; the five
+  > digests nothing computes are **zero behind an adjacent availability flag**
+  > (`ClaimAvailability`), zeroed by the *encoder* whatever the field holds — the pattern
+  > `fjell-diag-format` already implements, not a second one — and a `verified_flags` bit
+  > is written only beside an available digest. The measurement section is the chain's
+  > real head: `attestd` holds a `CALL` capability to `measuredd` (slot 4) and reads it
+  > through `fjell_service_api::measuredd::read_chain`, the same consistent
+  > head-plus-counts reader `diagnosticsd` uses; if the chain cannot be read the section
+  > is unavailable (shown: with the capability removed the record says `measurement=0`,
+  > `head_seq=0`, a zero digest — no stale or literal head). `sign_v2` no longer takes the
+  > sequence number it never read, and `GENERATE` now takes no words (a non-zero one is
+  > refused, not ignored; `init` had been passing a number nothing used). `sign_v1`'s three
+  > flags are `false` too (free; the path is unreachable, `enter_enforcing()` being
+  > unconditional).
+  >
+  > **The half that would have been found late (R5):** `GET_HEAD` is ungated by sender,
+  > so the capability needs only the endpoint — but it also lets `attestd` *append*, and
+  > `ATTESTD` was in `measuredd`'s source mapping. Shown, not argued, with a scratch probe
+  > (reverted): **with the mapping present `attestd`'s `APPEND_EVENT` was accepted and
+  > recorded `source=11` (Attestd), a fifth chain event; with it removed both appends are
+  > `PermissionDenied` and the chain keeps its four events.** `ATTESTD` is out of the
+  > mapping and named in `the_services_that_must_be_refused_are`; the capability and the
+  > removal landed in one change.
+  >
+  > **Evidence.** The `measurement` tier now asserts what the record claims, read out of the
+  > record `attestd` signs (nothing outside the service could read it before): against the
+  > unchanged record it read `verified_flags=7`, `head_seq=1`, chain digest `0x5555…`; after,
+  > `verified_flags=0`, every unproduced digest `=0`, `head_seq=4 included=1..4` and a chain
+  > digest **equal to the head the host derives independently** (not merely non-zero). The
+  > attestation format is not in the ABI snapshot, so what noticed the version bump was the
+  > golden (re-taken with a proof: the v3 stream with the six flag bytes removed and the
+  > version rewound hashes to the v2 golden), the regenerated `v2.frozen`, and the crate's
+  > own tests.
+  >
+  > **Not done, and why this is truthful rather than complete.** The kernel's own image is
+  > unmeasured (the service-image digest is *not* put in `kernel_digest`); release, rootfs and
+  > policy verification does not exist (**E-095**); snapshots are another subsystem. The
+  > record **still carries other literal claims** this line did not touch: keyring epochs
+  > `1/1/0`, boot slot `0` and id `1`, snapshot id `SN000001`, health target/status,
+  > `rollback.last_advance_source = UpgradedConfirmation`, `trust_provider_counter_supported =
+  > true`, `freshness.key_epoch = 1`. Whether those are in E-094's class is the architect's
+  > ruling; they were reported, not widened into this line.
 
 ## E-096 — the measurement chain's `source` is declared by the caller, not attested, and three events per boot declare a service that had no part in them
 
@@ -7258,7 +7310,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own | unscheduled | ACCEPTED |
 | E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | RFC-0.40-002 | CLOSED |
 | E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all — neither parent links, which were deleted, nor a lease. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage | unscheduled | ACCEPTED |
-| E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | RFC-0.40-001 | ACCEPTED |
+| E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | RFC-0.40-001 | CLOSED |
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
 | E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | RFC-0.39-001 | CLOSED |
 | E-097 the `semantic` tier fails intermittently: `upgraded`'s 46-character text string reads back as 46 NUL bytes and `clean-console` refuses. Bimodal in `upgraded`'s physical address, so placement-sensitive rather than content-sensitive; reproduced by the architect, 2 of 3 runs. **Not caused by RFC-0.39-001** — `upgraded.bin` is byte-identical and no kernel source was touched; that line's only channel is placement. Cause unknown; E-098 is the strongest lead and no causal link is established | RFC-0.39-003 | CLOSED |
