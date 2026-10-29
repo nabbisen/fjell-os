@@ -1,6 +1,6 @@
 # RFC-0.40-003 R1–R7: the allocator's tests get a home a gate can run
 
-**Governing RFC:** [../accepted/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md](../accepted/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md)
+**Governing RFC:** [../done/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md](../done/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md)
 **Handoff:** [../handoffs/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run/implementation-handoff.md](../handoffs/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run/implementation-handoff.md)
 
 Written against base `0555d76`. **E-100 closes in this line** (R6). The line also produced a

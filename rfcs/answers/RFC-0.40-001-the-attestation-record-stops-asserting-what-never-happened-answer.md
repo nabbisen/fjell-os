@@ -1,6 +1,6 @@
 # RFC-0.40-001 R1–R9: the attestation record stops asserting what never happened
 
-**Governing RFC:** [../accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md](../accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md)
+**Governing RFC:** [../done/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md](../done/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md)
 **Handoff:** [../handoffs/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened/implementation-handoff.md](../handoffs/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened/implementation-handoff.md)
 
 Written against base `0555d76`. **E-094 closes in this line** (R8). This line makes the record

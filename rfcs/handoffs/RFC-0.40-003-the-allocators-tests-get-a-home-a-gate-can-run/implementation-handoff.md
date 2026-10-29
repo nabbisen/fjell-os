@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.40-003
 
-**Governing RFC:** [RFC-0.40-003](../../accepted/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md)
+**Governing RFC:** [RFC-0.40-003](../../done/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md)
 **Milestone:** 0.40 · **Independent of 0.40-001 and 0.40-002** — no ordering constraint
-**Status:** inherited from the governing RFC (Accepted, 0.40)
+**Status:** inherited from the governing RFC (Implemented, 0.40.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

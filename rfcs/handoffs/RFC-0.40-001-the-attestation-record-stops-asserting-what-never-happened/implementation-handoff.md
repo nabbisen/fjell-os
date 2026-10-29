@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.40-001
 
-**Governing RFC:** [RFC-0.40-001](../../accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md)
+**Governing RFC:** [RFC-0.40-001](../../done/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md)
 **Milestone:** 0.40 — **the lead line, and the only one of the three with design content**
-**Status:** inherited from the governing RFC (Accepted, 0.40)
+**Status:** inherited from the governing RFC (Implemented, 0.40.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

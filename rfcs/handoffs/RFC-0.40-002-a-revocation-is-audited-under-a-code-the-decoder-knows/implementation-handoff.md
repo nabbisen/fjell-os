@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.40-002
 
-**Governing RFC:** [RFC-0.40-002](../../accepted/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md)
+**Governing RFC:** [RFC-0.40-002](../../done/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md)
 **Milestone:** 0.40 · **Independent of 0.40-001 and 0.40-003** — no ordering constraint
-**Status:** inherited from the governing RFC (Accepted, 0.40)
+**Status:** inherited from the governing RFC (Implemented, 0.40.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design

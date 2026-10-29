@@ -1,6 +1,6 @@
 # RFC-0.40-002: A revocation is audited under a code the decoder knows
 
-**Status:** Accepted (0.40) — accepted 2026-10-29
+**Status:** Implemented (0.40.0) — accepted 2026-10-29
 **Milestone:** 0.40
 **Tracks.** **E-092** — the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every
 lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal`

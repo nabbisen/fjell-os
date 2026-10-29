@@ -1,6 +1,6 @@
 # RFC-0.40-003: The allocator's tests get a home a gate can run
 
-**Status:** Accepted (0.40) — accepted 2026-10-29
+**Status:** Implemented (0.40.0) — accepted 2026-10-29
 **Milestone:** 0.40
 **Tracks.** **E-100** — the frame allocator's unit tests are `#[cfg(test)]` inside
 `fjell-kernel`, a `no_std` binary that cannot be host-built, so no gate runs them.

@@ -1,6 +1,6 @@
 # RFC-0.40-001: The attestation record stops asserting what never happened
 
-**Status:** Accepted (0.40) — accepted 2026-10-29
+**Status:** Implemented (0.40.0) — accepted 2026-10-29
 **Milestone:** 0.40
 **Tracks.** **E-094** — `attestd` signs a record built from literals that asserts
 `release_verified`, `rootfs_verified` and `policy_verified` **true** while nothing

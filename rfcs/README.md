@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 213 files
+## Implemented (done/) — 216 files
 
-212 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+215 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -509,18 +509,22 @@ Four lines, all drafted for this milestone and all shipped in it.
 | 0.39-003 | [Find out why a live page reads as zeros](./done/RFC-0.39-003-find-out-why-a-live-page-reads-as-zeros.md) — closed **E-097** and **E-098**; the first an intermittent failure in which a live service's text page read back as 46 NUL bytes: the kernel's 4 MiB stack was only half reserved in the frame allocator, so tasks were handed frames the kernel stack then overwrote. Fixed, with a boot invariant that refuses to boot if it recurs; the second was the `revoke_by_pa` workaround — its three verified defects fixed here, and the stale-mapping residual split to **E-099** for **RFC-0.39-004** | 0.39.0 |
 | 0.39-004 | [A revoked frame stops being reachable](./done/RFC-0.39-004-a-revoked-frame-stops-being-reachable.md) — closed **E-099**; a revoked DMA frame returned to the general pool while the caller kept a live mapping to it. The unmap is now performed and **verified against the frame the region entry records** — correct whether the v0.8.x corruption that caused it to be skipped was E-097 or a wrong VA. 0.39's last line | 0.39.0 |
 
+### 0.40 — the record stops asserting what never happened, and two smaller defects close
+
+Three independent lines, all drafted for this milestone and all shipped in it.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.40-001 | [The attestation record stops asserting what never happened](./done/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md) — closed **E-094**; a signed record asserted three verifications that never ran, over five literal digests, with a measurement section of `head_seq: 1` and a constant chain digest. The flags now read `false`, the digests nothing computes are zero behind availability flags the encoder zeroes, and the chain head is real, read from `measuredd` through a `CALL` capability — with `ATTESTD` out of the append mapping, so the capability grants the read and refuses the append. A review fix-forward made the rollback counter pair report the provider's own read | 0.40.0 |
+| 0.40-002 | [A revocation is audited under a code the decoder knows](./done/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md) — closed **E-092**; the kernel emitted `LeaseRevoked = 40` and the published decoder knew 16, so every revocation read as `Internal`. The kernel now emits 16 and the dead `CapDenied` is deleted; a tier asserts the decoded name. It found that `auditd` renders nothing after boot (**E-102**) | 0.40.0 |
+| 0.40-003 | [The allocator's tests get a home a gate can run](./done/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md) — closed **E-100**; the frame allocator moved into a `no_std` crate (`fjell-frame-alloc`) that the host-lib tier builds, with the test E-097 would have failed. The new tests found that `reserve_range` is not all-or-nothing (**E-103**) | 0.40.0 |
+
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — none
 
-Signed off and not yet shipped. `accepted/README.md` keeps the folder in a
-fresh clone.
-
-| RFC | Title | Target |
-|-----|-------|--------|
-| 0.40-001 | [The attestation record stops asserting what never happened](./accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md) — closes **E-094**; a signed record asserts three verifications that never ran, over five literal digests, with a measurement section of `head_seq: 1` and a constant chain digest. The flags assert `false`, the digests nothing computes are zeroed behind availability flags, the chain head becomes real — and `ATTESTD` comes out of the append mapping, so the new capability grants the read and refuses the append | 0.40.0 |
-| 0.40-002 | [A revocation is audited under a code the decoder knows](./accepted/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md) — closes **E-092**; the kernel emits `LeaseRevoked = 40` and the published decoder knows 16, so every revocation reads as `Internal` and the ABI's own variant is unreachable. One mismatched value and one dead variant, measured wholesale | 0.40.0 |
-| 0.40-003 | [The allocator's tests get a home a gate can run](./accepted/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md) — closes **E-100**; the frame allocator's tests are `std`-flavoured inside a `no_std` binary, so no target builds them. The code with the weakest coverage in the tree held **E-097** for thirty-five milestones, and the line's deliverable is the test that defect would have failed | 0.40.0 |
+Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
+a fresh clone.
 
 ---
 

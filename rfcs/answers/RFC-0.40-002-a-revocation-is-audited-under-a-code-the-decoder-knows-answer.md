@@ -1,6 +1,6 @@
 # RFC-0.40-002 R1–R7: a revocation is audited under a code the decoder knows
 
-**Governing RFC:** [../accepted/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md](../accepted/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md)
+**Governing RFC:** [../done/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md](../done/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md)
 **Handoff:** [../handoffs/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows/implementation-handoff.md](../handoffs/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows/implementation-handoff.md)
 
 Written against base `0555d76`. **E-092 closes in this line.**

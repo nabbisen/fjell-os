@@ -1,7 +1,7 @@
 # RFC-0.40 fix-forward: the record stops claiming a call that was never made
 
 **Handoff:** `.git-exclude/handoff/fix-forward-0.40.md` (F1–F5)
-**Governing RFC:** [../accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md](../accepted/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md)
+**Governing RFC:** [../done/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md](../done/RFC-0.40-001-the-attestation-record-stops-asserting-what-never-happened.md)
 
 Written against base `2220740`. All three 0.40 lines were already accepted; this is the work the
 reviews required before the 0.40.0 cut.
