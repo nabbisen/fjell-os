@@ -32,8 +32,8 @@
 //! kernel produced the digest -- because a signed bundle that reported a
 //! measurement root while withholding that three of the chain's four events are
 //! `init`'s literal `0xAB` (E-095) would be a misleading artefact. **This does not
-//! make attestation real** (the signed attestation record is independent
-//! constants, E-094; `last_attestation_available` stays `false`) **and it does not
+//! make attestation real** (the signed attestation record is produced by
+//! `attestd`, not here; `last_attestation_available` stays `false`) **nor does it
 //! make the chain fully measured** (three of four events are placeholders, E-095).
 #![no_std]
 #![no_main]
