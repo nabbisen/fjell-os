@@ -6615,6 +6615,43 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   directions above, a check that no other kernel audit kind is undecodable (the two
   enums should be compared wholesale, not just for these values), and a disposition for
   `CapDenied`.
+- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-0.40-002**.
+
+  > **Closed by RFC-0.40-002, 2026-10-29.** **Direction (a): the kernel emits 16.**
+  > `AuditKind` is the published ABI and the kernel is the implementation, so the
+  > implementation moved; it also leaves one value meaning the event where (b) would have
+  > left two and the published one forever unemitted. The reason to take (b) would have been
+  > something that depends on the value 40, so that was looked for: nothing in the tree does
+  > (no evidence file, expected-markers artefact, tier or decoder; `auditd:51` is the only
+  > decode site; the only `40` near audit code is `SysError::LeaseRevoked`'s unrelated
+  > syscall error code `-40`).
+  >
+  > **The wholesale comparison**, by a script that parses both enums and diffs the value
+  > sets rather than a reading: **22 variants each; exactly one mismatched value —
+  > `LeaseRevoked`, kernel 40, userspace 16; one kernel-only name, `CapDenied = 41`; one
+  > userspace-only name, `Internal = 255`** — the architect's table, exactly. Control: the
+  > same script on a copy with an unrelated value changed (`CapDrop` 15 → 14) flagged both
+  > `CapDrop` and `LeaseRevoked` without being told where to look. After the fix the same
+  > script reports no mismatch.
+  >
+  > **`CapDenied = 41` is deleted:** emitted by nothing, decoded by nothing. **No emitter
+  > was added.** Whether capability denials should be audited at all is a separate decision
+  > and is raised in the review request, not answered here.
+  >
+  > **Evidence.** The `audit` tier asserts the *decoded name*, not the raw kind word: a lease
+  > is created and revoked, the ring is drained, and the record the kernel emitted is run
+  > through the decode `auditd` uses (`AuditRecordBin::from_bytes` → `AuditKind::from_u16` →
+  > `label`). Against the unfixed kernel it printed *"decodes as 'internal'"* and the tier
+  > failed on the missing marker; after the fix, *"decodes as 'lease.revoked'"* and it
+  > passes. The ABI snapshot moved only by the tier's marker constant (+1); `AuditKind` did
+  > not move (Removed 0, Changed sig 0).
+  >
+  > **A finding this line did not fix.** The assertion could not go through `auditd`'s own
+  > output: `auditd` drains the ring once when it starts and then only when something sends
+  > it a message, and nothing does (its trigger was named as never fixed in RFC-0.28-001 and
+  > RFC-0.33-001). In a normal boot its output holds 9 early-boot records and no revocation.
+  > So the decoded name is asserted in `neg-test` through the same decode, and whether
+  > `auditd` should get a working trigger is the architect's.
 
 ## E-093 — `RFC-v0.7.4-003` removed recursive revocation on the premise that "every meaningful cap MUST have a lease"; that was never enforced, so most capabilities have neither mechanism
 
@@ -7219,7 +7256,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |
 | E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | CLOSED |
 | E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own | unscheduled | ACCEPTED |
-| E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | RFC-0.40-002 | ACCEPTED |
+| E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | RFC-0.40-002 | CLOSED |
 | E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all — neither parent links, which were deleted, nor a lease. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage | unscheduled | ACCEPTED |
 | E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | RFC-0.40-001 | ACCEPTED |
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
