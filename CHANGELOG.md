@@ -5,6 +5,121 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.40.0] — 2026-10-29 — The record stops asserting what never happened
+
+Three RFCs, two review fix-forward rounds, **three errata closed** (**E-092**,
+**E-094**, **E-100**) and **three filed** (**E-101**, **E-102**, **E-103**, all
+ACCEPTED, tracking 0.41). `attestd` signed a record claiming three verifications
+nothing performs, over five literal digests and a chain head it had never read. The
+three flags now read `false`, the digests nothing computes are zero behind an
+availability flag the encoder zeroes, and the measurement section is the chain's
+real head — read from `measuredd` through a `CALL` capability, or disclosed as
+unavailable, never a stale or literal one. A lease revocation is audited under the
+code the decoder knows, so a revocation can be read as one. And the frame allocator's
+unit tests moved into a crate the host can build, so the code that held a
+thirty-five-milestone defect is finally covered by a gate that runs — which
+immediately produced a finding (E-103).
+
+**Two statements for anyone deciding whether to try 0.39.0 or earlier.** There is no
+security advisory — the kernel has never been distributed as a runnable artefact and
+the product has not been placed on the market — but both should be met without going
+to the register:
+
+1. **Every signed attestation record this project produced, from RFC-v0.3-004 through
+   0.39.0, asserted under a signature that a release, a rootfs and a policy bundle had
+   each been verified — while nothing in the tree verifies any of them** (**E-094**).
+   The digests it signed over were literals; its measurement "chain head" was the
+   literal `head_seq: 1` / `0x55…`, read from no chain. A record that lies under a
+   signature is worse than no record, and this one did, for thirty-seven milestones.
+   One field of the same class survived into review —
+   `trust_provider_counter_supported`, `true` beside the genesis rollback minimum
+   although nothing ever called the provider — and was fixed before this release.
+2. **Every lease revocation was recorded under a code the published decoder did not
+   know** (**E-092**): the kernel wrote `LeaseRevoked = 40`, the ABI's decoder knew
+   `16` and mapped everything else to `Internal`, so an audit trail could not show that
+   a revocation had happened at all.
+
+**What still does not hold, in the same breath.**
+
+- **The audit trail stops at boot** (**E-102**, the lead 0.41 candidate): `auditd`
+  drains once at start-up and then only on a message nothing sends, so a revocation
+  after boot — now correctly coded and correctly decodable — is still never printed.
+  *0.40 made the record truthful; it did not make it reach anyone.*
+- Three of the chain's four events are placeholders and the kernel's own image is
+  unmeasured (**E-095**).
+- The attestation record still carries unqualified placeholders that read as state —
+  keyring epochs, snapshot id, health status, last-advance source, freshness key epoch
+  (**E-101**).
+- `FrameAllocator::reserve_range` is not all-or-nothing in either direction
+  (**E-103**); latent, no caller overlaps.
+- The record is signed by the keyed-SHA-256 **development** provider (the E-028 row),
+  not a hardware root.
+
+### Fixed — the signed attestation record asserted what never happened (RFC-0.40-001, closes E-094)
+
+`AttestationRecordV2::dev` is replaced by `local`, and the record's `SCHEMA_VERSION`
+goes 2 → 3:
+
+- **The three `*_verified` flags are `false`**, and a verified bit is written only
+  beside an available digest.
+- **The five digests nothing computes** (kernel, release, rootfs, policy, snapshot)
+  **are zero behind an adjacent availability flag** (`ClaimAvailability`), zeroed by
+  the *encoder* whatever the field holds — the pattern `fjell-diag-format` already
+  implements, not a second one. The service-image digest is deliberately **not** put
+  in `kernel_digest`.
+- **The measurement section is the chain's real head**: `attestd` holds a `CALL`
+  capability to `measuredd` (slot 4) and reads the head and counts as one consistent
+  reading (`fjell_service_api::measuredd::read_chain`, shared with `diagnosticsd`); if
+  the chain cannot be read the section is unavailable. `sign_v2` no longer takes the
+  sequence number it never read, and `GENERATE` takes no words (a non-zero one is
+  refused).
+- **`ATTESTD` is out of `measuredd`'s append mapping**, in the same change as the
+  capability: `GET_HEAD` is ungated by sender, so the capability grants a read; shown
+  with a scratch probe that with the mapping present `attestd` could append (recorded
+  `source=11`) and with it removed both appends are `PermissionDenied`.
+- The `measurement` tier asserts what the record claims, read out of the record
+  `attestd` signs: `verified_flags=0`, every unproduced digest unavailable,
+  `head_seq=4 included=1..4`, and a chain digest **equal to the head the host derives
+  independently** — not merely non-zero.
+
+*Review fix-forward.* The rollback counter pair
+(`trust_provider_counter_supported` / `_value`) asserted a call nothing made and
+carried the genesis rollback minimum (0) as the provider's counter (1). `attestd` now
+reads the provider's counter once per record and the pair says whether that read
+succeeded and what it returned (`false` and `0` when it did not); the tier asserts it,
+and goes red with the read forced to fail. E-094's closure covers its **enumerated**
+fields; the remaining placeholders are **E-101**.
+
+### Fixed — a revocation was audited under a code nothing decoded (RFC-0.40-002, closes E-092)
+
+The kernel now emits `LeaseRevoked = 16`, the published value, and the dead
+`CapDenied = 41` is deleted (no emitter was added; capability denials remain
+unaudited). A tier revokes a lease, drains the kernel ring and asserts the **decoded
+name** (`lease.revoked`), not the raw word; it fails (`internal`) against the old
+code. The assertion runs inside `neg-test`, not through `auditd`, because `auditd`
+renders nothing after boot — filed as **E-102**. The tier's helper was made not to
+need an empty ring after it proved flaky while services start (`TaskSwitch` records
+refill the ring).
+
+### Added — the frame allocator's tests have a home a gate runs (RFC-0.40-003, closes E-100)
+
+`mm/frame_alloc.rs`, `mm/address.rs` and `mm/error.rs` moved to a new `no_std` crate,
+`fjell-frame-alloc` (`forbid(unsafe_code)`, `publish = false`); the kernel re-exports
+them, so no other kernel file changed and **every prebuilt was byte-identical**. The
+host-lib tier picked the crate up without wiring. The deliverable was the test E-097
+would have failed — a reserved range contains no free frame — shown failing against a
+half-reserved stack. The new tests found that `reserve_range` is not all-or-nothing
+(**E-103**); the property is an `#[ignore]`d test that names the entry.
+
+### Changed — documents and the register
+
+E-101, E-102 and E-103 filed (ACCEPTED); E-094's closure scoped to its enumerated
+fields; `v1-limitations.md` rows 11, 13 and 16; `CRA-I-2l` and `IEC-4-2-FR6` evidence
+cells qualified by E-102 (statuses unchanged). Figures: 33 tiers, ABI snapshot 498,
+unsafe sites 285, host-lib tests 761 (1 ignored), 103 errata entries with 0 OPEN.
+
+---
+
 ## [0.39.0] — 2026-10-28 — The chain says who, the head can be read, and two memory defects close
 
 Four RFCs, **four errata closed** (**E-096**, **E-097**, **E-098**, **E-099**).
