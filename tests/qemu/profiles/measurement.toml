@@ -24,8 +24,8 @@
 # What this does NOT show, and the limitations page says: only the service
 # images are measured (not the kernel's own image, configuration or runtime
 # state); and three of the chain's four recorded events are still placeholders
-# (RFC-0.38-001 R7). It says nothing about the attestation record, which is
-# built from constants independently of the chain (E-094).
+# (RFC-0.38-001 R7). The attestation record is asserted separately, below
+# (RFC-0.40-001).
 
 name                    = "measurement"
 timeout_secs            = 60
@@ -40,6 +40,7 @@ expected_markers = [
   "attestd: record verified_flags=0",
   "attestd: record availability kernel_digest=0 release_digest=0 rootfs_digest=0 policy_digest=0 snapshot_digest=0 measurement=1",
   "attestd: record measurement head_seq=4 included=1..4",
+  "attestd: record rollback counter_supported=1 counter_value=1",
 ]
 # RFC-0.39-001 R5: what the chain RECORDED for each event, read back out of the
 # stored event (`measuredd: event seq=N kind=K source=S subject=J`, wire values).
@@ -68,6 +69,11 @@ expect_image_set_digest = [
 #   * the measurement section is the REAL chain: `head_seq=4 included=1..4` and a
 #     chain digest EQUAL to the head the host derives independently
 #     (`expect_chain_head`; not merely non-zero).
+#   * `rollback counter_supported=1 counter_value=1` -- fix-forward 0.40: the pair
+#     says whether `attestd`'s own `read_anti_rollback_counter()` SUCCEEDED and
+#     what it RETURNED. The development provider starts at 1; the record used to
+#     say `supported=1` without ever making the call, beside `value=0`, the
+#     genesis rollback record's minimum -- a different quantity.
 # Still true and still NOT claimed: the kernel's own image is unmeasured and
 # release/rootfs/policy verification does not exist (E-095); this makes the
 # record truthful, not complete.

@@ -38,6 +38,7 @@ fn truthful_record() -> AttestationRecordV2 {
         *b"stable\0\0",
         [0u8; 16],
         42,
+        Some(7),
         1,
         Some(chain_reading()),
     )
@@ -336,6 +337,7 @@ fn an_unavailable_measurement_zeroes_the_whole_section() {
         *b"stable\0\0",
         [0u8; 16],
         42,
+        Some(7),
         1,
         None,
     );
@@ -368,4 +370,45 @@ fn the_real_measurement_is_covered_when_available() {
         m(&mut r);
         assert_ne!(base.canonical_digest(), r.canonical_digest());
     }
+}
+
+#[test]
+fn the_counter_pair_reports_the_provider_read_and_not_the_rollback_floor() {
+    // `truthful_record` has a rollback floor of 42 and a provider that answered 7.
+    // The pair says what the provider said: a floor is a different quantity.
+    let r = truthful_record();
+    assert_eq!(r.rollback.min_counter, 42);
+    assert!(r.rollback.trust_provider_counter_supported);
+    assert_eq!(r.rollback.trust_provider_counter_value, 7);
+}
+
+#[test]
+fn an_unreadable_counter_claims_no_support_and_no_value() {
+    // The read FAILED (the null provider, or a development provider whose
+    // descriptor is not usable): `false` and 0 -- not 0 beside a `true`, and not
+    // the rollback floor.
+    let r = AttestationRecordV2::local(
+        AttestationRecordId(*b"AT000001"),
+        TrustProviderId::new(1),
+        *b"stable\0\0",
+        [0u8; 16],
+        42,
+        None,
+        1,
+        Some(chain_reading()),
+    );
+    assert!(!r.rollback.trust_provider_counter_supported);
+    assert_eq!(r.rollback.trust_provider_counter_value, 0);
+    // And it is a different record from one whose read returned 0.
+    let zero = AttestationRecordV2::local(
+        AttestationRecordId(*b"AT000001"),
+        TrustProviderId::new(1),
+        *b"stable\0\0",
+        [0u8; 16],
+        42,
+        Some(0),
+        1,
+        Some(chain_reading()),
+    );
+    assert_ne!(r.canonical_digest(), zero.canonical_digest());
 }

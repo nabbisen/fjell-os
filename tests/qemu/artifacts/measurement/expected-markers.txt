@@ -8,6 +8,7 @@ measuredd: event seq=4 kind=4 source=13 subject=4
 attestd: record verified_flags=0
 attestd: record availability kernel_digest=0 release_digest=0 rootfs_digest=0 policy_digest=0 snapshot_digest=0 measurement=1
 attestd: record measurement head_seq=4 included=1..4
+attestd: record rollback counter_supported=1 counter_value=1
 measuredd: image-set digest     [exactly 1x]
 measuredd: event seq=1 kind=1 source=1 subject=1    [exactly 1x]
 measuredd: event seq=2 kind=2 source=13 subject=2    [exactly 1x]

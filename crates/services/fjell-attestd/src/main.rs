@@ -35,7 +35,6 @@ use fjell_trust_provider::material::AttestationDigest;
 use fjell_trust_provider::profile::{
     TrustProfile, TrustProviderCapabilities, TrustProviderKind, TrustProviderState,
 };
-#[allow(unused_imports)] // v0.7: hardware trust provider integration
 use fjell_trust_provider::provider::HardwareTrustProvider;
 use fjell_trust_provider::registry::{ProviderRegistry, RegistryPhase};
 
@@ -197,6 +196,11 @@ fn print_record_summary(record: &AttestationRecordV2) {
     let mut hex = [0u8; 64];
     fjell_syscall::sys_debug_write("attestd: record measurement chain_digest sha256:");
     sys_debug_writeln(m.chain_digest.to_hex(&mut hex));
+    fjell_syscall::sys_debug_write("attestd: record rollback counter_supported=");
+    print_dec(record.rollback.trust_provider_counter_supported as u64);
+    fjell_syscall::sys_debug_write(" counter_value=");
+    print_dec(record.rollback.trust_provider_counter_value);
+    sys_debug_writeln("");
 }
 
 /// The chain as `measuredd` reports it, as the record's measurement section --
@@ -230,12 +234,18 @@ fn sign_v2(
     generation: u32,
     measurement: Option<MeasurementClaims>,
 ) -> (Digest32, bool) {
+    // F1 (fix-forward 0.40): the record's `trust_provider_counter_*` pair says whether
+    // THIS call succeeded and what it returned, so it is made here, once per record
+    // -- never cached, because the counter advances. `Err` is not `0` with the flag
+    // still true: it is "unsupported", and the encoder writes flag 0 and value 0.
+    let provider_counter = provider.read_anti_rollback_counter().ok();
     let record = AttestationRecordV2::local(
         make_record_id(seq),
         ATTESTD_PROVIDER_ID,
         DEV_CHANNEL,
         [0u8; 16], // dev nonce
         rollback.min_counter,
+        provider_counter,
         generation,
         measurement,
     );

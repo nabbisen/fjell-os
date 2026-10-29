@@ -449,9 +449,11 @@ mod tests {
     // if a frame is already reserved with the same owner"; the code fails on any
     // used frame. No caller in the kernel overlaps today (checked), so nothing is
     // wrong yet. The property below is the one the boot invariant relies on; it is
-    // `#[ignore]`d, not deleted and not passing, until the architect rules.
+    // `#[ignore]`d, not deleted and not passing, until E-103 (scheduled 0.41, ruled:
+    // make `reserve_range` all-or-nothing) is fixed. It covers divergence 1 of E-103
+    // only; the entry names all three.
     #[test]
-    #[ignore = "FINDING (RFC-0.40-003): reserve_range leaves the unreached tail of an overlapping range free; awaiting the architect's ruling"]
+    #[ignore = "E-103: reserve_range leaves the unreached tail of an overlapping range free; ruled all-or-nothing, scheduled 0.41"]
     fn an_overlapping_reservation_does_not_leave_the_rest_of_its_range_free() {
         let mut fa = ram(64);
         fa.reserve_range(pa(0), pa(4), FrameOwner::KernelText)

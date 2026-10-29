@@ -62,7 +62,8 @@ pub struct RollbackClaims {
     pub min_counter: u64,
     /// Raw `AdvanceSource` tag of the last advance.
     pub last_advance_source: u8,
-    /// Whether `trust_provider.read_anti_rollback_counter()` succeeded.
+    /// Whether `trust_provider.read_anti_rollback_counter()` succeeded. When it
+    /// did not, this is `false` and `trust_provider_counter_value` is 0.
     pub trust_provider_counter_supported: bool,
     pub trust_provider_counter_value: u64,
 }
@@ -434,6 +435,7 @@ impl AttestationRecordV2 {
         channel_id: [u8; 8],
         nonce_bytes: [u8; 16],
         rollback_min: u64,
+        provider_counter: Option<u64>,
         generation: u32,
         measurement: Option<MeasurementClaims>,
     ) -> Self {
@@ -486,8 +488,15 @@ impl AttestationRecordV2 {
                 channel_id,
                 min_counter: rollback_min,
                 last_advance_source: AdvanceSource::UpgradedConfirmation as u8,
-                trust_provider_counter_supported: true,
-                trust_provider_counter_value: rollback_min,
+                // The flag IS the availability disclosure (its doc says so): it
+                // is whether the provider's read SUCCEEDED, and the value is what
+                // it returned. `rollback_min` is a different quantity -- the
+                // rollback record's floor -- and is not a stand-in for it.
+                trust_provider_counter_supported: provider_counter.is_some(),
+                trust_provider_counter_value: match provider_counter {
+                    Some(v) => v,
+                    None => 0,
+                },
             },
             freshness: FreshnessClaimsV2 {
                 generation,

@@ -64,6 +64,7 @@ pub fn attestation_v2() -> AttestationRecordV2 {
             0xCF, 0xD0,
         ],
         0x7071_7273_7475_7677,
+        Some(0x5A5B_5C5D_5E5F_6061),
         0x0E0F_1011,
         Some(MeasurementClaims {
             head_seq: 0,
@@ -105,8 +106,6 @@ pub fn attestation_v2() -> AttestationRecordV2 {
     r.health.target = *b"healthd\0";
     r.health.status = 2;
     r.rollback.last_advance_source = 2;
-    r.rollback.trust_provider_counter_supported = true;
-    r.rollback.trust_provider_counter_value = 0x5A5B_5C5D_5E5F_6061;
     r.freshness.generation = 0xE1E2_E3E4;
     r.freshness.key_epoch = 0xF1F2_F3F4;
     r.freshness.status = 4;
