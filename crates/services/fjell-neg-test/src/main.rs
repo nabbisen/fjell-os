@@ -1051,8 +1051,11 @@ fn test_audit_evidence_gap() {
     }
 }
 
-/// Drain the kernel audit ring until it is empty (bounded), handing each record
-/// to `f`. Returns whether it stopped because the ring was empty.
+/// Drain the kernel audit ring until it is empty or 64 drains have been made,
+/// handing each record to `f`. Returns `false` only if a drain itself failed: a
+/// ring other tasks keep refilling (task-switch records arrive faster than a
+/// bounded loop empties it while the other services start) is not a failure,
+/// so callers must not need it empty.
 fn drain_audit_all(mut f: impl FnMut(&fjell_audit_format::AuditRecordBin)) -> bool {
     use fjell_audit_format::{AUDIT_RECORD_BIN_SIZE, AuditRecordBin};
     let mut buf = [0u8; 32 * AUDIT_RECORD_BIN_SIZE];
@@ -1070,7 +1073,7 @@ fn drain_audit_all(mut f: impl FnMut(&fjell_audit_format::AuditRecordBin)) -> bo
             Err(_) => return false,
         }
     }
-    false
+    true
 }
 
 /// AUDIT (RFC-0.40-002, E-092): a lease revocation must read as a revocation.
@@ -1088,7 +1091,9 @@ fn drain_audit_all(mut f: impl FnMut(&fjell_audit_format::AuditRecordBin)) -> bo
 /// happens afterwards never reaches its output. (Reported in the review request.)
 fn test_audit_lease_revocation_decodes() {
     use fjell_audit_format::AuditKind;
-    // Start from an empty ring, so the only revocation record is ours.
+    // Best effort: get ahead of the backlog. The ring may well not be empty when
+    // this returns (see `drain_audit_all`), so nothing below relies on it: the
+    // record is picked out by the lease id, and the last match wins.
     if !drain_audit_all(|_| {}) {
         setup_failed("audit_lease_revocation: flush");
         return;
