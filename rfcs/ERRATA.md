@@ -6796,6 +6796,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > `rollback.last_advance_source = UpgradedConfirmation`, `trust_provider_counter_supported =
   > true`, `freshness.key_epoch = 1`. Whether those are in E-094's class is the architect's
   > ruling; they were reported, not widened into this line.
+  >
+  > **Scope of this closure (added in review, 2026-10-29).** It covers E-094's **enumerated**
+  > fields — the three `*_verified` flags, the five digests and the measurement section — and
+  > does **not** mean nothing in the record is now false. The same class left behind (a) the
+  > **counter pair**, `trust_provider_counter_supported` (documented as "whether
+  > `read_anti_rollback_counter()` succeeded", set `true` though nothing called it) and
+  > `trust_provider_counter_value` (the genesis rollback minimum, not the provider's counter),
+  > fixed in the fix-forward to this line (`attestd` now reads the provider's counter once per
+  > record and reports whether the read succeeded and what it returned); and (b) the remaining
+  > unqualified placeholders, now **E-101**. E-094 is not reopened: its enumerated defect is closed.
 
 ## E-096 — the measurement chain's `source` is declared by the caller, not attested, and three events per boot declare a service that had no part in them
 
@@ -7214,6 +7224,107 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   > on purpose, so it exists and is not passing; whether to fix the allocator (reserve atomically
   > or not at all) or its comment is the architect's ruling.
 
+## E-101 — the attestation record still carries unqualified placeholders that read as state: keyring epochs, a snapshot id, a health status, a last-advance source, a freshness key epoch
+
+- **Found 2026-10-29 in review of RFC-0.40-001**, from the implementer's list of the literals
+  that line left in the signed record, ruled by class by the architect (0.40-001 review
+  record §5). Filed because RFC-0.40-001's field table enumerated three flags and five digests
+  and the implementation followed the enumeration; the same class has members that table did
+  not list.
+- **Claim:** `attestd` signs a record that describes this node. Its fields are meant to read as
+  that node's state.
+- **Tree, observed at `2220740`:** `AttestationRecordV2::local` sets, from constants, keyring
+  anchor epochs `1`/`1`/`0`, `snapshot_id = "SN000001"` with `reason 0`, `health.status`,
+  `rollback.last_advance_source = UpgradedConfirmation` and `freshness.key_epoch = 1`.
+- **Why it matters, and why it is not E-094.** None of them asserts that an operation
+  *succeeded* — E-094's shape — but `"SN000001"` reads as a snapshot identifier and an epoch
+  reads as a keyring state, and nothing computes either. They want the treatment the digests
+  got (zero or absent beside an availability disclosure). The natural time is when **E-095**
+  makes verification real and the whole record is re-read.
+- **Not in this entry.** The counter pair (`trust_provider_counter_supported`/`_value`), which
+  asserted a call that was never made and carried the genesis rollback minimum as the
+  provider's counter: it is fixed in the fix-forward to RFC-0.40-001, not scheduled. And
+  `boot.selected_slot`, `boot_id` and `health.target`, which are true of this deployment (one
+  slot, one boot, one target).
+- **Status:** **ACCEPTED**, `0.41`. Recorded in `docs/src/releasing/v1-limitations.md` row 13.
+
+## E-102 — `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot
+
+- **Found 2026-10-29 by the implementer of RFC-0.40-002**, who could not assert a revocation's
+  decoded name through `auditd` and said why; **verified independently by the architect** (0.40-002
+  review record §3). RFC-0.28-001 and RFC-0.33-001 had each recorded the trigger as "never
+  fixed", E-068 retracted past it, and RFC-0.40-002 routed around it: three lines have now
+  worked around the same gap.
+- **Tree:** `fjell-auditd`'s `main` calls `drain_once` once, then `loop { sys_ipc_recv(0);
+  drain_once() }`, so every drain after boot needs a message on its receive object. `AUDITD` is
+  not in `spawn.rs`'s dedicated-endpoint table, so it receives on the shared default object 0, and
+  **no task holds a send it uses**: no service sends to its own slot 0, and the one declared
+  capability that could have carried a trigger (`diagnosticsd`'s `CAP_AUDITD_EP`, slot 3) was
+  deleted when E-068 closed by retraction. The comment above that loop ("Other services (or
+  init) send a message to endpoint 0 to trigger a drain") describes a sender that does not exist.
+- **Claim versus tree.** The kernel records the trail and the published decoder names it; the
+  one consumer that renders it cannot see anything after boot. **A lease revocation that happens
+  after boot is never printed by `auditd`** — its whole output in a normal boot is the early-boot
+  records. The property RFC-0.40-002 delivered is true of the ring and the decoder and is asserted
+  inside `neg-test`; it is not true of anything an operator reading `auditd`'s console sees.
+- **A latent hazard, same entry.** Per the architect's count, twenty of the thirty-five images
+  receive on endpoint object 0 (fifteen have dedicated objects), and every service's slot 0 is
+  installed with `CapRights::ALL_NON_META` — which includes SEND — to its own endpoint object.
+  So the twenty each hold a send to the object `auditd` receives on. Nothing sends today, which is
+  why this is latent; the day anything does, `auditd` may win the receive race and take a message
+  meant for another service. RFC-0.28-001 fixed exactly this shape for `service-manager` by giving
+  it object 10 and left the rest sharing 0. Whoever scopes this should settle the two together,
+  because a message-based trigger for `auditd` would be built on the contested object.
+- **Also open, a volume question.** While services start, `TaskSwitch` records refill the 256-slot
+  ring faster than a 64-drain loop empties it (observed: 32 consecutive-sequence records per drain,
+  kind 4). That made RFC-0.40-002's first tier flaky until it stopped needing the ring empty. Whether
+  the trail should carry scheduling events at that rate is the same unbounded-volume question as a
+  capability-denial event.
+- **Direction is the owner's — this is an open question, not a decision.** The architect's
+  recommendation, noted not taken: a **periodic drain rather than a wake** (a timer tick, or a drain
+  on the scheduler's own path), because every message-based trigger re-opens the authority question
+  E-068 declined to answer, and a trail that flushes on a schedule needs no sender at all.
+  **E-068 does not decide this.** E-068 retracted a *query sub-protocol* with an unanswered
+  capability question (who may read the audit log); this is a *trigger* for `auditd`'s own drain
+  loop and needs no new authority over who may read anything. The two rhyme and are not the same.
+- **Status:** **ACCEPTED**, `0.41` — the lead candidate. Weight is expressed by scheduling, not by an
+  OPEN status: Gate 7 fails on any OPEN row and the rehearsal requires every gate. Recorded in
+  `docs/src/releasing/v1-limitations.md` row 11.
+
+## E-103 — `FrameAllocator::reserve_range` is not all-or-nothing in either direction, and its doc comment describes a contract it does not implement
+
+- **Found 2026-10-29 by the implementer of RFC-0.40-003** (the unreached tail), **extended by the
+  architect in review** (0.40-003 review record §3, with two probes of their own against `2220740`):
+  three divergences. Filed as a number because a finding that lives only inside the closure note of a
+  CLOSED entry is tracked by nothing: `errata-tracking` counts entries and Gate 7 counts OPEN.
+- **Tree:** `crates/fjell-frame-alloc/src/frame_alloc.rs`, `reserve_range`.
+  1. **The unreached tail stays free.** It returns `AlreadyReserved` at the first used frame; frames
+     it had not reached are left **free** inside a range the caller asked to reserve. Reserve `[0,4)`,
+     then `[2,6)`: `Err`, and frames 4–5 are allocatable. E-097's shape one level down.
+  2. **The reached head is consumed and relabelled.** The frames *before* the conflict are already
+     marked used, with the owner map overwritten, when the call returns `Err`. Reserve `[4,8)` as
+     `KernelText`, then `[0,8)` as `KernelStack`: the call fails, `free_count` drops by 4 and frames 0–3
+     report `owner_of == KernelStack` — the map RFC-0.39-003 added so a frame's holder could be named.
+     A caller that treats `Err` as "nothing happened" is wrong in both directions. (The loop sets the
+     used bit and the owner before it reaches the conflict; the architect's probe demonstrated it.)
+  3. **The documented contract is not the implemented one.** The doc says it "does not fail if a frame
+     is already reserved with the same owner, but returns `AlreadyReserved` for conflicting owners";
+     the check never reads `owner` and fails on any used frame. A same-owner reservation fails.
+- **Latent, not live.** No kernel caller overlaps today (every reservation in `kmain` was read —
+  image, stack, boot window, DTB, MMIO are disjoint), and RFC-0.39-003's boot invariant backstops the
+  consequence of the tail.
+- **The test.** `an_overlapping_reservation_does_not_leave_the_rest_of_its_range_free` exists and is
+  `#[ignore]`d: it asserts divergence 1's property and **fails when run on purpose**. Coverage that
+  exists as source and never as evidence is the shape E-100 was filed for; this entry and the ignore
+  reason name each other so each can be found from the other. It covers divergence 1 only.
+- **Ruling on direction (architect):** make the reservation **all-or-nothing** — validate the whole
+  range first, then apply, so an `Err` leaves the allocator untouched; that fixes 1 and 2 with one change
+  of shape. **Do not implement the same-owner tolerance**: correct the comment to say any already-used
+  frame fails (no caller needs the tolerance, and adding behaviour to match a comment is the wrong
+  direction of travel).
+- **Status:** **ACCEPTED**, `0.41`. ACCEPTED rather than OPEN because no live caller reaches it and the
+  boot invariant backstops the consequence. Recorded in `docs/src/releasing/v1-limitations.md` row 16.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -7317,6 +7428,9 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped. **All three fixed by RFC-0.39-003**; the stale `R/W/U` mapping that survived is split to **E-099**, by the E-090/E-091 test | RFC-0.39-003 | CLOSED |
 | E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | CLOSED |
 | E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | RFC-0.40-003 | CLOSED |
+| E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001 | 0.41 | ACCEPTED |
+| E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images receive on object 0 while each holds SEND to its own slot 0) and an open question about `TaskSwitch` record volume. Direction is the owner's; E-068 does not decide it | 0.41 | ACCEPTED |
+| E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | 0.41 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

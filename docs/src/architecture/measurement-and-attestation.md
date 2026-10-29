@@ -88,7 +88,16 @@ Now:
 * the **measurement section is the real chain**: `attestd` reads the head and its
   range from `measuredd` through a `CALL` capability, as one consistent reading, and if
   `measuredd` cannot be read the section is **unavailable** — there is no fallback to a
-  stale or literal head.
+  stale or literal head;
+* the **rollback counter pair** says whether `attestd`'s own
+  `read_anti_rollback_counter()` call to its trust provider **succeeded** and what it
+  **returned** (`false` and `0` when it did not). It is read once per record, never
+  cached; it is not the rollback record's minimum, which is a different quantity and
+  was once reported in its place.
+
+Other fields still carry unqualified placeholders that read as state — keyring epochs,
+the snapshot id, the health status, the last-advance source, the freshness key epoch
+(E-101); nothing computes them.
 
 `attestd` has no way to write the chain: the capability cannot tell a read from an
 append, so `measuredd` refuses an append from `attestd` (it is not a source
