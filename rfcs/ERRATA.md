@@ -7189,7 +7189,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   claim-versus-reality defect and should be filed as one.
 - **Status:** **ACCEPTED**, `unscheduled`. What closing it needs: a host-buildable crate the
   allocator's logic can live in or be exercised from, and a gate that runs it. Recorded in
-  `docs/src/releasing/v1-limitations.md` row 16.
+  `docs/src/releasing/v1-limitations.md` row 16 **as the table stood in 2026-10 before this
+  closure; that row was removed when E-100 closed, and row 16 is now E-103.**
 - **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-0.40-003**.
 
   > **Closed by RFC-0.40-003, 2026-10-29.** `mm/frame_alloc.rs`, `mm/address.rs` and
@@ -7241,6 +7242,21 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   reads as a keyring state, and nothing computes either. They want the treatment the digests
   got (zero or absent beside an availability disclosure). The natural time is when **E-095**
   makes verification real and the whole record is re-read.
+- **A property, not a field name: the encoder zeroes every flag-and-value pair.** Every
+  flag-and-value pair in the record is written zero by the **encoder** when its flag is `false`,
+  not merely by the factory that happens to build it. Today the five digests and the measurement
+  section are (`v2.rs`'s `zeroed` closure in `write_canonical`, and `measurement_written()`); the
+  `trust_provider_counter_*` pair is not — `write_canonical` writes the caller's value
+  unconditionally and only `AttestationRecordV2::local` zeroes it (maps `None` to `0`).
+  `RollbackClaims` is `pub` with `pub` fields, so `local()` is the only honest path, not the only
+  path; `bundle-v1.frozen` gives the reason the pattern exists (zeroed "in the encoder itself
+  whenever unavailable rather than trusting the caller's raw value"). Closing this is **not** a
+  `SCHEMA_VERSION` bump: no byte of any record the tree can construct moves (every construction
+  sets the flag `true`), and the precedent for regenerating `v2.frozen` without a bump is its own
+  2026-09-24 note (RFC-0.33-003 D3, "Corrected toward the encoder; no byte moved"). It is right,
+  cheap and scheduled with the rest of this entry rather than done at the 0.40.0 cut, because it
+  recompiles the format crate into `attestd.bin` and moves a prebuilt and the repro baseline for
+  no change in any record this tree produces.
 - **Not in this entry.** The counter pair (`trust_provider_counter_supported`/`_value`), which
   asserted a call that was never made and carried the genesis rollback minimum as the
   provider's counter: it is fixed in the fix-forward to RFC-0.40-001, not scheduled. And
@@ -7258,23 +7274,43 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Tree:** `fjell-auditd`'s `main` calls `drain_once` once, then `loop { sys_ipc_recv(0);
   drain_once() }`, so every drain after boot needs a message on its receive object. `AUDITD` is
   not in `spawn.rs`'s dedicated-endpoint table, so it receives on the shared default object 0, and
-  **no task holds a send it uses**: no service sends to its own slot 0, and the one declared
-  capability that could have carried a trigger (`diagnosticsd`'s `CAP_AUDITD_EP`, slot 3) was
-  deleted when E-068 closed by retraction. The comment above that loop ("Other services (or
-  init) send a message to endpoint 0 to trigger a drain") describes a sender that does not exist.
+  **nothing sends to object 0**: the one declared capability that could have carried a trigger
+  (`diagnosticsd`'s `CAP_AUDITD_EP`, slot 3) was deleted when E-068 closed by retraction. The
+  comment above that loop ("Other services (or init) send a message to endpoint 0 to trigger a
+  drain") describes a sender that does not exist.
 - **Claim versus tree.** The kernel records the trail and the published decoder names it; the
   one consumer that renders it cannot see anything after boot. **A lease revocation that happens
   after boot is never printed by `auditd`** — its whole output in a normal boot is the early-boot
   records. The property RFC-0.40-002 delivered is true of the ring and the decoder and is asserted
   inside `neg-test`; it is not true of anything an operator reading `auditd`'s console sees.
-- **A latent hazard, same entry.** Per the architect's count, twenty of the thirty-five images
-  receive on endpoint object 0 (fifteen have dedicated objects), and every service's slot 0 is
-  installed with `CapRights::ALL_NON_META` — which includes SEND — to its own endpoint object.
-  So the twenty each hold a send to the object `auditd` receives on. Nothing sends today, which is
-  why this is latent; the day anything does, `auditd` may win the receive race and take a message
-  meant for another service. RFC-0.28-001 fixed exactly this shape for `service-manager` by giving
-  it object 10 and left the rest sharing 0. Whoever scopes this should settle the two together,
-  because a message-based trigger for `auditd` would be built on the contested object.
+- **A latent hazard, same entry.** *(Corrected 2026-10-29, here and in the **Tree** bullet above, by an
+  enumeration of every `sys_ipc_send`/`sys_ipc_call`/`sys_ipc_call_words` site in
+  `crates/services/` and every `EP_SLOT`, resolved against `spawn.rs`'s `ep_obj` table: the first
+  wording counted holders where it meant receivers, and said no service sends to its own slot 0.
+  The enumeration is the reviewer's; the two receivers, the sample-service send and the ten
+  `EP_SLOT = 0` services were re-checked against the source by the implementer, the per-category
+  send counts were not.)* `crates/fjell-abi/src/service.rs` declares **35** `ImageId`s; `spawn.rs`'s `ep_obj`
+  match has **15** dedicated arms and `_ => 0`, so **20 images hold slot 0 against object 0**, each
+  installed `CapRights::ALL_NON_META` (`(1 << 26) - 1`), which includes SEND (`1 << 3`). But exactly
+  **two** tasks run a receive loop on object 0: `fjell-auditd` (`src/main.rs:105`,
+  `sys_ipc_recv(0u32)`) and `fjell-netd` (`src/main.rs:79`, `sys_ipc_recv_msg(0)`). The ten
+  services whose `EP_SLOT` is `0` — attestd, measuredd, proxy-text, recoveryd, semantic-stream,
+  storaged, verifyd, proxy-braille and the two presentation fakes — are all in the dedicated-object
+  table, which is why the receiver set is so much smaller than the holder set. Those two named
+  receivers are the race a message-based trigger for `auditd` would be built into. **Nothing sends
+  to object 0 today, which is why this is latent**, and that now rests on an enumeration rather
+  than one grep: 14 readiness sends to object 10, 3 `init` sends to named slots, `diagnosticsd`'s
+  `send_tag` to slots 1–2, `fjell-sample-service` to its **own dedicated object 6**
+  (`src/main.rs:241`, a send to its own slot 0 that is safe because slot 0 is wired to object 6,
+  not 0 — the comment above it, RFC-0.28-003, says so), `neg-test` to named peer slots, and
+  `bootctl` to its health slot. The day anything sends to object 0, `auditd` or `netd` may win the
+  receive race and take a message meant for the other. RFC-0.28-001 fixed exactly this shape for
+  `service-manager` by giving it object 10 and left the rest sharing 0. Whoever scopes this should
+  settle the two together, because a message-based trigger for `auditd` would be built on the
+  contested object. **For that fix to clean up:** the comment above that send in
+  `fjell-sample-service` still names "auditd/bootctl's shared-object-0 receive loops"; `bootctl`
+  has had `BOOTCTL_EP_OBJECT` since RFC-0.33-001 D8, so the pair today is auditd/netd. It is a
+  comment in a service whose binary was not moved at the 0.40.0 cut.
 - **Also open, a volume question.** While services start, `TaskSwitch` records refill the 256-slot
   ring faster than a 64-drain loop empties it (observed: 32 consecutive-sequence records per drain,
   kind 4). That made RFC-0.40-002's first tier flaky until it stopped needing the ring empty. Whether

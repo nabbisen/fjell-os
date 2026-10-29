@@ -422,11 +422,17 @@ impl AttestationRecordV2 {
     /// * the measurement section is **the reading the caller took** of the chain, or
     ///   unavailable if it took none -- `measurement` is `None` when `measuredd`
     ///   could not be asked, and a record never reports a stale or literal head in
-    ///   its place.
+    ///   its place;
+    /// * the **rollback counter pair** is whether the caller's own
+    ///   `read_anti_rollback_counter()` **succeeded** and what it **returned** --
+    ///   `false` and `0` when it did not, and never `rollback_min`, which is the
+    ///   rollback record's floor and a different quantity.
     ///
     /// This makes the record *truthful*, not *complete*: the kernel image is still
     /// unmeasured (0.39 measures the *service* images, which is not that) and
-    /// release/rootfs/policy verification is E-095. The service-image digest is
+    /// release/rootfs/policy verification is E-095; the record's remaining
+    /// unqualified placeholders -- keyring epochs, snapshot id and reason, health
+    /// status, `last_advance_source`, freshness key epoch -- are E-101. The service-image digest is
     /// deliberately **not** put in `kernel_digest`; it would be the same entry with
     /// a better-looking value.
     pub fn local(

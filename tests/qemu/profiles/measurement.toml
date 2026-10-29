@@ -73,7 +73,11 @@ expect_image_set_digest = [
 #     says whether `attestd`'s own `read_anti_rollback_counter()` SUCCEEDED and
 #     what it RETURNED. The development provider starts at 1; the record used to
 #     say `supported=1` without ever making the call, beside `value=0`, the
-#     genesis rollback record's minimum -- a different quantity.
+#     genesis rollback record's minimum -- a different quantity. NOTE: the marker
+#     pins a value. `1` holds because `DevelopmentTrustProvider` starts its counter
+#     at 1 (`development.rs`, `rollback_counter: Cell::new(1)`) and nothing advances
+#     it before `attestd` signs; if anything ever does, this tier goes red and the
+#     correct fix is the MARKER, not the record.
 # Still true and still NOT claimed: the kernel's own image is unmeasured and
 # release/rootfs/policy verification does not exist (E-095); this makes the
 # record truthful, not complete.

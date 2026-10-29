@@ -237,7 +237,7 @@ fn sign_v2(
     // F1 (fix-forward 0.40): the record's `trust_provider_counter_*` pair says whether
     // THIS call succeeded and what it returned, so it is made here, once per record
     // -- never cached, because the counter advances. `Err` is not `0` with the flag
-    // still true: it is "unsupported", and the encoder writes flag 0 and value 0.
+    // still true: it is "unsupported", and `local()` writes flag 0 and value 0.
     let provider_counter = provider.read_anti_rollback_counter().ok();
     let record = AttestationRecordV2::local(
         make_record_id(seq),
