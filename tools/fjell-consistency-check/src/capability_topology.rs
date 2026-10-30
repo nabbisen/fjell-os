@@ -397,10 +397,42 @@ pub fn check() -> ExitCode {
         }
     }
 
+    // RFC-0.41-002 R5: slot 0 is excluded from the per-slot discovery above (see the
+    // module doc), but not from governance: the invariant that made it dangerous --
+    // an endpoint object more than one task could receive on, object 0 -- is judged
+    // here, from the installs (`object_zero`).
+    let abi_src = read_file(NAME, "crates/fjell-abi/src/service.rs");
+    let main_src = read_file(NAME, "crates/fjell-kernel/src/main.rs");
+    let rights_src = read_file(NAME, "crates/fjell-cap/src/rights.rs");
+    let object_zero = match (abi_src, main_src, rights_src) {
+        (Some(abi), Some(main), Some(rights)) => {
+            Some(crate::object_zero::judge(&spawn_src, &main, &abi, &rights))
+        }
+        _ => None,
+    };
+    let zero_note = match object_zero {
+        None => {
+            ok = false;
+            String::new()
+        }
+        Some(Ok(r)) => format!(
+            "; object 0: no capability to receive on it among {} dedicated arms and {} other \
+             endpoint installs, and the default arm grants none",
+            r.arms, r.installs
+        ),
+        Some(Err(why)) => {
+            ok = false;
+            for w in why {
+                eprintln!("{NAME}: FAIL — object 0 — {w}");
+            }
+            String::new()
+        }
+    };
+
     if ok {
         println!(
             "{NAME}: PASS ({installed} installed, {waived} waived to a named line, \
-             {} checked)",
+             {} checked{zero_note})",
             discovered.len()
         );
         ExitCode::SUCCESS

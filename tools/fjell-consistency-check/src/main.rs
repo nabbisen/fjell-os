@@ -58,6 +58,7 @@ mod errata_limitations;
 mod errata_tracking;
 mod evidence;
 mod handoff_status;
+mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
 mod rfc_status_folder;
 mod security_advisories;

@@ -320,6 +320,33 @@ pub const UPDATE_CHANNEL_EP_OBJECT: u32 = 17;
 /// message meant for whichever other default-path service got there first.
 pub const VERIFYD_EP_OBJECT: u32 = 18;
 
+// ── RFC-0.41-002: no service receives on a shared endpoint object ────────────
+//
+// Until this line `spawn.rs`'s `ep_obj` match ended `_ => 0`: every image without a
+// dedicated arm was handed slot 0 pointing at endpoint object 0, with
+// `CapRights::ALL_NON_META` (which includes SEND). Three of those images actually
+// used it to RECEIVE -- `configd`'s serving loop, `neg-test`'s blocked-receive tests
+// (on copies of its slot 0), and `netd`'s receive (dead code behind its own early
+// exit) -- and nothing sent to the object, which is the only reason the race had
+// never fired. The default is gone: an image without a dedicated arm gets **no**
+// endpoint capability in slot 0, and these three earn theirs.
+
+/// `netd`'s own endpoint object (its slot 0). `netd` exits before its event loop by
+/// design (a smoke-test stub), so nothing receives on it today; the object exists
+/// so that the day the loop runs it owns what it waits on.
+pub const NETD_EP_OBJECT: u32 = 21;
+
+/// `configd`'s own endpoint object (its slot 0), where its serving loop receives.
+/// Nothing sends to it today either.
+pub const CONFIGD_EP_OBJECT: u32 = 22;
+
+/// `neg-test`'s *scratch* endpoint object (its slot 0): the capability its
+/// negative tests copy, mint from, hand to the wrong-kind syscalls and receive on
+/// (through copies). Deliberately **not** `NEG_TEST_EP_OBJECT` (14), where `init`'s
+/// reboot/DMA trigger arrives: a test blocked in a receive on its scratch endpoint
+/// must not be able to swallow the trigger.
+pub const NEG_TEST_OWN_EP_OBJECT: u32 = 23;
+
 /// How many endpoint objects the kernel allocates at boot: the highest object
 /// id above, plus one. `crates/fjell-kernel/src/main.rs` asserts that each
 /// `et.alloc()` returns the object its constant names, and a host test counts
@@ -328,7 +355,7 @@ pub const VERIFYD_EP_OBJECT: u32 = 18;
 /// capability that is itself perfectly valid, and that mistake is recorded in
 /// `main.rs`'s own comments for cap-broker, sample-service, the service-manager
 /// pair and `bootctl` (RFC-0.33-001 D8) — repeatedly.
-pub const ENDPOINT_OBJECT_COUNT: u32 = 21;
+pub const ENDPOINT_OBJECT_COUNT: u32 = 24;
 
 #[cfg(test)]
 mod image_id_v07_tests {
@@ -417,6 +444,9 @@ mod endpoint_allocation_tests {
             ("VERIFYD_EP_OBJECT", VERIFYD_EP_OBJECT),
             ("DIAGNOSTICSD_TOOLS_EP_OBJECT", DIAGNOSTICSD_TOOLS_EP_OBJECT),
             ("FLEETD_TRIGGER_EP_OBJECT", FLEETD_TRIGGER_EP_OBJECT),
+            ("NETD_EP_OBJECT", NETD_EP_OBJECT),
+            ("CONFIGD_EP_OBJECT", CONFIGD_EP_OBJECT),
+            ("NEG_TEST_OWN_EP_OBJECT", NEG_TEST_OWN_EP_OBJECT),
         ] {
             assert!(id < ENDPOINT_OBJECT_COUNT, "{name} = {id} is not allocated");
         }
@@ -424,20 +454,25 @@ mod endpoint_allocation_tests {
 
     #[test]
     fn the_spawn_tables_literal_endpoint_ids_are_allocated() {
-        // The `ep_obj` match in spawn.rs: `ImageId::X => N,` arms.
+        // The `ep_obj` match in spawn.rs: `ImageId::X => Some(N),` arms.
         let start = SPAWN
-            .find("let ep_obj: u32 = match image_id {")
+            .find("let ep_obj: Option<u32> = match image_id {")
             .expect("spawn.rs no longer has the ep_obj table this test reads");
+        // RFC-0.41-002 R3: the default arm grants NOTHING. This is the host-side half of
+        // that property (the other half is `capability-topology`): `_ => None`, not a
+        // number -- a default that names an object is a shared object again.
         let end = start
             + SPAWN[start..]
-                .find("_ => 0,")
-                .expect("ep_obj has no default arm");
+                .find("_ => None,")
+                .expect("ep_obj's default arm is not `_ => None` (RFC-0.41-002 R3)");
         let mut seen = 0;
         for line in SPAWN[start..end].lines() {
             let line = line.trim();
             if let Some(rest) = line.strip_prefix("fjell_abi::service::ImageId::") {
                 if let Some(n) = rest.split("=>").nth(1) {
-                    if let Ok(id) = n.trim().trim_end_matches(',').parse::<u32>() {
+                    let n = n.trim().trim_end_matches(',');
+                    let n = n.strip_prefix("Some(").and_then(|r| r.strip_suffix(')'));
+                    if let Some(Ok(id)) = n.map(|n| n.trim().parse::<u32>()) {
                         seen += 1;
                         assert!(
                             id < ENDPOINT_OBJECT_COUNT,

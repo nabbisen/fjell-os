@@ -6,7 +6,9 @@
 //!   user_task_a (client): ipc_call → exit(0)
 //!   user_task_b (server): ipc_recv → ipc_reply → exit(0)
 //!
-//! The shared endpoint capability is installed by the kernel (slot 0).
+//! Historical: nothing in the kernel builds these tasks any more. They assumed a shared
+//! endpoint capability installed by the kernel in slot 0; no such shared endpoint exists
+//! (RFC-0.41-002 removed it).
 //! CapHandle(slot=0, gen=0) encodes as u32 = 0, so a0 = 0 is the handle.
 
 #![allow(dead_code)]

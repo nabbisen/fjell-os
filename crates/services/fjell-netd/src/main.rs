@@ -41,7 +41,12 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 
 // ── CSpace layout ─────────────────────────────────────────────────────────────
 //
-//   slot 0 — NetDevice capability (from cap-broker)
+//   slot 0 — netd's own endpoint (`fjell_abi::service::NETD_EP_OBJECT`), the one
+//            the event loop below would receive on. RFC-0.41-002: it used to be
+//            described here as a NetDevice capability from cap-broker and, in
+//            `recv_msg`, as "the netdev endpoint"; it was neither -- it was the
+//            default endpoint every image without its own was handed, shared with
+//            everything else. The NetDevice capability is not installed anywhere.
 //
 // RFC-0.28-001: the readiness signal no longer goes through a per-image
 // CSpace slot at all. It used to declare "slot 2 — Endpoint to
@@ -60,7 +65,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // by design (the smoke-test stub this file's own top comment already
 // discloses), so even that function never runs.
 #[allow(dead_code)] // RFC-0.37-002 (closes E-082): re-derived, still true
-const CAP_NETDEV: CapHandle = CapHandle(0);
+const CAP_OWN_EP: CapHandle = CapHandle(0);
 
 // ── IPC helpers ───────────────────────────────────────────────────────────────
 
@@ -75,8 +80,8 @@ fn send_ready() {
 fn recv_msg() -> (usize, usize, usize) {
     // RFC-0.28-002: was a hand-rolled `IpcRecv` asm block; `sys_ipc_recv_msg`
     // is a correct superset (`w2`/`w3`/sender discarded, not needed here).
-    // listen on ep slot 0 (the netdev endpoint)
-    match fjell_syscall::sys_ipc_recv_msg(0) {
+    // Listen on this service's own endpoint (slot 0, `NETD_EP_OBJECT`).
+    match fjell_syscall::sys_ipc_recv_msg(CAP_OWN_EP.0) {
         Ok((t, w0, w1, _w2, _w3, _sender)) => (t, w0, w1),
         Err(_) => (0, 0, 0),
     }

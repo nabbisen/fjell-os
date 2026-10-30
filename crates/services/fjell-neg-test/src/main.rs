@@ -36,7 +36,7 @@ use fjell_syscall::{
 
 // ── CSpace slot constants for this service ────────────────────────────────────
 
-const SLOT_OWN_EP: u32 = 0; // Endpoint cap (own endpoint, object 0)
+const SLOT_OWN_EP: u32 = 0; // Endpoint cap: neg-test's scratch endpoint (NEG_TEST_OWN_EP_OBJECT, RFC-0.41-002)
 const SLOT_AUDIT: u32 = 1; // AuditDrain cap
 const SLOT_DMA: u32 = 2; // DmaRegion cap
 const SLOT_CAP_BROKER: u32 = 3; // Endpoint cap to cap-broker (object 5)

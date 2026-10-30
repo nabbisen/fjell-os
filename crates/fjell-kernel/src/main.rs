@@ -966,7 +966,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let cap_table = ks_get!(CAP_TABLE); // RFC 004: used for bootstrap cap install
     let et = ks_get!(EP_TABLE);
 
-    // Allocate the shared IPC endpoint for the M3 smoke test.
+    // Endpoint object 0. It was "the shared IPC endpoint" every service's slot 0 pointed
+    // at; RFC-0.41-002 removed every grant that could receive on it. It is still
+    // allocated so that the object ids below keep their numbers, and it has no
+    // receiver: `capability-topology` fails if any install gives a capability to
+    // receive on it.
     let ep_obj_id = et.alloc().expect("alloc endpoint");
     kprintln!("M3: endpoint created (id={})", ep_obj_id);
     // Endpoint 1: storaged private endpoint (storaged listens; init calls).
@@ -1107,10 +1111,31 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         fjell_abi::service::FLEETD_TRIGGER_EP_OBJECT,
         "FLEETD_TRIGGER_EP_OBJECT does not name the object just allocated"
     );
+    // RFC-0.41-002 R2/R3: the three images that actually receive on their slot 0
+    // get an endpoint of their own, because the shared default is gone. Asserted,
+    // like every other dedicated endpoint above.
+    let netd_ep_id = et.alloc().expect("alloc netd endpoint");
+    assert_eq!(
+        netd_ep_id,
+        fjell_abi::service::NETD_EP_OBJECT,
+        "NETD_EP_OBJECT does not name the object just allocated"
+    );
+    let configd_ep_id = et.alloc().expect("alloc configd endpoint");
+    assert_eq!(
+        configd_ep_id,
+        fjell_abi::service::CONFIGD_EP_OBJECT,
+        "CONFIGD_EP_OBJECT does not name the object just allocated"
+    );
+    let neg_test_own_ep_id = et.alloc().expect("alloc neg-test scratch endpoint");
+    assert_eq!(
+        neg_test_own_ep_id,
+        fjell_abi::service::NEG_TEST_OWN_EP_OBJECT,
+        "NEG_TEST_OWN_EP_OBJECT does not name the object just allocated"
+    );
     // ...and the whole table, so the total cannot drift from the constant the
     // host test counts allocations against (`ENDPOINT_OBJECT_COUNT`).
     assert_eq!(
-        fleetd_trigger_ep_id + 1,
+        neg_test_own_ep_id + 1,
         fjell_abi::service::ENDPOINT_OBJECT_COUNT,
         "ENDPOINT_OBJECT_COUNT is not one past the last endpoint allocated"
     );
@@ -1390,20 +1415,12 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 },
             );
 
-            // Slot 0: shared IPC endpoint (for service broadcasts).
-            let _ = cs.install_raw(
-                0,
-                Capability {
-                    kind: CapKind::Endpoint,
-                    object_id: 0,
-                    rights: CapRights::ALL_NON_META,
-                    badge: 0,
-                    scope: ObjectScope::Any,
-                    state: CapState::Active,
-                    parent: None,
-                    lease: None,
-                },
-            );
+            // Slot 0: nothing (RFC-0.41-002 R3). It used to be "shared IPC endpoint
+            // (for service broadcasts)" -- ALL_NON_META on object 0, the object twenty
+            // images shared. `init` never used it (it speaks through slots 1.. and the
+            // named ones below) and nothing ever broadcast; object 0 is still allocated
+            // so the object ids below keep their numbers, but no task holds a
+            // capability to receive on it.
             // Slot 1: cap-broker private endpoint (endpoint id=5, RFC 040).
             // Init uses this to send BOOTSTRAP_COMPLETE.
             let _ = cs.install_raw(

@@ -258,7 +258,8 @@ pub fn spawn(
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             // Slot 0: IPC endpoint.
             // Private endpoint assignments (init holds caps to these):
-            //   0  = shared (all non-special services)
+            //   (no shared object: RFC-0.41-002 removed the `_ => 0` default.
+            //   An image with no arm below gets no slot-0 endpoint at all.)
             //   1  = storaged (RFC 019)
             //   2  = measuredd (M8)
             //   3  = attestd   (M8)
@@ -269,65 +270,80 @@ pub fn spawn(
             //        also auditd's and bootctl's own default and raced
             //        against both; see rfcs/answers/
             //        RFC-0.28-001-readiness-topology-answer.md §3.
-            let ep_obj: u32 = match image_id {
-                fjell_abi::service::ImageId::STORAGED => 1,
-                fjell_abi::service::ImageId::MEASUREDD => MEASUREDD_EP_OBJECT,
-                fjell_abi::service::ImageId::ATTESTD => 3,
-                fjell_abi::service::ImageId::RECOVERYD => 4,
+            let ep_obj: Option<u32> = match image_id {
+                fjell_abi::service::ImageId::STORAGED => Some(1),
+                fjell_abi::service::ImageId::MEASUREDD => Some(MEASUREDD_EP_OBJECT),
+                fjell_abi::service::ImageId::ATTESTD => Some(3),
+                fjell_abi::service::ImageId::RECOVERYD => Some(4),
                 // RFC 040: cap-broker gets its own dedicated endpoint (5)
                 // so policy tests can route to it without ambiguity.
-                fjell_abi::service::ImageId::CAP_BROKER => 5,
+                fjell_abi::service::ImageId::CAP_BROKER => Some(5),
                 // RFC 042: dedicated endpoint so the neg-test IPC protocol
                 // cannot be stolen by other shared-endpoint receivers.
-                fjell_abi::service::ImageId::SAMPLE_SERVICE => 6,
+                fjell_abi::service::ImageId::SAMPLE_SERVICE => Some(6),
                 // RFC-v0.23-001: dedicated endpoints for the ABDD live path.
-                fjell_abi::service::ImageId::SEMANTIC_STREAM => 7,
-                fjell_abi::service::ImageId::PROXY_TEXT => 8,
+                fjell_abi::service::ImageId::SEMANTIC_STREAM => Some(7),
+                fjell_abi::service::ImageId::PROXY_TEXT => Some(8),
                 // RFC-0.34-001 D8: each presentation's own endpoint, where the
                 // stream's wake arrives (proxy-text's is object 8 above). Never
                 // shared (RFC-0.28-001).
                 fjell_abi::service::ImageId::PROXY_BRAILLE => {
-                    fjell_abi::service::PROXY_BRAILLE_EP_OBJECT
+                    Some(fjell_abi::service::PROXY_BRAILLE_EP_OBJECT)
                 }
                 fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT => {
-                    fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT
+                    Some(fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT)
                 }
                 fjell_abi::service::ImageId::SVC_PRESENTATION_LIAR => {
-                    fjell_abi::service::SVC_PRESENTATION_LIAR_EP_OBJECT
+                    Some(fjell_abi::service::SVC_PRESENTATION_LIAR_EP_OBJECT)
                 }
                 // RFC-0.25-001: driver-uart's send end of the uart-rx endpoint.
-                fjell_abi::service::ImageId::DRIVER_UART => 9,
+                fjell_abi::service::ImageId::DRIVER_UART => Some(9),
                 // RFC-0.28-001: service-manager's own dedicated, named
                 // readiness-receiving endpoint — see
                 // `fjell_abi::service::SERVICE_MANAGER_EP_OBJECT`.
                 fjell_abi::service::ImageId::SERVICE_MANAGER => {
-                    fjell_abi::service::SERVICE_MANAGER_EP_OBJECT
+                    Some(fjell_abi::service::SERVICE_MANAGER_EP_OBJECT)
                 }
                 // RFC-0.33-001 D8: bootctl's own dedicated endpoint —
                 // previously fell to the shared default (0), one of the two
                 // extra receivers RFC-0.28-001's own comment already named.
-                fjell_abi::service::ImageId::BOOTCTL => fjell_abi::service::BOOTCTL_EP_OBJECT,
+                fjell_abi::service::ImageId::BOOTCTL => Some(fjell_abi::service::BOOTCTL_EP_OBJECT),
                 // RFC-0.35-001 R7: verifyd's own dedicated endpoint —
                 // previously fell to the same shared default (0); `neg-test`
                 // is its first real caller and a shared object would have
                 // risked the exact ambiguity RFC-0.28-001 removed for
                 // service-manager, auditd and bootctl.
-                fjell_abi::service::ImageId::VERIFYD => fjell_abi::service::VERIFYD_EP_OBJECT,
-                _ => 0,
+                fjell_abi::service::ImageId::VERIFYD => Some(fjell_abi::service::VERIFYD_EP_OBJECT),
+                // RFC-0.41-002 R2/R3: the three images that actually receive on their
+                // slot 0 -- `netd`'s (dead) event loop, `configd`'s serving loop and
+                // `neg-test`'s scratch endpoint -- earn a dedicated object each.
+                fjell_abi::service::ImageId::NETD => Some(fjell_abi::service::NETD_EP_OBJECT),
+                fjell_abi::service::ImageId::CONFIGD => Some(fjell_abi::service::CONFIGD_EP_OBJECT),
+                fjell_abi::service::ImageId::NEG_TEST => {
+                    Some(fjell_abi::service::NEG_TEST_OWN_EP_OBJECT)
+                }
+                // RFC-0.41-002 R3: **no default endpoint.** An image without a
+                // dedicated arm gets no capability in slot 0. The default used to be
+                // `_ => 0`: twenty images pointed at one object, each with SEND, so
+                // any service that ever received on it would have taken a message meant
+                // for another. A service that needs an endpoint earns an arm above.
+                _ => None,
             };
-            let _ = cs.install_raw(
-                0,
-                Capability {
-                    kind: CapKind::Endpoint,
-                    object_id: ep_obj,
-                    rights: CapRights::ALL_NON_META,
-                    badge: 0,
-                    scope: ObjectScope::Any,
-                    state: CapState::Active,
-                    parent: None,
-                    lease: None,
-                },
-            );
+            if let Some(ep_obj) = ep_obj {
+                let _ = cs.install_raw(
+                    0,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: ep_obj,
+                        rights: CapRights::ALL_NON_META,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot `SERVICE_READY_SEND_SLOT` (RFC-0.28-001): every service,
             // unconditionally, gets a SEND-only capability to
             // service-manager's dedicated readiness endpoint — never slot

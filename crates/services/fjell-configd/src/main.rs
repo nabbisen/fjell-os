@@ -61,6 +61,9 @@ fn validate_manifest() -> bool {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
+    // Slot 0 is configd's own endpoint (`fjell_abi::service::CONFIGD_EP_OBJECT`,
+    // RFC-0.41-002). It used to be the shared default every image was handed;
+    // nothing sends to either.
     let ep = 0u32;
 
     // Validate manifest on startup

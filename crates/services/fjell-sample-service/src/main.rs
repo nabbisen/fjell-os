@@ -233,9 +233,9 @@ pub extern "C" fn service_main() -> ! {
                 // on our own dedicated object (6) — neg-test already holds
                 // RECV rights on it via SLOT_SAMPLE_EP (the same object its
                 // existing BIND_LEASE_AND_CALL_BACK test already receives
-                // on), so this cannot be stolen by auditd/bootctl's shared-
-                // object-0 receive loops the way a send to our own SLOT_OWN_EP
-                // sender's *own* endpoint would be if it aliased object 0.
+                // on), so it is safe: slot 0 is OUR OWN dedicated object (6), not
+                // a shared one, so no other service's receive loop can take this
+                // send (RFC-0.41-002: no service receives on a shared object).
                 // Carries no payload; the point is the delivery's kernel-
                 // attested sender identity, not anything self-reported.
                 let _ = fjell_syscall::sys_ipc_send(SLOT_OWN_EP, tags::IPC_TEST_ABOUT_TO_BLOCK);
