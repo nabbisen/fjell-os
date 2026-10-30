@@ -114,9 +114,25 @@ impl<'a> FrameAllocator<'a> {
 
     /// Mark a physical address range as reserved with the given owner.
     ///
-    /// `start_pa` is inclusive; `end_pa` is exclusive.
-    /// Does not fail if a frame is already reserved with the same owner,
-    /// but returns `AlreadyReserved` for conflicting owners.
+    /// `start_pa` is inclusive; `end_pa` is exclusive. Frames outside the managed
+    /// range are ignored.
+    ///
+    /// **All or nothing.** If *any* managed frame in the range is already in use --
+    /// whatever its owner, the same owner included -- this returns
+    /// `AlreadyReserved` and the allocator is left **exactly as it was**: no frame
+    /// marked, no owner written, `free_count` and the allocation hint unchanged. The
+    /// whole range is checked before anything is mutated. A caller may therefore read
+    /// `Err` as "nothing happened".
+    ///
+    /// There is deliberately no same-owner tolerance. An earlier version of this
+    /// comment said a frame already reserved with the same owner did not fail; it did
+    /// (the check never read the owner), no caller needed the tolerance, and
+    /// behaviour added so that code matches a comment is the wrong direction of
+    /// travel (E-103). If a caller ever needs idempotent re-reservation it can be
+    /// added then, with a test and a reason.
+    ///
+    /// Atomic against *failure* within the call, not against concurrency: this
+    /// allocator is single-hart and takes no lock.
     pub fn reserve_range(
         &mut self,
         start_pa: usize,
@@ -126,17 +142,24 @@ impl<'a> FrameAllocator<'a> {
         let first_pfn = ((start_pa) >> 12) as u64;
         let last_pfn = ((end_pa + 0xFFF) >> 12) as u64;
 
+        // Pass 1: validate. Nothing is mutated until every frame has been looked at.
         for pfn in first_pfn..last_pfn {
             if let Some(off) = self.pfn_to_offset(pfn) {
                 if self.is_used(off) {
                     return Err(MmError::AlreadyReserved);
                 }
+            }
+            // Frames outside our managed range are silently ignored.
+        }
+
+        // Pass 2: apply. Every managed frame in the range is free, so this cannot fail.
+        for pfn in first_pfn..last_pfn {
+            if let Some(off) = self.pfn_to_offset(pfn) {
                 self.set_used(off);
                 if let Some(ref mut owners) = self.owner {
                     owners[off as usize] = owner;
                 }
             }
-            // Frames outside our managed range are silently ignored.
         }
         Ok(())
     }
@@ -440,25 +463,166 @@ mod tests {
         );
     }
 
-    // ── What these tests FOUND (RFC-0.40-003: file and escalate, do not fix) ───
+    // ── RFC-0.41-004 (closes E-103): a failed reservation is a no-op ───────────
     //
-    // `reserve_range` stops at the first frame that is already in use and returns
-    // `AlreadyReserved`, but the frames it had NOT reached yet stay free, so an
-    // overlapping reservation silently leaves the tail of its range unreserved --
-    // the E-097 shape, one level down. Its doc comment also says it "does not fail
-    // if a frame is already reserved with the same owner"; the code fails on any
-    // used frame. No caller in the kernel overlaps today (checked), so nothing is
-    // wrong yet. The property below is the one the boot invariant relies on; it is
-    // `#[ignore]`d, not deleted and not passing, until E-103 (scheduled 0.41, ruled:
-    // make `reserve_range` all-or-nothing) is fixed. It covers divergence 1 of E-103
-    // only; the entry names all three.
+    // `reserve_range` used to return `AlreadyReserved` at the first used frame having
+    // ALREADY marked every frame before it used and written the owner map: a failed call
+    // consumed the head of its range and relabelled it (E-103 divergence 2), while the
+    // frames it had not reached stayed free (divergence 1), so a caller that read `Err` as
+    // "nothing happened" was wrong in both directions. The ruled direction is
+    // all-or-nothing: validate the whole range, then apply, so `Err` leaves the allocator
+    // bit-for-bit as it was. The tests below pin that, and that any used frame fails
+    // whatever its owner (divergence 3: the doc promised a same-owner tolerance the code
+    // never had; the doc was wrong, and the tolerance is deliberately not built).
+
+    /// An allocator WITH an owner map, so `owner_of` can be asserted.
+    fn ram_owned(frames: u64) -> FrameAllocator<'static> {
+        let words = ((frames + 63) / 64) as usize;
+        let bitmap: &'static mut [u64] = Box::leak(vec![0u64; words].into_boxed_slice());
+        let owners: &'static mut [FrameOwner] =
+            Box::leak(vec![FrameOwner::Free; frames as usize].into_boxed_slice());
+        FrameAllocator::new(0, frames, bitmap, Some(owners))
+    }
+
+    /// Everything a reservation can touch, copied out: the bitmap, the allocation hint,
+    /// the owner map and the free count. "Bit-for-bit untouched" is equality of this.
+    fn snapshot(fa: &FrameAllocator<'_>) -> (Vec<u64>, u64, Option<Vec<FrameOwner>>, u64) {
+        (
+            fa.bitmap.to_vec(),
+            fa.next_hint,
+            fa.owner.as_deref().map(|o| o.to_vec()),
+            fa.free_count(),
+        )
+    }
+
+    /// Divergence 2, in the architect's words: reserve `[4,8)` as `KernelText`, then
+    /// `[0,8)` as `KernelStack`. The call must fail AND leave `free_count` and the owner
+    /// of every frame exactly as it was -- both halves, because the probe found both
+    /// (`free_count` dropped by 4 and frames 0-3 reported `KernelStack`).
     #[test]
-    #[ignore = "E-103: reserve_range leaves the unreached tail of an overlapping range free; ruled all-or-nothing, scheduled 0.41"]
-    fn an_overlapping_reservation_does_not_leave_the_rest_of_its_range_free() {
-        let mut fa = ram(64);
+    fn a_failed_reservation_neither_consumes_nor_relabels_the_head_of_its_range() {
+        let mut fa = ram_owned(16);
+        fa.reserve_range(pa(4), pa(8), FrameOwner::KernelText)
+            .unwrap();
+        let free_before = fa.free_count();
+
+        let r = fa.reserve_range(pa(0), pa(8), FrameOwner::KernelStack);
+
+        assert_eq!(r, Err(MmError::AlreadyReserved));
+        assert_eq!(
+            fa.free_count(),
+            free_before,
+            "a failed call consumed frames"
+        );
+        for f in 0..4 {
+            let frame = PhysFrame::from_pfn(f).unwrap();
+            assert_eq!(
+                fa.owner_of(frame),
+                Some(FrameOwner::Free),
+                "frame {f}: the head of a failed range was relabelled"
+            );
+        }
+        for f in 4..8 {
+            let frame = PhysFrame::from_pfn(f).unwrap();
+            assert_eq!(
+                fa.owner_of(frame),
+                Some(FrameOwner::KernelText),
+                "frame {f}: an existing owner was overwritten"
+            );
+        }
+    }
+
+    /// Divergence 1, restated under the ruled design. The old test asserted that after a
+    /// failed `[2,6)` over `[0,4)` the tail `[4,6)` was NOT free -- i.e. that a failed call
+    /// should reserve what it could reach. All-or-nothing is the opposite contract: `Err`
+    /// means nothing was reserved, so the tail is free **because the caller was told the
+    /// reservation did not happen**, and the allocator is exactly as it was.
+    #[test]
+    fn the_frames_a_failed_reservation_did_not_reach_are_exactly_as_they_were() {
+        let mut fa = ram_owned(16);
         fa.reserve_range(pa(0), pa(4), FrameOwner::KernelText)
             .unwrap();
-        let _ = fa.reserve_range(pa(2), pa(6), FrameOwner::KernelStack);
-        assert_eq!(fa.first_free_in(pa(0), pa(6)), None);
+        let before = snapshot(&fa);
+
+        let r = fa.reserve_range(pa(2), pa(6), FrameOwner::KernelStack);
+
+        assert_eq!(r, Err(MmError::AlreadyReserved));
+        assert_eq!(snapshot(&fa), before);
+        assert_eq!(
+            fa.first_free_in(pa(4), pa(6)),
+            Some(pa(4)),
+            "the tail is untouched, so still free"
+        );
+    }
+
+    /// The general statement, over every place the conflict can sit in the range (first,
+    /// middle, last frame) and with and without an owner map: a failed call is a no-op.
+    /// The range asked for is `[8, 16)`; an allocation first takes frame 0, so the hint is
+    /// not at its initial value and the allocation sits outside the range.
+    #[test]
+    fn a_failed_reservation_leaves_the_allocator_bit_for_bit_untouched() {
+        for conflict_at in [8usize, 11, 15] {
+            for with_owners in [false, true] {
+                let mut fa = if with_owners { ram_owned(16) } else { ram(16) };
+                let taken = fa.alloc_frame(FrameOwner::KernelMeta).unwrap();
+                assert!(taken.pfn < 8, "the allocation must sit outside the range");
+                // One frame already in use, somewhere inside the range [8, 16) to be asked for.
+                fa.reserve_range(pa(conflict_at), pa(conflict_at + 1), FrameOwner::KernelData)
+                    .unwrap();
+                let before = snapshot(&fa);
+
+                let r = fa.reserve_range(pa(8), pa(16), FrameOwner::KernelStack);
+
+                assert_eq!(r, Err(MmError::AlreadyReserved));
+                assert_eq!(
+                    snapshot(&fa),
+                    before,
+                    "conflict at frame {conflict_at}, owner map {with_owners}: a failed call changed state"
+                );
+            }
+        }
+    }
+
+    /// Divergence 3. The doc used to say a frame already reserved **with the same owner**
+    /// does not fail. It does fail, the tolerance is deliberately not built (no caller
+    /// needs it; behaviour added so that code matches a comment is the wrong direction),
+    /// and the doc now says so. Pinned here so "make the code match the old comment" cannot
+    /// come back unnoticed: a same-owner overlap fails, and fails as a no-op.
+    #[test]
+    fn a_same_owner_overlapping_reservation_fails_and_changes_nothing() {
+        let mut fa = ram_owned(16);
+        fa.reserve_range(pa(4), pa(6), FrameOwner::KernelStack)
+            .unwrap();
+        let before = snapshot(&fa);
+
+        // Same owner, overlapping: frames 2 and 3 are free, frame 4 is the conflict.
+        let r = fa.reserve_range(pa(2), pa(6), FrameOwner::KernelStack);
+
+        assert_eq!(
+            r,
+            Err(MmError::AlreadyReserved),
+            "the same-owner tolerance exists again"
+        );
+        assert_eq!(snapshot(&fa), before);
+    }
+
+    /// What the rewrite must NOT change: a successful reservation marks every frame and
+    /// writes the owner, and frames outside the managed range are still ignored.
+    #[test]
+    fn a_successful_reservation_still_marks_every_frame_and_ignores_unmanaged_ones() {
+        let mut fa = ram_owned(8);
+        // [6, 12): frames 6 and 7 are managed, 8..12 are not.
+        fa.reserve_range(pa(6), pa(12), FrameOwner::Mmio).unwrap();
+        assert_eq!(fa.free_count(), 6);
+        for f in 6..8 {
+            assert_eq!(
+                fa.owner_of(PhysFrame::from_pfn(f).unwrap()),
+                Some(FrameOwner::Mmio)
+            );
+        }
+        assert_eq!(
+            fa.owner_of(PhysFrame::from_pfn(5).unwrap()),
+            Some(FrameOwner::Free)
+        );
     }
 }

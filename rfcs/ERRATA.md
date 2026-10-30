@@ -7427,6 +7427,28 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   direction of travel).
 - **Status:** **ACCEPTED**, `0.41`. ACCEPTED rather than OPEN because no live caller reaches it and the
   boot invariant backstops the consequence. Recorded in `docs/src/releasing/v1-limitations.md` row 16.
+- **Progress — RFC-0.41-004 landed (2026-10-31); every divergence is fixed, and closing the entry is the
+  architect's call** (closing it makes `v1-limitations.md` row 16, which describes the defect as live, stale,
+  and row judgement is the architect's). `reserve_range` validates the whole range, then applies (two passes,
+  no `unsafe`, no new primitive), so a failed call leaves the allocator **bit-for-bit untouched** — used
+  bits, owner map, `free_count` and the allocation hint — and a caller may read `Err` as "nothing happened".
+  The doc comment now says what the code does: any already-used frame fails, whatever its owner. **The
+  same-owner tolerance was deliberately not built** (the ruling; no caller needs it). Divergence 1 as
+  written is dissolved by the new contract rather than fixed: the frames a failed call did not reach are
+  free *because the caller was told the reservation did not happen*, and the old `#[ignore]`d test, which
+  asserted the opposite (that a failed call should reserve what it could reach), is replaced by tests of
+  the ruled contract.
+  **Where the coverage now lives** (`crates/fjell-frame-alloc/src/frame_alloc.rs`, running in the host-lib
+  tier; nothing is `#[ignore]`d): `a_failed_reservation_neither_consumes_nor_relabels_the_head_of_its_range`
+  (divergence 2, both halves: `free_count` and `owner_of`),
+  `a_failed_reservation_leaves_the_allocator_bit_for_bit_untouched` (every place the conflict can sit, with
+  and without an owner map), `the_frames_a_failed_reservation_did_not_reach_are_exactly_as_they_were`
+  (divergence 1 under the ruled contract), `a_same_owner_overlapping_reservation_fails_and_changes_nothing`
+  (divergence 3), and `a_successful_reservation_still_marks_every_frame_and_ignores_unmanaged_ones`. Seen
+  failing against the old implementation: the first three named here that can fail on it (the
+  `free_count`/`owner_of` test, the bit-for-bit test, the same-owner test's no-change half); the same-owner
+  test's refusal half already held (the code never had the tolerance) and was shown failing against a
+  scratch version that builds it. No `kmain` caller overlapped, as read; the QEMU tiers are green.
 
 ## Summary
 
