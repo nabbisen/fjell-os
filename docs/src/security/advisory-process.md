@@ -76,6 +76,49 @@ indefinite embargo in exchange for a promise it did not keep.
 The project itself **publishes nothing before the fix ships**: no issue, no
 commit message that describes the vulnerability, no erratum.
 
+### 4.1 Is there anyone to notify?
+
+**Ask this before every advisory, and answer it from an instrument rather than from memory.**
+A disclosure process exists so that people running the software can act. If nobody is running it,
+the honest answer is that there is nobody to notify — and saying so is better than performing a
+notification to an empty room, which would misrepresent the project's reach.
+
+Two conditions decide it, and both must be checked:
+
+1. **Has the kernel been distributed as a runnable artefact?** Source on crates.io and a tagged
+   tree are not a runnable artefact. A bootable image, a signed release binary or a package in a
+   distribution would be.
+2. **Has the product been placed on the market?** The CRA's term, and the one the regulation turns
+   on — not "are there users", which is an inference.
+
+Then check whether anything depends on the published crates:
+
+```
+curl -s -H 'User-Agent: fjell-os-advisory-check (maintainer)' \
+  https://crates.io/api/v1/crates/<name>/reverse_dependencies \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["meta"]["total"]); [print(v["crate"], v["num"]) for v in d.get("versions",[])]'
+```
+
+**The `User-Agent` header is required**, not optional politeness: crates.io refuses a request
+without one, and the refusal arrives as a non-JSON body, so the pipeline fails inside `json.load`
+with `Expecting value: line 1 column 1` rather than saying it was rejected. This command was
+written without the header first and failed exactly that way.
+
+**Read the dependent, not the count.** The `dependencies` array's `crate_id` names the crate being
+depended *on*, so it looks like a self-reference; the `versions` array names the crate doing the
+depending. A reverse-dependency count of 1 that turns out to be this project's own crate is not a
+third party, and the difference is the entire point of the question.
+
+**State the answer in the advisory record with its date**, because it expires. The first genuine
+downstream dependant changes it, and an answer inherited from a previous advisory is not an answer.
+
+**As of 2026-10-30:** neither condition is met — the kernel has never been distributed as a
+runnable artefact and the product has not been placed on the market — and `fjell-abi`'s only
+reverse dependency is this project's own `fjell-os` 0.40.0, with `fjell-os` itself having none.
+*(Wording after the 0.40.0 CHANGELOG, which put it better than an earlier draft that reasoned from
+"there are no users": this names the condition the regulation turns on instead of inferring from
+an absence.)*
+
 ## 5. The record
 
 At disclosure, one record is committed to
