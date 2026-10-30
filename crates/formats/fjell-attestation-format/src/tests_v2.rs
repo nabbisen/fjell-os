@@ -412,3 +412,87 @@ fn an_unreadable_counter_claims_no_support_and_no_value() {
     );
     assert_ne!(r.canonical_digest(), zero.canonical_digest());
 }
+
+// ── RFC-0.41-003 R2/R3: the ENCODER zeroes a flag-and-value pair, not the factory ──
+
+/// The bytes `write_canonical` emits for `r`.
+fn canonical_bytes(r: &AttestationRecordV2) -> alloc::vec::Vec<u8> {
+    use fjell_canon::BufSink;
+    let mut sink = BufSink::<{ crate::v2::ATTEST_V2_STREAM_MAX }>::new();
+    r.write_canonical(&mut sink);
+    sink.bytes().to_vec()
+}
+
+/// `AttestationRecordV2::local` is the only *honest* way to build a record, not the only
+/// way: `RollbackClaims` and the rest are `pub` with `pub` fields. So the property -- a
+/// value behind a `false` flag is written as zero -- must hold of the **encoder**, and this
+/// test builds the record the way a caller who is not `local()` would: by assigning fields,
+/// putting a deliberately non-zero value behind every false flag. If a zeroing is ever moved
+/// back into a factory this is the test that fails; one that goes through `local()` cannot.
+#[test]
+fn every_flag_and_value_pair_is_zeroed_by_the_encoder_not_by_the_factory() {
+    // The reference: every optional claim unavailable, built honestly.
+    let honest = AttestationRecordV2::local(
+        AttestationRecordId(*b"AT000001"),
+        TrustProviderId::new(1),
+        *b"stable\0\0",
+        [0u8; 16],
+        42,
+        None, // the counter read failed: flag false, value 0
+        1,
+        None, // the chain could not be read
+    );
+    assert!(!honest.rollback.trust_provider_counter_supported);
+    assert_eq!(honest.availability, ClaimAvailability::default());
+
+    // The same record, built by FIELD ASSIGNMENT with a non-zero value behind every false flag.
+    let mut r = honest;
+    r.boot.kernel_digest = Digest32([0x11; 32]);
+    r.verification.release_digest = Digest32([0x22; 32]);
+    r.verification.rootfs_digest = Digest32([0x33; 32]);
+    r.verification.policy_digest = Digest32([0x44; 32]);
+    r.snapshot.snapshot_digest = Digest32([0x66; 32]);
+    r.measurement = MeasurementClaims {
+        head_seq: 9,
+        chain_digest: Digest32([0x5C; 32]),
+        included_from_seq: 3,
+        included_to_seq: 9,
+    };
+    r.rollback.trust_provider_counter_value = 777; // beside supported == false
+    assert_ne!(
+        r, honest,
+        "the fixture must actually differ from the reference"
+    );
+
+    assert_eq!(
+        canonical_bytes(&r),
+        canonical_bytes(&honest),
+        "a value behind a false flag reached the encoded bytes: some pair is zeroed by its \
+         factory, not by the encoder"
+    );
+
+    // The control that lets the assertion above fail: with each flag TRUE the same
+    // values are written, so the stream differs. (Without this, equal streams could
+    // mean the fields were never encoded at all.)
+    type Set = fn(&mut AttestationRecordV2);
+    let flips: [(&str, Set); 7] = [
+        ("kernel_digest", |r| r.availability.kernel_digest = true),
+        ("release_digest", |r| r.availability.release_digest = true),
+        ("rootfs_digest", |r| r.availability.rootfs_digest = true),
+        ("policy_digest", |r| r.availability.policy_digest = true),
+        ("snapshot_digest", |r| r.availability.snapshot_digest = true),
+        ("measurement", |r| r.availability.measurement = true),
+        ("trust_provider_counter", |r| {
+            r.rollback.trust_provider_counter_supported = true
+        }),
+    ];
+    for (name, flip) in flips {
+        let mut on = r;
+        flip(&mut on);
+        assert_ne!(
+            canonical_bytes(&on),
+            canonical_bytes(&honest),
+            "turning `{name}` on did not change the stream: its value is not encoded"
+        );
+    }
+}

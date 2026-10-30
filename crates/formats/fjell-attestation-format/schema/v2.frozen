@@ -4,6 +4,7 @@
 # version: v0.6.0 (frozen)
 # note: 2026-09-24: this file used to list 16 fields (provider, measurement_head, three digests, health_result, signature); the encoder writes the keyring, boot, verification, measurement, snapshot, health, rollback, freshness and provenance groups as well and has no signature in the digest stream. Corrected toward the encoder; no byte moved (RFC-0.33-003 D3).
 # note: 2026-10-29: RFC-0.40-001 (closes E-094) bumped AttestationRecordV2::SCHEMA_VERSION 2 -> 3. Six availability bytes are written beside the claims they qualify (`boot.kernel_digest_available`, `verification.{release,rootfs,policy}_digest_available`, `measurement.available`, `snapshot.snapshot_digest_available`), and a claim whose flag is 0 is written as zero -- fixed width, zeroed by the encoder, the pattern `bundle-v1.frozen` states -- and a `verified_flags` bit is written only when its digest is available. The record used to assert, under a signature, that a release, a rootfs and a policy bundle had each been verified, over five literal digests and a literal chain head; the factory now says only what is true. The 2 -> 3 digest move is proved, not assumed: `tests/golden.rs::attestation_v3_is_v2_plus_six_flags` removes the six bytes, rewinds the version word and recovers the v2 golden.
+# note: 2026-10-31: RFC-0.41-003 R2 moved the zeroing of `rollback.trust_provider_counter_value` into the encoder: it is written as 0 whenever `rollback.trust_provider_counter_supported` is 0, as every *_digest and the measurement section already were, rather than trusting the caller's raw value. `RollbackClaims` is `pub` with `pub` fields, so `AttestationRecordV2::local` mapping a failed read to 0 was the only honest path, not the only path. `SCHEMA_VERSION` stays 3 and no byte moved: every record the tree can construct sets the flag 1 beside its value, or 0 beside the 0 `local()` writes; the golden digest is unchanged, which is the instrument. The one new line in this file is the `note` that says so. Corrected toward the encoder (the precedent is the 2026-09-24 note above, RFC-0.33-003 D3).
 domain "FJELL-ATTEST-V2"
 field schema_version                             u16 LE
 field record_id                                  u8 [8]
@@ -46,6 +47,7 @@ field rollback.channel_id                        u8 [8]
 field rollback.min_counter                       u64 LE
 field rollback.last_advance_source               u8
 field rollback.trust_provider_counter_supported  u8
+note counter_value_zeroed_when_unsupported trust_provider_counter_value is fixed width and written whether or not trust_provider_counter_supported is 1; zero when it is not, not the caller's raw value -- the encoder's rule, as for every *_digest and the measurement section, not a property of whichever factory built the record
 field rollback.trust_provider_counter_value      u64 LE
 field freshness.generation                       u32 LE
 field freshness.key_epoch                        u32 LE

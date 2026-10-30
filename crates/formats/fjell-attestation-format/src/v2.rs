@@ -26,7 +26,7 @@ pub const ATTEST_V2_DOMAIN: &[u8] = b"FJELL-ATTEST-V2";
 
 /// Capacity of the canonical stream (it is well under this; overrunning it
 /// panics in `BufSink`, so a field added without widening it fails loudly).
-const ATTEST_V2_STREAM_MAX: usize = 512;
+pub(crate) const ATTEST_V2_STREAM_MAX: usize = 512;
 
 // ── New claim structs ────────────────────────────────────────────────────────
 
@@ -313,9 +313,24 @@ impl AttestationRecordV2 {
             "rollback.trust_provider_counter_supported",
             self.rollback.trust_provider_counter_supported as u8,
         );
+        c.note(
+            "counter_value_zeroed_when_unsupported",
+            "trust_provider_counter_value is fixed width and written whether or not \
+             trust_provider_counter_supported is 1; zero when it is not, not the caller's \
+             raw value -- the encoder's rule, as for every *_digest and the measurement \
+             section, not a property of whichever factory built the record",
+        );
+        // RFC-0.41-003 R2: the encoder zeroes it. `RollbackClaims` is `pub` with `pub`
+        // fields, so `local()` mapping a failed read to 0 is the only *honest* path, not
+        // the only path; a struct built by assignment with `supported == false` beside a
+        // non-zero value must not be able to put that value in the stream.
         c.u64(
             "rollback.trust_provider_counter_value",
-            self.rollback.trust_provider_counter_value,
+            if self.rollback.trust_provider_counter_supported {
+                self.rollback.trust_provider_counter_value
+            } else {
+                0
+            },
         );
         // freshness
         c.u32("freshness.generation", self.freshness.generation);
