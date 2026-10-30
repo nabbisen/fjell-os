@@ -7263,6 +7263,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `boot.selected_slot`, `boot_id` and `health.target`, which are true of this deployment (one
   slot, one boot, one target).
 - **Status:** **ACCEPTED**, `0.41`. Recorded in `docs/src/releasing/v1-limitations.md` row 13.
+- **Progress — RFC-0.41-003 (2026-10-31): the encoder-zeroing property is done; the placeholders are not.**
+  `write_canonical` now writes `trust_provider_counter_value` as 0 whenever
+  `trust_provider_counter_supported` is 0, so the property holds for a record built by field assignment as
+  well as by `local()`; a test builds exactly that record, was seen failing against the old encoder, and
+  `SCHEMA_VERSION` stayed 3 with the golden unchanged. **R1 — an availability disclosure beside each
+  placeholder — is not done, because it moves bytes** (a new byte per claim, and the placeholders written as
+  zero): the RFC's premise that no constructible record moves a byte is true of the counter pair only. It is
+  escalated, with the measurement, in that line's review request. The entry stays ACCEPTED.
 
 ## E-102 — `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot
 
