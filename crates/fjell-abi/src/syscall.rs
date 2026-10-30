@@ -82,6 +82,12 @@ pub enum SyscallNumber {
     // ── M4 audit syscalls ──────────────────────────────────────────────────
     /// Copy pending audit records from the kernel ring into user buffer.
     AuditDrain = 60,
+    /// Block the calling task until the kernel audit ring is non-empty
+    /// (RFC-0.41-001). Takes the same `AuditDrain` capability as `AuditDrain`: a
+    /// wake on the ring grants authority over nothing. A syscall of its own, not
+    /// `AuditDrain` blocking when empty, because a `Drain` that parks its caller
+    /// implies less than it does -- the idiom is `IrqBind`/`IrqAck`/`IrqWait`.
+    AuditWait = 61,
     // ── M6: device / MMIO / DMA primitives ─────────────────────────────────
     PlatformInfoGet = 80,
     MmioMap = 90,
@@ -129,6 +135,7 @@ impl SyscallNumber {
             51 => Some(Self::LeaseRevoke),
             52 => Some(Self::LeaseInspect),
             60 => Some(Self::AuditDrain),
+            61 => Some(Self::AuditWait),
             80 => Some(Self::PlatformInfoGet),
             90 => Some(Self::MmioMap),
             91 => Some(Self::MmioUnmap),
@@ -149,6 +156,27 @@ impl SyscallNumber {
             112 => Some(Self::DmaRevoke),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod rfc_0_41_001_tests {
+    use super::SyscallNumber;
+
+    /// RFC-0.41-001: `from_usize` must round-trip `AuditWait`. `IrqWait`'s arm was
+    /// once silently missing (see below), so the new number is checked by name.
+    #[test]
+    fn audit_wait_round_trips_beside_audit_drain() {
+        assert_eq!(SyscallNumber::AuditWait as usize, 61);
+        assert_eq!(SyscallNumber::AuditDrain as usize, 60);
+        assert_eq!(
+            SyscallNumber::from_usize(SyscallNumber::AuditWait as usize),
+            Some(SyscallNumber::AuditWait)
+        );
+        assert_eq!(
+            SyscallNumber::from_usize(SyscallNumber::AuditDrain as usize),
+            Some(SyscallNumber::AuditDrain)
+        );
     }
 }
 

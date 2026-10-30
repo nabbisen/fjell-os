@@ -437,6 +437,28 @@ pub fn sys_audit_drain(cap: u32, buf: &mut [u8]) -> Result<(usize, usize), SysEr
     Ok((r1, r2))
 }
 
+/// Issue a syscall number the kernel does not know, for a test that needs the
+/// kernel to append an audit record it chooses (RFC-0.41-001).
+///
+/// The kernel answers `UnknownSyscall` and appends one `unknown_syscall` audit record
+/// whose `arg0` is `nr` -- a record a test can cause at will, carrying a value of its
+/// own choosing, with no other effect. `nr` must not be a number the kernel dispatches.
+pub fn sys_probe_unknown(nr: usize) {
+    let _ = ecall0(nr);
+}
+
+/// Block until the kernel audit ring is non-empty (RFC-0.41-001).
+///
+/// `cap` is the same `CapKind::AuditDrain` handle `sys_audit_drain` takes. Returns
+/// `Ok(())` at once if the ring already holds records, so a caller that drains until
+/// empty and then waits cannot sleep through a record appended in between. Only one
+/// task may wait at a time (`BadState` otherwise). Wakes when a record is appended;
+/// the caller then drains.
+pub fn sys_audit_wait(cap: u32) -> Result<(), SysError> {
+    let r = ecall2(SyscallNumber::AuditWait as usize, cap as usize, 0, 0, 0);
+    to_result(r.0).map(|_| ())
+}
+
 /// Raw-pointer variant for negative testing (RFC 050).
 ///
 /// RFC 054: `cap` is first argument; `buf_va`/`buf_len` follow.

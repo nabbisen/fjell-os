@@ -1,17 +1,50 @@
-# RFC 041 (v0.2): audit evidence gap detection.
-# NEG_TEST overflows the 256-entry audit ring then checks the dropped count.
+# RFC 041: audit evidence gap detection.
+# RFC-0.40-002 (closes E-092): a lease revocation must read as a revocation.
+# RFC-0.41-001 (closes E-102): the audit trail reaches someone, and says when it did not.
 #
-# RFC-0.40-002 (closes E-092): a lease revocation must read as a revocation. The
-# kernel recorded it under kind 40 while the published decoder knew 16 and mapped
-# everything else to `internal`, so every revocation decoded as `internal`.
-# `neg-test` revokes a lease, drains the ring and runs the record through the
-# decoder `auditd` uses; the assertion is the DECODED NAME (`lease.revoked`), not
-# the raw kind word, which is what a fix changes and tells a consumer nothing.
+# `auditd` is the one consumer that renders the trail. It used to drain once at
+# start-up and then wait on a message nothing sent, so the trail stopped at boot --
+# which is why RFC 041 and RFC-0.40-002 had to assert inside `neg-test`, draining the
+# ring themselves. With a live `auditd` that is no longer possible (it competes for
+# the same records) and no longer necessary: `neg-test` only CAUSES things, prints what
+# it caused, and this profile requires `auditd`'s own output to show them.
+#
+#   * `expect_echoed` (1): a lease revoked after boot appears as `lease.revoked`, with
+#     its lease id. The decoded name is the assertion, as in RFC-0.40-002.
+#   * `expect_echoed` (2), the lost wakeup (R4): 120 rounds, each a pair of probe records
+#     with `k` non-appending traps between them (k = 0..119) so the second lands at a
+#     different point of `auditd`'s drain/wait cycle; every probe's record is required to
+#     be printed BEFORE the round's `settled` line. A record `auditd` slept through is not
+#     absent for good -- the next append flushes it -- it is LATE, and late is what fails
+#     here. The window (a record appended between `auditd`'s empty drain and its wait) is
+#     one scheduling turn wide and, in this build, is entered by exactly one round (k = 78),
+#     found by counting the kernel's guard path; with the guard removed that round, and only
+#     that round, fails. See the RFC-0.41-001 review request.
+#   * `expect_accounted` (R6): a burst of 600 probe records overflows the 256-slot ring;
+#     records printed + records the `{"gap":...}` notices declare lost must equal 600,
+#     and at least one must be lost. A notice that always said "some were lost" fails.
+#     `noise<=3`: a notice also counts unrelated records dropped while the ring is full,
+#     and the system is still finishing starting -- `init`'s `task.exit` was dropped in
+#     this window in some runs (found by printing every non-probe record the ring
+#     dropped), in others nothing was. It is a bound, not a licence: a count too LOW is
+#     refused outright and a wrong quantity is off by hundreds.
+#
+# The two markers `NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS` and
+# `NEG:AUDIT:LEASE_REVOCATION_DECODES_AS_REVOKED:PASS` that used to be here are gone
+# with the in-service assertions they marked; the evidence logs under tests/evidence
+# that cite the first are dated records of the tree they came from.
 
 name             = "audit"
 timeout_secs     = 90
 expected_markers = [
-  "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS",
-  "NEG:AUDIT:LEASE_REVOCATION_DECODES_AS_REVOKED:PASS",
+  "auditd: started",
+  "neg-test: audit burst: count=600 base=",
+]
+expect_echoed    = [
+  "neg-test: audit: revoked lease arg0= => \"kind\":\"lease.revoked\",\"arg0\":{},",
+  "neg-test: audit probe nr= => \"kind\":\"unknown_syscall\",\"arg0\":{}, => neg-test: audit settled",
+]
+expect_accounted = [
+  "neg-test: audit burst begins => neg-test: audit burst: => noise<=3",
 ]
 extra_args       = []

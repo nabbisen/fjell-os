@@ -247,6 +247,35 @@ fn handle_unhandled(tf: &mut TrapFrame, cause: usize) {
     }
 }
 
+/// RFC-0.41-001 R3: deliver the wake an audit append owes the parked waiter.
+///
+/// The two operations the IRQ path performs in `handle_external_interrupt` -- mark
+/// the task runnable and enqueue it -- and nothing else (nothing here can fail or
+/// block). They happen *here*, not inside the ring's append, because the append
+/// runs inside code that already holds `&mut` to the task table and the scheduler
+/// (the capability, IPC and lease paths, and this function's own `TaskExit` and
+/// yield records); reaching them from the append would alias them. This is the one
+/// point in a trap where both are in hand and nothing else holds them, and it runs
+/// at the end of **every** trap, immediately before the scheduler chooses -- so
+/// the delivery is event-driven (the same trap that appended), not timer-driven.
+///
+/// The state check mirrors the IRQ path's: only a task still `Blocked` on the audit
+/// ring is woken, so a waiter that died or was woken by something else is ignored.
+fn deliver_audit_wake(
+    table: &mut crate::task::tcb::TaskTable,
+    sched: &mut crate::task::scheduler::Scheduler,
+) {
+    if let Some(id) = AUDIT.take_wake() {
+        if let Some(t) = table.get_mut(id) {
+            if matches!(t.state, TaskState::Blocked(BlockReason::AuditRing)) {
+                t.state = TaskState::Runnable;
+                let prio = t.priority;
+                sched.enqueue_runnable(id, prio);
+            }
+        }
+    }
+}
+
 /// Pick the next task and return its TrapFrame pointer.
 ///
 /// Handles yield/exit/fault state transitions, then asks the scheduler for
@@ -333,6 +362,9 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
             }
         }
     }
+
+    // RFC-0.41-001 R3: let a parked `auditd` run if an append claimed it.
+    deliver_audit_wake(table, sched);
 
     // Pick next task.
     let next_id = sched.choose_next();

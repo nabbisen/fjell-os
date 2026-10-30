@@ -116,6 +116,9 @@ pub enum BlockReason {
     ReservedForIpc,
     /// Blocked in `sys_irq_wait` on the given PLIC source (RFC-0.25-001).
     Irq(u32),
+    /// Blocked in `sys_audit_wait` until the audit ring is non-empty
+    /// (RFC-0.41-001). No payload: there is one ring, so nothing to discriminate.
+    AuditRing,
 }
 
 // ── TaskAccounting ────────────────────────────────────────────────────────────

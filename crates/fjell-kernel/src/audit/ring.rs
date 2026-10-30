@@ -8,8 +8,26 @@
 
 use core::cell::Cell;
 
-/// Maximum number of events stored in the kernel ring.
-pub const AUDIT_RING_CAPACITY: usize = 256;
+use fjell_abi::task::TaskId;
+
+/// Maximum number of events stored in the kernel ring. Defined once, in
+/// `fjell-audit-format`, because `auditd` needs it to say where a loss happened.
+pub use fjell_audit_format::AUDIT_RING_CAPACITY;
+
+/// RFC-0.41-001 R7: whether `TaskSwitch` records are appended at all. **The one
+/// place this policy lives** -- change this line to reverse the default.
+///
+/// Off, because the ring drops the **newest** record when full: a kind that can
+/// arrive unboundedly (about 32 per drain while services start) evicts the bounded
+/// kinds that matter -- a flood of scheduling telemetry destroys the revocation
+/// that follows it. Scheduling events are telemetry; the trail is for events an
+/// operator must be able to account for afterwards. The filter is applied where
+/// the record is *appended*, not where it is rendered: a record dropped at the
+/// console has already consumed a ring slot.
+///
+/// This is a design position and the owner may reverse it. The correctness half
+/// does not depend on it: if it is turned on, `auditd` reports the loss.
+pub const RECORD_TASK_SWITCH: bool = false;
 
 /// Internal audit event kind (kernel-private; mapped to `fjell-audit-format`
 /// types before export to user space).
@@ -86,6 +104,23 @@ pub struct AuditRing {
     /// Records dropped since the last `advance()` call (RFC 053).
     /// Reset to 0 on each `advance()` and returned to the caller.
     drops_since_advance: Cell<u64>,
+    /// RFC-0.41-001: the task parked in `sys_audit_wait`, if any. One slot: there
+    /// is one ring and it has one consumer.
+    waiter: Cell<Option<TaskId>>,
+    /// RFC-0.41-001: a parked waiter that an append has claimed and that the trap
+    /// path has not yet made runnable. See [`AuditRing::take_wake`].
+    wake: Cell<Option<TaskId>>,
+}
+
+/// What `sys_audit_wait` should do, decided by [`AuditRing::park`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ParkOutcome {
+    /// The ring already holds records: return at once (the lost-wakeup guard).
+    NotEmpty,
+    /// Another live task is parked; the ring has one consumer.
+    Busy,
+    /// Registered as the waiter: block the caller.
+    Parked,
 }
 
 // SAFETY: category=kernel-global-mutable single-hart.
@@ -101,6 +136,8 @@ impl AuditRing {
             seq: Cell::new(0),
             dropped_count: Cell::new(0),
             drops_since_advance: Cell::new(0),
+            waiter: Cell::new(None),
+            wake: Cell::new(None),
         }
     }
 
@@ -112,6 +149,10 @@ impl AuditRing {
         arg1: usize,
         result: isize,
     ) {
+        // R7: filtered at the append site, so a filtered record never takes a slot.
+        if kind == AuditKindInternal::TaskSwitch && !RECORD_TASK_SWITCH {
+            return;
+        }
         let len = self.len.get();
         if len >= AUDIT_RING_CAPACITY {
             self.dropped_count.set(self.dropped_count.get() + 1);
@@ -131,6 +172,46 @@ impl AuditRing {
         }));
         self.seq.set(seq + 1);
         self.len.set(len + 1);
+        // R3: claim a parked waiter. This is all the append path does about it --
+        // it records that the waiter is owed a wake. Marking the task runnable and
+        // enqueueing it (the two operations the IRQ path performs) cannot be done
+        // from here: this is called from inside code that already holds `&mut` to
+        // the task table and scheduler, and reaching them again would alias them.
+        // The trap path performs those two operations at the one point where it
+        // holds both and nothing else does -- see `trap::dispatch::deliver_audit_wake`.
+        if let Some(w) = self.waiter.take() {
+            self.wake.set(Some(w));
+        }
+    }
+
+    /// `sys_audit_wait`'s decision, made atomically (single hart, in a trap).
+    ///
+    /// **The lost-wakeup guard is this check, not a latch.** The condition a waiter
+    /// waits for is the ring's own state -- non-empty -- so a record appended in
+    /// the window between "a drain returned empty" and "the task called
+    /// `sys_audit_wait`" needs no remembered event: the wait finds the ring
+    /// non-empty and returns at once. The IRQ path needs a latch because an
+    /// interrupt is an edge; a ring that is not empty is a level.
+    ///
+    /// `stale(w)` says whether an already-registered waiter `w` is no longer
+    /// parked (it died, or was woken by something else), in which case its
+    /// registration is replaced rather than reported as `Busy`.
+    pub fn park(&self, who: TaskId, stale: impl Fn(TaskId) -> bool) -> ParkOutcome {
+        if self.len.get() > 0 {
+            return ParkOutcome::NotEmpty;
+        }
+        if let Some(w) = self.waiter.get() {
+            if w != who && !stale(w) {
+                return ParkOutcome::Busy;
+            }
+        }
+        self.waiter.set(Some(who));
+        ParkOutcome::Parked
+    }
+
+    /// The waiter an append has claimed, if any; clears the claim.
+    pub fn take_wake(&self) -> Option<TaskId> {
+        self.wake.take()
     }
 
     /// Peek at record at logical index `i` from the head without consuming it.

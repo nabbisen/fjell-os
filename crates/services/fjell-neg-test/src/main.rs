@@ -27,11 +27,11 @@ use fjell_abi::service::{ImageId, TaskLifecycle};
 use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    ipc_sender_tid, sys_audit_drain, sys_cap_bind_lease, sys_cap_copy,
-    sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_mint, sys_cap_revoke, sys_debug_write,
-    sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv,
-    sys_ipc_recv_msg, sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_reboot, sys_task_spawn,
-    sys_task_start, sys_task_status, sys_yield,
+    ipc_sender_tid, sys_cap_bind_lease, sys_cap_copy, sys_cap_drop as _sys_cap_drop,
+    sys_cap_inspect, sys_cap_mint, sys_cap_revoke, sys_debug_write, sys_debug_writeln,
+    sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv, sys_ipc_recv_msg,
+    sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_reboot, sys_task_spawn, sys_task_start,
+    sys_task_status, sys_yield,
 };
 
 // ── CSpace slot constants for this service ────────────────────────────────────
@@ -52,7 +52,6 @@ const SLOT_REBOOT_NARROW: u32 = 17; // scratch: the Reboot cap minted down to no
 const SLOT_IRQ: u32 = 9; // Interrupt cap, IRQ_ACK only, no IRQ_BIND (RFC-0.25-001)
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
-const SLOT_SCRATCH_C: u32 = 12; // scratch slot for audit overflow loop
 #[allow(dead_code)]
 const SLOT_SCRATCH_D: u32 = 13; // scratch for ipc blocked-call recv
 const SLOT_NARROW_CAP: u32 = 14; // minted cap with no management rights (RFC 049 tests)
@@ -1001,137 +1000,120 @@ fn test_policy_identity_spoofing() {
     }
 }
 
-/// AUDIT: overflow the 256-entry audit ring, drain, check dropped count.
-///
-/// Strategy: drain current backlog, then do 300 cap_copy+cap_drop cycles
-/// (600 events > 256 ring capacity → guaranteed overflow).  A positive
-/// dropped count confirms RFC 041 gap detection infrastructure works.
-fn test_audit_evidence_gap() {
-    // 1. Drain current backlog so we start from a known state.
-    let mut buf = [0u8; 32 * 32]; // space for 32 records
-    if let Err(e) = sys_audit_drain(SLOT_AUDIT, &mut buf) {
-        sys_debug_writeln("neg-test: evidence_gap: initial drain failed:");
-        debug_err(e);
-    }
+// ── Audit trail (RFC-0.41-001) ────────────────────────────────────────────────
+//
+// These three tests do not read the trail. They **cause** things, print what they
+// caused, and the `audit` profile checks that `auditd` -- the one consumer that
+// renders the trail, and now a live one -- printed them. RFC-0.40-002 and RFC 041
+// asserted inside this service (draining the ring itself) because `auditd` could see
+// nothing after boot; that was a workaround for a blind consumer, and it also competes
+// with a live one for the same ring, so it is gone. See `tests/qemu/profiles/audit.toml`.
 
-    // 2. Generate 300 cap_copy + cap_drop cycles = 600 audit events.
-    let mut copy_fails = 0u32;
-    let mut drop_fails = 0u32;
-    for _ in 0..300u32 {
-        match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_C) {
-            Ok(h) => {
-                if _sys_cap_drop(h).is_err() {
-                    drop_fails += 1;
-                }
-            }
-            Err(_) => copy_fails += 1,
-        }
-    }
-    if copy_fails > 0 {
-        sys_debug_writeln("neg-test: evidence_gap copy fails:");
-        debug_u(copy_fails as usize);
-    }
-    if drop_fails > 0 {
-        sys_debug_writeln("neg-test: evidence_gap drop fails:");
-        debug_u(drop_fails as usize);
-    }
+/// First unknown-syscall number used as a probe record. The kernel appends one audit
+/// record per unknown syscall whose `arg0` is the number issued -- a record a test can
+/// cause at will, with a value it chooses, that no other task produces.
+const PROBE_BASE: usize = 0x4155_0000;
 
-    // 3. Drain again — dropped count should be positive.
-    match sys_audit_drain(SLOT_AUDIT, &mut buf) {
-        Ok((_got, dropped)) => {
-            if dropped == 0 {
-                sys_debug_writeln("neg-test: evidence_gap: dropped == 0");
-            }
-            check(dropped > 0, M::AUDIT_EVIDENCE_GAP);
-        }
-        Err(e) => {
-            sys_debug_writeln("neg-test: evidence_gap: final drain failed:");
-            debug_err(e);
-        }
-    }
+/// Issue the probe `nr` and print which one it was.
+fn audit_probe(nr: usize) {
+    fjell_syscall::sys_probe_unknown(nr);
 }
 
-/// Drain the kernel audit ring until it is empty or 64 drains have been made,
-/// handing each record to `f`. Returns `false` only if a drain itself failed: a
-/// ring other tasks keep refilling (task-switch records arrive faster than a
-/// bounded loop empties it while the other services start) is not a failure,
-/// so callers must not need it empty.
-fn drain_audit_all(mut f: impl FnMut(&fjell_audit_format::AuditRecordBin)) -> bool {
-    use fjell_audit_format::{AUDIT_RECORD_BIN_SIZE, AuditRecordBin};
-    let mut buf = [0u8; 32 * AUDIT_RECORD_BIN_SIZE];
-    for _ in 0..64 {
-        match sys_audit_drain(SLOT_AUDIT, &mut buf) {
-            Ok((0, _)) => return true,
-            Ok((n, _)) => {
-                for i in 0..n {
-                    if let Some(rec) = AuditRecordBin::from_bytes(&buf[i * AUDIT_RECORD_BIN_SIZE..])
-                    {
-                        f(&rec);
-                    }
-                }
-            }
-            Err(_) => return false,
-        }
+/// Let the rest of the system finish starting, and `auditd` print everything it queued.
+fn test_audit_settle() {
+    for _ in 0..30_000 {
+        sys_yield();
     }
-    true
+    sys_debug_writeln("neg-test: audit tests begin (the system has settled)");
 }
 
-/// AUDIT (RFC-0.40-002, E-092): a lease revocation must read as a revocation.
-///
-/// The kernel appended `AuditKindInternal::LeaseRevoked = 40` on every revocation
-/// while the published decoder knew `LeaseRevoked = 16` and mapped everything else
-/// to `Internal`, so every revocation decoded as `internal`.
-///
-/// **What this asserts is the decoded name**, not the raw kind word: the raw value
-/// is what a fix changes; the name is what a consumer reads. It runs the record the
-/// kernel really emitted through the same decode `auditd` does on each record --
-/// `AuditRecordBin::from_bytes`, `AuditKind::from_u16`, `label()` -- rather than
-/// through `auditd`'s process, because `auditd` drains the ring once at start-up
-/// and then only when something wakes it, and nothing does: a revocation that
-/// happens afterwards never reaches its output. (Reported in the review request.)
-fn test_audit_lease_revocation_decodes() {
-    use fjell_audit_format::AuditKind;
-    // Best effort: get ahead of the backlog. The ring may well not be empty when
-    // this returns (see `drain_audit_all`), so nothing below relies on it: the
-    // record is picked out by the lease id, and the last match wins.
-    if !drain_audit_all(|_| {}) {
-        setup_failed("audit_lease_revocation: flush");
-        return;
-    }
+/// R10 / E-102: a revocation raised **after boot** must appear in `auditd`'s own
+/// output, as a revocation. This only causes it: create a lease, revoke it, and say
+/// which one.
+fn test_audit_revocation_reaches_the_trail() {
     let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
         Ok(id) => id,
         Err(_) => {
-            setup_failed("audit_lease_revocation: lease_create");
+            setup_failed("audit_revocation: lease_create");
             return;
         }
     };
     if sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id).is_err() {
-        setup_failed("audit_lease_revocation: revoke");
+        setup_failed("audit_revocation: revoke");
         return;
     }
-    // Find the record this revocation produced: its arg0 is the lease id. The
-    // raw kind words 16 (the published value) and 40 (what the kernel used to emit)
-    // are used ONLY to pick the record out of the ring -- so the same scenario
-    // finds it before and after the fix -- and the assertion below is on how the
-    // published decoder names it.
-    let mut found: Option<&'static str> = None;
-    let drained = drain_audit_all(|rec| {
-        if rec.arg0 as u64 == lease_id.0 as u64 && (rec.kind == 16 || rec.kind == 40) {
-            found = Some(AuditKind::from_u16(rec.kind).label());
+    sys_debug_write("neg-test: audit: revoked lease arg0=");
+    debug_dec(lease_id.0 as u64);
+    sys_debug_writeln("");
+}
+
+/// R4: the lost wakeup, really run.
+///
+/// `auditd` drains until the kernel says empty and then calls `sys_audit_wait`. The
+/// hazard is a record appended in the window between the two: after the drain that
+/// found the ring empty, before the wait. That window is one scheduling turn wide --
+/// every trap ends in a scheduling decision, so when `auditd`'s empty drain returns
+/// the other runnable task gets exactly one turn before `auditd` reaches its wait.
+///
+/// So this test sweeps for it. Each round issues a probe `A`, which wakes `auditd`
+/// and starts its cycle (drain, print the record in about a dozen traps, drain again,
+/// find the ring empty, wait); then waits `k` non-appending traps (a yield appends
+/// nothing: `TaskSwitch` is not recorded); then issues a probe `B`. As `k` grows from 0,
+/// `B` lands first before `auditd` has printed `A` (an ordinary non-empty drain), then,
+/// for some `k`, in the one-turn window between the empty drain and the wait, then
+/// after `auditd` has parked (an ordinary wake). The profile requires every probe's
+/// record to have been printed **before the round's `settled` line**: a `B` that fell
+/// in the window and was slept through would not be missing for good (the next append
+/// flushes it) -- it would be *late*, and late is what is asserted against.
+///
+/// Whether a round really entered the window is not taken on trust: see the review
+/// request for the instrumented run that counted it, and the run with the guard removed
+/// that went red.
+fn test_audit_wake_is_not_lost() {
+    const ROUNDS: usize = 120;
+    for k in 0..ROUNDS {
+        let a = PROBE_BASE + 2 * k;
+        let b = a + 1;
+        audit_probe(a);
+        for _ in 0..k {
+            sys_yield();
         }
-    });
-    if !drained {
-        setup_failed("audit_lease_revocation: drain");
-        return;
+        audit_probe(b);
+        for nr in [a, b] {
+            sys_debug_write("neg-test: audit probe nr=");
+            debug_dec(nr as u64);
+            sys_debug_writeln("");
+        }
+        // Let `auditd` run: it prints a record in about a dozen traps.
+        for _ in 0..400 {
+            sys_yield();
+        }
+        sys_debug_writeln("neg-test: audit settled");
     }
-    match found {
-        Some(label) => {
-            sys_debug_write("neg-test: audit: the record for the revoked lease decodes as '");
-            sys_debug_write(label);
-            sys_debug_writeln("'");
-            check(label == "lease.revoked", M::AUDIT_LEASE_REVOCATION_DECODES);
-        }
-        None => sys_debug_writeln("neg-test: audit: no record for the revoked lease was drained"),
+}
+
+/// R6: a loss is reported, with the right count.
+///
+/// Issue a burst of probe records far larger than the ring and say how many and from
+/// where. The ring drops the newest when full and `auditd`'s printing is slower than
+/// this loop appends, so most of the burst overflows. The profile requires the trail
+/// to **account** for it: probes printed + records the gap notices declare lost ==
+/// the burst, and at least one lost.
+fn test_audit_overflow_is_reported() {
+    const BURST: usize = 600;
+    const BURST_BASE: usize = 0x4156_0000;
+    sys_debug_writeln("neg-test: audit burst begins");
+    for i in 0..BURST {
+        audit_probe(BURST_BASE + i);
+    }
+    sys_debug_write("neg-test: audit burst: count=");
+    debug_dec(BURST as u64);
+    sys_debug_write(" base=");
+    debug_dec(BURST_BASE as u64);
+    sys_debug_writeln("");
+    // Let the trail catch up before the next tests add records of their own.
+    for _ in 0..6000 {
+        sys_yield();
     }
 }
 
@@ -1456,10 +1438,6 @@ pub extern "C" fn service_main() -> ! {
     test_policy_deny_priority();
     test_policy_identity_spoofing();
 
-    // ── Audit evidence gap (RFC 041) ─────────────────────────────────────────
-    test_audit_lease_revocation_decodes();
-    test_audit_evidence_gap();
-
     // ── Service lifecycle (RFC 038) ───────────────────────────────────────────
     test_svc_start_timeout();
     test_svc_fault_detected();
@@ -1477,6 +1455,18 @@ pub extern "C" fn service_main() -> ! {
     test_ipc_blocked_call_and_late_reply();
     // RFC-0.38-003 R4: the one call in the tree served through try_recv.
     test_try_recv_serves_a_call();
+
+    // ── Audit trail (RFC 041, RFC-0.41-001) ──────────────────────────────────
+    // Late, and after a settle: these assert what `auditd` printed, and `auditd` prints
+    // a record in about a dozen traps while every runnable task takes its turn between
+    // them -- so while the rest of the system is still starting, a probe is queued
+    // behind hundreds of boot records and "printed before the next line" and "every
+    // lost record is counted" measure the boot, not the wake. The settle runs boot out.
+    // Before `test_cap_bind_lease_without_authority`, which drops LeaseAdmin.
+    test_audit_settle();
+    test_audit_revocation_reaches_the_trail();
+    test_audit_wake_is_not_lost();
+    test_audit_overflow_is_reported();
 
     // RFC-0.38-002 R5: deliberately after every scenario that needs LeaseAdmin;
     // this one drops this task's own LeaseAdmin capability.

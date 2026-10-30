@@ -613,14 +613,12 @@ pub mod negative_markers {
         "NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS";
 
     // ── audit evidence (RFC 041) ──────────────────────────────────────────────
-    /// Snapshot continuity check reports dropped records correctly.
-    pub const AUDIT_EVIDENCE_GAP: &str = "NEG:AUDIT:EVIDENCE_GAP_DETECTED:PASS";
-    /// A lease revocation the kernel recorded decodes, through the published
-    /// `AuditKind` decoder, as `lease.revoked` -- not as `internal`
-    /// (RFC-0.40-002, closes E-092). The assertion is the decoded name, not the
-    /// raw kind word.
-    pub const AUDIT_LEASE_REVOCATION_DECODES: &str =
-        "NEG:AUDIT:LEASE_REVOCATION_DECODES_AS_REVOKED:PASS";
+    // `AUDIT_EVIDENCE_GAP` and `AUDIT_LEASE_REVOCATION_DECODES` were here until
+    // RFC-0.41-001. Both were asserted by `neg-test` draining the ring itself, because
+    // `auditd` could see nothing after boot; with a live consumer that competes for the
+    // same records, and the properties are now asserted where an operator reads them --
+    // in `auditd`'s own output, by the `audit` profile. A marker constant nothing emits
+    // would be a claim nothing makes, so they are removed rather than left.
 
     // ── external interrupt plane (RFC-0.25-001) ───────────────────────────────
     /// `sys_irq_bind` rejects an `Interrupt` capability without `IRQ_BIND`

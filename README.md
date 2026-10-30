@@ -16,7 +16,7 @@
 ## Overview
 
 Fjell OS is a capability-based microkernel for high-assurance edge and fleet nodes.
-Written in Rust 2024 edition — `forbid(unsafe_code)` except at 285 audited,
+Written in Rust 2024 edition — `forbid(unsafe_code)` except at 286 audited,
 classified boundaries (`cargo run -p fjell-unsafe-audit`).
 
 Current version: **0.40.0**. Release tags carry no `v` prefix.
@@ -74,7 +74,7 @@ cargo xtask trust-report --dry-run
 | Trust spine | Ed25519 (RFC 8032), key rotation, replay cache (v0.11) |
 | Attestation | `AttestationRecordV2` — hash chain, signed, nonce-protected |
 | Fleet partition | Reconcile manifests, coordinator-required promotion (v0.13) |
-| Unsafe discipline | 285 classified sites, zero missing SAFETY comments, all with a valid category tag |
+| Unsafe discipline | 286 classified sites, zero missing SAFETY comments, all with a valid category tag |
 | MMIO discipline | 32 sites, all classified and annotated |
 
 ---

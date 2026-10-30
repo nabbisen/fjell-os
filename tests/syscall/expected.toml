@@ -11,8 +11,11 @@
 # count — a count would let one undispatched syscall silently replace
 # another and still pass.
 
-declared_count = 34
-dispatched_count = 30
+declared_count = 35
+dispatched_count = 31
+
+# RFC-0.41-001: AuditWait (61) is declared and dispatched (`sys_audit_wait`), so
+# both counts rise by one and `undispatched` does not change.
 
 # RFC-0.33-001 D8/§C: PlatformReboot (18) now has a kernel dispatch arm
 # (crates/fjell-kernel/src/trap/syscall.rs::sys_platform_reboot), and its

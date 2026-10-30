@@ -43,6 +43,7 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::LeaseInspect) => dispatch_lease_inspect(tf),
         // M4 audit
         Some(SyscallNumber::AuditDrain)   => sys_audit_drain(tf),
+        Some(SyscallNumber::AuditWait)    => sys_audit_wait(tf),
         // M6 device / MMIO / DMA
         Some(SyscallNumber::PlatformInfoGet) => sys_platform_info_get(tf),
         Some(SyscallNumber::MmioMap)         => sys_mmio_map(tf),
@@ -795,6 +796,69 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     tf.gpr[REG_A0] = SysError::Ok as isize as usize;
     tf.gpr[REG_A1] = n_copied;
     tf.gpr[REG_A2] = n_dropped as usize;
+}
+
+/// `sys_audit_wait(a0=cap_handle) -> a0=status` -- RFC-0.41-001.
+///
+/// Blocks the caller until the kernel audit ring is non-empty. Requires the same
+/// `AuditDrain` capability `sys_audit_drain` does: a wake on the ring grants
+/// authority over nothing (who may *read* the trail is E-068's question and is
+/// not needed here), so no new right exists.
+///
+/// Returns `Ok` immediately if the ring already holds records. That check is the
+/// lost-wakeup guard (see [`crate::audit::ring::AuditRing::park`]). A second task
+/// asking to wait while another is parked gets `BadState`: the ring has one
+/// consumer. Modelled on `sys_irq_wait`: the same `Blocked` state and
+/// `suspend_current`, with `a0` set to `Ok` *before* blocking so it is already
+/// correct when the wake lets the task resume past the `ecall`.
+pub fn sys_audit_wait(tf: &mut TrapFrame) {
+    use crate::audit::ring::{AUDIT, ParkOutcome};
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (table, sched, ct, _) = unsafe { crate::get_kernel_state() };
+    let cur_id = match sched.current() {
+        Some(id) => id,
+        None => {
+            tf.gpr[REG_A0] = SysError::BadState as isize as usize;
+            return;
+        }
+    };
+    let tidx = cur_id.index as usize;
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        CapKind::AuditDrain,
+        CapRights::AUDIT_DRAIN,
+        None,
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
+    }
+
+    let stale = |w: crate::task::TaskId| {
+        !matches!(
+            table.get(w).map(|t| &t.state),
+            Some(TaskState::Blocked(BlockReason::AuditRing))
+        )
+    };
+    match AUDIT.park(cur_id, stale) {
+        ParkOutcome::NotEmpty => {
+            tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+        }
+        ParkOutcome::Busy => {
+            tf.gpr[REG_A0] = SysError::BadState as isize as usize;
+        }
+        ParkOutcome::Parked => {
+            if let Some(t) = table.get_mut(cur_id) {
+                t.state = TaskState::Blocked(BlockReason::AuditRing);
+            }
+            tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+            sched.suspend_current();
+        }
+    }
 }
 
 // ── M4 dispatch wrappers ──────────────────────────────────────────────────────

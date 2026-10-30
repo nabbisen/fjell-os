@@ -130,6 +130,16 @@ pub struct AuditEvent {
 /// Size of one [`AuditRecordBin`] in bytes (32 bytes).
 pub const AUDIT_RECORD_BIN_SIZE: usize = 32;
 
+/// How many records the kernel's audit ring holds (RFC-0.41-001).
+///
+/// One definition, here, because both sides need it: the kernel sizes its ring
+/// by it, and `auditd` uses it to say *where* in the trail a loss happened. The
+/// ring drops the **newest** record when full and a dropped record takes no
+/// sequence number, so the gap cannot be read off the records' `seq`; but it is
+/// known to follow the ring's last pending record, and a ring that has dropped
+/// anything is full -- so the gap lies after `first_seq + AUDIT_RING_CAPACITY - 1`.
+pub const AUDIT_RING_CAPACITY: usize = 256;
+
 /// Flat binary representation of one audit record as drained by
 /// `sys_audit_drain`.
 ///

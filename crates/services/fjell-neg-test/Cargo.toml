@@ -16,7 +16,6 @@ fjell-cap         = { path = "../../fjell-cap" }
 fjell-syscall     = { path = "../../fjell-syscall" }
 fjell-service-api = { path = "../../fjell-service-api" }
 # RFC-0.40-002: the decoder `auditd` uses, so a revocation can be asserted by name.
-fjell-audit-format = { path = "../../formats/fjell-audit-format" }
 
 [package.metadata.fjell]
 service-id = "svc.neg-test"

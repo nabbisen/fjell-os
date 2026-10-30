@@ -38,6 +38,7 @@
 //!                                        two independent builds, compared
 //!                                        bit-for-bit  (RFC-0.30-001)
 
+mod audit_trail; // RFC-0.41-001: judging auditd's output against what a test did
 mod bench;
 mod callsite_audit;
 mod cargo_metadata; // RFC-0.29-001: derived bare-metal crate set for test-all/CI

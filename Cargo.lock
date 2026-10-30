@@ -804,7 +804,6 @@ name = "fjell-neg-test"
 version = "0.40.0"
 dependencies = [
  "fjell-abi",
- "fjell-audit-format",
  "fjell-cap",
  "fjell-service-api",
  "fjell-syscall",
