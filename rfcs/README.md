@@ -521,10 +521,23 @@ Three independent lines, all drafted for this milestone and all shipped in it.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 5 RFCs
 
-Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
-a fresh clone.
+0.41's line, accepted 2026-10-30. The milestone's sentence is **the trail reaches
+someone, and says when it did not**: 0.41-001 and 0.41-002 are the two halves of
+**E-102**, and 0.41-002 lands after 0.41-001 because that line removes `auditd`
+from the shared endpoint object as a consequence of its redesign. The other three
+are independent of each other and of the first two.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.41-001 | [The audit trail reaches someone, and says when it did not](./accepted/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md) | E-102 |
+| 0.41-002 | [No service receives on a shared endpoint object](./accepted/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md) | E-102 |
+| 0.41-003 | [The attestation record's remaining placeholders stop reading as state](./accepted/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md) | E-101 |
+| 0.41-004 | [Frame reservation is all-or-nothing, and its doc says what it does](./accepted/RFC-0.41-004-frame-reservation-is-all-or-nothing.md) | E-103 |
+| 0.41-005 | [A gate catches prose that still asserts a closed erratum](./accepted/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md) | — |
+
+`accepted/README.md` keeps the folder in a fresh clone and is not counted above.
 
 ---
 
