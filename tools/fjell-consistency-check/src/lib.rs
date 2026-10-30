@@ -52,4 +52,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "ci-test-jobs",
     "capability-topology",
     "readiness-summary",
+    "closed-erratum-prose",
 ];

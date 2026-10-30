@@ -34,6 +34,9 @@
 //!     site agrees with `rust-toolchain.toml`'s `channel` (RFC-0.30-003 §7)
 //!   - `readiness-summary` — `v1-readiness.md`'s own "Summary at …" block
 //!     agrees with the rows it summarises (RFC-0.35-003 R5)
+//!   - `closed-erratum-prose` — live prose does not still assert a defect the
+//!     register says is CLOSED: no live status beside a closed erratum, no
+//!     present-tense claim resting on one (RFC-0.41-005)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -52,6 +55,7 @@ mod book_structure;
 mod capability_topology;
 mod ci_test_jobs;
 mod citation;
+mod closed_erratum_prose; // RFC-0.41-005: prose that still asserts a closed erratum
 mod doc_counts;
 mod doc_links;
 mod errata_limitations;
@@ -124,6 +128,9 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     // RFC-0.35-003 R5: v1-readiness.md's own "Summary at …" block must
     // agree with the rows it summarises.
     ("readiness-summary", readiness_summary::check),
+    // RFC-0.41-005: a CLOSED erratum's id may not sit in live prose beside a live
+    // status or as the grounds of a present-tense claim.
+    ("closed-erratum-prose", closed_erratum_prose::check),
 ];
 
 #[cfg(test)]
