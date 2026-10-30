@@ -7311,18 +7311,58 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `fjell-sample-service` still names "auditd/bootctl's shared-object-0 receive loops"; `bootctl`
   has had `BOOTCTL_EP_OBJECT` since RFC-0.33-001 D8, so the pair today is auditd/netd. It is a
   comment in a service whose binary was not moved at the 0.40.0 cut.
+- **The drop count is received and discarded — found 2026-10-30 by the architect while ruling on
+  the direction.** The kernel counts lost records twice (`dropped_count` lifetime,
+  `drops_since_advance` per drain), documents the per-drain figure at `trap/syscall.rs:687` and
+  returns it in `a2` (`:797`). `fjell-auditd`'s `drain_once` binds it to `_`:
+  `Ok((n_records, _n_dropped)) => {` (`src/main.rs:76`). So the one consumer that renders the trail
+  throws the loss count away, and an operator sees a trail with silent holes. Not hypothetical: the
+  volume below is what overflows the ring, and the ring drops the **newest** record. Scheduled with
+  this entry.
+- **The drain under-drains by construction — found 2026-10-30 by the architect, same reading.**
+  `DRAIN_BUF_RECORDS` is **64** (`src/main.rs:24`); `AUDIT_RING_CAPACITY` is **256**
+  (`audit/ring.rs:12`). One `drain_once` copies at most 64 of up to 256 pending records and then the
+  loop blocks again, so *any* design that drains once per wake leaves up to 192 records behind —
+  including a working message trigger. This is why the fix is "drain until the ring reports empty",
+  independent of how the wake arrives. Scheduled with this entry.
 - **Also open, a volume question.** While services start, `TaskSwitch` records refill the 256-slot
   ring faster than a 64-drain loop empties it (observed: 32 consecutive-sequence records per drain,
   kind 4). That made RFC-0.40-002's first tier flaky until it stopped needing the ring empty. Whether
   the trail should carry scheduling events at that rate is the same unbounded-volume question as a
   capability-denial event.
-- **Direction is the owner's — this is an open question, not a decision.** The architect's
-  recommendation, noted not taken: a **periodic drain rather than a wake** (a timer tick, or a drain
-  on the scheduler's own path), because every message-based trigger re-opens the authority question
-  E-068 declined to answer, and a trail that flushes on a schedule needs no sender at all.
-  **E-068 does not decide this.** E-068 retracted a *query sub-protocol* with an unanswered
+- **Direction — decided 2026-10-30.** The owner delegated the direction to the architect, with the
+  standing design bar as the instrument; the architect ruled. **Drain on a kernel-side wake, not on
+  a message and not on a timer:** a new `AuditWait` syscall parks `auditd` on the ring's own state,
+  modelled on `IrqWait`; the ring's append path wakes it, carrying the same lost-wakeup guard the
+  IRQ path implements (`trap/dispatch.rs:158`-`180`); `auditd` drains **until the ring reports
+  empty**, then parks, and receives on **no endpoint at all**. A separate number rather than making
+  `AuditDrain` block, because a syscall named `Drain` that parks the caller forever implies less
+  than it does, and because `IrqBind`/`IrqAck`/`IrqWait` already establish the idiom. It is an ABI
+  addition, so the surface moves off 498 by declaration rather than by `ci-abi-check` discovering it.
+- **The architect's earlier recommendation is withdrawn.** It was *"a periodic drain rather than a
+  wake"*. The tree refutes it: `BlockReason` has a `Sleep` variant that **nothing sets** — the only
+  setters are `ReservedForIpc` (`cap/syscall.rs:924`) and `Irq` (`trap/syscall.rs:1261`), `Yield` is
+  unset too — and there is no sleep syscall and no userspace timer facility. A periodic drain means
+  inventing one, which is *more* permanent structure than one syscall following an existing pattern;
+  and it is less correct, because it is stale by up to one period by construction and the ring
+  overflows *between* ticks under the volume below. The recommendation assumed a timer path existed
+  without checking whether the kernel could do it.
+  **E-068 still does not decide this.** E-068 retracted a *query sub-protocol* with an unanswered
   capability question (who may read the audit log); this is a *trigger* for `auditd`'s own drain
   loop and needs no new authority over who may read anything. The two rhyme and are not the same.
+  The ruling is deliberately built so as not to need E-068's answer: a wake on the ring grants
+  authority over nothing, and `auditd` already holds `AuditDrain`.
+- **The volume question, decided with it.** `TaskSwitch` is to be **filterable at the append site
+  and default off** — not for chattiness, but because the ring drops the *newest* record on overflow
+  (`audit/ring.rs:116`-`117`), so a high-rate kind evicts the bounded kinds that matter and a flood
+  of scheduling telemetry becomes a denial of audit. The default is a design position, the
+  architect's, open to the owner's reversal; the correctness half — an unbounded kind can evict a
+  bounded one, invisibly — holds whichever way the default goes.
+- **The shared-object-0 settlement, decided with it:** the defect is the shared default grant, not
+  the race. In order — this ruling removes `auditd` from object 0 outright; `netd` gains a dedicated
+  object, the shape RFC-0.28-001 used for `service-manager`; and then `_ => 0` stops granting an
+  endpoint at all, the default becoming *no* endpoint capability rather than a shared one. The third
+  step is the one that stops this recurring; the first two only make the present instance safe.
 - **Status:** **ACCEPTED**, `0.41` — the lead candidate. Weight is expressed by scheduling, not by an
   OPEN status: Gate 7 fails on any OPEN row and the rehearsal requires every gate. Recorded in
   `docs/src/releasing/v1-limitations.md` row 11.
@@ -7465,7 +7505,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | CLOSED |
 | E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | RFC-0.40-003 | CLOSED |
 | E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001 | 0.41 | ACCEPTED |
-| E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and an open question about `TaskSwitch` record volume. Direction is the owner's; E-068 does not decide it | 0.41 | ACCEPTED |
+| E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn | 0.41 | ACCEPTED |
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | 0.41 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
