@@ -75,7 +75,7 @@ instance 2, diagnosticsd exit 1  closed-erratum-prose: FAIL -- crates/services/f
 (restored)               exit 0
 ```
 
-Unit tests (12, in the tool's own tier) cover each rule, the corrected wordings, thirteen legitimate forms, "a status
+Unit tests (9, in the tool's own tier; the host-bins tier, not host-lib) cover each rule, the corrected wordings, thirteen legitimate forms, "a status
 word attaches to the nearest id" (both orderings), an id inside a longer identifier (`LEASE-CALLSITE-001` is not
 `E-001`), a wrapped comment, line reporting, and a register with no closed errata. The fixtures build the id from a
 variable so the module does not contain the stale shapes it tests for (it is in its own scope).
