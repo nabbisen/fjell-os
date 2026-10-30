@@ -7375,9 +7375,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   reported in that line's review request: the *append* only records that a parked waiter is owed a
   wake; the two operations that make it runnable (mark runnable, enqueue) run at the end of the same
   trap, in `trap::dispatch::schedule_next`, because the append runs inside code that already holds
-  `&mut` to the task table and scheduler. **Still open here:** the shared-object-0 settlement
-  (`netd`'s dedicated object, then `_ => 0` granting no endpoint) — RFC-0.41-002 — and the stale
-  `fjell-sample-service` comment. The text above is left as written.
+  `&mut` to the task table and scheduler. The text above is left as written.
+- **Progress — RFC-0.41-002 landed (2026-10-31); every defect this entry names is now fixed, and
+  closing it is the architect's call.** The shared default is gone: `_ => 0` is `_ => None`, so an
+  image without a dedicated arm gets **no** slot-0 endpoint; `init`'s own slot-0 grant to object 0
+  (`main.rs`) is gone with it. The count above was low: **three** images received on slot 0, not two —
+  `configd` (a real serving loop, `let ep = 0u32; sys_ipc_recv(ep)`), `neg-test` (on copies of its
+  slot 0) and `netd` (whose receive is dead code behind its own early exit); each now has a dedicated
+  object (`CONFIGD_EP_OBJECT`, `NEG_TEST_OWN_EP_OBJECT`, `NETD_EP_OBJECT`). `capability-topology` now
+  fails if any install gives a capability to receive on object 0, and it was shown failing on four
+  planted shapes. The stale `fjell-sample-service` comment is corrected.
 
 ## E-103 — `FrameAllocator::reserve_range` is not all-or-nothing in either direction, and its doc comment describes a contract it does not implement
 
