@@ -33,6 +33,7 @@ full list and disposition. This page lists only the 26 that are live.
 | 51 | `LeaseRevoke` | `sys_lease_revoke` | Lease |
 | 52 | `LeaseInspect` | `sys_lease_inspect` | Lease |
 | 60 | `AuditDrain` | `sys_audit_drain` | Audit |
+| 61 | `AuditWait` | `sys_audit_wait` | Audit |
 | 80 | `PlatformInfoGet` | `sys_platform_info_get` | Platform |
 | 90 | `MmioMap` | `sys_mmio_map` | Hardware |
 | 110 | `DmaAlloc` | `sys_dma_alloc` | Hardware |

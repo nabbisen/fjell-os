@@ -20,6 +20,20 @@ drains it with `sys_audit_drain(cap_handle, buf_va, buf_len)`, which requires an
 `AuditDrain` capability. The syscall returns the count of events dropped due to
 ring overflow since the last drain, so consumers can detect loss.
 
+A consumer that has drained the ring empty parks in `sys_audit_wait(cap_handle)`,
+which takes the same `AuditDrain` capability and returns when the ring is non-empty
+(at once, if it already is). It is a syscall of its own rather than `sys_audit_drain`
+blocking when empty, following the `IrqBind` / `IrqAck` / `IrqWait` idiom; a wake on the
+ring grants authority over nothing, so it needs no right of its own. The ring has one
+consumer, so a second task asking to wait while another is parked is refused
+(`BadState`). (RFC-0.41-001.)
+
+`auditd`, the consumer that renders the trail, drains **until the kernel reports the
+ring empty** and then waits, so a record appended after boot reaches the console. It
+prints a **gap notice**, `{"gap":{"dropped":N,"after_seq":S}}`, when a drain reports
+that records were dropped: not an audited event (it has no `seq` and no `kind`), but the
+statement that `N` records, which would have followed the record numbered `S`, were lost.
+
 ### Audit event kinds (as-built, `fjell-audit-format`)
 
 `AuditKind` covers boot, VM map/fault, task create/switch/exit/fault, syscall,
@@ -56,8 +70,16 @@ purpose.
 
 Because the kernel ring is bounded, overflow is possible under load. Rather than
 silently lose events, `sys_audit_drain` reports the drop count since the last
-drain. This makes loss observable to the consumer — an availability/honesty
-property that matters for audit integrity.
+drain, and `auditd` turns it into a gap notice at the point in the trail where the loss
+happened. This makes loss observable to the consumer **and to the person reading the
+console** — an availability/honesty property that matters for audit integrity.
+
+The ring drops the **newest** record when full, and a dropped record takes no sequence
+number, so a gap cannot be read off the records' `seq`; the notice's `after_seq` is how
+a reader finds it. Because of that direction, a record kind that can arrive without
+bound would evict the bounded kinds that matter, so `TaskSwitch` is **not recorded** by
+default (`audit::ring::RECORD_TASK_SWITCH`, a single constant): scheduling is telemetry,
+and the trail is for events an operator must be able to account for afterwards.
 
 ## 5. As-built scope limits & gaps
 

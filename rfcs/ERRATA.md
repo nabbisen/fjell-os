@@ -7366,6 +7366,18 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Status:** **ACCEPTED**, `0.41` — the lead candidate. Weight is expressed by scheduling, not by an
   OPEN status: Gate 7 fails on any OPEN row and the rehearsal requires every gate. Recorded in
   `docs/src/releasing/v1-limitations.md` row 11.
+- **Progress — RFC-0.41-001 landed (2026-10-30); the entry stays ACCEPTED until RFC-0.41-002.**
+  Fixed by that line: the **trigger** (`AuditWait = 61`, `BlockReason::AuditRing`; `auditd` drains
+  until empty, then waits, and receives on no endpoint), the **discarded drop count** (`auditd` now
+  prints a `{"gap":{"dropped":N,"after_seq":S}}` notice at the point of the loss) and the
+  **under-drain** (a drain per wake copied 64 of up to 256). `TaskSwitch` is no longer recorded
+  (`audit::ring::RECORD_TASK_SWITCH = false`, one constant). One departure from the ruling's wording,
+  reported in that line's review request: the *append* only records that a parked waiter is owed a
+  wake; the two operations that make it runnable (mark runnable, enqueue) run at the end of the same
+  trap, in `trap::dispatch::schedule_next`, because the append runs inside code that already holds
+  `&mut` to the task table and scheduler. **Still open here:** the shared-object-0 settlement
+  (`netd`'s dedicated object, then `_ => 0` granting no endpoint) — RFC-0.41-002 — and the stale
+  `fjell-sample-service` comment. The text above is left as written.
 
 ## E-103 — `FrameAllocator::reserve_range` is not all-or-nothing in either direction, and its doc comment describes a contract it does not implement
 

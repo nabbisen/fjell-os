@@ -35,7 +35,7 @@ Dispatched groups (as-built at v0.21.2, 26 syscalls):
 | Task | `task_spawn`, `task_start`, `task_status` |
 | Hardware | `mmio_map`, `dma_alloc`, `dma_revoke` |
 | Platform | `platform_info_get` |
-| Audit | `audit_drain` |
+| Audit | `audit_drain`, `audit_wait` |
 | Debug (dev only) | `debug_write` |
 
 Every syscall except the debug helper is capability-gated. The result is
