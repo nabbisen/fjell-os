@@ -74,7 +74,7 @@ four events are placeholders). The bundle's `last_attestation_available` stays
 
 ## Attestation
 
-`attestd` signs an `AttestationRecordV2` (schema version 3) that **says only what is
+`attestd` signs an `AttestationRecordV2` (schema version 4) that **says only what is
 true** (RFC-0.40-001, closes E-094). It used to be built from literals and asserted,
 under a signature, that a release, a rootfs and a policy bundle had been verified.
 Now:
@@ -95,9 +95,14 @@ Now:
   cached; it is not the rollback record's minimum, which is a different quantity and
   was once reported in its place.
 
-Other fields still carry unqualified placeholders that read as state — keyring epochs,
-the snapshot id, the health status, the last-advance source, the freshness key epoch
-(E-101); nothing computes them.
+* the **placeholders** — the three keyring anchor epochs, the snapshot id with its
+  reason, the health status, the last-advance source and the freshness key epoch —
+  each carry their own availability flag, written immediately before the claim and
+  **`false`** for every record `attestd` builds, and the claim is written as zero by the
+  encoder (RFC-0.41-003, closes E-101; schema version 3 → 4). Nothing computes any of
+  them, so none is claimed; a `0` beside flag `0` is not a reading, and a valid `0` (a
+  reason, a status) beside flag `1` is. `attestd` prints the five flags beside the
+  others (`attestd: record availability keyring_epochs=0 …`).
 
 `attestd` has no way to write the chain: the capability cannot tell a read from an
 append, so `measuredd` refuses an append from `attestd` (it is not a source

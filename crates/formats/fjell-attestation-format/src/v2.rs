@@ -127,6 +127,22 @@ pub struct ClaimAvailability {
     /// The whole `measurement` section is a real reading of the chain
     /// (`head_seq`, `chain_digest` and the included range).
     pub measurement: bool,
+    /// RFC-0.41-003 R1 (closes E-101), one claim for the three `keyring.active_epoch_*`
+    /// values: they are the anchor epochs in force at signing. Nothing reads them from
+    /// the keyring `attestd` holds; they are literals.
+    pub keyring_epochs: bool,
+    /// `snapshot.snapshot_id` **and** `snapshot.reason` name a snapshot that was taken.
+    /// One claim: a reason for a snapshot nothing identifies is not a reason. The id is a
+    /// literal (`"SN000001"`) and the reason is `0`, which is also a valid reason.
+    pub snapshot_id: bool,
+    /// `health.status` is a status someone observed. It is `0` today, which is also a
+    /// valid status -- exactly why it needs a flag.
+    pub health_status: bool,
+    /// `rollback.last_advance_source` is the source of the last advance of the counter.
+    /// It is a literal; nothing reads the rollback record's own field.
+    pub last_advance_source: bool,
+    /// `freshness.key_epoch` is the `AttestationSigning` epoch at signing. A literal.
+    pub freshness_key_epoch: bool,
 }
 
 // ── AttestationRecordV2 ──────────────────────────────────────────────────────
@@ -155,6 +171,14 @@ pub struct AttestationRecordV2 {
 }
 
 impl AttestationRecordV2 {
+    /// RFC-0.41-003 R1 (closes E-101): bumped 3 -> 4. Five more availability bytes --
+    /// `keyring.epochs_available`, `snapshot.id_available`, `health.status_available`,
+    /// `rollback.last_advance_source_available`, `freshness.key_epoch_available` -- each
+    /// written immediately before the claim it qualifies, and the claim written as zero
+    /// when its flag is 0, by the encoder. Same mechanism and same proof as 2 -> 3: remove
+    /// the five bytes, rewind the version word, and the v3 golden digest comes back
+    /// (`tests/golden.rs::attestation_v4_is_v3_plus_five_flags`).
+    ///
     /// RFC-0.40-001 (closes E-094): bumped 2 -> 3. Six availability bytes are
     /// written beside the claims they qualify, and a claim whose flag is `false`
     /// is written as zero -- so every digest and signature over a version-2 record
@@ -164,7 +188,7 @@ impl AttestationRecordV2 {
     /// not in the ABI snapshot, so what notices a bump is `tests/golden.rs` (whose
     /// stored digest may only change with a version bump and a note), the frozen
     /// schema `v2.frozen` (regenerated from the encoder) and this crate's own tests.
-    pub const SCHEMA_VERSION: u16 = 3;
+    pub const SCHEMA_VERSION: u16 = 4;
 
     /// The measurement section as it is **written**: the real reading when
     /// `availability.measurement`, otherwise all zero. The encoder and any reader
@@ -210,17 +234,34 @@ impl AttestationRecordV2 {
             self.provider.provider_generation,
         );
         // keyring
+        let a = &self.availability;
+        // RFC-0.41-003 R1: a flag-and-value pair for each claim below that nothing computes.
+        // The flag is written immediately before the claim; the claim is fixed width and
+        // zero when the flag is 0, whatever the field holds (the encoder's rule, as for
+        // every digest and the counter value).
+        let epoch = |avail: bool, e: u32| if avail { e } else { 0 };
+        c.note(
+            "placeholder_zeroed_when_unavailable",
+            "keyring.epochs_available qualifies the three keyring.active_epoch_* values; \
+             snapshot.id_available qualifies snapshot.snapshot_id and snapshot.reason; \
+             health.status_available, rollback.last_advance_source_available and \
+             freshness.key_epoch_available each qualify the one value after them. Every claim \
+             is fixed width and written as zero when its flag is 0, not the caller's raw \
+             value; zero beside flag 0 is not a reading, and a valid 0 (a reason, a status) \
+             beside flag 1 is",
+        );
+        c.u8("keyring.epochs_available", a.keyring_epochs as u8);
         c.u32(
             "keyring.active_epoch_attestation",
-            self.keyring.active_epoch_attestation,
+            epoch(a.keyring_epochs, self.keyring.active_epoch_attestation),
         );
         c.u32(
             "keyring.active_epoch_release",
-            self.keyring.active_epoch_release,
+            epoch(a.keyring_epochs, self.keyring.active_epoch_release),
         );
         c.u32(
             "keyring.active_epoch_policy",
-            self.keyring.active_epoch_policy,
+            epoch(a.keyring_epochs, self.keyring.active_epoch_policy),
         );
         c.bytes(
             "keyring.keyring_snapshot_digest",
@@ -229,7 +270,6 @@ impl AttestationRecordV2 {
         // boot
         c.u8("boot.selected_slot", self.boot.selected_slot);
         c.u64("boot.boot_id", self.boot.boot_id);
-        let a = &self.availability;
         // Each digest below is written as 32 bytes WHETHER OR NOT it is available, and
         // as zero when it is not -- not omitted, and not the caller's raw value.
         let zeroed = |avail: bool, d: &Digest32| if avail { d.0 } else { [0u8; 32] };
@@ -289,7 +329,15 @@ impl AttestationRecordV2 {
         c.u64("measurement.included_from_seq", m.included_from_seq);
         c.u64("measurement.included_to_seq", m.included_to_seq);
         // snapshot
-        c.bytes("snapshot.snapshot_id", &self.snapshot.snapshot_id);
+        c.u8("snapshot.id_available", a.snapshot_id as u8);
+        c.bytes(
+            "snapshot.snapshot_id",
+            &if a.snapshot_id {
+                self.snapshot.snapshot_id
+            } else {
+                [0u8; 8]
+            },
+        );
         c.u8(
             "snapshot.snapshot_digest_available",
             a.snapshot_digest as u8,
@@ -298,16 +346,39 @@ impl AttestationRecordV2 {
             "snapshot.snapshot_digest",
             &zeroed(a.snapshot_digest, &self.snapshot.snapshot_digest),
         );
-        c.u8("snapshot.reason", self.snapshot.reason);
+        c.u8(
+            "snapshot.reason",
+            if a.snapshot_id {
+                self.snapshot.reason
+            } else {
+                0
+            },
+        );
         // health
         c.bytes("health.target", &self.health.target);
-        c.u8("health.status", self.health.status);
+        c.u8("health.status_available", a.health_status as u8);
+        c.u8(
+            "health.status",
+            if a.health_status {
+                self.health.status
+            } else {
+                0
+            },
+        );
         // rollback
         c.bytes("rollback.channel_id", &self.rollback.channel_id);
         c.u64("rollback.min_counter", self.rollback.min_counter);
         c.u8(
+            "rollback.last_advance_source_available",
+            a.last_advance_source as u8,
+        );
+        c.u8(
             "rollback.last_advance_source",
-            self.rollback.last_advance_source,
+            if a.last_advance_source {
+                self.rollback.last_advance_source
+            } else {
+                0
+            },
         );
         c.u8(
             "rollback.trust_provider_counter_supported",
@@ -334,7 +405,11 @@ impl AttestationRecordV2 {
         );
         // freshness
         c.u32("freshness.generation", self.freshness.generation);
-        c.u32("freshness.key_epoch", self.freshness.key_epoch);
+        c.u8("freshness.key_epoch_available", a.freshness_key_epoch as u8);
+        c.u32(
+            "freshness.key_epoch",
+            epoch(a.freshness_key_epoch, self.freshness.key_epoch),
+        );
         c.u8("freshness.status", self.freshness.status);
         c.u8("freshness.nonce_class", self.freshness.nonce_class);
         c.bytes("freshness.nonce_bytes", &self.freshness.nonce_bytes);
@@ -445,9 +520,11 @@ impl AttestationRecordV2 {
     ///
     /// This makes the record *truthful*, not *complete*: the kernel image is still
     /// unmeasured (0.39 measures the *service* images, which is not that) and
-    /// release/rootfs/policy verification is E-095; the record's remaining
-    /// unqualified placeholders -- keyring epochs, snapshot id and reason, health
-    /// status, `last_advance_source`, freshness key epoch -- are E-101. The service-image digest is
+    /// release/rootfs/policy verification is E-095. The record's placeholders -- keyring
+    /// epochs, snapshot id and reason, health status, `last_advance_source`, freshness key
+    /// epoch -- are each written **behind a disclosure flag that is `false`** and as zero
+    /// (RFC-0.41-003 R1, closes E-101); the literals below are what the structs hold, and
+    /// the encoder does not write them. The service-image digest is
     /// deliberately **not** put in `kernel_digest`; it would be the same entry with
     /// a better-looking value.
     pub fn local(
@@ -534,6 +611,12 @@ impl AttestationRecordV2 {
                 policy_digest: false,
                 snapshot_digest: false,
                 measurement: measurement.is_some(),
+                // RFC-0.41-003 R1: nothing derives any of these; each is a literal above.
+                keyring_epochs: false,
+                snapshot_id: false,
+                health_status: false,
+                last_advance_source: false,
+                freshness_key_epoch: false,
             },
         }
     }

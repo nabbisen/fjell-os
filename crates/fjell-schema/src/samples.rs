@@ -80,6 +80,11 @@ pub fn attestation_v2() -> AttestationRecordV2 {
         policy_digest: true,
         snapshot_digest: true,
         measurement: true,
+        keyring_epochs: true,
+        snapshot_id: true,
+        health_status: true,
+        last_advance_source: true,
+        freshness_key_epoch: true,
     };
     r.created_tick = 0x8081_8283_8485_8687;
     r.provider.provider_generation = 0x9091;

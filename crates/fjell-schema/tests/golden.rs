@@ -53,24 +53,77 @@ fn attestation_v2() {
     // version word back to 2, and recovers the previous golden `92913e80...3e`
     // (the constant this replaced). A version bump and this note, as the header
     // requires.
+    //
+    // RFC-0.41-003 R1 (closes E-101), SCHEMA_VERSION 3 -> 4: five more availability
+    // bytes, one before each placeholder claim (`keyring.epochs_available`,
+    // `snapshot.id_available`, `health.status_available`,
+    // `rollback.last_advance_source_available`, `freshness.key_epoch_available`), the
+    // claim zeroed by the encoder when its flag is 0. The sample sets every claim
+    // available, so again nothing is zeroed and the stream is the v3 one plus five
+    // bytes and the version word -- **proved, not assumed**, by
+    // `attestation_v4_is_v3_plus_five_flags`, which removes the five bytes, rewinds the
+    // version word to 3 and recovers the v3 golden `241d4c91...b9` (the constant this
+    // replaced). The new constant below was taken only after that proof passed.
     check(
         "attestation_v2",
         &s::attestation_v2().canonical_digest().0,
+        "adefb58c3334f85cab273c1de05602f0185f9587a5c05d1df46838efcda5ab69",
+    );
+}
+
+/// The v4 canonical stream of the sample, with the offsets of the **five** availability
+/// bytes the 3 -> 4 bump added: after the provider (42) the keyring flag; the snapshot
+/// id flag (286); the health status flag (337); the last-advance-source flag (355); the
+/// freshness key-epoch flag (370). Each is checked to hold `1` (= available) before
+/// anything is removed.
+const V4_NEW_FLAGS: [usize; 5] = [42, 286, 337, 355, 370];
+
+fn sample_v4_stream() -> Vec<u8> {
+    use fjell_canon::BufSink;
+    let mut sink = BufSink::<512>::new();
+    s::attestation_v2().write_canonical(&mut sink);
+    sink.bytes().to_vec()
+}
+
+/// What the 3 -> 4 bump did, shown rather than asserted: from the v4 canonical stream of
+/// the sample, delete the five new availability bytes, set the version word back to 3,
+/// and the digest is the **v3 golden** again. Nothing else moved: not a field, not an
+/// offset, not a width.
+#[test]
+fn attestation_v4_is_v3_plus_five_flags() {
+    use fjell_measure_format::Digest32;
+    let mut v = sample_v4_stream();
+    assert_eq!(&v[..15], b"FJELL-ATTEST-V2", "the domain tag is first");
+    assert_eq!(&v[15..17], &4u16.to_le_bytes(), "the version word is 4");
+    for &at in &V4_NEW_FLAGS {
+        assert_eq!(
+            v[at], 1,
+            "an availability byte (= available) is at offset {at}"
+        );
+    }
+    for &at in V4_NEW_FLAGS.iter().rev() {
+        v.remove(at);
+    }
+    v[15..17].copy_from_slice(&3u16.to_le_bytes());
+    check(
+        "attestation_v2 (v4 stream rewound to v3)",
+        &Digest32::of(&v).0,
         "241d4c919283a08dd86bdece2351d3509087c4c089c55ee1f3a2775008e3f9b9",
     );
 }
 
-/// What the 2 -> 3 bump did, shown rather than asserted: from the v3 canonical
-/// stream of the sample, delete the six availability bytes, set the version word
-/// back to 2, and the digest is the **v2 golden** again. Nothing else moved.
+/// What the 2 -> 3 bump did, shown rather than asserted: from the canonical stream of the
+/// sample, delete the availability bytes, set the version word back to 2, and the digest
+/// is the **v2 golden** again. Nothing else moved. (Since 3 -> 4 the stream carries five
+/// more flags, removed first, so this chain still reaches the original v2 golden.)
 #[test]
 fn attestation_v3_is_v2_plus_six_flags() {
-    use fjell_canon::BufSink;
     use fjell_measure_format::Digest32;
-    let rec = s::attestation_v2();
-    let mut sink = BufSink::<512>::new();
-    rec.write_canonical(&mut sink);
-    let mut v = sink.bytes().to_vec();
+    let mut v = sample_v4_stream();
+    for &at in V4_NEW_FLAGS.iter().rev() {
+        v.remove(at);
+    }
+    v[15..17].copy_from_slice(&3u16.to_le_bytes());
 
     assert_eq!(&v[..15], b"FJELL-ATTEST-V2", "the domain tag is first");
     assert_eq!(&v[15..17], &3u16.to_le_bytes(), "the version word is 3");

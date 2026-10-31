@@ -82,3 +82,56 @@ did not edit it. When R1 lands the row will need re-reading, and it will name wh
 `attestd.bin` moved (the format crate is compiled into it) and **nothing else**; its baseline line was
 re-recorded after the rebuild and is committed with it. The real two-build check passes (not `--skip-build`).
 See the review request for the table.
+
+## R1 — the placeholders are disclosed, `SCHEMA_VERSION` 3 → 4 (added 2026-10-31, after review)
+
+Ruled by the architect after the escalation above: grouping as proposed; `snapshot.reason` and `health.status`
+get a flag although both are already `0`; it does not wait for E-095.
+
+**Five flags**, each written immediately before the claim it qualifies, the claim zeroed **by the encoder**
+(`write_canonical`) when its flag is 0: `keyring.epochs_available` (the three `keyring.active_epoch_*`),
+`snapshot.id_available` (`snapshot.snapshot_id` and `snapshot.reason`; the flag precedes the id and also covers
+the reason, which the stream writes after the snapshot digest — reordering it beside the id would have moved
+bytes, which the proof below forbids), `health.status_available`, `rollback.last_advance_source_available`,
+`freshness.key_epoch_available`. `ClaimAvailability` gains five `pub bool`s; `local()` sets all five `false`
+(each value is a literal nothing derives). The stream goes 422 → 427 bytes for `local()`'s record
+(`ATTEST_V2_STREAM_MAX` 512, unchanged).
+
+**The proof, the architect's template.** `crates/fjell-schema/tests/golden.rs::attestation_v4_is_v3_plus_five_flags`
+removes the five bytes at offsets 42 / 286 / 337 / 355 / 370 of the sample's v4 stream, rewinds the version word
+to 3, and the digest is the v3 golden `241d4c91…b9` **exactly**. It passed before the new golden was written down:
+the new constant (`adefb58c…ab69`) was taken afterwards, not generated to make a failing test pass. The older
+chain is kept and now starts from the v4 stream: `attestation_v3_is_v2_plus_six_flags` strips the five, then the
+six, and recovers the v2 golden `92913e80…3e`. The proof refuses a layout change: with `health.status_available`
+moved to after its value (scratch, reverted) it fails at once, naming offset 337.
+
+**The test that can fail** (`every_flag_and_value_pair_is_zeroed_by_the_encoder_not_by_the_factory`) now covers
+twelve pairs (seven before, five new): non-zero values assigned behind every false flag, including a non-zero
+reason and status (so zeroing is visible), byte-identical stream required, and a twelve-flag control. **Seen red,
+one mutation at a time** against an encoder writing that field raw: `health.status`, `snapshot.reason`,
+`rollback.last_advance_source`, `freshness.key_epoch`, `snapshot.snapshot_id`, and the keyring policy epoch —
+each failed with *"a value behind a false flag reached the encoded bytes"*; the unmutated encoder passes. (My
+first two mutations did not apply — `cargo fmt` had reformatted the expression I matched — and "passed"; I noticed
+and redid them against the formatted text.)
+
+**R5's print.** `attestd: record availability keyring_epochs=0 snapshot_id=0 health_status=0
+last_advance_source=0 freshness_key_epoch=0`, a separate line beside the existing availability line (which is
+unchanged byte for byte, so nothing that matches it moves). The `measurement` profile requires it; shown red with
+`keyring_epochs: true` in `local()` (marker missing), and green 6 of 6 on the final tree.
+
+**Regenerated, not hand-edited:** `v2.frozen` by `cargo xtask schema dump` — seven lines added (the dated header
+note, one `note`, five `field`), **none removed or changed**; `schema check` 21 match. `registry.rs` carries the
+dated note (it records the version change, and says the 2026-10-31 R2 note's "stays 3" was true of that change).
+
+**Not moved:** the ABI snapshot (the attestation format is not in it; verified, 502 / 502, 0 / 0 / 0); the other 32
+prebuilts. `fjell-attestd.bin` moved, its baseline line re-recorded in the same commit.
+
+**Limitations row 13 and `v1-readiness.md` line 48 — a report, not an edit.** Row 13 ends *"The record still
+carries unqualified placeholders that read as state — its keyring epochs, snapshot id, health status,
+`rollback.last_advance_source` and freshness key epoch — which nothing computes (E-101, ACCEPTED, 0.41)"*, and
+line 48 says *"the remaining unqualified placeholders read as state (E-101, 0.41)"*. Both are exact **today**
+because E-101 is still ACCEPTED and its closure moves with the rows; neither is true of the record once this
+lands: the five placeholders are now disclosed as unavailable, written as zero, behind flags. What stays true and
+should survive the rewrite: nothing computes them (so none is claimed), the boot slot / id and health target are
+true of this deployment, and the signature is the keyed-SHA-256 development provider. Row judgement is the
+architect's; E-101 carries a dated progress note saying it is ready to close.

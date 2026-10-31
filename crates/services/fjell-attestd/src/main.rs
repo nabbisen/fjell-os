@@ -185,6 +185,19 @@ fn print_record_summary(record: &AttestationRecordV2) {
     fjell_syscall::sys_debug_write(" measurement=");
     print_dec(a.measurement as u64);
     sys_debug_writeln("");
+    // RFC-0.41-003 R1 (E-101): the placeholders, each behind its own disclosure. A `0`
+    // here means the value in the record is NOT a reading -- it is written as zero.
+    fjell_syscall::sys_debug_write("attestd: record availability keyring_epochs=");
+    print_dec(a.keyring_epochs as u64);
+    fjell_syscall::sys_debug_write(" snapshot_id=");
+    print_dec(a.snapshot_id as u64);
+    fjell_syscall::sys_debug_write(" health_status=");
+    print_dec(a.health_status as u64);
+    fjell_syscall::sys_debug_write(" last_advance_source=");
+    print_dec(a.last_advance_source as u64);
+    fjell_syscall::sys_debug_write(" freshness_key_epoch=");
+    print_dec(a.freshness_key_epoch as u64);
+    sys_debug_writeln("");
     let m = record.measurement_written();
     fjell_syscall::sys_debug_write("attestd: record measurement head_seq=");
     print_dec(m.head_seq);

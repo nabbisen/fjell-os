@@ -39,6 +39,7 @@ expected_markers = [
   "measuredd: event seq=4 kind=4 source=13 subject=4",
   "attestd: record verified_flags=0",
   "attestd: record availability kernel_digest=0 release_digest=0 rootfs_digest=0 policy_digest=0 snapshot_digest=0 measurement=1",
+  "attestd: record availability keyring_epochs=0 snapshot_id=0 health_status=0 last_advance_source=0 freshness_key_epoch=0",
   "attestd: record measurement head_seq=4 included=1..4",
   "attestd: record rollback counter_supported=1 counter_value=1",
 ]

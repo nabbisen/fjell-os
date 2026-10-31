@@ -7271,6 +7271,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   placeholder — is not done, because it moves bytes** (a new byte per claim, and the placeholders written as
   zero): the RFC's premise that no constructible record moves a byte is true of the counter pair only. It is
   escalated, with the measurement, in that line's review request. The entry stays ACCEPTED.
+- **Progress — RFC-0.41-003 R1 (2026-10-31): the placeholders are disclosed; every defect this entry
+  names is fixed.** `SCHEMA_VERSION` 3 → 4. Five availability bytes are written, each immediately before
+  the claim it qualifies — the three keyring anchor epochs (one flag), the snapshot id with its reason
+  (one), `health.status`, `rollback.last_advance_source` and `freshness.key_epoch` (one each) — and the
+  claim is written as zero when its flag is 0, by the encoder. `AttestationRecordV2::local` sets all five
+  flags `false`, and `attestd` prints them (`attestd: record availability keyring_epochs=0 …`). The golden
+  moved `241d4c91…b9` → `adefb58c…ab69`; the move is proved, not assumed — removing the five bytes and
+  rewinding the version word recovers the v3 golden exactly. Ready to close at the architect's word, with
+  `docs/src/releasing/v1-limitations.md` row 13 and `docs/src/releasing/v1-readiness.md` line 48, which
+  still describe these placeholders as unqualified, rewritten in the same commit.
 
 ## E-102 — `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot
 

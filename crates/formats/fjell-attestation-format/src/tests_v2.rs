@@ -56,6 +56,11 @@ fn dev_record() -> AttestationRecordV2 {
         policy_digest: true,
         snapshot_digest: true,
         measurement: true,
+        keyring_epochs: true,
+        snapshot_id: true,
+        health_status: true,
+        last_advance_source: true,
+        freshness_key_epoch: true,
     };
     r.boot.kernel_digest = Digest32([0x11; 32]);
     r.verification.release_digest = Digest32([0x22; 32]);
@@ -153,7 +158,7 @@ fn v2_digest_changes_when_any_field_changes() {
         |r| r.snapshot.snapshot_digest = Digest32([0xDD; 32]),
         |r| r.health.status = 1,
         |r| r.rollback.trust_provider_counter_value = 777,
-        |r| r.schema_version = 4,
+        |r| r.schema_version = 5,
     ];
     for m in mutations {
         let mut r = base;
@@ -244,11 +249,12 @@ fn nonce_class_tags_stable() {
 // ── Schema version ───────────────────────────────────────────────────────────
 
 #[test]
-fn v2_schema_version_is_3() {
+fn v2_schema_version_is_4() {
     // RFC-0.40-001: 2 -> 3, because availability flags are now in the stream.
+    // RFC-0.41-003 R1: 3 -> 4, five more.
     let r = dev_record();
-    assert_eq!(r.schema_version, 3);
-    assert_eq!(AttestationRecordV2::SCHEMA_VERSION, 3);
+    assert_eq!(r.schema_version, 4);
+    assert_eq!(AttestationRecordV2::SCHEMA_VERSION, 4);
 }
 
 // ── RFC-0.40-001: the record says only what is true (closes E-094) ───────────
@@ -263,6 +269,9 @@ fn the_local_record_asserts_no_verification_and_claims_no_unmeasured_digest() {
     let a = r.availability;
     assert!(!a.kernel_digest && !a.release_digest && !a.rootfs_digest);
     assert!(!a.policy_digest && !a.snapshot_digest);
+    // RFC-0.41-003 R1: and none of the placeholders is claimed either.
+    assert!(!a.keyring_epochs && !a.snapshot_id && !a.health_status);
+    assert!(!a.last_advance_source && !a.freshness_key_epoch);
     for d in [
         r.boot.kernel_digest,
         r.verification.release_digest,
@@ -319,6 +328,11 @@ fn availability_flags_are_covered_by_the_digest_each_on_its_own() {
         |a| a.policy_digest = false,
         |a| a.snapshot_digest = false,
         |a| a.measurement = false,
+        |a| a.keyring_epochs = false,
+        |a| a.snapshot_id = false,
+        |a| a.health_status = false,
+        |a| a.last_advance_source = false,
+        |a| a.freshness_key_epoch = false,
     ];
     for f in flips {
         let mut r = base;
@@ -459,6 +473,17 @@ fn every_flag_and_value_pair_is_zeroed_by_the_encoder_not_by_the_factory() {
         included_to_seq: 9,
     };
     r.rollback.trust_provider_counter_value = 777; // beside supported == false
+    // RFC-0.41-003 R1: the five placeholder pairs, a non-zero value behind each false flag
+    // (a non-zero reason and status included: 0 is a valid one of each, so only a non-zero
+    // value shows the encoder zeroed it).
+    r.keyring.active_epoch_attestation = 0x0101_0101;
+    r.keyring.active_epoch_release = 0x0202_0202;
+    r.keyring.active_epoch_policy = 0x0303_0303;
+    r.snapshot.snapshot_id = *b"SN999999";
+    r.snapshot.reason = 5;
+    r.health.status = 4;
+    r.rollback.last_advance_source = 2;
+    r.freshness.key_epoch = 0x0404_0404;
     assert_ne!(
         r, honest,
         "the fixture must actually differ from the reference"
@@ -475,7 +500,7 @@ fn every_flag_and_value_pair_is_zeroed_by_the_encoder_not_by_the_factory() {
     // values are written, so the stream differs. (Without this, equal streams could
     // mean the fields were never encoded at all.)
     type Set = fn(&mut AttestationRecordV2);
-    let flips: [(&str, Set); 7] = [
+    let flips: [(&str, Set); 12] = [
         ("kernel_digest", |r| r.availability.kernel_digest = true),
         ("release_digest", |r| r.availability.release_digest = true),
         ("rootfs_digest", |r| r.availability.rootfs_digest = true),
@@ -484,6 +509,15 @@ fn every_flag_and_value_pair_is_zeroed_by_the_encoder_not_by_the_factory() {
         ("measurement", |r| r.availability.measurement = true),
         ("trust_provider_counter", |r| {
             r.rollback.trust_provider_counter_supported = true
+        }),
+        ("keyring_epochs", |r| r.availability.keyring_epochs = true),
+        ("snapshot_id", |r| r.availability.snapshot_id = true),
+        ("health_status", |r| r.availability.health_status = true),
+        ("last_advance_source", |r| {
+            r.availability.last_advance_source = true
+        }),
+        ("freshness_key_epoch", |r| {
+            r.availability.freshness_key_epoch = true
         }),
     ];
     for (name, flip) in flips {
