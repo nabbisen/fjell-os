@@ -94,8 +94,9 @@ get a flag although both are already `0`; it does not wait for E-095.
 the reason, which the stream writes after the snapshot digest — reordering it beside the id would have moved
 bytes, which the proof below forbids), `health.status_available`, `rollback.last_advance_source_available`,
 `freshness.key_epoch_available`. `ClaimAvailability` gains five `pub bool`s; `local()` sets all five `false`
-(each value is a literal nothing derives). The stream goes 422 → 427 bytes for `local()`'s record
-(`ATTEST_V2_STREAM_MAX` 512, unchanged).
+(each value is a literal nothing derives). The stream goes 422 → 427 bytes for `local()`'s record (422 was
+measured before this change; 427 is that plus five, and the field widths sum to it — the length itself was not
+re-measured after the change; `ATTEST_V2_STREAM_MAX` 512, unchanged).
 
 **The proof, the architect's template.** `crates/fjell-schema/tests/golden.rs::attestation_v4_is_v3_plus_five_flags`
 removes the five bytes at offsets 42 / 286 / 337 / 355 / 370 of the sample's v4 stream, rewinds the version word
