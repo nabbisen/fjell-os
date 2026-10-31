@@ -7593,6 +7593,47 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   it is a cause and a rate measured against the ~1-in-270 baseline, not a quiet run. Evidence: the
   failing serial and tier logs are in the implementer's session scratchpad and the run directory
   `tests/runs/20261031-074707/` is retained.
+- **Progress — RFC-0.41-006 (2026-11-01): two premises of this entry are corrected, the mechanism of
+  the failure is established, and its cause is not found.**
+  - **The fault at `0x400aa` is not an anomaly; it happens in every boot.** `0x400aa` is
+    `lbu zero, 0x0(zero)` in `fjell-svc-fault`, the deliberate NULL load `neg-test` starts a task to
+    perform (`crates/services/fjell-svc-fault/src/main.rs`; disassembled from the built image). The
+    console line `[task#N svc-fault]: fault(LoadPageFault) sepc=0x400aa stval=0x0` is in **every**
+    passing log too (3,047 retained logs carry it). What differs is whether its **audit record** is
+    printed: it is dropped when the ring is full (a passing log carries `{"gap":…}` notices around
+    that time, e.g. `dropped:28,after_seq:262` where the failing log's fault is `seq:265`), so
+    "0 faults in the passing run" was a sampling artefact of the ring, and the *"controlled lead"*
+    above does not hold. E-097's symptom class is therefore not implicated by this fault.
+  - **The trail could not say which task, because the kernel did not record it.** `AuditRecord.tick`
+    was always `0` and the drain wrote `task: 0xFFFF`; the renderer had nothing to print. RFC-0.41-006
+    R1 now stamps the running task's slot and a logical tick (traps taken — the timer interrupt is
+    deliberately never enabled) and `auditd` prints both.
+  - **Mechanism of the failure, reproduced on demand.** The failing write is a `storaged` I/O whose
+    completion `storaged` waits for with a bound of 500,000 `sys_yield` rounds
+    (`fjell-storaged` `do_io`); when it expires the driver replies `WRITE_ERR`, `init` prints
+    `M6: block I/O error` and exits 1. Making the disk slow enough that one request takes longer than
+    that bound (`-drive …,throttling.bps-total=50`) reproduces the whole signature, 6 of 6: the
+    `svc-fault` console line, `M6: block I/O error`, `TEST:M7:FAIL`, and — with R1 — a
+    `task.fault` record naming `"task":15`. A disk slow by 3.4 s per request (`bps-total=150`) passes.
+  - **What is not known: why a request is that slow in a suite.** `cargo xtask boot-loop` boots to
+    `init`'s M6 decision and counts; it has run **about 25,000 boots with no failure** (sequential and
+    parallel; disks on tmpfs and on the repository's btrfs; under 4 fsync writers; under 64 CPU
+    spinners; with the disk throttled to 250 ms per request; through the real `qemu-run` path with a
+    short-timeout profile; against the pre-R1 kernel). The baseline predicts roughly 18 (the retained-log rate, 3 in 4,077)
+    to 90 (the suite rate, 1 in 270) failures in that many boots. **The harness does not reproduce the natural rate and so cannot show absence.**
+    Host write latency, measured directly for QEMU's own operation (46.7 M writes of 512 B into fresh
+    sparse 16 MiB files on the btrfs volume), peaked at 1.6 ms, and at 18 ms with 12 processes
+    churning files — nothing near the seconds the mechanism needs.
+  - **`storaged` now reports the device on a timeout** — `storaged: io timeout lba=… status=…
+    isr=… avail=… used=… prev=… hdr_type=… req_status=…` — so the next natural failure classifies
+    itself: `status=0x07, isr=0, used==prev, avail==prev+1` is a request the device was given and
+    did not finish (a stall); `status & 0x40` or `0x80`, or `isr=1`, is the device or the queue
+    memory being wrong (the E-097 class). The stall signature above is what the throttled control
+    prints.
+  - **A defect found in passing, not touched:** `storaged` takes its LBA from the wrong message
+    words (`recv_call` returns the first word as `_badge` and the handler reads `w1`/`w2`), so every
+    write lands at sector 0, and a chunk's first word is dropped. It is unrelated to the stall.
+    Correcting it changes what every storage tier writes to disk, which is for the architect to rule.
 
 ## Summary
 

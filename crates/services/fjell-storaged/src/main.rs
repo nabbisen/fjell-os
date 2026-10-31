@@ -15,7 +15,9 @@
 mod rt;
 
 use core::sync::atomic::{Ordering, fence};
-use fjell_syscall::{sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map, sys_yield};
+use fjell_syscall::{
+    sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map, sys_yield,
+};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -33,6 +35,7 @@ const R_QUEUE_ALIGN: usize = 0x03C; // QueueAlign (v1 only)
 const R_QUEUE_PFN: usize = 0x040; // QueuePFN (write, v1 only) — page frame number
 const R_QUEUE_NOTIFY: usize = 0x050; // QueueNotify
 const R_STATUS: usize = 0x070; // Status
+const R_INT_STATUS: usize = 0x060; // InterruptStatus (read)
 // v2-only constants (unused in v1 mode)
 const R_DEV_FEAT_SEL: usize = 0x014;
 const R_DRV_FEAT_SEL: usize = 0x024;
@@ -157,6 +160,67 @@ unsafe fn used_idx(va: usize) -> u16 {
     unsafe { core::ptr::read_volatile((va + OFF_USED + 2) as *const u16) }
 }
 
+// ── What a timed-out I/O looks like (RFC-0.41-006, E-104) ────────────────────
+
+/// Print `v` as `0x` and eight hex digits.
+fn put_hex(v: u32) {
+    sys_debug_write("0x");
+    for shift in (0..8).rev() {
+        let d = ((v >> (shift * 4)) & 0xF) as u8;
+        let c = if d < 10 { b'0' + d } else { b'a' + (d - 10) };
+        fjell_syscall::sys_debug_write_byte(c);
+    }
+}
+
+/// An I/O did not complete within the poll budget. Say what the device and the queue
+/// look like, **once, on the failure path only** -- nothing here runs when an I/O
+/// succeeds, and it allocates nothing.
+///
+/// This exists so that the next failure classifies itself. `status` has bit `0x40`
+/// (`NEEDS_RESET`) or `0x80` (`FAILED`) set when the device itself decided the queue
+/// was bad, which is a memory-corruption signature; `0x07` with `used == prev` and
+/// `avail == prev + 1` is a request the device was given and never finished, which is
+/// a slow or stalled host. Which of the two it is decides where E-104's cause is.
+///
+/// # Safety
+/// `mmio` and `va` are this driver's mapped device window and DMA page.
+// SAFETY: category=raw-pointer-deref reads of this driver's own mapped MMIO window and DMA page.
+unsafe fn report_io_timeout(mmio: usize, va: usize, lba: u64, prev: u16) {
+    // Each read below is a status read -- it only observes; nothing is written to the device.
+    // SAFETY: category=raw-pointer-deref reads of this driver's own mapped MMIO window and DMA page.
+    let (status, isr, avail, used, hdr_ty, hdr_st) = unsafe {
+        // MMIO-ORDER: status_read
+        let status = rd32(mmio, R_STATUS);
+        // MMIO-ORDER: status_read
+        let isr = rd32(mmio, R_INT_STATUS);
+        // MMIO-ORDER: status_read
+        let avail = core::ptr::read_volatile((va + OFF_AVAIL + 2) as *const u16);
+        let used = used_idx(va);
+        // MMIO-ORDER: status_read
+        let hdr_ty = core::ptr::read_volatile((va + OFF_HEADER) as *const u32);
+        // MMIO-ORDER: status_read
+        let hdr_st = core::ptr::read_volatile((va + OFF_STATUS) as *const u8);
+        (status, isr, avail, used, hdr_ty, hdr_st)
+    };
+    sys_debug_write("storaged: io timeout lba=");
+    put_hex(lba as u32);
+    sys_debug_write(" status=");
+    put_hex(status);
+    sys_debug_write(" isr=");
+    put_hex(isr);
+    sys_debug_write(" avail=");
+    put_hex(avail as u32);
+    sys_debug_write(" used=");
+    put_hex(used as u32);
+    sys_debug_write(" prev=");
+    put_hex(prev as u32);
+    sys_debug_write(" hdr_type=");
+    put_hex(hdr_ty);
+    sys_debug_write(" req_status=");
+    put_hex(hdr_st as u32);
+    sys_debug_writeln("");
+}
+
 // ── Single virtio-blk I/O (returns true on success) ──────────────────────────
 fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
     // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
@@ -204,6 +268,8 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
             }
             t += 1;
             if t >= 500_000 {
+                // SAFETY: category=raw-pointer-deref this driver's own mapped window and DMA page.
+                unsafe { report_io_timeout(mmio, va, lba, prev) };
                 return false;
             }
             // Ring doorbell again every 1000 iterations to retrigger if missed

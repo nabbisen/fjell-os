@@ -19,6 +19,8 @@
 //!                                        captured log  (RFC 025)
 //!   qemu-run --profile <name>          — run an explicit profile from
 //!                                        tests/qemu/profiles/<name>.toml
+//!   boot-loop [--boots N] [--jobs J] [--drive-extra S] — boot to the M6 decision
+//!                                        many times, each on its own disk (RFC-0.41-006 R5)
 //!   release-rehearsal                  — run v1.0 tag gates (RFC-v0.16-008)
 //!   consistency-check [<subcheck>|--all] — declared vs. actual state
 //!                                        checks  (RFC-v0.22-001, Gate 12)
@@ -40,6 +42,7 @@
 
 mod audit_trail; // RFC-0.41-001: judging auditd's output against what a test did
 mod bench;
+mod boot_loop; // RFC-0.41-006 R5: boot to the M6 decision, many times
 mod callsite_audit;
 mod cargo_metadata; // RFC-0.29-001: derived bare-metal crate set for test-all/CI
 mod chain_head;
@@ -94,6 +97,7 @@ fn main() -> ExitCode {
             args.get(1).map(String::as_str),
             args.get(2).map(String::as_str),
         ),
+        Some("boot-loop") => boot_loop::cmd_boot_loop(&args[1..]),
         Some("qemu-run") => {
             // Accept either `qemu-run --profile NAME` or `qemu-run NAME`.
             let profile = match args.get(1).map(String::as_str) {
@@ -266,6 +270,7 @@ Subcommands:
   qemu-negative <capability|ipc|mmio|dma|store|upgrade|...>
   qemu-log-check <log-file> <marker>
   qemu-run --profile <name>
+  boot-loop [--boots N] [--jobs J] [--drive-extra STR] [--kernel PATH] [--out DIR]
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
   dev lint <manifest.toml>
   verus-check [<target>|--all-pilot|--release-required]  (RFC-v0.17-005)
