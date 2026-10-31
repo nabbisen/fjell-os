@@ -137,3 +137,44 @@ move or mask a placement-sensitive failure — E-097 was bimodal in a service's 
 its rate varied with the working directory for reasons nobody explained. Prefer observation that
 does not allocate; when instrumentation must allocate, say so and re-measure the rate with it in
 place.
+
+## Amendments — 2026-11-01, architect, after R1's review
+
+**Two of this RFC's premises were wrong, and both errors are the architect's.**
+
+**(a) "What is wrong" item 3 is withdrawn.** The fault at `sepc 0x400aa` is **not** an anomaly and
+**not** evidence of corrupted memory: it is the deliberate null read in `fjell-svc-fault`
+(`src/main.rs:35`), which is also why `stval` is 0. The console line is present in **27 of 27**
+current passing serial logs. The "control" that appeared to exclude it counted `task.fault` **audit
+records**, and that record is often dropped by the ring — the same passing log carries three
+`{"gap"}` notices. RFC-0.41-001 added those notices so a reader would know records were lost; this
+RFC's author then read a trail declaring itself incomplete as though it were complete. **A record
+count is not an event count in a lossy trail.** Consequently **R2's physical text-vs-image
+comparison is moot** (there is no wrong memory to find) and **R3's question rested on the same wrong
+premise** — its answer is that nothing in the evidence points at the boot invariant, and widening it
+is not part of this line.
+
+**(b) "What is wrong" item 4 is withdrawn.** The kernel did **not** record `task` or `tick`:
+`AuditRecord` was built with `tick: 0` (`audit/ring.rs:167`) and the drain hard-coded
+`task: 0xFFFF` (`trap/syscall.rs:772`). The field existed and was never populated; R1 as written
+would have printed `null` and `0` for every record. R1 is satisfied by the kernel change the
+implementer added, and `tick` is **a trap count, not wall time** — the timer interrupt is never
+enabled, so a timer tick reads 0 forever. **Ruled: keep the trap count**; an `unsafe` MMIO `mtime`
+read on the append path would put a fallible read inside the one place 0.41-001 established must not
+fail, for a wall clock nothing yet needs.
+
+**What this line established instead, and it is the real result.** `init`'s `M6: block I/O error` is
+a `storaged` write whose completion never arrived — `do_io` polls the used ring for 500,000
+`sys_yield` rounds, then replies `WRITE_ERR`, and each M6 write site then `sys_exit(1)`s. Throttling
+the disk so one request outlives the bound **reproduces the whole signature on demand**. What remains
+unknown is what makes one request take seconds; host write latency measured ≤18 ms under load.
+
+**R5's harness exists and honestly cannot measure the rate** — ~25,000 boots, zero natural failures
+against 18–90 expected, across eight conditions. That negative, reported rather than banked, is what
+R5 was for. **The remaining work is one natural failure captured with `storaged`'s new
+`io timeout …` line**, which decides between "the stall is below the guest" (`avail=1 used=0
+req_status=0xff`, the throttled control's shape) and "the device or the queue memory is wrong"
+(`status & 0x40|0x80`, or `isr=1`) — the latter being the E-097 class, which would redirect this line.
+
+**A separate defect found in passing is filed as E-105** (`storaged` writes every sector to LBA 0,
+shifted and truncated, while `init` reports success) and is **not** in this line's scope.

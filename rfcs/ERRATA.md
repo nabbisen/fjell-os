@@ -7569,7 +7569,50 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `M6:` line (init got no further); in the failing `mmio` log it follows `block write ok`,
   `store formatted or recovered` and `store append ok`, so the failing write is **not always the
   same one**.
-- **A lead, controlled: a task fault at the same PC precedes both failures.** Both failing logs carry
+- **WITHDRAWN 2026-11-01 — the "controlled lead" below was the architect's error, twice over.**
+  The fault at `sepc 0x400aa` is **not an anomaly**: it is the deliberate null read in
+  `fjell-svc-fault` (`src/main.rs:35`, `read_volatile(0usize as *const u8)`, commented *"Deliberately
+  fault: read from null pointer"*), which is also why `stval` is 0. The console line
+  `fault(LoadPageFault) sepc=0x400aa stval=0x0` is present in **27 of 27** current passing serial
+  logs. The control that appeared to exclude it counted `task.fault` **audit records**, and the record
+  is often not printed because **the ring dropped it** — the same passing log carries **three
+  `{"gap"}` notices**. RFC-0.41-001 added those notices so a reader would know records were lost, and
+  the architect then read a trail that was declaring itself incomplete as though it were complete.
+  **A record count is not an event count in a lossy trail.** Found by the implementer of
+  RFC-0.41-006; the paragraph below is kept as written so the error can be found from its correction.
+- **Also withdrawn: the claim that the kernel recorded `task` and the renderer dropped it.** At the
+  time of filing, `AuditRecord` was built with `tick: 0` (`audit/ring.rs:167`) and the drain
+  hard-coded `task: 0xFFFF` (`trap/syscall.rs:772`). The field existed and was never populated; the
+  architect read `pub task: u16` and its doc comment as evidence of behaviour. RFC-0.41-006 R1 made
+  the kernel record both.
+- **MECHANISM, established 2026-11-01 by RFC-0.41-006 and reproducible on demand.** `init`'s
+  `M6: block I/O error` is a `storaged` write whose completion never arrived: `do_io` polls the used
+  ring for **500,000 `sys_yield` rounds** and then replies `WRITE_ERR`; each of `init`'s three M6
+  write sites then prints the error and calls `sys_exit(1)`. **Throttling the disk so one request
+  outlives the bound reproduces the whole signature**: at `-drive …,bps-total=50` (≈10 s/request)
+  16 of 16 failed in a scratch harness and 6 of 6 through the in-tree one, with the `svc-fault` line,
+  `M6: block I/O error`, `TEST:M7:FAIL` and `"task":15`; at `bps-total=150` (≈3.4 s/request) 16 of 16
+  passed. So the bound is crossed somewhere between ~3.4 s and ~10 s of wall time per request.
+  Corroboration from the retained logs: in all three failing logs `svc-fault` is task **#15** where
+  it is **#21** in most passing logs of the same era — `init` was already running behind.
+  **What is still unknown is what makes one request take seconds.** Host write latency for QEMU's own
+  operation measured ≤1.6 ms, and ≤18 ms under twelve `fsync` churners.
+- **The rate cannot currently be measured, and the harness that was built says so.**
+  `cargo xtask boot-loop` boots to `init`'s M6 decision at ~0.06 s per boot. **~25,000 boots, zero
+  natural failures**, against 18–90 expected, across eight conditions including 24-way parallelism,
+  CPU spinners, `dd conv=fsync` writers, a throttled disk at 1–3 s/request, the real `qemu-run` path,
+  and the pre-R1 kernel rebuilt byte-identically. **Its clean counts are therefore not evidence of
+  absence**; it is a harness for the mechanism, not yet for the rate. Instrumentation also moves the
+  interleaving: `svc-fault`'s task index is 21 in ~78% of sequential boots, 16 in ~85% of 16-parallel,
+  and 15 in 97% through `qemu-run`.
+- **The next datum, and the instrument for it.** `storaged`'s `do_io` now prints once on the timeout
+  path: `storaged: io timeout lba=… status=… isr=… avail=… used=… prev=… hdr_type=… req_status=…`.
+  The throttled control prints `avail=1 used=0 prev=0 req_status=0xff` — a request the device was
+  given and did not finish. **A natural failure printing `status & 0x40|0x80` or `isr=1` means the
+  device or the queue memory is wrong, which is the E-097 class and would redirect this line;** one
+  printing the control's shape means the request was outstanding and the stall is below the guest.
+  Until a natural failure is captured with this line in place, the cause is open between those two.
+- *(Superseded — kept so the correction above can be found from it.)* **A lead, controlled: a task fault at the same PC precedes both failures.** Both failing logs carry
   exactly one `{"kind":"task.fault","arg0":262314,"arg1":0}`, a few lines before the error in `svc`
   and ~112 lines before it in `mmio`. `arg0` is `tf.sepc` and `arg1` is `tf.stval`
   (`trap/fault.rs:36`), so this is a fault at PC **`0x400aa`** with `stval` 0. Services link at
@@ -7634,6 +7677,42 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     words (`recv_call` returns the first word as `_badge` and the handler reads `w1`/`w2`), so every
     write lands at sector 0, and a chunk's first word is dropped. It is unrelated to the stall.
     Correcting it changes what every storage tier writes to disk, which is for the architect to rule.
+
+## E-105 — `storaged` writes every sector to LBA 0, shifted and truncated, while `init` reports success
+
+- **Found 2026-11-01 by the implementer of RFC-0.41-006**, in passing while establishing E-104's
+  mechanism, reported as *"a defect I found and did not touch"* and correctly left for a ruling.
+  **Verified and extended by the architect**, who found the chunk path worse than reported.
+- **Tree.** `init` sends **four** data words per message — `ipc_call` packs the count as
+  *"always 4 data words"* (`fjell-init/src/main.rs:56`). `storaged`'s service loop binds
+  `let (tag_packed, _badge, w1, w2, w3) = recv_call();` while `recv_call` returns
+  `(tag, w0, w1, w2, w3)` (`fjell-storaged/src/main.rs:310`, `:419`) — so **`_badge` is the first
+  data word**, discarded as if it were a badge. Therefore:
+  1. **Every write lands at sector 0.** `WRITE_BEGIN` computes `lba = (w1) | (w2 << 32)`, which is
+     the LBA's *high* word, so any LBA below 2^32 becomes **0**. `init` writes sector 193, then
+     superblock A at `LBA_SUPERBLOCK_A`, then a record at `LBA_LOG_START`; all three go to 0.
+  2. **Every 32-byte chunk is shifted and truncated.** `WRITE_CHUNK` sets `let w4 = 0usize;` — a
+     **hard-coded zero, not a received word** — and copies 32 bytes from `[w1, w2, w3, w4]`. So the
+     chunk's first 8 bytes are lost, the next 24 shift down, and the last 8 are written as zeros.
+- **Claim versus tree.** `init` prints `M6: block write ok`, `M6: store formatted or recovered` and
+  `M6: store append ok` for writes that went to the wrong sector with a third of each chunk lost and
+  a quarter zeroed. **A success message for a corrupt write to the wrong place** is the same class of
+  defect as the one 0.40 and 0.41 have been closing, one subsystem over.
+- **Why nothing caught it, which is the finding rather than the shift itself.** The `store` tier is
+  the one gate that would notice, and it is **NOT-GATED** — *"no emitting scenario yet; markers are
+  specified but nothing produces them"* — so it asserts nothing about what was written. A tier that
+  cannot fail did not fail.
+- **ACCEPTED, not OPEN, and the reason is checked rather than assumed: nothing reads the store
+  back.** `storaged`'s read path is a stub — `READ_CHUNK => { reply(READ_CHUNK); // placeholder;
+  READ not used in M7 }` — so no live behaviour depends on the written bytes, and no release claim
+  rests on them. **This is latent, not live.** It is also not E-104: E-104 is a write whose
+  *completion* never arrives, this is a write that completes and is wrong.
+- **What closing it needs.** The word binding corrected on both the `WRITE_BEGIN` and `WRITE_CHUNK`
+  paths, the fabricated `w4` removed, **and the `store` tier given something to assert** — fixing the
+  protocol while the only gate over it still asserts nothing would leave the next such defect equally
+  invisible. Correcting it changes what every storage tier writes, which is why the architect did not
+  take it inside RFC-0.41-006's scope.
+- **Status:** **ACCEPTED**, `0.42`. Recorded in `docs/src/releasing/v1-limitations.md` row 17.
 
 ## Summary
 
@@ -7742,6 +7821,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn. The receiver figure was corrected 2026-10-31: three images received on slot 0, not two — `configd` (missed) and `netd` (dead code). Closed by RFC-0.41-001 (the drain) and RFC-0.41-002 (the shared object) | 0.41 | CLOSED |
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
 | E-104 the `mmio` tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — at **2 failures in 19** full-suite runs on the 0.41 line (~1 in 270 boots), after E-097's cause was fixed and while its boot invariant did not fire. **Reproduced** 2026-10-31: run 8 of 8 failed in **`svc`** while `mmio` passed, so it is not tier-specific; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. A `task.fault` at sepc `0x400aa` precedes both failures and is absent from controlled passing runs. E-097's second shape, whose "not reproduced" inference this supersedes. Not reproduced in 12 isolated runs (6 of them under deliberate heavy host load) or 2 CI runs; the host-load confound is weak, because every other tier in the failing run ran at its normal duration | RFC-0.41-006 | OPEN |
+| E-105 `storaged` discards the first data word of every message as a badge, so `WRITE_BEGIN` reads the LBA's high word only — **every write lands at sector 0** — and `WRITE_CHUNK` copies `[w1, w2, w3, 0]` with a **hard-coded** fourth word, losing 8 bytes of every 32 and zeroing 8 more, while `init` prints `block write ok`. Latent: nothing reads the store back (`READ_CHUNK` is a placeholder). The `store` tier, the only gate over it, is NOT-GATED | 0.42 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
