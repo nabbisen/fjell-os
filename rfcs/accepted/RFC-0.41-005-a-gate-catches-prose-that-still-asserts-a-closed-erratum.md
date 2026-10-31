@@ -110,3 +110,31 @@ a narrow rule that catches the known shape over a broad one that catches more an
 **The check runs over the whole tree**, including `crates/` comments. Keep it to the file types
 where the claim matters and say which they are; a check whose scope is implicit cannot be reasoned
 about when it next fires.
+
+## Amendments — 2026-10-31, architect, after review
+
+**R2's rule was unimplementable for this tree, and the error is the architect's.** It required every
+reference to a closed erratum to sit within a closure form or a listed exception. Measured: **248 of
+683 references carry neither a closure word nor an RFC reference** — bare provenance citation is this
+codebase's habit — so the rule needed 248 exceptions. The architect's independent count over a wider
+scope agrees in magnitude: 604 references, 284 bare. **Trap 4 fired as written**, the outcome was
+reported rather than the list widened, and the rule was re-chosen.
+
+**The rule as implemented**, both shapes written into the module's doc comment with an **empty**
+exception list:
+
+* **A** — a live status word whose nearest status word to this id is a live one; struck-through words
+  and `closed`/`CLOSED` count as history. (The readiness-row shape.)
+* **B** — a present-tense claim ending in the id as an appositive tail, with no closure word, no
+  RFC/decision reference and no past-tense marker in the segment. (The module-comment shape.)
+
+**The narrowness is accepted deliberately.** B is tuned to one instance and the module doc says so; the
+alternatives were priced at 248 exemptions or 44 false hits. This document's own Risk 1 preferred a
+narrow rule, and a documented blind spot is worth more than a confident false negative.
+
+**`ROADMAP.md`'s exclusion is upheld.** Its four flagged references sit under dated shipped-milestone
+headings and are prose about the past. *Separately*, and outside this line's scope: that document's
+forward-looking section is fourteen milestones stale. Reported to the owner, whose call it is.
+
+**The handoff was wrong about the tests' home:** `fjell-consistency-check` is a binary crate, so they
+run in **host-bins**, not `host-lib`.

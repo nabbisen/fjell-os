@@ -106,3 +106,21 @@ currently consumes frames. R1 makes a previously-consumed range stay free, so a 
 double-reserved and got away with it will now behave differently. No such caller was found — every
 `kmain` reservation was read — but the QEMU tiers are what would show one, so a green host-lib tier
 is not sufficient evidence on its own.
+
+## Amendments — 2026-10-31, architect, after review
+
+**R3's first instruction contradicted R1, and the error is the architect's.** R3 said to un-`#[ignore]`
+`an_overlapping_reservation_does_not_leave_the_rest_of_its_range_free`. That test asserts
+`first_free_in(pa(0), pa(6)) == None` after a **failed** `[2,6)` over `[0,4)` — that is, that the
+failed call *reserved* frames 4–5. Under R1's no-op contract the failed call leaves them free, so the
+test fails permanently. R1 is controlling; the test is **replaced**, not un-ignored, by
+`the_frames_a_failed_reservation_did_not_reach_are_exactly_as_they_were`.
+
+**Divergence 1 is dissolved rather than fixed**, which is a better description of E-103's structure
+than the entry's own: the free tail was a defect only beside a head that had already been consumed.
+With the no-op contract a free tail is correct.
+
+**R3's count was wrong**: it asked for three new tests; five are right — the divergence-2 test, the
+general bit-for-bit state test, the divergence-1 restatement, the divergence-3 test and the
+success-path control. **All-or-nothing stands**; reserving the reachable tail would be a different
+RFC, and is not wanted.

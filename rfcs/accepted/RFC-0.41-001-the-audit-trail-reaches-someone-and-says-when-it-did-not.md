@@ -172,3 +172,31 @@ an unbounded kind was already costing the trail its bounded ones. A reader who s
 
 **Prebuilts will move** for `auditd` and the kernel. Per standing practice the repro baseline is
 re-recorded in the same commit as the rebuild.
+
+## Amendments — 2026-10-31, architect, after review
+
+**R3 is corrected. The implementation was right and this requirement's wording was wrong.** R3 said
+the wake "belongs on append, not on a timer tick and not on the scheduler's path". The wake **cannot**
+run at the append site: `lock_free_append` is called from inside `schedule_next`
+(`trap/dispatch.rs:306`, `:338`), which already holds `&mut` to the task table and the scheduler, and
+the wake needs both — doing it there requires `unsafe` re-entry into state the caller holds. The
+delivered design is correct: the append **claims** the waiter (a `Cell` write that cannot fail), and
+the two IRQ-path operations run at the tail of the same trap in
+`trap::dispatch::deliver_audit_wake`, called at `:367` before `choose_next` at `:370`, so the woken
+task can be chosen in the trap that appended the record. What the phrase "not on the scheduler's path"
+was ruling out was a **polling** drain; as written it forbade the only implementable design.
+
+**R4 is corrected in the same spirit.** It said to model the guard on the IRQ path's latch. The
+delivered guard is a **level, not a latch** — `park()` returns immediately when the ring is non-empty
+— because the condition a waiter waits for is a *state*, not an *edge*. That closes the window
+structurally, with no latch to fail to set, and is stronger than what this requirement asked for.
+
+**R11 — new requirement, to be done in 0.41 before the cut.** `sys_audit_wait` reports in `a1`
+whether it parked the caller or returned at once, and the `audit` profile requires at least one run of
+the lost-wakeup sweep in which it did **not** park.
+
+*Why.* The implementer's own residual-risk finding: the race window's position depends on how many
+traps `auditd` spends per record, so if that drifts the window leaves the sweep and **the test passes
+without touching the guard, with nothing detecting it**. *Why now rather than 0.42:* `sys_audit_wait`
+has never been released, so a meaningful `a1` today is a free ABI addition; after 0.41.0 ships it is a
+semantic change to a published ABI item.

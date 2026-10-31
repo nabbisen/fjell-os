@@ -111,3 +111,25 @@ removes; a waiver that absorbs new absences stops being a record of one accounte
 
 **Prebuilts will move** for `netd`, `sample-service` and the kernel, and for any image whose
 slot-0 handling changes. The repro baseline is re-recorded in the same commit as the rebuild.
+
+## Amendments — 2026-10-31, architect, after review
+
+**The receiver figure in "What is wrong" was wrong in both directions, and the error is the
+architect's.** It said exactly two tasks receive on object 0, `auditd` and `netd`. In fact:
+**`configd`** is a real serving loop that was missed because it binds the literal first (`let ep =
+0u32;` at `src/main.rs:64`, `sys_ipc_recv(ep)` at `:79`, invisible to a `recv(0…)` search);
+**`netd`**'s receive is **dead code** (`run_event_loop` at `src/main.rs:169` is never called —
+`service_main` reaches `sys_exit(0)` at `:154`); and **`neg-test`** receives on *copies* of its slot 0.
+Had R1 and R2 been implemented as written, `configd` and `neg-test` would still have been receiving on
+object 0 while the invariant read as established. E-102 carries the same correction, dated.
+
+**`init` is granted in `main.rs`, not through `spawn.rs`'s default**, so R3 as written would have left
+a `RECV` on object 0 in `init`'s CSpace. That install is removed.
+
+**R5's invariant is corrected.** "No two tasks receive on the same endpoint object" is **false of this
+tree by design**: the update channel (`secure-transportd` ↔ `upgraded`) and the tools channel
+(`fleetd` ↔ `diagnosticsd`) are deliberate bidirectional rendezvous with `SEND|RECV` on both sides,
+and many one-way senders hold `ALL_NON_META`, which carries an unused `RECV`. The invariant this line
+establishes is R3's sentence — **no task can receive on object 0** — which is the defect. The stronger
+one needs the rendezvous objects named as exceptions and the over-grants narrowed first; recorded as a
+0.42 candidate, not part of this line.

@@ -116,3 +116,34 @@ which would fail the same bar this line serves. R1's grouping requirement exists
 
 **Prebuilts move.** This recompiles the format crate into `attestd.bin`. The repro baseline is
 re-recorded in the same commit as the rebuild.
+
+## Amendments — 2026-10-31, architect, after review
+
+**R4's premise was false for R1, and the error is the architect's.** R4 said "no byte of any record
+the tree can construct moves". That is true of **R2** — the encoder-zeroing property, where every
+construction sets the flag `true` — and false of **R1**, which *adds* bytes. The refutation was
+already in this document: it cites RFC-0.40-001 as R1's pattern, and that line bumped
+`SCHEMA_VERSION` **2 → 3 precisely because it added six availability bytes** (`v2.rs:158`). The
+sentence was carried over from E-101's entry, where it describes the encoder property only.
+
+**R1 proceeds with `SCHEMA_VERSION` 3 → 4.** Measured by the implementer on the 422-byte stream
+`local()` builds today: zeroing the placeholders moves **12 bytes**, and five grouped disclosure bytes
+take it to **427**.
+
+**The three escalated questions, ruled:**
+
+1. **Grouping as proposed** — the three keyring anchor epochs as one claim; the snapshot id with its
+   reason as one; `health.status`, `rollback.last_advance_source` and `freshness.key_epoch` each on
+   its own. Five bytes.
+2. **`snapshot.reason` and `health.status` do get a disclosure byte**, although both are already `0`.
+   `0` is a *valid* reason and a valid status, so an unavailable value encoding as `0` has not been
+   disclosed at all — that is the case the availability-flag pattern exists for.
+3. **It does not wait for E-095.** E-095 does not require a format bump: it makes the measurement
+   **chain**'s three placeholder events real, and the record already carries those digests with
+   availability flags from RFC-0.40-001, so real values go into existing fields at the same layout.
+   Deferring R1 postpones the only bump there is and ships another release whose signed record reads
+   `"SN000001"` as an identifier.
+
+**The proof is mandatory and the template exists:** strip the five new flag bytes, rewind the version
+word, recover the v3 golden exactly — `attestation_v3_is_v2_plus_six_flags` is the pattern, and the
+golden sample setting every claim available is what makes it available.

@@ -7299,13 +7299,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `EP_SLOT = 0` services were re-checked against the source by the implementer, the per-category
   send counts were not.)* `crates/fjell-abi/src/service.rs` declares **35** `ImageId`s; `spawn.rs`'s `ep_obj`
   match has **15** dedicated arms and `_ => 0`, so **20 images hold slot 0 against object 0**, each
-  installed `CapRights::ALL_NON_META` (`(1 << 26) - 1`), which includes SEND (`1 << 3`). But exactly
-  **two** tasks run a receive loop on object 0: `fjell-auditd` (`src/main.rs:105`,
-  `sys_ipc_recv(0u32)`) and `fjell-netd` (`src/main.rs:79`, `sys_ipc_recv_msg(0)`). The ten
+  installed `CapRights::ALL_NON_META` (`(1 << 26) - 1`), which includes SEND (`1 << 3`). But only a few
+  tasks receive on object 0. *(**Corrected 2026-10-31 by the architect**, from RFC-0.41-002's R4
+  survey — a scratch kernel log of every syscall presenting handle slot 0, with the calling image,
+  over all 28 profile boots of a full `test-all`, plus a reading of each image. The figure below was
+  wrong **in both directions** and the error is the reviewer's, in the entry that warns against it:
+  it searched for `recv(0…)` and so missed **`fjell-configd`**, a real serving loop that binds the
+  literal first — `let ep = 0u32;` (`src/main.rs:64`), `sys_ipc_recv(ep)` (`:79`) — and it counted
+  **`fjell-netd`** as live when its receive is **dead code**: `run_event_loop` (`src/main.rs:169`) is
+  never called, because `service_main` reaches `sys_exit(0)` (`:154`) first, as that file's own
+  comments say and E-084 records. `neg-test` receives on **copies** of its slot 0, a third shape the
+  enumeration had no category for. So the live set was `auditd` and `configd`; had RFC-0.41-002 been
+  implemented as its R1 and R2 were written, `configd` and `neg-test` would still have been
+  receiving on object 0 while the invariant read as established. A text match was the hypothesis;
+  the survey was the instrument.)* The ten
   services whose `EP_SLOT` is `0` — attestd, measuredd, proxy-text, recoveryd, semantic-stream,
   storaged, verifyd, proxy-braille and the two presentation fakes — are all in the dedicated-object
-  table, which is why the receiver set is so much smaller than the holder set. Those two named
-  receivers are the race a message-based trigger for `auditd` would be built into. **Nothing sends
+  table, which is why the receiver set is so much smaller than the holder set. Those receivers are
+  the race a message-based trigger for `auditd` would be built into. **Nothing sends
   to object 0 today, which is why this is latent**, and that now rests on an enumeration rather
   than one grep: 14 readiness sends to object 10, 3 `init` sends to named slots, `diagnosticsd`'s
   `send_tag` to slots 1–2, `fjell-sample-service` to its **own dedicated object 6**
@@ -7371,7 +7382,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   object, the shape RFC-0.28-001 used for `service-manager`; and then `_ => 0` stops granting an
   endpoint at all, the default becoming *no* endpoint capability rather than a shared one. The third
   step is the one that stops this recurring; the first two only make the present instance safe.
-- **Status:** **ACCEPTED**, `0.41` — the lead candidate. Weight is expressed by scheduling, not by an
+- **Status:** **CLOSED** 2026-10-31 by **RFC-0.41-001** (the trigger, the drop report, the
+  under-drain, the `TaskSwitch` volume) and **RFC-0.41-002** (the shared-receive-object hazard).
+  Every defect this entry names is fixed; the two progress notes above record which line fixed
+  which, and the architect's review records carry the verification. `v1-limitations.md` row 11 and
+  `standards-mapping.md`'s `CRA-I-2l` and `IEC-4-2-FR6` were rewritten in the same commit as this
+  closure, because a closed id beside a live status word is what `closed-erratum-prose`
+  (RFC-0.41-005) exists to reject.
+- *Until 2026-10-31 this read:* **ACCEPTED**, `0.41` — the lead candidate. Weight is expressed by scheduling, not by an
   OPEN status: Gate 7 fails on any OPEN row and the rehearsal requires every gate. Recorded in
   `docs/src/releasing/v1-limitations.md` row 11.
 - **Progress — RFC-0.41-001 landed (2026-10-30); the entry stays ACCEPTED until RFC-0.41-002.**
@@ -7425,7 +7443,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   of shape. **Do not implement the same-owner tolerance**: correct the comment to say any already-used
   frame fails (no caller needs the tolerance, and adding behaviour to match a comment is the wrong
   direction of travel).
-- **Status:** **ACCEPTED**, `0.41`. ACCEPTED rather than OPEN because no live caller reaches it and the
+- **Status:** **CLOSED** 2026-10-31 by **RFC-0.41-004**. All three divergences are fixed by one
+  change of shape — validate the whole range, then apply — and the same-owner tolerance was
+  deliberately **not** built; the doc comment now describes the code. The `#[ignore]`d test is gone
+  and the host-lib ignored count is **0**. `v1-limitations.md` row 16 was rewritten in the same
+  commit as this closure.
+- *Until 2026-10-31 this read:* **ACCEPTED**, `0.41`. ACCEPTED rather than OPEN because no live caller reaches it and the
   boot invariant backstops the consequence. Recorded in `docs/src/releasing/v1-limitations.md` row 16.
 - **Progress — RFC-0.41-004 landed (2026-10-31); every divergence is fixed, and closing the entry is the
   architect's call** (closing it makes `v1-limitations.md` row 16, which describes the defect as live, stale,
@@ -7554,8 +7577,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | CLOSED |
 | E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | RFC-0.40-003 | CLOSED |
 | E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001 | 0.41 | ACCEPTED |
-| E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn | 0.41 | ACCEPTED |
-| E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | 0.41 | ACCEPTED |
+| E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn. The receiver figure was corrected 2026-10-31: three images received on slot 0, not two — `configd` (missed) and `netd` (dead code). Closed by RFC-0.41-001 (the drain) and RFC-0.41-002 (the shared object) | 0.41 | CLOSED |
+| E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
