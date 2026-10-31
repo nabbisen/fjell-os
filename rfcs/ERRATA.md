@@ -7551,6 +7551,43 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   held 0.39 for it. The architect has set it OPEN on that precedent; whether 0.41.0 is held for it,
   or it takes its own line first, or the owner directs otherwise with these facts stated, is the
   owner's decision and not the architect's.
+- **REPRODUCED 2026-10-31 by the architect, on the owner's authorisation to measure.** Eight
+  consecutive full suites at `8b37f69`, stopping on the first reproduction so its state was kept:
+  **7 PASS, then run 8 FAIL**. With the implementer's 1-in-11 that is **2 failures in 19 full
+  suites**. Each suite is ~28 QEMU boots, so the per-boot rate is roughly **1 in 270** — not 1 in
+  10. The suite-level figure was an artefact of counting suites.
+- **It is not tier-specific, which the first sighting could not show.** Run 8 failed in **`svc`**
+  (90.2 s), and **`mmio` passed in that same run** (60.5 s). With `semantic` (pre-fix) and `mmio`,
+  that is a **third distinct tier**. Whichever profile is running when the condition occurs fails on
+  the forbidden `TEST:<milestone>:FAIL` marker, so the tier in the summary names the victim, not the
+  cause.
+- **The printed error is `init`'s own, and that explains the unclean exit.** `M6: block I/O error` is
+  printed at three sites in `crates/services/fjell-init/src/main.rs` (`:724`, `:742`, `:753`), each
+  **followed by `sys_exit(1)`** — so `TEST:M7:FAIL (init did not exit cleanly)` is the consequence,
+  not a second defect. Each site guards a `storaged_write`. `init`'s M6 section runs in **every**
+  boot, which is why no profile is safe from it. In the failing `svc` log the error is the **only**
+  `M6:` line (init got no further); in the failing `mmio` log it follows `block write ok`,
+  `store formatted or recovered` and `store append ok`, so the failing write is **not always the
+  same one**.
+- **A lead, controlled: a task fault at the same PC precedes both failures.** Both failing logs carry
+  exactly one `{"kind":"task.fault","arg0":262314,"arg1":0}`, a few lines before the error in `svc`
+  and ~112 lines before it in `mmio`. `arg0` is `tf.sepc` and `arg1` is `tf.stval`
+  (`trap/fault.rs:36`), so this is a fault at PC **`0x400aa`** with `stval` 0. Services link at
+  `0x40000`, putting it about 170 bytes into a service image — very early, in or near entry.
+  **Controlled against a freshly produced passing run of the same profile: 0 faults and 0 block I/O
+  errors in 1747 lines, against 1 and 1 in the failing run.** A task whose memory is wrong at entry
+  is **E-097's symptom class**, reached by a path E-097's own boot invariant does not cover — which
+  is why the shapes rhyme while that entry's cause is genuinely fixed. **No causal link is
+  established and this entry does not claim one;** it is the first thing the line taking this entry
+  should pull on.
+- **Two method traps found the hard way by the architect, recorded so the next investigator does not
+  repeat them.** (1) `tests/qemu/artifacts/<profile>/serial.log` is **untracked**: every run
+  overwrites it and `git checkout` does not restore it. The architect first "ruled out" the fault
+  lead by comparing the failing log with **itself**, having not noticed the file had been overwritten
+  by the failing run, and announced that conclusion before catching it. (2) The per-tier logs
+  (`NN-qemu-neg-*.log`) contain serial context **only on failure** — 8 lines for a passing `svc`
+  against 73 for a failing one — so they **cannot** serve as passing controls, and a zero count in
+  one means nothing. The only valid control is a passing `serial.log` produced on purpose.
 - **Status:** **OPEN**, filed 2026-10-31, unscheduled pending the owner's direction. Evidence: the
   failing serial and tier logs are in the implementer's session scratchpad and the run directory
   `tests/runs/20261031-074707/` is retained.
@@ -7661,7 +7698,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001. Closed by RFC-0.41-003: the encoder zeroes every flag-and-value pair, and each of the five remaining placeholder claims carries its own availability byte at `SCHEMA_VERSION` 3 -> 4 | RFC-0.41-003 | CLOSED |
 | E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn. The receiver figure was corrected 2026-10-31: three images received on slot 0, not two — `configd` (missed) and `netd` (dead code). Closed by RFC-0.41-001 (the drain) and RFC-0.41-002 (the shared object) | 0.41 | CLOSED |
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
-| E-104 the `mmio` tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — at **1 failure in 11** full-suite runs on the 0.41 line, after E-097's cause was fixed and while its boot invariant did not fire. E-097's second shape, whose "not reproduced" inference this supersedes. Not reproduced in 12 isolated runs (6 of them under deliberate heavy host load) or 2 CI runs; the host-load confound is weak, because every other tier in the failing run ran at its normal duration | unscheduled | OPEN |
+| E-104 the `mmio` tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — at **2 failures in 19** full-suite runs on the 0.41 line (~1 in 270 boots), after E-097's cause was fixed and while its boot invariant did not fire. **Reproduced** 2026-10-31: run 8 of 8 failed in **`svc`** while `mmio` passed, so it is not tier-specific; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. A `task.fault` at sepc `0x400aa` precedes both failures and is absent from controlled passing runs. E-097's second shape, whose "not reproduced" inference this supersedes. Not reproduced in 12 isolated runs (6 of them under deliberate heavy host load) or 2 CI runs; the host-load confound is weak, because every other tier in the failing run ran at its normal duration | unscheduled | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
