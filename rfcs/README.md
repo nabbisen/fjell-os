@@ -521,9 +521,11 @@ Three independent lines, all drafted for this milestone and all shipped in it.
 
 ---
 
-## Accepted (accepted/) — 5 RFCs
+## Accepted (accepted/) — 6 RFCs
 
-0.41's line, accepted 2026-10-30. The milestone's sentence is **the trail reaches
+0.41's line. 0.41-001 through -005 were accepted 2026-10-30 and are **all complete**;
+**0.41-006 was accepted 2026-10-31 and blocks the cut** — E-104 is OPEN and Gate 7 refuses
+the rehearsal until it has a cause. The milestone's sentence is **the trail reaches
 someone, and says when it did not**: 0.41-001 and 0.41-002 are the two halves of
 **E-102**, and 0.41-002 lands after 0.41-001 because that line removes `auditd`
 from the shared endpoint object as a consequence of its redesign. The other three
@@ -536,6 +538,7 @@ are independent of each other and of the first two.
 | 0.41-003 | [The attestation record's remaining placeholders stop reading as state](./accepted/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md) | E-101 |
 | 0.41-004 | [Frame reservation is all-or-nothing, and its doc says what it does](./accepted/RFC-0.41-004-frame-reservation-is-all-or-nothing.md) | E-103 |
 | 0.41-005 | [A gate catches prose that still asserts a closed erratum](./accepted/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md) | — |
+| 0.41-006 | [The intermittent boot fault gets a cause](./accepted/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md) | E-104 |
 
 `accepted/README.md` keeps the folder in a fresh clone and is not counted above.
 
