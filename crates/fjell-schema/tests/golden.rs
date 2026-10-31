@@ -56,7 +56,8 @@ fn attestation_v2() {
     //
     // RFC-0.41-003 R1 (closes E-101), SCHEMA_VERSION 3 -> 4: five more availability
     // bytes, one before each placeholder claim (`keyring.epochs_available`,
-    // `snapshot.id_available`, `health.status_available`,
+    // `snapshot.id_available` (renamed `snapshot.id_and_reason_available` before the cut; no
+    // byte moved), `health.status_available`,
     // `rollback.last_advance_source_available`, `freshness.key_epoch_available`), the
     // claim zeroed by the encoder when its flag is 0. The sample sets every claim
     // available, so again nothing is zeroed and the stream is the v3 one plus five

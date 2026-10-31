@@ -189,8 +189,8 @@ fn print_record_summary(record: &AttestationRecordV2) {
     // here means the value in the record is NOT a reading -- it is written as zero.
     fjell_syscall::sys_debug_write("attestd: record availability keyring_epochs=");
     print_dec(a.keyring_epochs as u64);
-    fjell_syscall::sys_debug_write(" snapshot_id=");
-    print_dec(a.snapshot_id as u64);
+    fjell_syscall::sys_debug_write(" snapshot_id_and_reason=");
+    print_dec(a.snapshot_id_and_reason as u64);
     fjell_syscall::sys_debug_write(" health_status=");
     print_dec(a.health_status as u64);
     fjell_syscall::sys_debug_write(" last_advance_source=");

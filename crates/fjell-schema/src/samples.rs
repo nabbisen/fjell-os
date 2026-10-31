@@ -81,7 +81,7 @@ pub fn attestation_v2() -> AttestationRecordV2 {
         snapshot_digest: true,
         measurement: true,
         keyring_epochs: true,
-        snapshot_id: true,
+        snapshot_id_and_reason: true,
         health_status: true,
         last_advance_source: true,
         freshness_key_epoch: true,

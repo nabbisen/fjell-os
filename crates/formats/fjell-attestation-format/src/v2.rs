@@ -133,8 +133,9 @@ pub struct ClaimAvailability {
     pub keyring_epochs: bool,
     /// `snapshot.snapshot_id` **and** `snapshot.reason` name a snapshot that was taken.
     /// One claim: a reason for a snapshot nothing identifies is not a reason. The id is a
-    /// literal (`"SN000001"`) and the reason is `0`, which is also a valid reason.
-    pub snapshot_id: bool,
+    /// literal (`"SN000001"`) and the reason is `0`, which is also a valid reason. Named
+    /// for both because it governs both (written as `snapshot.id_and_reason_available`).
+    pub snapshot_id_and_reason: bool,
     /// `health.status` is a status someone observed. It is `0` today, which is also a
     /// valid status -- exactly why it needs a flag.
     pub health_status: bool,
@@ -172,7 +173,7 @@ pub struct AttestationRecordV2 {
 
 impl AttestationRecordV2 {
     /// RFC-0.41-003 R1 (closes E-101): bumped 3 -> 4. Five more availability bytes --
-    /// `keyring.epochs_available`, `snapshot.id_available`, `health.status_available`,
+    /// `keyring.epochs_available`, `snapshot.id_and_reason_available`, `health.status_available`,
     /// `rollback.last_advance_source_available`, `freshness.key_epoch_available` -- each
     /// written immediately before the claim it qualifies, and the claim written as zero
     /// when its flag is 0, by the encoder. Same mechanism and same proof as 2 -> 3: remove
@@ -243,7 +244,10 @@ impl AttestationRecordV2 {
         c.note(
             "placeholder_zeroed_when_unavailable",
             "keyring.epochs_available qualifies the three keyring.active_epoch_* values; \
-             snapshot.id_available qualifies snapshot.snapshot_id and snapshot.reason; \
+             snapshot.id_and_reason_available qualifies snapshot.snapshot_id and snapshot.reason, \
+             which is written after snapshot_digest rather than beside its flag -- moving it \
+             would reorder the stream, and removing a version's flags must recover the previous \
+             version's stream exactly; \
              health.status_available, rollback.last_advance_source_available and \
              freshness.key_epoch_available each qualify the one value after them. Every claim \
              is fixed width and written as zero when its flag is 0, not the caller's raw \
@@ -329,10 +333,13 @@ impl AttestationRecordV2 {
         c.u64("measurement.included_from_seq", m.included_from_seq);
         c.u64("measurement.included_to_seq", m.included_to_seq);
         // snapshot
-        c.u8("snapshot.id_available", a.snapshot_id as u8);
+        c.u8(
+            "snapshot.id_and_reason_available",
+            a.snapshot_id_and_reason as u8,
+        );
         c.bytes(
             "snapshot.snapshot_id",
-            &if a.snapshot_id {
+            &if a.snapshot_id_and_reason {
                 self.snapshot.snapshot_id
             } else {
                 [0u8; 8]
@@ -348,7 +355,7 @@ impl AttestationRecordV2 {
         );
         c.u8(
             "snapshot.reason",
-            if a.snapshot_id {
+            if a.snapshot_id_and_reason {
                 self.snapshot.reason
             } else {
                 0
@@ -613,7 +620,7 @@ impl AttestationRecordV2 {
                 measurement: measurement.is_some(),
                 // RFC-0.41-003 R1: nothing derives any of these; each is a literal above.
                 keyring_epochs: false,
-                snapshot_id: false,
+                snapshot_id_and_reason: false,
                 health_status: false,
                 last_advance_source: false,
                 freshness_key_epoch: false,

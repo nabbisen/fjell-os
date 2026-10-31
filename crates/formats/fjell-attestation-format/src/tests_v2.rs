@@ -57,7 +57,7 @@ fn dev_record() -> AttestationRecordV2 {
         snapshot_digest: true,
         measurement: true,
         keyring_epochs: true,
-        snapshot_id: true,
+        snapshot_id_and_reason: true,
         health_status: true,
         last_advance_source: true,
         freshness_key_epoch: true,
@@ -270,7 +270,7 @@ fn the_local_record_asserts_no_verification_and_claims_no_unmeasured_digest() {
     assert!(!a.kernel_digest && !a.release_digest && !a.rootfs_digest);
     assert!(!a.policy_digest && !a.snapshot_digest);
     // RFC-0.41-003 R1: and none of the placeholders is claimed either.
-    assert!(!a.keyring_epochs && !a.snapshot_id && !a.health_status);
+    assert!(!a.keyring_epochs && !a.snapshot_id_and_reason && !a.health_status);
     assert!(!a.last_advance_source && !a.freshness_key_epoch);
     for d in [
         r.boot.kernel_digest,
@@ -329,7 +329,7 @@ fn availability_flags_are_covered_by_the_digest_each_on_its_own() {
         |a| a.snapshot_digest = false,
         |a| a.measurement = false,
         |a| a.keyring_epochs = false,
-        |a| a.snapshot_id = false,
+        |a| a.snapshot_id_and_reason = false,
         |a| a.health_status = false,
         |a| a.last_advance_source = false,
         |a| a.freshness_key_epoch = false,
@@ -511,7 +511,9 @@ fn every_flag_and_value_pair_is_zeroed_by_the_encoder_not_by_the_factory() {
             r.rollback.trust_provider_counter_supported = true
         }),
         ("keyring_epochs", |r| r.availability.keyring_epochs = true),
-        ("snapshot_id", |r| r.availability.snapshot_id = true),
+        ("snapshot_id_and_reason", |r| {
+            r.availability.snapshot_id_and_reason = true
+        }),
         ("health_status", |r| r.availability.health_status = true),
         ("last_advance_source", |r| {
             r.availability.last_advance_source = true

@@ -136,3 +136,16 @@ lands: the five placeholders are now disclosed as unavailable, written as zero, 
 should survive the rewrite: nothing computes them (so none is claimed), the boot slot / id and health target are
 true of this deployment, and the signature is the keyed-SHA-256 development provider. Row judgement is the
 architect's; E-101 carries a dated progress note saying it is ready to close.
+
+## The rename — `snapshot.id_available` → `snapshot.id_and_reason_available` (added 2026-10-31, before the cut)
+
+The flag qualifies `snapshot.snapshot_id` **and** `snapshot.reason`; its name said only the first, so a reader of the
+frozen schema would take the reason to be unqualified. Renamed for the claim it governs. **No byte moved**:
+`Canon::u8` takes the name and `SliceSink` discards it, so the golden `adefb58c…ab69` is unchanged (the 21 golden
+tests pass untouched, including `attestation_v4_is_v3_plus_five_flags`), and `SCHEMA_VERSION` stays 4.
+`ClaimAvailability::snapshot_id` is renamed `snapshot_id_and_reason` so the Rust and the stream agree, and
+`attestd`'s printed label with it (`snapshot_id_and_reason=0`; the `measurement` marker follows). The stream `note`
+now says why the reason is not adjacent to its flag: moving it would reorder the stream, and removing a version's
+flags must recover the previous version's stream exactly. `v2.frozen` regenerated: one `field` line renamed, the
+`note` line's text changed, one dated header note added (from the registry). Before regenerating, the frozen-schema
+test was red (`every_committed_file_is_what_its_encoder_generates`), as it should be.
