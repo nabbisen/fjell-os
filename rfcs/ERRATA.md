@@ -7262,7 +7262,20 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   provider's counter: it is fixed in the fix-forward to RFC-0.40-001, not scheduled. And
   `boot.selected_slot`, `boot_id` and `health.target`, which are true of this deployment (one
   slot, one boot, one target).
-- **Status:** **ACCEPTED**, `0.41`. Recorded in `docs/src/releasing/v1-limitations.md` row 13.
+- **Status:** **CLOSED** 2026-10-31 by **RFC-0.41-003**. R2 moved the one flag-and-value pair
+  that only `local()` zeroed into the encoder; R1 gave each of the five remaining placeholder
+  claims its own availability byte, written zero by the encoder, at `SCHEMA_VERSION` **3 -> 4**.
+  The architect's R4 premise — that no byte of a constructible record moves — was true of R2 and
+  **false of R1**; the implementer measured it (12 bytes) and escalated rather than proceeding,
+  and the bump was ruled. The 3 -> 4 move is proved the way 2 -> 3 was: strip the five flags,
+  rewind the version word, recover the v3 golden exactly — and the architect verified the proof
+  refuses a layout change by moving a flag and watching it fail at the named offset.
+  `v1-limitations.md` row 13 and `docs/src/releasing/v1-readiness.md` line 48 were rewritten in
+  the same commit as this closure, because a closed id beside a live status word is what
+  `closed-erratum-prose` rejects. One item remains open against the RFC, not against this
+  entry: `snapshot.id_available` governs the snapshot reason as well as the id and names only
+  the id, and is to be renamed for the claim before the cut.
+- *Until 2026-10-31 this read:* **ACCEPTED**, `0.41`. Recorded in `docs/src/releasing/v1-limitations.md` row 13.
 - **Progress — RFC-0.41-003 (2026-10-31): the encoder-zeroing property is done; the placeholders are not.**
   `write_canonical` now writes `trust_provider_counter_value` as 0 whenever
   `trust_provider_counter_supported` is 0, so the property holds for a record built by field assignment as
@@ -7586,7 +7599,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-098 `revoke_by_pa` skips the user-VA unmap because of a page-table corruption its own comment says was never isolated — *"clobbering the task's text/rodata PTEs"*, the symptom class E-097 shows — calls the stale PTE "harmless because the frame is zeroed before reuse" when zeroing a frame a live task still maps is the damage rather than the safety, and discards the frame free's result (`let _ =`), so a failed free is invisible. Deferred "to v0.3"; 0.38.0 shipped. **All three fixed by RFC-0.39-003**; the stale `R/W/U` mapping that survived is split to **E-099**, by the E-090/E-091 test | RFC-0.39-003 | CLOSED |
 | E-099 `sys_dma_alloc` maps a DMA frame into the caller `R/W/U`; `sys_dma_revoke` zeroes it and returns it to the **general** pool while **deliberately skipping the user-VA unmap**, so the caller keeps a live `R/W/U` mapping to a frame the allocator then hands to another task — cross-task read and write, reachable through the documented API by `STORAGED`, `DRIVER_VIRTIO_BLK` and `NEG_TEST`. Zeroing clears it at revoke time and says nothing about a later owner's contents. Split from E-098 at its closure. The v0.8.x reason for skipping the unmap matches E-097's symptom, now fixed, so re-enabling it is the first thing to test | RFC-0.39-004 | CLOSED |
 | E-100 the frame allocator's unit tests are `#[cfg(test)]` inside a `no_std` binary that cannot be host-built, so **no gate runs them** — the code that held E-097 for 35 milestones is the code with the weakest automated coverage. They pass when run by hand (5, plus two new) in a scratch harness | RFC-0.40-003 | CLOSED |
-| E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001 | 0.41 | ACCEPTED |
+| E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001. Closed by RFC-0.41-003: the encoder zeroes every flag-and-value pair, and each of the five remaining placeholder claims carries its own availability byte at `SCHEMA_VERSION` 3 -> 4 | RFC-0.41-003 | CLOSED |
 | E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn. The receiver figure was corrected 2026-10-31: three images received on slot 0, not two — `configd` (missed) and `netd` (dead code). Closed by RFC-0.41-001 (the drain) and RFC-0.41-002 (the shared object) | 0.41 | CLOSED |
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |

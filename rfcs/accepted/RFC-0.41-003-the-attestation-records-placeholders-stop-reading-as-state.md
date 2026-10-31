@@ -147,3 +147,25 @@ take it to **427**.
 **The proof is mandatory and the template exists:** strip the five new flag bytes, rewind the version
 word, recover the v3 golden exactly — `attestation_v3_is_v2_plus_six_flags` is the pattern, and the
 golden sample setting every claim available is what makes it available.
+
+### Second amendment — 2026-10-31, after R1's review
+
+**`snapshot.id_available` is to be renamed for the claim it governs, before the cut.** It qualifies
+`snapshot.snapshot_id` **and** `snapshot.reason` and names only the id, so a reader of the frozen
+schema would take the reason to be unqualified. The grouping and the stream order are both correct
+and do not change — moving the reason would reorder the stream, which the v3-recovery proof rightly
+forbids. Only the name is wrong, and in the record this line exists to stop misreading, a name a
+`note` has to rescue is the defect the note documents.
+
+**It costs no digest change.** `SliceSink`'s `Canon` implementation discards the field name
+(`crates/fjell-canon/src/lib.rs:317`) and writes only the value, so names do not enter the digest: a
+rename is one string, a regenerated `v2.frozen` field line and a dated registry note. No golden
+re-take, no version bump.
+
+**Before the cut, for the same reason as R11:** `SCHEMA_VERSION` 4 has not shipped, so the rename is
+free today and a change to a published schema's field name afterwards.
+
+*Also recorded:* the handoff named `v1-limitations.md` row 13 as the only row to report on. The
+implementer found a **second** place saying the same thing — `docs/src/releasing/v1-readiness.md`
+line 48, a line the architect had written in `8ba6762` — and reported it rather than editing it.
+Both were rewritten by the architect with E-101's closure.
