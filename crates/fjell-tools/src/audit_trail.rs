@@ -152,6 +152,54 @@ pub fn judge_observed(text: &str, spec: &str) -> Result<String, String> {
     ))
 }
 
+/// `spec` is `"<line substring> => <number|null>"` (RFC-0.41-006 R1): every record line
+/// containing the substring must carry `"task":` followed by a decimal number (`number`) or
+/// by `null` (`null`), and by a `"tick":` number. At least one line must match.
+///
+/// This is how the `audit` tier knows the renderer prints what the kernel recorded: a
+/// record about a task says which, and a record about no task says so rather than naming a
+/// slot. Probe records are issued by `neg-test` after boot, so they must name a task and
+/// carry a non-zero tick; the boot record must not.
+pub fn judge_scoped(text: &str, spec: &str) -> Result<String, String> {
+    let parts: Vec<&str> = spec.split(" => ").collect();
+    if parts.len() != 2 || (parts[1] != "number" && parts[1] != "null") {
+        return Err(format!(
+            "bad expect_scoped `{spec}`: want `<line substring> => number` or `=> null`"
+        ));
+    }
+    let (needle, want) = (parts[0], parts[1]);
+    let mut n = 0usize;
+    for (i, line) in text.lines().enumerate() {
+        if !line.starts_with(r#"{"seq":"#) || !line.contains(needle) {
+            continue;
+        }
+        let Some(at) = line.find(r#""task":"#) else {
+            return Err(format!("line {} has no \"task\" field: {line}", i + 1));
+        };
+        let rest = &line[at + 7..];
+        let is_null = rest.starts_with("null");
+        let is_num = rest.chars().next().is_some_and(|c| c.is_ascii_digit());
+        if (want == "null" && !is_null) || (want == "number" && !is_num) {
+            return Err(format!("line {} should have task {want}: {line}", i + 1));
+        }
+        let tick = number_after(line, r#""tick":"#);
+        match (want, tick) {
+            (_, None) => return Err(format!("line {} has no \"tick\" field: {line}", i + 1)),
+            ("number", Some(0)) => {
+                return Err(format!("line {} has tick 0 after boot: {line}", i + 1));
+            }
+            _ => {}
+        }
+        n += 1;
+    }
+    if n == 0 {
+        return Err(format!(
+            "no record line contains `{needle}`; nothing was checked"
+        ));
+    }
+    Ok(format!("{n} record(s) with task {want}"))
+}
+
 /// The number following `key=` in `line`.
 fn number_after(line: &str, key: &str) -> Option<u64> {
     let at = line.find(key)? + key.len();
@@ -660,5 +708,53 @@ mod observed_tests {
     #[test]
     fn a_malformed_spec_is_rejected() {
         assert!(judge_observed("x", "a => b").is_err());
+    }
+}
+
+#[cfg(test)]
+mod scoped_tests {
+    use super::*;
+
+    fn rec(kind: &str, task: &str, tick: u64) -> String {
+        format!(
+            "{{\"seq\":1,\"kind\":\"{kind}\",\"arg0\":0,\"arg1\":0,\"result\":0,\"task\":{task},\"tick\":{tick}}}\n"
+        )
+    }
+
+    #[test]
+    fn a_probe_naming_its_task_with_a_tick_passes() {
+        let log = rec("unknown_syscall", "7", 322985);
+        assert!(judge_scoped(&log, r#""kind":"unknown_syscall" => number"#).is_ok());
+    }
+
+    #[test]
+    fn a_record_that_names_no_task_is_refused_where_one_is_required() {
+        let log = rec("unknown_syscall", "null", 5);
+        assert!(judge_scoped(&log, r#""kind":"unknown_syscall" => number"#).is_err());
+    }
+
+    #[test]
+    fn a_tick_of_zero_after_boot_is_refused() {
+        let log = rec("unknown_syscall", "7", 0);
+        assert!(judge_scoped(&log, r#""kind":"unknown_syscall" => number"#).is_err());
+    }
+
+    #[test]
+    fn a_record_about_no_task_must_say_null_and_not_a_slot() {
+        assert!(judge_scoped(&rec("boot", "null", 0), r#""kind":"boot" => null"#).is_ok());
+        assert!(judge_scoped(&rec("boot", "65535", 0), r#""kind":"boot" => null"#).is_err());
+    }
+
+    #[test]
+    fn a_record_without_the_fields_is_refused() {
+        let old = "{\"seq\":1,\"kind\":\"boot\",\"arg0\":0,\"arg1\":0,\"result\":0}\n";
+        assert!(judge_scoped(old, r#""kind":"boot" => null"#).is_err());
+    }
+
+    #[test]
+    fn matching_nothing_is_not_a_pass_and_a_bad_spec_is_rejected() {
+        assert!(judge_scoped("x\n", r#""kind":"boot" => null"#).is_err());
+        assert!(judge_scoped("x", "a => b").is_err());
+        assert!(judge_scoped("x", "only").is_err());
     }
 }

@@ -769,7 +769,7 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
             seq: rec.seq,
             tick: rec.tick,
             kind: rec.kind as u16,
-            task: 0xFFFF,
+            task: rec.task,
             arg0: rec.arg0 as u32,
             arg1: rec.arg1 as u32,
             result: rec.result as i32,

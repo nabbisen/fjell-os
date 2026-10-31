@@ -76,7 +76,16 @@ pub enum AuditKindInternal {
 #[derive(Clone, Copy)]
 pub struct AuditRecord {
     pub seq: u64,
+    /// Traps the kernel had taken when the record was appended (RFC-0.41-006 R1): a
+    /// **logical** clock, not wall time. The timer interrupt is deliberately never
+    /// enabled in this kernel (`arch/riscv64/csr.rs`), so there is no tick to count;
+    /// a trap is the unit in which everything here happens. It orders a record against
+    /// its neighbours and says how far into the boot it is, deterministically, and
+    /// reads no hardware.
     pub tick: u64,
+    /// Slot index of the task that was running when the kernel trapped, or `0xFFFF`
+    /// when none had been scheduled yet (RFC-0.41-006 R1).
+    pub task: u16,
     pub kind: AuditKindInternal,
     pub arg0: usize,
     pub arg1: usize,
@@ -110,6 +119,13 @@ pub struct AuditRing {
     /// RFC-0.41-001: a parked waiter that an append has claimed and that the trap
     /// path has not yet made runnable. See [`AuditRing::take_wake`].
     wake: Cell<Option<TaskId>>,
+    /// RFC-0.41-006 R1: the slot of the task last handed the CPU (`0xFFFF` before the
+    /// first), stamped onto every record. Kept here, written by the scheduler, so an
+    /// append -- which runs while its caller holds `&mut` to the task table and the
+    /// scheduler -- never has to reach them.
+    running: Cell<u16>,
+    /// RFC-0.41-006 R1: traps taken so far, stamped onto every record.
+    ticks: Cell<u64>,
 }
 
 /// What `sys_audit_wait` should do, decided by [`AuditRing::park`].
@@ -138,7 +154,20 @@ impl AuditRing {
             drops_since_advance: Cell::new(0),
             waiter: Cell::new(None),
             wake: Cell::new(None),
+            running: Cell::new(0xFFFF),
+            ticks: Cell::new(0),
         }
+    }
+
+    /// The scheduler gave the CPU to task slot `task`: records appended from now until
+    /// the next hand-over are about the trap that task made. (RFC-0.41-006 R1.)
+    pub fn note_running(&self, task: u16) {
+        self.running.set(task);
+    }
+
+    /// The kernel took a trap. (RFC-0.41-006 R1.)
+    pub fn note_trap(&self) {
+        self.ticks.set(self.ticks.get() + 1);
     }
 
     /// Append an event.  Drops silently (incrementing drop counters) when full.
@@ -164,7 +193,8 @@ impl AuditRing {
         let idx = (self.head.get() + len) % AUDIT_RING_CAPACITY;
         self.records[idx].set(Some(AuditRecord {
             seq,
-            tick: 0,
+            tick: self.ticks.get(),
+            task: self.running.get(),
             kind,
             arg0,
             arg1,

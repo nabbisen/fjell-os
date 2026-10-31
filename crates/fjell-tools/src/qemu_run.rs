@@ -155,6 +155,10 @@ pub struct Profile {
     /// exists to test -- it asserts that the test still tests, not a kernel property.
     /// See `audit_trail::judge_observed`. Empty elsewhere.
     pub expect_observed: Vec<String>,
+    /// RFC-0.41-006 R1: `"<line substring> => <number|null>"`. Every record line
+    /// containing the substring must carry a `"task"` that is a number (or `null`) and
+    /// a `"tick"`. See `audit_trail::judge_scoped`. Empty elsewhere.
+    pub expect_scoped: Vec<String>,
 }
 
 impl Profile {
@@ -182,6 +186,7 @@ impl Profile {
             expect_echoed: vec![],
             expect_accounted: vec![],
             expect_observed: vec![],
+            expect_scoped: vec![],
         }
     }
 }
@@ -535,6 +540,11 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             "\n{spec}    [observed: the required line occurs between the begin and end lines]"
         ));
     }
+    for spec in &p.expect_scoped {
+        expected_text.push_str(&format!(
+            "\n{spec}    [scoped: every such record names its task (or null) and carries a tick]"
+        ));
+    }
     art.write_summary("expected-markers.txt", expected_text.as_bytes());
 
     // A run that expects a particular ending needs the exit status and QMP's
@@ -604,6 +614,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         && p.expect_echoed.is_empty()
         && p.expect_accounted.is_empty()
         && p.expect_observed.is_empty()
+        && p.expect_scoped.is_empty()
     {
         art.write_summary(
             "result-summary.txt",
@@ -800,6 +811,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     if !p.expect_echoed.is_empty()
         || !p.expect_accounted.is_empty()
         || !p.expect_observed.is_empty()
+        || !p.expect_scoped.is_empty()
     {
         let text = String::from_utf8_lossy(&combined);
         let mut record = String::new();
@@ -838,6 +850,19 @@ pub fn run_profile(p: &Profile) -> ExitCode {
                 Err(why) => {
                     eprintln!("[xtask] observation check FAILED — {why}");
                     record.push_str(&format!("observed: {spec}: FAILED {why}\n"));
+                    all_ok = false;
+                }
+            }
+        }
+        for spec in &p.expect_scoped {
+            match crate::audit_trail::judge_scoped(&text, spec) {
+                Ok(note) => {
+                    println!("[xtask] `{spec}` — {note} ✓");
+                    record.push_str(&format!("scoped: {spec}: {note}\n"));
+                }
+                Err(why) => {
+                    eprintln!("[xtask] scope check FAILED — {why}");
+                    record.push_str(&format!("scoped: {spec}: FAILED {why}\n"));
                     all_ok = false;
                 }
             }
@@ -1117,6 +1142,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_echoed_v: Vec<String> = Vec::new();
     let mut expect_accounted_v: Vec<String> = Vec::new();
     let mut expect_observed_v: Vec<String> = Vec::new();
+    let mut expect_scoped_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -1207,6 +1233,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             "expect_echoed" => expect_echoed_v = array_items(&path, k, idx, v)?,
             "expect_accounted" => expect_accounted_v = array_items(&path, k, idx, v)?,
             "expect_observed" => expect_observed_v = array_items(&path, k, idx, v)?,
+            "expect_scoped" => expect_scoped_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -1289,6 +1316,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         expect_echoed: expect_echoed_v,
         expect_accounted: expect_accounted_v,
         expect_observed: expect_observed_v,
+        expect_scoped: expect_scoped_v,
     })
 }
 
@@ -1982,6 +2010,16 @@ mod discover_tests {
         assert_eq!(
             load_profile(&r, "p").unwrap().expect_observed,
             ["b => e => w"]
+        );
+    }
+
+    #[test]
+    fn expect_scoped_is_opt_in_and_loads_a_list() {
+        assert!(Profile::smoke("m1", "x").expect_scoped.is_empty());
+        let r = scratch_root("es1", "name = \"p\"\nexpect_scoped = [\"k => number\"]\n");
+        assert_eq!(
+            load_profile(&r, "p").unwrap().expect_scoped,
+            ["k => number"]
         );
     }
 

@@ -210,6 +210,8 @@ impl Scheduler {
 
     pub fn set_current(&mut self, id: TaskId) {
         self.current = Some(id);
+        // RFC-0.41-006 R1: say who has the CPU to the audit ring, which cannot ask.
+        crate::audit::ring::AUDIT.note_running(id.index);
     }
 
     pub fn current(&self) -> Option<TaskId> {

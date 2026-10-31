@@ -38,6 +38,9 @@ use fjell_syscall::{
 /// CSpace slot holding the AuditDrain capability (granted by kernel on spawn).
 const AUDIT_DRAIN_CAP: u32 = 1;
 
+/// `AuditRecordBin::task` when the record is not about one task.
+const AUDIT_TASK_NONE: u16 = 0xFFFF;
+
 /// Drain buffer: up to 64 records × 32 bytes = 2048 bytes.
 const DRAIN_BUF_RECORDS: usize = 64;
 const DRAIN_BUF_BYTES: usize = DRAIN_BUF_RECORDS * AUDIT_RECORD_BIN_SIZE;
@@ -64,7 +67,13 @@ fn emit_u64(mut n: u64) {
 
 /// Emit one audit record as a JSON Lines object.
 ///
-/// Format: `{"seq":N,"kind":"label","arg0":N,"arg1":N,"result":N}`
+/// Format: `{"seq":N,"kind":"label","arg0":N,"arg1":N,"result":N,"task":T,"tick":K}`
+///
+/// `task` is the slot index of the task the event concerns, or `null` when the kernel
+/// recorded `0xFFFF` ("not task-scoped") -- a number there would read as a slot. `tick` is
+/// the kernel's tick at the append. Both were recorded all along and dropped here (the
+/// same defect as the per-drain drop count, RFC-0.41-001); RFC-0.41-006 R1. They come
+/// **after** `result`, so every prefix a profile matches is as it was.
 fn emit_record(r: &AuditRecordBin) {
     let kind = AuditKind::from_u16(r.kind);
     sys_debug_write(r#"{"seq":"#);
@@ -84,6 +93,14 @@ fn emit_record(r: &AuditRecordBin) {
     } else {
         emit_u64(res as u64);
     }
+    sys_debug_write(r#","task":"#);
+    if r.task == AUDIT_TASK_NONE {
+        sys_debug_write("null");
+    } else {
+        emit_u64(r.task as u64);
+    }
+    sys_debug_write(r#","tick":"#);
+    emit_u64(r.tick);
     sys_debug_writeln("}");
 }
 

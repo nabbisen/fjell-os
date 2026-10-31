@@ -32,6 +32,15 @@ succeeded; `auditd` says `auditd: wait did not park` for the second, and the `au
 tier requires that line inside its lost-wakeup sweep so the sweep cannot stop testing
 unnoticed. (RFC-0.41-001, R11.)
 
+Each record the kernel appends carries the **slot of the task that was running** when the
+kernel trapped (`0xFFFF` before the first task is scheduled) and a **logical tick**, the
+number of traps taken so far. The timer interrupt is deliberately never enabled in this
+kernel, so there is no wall-clock tick; a trap is the unit in which everything happens, and
+the count orders a record against its neighbours deterministically. `auditd` prints both
+after `result`: `{"seq":N,"kind":"…","arg0":N,"arg1":N,"result":N,"task":T,"tick":K}`, with
+`"task":null` when the record concerns no task, so a number is never a slot by accident.
+(RFC-0.41-006 R1.)
+
 `auditd`, the consumer that renders the trail, drains **until the kernel reports the
 ring empty** and then waits, so a record appended after boot reaches the console. It
 prints a **gap notice**, `{"gap":{"dropped":N,"after_seq":S}}`, when a drain reports

@@ -110,6 +110,8 @@ pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
     // SAFETY: category=csr-asm tf is provided by the assembly trap entry stub.
     let tf_ref = unsafe { &mut *tf };
     let scause = tf_ref.scause;
+    // RFC-0.41-006 R1: the audit clock is the trap count.
+    crate::audit::ring::AUDIT.note_trap();
 
     match decode_trap(scause) {
         TrapKind::UserEcall => handle_syscall(tf_ref),

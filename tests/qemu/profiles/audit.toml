@@ -29,6 +29,9 @@
 #     be: the window's position depends on how many traps `auditd` spends per record, so if that
 #     drifts the window leaves the sweep and the test goes green without touching the guard.
 #     This makes that a failure instead.
+#   * `expect_scoped` (RFC-0.41-006 R1): each record carries the task it concerns and a tick. The
+#     probes `neg-test` issues after boot must name a task and a non-zero tick; the boot record,
+#     which concerns no task, must say `null` and not a slot number.
 #   * `expect_accounted` (R6): a burst of 600 probe records overflows the 256-slot ring;
 #     records printed + records the `{"gap":...}` notices declare lost must equal 600,
 #     and at least one must be lost. A notice that always said "some were lost" fails.
@@ -55,6 +58,10 @@ expect_echoed    = [
 ]
 expect_observed  = [
   "neg-test: audit sweep begins => neg-test: audit sweep ends => auditd: wait did not park",
+]
+expect_scoped    = [
+  "\"kind\":\"unknown_syscall\" => number",
+  "\"kind\":\"boot\" => null",
 ]
 expect_accounted = [
   "neg-test: audit burst begins => neg-test: audit burst: => noise<=3",
