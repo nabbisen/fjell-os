@@ -26,7 +26,11 @@ which takes the same `AuditDrain` capability and returns when the ring is non-em
 blocking when empty, following the `IrqBind` / `IrqAck` / `IrqWait` idiom; a wake on the
 ring grants authority over nothing, so it needs no right of its own. The ring has one
 consumer, so a second task asking to wait while another is parked is refused
-(`BadState`). (RFC-0.41-001.)
+(`BadState`). It reports in `a1` whether it parked the caller (`1`) or returned at once
+because the ring was already non-empty (`0`) -- a plain word, meaningful when the call
+succeeded; `auditd` says `auditd: wait did not park` for the second, and the `audit`
+tier requires that line inside its lost-wakeup sweep so the sweep cannot stop testing
+unnoticed. (RFC-0.41-001, R11.)
 
 `auditd`, the consumer that renders the trail, drains **until the kernel reports the
 ring empty** and then waits, so a record appended after boot reaches the console. It

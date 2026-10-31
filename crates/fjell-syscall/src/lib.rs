@@ -454,9 +454,15 @@ pub fn sys_probe_unknown(nr: usize) {
 /// empty and then waits cannot sleep through a record appended in between. Only one
 /// task may wait at a time (`BadState` otherwise). Wakes when a record is appended;
 /// the caller then drains.
-pub fn sys_audit_wait(cap: u32) -> Result<(), SysError> {
+///
+/// The `bool` is whether the call **parked** the caller (`true`) or returned at once
+/// because the ring was already non-empty (`false`). The second is the lost-wakeup
+/// guard's path -- a record appended between the caller's empty drain and this call --
+/// and a test that means to exercise it needs to be able to see that it ran.
+pub fn sys_audit_wait(cap: u32) -> Result<bool, SysError> {
     let r = ecall2(SyscallNumber::AuditWait as usize, cap as usize, 0, 0, 0);
-    to_result(r.0).map(|_| ())
+    to_result(r.0)?;
+    Ok(r.1 != 0)
 }
 
 /// Raw-pointer variant for negative testing (RFC 050).

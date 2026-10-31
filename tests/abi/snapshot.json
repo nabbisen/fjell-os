@@ -462,7 +462,7 @@
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_audit_drain","sig":"023a98cbebf68678"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_audit_drain_ptr","sig":"d75472ddb5d2f81b"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_audit_drain_raw","sig":"4f08e8ff8a07a046"},
-  {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_audit_wait","sig":"70fb906fb7f46be9"},
+  {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_audit_wait","sig":"04e3d4e0e4810f08"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_cap_bind_lease","sig":"ece8664eb3fcd63a"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_cap_copy","sig":"c295137c74309293"},
   {"crate":"fjell-syscall","module":"","impl_type":"","kind":"fn","name":"sys_cap_drop","sig":"1f3cd101650ec3d8"},

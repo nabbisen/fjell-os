@@ -192,10 +192,18 @@ pub extern "C" fn service_main() -> ! {
     // at once (the kernel checks the ring, it does not latch an event), so none is
     // slept through.
     loop {
-        if sys_audit_wait(AUDIT_DRAIN_CAP).is_err() {
-            // Cannot wait (e.g. another task already waits). Say so, and do not spin.
-            sys_debug_writeln("auditd: audit wait error");
-            sys_yield();
+        match sys_audit_wait(AUDIT_DRAIN_CAP) {
+            Ok(true) => {}
+            // The ring was already non-empty: a record arrived between the empty drain
+            // and this wait, and the guard returned at once instead of sleeping through
+            // it (RFC-0.41-001 R11). Said on the console so the `audit` tier can require
+            // that the lost-wakeup sweep really reached this path.
+            Ok(false) => sys_debug_writeln("auditd: wait did not park"),
+            Err(_) => {
+                // Cannot wait (e.g. another task already waits). Say so, and do not spin.
+                sys_debug_writeln("auditd: audit wait error");
+                sys_yield();
+            }
         }
         drain_until_empty(&mut buf);
     }

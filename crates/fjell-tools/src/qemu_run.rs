@@ -149,6 +149,12 @@ pub struct Profile {
     /// records printed plus the records the gap notices declare lost equals `B`, and
     /// at least one was lost. See `audit_trail::judge_accounted`. Empty elsewhere.
     pub expect_accounted: Vec<String>,
+    /// RFC-0.41-001 R11: `"<begin prefix> => <end prefix> => <required text>"`. At least
+    /// one line containing the required text must fall between the first begin line and
+    /// the first end line after it. Used to require that a sweep reached the path it
+    /// exists to test -- it asserts that the test still tests, not a kernel property.
+    /// See `audit_trail::judge_observed`. Empty elsewhere.
+    pub expect_observed: Vec<String>,
 }
 
 impl Profile {
@@ -175,6 +181,7 @@ impl Profile {
             expect_chain_head: vec![],
             expect_echoed: vec![],
             expect_accounted: vec![],
+            expect_observed: vec![],
         }
     }
 }
@@ -523,6 +530,11 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             "\n{prefix}count=<B> base=<N>    [accounted: printed + lost after the begin line == B (+ a stated allowance for unrelated records), lost > 0]"
         ));
     }
+    for spec in &p.expect_observed {
+        expected_text.push_str(&format!(
+            "\n{spec}    [observed: the required line occurs between the begin and end lines]"
+        ));
+    }
     art.write_summary("expected-markers.txt", expected_text.as_bytes());
 
     // A run that expects a particular ending needs the exit status and QMP's
@@ -591,6 +603,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         && p.expect_chain_head.is_empty()
         && p.expect_echoed.is_empty()
         && p.expect_accounted.is_empty()
+        && p.expect_observed.is_empty()
     {
         art.write_summary(
             "result-summary.txt",
@@ -784,7 +797,10 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     }
     // RFC-0.41-001: what a test did must reach the trail (in time), and the trail
     // must account for a burst it overflowed.
-    if !p.expect_echoed.is_empty() || !p.expect_accounted.is_empty() {
+    if !p.expect_echoed.is_empty()
+        || !p.expect_accounted.is_empty()
+        || !p.expect_observed.is_empty()
+    {
         let text = String::from_utf8_lossy(&combined);
         let mut record = String::new();
         for spec in &p.expect_echoed {
@@ -809,6 +825,19 @@ pub fn run_profile(p: &Profile) -> ExitCode {
                 Err(why) => {
                     eprintln!("[xtask] accounting check FAILED — {why}");
                     record.push_str(&format!("accounted: {prefix}: FAILED {why}\n"));
+                    all_ok = false;
+                }
+            }
+        }
+        for spec in &p.expect_observed {
+            match crate::audit_trail::judge_observed(&text, spec) {
+                Ok(note) => {
+                    println!("[xtask] `{spec}` — {note} ✓");
+                    record.push_str(&format!("observed: {spec}: {note}\n"));
+                }
+                Err(why) => {
+                    eprintln!("[xtask] observation check FAILED — {why}");
+                    record.push_str(&format!("observed: {spec}: FAILED {why}\n"));
                     all_ok = false;
                 }
             }
@@ -1087,6 +1116,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_chain_head_v: Vec<String> = Vec::new();
     let mut expect_echoed_v: Vec<String> = Vec::new();
     let mut expect_accounted_v: Vec<String> = Vec::new();
+    let mut expect_observed_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -1176,6 +1206,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             "expect_chain_head" => expect_chain_head_v = array_items(&path, k, idx, v)?,
             "expect_echoed" => expect_echoed_v = array_items(&path, k, idx, v)?,
             "expect_accounted" => expect_accounted_v = array_items(&path, k, idx, v)?,
+            "expect_observed" => expect_observed_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -1257,6 +1288,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         expect_chain_head: expect_chain_head_v,
         expect_echoed: expect_echoed_v,
         expect_accounted: expect_accounted_v,
+        expect_observed: expect_observed_v,
     })
 }
 
@@ -1939,6 +1971,18 @@ mod discover_tests {
         let p = load_profile(&r, "p").unwrap();
         assert_eq!(p.expect_echoed, ["src => t{} => bound"]);
         assert_eq!(p.expect_accounted, ["burst: "]);
+    }
+
+    #[test]
+    fn expect_observed_is_opt_in_and_loads_a_list() {
+        assert!(Profile::smoke("m1", "x").expect_observed.is_empty());
+        let r = scratch_root("eo1", "name = \"p\"\nexpected_markers = [\"a\"]\n");
+        assert!(load_profile(&r, "p").unwrap().expect_observed.is_empty());
+        let r = scratch_root("eo2", "name = \"p\"\nexpect_observed = [\"b => e => w\"]\n");
+        assert_eq!(
+            load_profile(&r, "p").unwrap().expect_observed,
+            ["b => e => w"]
+        );
     }
 
     #[test]

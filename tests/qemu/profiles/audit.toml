@@ -19,7 +19,16 @@
 #     here. The window (a record appended between `auditd`'s empty drain and its wait) is
 #     one scheduling turn wide and, in this build, is entered by exactly one round (k = 78),
 #     found by counting the kernel's guard path; with the guard removed that round, and only
-#     that round, fails. See the RFC-0.41-001 review request.
+#     that round, fails. See the RFC-0.41-001 review request. (`expect_observed`, below, is
+#     what keeps "this build" true.)
+#   * `expect_observed` (R11): between the sweep's `begins` and `ends` lines, `auditd` must say
+#     `wait did not park` at least once -- `sys_audit_wait` returned at once because the ring was
+#     already non-empty, which is the lost-wakeup guard's own path. THIS EXISTS TO DETECT THE
+#     SWEEP CEASING TO TEST, NOT TO ASSERT A KERNEL PROPERTY. The sweep above passes when no
+#     record is slept through, and it also passes if it never reaches the window where one could
+#     be: the window's position depends on how many traps `auditd` spends per record, so if that
+#     drifts the window leaves the sweep and the test goes green without touching the guard.
+#     This makes that a failure instead.
 #   * `expect_accounted` (R6): a burst of 600 probe records overflows the 256-slot ring;
 #     records printed + records the `{"gap":...}` notices declare lost must equal 600,
 #     and at least one must be lost. A notice that always said "some were lost" fails.
@@ -43,6 +52,9 @@ expected_markers = [
 expect_echoed    = [
   "neg-test: audit: revoked lease arg0= => \"kind\":\"lease.revoked\",\"arg0\":{},",
   "neg-test: audit probe nr= => \"kind\":\"unknown_syscall\",\"arg0\":{}, => neg-test: audit settled",
+]
+expect_observed  = [
+  "neg-test: audit sweep begins => neg-test: audit sweep ends => auditd: wait did not park",
 ]
 expect_accounted = [
   "neg-test: audit burst begins => neg-test: audit burst: => noise<=3",

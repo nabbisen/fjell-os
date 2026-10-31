@@ -129,3 +129,34 @@ system is still starting, a probe is queued behind hundreds of boot records.
 ## Gates
 
 See the review request.
+
+## R11 — `sys_audit_wait` reports whether it parked (added 2026-10-31, after review)
+
+**The syscall.** `a1` is `1` when the call parked the caller and `0` when it returned at once because the ring
+was already non-empty (the guard's path); a plain word, set in both arms of `sys_audit_wait`
+(`crates/fjell-kernel/src/trap/syscall.rs`), the parked arm **before** `suspend_current` so it is already in
+place when the wake resumes the task past the `ecall`. `fjell-syscall::sys_audit_wait` returns
+`Result<bool, SysError>`. `auditd` prints `auditd: wait did not park` for `Ok(false)`.
+
+**The assertion.** A new profile directive, `expect_observed = ["<begin> => <end> => <required>"]`
+(`audit_trail::judge_observed`), requires at least one line containing `<required>` between the first `<begin>`
+line and the first `<end>` line after it; a missing begin or end marker is an error. `neg-test` now prints
+`neg-test: audit sweep begins` / `ends` around the 120 rounds. The `audit` profile comment says in capitals
+what it is for: **to detect the sweep ceasing to test, not to assert a kernel property.**
+
+**The red** (the point of R11): with the sweep shortened to 60 rounds (the window is at k = 78), every older
+check stays green — 120 probes echoed in time, the burst accounted — and only the new one fails:
+`observation check FAILED — no line containing `auditd: wait did not park` between `neg-test: audit sweep
+begins` (line 797) and `neg-test: audit sweep ends` (line 1106): the sweep never reached the path it exists to
+test`. That is the failure R11 was written to make loud. File restored, `cmp`-identical, rebuild identical to
+the green build.
+
+**Drift, measured.** I added N extra `sys_yield`s per record printed in `auditd` (scratch, reverted):
+N = 3 moves the window from k = 78 to k = 80 (observed 1); N = 30 still finds it (observed 1), but the burst
+accounting fails first (9 unrelated records dropped, allowed 3); N = 45 and 60 lose the window and the echo
+check fails as well (auditd too slow for the 400-yield settle). So the window moves about two rounds per three
+yields and the sweep's 120 rounds absorb a modest drift; the new check is the one that fails alone only when the
+window leaves the sweep while `auditd` is still fast enough to settle, which the shortened sweep shows.
+
+**Where the figures stand.** The window is entered in exactly one place per run (observed 1 in the sweep, 1 in
+the whole log, at k = 78) and identically in 5 further runs of the profile on the final tree (the `test-all` run passed the same directive; its own log was overwritten by those repeats, so I quote the repeats).

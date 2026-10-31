@@ -48,6 +48,9 @@ Notes:
   a receiver takes the message (RFC-0.27-002, closes E-022 — `sys_ipc_send`
   was named `sys_ipc_try_send` and documented as non-blocking until then,
   which the kernel never implemented).
+- `AuditWait` (61) returns `Ok` in `a0` and, in `a1`, `1` if it parked the caller or `0`
+  if it returned at once because the audit ring was already non-empty (RFC-0.41-001 R11).
+  `a1` is a plain word, meaningful only when `a0` is `Ok`.
 - Every syscall except `DebugWrite` is capability-gated; the result is
   returned in `a0` as a typed `SysError` (or `Ok`). See
   [IPC Register Layout](../abi/ipc-register-layout.md) for the full

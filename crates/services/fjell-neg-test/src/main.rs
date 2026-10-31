@@ -1066,11 +1066,15 @@ fn test_audit_revocation_reaches_the_trail() {
 /// in the window and was slept through would not be missing for good (the next append
 /// flushes it) -- it would be *late*, and late is what is asserted against.
 ///
-/// Whether a round really entered the window is not taken on trust: see the review
-/// request for the instrumented run that counted it, and the run with the guard removed
-/// that went red.
+/// Whether a round really entered the window is not taken on trust. `sys_audit_wait`
+/// reports whether it parked, `auditd` says so when it did not (`auditd: wait did not
+/// park`), and the profile requires at least one such line between the `sweep begins`
+/// and `sweep ends` lines printed here -- so a sweep that stops reaching the window
+/// (its position depends on how many traps `auditd` spends per record) fails instead of
+/// passing without touching the guard (R11).
 fn test_audit_wake_is_not_lost() {
     const ROUNDS: usize = 120;
+    sys_debug_writeln("neg-test: audit sweep begins");
     for k in 0..ROUNDS {
         let a = PROBE_BASE + 2 * k;
         let b = a + 1;
@@ -1090,6 +1094,7 @@ fn test_audit_wake_is_not_lost() {
         }
         sys_debug_writeln("neg-test: audit settled");
     }
+    sys_debug_writeln("neg-test: audit sweep ends");
 }
 
 /// R6: a loss is reported, with the right count.

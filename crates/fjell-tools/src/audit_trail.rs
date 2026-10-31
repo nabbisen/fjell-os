@@ -96,6 +96,62 @@ pub fn judge_echoes(text: &str, spec: &str) -> Result<String, String> {
     Ok(format!("{checked} echoed"))
 }
 
+/// `spec` is `"<begin prefix> => <end prefix> => <required text>"` (RFC-0.41-001 R11).
+///
+/// Requires at least one line containing `<required text>` **between** the first line
+/// containing `<begin prefix>` and the first line containing `<end prefix>` after it.
+/// Returns how many there were.
+///
+/// This is how the `audit` tier knows the lost-wakeup sweep still tests something. The
+/// sweep passes when no record is slept through, which is also what it does when it
+/// never reaches the window where one could be; `auditd` says `wait did not park` each
+/// time `sys_audit_wait` took the guard's path, and this requires that to have happened
+/// inside the sweep. It asserts that the test still tests, not a kernel property. A
+/// begin or end line that is missing is an error, not a pass.
+pub fn judge_observed(text: &str, spec: &str) -> Result<String, String> {
+    let parts: Vec<&str> = spec.split(" => ").collect();
+    if parts.len() != 3 {
+        return Err(format!(
+            "bad expect_observed `{spec}`: want `<begin prefix> => <end prefix> => <required text>`"
+        ));
+    }
+    let (begin, end, wanted) = (parts[0], parts[1], parts[2]);
+    let lines: Vec<&str> = text.lines().collect();
+    let Some(b) = lines.iter().position(|l| l.contains(begin)) else {
+        return Err(format!(
+            "no line contains the begin marker `{begin}`; nothing was checked"
+        ));
+    };
+    let Some(e) = lines
+        .iter()
+        .skip(b + 1)
+        .position(|l| l.contains(end))
+        .map(|j| b + 1 + j)
+    else {
+        return Err(format!(
+            "no line containing the end marker `{end}` follows the begin marker (line {})",
+            b + 1
+        ));
+    };
+    let n = lines[b + 1..e]
+        .iter()
+        .filter(|l| l.contains(wanted))
+        .count();
+    if n == 0 {
+        return Err(format!(
+            "no line containing `{wanted}` between `{begin}` (line {}) and `{end}` (line {}): \
+             the sweep never reached the path it exists to test",
+            b + 1,
+            e + 1
+        ));
+    }
+    Ok(format!(
+        "{n} observed between lines {} and {}",
+        b + 1,
+        e + 1
+    ))
+}
+
 /// The number following `key=` in `line`.
 fn number_after(line: &str, key: &str) -> Option<u64> {
     let at = line.find(key)? + key.len();
@@ -559,5 +615,50 @@ mod hole_tests {
         l.push_str("{\"gap\":{\"dropped\":8,\"after_seq\":3}}\n");
         let e = judge_accounted(&l, SPEC).unwrap_err();
         assert!(e.contains("not a probe"), "{e}");
+    }
+}
+
+#[cfg(test)]
+mod observed_tests {
+    use super::*;
+
+    const SPEC: &str = "sweep begins => sweep ends => wait did not park";
+
+    #[test]
+    fn a_line_inside_the_sweep_is_observed() {
+        let log = "x\nsweep begins\nprobe\nauditd: wait did not park\nprobe\nsweep ends\n";
+        assert_eq!(
+            judge_observed(log, SPEC),
+            Ok("1 observed between lines 2 and 6".to_string())
+        );
+    }
+
+    #[test]
+    fn a_sweep_that_never_reaches_the_path_is_refused() {
+        let log = "sweep begins\nprobe\nprobe\nsweep ends\n";
+        assert!(
+            judge_observed(log, SPEC)
+                .unwrap_err()
+                .contains("never reached")
+        );
+    }
+
+    #[test]
+    fn a_line_outside_the_sweep_does_not_count() {
+        let before = "auditd: wait did not park\nsweep begins\nsweep ends\n";
+        let after = "sweep begins\nsweep ends\nauditd: wait did not park\n";
+        assert!(judge_observed(before, SPEC).is_err());
+        assert!(judge_observed(after, SPEC).is_err());
+    }
+
+    #[test]
+    fn a_missing_begin_or_end_marker_is_refused_not_passed() {
+        assert!(judge_observed("auditd: wait did not park\n", SPEC).is_err());
+        assert!(judge_observed("sweep begins\nauditd: wait did not park\n", SPEC).is_err());
+    }
+
+    #[test]
+    fn a_malformed_spec_is_rejected() {
+        assert!(judge_observed("x", "a => b").is_err());
     }
 }

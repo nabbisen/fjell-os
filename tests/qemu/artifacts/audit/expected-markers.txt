@@ -3,3 +3,4 @@ neg-test: audit burst: count=600 base=
 neg-test: audit: revoked lease arg0= => "kind":"lease.revoked","arg0":{},    [echoed: every such line must be echoed by the trail, in time]
 neg-test: audit probe nr= => "kind":"unknown_syscall","arg0":{}, => neg-test: audit settled    [echoed: every such line must be echoed by the trail, in time]
 neg-test: audit burst begins => neg-test: audit burst: => noise<=3count=<B> base=<N>    [accounted: printed + lost after the begin line == B (+ a stated allowance for unrelated records), lost > 0]
+neg-test: audit sweep begins => neg-test: audit sweep ends => auditd: wait did not park    [observed: the required line occurs between the begin and end lines]

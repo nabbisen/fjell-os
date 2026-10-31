@@ -798,9 +798,13 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     tf.gpr[REG_A2] = n_dropped as usize;
 }
 
-/// `sys_audit_wait(a0=cap_handle) -> a0=status` -- RFC-0.41-001.
+/// `sys_audit_wait(a0=cap_handle) -> a0=status, a1=parked` -- RFC-0.41-001.
 ///
-/// Blocks the caller until the kernel audit ring is non-empty. Requires the same
+/// Blocks the caller until the kernel audit ring is non-empty. `a1` is `1` if the
+/// call parked the caller and `0` if it returned at once because the ring was
+/// already non-empty (R11: that is the lost-wakeup guard's path, and a test must be
+/// able to tell it ran). It is a plain word, not a reason code; it is meaningful only
+/// when `a0` is `Ok`. Requires the same
 /// `AuditDrain` capability `sys_audit_drain` does: a wake on the ring grants
 /// authority over nothing (who may *read* the trail is E-068's question and is
 /// not needed here), so no new right exists.
@@ -847,6 +851,7 @@ pub fn sys_audit_wait(tf: &mut TrapFrame) {
     match AUDIT.park(cur_id, stale) {
         ParkOutcome::NotEmpty => {
             tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+            tf.gpr[REG_A1] = 0;
         }
         ParkOutcome::Busy => {
             tf.gpr[REG_A0] = SysError::BadState as isize as usize;
@@ -856,6 +861,7 @@ pub fn sys_audit_wait(tf: &mut TrapFrame) {
                 t.state = TaskState::Blocked(BlockReason::AuditRing);
             }
             tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+            tf.gpr[REG_A1] = 1;
             sched.suspend_current();
         }
     }
