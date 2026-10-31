@@ -6950,6 +6950,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   tier. Raising a timeout, retrying the tier, or relaxing `clean-console` would convert a
   visible intermittent failure into an invisible one and is explicitly refused here. The
   owner decides whether it takes its own line before 0.39 cuts, or whether 0.39 is held.
+- **The second shape's "not reproduced" inference is superseded — 2026-10-31.** The closure note
+  below says the `TEST:M7:FAIL (init did not exit cleanly)` / `M6: block I/O error` shape "was not
+  reproduced after the first, so that is an inference, not a result". It has now been seen again,
+  **after this entry's cause was fixed and while its boot invariant did not fire**, in a tier other
+  than `semantic`. It is filed as **E-104** rather than reopening this entry, whose own cause is
+  established and fixed. This note exists so the two can be found from each other.
 - **Resolution:** ~~**OPEN**~~ → **CLOSED** by **RFC-0.39-003**, with the cause found.
 
   > **Closed by RFC-0.39-003, 2026-10-28.** **The cause: the kernel's own stack overlapped
@@ -7496,6 +7502,59 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   test's refusal half already held (the code never had the tolerance) and was shown failing against a
   scratch version that builds it. No `kmain` caller overlapped, as read; the QEMU tiers are green.
 
+## E-104 — the `mmio` tier fails intermittently with `M6: block I/O error` and an unclean `init` exit, after E-097's cause was fixed
+
+- **Found 2026-10-31 by the implementer of RFC-0.41-003's rename**, whose first full `test-all` of
+  that tree went red on a tier the change does not touch, and who reported it, kept the logs, and
+  did **not** reopen or annotate any entry. **Rate measured by the architect** from the retained run
+  directories rather than from the sighting: **1 failure in 11 full-suite runs** across the 0.41
+  line (`20261030-045720`, `-052941`, `20261030-212225`, `-215907`, `-223731`, `-231251`,
+  `-235644`, `20261031-053921`, `-062716`, **`-074707` FAIL**, `-082359`). That is close to E-097's
+  own observed "roughly 1 in 10".
+- **Signature:** `M6: block I/O error`, then `TEST:V0.5-PLATFORM:PASS`, then
+  `TEST:M7:FAIL (init did not exit cleanly)` — the forbidden marker the tier fails on. This is the
+  **second shape** E-097 recorded as *"seen once by the implementer"*.
+- **Why it is a new entry rather than a note on E-097.** E-097's cause was found and fixed (the
+  kernel stack overlapped frames the allocator handed to tasks) and is now guarded by a boot
+  invariant that stops the boot. The boot did **not** stop in the failing run, so this is either a
+  different cause or an incomplete fix, and E-097's closure note's premise — *"it was not reproduced
+  after the first, so that is an inference, not a result"* — is superseded by this sighting. A
+  finding that lives only inside the closure note of a CLOSED entry is tracked by nothing
+  (`errata-tracking` counts entries, Gate 7 counts OPEN); that is the reason E-103 was filed as a
+  number, and it applies here.
+- **The host-load confound is weak, and the architect weighed it rather than leaving it open.** The
+  implementer named it honestly and said they could not weigh it: another project's
+  `cargo test --workspace` was running on the machine, the tier's own log shows
+  `Blocking waiting for file lock on package cache`, and the tier took **72.3 s** against the
+  60.1 s every passing run takes. But **in that same failing run every other tier ran at its normal
+  duration** — 60.1 s, 90.1 s, 61.2 s — and host contention would have slowed the neighbours too.
+  The 72.3 s is most likely an **effect**: `init` did not exit cleanly, so the harness waited for a
+  shutdown that did not come. So the slowdown is specific to that guest run, not to the machine.
+  *(Confirmed live: a foreign `rustc`/`rust-lld`/`clippy-driver` build was running on this host
+  during the architect's own reruns.)*
+- **Not reproduced, and the attempts are stated so the absence is not read as a result.** The
+  implementer ran `mmio` 6 times in isolation: 6 passes. The architect ran it **6 more times under
+  deliberate heavy host load** (four `dd … conv=fsync` writers and six CPU spinners, load average
+  25–35, concurrent with the foreign build above): **6 passes**, none of the shape. CI runs the tier
+  as its own job (`qemu-negative (mmio, true)`) and the two runs covering this line —
+  `41150561872`, `41179812666` — are green. **Twelve isolated runs and two CI runs do not sample
+  what one full-suite run in eleven hit**, and nobody has yet shown why the full suite differs.
+  That difference is the first thing the line taking this entry should measure.
+- **What closing it needs is a cause, not a quieter tier.** Raising the timeout, retrying the tier,
+  or relaxing the marker would convert a visible intermittent failure into an invisible one. E-097
+  refused that explicitly and this entry refuses it on the same ground.
+- **Why OPEN.** A tier in the release suite fails intermittently and the cause is unknown, so the
+  suite will be re-run until green and a release will ship on a green run while the condition
+  persists — *a gate that cannot run is not a passing gate*. And the symptom is a block I/O error
+  and a task that did not exit cleanly, whose extent is unknown: nothing establishes it is confined
+  to a log line. **This blocks a cut**, by Gate 7, which is the mechanism E-097 used when the owner
+  held 0.39 for it. The architect has set it OPEN on that precedent; whether 0.41.0 is held for it,
+  or it takes its own line first, or the owner directs otherwise with these facts stated, is the
+  owner's decision and not the architect's.
+- **Status:** **OPEN**, filed 2026-10-31, unscheduled pending the owner's direction. Evidence: the
+  failing serial and tier logs are in the implementer's session scratchpad and the run directory
+  `tests/runs/20261031-074707/` is retained.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -7602,6 +7661,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001. Closed by RFC-0.41-003: the encoder zeroes every flag-and-value pair, and each of the five remaining placeholder claims carries its own availability byte at `SCHEMA_VERSION` 3 -> 4 | RFC-0.41-003 | CLOSED |
 | E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn. The receiver figure was corrected 2026-10-31: three images received on slot 0, not two — `configd` (missed) and `netd` (dead code). Closed by RFC-0.41-001 (the drain) and RFC-0.41-002 (the shared object) | 0.41 | CLOSED |
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
+| E-104 the `mmio` tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — at **1 failure in 11** full-suite runs on the 0.41 line, after E-097's cause was fixed and while its boot invariant did not fire. E-097's second shape, whose "not reproduced" inference this supersedes. Not reproduced in 12 isolated runs (6 of them under deliberate heavy host load) or 2 CI runs; the host-load confound is weak, because every other tier in the failing run ran at its normal duration | unscheduled | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
