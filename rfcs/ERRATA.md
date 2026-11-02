@@ -7614,6 +7614,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   absence**; it is a harness for the mechanism, not yet for the rate. Instrumentation also moves the
   interleaving: `svc-fault`'s task index is 21 in ~78% of sequential boots, 16 in ~85% of 16-parallel,
   and 15 in 97% through `qemu-run`.
+- **The bound is a poll count, not a time limit — architect, 2026-11-03.** `do_io` expires on
+  `t >= 500_000` with a `sys_yield()` each round (`fjell-storaged/src/main.rs:270`), so the wall time
+  it allows the device depends on how often `storaged` is rescheduled. **Expiry therefore does not
+  establish that a request took seconds.** The ~3.4 s–10 s crossing is a property of the throttle
+  experiment, which held device latency fixed; for a natural failure "the device stalled" and "the
+  bound ran out fast" are indistinguishable in the present instrument. Scheduled as **R7** of
+  RFC-0.41-006: record the `tick` delta across the poll, which separates them.
+- **A missed doorbell is largely excluded — architect, 2026-11-03.** The poll re-rings
+  `R_QUEUE_NOTIFY` **every 1000 iterations**, ~500 times across the bound, on top of the initial
+  double kick covering the direct and ioeventfd paths. A request that was published and re-announced
+  500 times and still never completed is not a lost notification.
 - **The next datum, and the instrument for it.** `storaged`'s `do_io` now prints once on the timeout
   path: `storaged: io timeout lba=… status=… isr=… avail=… used=… prev=… hdr_type=… req_status=…`.
   The throttled control prints `avail=1 used=0 prev=0 req_status=0xff` — a request the device was

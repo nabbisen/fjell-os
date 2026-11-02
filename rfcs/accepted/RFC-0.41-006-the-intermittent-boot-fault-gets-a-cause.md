@@ -178,3 +178,39 @@ req_status=0xff`, the throttled control's shape) and "the device or the queue me
 
 **A separate defect found in passing is filed as E-105** (`storaged` writes every sector to LBA 0,
 shifted and truncated, while `init` reports success) and is **not** in this line's scope.
+
+### Third amendment — 2026-11-03, architect: R7, before the next hunt
+
+**R7 — the `io timeout` line must report how much system activity the poll spanned.**
+
+**Why, and it is a defect in the instrument rather than in the report.** `do_io`'s bound is
+`if t >= 500_000` with a `sys_yield()` each round (`fjell-storaged/src/main.rs:270`): **a poll count,
+not a time limit.** Its wall-clock meaning therefore depends on how often `storaged` is rescheduled —
+the same 500,000 rounds span a long time when many tasks are runnable and a short one when `storaged`
+has the CPU to itself. So expiry does **not** establish that the device took seconds. The throttle
+experiment established the ~3.4 s–10 s crossing only because it held device latency fixed; for a
+**natural** failure the elapsed wall time is unknown, and "the device stalled" and "the bound ran out
+fast" are indistinguishable in the current line.
+
+**What to add.** R1 created a logical clock — `tick`, a count of traps taken since boot. Record it at
+the point the request is published and again at expiry, and print the **delta** in the
+`storaged: io timeout …` line. Each poll round is itself a trap, so the delta separates:
+
+* a delta close to the round count → the poll burned its budget with little else happening, so little
+  wall time passed and **the bound is too tight**;
+* a delta far above it → the poll spanned much other system activity, so real time passed and **the
+  device genuinely did not finish**.
+
+Read `tick` by the cheapest means already available to a service; **do not** add an MMIO `mtime` read
+(ruled against in the second amendment) and do not make the bound time-based in this line — that
+would be changing the timeout before knowing which of the two cases obtains, which R4 refuses.
+
+**Also recorded, because it narrows the search before the next catch.** The poll **re-rings
+`R_QUEUE_NOTIFY` every 1000 iterations** — about 500 times across the bound — on top of the initial
+double kick for the direct and ioeventfd paths. **So a single missed doorbell cannot explain the
+timeout**: the request was published and re-announced ~500 times and still never completed. That
+weakens the lost-notification hypothesis and strengthens "the device had it and did not finish".
+
+**The hunt is stopped for this.** A natural failure caught with the current line would leave the
+central ambiguity open, and a catch costs on the order of a dozen suites. R7 lands first, then the
+hunt resumes behind it.
