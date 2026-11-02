@@ -265,9 +265,11 @@ Recorded here so neither is revisited under release pressure:
 The records that would bracket the poll **already exist** and need no new print: `do_io` runs between
 `storaged`'s `ipc.recv` and its `ipc.reply`, both of which R1 now stamps with `tick`, and the
 500,000 `sys_yield` rounds add **no** ring pressure because `TaskSwitch` is filtered at the append
-site. That looked free. It is not usable: in a **passing** `harness` boot the ring dropped **1169
-records** against the 905 it kept, and of those 905 exactly **three** belong to `storaged`'s slot.
-An instrument that loses more than it keeps cannot be trusted to catch a 1-in-270 event once.
+site. That looked free. It is not usable: a **passing** `harness` boot produced **2352** records and
+`auditd` drained only **905** — **1447 lost** across two `{"gap"}` notices — and of those 905 exactly
+**three** belong to `storaged`'s slot. A second passing boot produced the same 2352 total and lost
+**973**, so the loss is the normal condition and not an outlier.
+An instrument that loses this much cannot be trusted to catch a 1-in-270 event once.
 
 ### What this means for the line
 

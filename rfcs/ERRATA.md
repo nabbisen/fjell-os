@@ -7717,8 +7717,10 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   - **The audit trail cannot be used as the instrument instead.** `do_io` runs between `storaged`'s
     `ipc.recv` and `ipc.reply`, both now tick-stamped, and the poll adds no ring pressure
     (`TaskSwitch` is filtered at the append site) — so the bracket exists for free. It is still
-    unusable: a **passing** `harness` boot dropped **1169** records against the **905** it kept, and
-    only **three** of those belong to `storaged`'s slot. An instrument that loses more than it keeps
+    unusable: a **passing** `harness` boot produced **2352** records and `auditd` drained only **905**
+    of them — **1447 lost** across two `{"gap"}` notices — and just **three** of the 905 belong to
+    `storaged`'s slot. A second passing boot, measured separately, produced the same 2352 total and
+    lost **973**. An instrument that loses more than it keeps
     cannot be relied on to catch a 1-in-270 event once.
   - **Where this leaves the cause.** Host write latency was measured at ≤18 ms for QEMU's own
     operation; the poll re-rings the doorbell ~500 times, so a single missed notification cannot
