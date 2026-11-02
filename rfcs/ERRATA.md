@@ -7597,6 +7597,15 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   it is **#21** in most passing logs of the same era — `init` was already running behind.
   **What is still unknown is what makes one request take seconds.** Host write latency for QEMU's own
   operation measured ≤1.6 ms, and ≤18 ms under twelve `fsync` churners.
+- **Six more clean suites, 2026-11-01 — the sample is now 2 failures in 25 full suites.** The
+  architect ran a hunt for a natural failure with `storaged`'s new `io timeout` line in place; it
+  completed **6 suites, all 32 PASS / 0 FAIL / 1 NOT-GATED**, was interrupted mid-way through a
+  seventh (it reached `semantic-liar`), and **caught nothing**. The hunt's own log was lost — it was
+  written to a scratchpad on `tmpfs` and the machine has since rebooted — but the outcome was
+  recoverable because `test-all` writes its run directories into the repository
+  (`tests/runs/20261101-000229` … `-025449`). Recorded because a clean suite is evidence about the
+  rate even when it is not the evidence wanted: at 2 in 25 the suite-level rate is ~8%, so a hunt
+  needs on the order of a dozen suites per expected catch. The hunt is relaunched.
 - **The rate cannot currently be measured, and the harness that was built says so.**
   `cargo xtask boot-loop` boots to `init`'s M6 decision at ~0.06 s per boot. **~25,000 boots, zero
   natural failures**, against 18–90 expected, across eight conditions including 24-way parallelism,
