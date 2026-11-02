@@ -214,3 +214,69 @@ weakens the lost-notification hypothesis and strengthens "the device had it and 
 **The hunt is stopped for this.** A natural failure caught with the current line would leave the
 central ambiguity open, and a catch costs on the order of a dozen suites. R7 lands first, then the
 hunt resumes behind it.
+
+## Amendment — 2026-11-03, architect: **R7 is withdrawn**, and no ABI item is spent on it
+
+The implementer escalated R7 rather than implementing it, correctly: **R7's premise is false and it
+is the architect's.** "Read `tick` by the cheapest means already available to a service" assumes such
+a means exists. There is none. `tick` lives in the kernel's audit ring and reaches user space only
+inside a drained `AuditRecordBin`; `SyscallNumber` exposes no clock and no counter; `sys_yield`
+returns nothing but a status; `storaged` holds no `AuditDrain` capability. So R7 as written could
+only be satisfied by **a new kernel→user value** — an ABI decision, which is exactly what the
+handoff said not to decide in code. The escalation is accepted in full.
+
+### Why the ambiguity R7 existed to remove is already resolved, from data in hand
+
+R5's own throttle control answers it, and the architect failed to read it that way when writing R7.
+
+* At `bps-total=150` (≈3.4 s per request) the poll **did not expire**, 16 of 16. The poll runs until
+  completion, so those 500,000 rounds were **not consumed in 3.4 s of wall time**. That is a measured
+  **floor** on the bound's duration.
+* At `bps-total=50` (≈10 s per request) it expired, 16 of 16 — a **ceiling**.
+* Both controls run in the same condition as a natural failure in the relevant respect: `init` is
+  blocked in a synchronous `IpcCall` on `storaged`, so `storaged` is close to alone on the CPU. That
+  is the *fastest* the rounds can ever be spent; anything else runnable makes them slower, never
+  faster.
+
+**So the bound is worth between ~3.4 s and ~10 s of wall time, and a natural expiry already means the
+device did not complete one 512-byte write in over three seconds.** The branch R7 was built to
+exclude — *"little wall time passed, the bound is too tight"* — **is excluded by evidence already
+collected.** The field would have cost an ABI item to re-measure what two controls had measured.
+
+A second, independent reading of the same conclusion: the kernel idles in `wfi`
+(`trap/dispatch.rs:384`), so a trap count is work and not spin. The last audit record of a passing
+`harness` boot carries **`tick` 323,040** — so the bound of 500,000 yielded rounds, each a trap, is
+about **1.5× the traps an entire passing boot takes**. The bound is not tight by any reading.
+
+### The two ABI options offered are both refused, and the reasons are durable
+
+Recorded here so neither is revisited under release pressure:
+
+* **A new counter syscall** would publish the audit ring's internal trap counter as ABI. It is not a
+  clock — it does not advance with time — so callers would inevitably read it as one. An API that
+  invites the exact confusion this amendment exists to resolve fails the design bar, and an ABI item
+  added days before a cut to serve a diagnostic is a workaround kept in the architecture.
+* **`sys_yield` returning the tick in `a1`** is worse: it changes the meaning of a shipped syscall's
+  unused return register, and makes "how many traps has the system taken" a side effect of yielding,
+  ungated, for every task. `sys_yield() -> trap count` cannot be read correctly by anyone.
+
+### The third option, refined, was tested and also fails — on evidence
+
+The records that would bracket the poll **already exist** and need no new print: `do_io` runs between
+`storaged`'s `ipc.recv` and its `ipc.reply`, both of which R1 now stamps with `tick`, and the
+500,000 `sys_yield` rounds add **no** ring pressure because `TaskSwitch` is filtered at the append
+site. That looked free. It is not usable: in a **passing** `harness` boot the ring dropped **1169
+records** against the 905 it kept, and of those 905 exactly **three** belong to `storaged`'s slot.
+An instrument that loses more than it keeps cannot be trusted to catch a 1-in-270 event once.
+
+### What this means for the line
+
+**Nothing further is required of the implementer on RFC-0.41-006.** The instrument that decides
+E-104's remaining question is already in the tree: the `io timeout` line's `status`, `isr`, `avail`,
+`used`, `prev` and `req_status` separate "the device had the request and did not finish" from "the
+device or the queue memory is wrong". **The hunt resumes on the tree as it stands**, and it is the
+architect's to run. Stopping it for R7 bought nothing; that cost is the architect's too.
+
+The absence R7 ran into is not a defect of this line and is not fixed inside it: **no service can
+express a duration, because Fjell exposes no notion of time to user space at all.** Filed as
+**E-106**, ACCEPTED, 0.42 — an ABI addition decided on its own merits, not under a cut.
