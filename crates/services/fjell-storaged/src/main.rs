@@ -233,11 +233,20 @@ unsafe fn report_io_incomplete(mmio: usize, va: usize, lba: u64, prev: u16, roun
         let hdr_st = core::ptr::read_volatile((va + OFF_STATUS) as *const u8);
         (status, isr, avail, used, hdr_ty, hdr_st)
     };
+    // Two lines, written back to back with nothing between them. The console splits a line
+    // longer than the kernel's `DBG_LINE` (160) with a `[cont]` marker, possibly in the middle
+    // of a field; all eight fields on one line with a prefix that names a count come to 187,
+    // so they are two deliberate lines, each far under the bound, each carrying the stable
+    // prefix `storaged: io incomplete` so either can be found alone. `lba` is not repeated on
+    // the second: `init` exits on the first M6 error and nothing else makes progress meanwhile.
     sys_debug_write("storaged: io incomplete after ");
     put_dec(rounds);
     sys_debug_write(" poll rounds lba=");
     put_hex(lba as u32);
-    sys_debug_write(" status=");
+    sys_debug_write(" hdr_type=");
+    put_hex(hdr_ty);
+    sys_debug_writeln("");
+    sys_debug_write("storaged: io incomplete state status=");
     put_hex(status);
     sys_debug_write(" isr=");
     put_hex(isr);
@@ -247,8 +256,6 @@ unsafe fn report_io_incomplete(mmio: usize, va: usize, lba: u64, prev: u16, roun
     put_hex(used as u32);
     sys_debug_write(" prev=");
     put_hex(prev as u32);
-    sys_debug_write(" hdr_type=");
-    put_hex(hdr_ty);
     sys_debug_write(" req_status=");
     put_hex(hdr_st as u32);
     sys_debug_writeln("");
