@@ -203,8 +203,10 @@ fn put_dec(mut v: u32) {
 /// (`NEEDS_RESET`) or `0x80` (`FAILED`) set when the device itself decided the queue
 /// was bad, which is a memory-corruption signature; `0x07` with `used == prev`,
 /// `avail == prev + 1` and `req_status` still `0xff` is a request the device was given
-/// and never completed, which is a slow or stalled host. Which of the two it is decides
-/// where E-104's cause is.
+/// and never completed, which is a slow or stalled host. Which of the two it is decided
+/// where E-104's cause was: three natural captures on 2026-11-03 all printed the second
+/// shape, and E-104 is closed on it (a host write that does not complete inside the budget,
+/// with the device healthy). The line stays, because it is what classifies the next one.
 ///
 /// `isr` is dumped but **is not a discriminator**: its bit 0 (`VRING`) latches on the
 /// first completion of the boot and this driver never writes InterruptACK, so it stays

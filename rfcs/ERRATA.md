@@ -7751,6 +7751,54 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   - **A cost to record against the architect:** the hunt was stopped for a field now withdrawn, and
     R5's own `bps-total=150` control had already answered the question that stopped it.
 
+- **CLOSED on a cause — architect 2026-11-03, on the owner's approval.** What closes this entry is a
+  cause, and there is one. **Three natural failures were captured on 2026-11-03** with the
+  classifying line in place: one by the architect's hunt (run 15 of 20, profile `dma`, 06:34Z) and
+  two by the implementer in consecutive full suites (`capability`, then `audit`). Evidence under
+  `.git-exclude/tmp/e104-hunt/natural{,3,4}/`.
+  - **The device was healthy and held the request.** All three printed `status=0x07` — neither
+    `0x40` (`NEEDS_RESET`) nor `0x80` (`FAILED`) — with `used == prev`, `avail == prev + 1` and
+    `req_status` still the driver's untouched `0xff` sentinel, on a **write** (`hdr_type=0x01`) at
+    **lba 0**. That is the published-and-never-completed shape, not the E-097 class. The queue was
+    not rejected, and the ~500 doorbell re-kicks across the poll exclude a lost notification.
+  - **The decisive measurement was free, and it is a within-boot comparison.** In the architect's
+    capture the audit trail brackets the poll with consecutive records (0 gap notices):
+    `ipc.recv` at `tick` 796,517 and `ipc.reply` at 1,801,306 — **1,004,789 traps**. The implementer's
+    `audit` capture gives **1,004,892** between `seq` 320 and 321. Two independent failures within
+    **103 traps** of each other, ≈2.01 traps per 500,000-round poll.
+    **In the same boot, 65 of 73 `storaged` round-trips cost 3 or 6 traps**, and a matched passing
+    control of the same profile never exceeded **271**. So the stalled request exceeded its own
+    boot's normal completion by about **five orders of magnitude**. **"The bound ran out fast" is
+    excluded**: a normally-completing write finishes inside a single poll round.
+  - **The failure is a threshold crossing on a continuously varying quantity.** The architect's
+    capture also contains **two near-misses that completed** — 181,169 traps (~18% of the bound) and
+    612,734 (~**61%**) — in the same boot that then crossed it. Host write-completion latency
+    develops extreme outliers and degrades with accumulated host state (a 92%-full btrfs over
+    dm-crypt). **There is no guest-side defect**: the guest reported, correctly, that a healthy
+    device had not completed a published write within a fixed number of polls.
+  - **This explains every failed search, and corrects the rate reasoning in this entry's own
+    earlier notes.** ~25,000 `boot-loop` boots at ~0.06 s never accumulate host load and caught
+    nothing; the hunt ran 14 clean suites and caught one on the 15th, hours into sustained load; the
+    implementer's two reds were consecutive. **Failures cluster, so suite-level counts are not a
+    Bernoulli rate** and the "~1 in 270 boots" framing above should not be read as one. The
+    host-load confound called "weak" in the summary row was in fact the cause.
+  - **A reproducible correlate, mechanism unestablished.** All three failures carry `svc-fault` at
+    slot **15** — both as the `[task#15 svc-fault]` console marker and as `"task":15` on the
+    `task.fault` record — against **21** in passing `dma` and `mmio` controls and **16** in `svc`.
+    It **precedes** the stall, so it is not a consequence of it. Recorded as a correlate, not a
+    mechanism. *(The same comparison asserted before 2026-11-03 was unsourced: the 2026-10-31 logs
+    carry no `"task"` field at all, the drain having hardcoded `0xFFFF` until R1 on 2026-11-01. It
+    was an unsourced claim that later turned out to be true.)*
+  - **What is closed and what is not.** The cause is established; **the behaviour is not fixed**,
+    deliberately. A healthy-but-slow device still fails the boot, because `do_io`'s budget is a
+    round count that cannot express "wait up to N milliseconds" — **E-106**, whose remedy is an ABI
+    addition held for 0.42. **The bound is not raised**: a *passing* boot already reached 61% of it,
+    so any constant is arbitrary, and raising it would be a workaround preserved in the
+    architecture. Disclosed instead as **row 19** of `docs/src/releasing/v1-limitations.md` — the
+    implementation handoff asked for that question to be confirmed at closure rather than assumed,
+    and the answer is that a row **is** owed, because closing without a fix leaves a real
+    user-visible behaviour.
+
 ## E-105 — `storaged` writes every sector to LBA 0, shifted and truncated, while `init` reports success
 
 - **Found 2026-11-01 by the implementer of RFC-0.41-006**, in passing while establishing E-104's
@@ -7950,7 +7998,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-101 the attestation record's remaining unqualified placeholders — keyring epochs `1`/`1`/`0`, `snapshot_id "SN000001"` and reason `0`, `health.status`, `rollback.last_advance_source`, `freshness.key_epoch` — read as state nothing computes. Not E-094's shape (none asserts an operation succeeded); the counter pair, which did, is fixed in the fix-forward to RFC-0.40-001. Closed by RFC-0.41-003: the encoder zeroes every flag-and-value pair, and each of the five remaining placeholder claims carries its own availability byte at `SCHEMA_VERSION` 3 -> 4 | RFC-0.41-003 | CLOSED |
 | E-102 `auditd` drains the kernel ring once at start-up and then only on a message nothing sends, so the audit trail stops at boot — plus a latent shared-receive-object hazard (twenty images hold slot 0 against object 0, each with SEND; two receive on it, `auditd` and `netd`; nothing sends to it today) and the `TaskSwitch` record volume, the discarded per-drain drop count and a drain that copies at most 64 of 256 pending records. Direction decided 2026-10-30 by the architect on the owner's delegation: a kernel-side wake (`AuditWait`, modelled on `IrqWait`), drain until empty, no endpoint; the earlier periodic-drain recommendation is withdrawn. The receiver figure was corrected 2026-10-31: three images received on slot 0, not two — `configd` (missed) and `netd` (dead code). Closed by RFC-0.41-001 (the drain) and RFC-0.41-002 (the shared object) | 0.41 | CLOSED |
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
-| E-104 the `mmio` tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — at **2 failures in 19** full-suite runs on the 0.41 line (~1 in 270 boots), after E-097's cause was fixed and while its boot invariant did not fire. **Reproduced** 2026-10-31: run 8 of 8 failed in **`svc`** while `mmio` passed, so it is not tier-specific; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. A `task.fault` at sepc `0x400aa` precedes both failures and is absent from controlled passing runs. E-097's second shape, whose "not reproduced" inference this supersedes. Not reproduced in 12 isolated runs (6 of them under deliberate heavy host load) or 2 CI runs; the host-load confound is weak, because every other tier in the failing run ran at its normal duration | RFC-0.41-006 | OPEN |
+| E-104 a tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — after E-097's cause was fixed and while its boot invariant did not fire. Not tier-specific: seen in `mmio`, `svc`, `dma`, `capability` and `audit`; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. E-097's second shape, whose "not reproduced" inference this supersedes. **Cause established 2026-11-03** from three natural captures: the host does not complete a published write within `do_io`'s **500,000-round** budget, while the device stays healthy (`status=0x07`, `used == prev`, `avail == prev + 1`, `req_status=0xff`). The poll spans **1,004,789** and **1,004,892** traps in two captures where 65 of 73 round-trips in the same boot cost **3 or 6** and a matched passing control never exceeds **271** — so the stall is ~5 orders of magnitude beyond normal and "the bound ran out fast" is excluded. One capture holds two **near-misses that completed**, at 18% and **61%** of the budget: a threshold crossing on host latency, which degrades with accumulated host state, so **failures cluster and suite counts are not a Bernoulli rate**. Two earlier claims in this row were wrong and are withdrawn: the `task.fault` at `sepc 0x400aa` is `svc-fault`'s deliberate test and occurs in passing runs, and the host-load confound called weak **was the cause**. **No guest defect; deliberately not fixed** — the budget cannot express a duration (E-106, ABI, 0.42), the bound is not raised, and the residual behaviour is disclosed as row 19 of `v1-limitations.md` | RFC-0.41-006 | CLOSED |
 | E-105 `storaged` discards the first data word of every message as a badge, so `WRITE_BEGIN` reads the LBA's high word only — **every write lands at sector 0** — and `WRITE_CHUNK` copies `[w1, w2, w3, 0]` with a **hard-coded** fourth word, losing 8 bytes of every 32 and zeroing 8 more, while `init` prints `block write ok`. Latent: nothing reads the store back (`READ_CHUNK` is a placeholder). The `store` tier, the only gate over it, is NOT-GATED | 0.42 | ACCEPTED |
 | E-106 Fjell exposes **no notion of time to user space** — no syscall returns a clock or a counter, and the kernel never arms the timer or reads `mtime`, so no service can express a duration. `storaged`'s `do_io` substitutes a count of **500,000 `sys_yield` rounds** and prints its expiry as `io timeout`: a name claiming a property the code does not implement. Bounded, not unbounded — where it fires the count outlasts about a second of wall time (figures derived from the throttle rate, not measured) — but the remedy is an **ABI addition**, which must not be chosen under a cut. Two shapes already refused: publishing the audit trap counter as ABI, and returning it in `sys_yield`'s unused `a1`. **The misleading word is not deferred with the ABI:** the line is reworded to say what the code did, in 0.41, after E-104's hunt concludes | 0.42 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |

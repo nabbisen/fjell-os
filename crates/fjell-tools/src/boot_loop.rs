@@ -9,9 +9,13 @@
 //! the time one `test-all` takes.
 //!
 //! **It is an instrument, and an instrument must be shown to see the thing it measures.**
-//! E-104 was seen about once in 270 suite boots. This harness has *not* reproduced that rate
+//! E-104 was seen at roughly one suite in ten. This harness has *not* reproduced that rate
 //! on the unfixed tree (see the RFC-0.41-006 review request for the runs and what they
-//! rule out), so a clean count from it is **not** evidence that a fix works. It does
+//! rule out), so a clean count from it is **not** evidence that a fix works. **Since
+//! 2026-11-03 that limitation has a reason**: E-104's cause is a host write-latency outlier,
+//! and the latency degrades with accumulated host state, so failures cluster. Boots of a
+//! twentieth of a second never accumulate any — which is exactly why ~25,000 of them caught
+//! nothing while a long sequence of full suites caught three in one day. It does
 //! reproduce the failure's signature on demand when the disk is made slow enough
 //! (`--drive-extra ,throttling.bps-total=50`), which is what makes it a harness for the
 //! *mechanism* and not yet one for the *rate*.

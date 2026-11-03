@@ -524,8 +524,9 @@ Three independent lines, all drafted for this milestone and all shipped in it.
 ## Accepted (accepted/) — 6 RFCs
 
 0.41's line. 0.41-001 through -005 were accepted 2026-10-30 and are **all complete**;
-**0.41-006 was accepted 2026-10-31 and blocks the cut** — E-104 is OPEN and Gate 7 refuses
-the rehearsal until it has a cause. The milestone's sentence is **the trail reaches
+**0.41-006 was accepted 2026-10-31 and no longer blocks the cut** — E-104 was **closed on a
+cause** 2026-11-03 (a host write that does not complete inside `do_io`'s 500,000-round budget,
+captured naturally three times), so Gate 7 passes; the behaviour itself is disclosed, not fixed. The milestone's sentence is **the trail reaches
 someone, and says when it did not**: 0.41-001 and 0.41-002 are the two halves of
 **E-102**, and 0.41-002 lands after 0.41-001 because that line removes `auditd`
 from the shared endpoint object as a consequence of its redesign. The other three

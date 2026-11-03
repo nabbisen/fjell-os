@@ -2,9 +2,12 @@
 
 **Status:** Accepted — accepted 2026-10-31
 **Milestone:** 0.41
-**Tracks.** **E-104** — about **1 boot in 270**, a task faults at `sepc 0x400aa`, `init`'s M6
-block write then fails, `init` calls `sys_exit(1)`, and whichever QEMU profile is running fails on
-the forbidden `TEST:<milestone>:FAIL` marker. **This blocks the 0.41.0 cut** (Gate 7).
+**Tracks.** **E-104** — intermittently, `init`'s M6 block write fails, `init` calls
+`sys_exit(1)`, and whichever QEMU profile is running fails on the forbidden
+`TEST:<milestone>:FAIL` marker. **This blocked the 0.41.0 cut** (Gate 7) until **E-104 was closed
+on a cause, 2026-11-03** — see the amendment at the end. *(Two framings in this sentence were
+wrong and are corrected where they stand: the `sepc 0x400aa` fault is `svc-fault`'s deliberate
+test and occurs in passing runs, and "1 boot in 270" reads a clustered failure as a steady rate.)*
 **Touches** *(indicative)*: `crates/services/fjell-auditd/src/main.rs`,
 `crates/fjell-kernel/src/trap/fault.rs`, `crates/fjell-kernel/src/main.rs` (the boot invariant),
 `crates/fjell-kernel/src/mm/`, `crates/fjell-frame-alloc/`, `tests/qemu/`, `rfcs/ERRATA.md`.
@@ -279,11 +282,45 @@ An instrument that loses this much cannot be trusted to catch a 1-in-270 event o
 ### What this means for the line
 
 **Nothing further is required of the implementer on RFC-0.41-006.** The instrument that decides
-E-104's remaining question is already in the tree: the `io timeout` line's `status`, `isr`, `avail`,
-`used`, `prev` and `req_status` separate "the device had the request and did not finish" from "the
-device or the queue memory is wrong". **The hunt resumes on the tree as it stands**, and it is the
+E-104's remaining question is already in the tree: the failure line's `status`, `avail`, `used`,
+`prev` and `req_status` separate "the device had the request and did not finish" from "the device
+or the queue memory is wrong". *(Two corrections, 2026-11-03: `isr` was listed here as part of that
+set and is not — bit 0 latches on the first completion and this driver never acknowledges it; and
+the line is now `storaged: io incomplete after N poll rounds`, over two console lines, since one
+line of it exceeded the kernel's 160-byte `DBG_LINE` and was cut inside a field.)* **The hunt resumes on the tree as it stands**, and it is the
 architect's to run. Stopping it for R7 bought nothing; that cost is the architect's too.
 
 The absence R7 ran into is not a defect of this line and is not fixed inside it: **no service can
 express a duration, because Fjell exposes no notion of time to user space at all.** Filed as
 **E-106**, ACCEPTED, 0.42 — an ABI addition decided on its own merits, not under a cut.
+
+---
+
+## Amendment 5 — E-104 is closed on a cause (architect, 2026-11-03, on the owner's approval)
+
+**This RFC's purpose is served.** E-104 said what would close it was a cause, and there is one.
+
+**Three natural failures were captured on 2026-11-03** with this RFC's classifying line in place —
+one by the architect's hunt (run 15 of 20, `dma`) and two by the implementer in consecutive full
+suites (`capability`, `audit`). All three printed the same shape: the device **healthy**
+(`status=0x07`, neither `NEEDS_RESET` nor `FAILED`), the request **published and outstanding**
+(`used == prev`, `avail == prev + 1`, `req_status` still `0xff`), on a write at lba 0.
+
+**The measurement this RFC spent R7 chasing was already free in the trail.** The audit records
+bracket the poll, and in two captures the span is **1,004,789** and **1,004,892** traps — within
+103 of each other. The discriminating comparison is **within the same boot**: 65 of 73 `storaged`
+round-trips cost **3 or 6** traps, and a matched passing control never exceeds **271**. One capture
+holds two **near-misses that completed**, at **18%** and **61%** of the budget.
+
+So: a host write-completion outlier, crossing a fixed round budget, with no guest defect. **R7 was
+withdrawn for the right reason and would also have failed for a better one** — the quantity it
+asked for is saturated by the instrument, since the poll's own 500,000 rounds dominate any trap
+delta whether the stall is one second or twenty.
+
+**What this RFC did not achieve, and should not have been asked to.** The behaviour is **not
+fixed**: a healthy-but-slow device still fails the boot. The budget cannot express a duration —
+**E-106**, an ABI addition held for 0.42 — and the bound is **not raised**, because a passing boot
+already reached 61% of it. Disclosed as **row 19** of `docs/src/releasing/v1-limitations.md`.
+
+**One correlate, recorded without a mechanism.** All three failures carry `svc-fault` at slot
+**15**, against 21 in passing `dma` and `mmio` and 16 in `svc`. It precedes the stall.

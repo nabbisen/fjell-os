@@ -1,7 +1,7 @@
 # Developer Handoff — RFC-0.41-006
 
 **Governing RFC:** [RFC-0.41-006](../../accepted/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md)
-**Milestone:** 0.41 · **Blocks the cut** — E-104 is OPEN and Gate 7 refuses the rehearsal
+**Milestone:** 0.41 · **No longer blocks the cut** — E-104 was closed on a cause 2026-11-03 and Gate 7 passes
 **Status:** inherited from the governing RFC (Accepted, 0.41)
 **Audience:** implementation model
 
@@ -98,6 +98,13 @@ two-build mode) · `abi-snapshot --verify` — regenerate **before** the rehears
 to work around. **Closing E-104 is the architect's call**, on a cause — and `v1-limitations.md` has
 no E-104 row to rewrite because OPEN errata carry no row obligation; confirm that at closure rather
 than assuming it.
+
+> **Confirmed at closure, architect 2026-11-03:** E-104 is closed on a cause and a row **is** owed
+> after all — **row 19**. The reasoning above was right that an OPEN entry carries no row
+> obligation, and incomplete about what closing one implies: this entry closes **with the behaviour
+> unfixed by design**, so the residual — a healthy-but-slow disk fails the boot at M6 — becomes a
+> standing property of v1 and belongs in the limitations page. A closure that fixes nothing still
+> owes the reader a row.
 
 ## 4. Escalate rather than decide
 
