@@ -55,6 +55,12 @@ const DEFAULT_TARGETS: &[&str] = &[
     "crates/fjell-kernel/prebuilt", // directory: all *.bin inside
 ];
 
+/// Where the two-build check keeps both builds' artefacts, so that a mismatch can be
+/// diagnosed from the binaries and not only from their digests (E-107). Under
+/// `.git-exclude/`, which the repository ignores. Created for every two-build run and
+/// removed again on a pass, so a directory that exists is evidence of a mismatch.
+const RETAIN_DIR: &str = ".git-exclude/repro-check";
+
 /// The one target triple `DEFAULT_TARGETS` is built for. Used to scope the
 /// clean between the two builds to exactly the artefacts under test, leaving
 /// the host build cache (this tool's own binary included) warm.
@@ -171,6 +177,11 @@ fn two_build_check(args: &[String]) -> ExitCode {
     }
     let build_1_elapsed = t0.elapsed();
     let digests_1 = collect_digests();
+    // E-107: the clean below destroys build 1's artefacts, so the copy has to be taken
+    // *here*, before it -- we cannot yet know whether there will be a mismatch. Evidence
+    // collection never changes the verdict: a failure to retain is a warning.
+    let retain = Path::new(RETAIN_DIR);
+    start_retention(retain, &digests_1, Path::new("."));
 
     // Build #2 — cleaned again first. Without this, the second build is an
     // incremental no-op against build 1's own output: the defect this line
@@ -197,7 +208,109 @@ fn two_build_check(args: &[String]) -> ExitCode {
         TARGET_TRIPLE,
     );
 
-    compare_and_report(digests_1, digests_2)
+    let result = compare_and_report(digests_1.clone(), digests_2.clone());
+    finish_retention(
+        retain,
+        &digests_1,
+        &digests_2,
+        Path::new("."),
+        result == ExitCode::SUCCESS,
+    );
+    result
+}
+
+// ── Evidence retention (E-107) ────────────────────────────────────────────────
+
+/// Copy every artefact in `digests` from `root` to `dest`, mirroring its path.
+fn copy_artefacts(
+    digests: &BTreeMap<String, String>,
+    root: &Path,
+    dest: &Path,
+) -> std::io::Result<usize> {
+    let mut n = 0;
+    for rel in digests.keys() {
+        let to = dest.join(rel);
+        if let Some(parent) = to.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::copy(root.join(rel), &to)?;
+        n += 1;
+    }
+    Ok(n)
+}
+
+/// Before build 2's clean: copy build 1's artefacts to `<retain>/build1/`.
+///
+/// A previous run's mismatch capture (a `<retain>/build2/`) is **moved aside, not
+/// overwritten**: the flake this exists for is about one run in eighteen, and the
+/// ordinary next move is to run the check again. A rerun that passes would otherwise
+/// delete the only copy of the failing pair.
+fn start_retention(retain: &Path, digests_1: &BTreeMap<String, String>, root: &Path) {
+    if retain.join("build2").exists() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let aside = retain.with_file_name(format!("repro-check-previous-{stamp}"));
+        match fs::rename(retain, &aside) {
+            Ok(()) => eprintln!(
+                "fjell-repro-check: a previous mismatch capture was found; kept at {}",
+                aside.display()
+            ),
+            Err(e) => eprintln!(
+                "fjell-repro-check: WARNING — a previous mismatch capture exists at {} and \
+                 could not be moved aside ({e}); it may be overwritten",
+                retain.display()
+            ),
+        }
+    }
+    let _ = fs::remove_dir_all(retain.join("build1"));
+    if let Err(e) = copy_artefacts(digests_1, root, &retain.join("build1")) {
+        eprintln!(
+            "fjell-repro-check: WARNING — could not retain build 1's artefacts under {} ({e}); \
+             a mismatch will have only build 2 to show. The verdict is unaffected.",
+            retain.display()
+        );
+    }
+}
+
+/// After the comparison. On a pass, remove what `start_retention` created (and the
+/// directory itself only if it is then empty, so an earlier capture kept inside is
+/// never touched). On a mismatch, also copy build 2's artefacts, and print the retained
+/// paths and the **full** digests of every artefact that differs (the report above
+/// truncates to eight characters, which reads well and is insufficient as a record).
+fn finish_retention(
+    retain: &Path,
+    digests_1: &BTreeMap<String, String>,
+    digests_2: &BTreeMap<String, String>,
+    root: &Path,
+    passed: bool,
+) {
+    if passed {
+        let _ = fs::remove_dir_all(retain.join("build1"));
+        let _ = fs::remove_dir(retain); // only if empty
+        return;
+    }
+    if let Err(e) = copy_artefacts(digests_2, root, &retain.join("build2")) {
+        eprintln!(
+            "fjell-repro-check: WARNING — could not retain build 2's artefacts ({e}); \
+             the verdict is unaffected."
+        );
+    }
+    eprintln!(
+        "fjell-repro-check: both builds' artefacts retained for diagnosis:\n  build 1: {}\n  build 2: {}",
+        retain.join("build1").display(),
+        retain.join("build2").display()
+    );
+    for (path, d1) in digests_1 {
+        match digests_2.get(path) {
+            Some(d2) if d1 != d2 => {
+                eprintln!("  {path}\n    build1={d1}\n    build2={d2}");
+            }
+            None => eprintln!("  {path}\n    build1={d1}\n    build2=<absent>"),
+            _ => {}
+        }
+    }
 }
 
 /// Removes this target triple's release artefacts only — not the whole
@@ -598,6 +711,120 @@ mod tests {
         let b = BTreeMap::new(); // build 2 is empty
         let result = compare_and_report(a, b);
         assert_eq!(result, ExitCode::FAILURE);
+    }
+
+    // ── E-107: evidence retention ───────────────────────────────────────────────
+
+    fn scratch(tag: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!(
+            "fjell-repro-retain-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// A workspace with two artefacts, and their digests.
+    fn workspace(tag: &str) -> (PathBuf, BTreeMap<String, String>) {
+        let root = scratch(tag);
+        let mut m = BTreeMap::new();
+        for (rel, bytes) in [
+            (
+                "target/riscv64gc-unknown-none-elf/release/fjell-kernel",
+                &b"kernel-A"[..],
+            ),
+            ("crates/fjell-kernel/prebuilt/x.bin", &b"x-A"[..]),
+        ] {
+            let p = root.join(rel);
+            fs::create_dir_all(p.parent().unwrap()).unwrap();
+            fs::write(&p, bytes).unwrap();
+            m.insert(rel.to_string(), sha256_hex(bytes));
+        }
+        (root, m)
+    }
+
+    #[test]
+    fn a_mismatch_retains_both_trees() {
+        let (root, d1) = workspace("mm");
+        let retain = root.join(".git-exclude/repro-check");
+        start_retention(&retain, &d1, &root);
+        // build 2: a different kernel, same prebuilt
+        let k = "target/riscv64gc-unknown-none-elf/release/fjell-kernel";
+        fs::write(root.join(k), b"kernel-B").unwrap();
+        let mut d2 = d1.clone();
+        d2.insert(k.into(), sha256_hex(b"kernel-B"));
+        finish_retention(&retain, &d1, &d2, &root, false);
+        assert_eq!(
+            fs::read(retain.join("build1").join(k)).unwrap(),
+            b"kernel-A"
+        );
+        assert_eq!(
+            fs::read(retain.join("build2").join(k)).unwrap(),
+            b"kernel-B"
+        );
+        assert!(
+            retain
+                .join("build1/crates/fjell-kernel/prebuilt/x.bin")
+                .exists()
+        );
+    }
+
+    #[test]
+    fn a_pass_leaves_nothing_behind() {
+        let (root, d1) = workspace("pass");
+        let retain = root.join(".git-exclude/repro-check");
+        start_retention(&retain, &d1, &root);
+        assert!(retain.join("build1").exists(), "retained during the run");
+        finish_retention(&retain, &d1, &d1.clone(), &root, true);
+        assert!(!retain.exists(), "a pass must leave no directory");
+    }
+
+    #[test]
+    fn a_pass_never_touches_an_earlier_mismatch_capture() {
+        let (root, d1) = workspace("keep");
+        let retain = root.join(".git-exclude/repro-check");
+        // an earlier run's capture
+        fs::create_dir_all(retain.join("build2")).unwrap();
+        fs::write(retain.join("build2/evidence"), b"precious").unwrap();
+        start_retention(&retain, &d1, &root);
+        finish_retention(&retain, &d1, &d1.clone(), &root, true);
+        let moved: Vec<_> = fs::read_dir(root.join(".git-exclude"))
+            .unwrap()
+            .flatten()
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("repro-check-previous-")
+            })
+            .collect();
+        assert_eq!(moved.len(), 1, "the earlier capture is kept, set aside");
+        assert_eq!(
+            fs::read(moved[0].path().join("build2/evidence")).unwrap(),
+            b"precious"
+        );
+        assert!(!retain.exists());
+    }
+
+    #[test]
+    fn retention_failing_cannot_change_the_verdict() {
+        // An unwritable destination: the parent is a *file*, so no directory can be made.
+        let (root, d1) = workspace("unwritable");
+        let blocker = root.join(".git-exclude");
+        fs::write(&blocker, b"not a directory").unwrap();
+        let retain = blocker.join("repro-check");
+        start_retention(&retain, &d1, &root); // must not panic
+        finish_retention(&retain, &d1, &d1.clone(), &root, true); // must not panic
+        finish_retention(&retain, &d1, &BTreeMap::new(), &root, false);
+        // and the comparison, which is what decides, is untouched by any of it
+        assert_eq!(
+            compare_and_report(d1.clone(), d1.clone()),
+            ExitCode::SUCCESS
+        );
+        assert_eq!(compare_and_report(d1, BTreeMap::new()), ExitCode::FAILURE);
     }
 
     #[test]
