@@ -7628,10 +7628,16 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **The next datum, and the instrument for it.** `storaged`'s `do_io` now prints once on the timeout
   path: `storaged: io timeout lba=… status=… isr=… avail=… used=… prev=… hdr_type=… req_status=…`.
   The throttled control prints `avail=1 used=0 prev=0 req_status=0xff` — a request the device was
-  given and did not finish. **A natural failure printing `status & 0x40|0x80` or `isr=1` means the
-  device or the queue memory is wrong, which is the E-097 class and would redirect this line;** one
-  printing the control's shape means the request was outstanding and the stall is below the guest.
-  Until a natural failure is captured with this line in place, the cause is open between those two.
+  given and did not finish. **A natural failure printing `status & 0x40|0x80` means the device or
+  the queue memory is wrong, which is the E-097 class and would redirect this line;** one printing
+  the control's shape means the request was outstanding and the stall is below the guest.
+  **Correction, architect 2026-11-03: this bullet first named `isr=1` as part of that
+  discriminator, and that was wrong.** `storaged` never writes InterruptACK (`0x64`) — there is no
+  such write in the service — so `InterruptStatus` bit 0 latches on the **first** completion of the
+  boot and stays set. `isr` says nothing about the request that stalled, and the natural failure
+  caught on 2026-11-03 printed `isr=0x01` with three prior completions (`used=3`), which by the
+  original wording would have redirected E-104 to a class it has nothing to do with. The field is
+  still dumped; it is not a discriminator.
 - *(Superseded — kept so the correction above can be found from it.)* **A lead, controlled: a task fault at the same PC precedes both failures.** Both failing logs carry
   exactly one `{"kind":"task.fault","arg0":262314,"arg1":0}`, a few lines before the error in `svc`
   and ~112 lines before it in `mmio`. `arg0` is `tf.sepc` and `arg1` is `tf.stval`
@@ -7689,10 +7695,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     churning files — nothing near the seconds the mechanism needs.
   - **`storaged` now reports the device on a timeout** — `storaged: io timeout lba=… status=…
     isr=… avail=… used=… prev=… hdr_type=… req_status=…` — so the next natural failure classifies
-    itself: `status=0x07, isr=0, used==prev, avail==prev+1` is a request the device was given and
-    did not finish (a stall); `status & 0x40` or `0x80`, or `isr=1`, is the device or the queue
+    itself: `status=0x07, used==prev, avail==prev+1, req_status==0xff` is a request the device was
+    given and did not finish (a stall); `status & 0x40` or `0x80` is the device or the queue
     memory being wrong (the E-097 class). The stall signature above is what the throttled control
-    prints.
+    prints. *(Corrected 2026-11-03: `isr` was first listed in both halves of this discriminator and
+    belongs in neither — bit 0 latches on the first completion and this driver never acknowledges
+    it. See the correction in E-104's notes.)*
   - **A defect found in passing, not touched:** `storaged` takes its LBA from the wrong message
     words (`recv_call` returns the first word as `_badge` and the handler reads `w1`/`w2`), so every
     write lands at sector 0, and a chunk's first word is dropped. It is unrelated to the stall.
