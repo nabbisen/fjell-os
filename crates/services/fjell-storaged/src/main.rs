@@ -160,7 +160,13 @@ unsafe fn used_idx(va: usize) -> u16 {
     unsafe { core::ptr::read_volatile((va + OFF_USED + 2) as *const u16) }
 }
 
-// ── What a timed-out I/O looks like (RFC-0.41-006, E-104) ────────────────────
+// ── What an I/O that did not complete looks like (RFC-0.41-006, E-104) ───────
+
+/// How many times `do_io` polls the used ring before giving up. **A count of poll rounds,
+/// not a duration**: each round is a `sys_yield`, so the wall time it allows depends on how
+/// often this service is rescheduled, and Fjell gives user space no clock to say otherwise
+/// (E-106). The single copy of the bound; the failure line prints the count actually reached.
+const POLL_ROUNDS: u32 = 500_000;
 
 /// Print `v` as `0x` and eight hex digits.
 fn put_hex(v: u32) {
@@ -172,20 +178,45 @@ fn put_hex(v: u32) {
     }
 }
 
+/// Print `v` in decimal. For counts; a register value is printed with [`put_hex`].
+fn put_dec(mut v: u32) {
+    let mut buf = [0u8; 10];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for b in &buf[i..] {
+        fjell_syscall::sys_debug_write_byte(*b);
+    }
+}
+
 /// An I/O did not complete within the poll budget. Say what the device and the queue
 /// look like, **once, on the failure path only** -- nothing here runs when an I/O
 /// succeeds, and it allocates nothing.
 ///
 /// This exists so that the next failure classifies itself. `status` has bit `0x40`
 /// (`NEEDS_RESET`) or `0x80` (`FAILED`) set when the device itself decided the queue
-/// was bad, which is a memory-corruption signature; `0x07` with `used == prev` and
-/// `avail == prev + 1` is a request the device was given and never finished, which is
-/// a slow or stalled host. Which of the two it is decides where E-104's cause is.
+/// was bad, which is a memory-corruption signature; `0x07` with `used == prev`,
+/// `avail == prev + 1` and `req_status` still `0xff` is a request the device was given
+/// and never completed, which is a slow or stalled host. Which of the two it is decides
+/// where E-104's cause is.
+///
+/// `isr` is dumped but **is not a discriminator**: its bit 0 (`VRING`) latches on the
+/// first completion of the boot and this driver never writes InterruptACK, so it stays
+/// set and says nothing about the request that stalled.
+///
+/// `rounds` is the number of poll rounds actually spent, printed as a count with its
+/// unit. No duration is claimed: none was measured, and nothing here can measure one.
 ///
 /// # Safety
 /// `mmio` and `va` are this driver's mapped device window and DMA page.
 // SAFETY: category=raw-pointer-deref reads of this driver's own mapped MMIO window and DMA page.
-unsafe fn report_io_timeout(mmio: usize, va: usize, lba: u64, prev: u16) {
+unsafe fn report_io_incomplete(mmio: usize, va: usize, lba: u64, prev: u16, rounds: u32) {
     // Each read below is a status read -- it only observes; nothing is written to the device.
     // SAFETY: category=raw-pointer-deref reads of this driver's own mapped MMIO window and DMA page.
     let (status, isr, avail, used, hdr_ty, hdr_st) = unsafe {
@@ -202,7 +233,9 @@ unsafe fn report_io_timeout(mmio: usize, va: usize, lba: u64, prev: u16) {
         let hdr_st = core::ptr::read_volatile((va + OFF_STATUS) as *const u8);
         (status, isr, avail, used, hdr_ty, hdr_st)
     };
-    sys_debug_write("storaged: io timeout lba=");
+    sys_debug_write("storaged: io incomplete after ");
+    put_dec(rounds);
+    sys_debug_write(" poll rounds lba=");
     put_hex(lba as u32);
     sys_debug_write(" status=");
     put_hex(status);
@@ -267,9 +300,9 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
                 break;
             }
             t += 1;
-            if t >= 500_000 {
+            if t >= POLL_ROUNDS {
                 // SAFETY: category=raw-pointer-deref this driver's own mapped window and DMA page.
-                unsafe { report_io_timeout(mmio, va, lba, prev) };
+                unsafe { report_io_incomplete(mmio, va, lba, prev, t) };
                 return false;
             }
             // Ring doorbell again every 1000 iterations to retrigger if missed
