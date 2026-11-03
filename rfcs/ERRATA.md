@@ -7799,6 +7799,48 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
     and the answer is that a row **is** owed, because closing without a fix leaves a real
     user-visible behaviour.
 
+## E-107 — two clean builds of the kernel produced different binaries, once in eighteen runs
+
+- **Observed 2026-11-03 by the architect**, while gating E-104's closure. `cargo run -p
+  fjell-repro-check` reported:
+
+  ```
+  fjell-repro-check: FAIL — 1 mismatch(es):
+    DIGEST DIFFERS: target/riscv64gc-unknown-none-elf/release/fjell-kernel
+    build1=18a2785f
+    build2=f856200d
+  ```
+
+  Each build is preceded by `cargo clean --release --target riscv64gc-unknown-none-elf`, so these
+  are two independent builds of the same tree, and the tool's own message confirms they are not an
+  incremental no-op. **The gate's central assertion failed on its own terms.**
+- **Rate: 1 failure in 18 runs** on one tree (~6%), the other 17 reporting `PASS (34 artefacts
+  identical)`. The failing artefact is one of those 34; the kernel is a release artefact even
+  though `tests/repro/baseline-digests.txt` records only the 33 prebuilts.
+- **What this contradicts.** `docs/src/releasing/reproducibility.md` states that *all* release
+  artefacts are bit-for-bit reproducible given the same toolchain and `RUSTFLAGS`. One unexplained
+  counterexample makes that claim false as written.
+- **One hypothesis tested and refuted.** The failure was the first run after a service source edit,
+  so "a source edit leaves the target tree in a state the clean does not cover" was tested
+  directly: a no-op comment was appended to `fjell-storaged/src/main.rs`, `repro-check` was run, and
+  it **passed**; the source was then restored `cmp`-identically. **Not that.**
+- **The leading alternative, and why it is not an excuse.** This host was shown today — E-104 — to
+  stall I/O completion intermittently, on a **92%-full btrfs over dm-crypt**. A build whose output
+  is written or read across such a stall could plausibly digest short or stale. That would make the
+  defect the **gate's reliability on this host** rather than the kernel's determinism. **Both
+  readings are serious and neither is established**, which is exactly why this is OPEN and not
+  ACCEPTED: by this register's own usage, OPEN means unexplained.
+- **Why it is filed rather than noted.** Gate 7 refuses a cut while anything is unexplained, and
+  that is the gate working as intended. Classifying an unexplained reproducibility failure as
+  "understood and deferred" to keep a cut moving would be a fiction in the one place the project
+  makes a verifiable security claim. **It re-blocks the 0.41.0 cut, deliberately.**
+- **The fast path to closing it is an instrument change, not a kernel investigation.**
+  `fjell-repro-check` discards both artefacts on mismatch, so a one-byte timestamp difference and a
+  structurally different binary are indistinguishable after the fact. **Retain both binaries (and
+  their `.d`/link inputs) on mismatch**, then the next occurrence is diagnosable on sight — and if
+  it never recurs under deliberate host I/O pressure, that itself is evidence. Until then the cause
+  is open between the two readings above. *Not reproduced on demand; no mechanism claimed.*
+
 ## E-105 — `storaged` writes every sector to LBA 0, shifted and truncated, while `init` reports success
 
 - **Found 2026-11-01 by the implementer of RFC-0.41-006**, in passing while establishing E-104's
@@ -8001,6 +8043,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-104 a tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — after E-097's cause was fixed and while its boot invariant did not fire. Not tier-specific: seen in `mmio`, `svc`, `dma`, `capability` and `audit`; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. E-097's second shape, whose "not reproduced" inference this supersedes. **Cause established 2026-11-03** from three natural captures: the host does not complete a published write within `do_io`'s **500,000-round** budget, while the device stays healthy (`status=0x07`, `used == prev`, `avail == prev + 1`, `req_status=0xff`). The poll spans **1,004,789** and **1,004,892** traps in two captures where 65 of 73 round-trips in the same boot cost **3 or 6** and a matched passing control never exceeds **271** — so the stall is ~5 orders of magnitude beyond normal and "the bound ran out fast" is excluded. One capture holds two **near-misses that completed**, at 18% and **61%** of the budget: a threshold crossing on host latency, which degrades with accumulated host state, so **failures cluster and suite counts are not a Bernoulli rate**. Two earlier claims in this row were wrong and are withdrawn: the `task.fault` at `sepc 0x400aa` is `svc-fault`'s deliberate test and occurs in passing runs, and the host-load confound called weak **was the cause**. **No guest defect; deliberately not fixed** — the budget cannot express a duration (E-106, ABI, 0.42), the bound is not raised, and the residual behaviour is disclosed as row 19 of `v1-limitations.md` | RFC-0.41-006 | CLOSED |
 | E-105 `storaged` discards the first data word of every message as a badge, so `WRITE_BEGIN` reads the LBA's high word only — **every write lands at sector 0** — and `WRITE_CHUNK` copies `[w1, w2, w3, 0]` with a **hard-coded** fourth word, losing 8 bytes of every 32 and zeroing 8 more, while `init` prints `block write ok`. Latent: nothing reads the store back (`READ_CHUNK` is a placeholder). The `store` tier, the only gate over it, is NOT-GATED | 0.42 | ACCEPTED |
 | E-106 Fjell exposes **no notion of time to user space** — no syscall returns a clock or a counter, and the kernel never arms the timer or reads `mtime`, so no service can express a duration. `storaged`'s `do_io` substitutes a count of **500,000 `sys_yield` rounds** and prints its expiry as `io timeout`: a name claiming a property the code does not implement. Bounded, not unbounded — where it fires the count outlasts about a second of wall time (figures derived from the throttle rate, not measured) — but the remedy is an **ABI addition**, which must not be chosen under a cut. Two shapes already refused: publishing the audit trap counter as ABI, and returning it in `sys_yield`'s unused `a1`. **The misleading word is not deferred with the ABI:** the line is reworded to say what the code did, in 0.41, after E-104's hunt concludes | 0.42 | ACCEPTED |
+| E-107 two clean builds of `fjell-kernel` produced **different binaries** — `repro-check` reported `build1=18a2785f` / `build2=f856200d`, each build preceded by `cargo clean --release --target`, so not an incremental artefact. **1 failure in 18 runs** on one tree; the other 17 reported 34 artefacts identical. Contradicts `reproducibility.md`'s claim that all release artefacts are bit-for-bit reproducible. One hypothesis tested and **refuted** (a service source edit does not trigger it; probed with a no-op comment, then restored `cmp`-identically). Leading alternative is that this host's established I/O stalls (E-104) corrupt a write or read, which would make it the gate's reliability on this host rather than the kernel's determinism — **neither reading is established, which is why this is OPEN**. Fast path to closure is an instrument change: `repro-check` discards both artefacts on mismatch, so retain them and the next occurrence is diagnosable | 0.41 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
