@@ -184,9 +184,18 @@ order once.
    handoff's own `**Status:** inherited from the governing RFC (…)` line
    still says `Accepted`. Both `doc-links` and `handoff-status` catch this,
    but only *after* the move, so expect Gate 12 red between step 7 and its
-   repair and do not mistake it for a real finding. Two counts to update in
-   `rfcs/README.md`, not one: the `## Implemented (done/) — N files` heading
-   and the `N RFCs plus \`v0.7.x-index.md\`` line. *(Written down at the
+   repair and do not mistake it for a real finding. **Three counts to update in
+   `rfcs/README.md`, not two** — `doc-counts` checks five and the move changes
+   three of them: the `## Implemented (done/) — N files` heading, the
+   `N RFCs plus \`v0.7.x-index.md\`` line (that total **minus** the index page),
+   and the `## Accepted (accepted/) — N RFCs` heading the RFCs left. The move
+   normally empties `accepted/` entirely, and that heading then takes the
+   `— none` form, which the parser reads as 0 — as 0.40.0, 0.39.0 and 0.38.0
+   each did, leaving only the keeper `README.md` behind. *(The third count was
+   added to this sentence at the 0.41.0 preparation, from the gate's own module
+   rather than from a red gate. Every cut so far has updated it correctly
+   without the sentence naming it; naming it stops that depending on the
+   implementer noticing.)* *(Written down at the
    0.31.0 cut. The 0.30.0 cut did all of this correctly and none of it was
    in the procedure, so the second cut rediscovered it from a red gate.)*
 8. **CHANGELOG entry**, dated, under the version being released.
