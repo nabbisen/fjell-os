@@ -229,19 +229,24 @@ handoff said not to decide in code. The escalation is accepted in full.
 
 R5's own throttle control answers it, and the architect failed to read it that way when writing R7.
 
-* At `bps-total=150` (≈3.4 s per request) the poll **did not expire**, 16 of 16. The poll runs until
-  completion, so those 500,000 rounds were **not consumed in 3.4 s of wall time**. That is a measured
-  **floor** on the bound's duration.
-* At `bps-total=50` (≈10 s per request) it expired, 16 of 16 — a **ceiling**.
+* At `bps-total=150` the poll **did not expire**, 16 of 16; at `bps-total=50` it expired, 16 of 16.
+  The poll runs to completion, so 500,000 rounds outlasted whatever the passing setting cost.
+* **The per-request latencies are derived, not measured.** ≈3.4 s and ≈10 s are arithmetic on the
+  throttle rate (512 B ÷ rate); no request was timed, and a leaky bucket does not hand its average
+  to every operation. I first wrote this bracket as a measured floor. It is not one, and the
+  correction matters because the floor is what the whole argument rests on.
+* **The floor worth relying on comes from a different limiter**, which is why it is trustworthy:
+  `iops-total` from 1000 down to **1** — about 1 s per *operation*, not per byte — **passed**, as did
+  `bps-total=400`. Two unlike limiters agree that 500,000 rounds outlast about a second.
 * Both controls run in the same condition as a natural failure in the relevant respect: `init` is
   blocked in a synchronous `IpcCall` on `storaged`, so `storaged` is close to alone on the CPU. That
   is the *fastest* the rounds can ever be spent; anything else runnable makes them slower, never
   faster.
 
-**So the bound is worth between ~3.4 s and ~10 s of wall time, and a natural expiry already means the
-device did not complete one 512-byte write in over three seconds.** The branch R7 was built to
-exclude — *"little wall time passed, the bound is too tight"* — **is excluded by evidence already
-collected.** The field would have cost an ABI item to re-measure what two controls had measured.
+**So a natural expiry already means one 512-byte write did not complete in over a second** — against
+a host write latency measured at **≤18 ms**, roughly 55×. The branch R7 was built to exclude —
+*"little wall time passed, the bound is too tight"* — **is excluded by evidence already collected**,
+and excluded at the conservative floor, without needing the derived 3.4 s figure at all. The field would have cost an ABI item to re-measure what two controls had measured.
 
 A second, independent reading of the same conclusion: the kernel idles in `wfi`
 (`trap/dispatch.rs:384`), so a trap count is work and not spin. The last audit record of a passing

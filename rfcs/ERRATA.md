@@ -7705,12 +7705,24 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   the kernel audit ring and reaches user space only inside a drained record; no syscall exposes a
   clock or a counter. R7's premise was the architect's and was false. **R7 is withdrawn, and the
   question it asked is answered by controls already taken.**
-  - **The bound is worth between ~3.4 s and ~10 s of wall time.** At `bps-total=150` (≈3.4 s per
-    request) the poll did **not** expire, 16 of 16 — and the poll runs until completion, so 500,000
-    rounds were not consumed in 3.4 s. At `bps-total=50` (≈10 s) it expired, 16 of 16. Both controls
-    hold the condition that matters: `init` is blocked in a synchronous `IpcCall`, so `storaged` is
-    near-alone on the CPU, which is the **fastest** those rounds can ever be spent. **Therefore a
-    natural expiry means one 512-byte write did not complete in over three seconds.**
+  - **The bound is worth seconds of wall time, not milliseconds — and the figures are derived, not
+    measured.** At `bps-total=150` the poll did **not** expire, 16 of 16; at `bps-total=50` it
+    expired, 16 of 16. The per-request latencies attached to those settings (≈3.4 s and ≈10 s) are
+    **arithmetic on the throttle rate** (512 B ÷ rate), not an instrumented latency: nobody timed a
+    request, and a leaky bucket does not deliver its average to every operation. **The architect
+    first recorded this bracket as measured; it is not.**
+    - **The conservative floor is the one to rely on, and it comes from a different limiter.**
+      `iops-total` from 1000 down to **1** — about **1 s per operation**, a direct statement about
+      one operation rather than a byte rate — **passed**, as did `bps-total=400`. Two unlike
+      limiters agree that 500,000 rounds outlast about a second.
+    - Both controls hold the condition that matters: `init` is blocked in a synchronous `IpcCall`,
+      so `storaged` is near-alone on the CPU, which is the **fastest** those rounds can ever be
+      spent — anything else runnable makes them slower, never faster. So the floor holds in every
+      condition.
+    - **The conclusion survives at the conservative floor:** a natural expiry means one 512-byte
+      write did not complete in **over a second**, against a host write latency measured at **≤18
+      ms** — roughly 55× — so it is anomalous by any reading, and the branch "the bound is too
+      tight" is dead without needing the 3.4 s figure at all.
   - **Independently:** the kernel idles in `wfi`, so traps are work, not spin; the last audit record
     of a passing `harness` boot carries `tick` **323,040**, so the bound of 500,000 yielded rounds is
     about **1.5× the traps a whole passing boot takes**.
@@ -7793,12 +7805,27 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   of the `WRITE_ERR` it causes — is told the device took too long, when what happened is that a loop
   ran out of turns. That is the design bar's second clause failing on the operator's screen, and it
   is the same class as E-105's `block write ok`: a message that asserts more than the code knows.
-- **Why ACCEPTED and not OPEN.** No live result is wrong beyond what E-104 already tracks, and the
-  substitution is now **measured** rather than unbounded: the bound is worth between ~3.4 s and
-  ~10 s of wall time in the condition where it fires (E-104's `bps-total` controls), so the
-  behaviour is bounded and understood even though its name is wrong. The remedy is an **ABI
-  addition**, and an ABI item is forever — this project retired syscall number 120 rather than
-  reuse it. It must be designed on its own merits and not under a cut.
+- **Why the ABI half is ACCEPTED and not OPEN.** No live result is wrong beyond what E-104 already
+  tracks, and the substitution is bounded rather than open-ended: where it fires the count outlasts
+  about a second of wall time, from E-104's throttle controls (and **those figures are derived from
+  the throttle rate, not measured latencies** — see E-104). So the behaviour is bounded and
+  understood even though its name is wrong. The remedy is an **ABI addition**, and an ABI item is
+  forever — this project retired syscall number 120 rather than reuse it. It must be designed on its
+  own merits and not under a cut.
+- **But the misleading word is not deferred with it, and that is a correction to this entry's first
+  disposition.** The ABI needs design; **the line's text does not.** Leaving `io timeout` in place
+  until 0.42 would be choosing to keep a message the project knows misleads, when the fix costs one
+  string in one service and no ABI at all — and the design bar gives that clause equal weight with
+  correctness. It already misled its own author: RFC-0.41-006 R7 was written because the architect
+  read that word as a duration. **Required for 0.41:** the line says what the code did — the round
+  count, named as a count — and `v1-limitations.md` row 18 follows it.
+  - **Sequenced, not immediate.** That line is the instrument E-104's hunt depends on, and
+    rewriting it mid-hunt changes the thing being measured; it also moves `fjell-storaged.bin`, so
+    the repro baseline is re-recorded in the same commit. It lands **after the hunt concludes and
+    before the 0.41.0 cut**. Checked rather than assumed: **no judge or expected-marker file matches
+    `io timeout`** — the live consumers are the service, its prebuilt, this register, the
+    limitations page and the hunt script — so the rename has no gate consequence beyond the
+    baseline.
 - **What closing it needs.** A decision, on its own line, about whether Fjell offers user space a
   notion of time at all, and if so what: a monotonic duration source read from `mtime` with the
   platform's timebase frequency, capability-gated or deliberately not, with the covert-timing
@@ -7917,7 +7944,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-103 `FrameAllocator::reserve_range` is not all-or-nothing in either direction — it leaves the unreached tail free **and** consumes and relabels the reached head on `Err` — and its doc comment describes a same-owner tolerance the code does not implement. Latent: no caller overlaps. An `#[ignore]`d test carries divergence 1 | RFC-0.41-004 | CLOSED |
 | E-104 the `mmio` tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — at **2 failures in 19** full-suite runs on the 0.41 line (~1 in 270 boots), after E-097's cause was fixed and while its boot invariant did not fire. **Reproduced** 2026-10-31: run 8 of 8 failed in **`svc`** while `mmio` passed, so it is not tier-specific; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. A `task.fault` at sepc `0x400aa` precedes both failures and is absent from controlled passing runs. E-097's second shape, whose "not reproduced" inference this supersedes. Not reproduced in 12 isolated runs (6 of them under deliberate heavy host load) or 2 CI runs; the host-load confound is weak, because every other tier in the failing run ran at its normal duration | RFC-0.41-006 | OPEN |
 | E-105 `storaged` discards the first data word of every message as a badge, so `WRITE_BEGIN` reads the LBA's high word only — **every write lands at sector 0** — and `WRITE_CHUNK` copies `[w1, w2, w3, 0]` with a **hard-coded** fourth word, losing 8 bytes of every 32 and zeroing 8 more, while `init` prints `block write ok`. Latent: nothing reads the store back (`READ_CHUNK` is a placeholder). The `store` tier, the only gate over it, is NOT-GATED | 0.42 | ACCEPTED |
-| E-106 Fjell exposes **no notion of time to user space** — no syscall returns a clock or a counter, and the kernel never arms the timer or reads `mtime`, so no service can express a duration. `storaged`'s `do_io` substitutes a count of **500,000 `sys_yield` rounds** and prints its expiry as `io timeout`: a name claiming a property the code does not implement. Bounded, not unbounded — the count is worth ~3.4 s–10 s of wall time where it fires — but the remedy is an **ABI addition**, which must not be chosen under a cut. Two shapes already refused: publishing the audit trap counter as ABI, and returning it in `sys_yield`'s unused `a1` | 0.42 | ACCEPTED |
+| E-106 Fjell exposes **no notion of time to user space** — no syscall returns a clock or a counter, and the kernel never arms the timer or reads `mtime`, so no service can express a duration. `storaged`'s `do_io` substitutes a count of **500,000 `sys_yield` rounds** and prints its expiry as `io timeout`: a name claiming a property the code does not implement. Bounded, not unbounded — where it fires the count outlasts about a second of wall time (figures derived from the throttle rate, not measured) — but the remedy is an **ABI addition**, which must not be chosen under a cut. Two shapes already refused: publishing the audit trap counter as ABI, and returning it in `sys_yield`'s unused `a1`. **The misleading word is not deferred with the ABI:** the line is reworded to say what the code did, in 0.41, after E-104's hunt concludes | 0.42 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
