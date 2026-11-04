@@ -207,3 +207,12 @@ panic           = "abort"
 [profile.release]
 lto             = true
 opt-level       = "s"
+# LOAD-BEARING FOR REPRODUCIBILITY (E-107) -- do not remove, and do not raise.
+# Cargo's default of 16 codegen units, with fat LTO, leaves the order in which LLVM numbers
+# its internal symbols (jump tables, merged globals, switch tables) to a parallel race. Measured:
+# about 7% of unpinned builds of the kernel produce a second, different binary (same program,
+# different internal numbering), so two clean builds of one tree disagree and the
+# bit-for-bit reproducibility claim has no grounds. One unit gives one output, independent of
+# CARGO_BUILD_JOBS: 150 interleaved builds, one digest. Cost: ~17% build time; the kernel is
+# about 1% smaller. Deleting this line silently reverts a compliance claim.
+codegen-units   = 1
