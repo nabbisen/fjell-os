@@ -7882,7 +7882,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   is one deletion away from silently reverting, which is a workaround preserved in the
   architecture, not a fix. **Required with the knob:** the profile named as a precondition of the
   claim, and a load-bearing comment at the knob saying it is load-bearing for reproducibility and
-  must not be removed. *(The gate's coverage is the separate defect now filed as E-108.)*
+  must not be removed. *(A companion claim — that the gate tests only one of its 34 artefacts — was filed as E-108 and **withdrawn the same day**: the gate does rebuild and compare all 34.)*
 - **Ruling, architect 2026-11-04: `codegen-units` is to be pinned on first principles, not on the
   soak.** `docs/src/releasing/reproducibility.md` asserts that all release artefacts are
   bit-for-bit reproducible, and Cargo's default of **16 codegen units carries no such guarantee**;
@@ -7921,11 +7921,12 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   binaries are **byte-identical to the committed prebuilts**. So the services look reproducible —
   consistent with the mechanism, since they are single-crate binaries while the kernel is the one
   artefact linked with **fat LTO across many crates**. *8 builds is 8 builds; this is the first time
-  it was tested at all.* **Refiled as its own entry, E-108, on self-review.** It was first kept as a
-  limb of this entry to avoid a second cut blocker — **schedule reasoning, and the architect had
-  already refused exactly that reasoning twice on this register** (E-106's misleading word, and
-  this entry's own OPEN disposition). A limb carries no summary row and no limitations obligation,
-  and closing E-107 on the knob would have dropped it silently.
+  it was tested at all.* **This limb was wrong and is withdrawn — see E-108.** It was first kept
+  as a limb here, then refiled as E-108 on self-review (correctly: folding it to avoid a second cut
+  blocker had been schedule reasoning). Both steps argued about **where** to record a defect that
+  **does not exist**: `cargo xtask build` rebuilds all 33 services and rewrites every prebuilt, so
+  the gate's 34 comparisons are real. **What survives is evidence for this entry:** ~50 two-build
+  runs have compared all 33 services and **only the kernel ever differed**.
 - **Release consequence, the owner's to time — and the figure was wrong.** **Pinning moves 20 of
   the 34 artefacts, not all 34**: the kernel plus **19 of the 33 prebuilts**, with **14 byte-identical**
   under the knob (measured in a scratch worktree 2026-11-04; `fjell-bootctl.bin`,
@@ -7948,38 +7949,38 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   it never recurs under deliberate host I/O pressure, that itself is evidence. Until then the cause
   is open between the two readings above. *Not reproduced on demand; no mechanism claimed.*
 
-## E-108 — the reproducible-build gate reports thirty-four artefacts and tests one
+## E-108 — WITHDRAWN: the reproducible-build gate does test all thirty-four artefacts
 
-- **Found 2026-11-04 by the architect**, while checking the implementer's caveat that E-107's soak
-  said nothing about the 33 prebuilts. The reason it could not is structural.
-- **`repro-check`'s two-build comparison covers one artefact.** `DEFAULT_TARGETS`
-  (`tools/fjell-repro-check/src/main.rs:53`) is the **built** kernel plus the directory
-  `crates/fjell-kernel/prebuilt`, whose `*.bin` files are **committed artefacts that `cargo xtask
-  build` never rewrites**. Between build 1 and build 2 those 33 files are the same bytes on disk, so
-  they cannot differ. **`PASS (34 artefacts identical)` is one real comparison and thirty-three
-  tautologies**, and the message invites the reader to believe the opposite.
-- **What it contradicts.** `docs/src/releasing/reproducibility.md` states that **all** release
-  artefacts are bit-for-bit reproducible and cites **`cargo xtask repro-check`** as the gate for it.
-  The gate does not verify the claim it is named for. *(The same sentence has a second defect — its
-  preconditions omit the Cargo profile — which belongs to **E-107**, where the knob is.)*
-- **Not a theoretical gap: nobody had ever tested the services.** The architect did, in a scratch
-  worktree: **8 clean `cargo xtask build-services` runs produced one distinct 33-artefact set**, and
-  the fresh binaries were **byte-identical to the committed prebuilts**; three further runs under
-  `codegen-units = 1` also gave a single set. **So the services do appear reproducible** —
-  consistent with the mechanism, since they are single-crate binaries while the kernel is the one
-  artefact linked with **fat LTO across many crates**. *Eleven builds is eleven builds; the point is
-  that the gate supplied none of them.*
-- **Why it is its own entry.** It was first recorded as a second limb of E-107 to avoid a second cut
-  blocker. **That was schedule reasoning, and the architect had already refused exactly that
-  reasoning twice on this register** — E-106's misleading word ("the ABI needs design; the line's
-  text does not") and E-107's own OPEN disposition ("calling it understood to keep a cut moving
-  would be a fiction"). A limb carries no summary row and no `v1-limitations.md` obligation, and
-  closing E-107 on the knob would have dropped it silently. Two entries is the honest state.
-- **The remedy, not yet handed off.** Either the two-build comparison **rebuilds the services** so
-  the 33 artefacts are genuinely compared, or the gate's message and the claim are **scoped to what
-  it tests**. The first is the real fix; the second is honest but weaker, and the choice is the
-  architect's with the owner's timing, together with E-107's knob. **The count in the message must
-  stop implying coverage it does not have either way.**
+- **Filed and withdrawn the same day, 2026-11-04, both by the architect.** Kept so the correction can
+  be found from it.
+- **What it claimed.** That `repro-check`'s two-build comparison covers one artefact, because
+  `DEFAULT_TARGETS` (`tools/fjell-repro-check/src/main.rs:53`) is the built kernel plus the
+  directory of **committed** `prebuilt/*.bin` files, which — the entry asserted — `cargo xtask
+  build` never rewrites, making `PASS (34 artefacts identical)` one real comparison and
+  thirty-three tautologies.
+- **Why it is false.** `cargo xtask build` runs `build_all()` (`crates/fjell-tools/src/qemu.rs:131`),
+  whose **first** action is `build_services()` — which rebuilds all 33 service ELFs and **rewrites
+  every `prebuilt/*.bin`** (`qemu.rs:84-91`). `repro-check`'s `run_build` calls exactly that command
+  (`main.rs:328`). So each of the two builds regenerates all 33 prebuilts and the kernel, and
+  `collect_digests` reads them afterwards. **All 34 comparisons are real.**
+- **The instrument that settled it**, run after the entry was already filed: a prebuilt was
+  deliberately corrupted (`fjell-auditd.bin`, 7 bytes appended), `git status` confirmed the
+  modification, `cargo xtask build` was run, and the file came back **byte-identical to the
+  original** with `git status` clean. A gate that cannot see those files could not have restored it.
+- **How the error was made, because it is a recorded trap of the architect's own.** The premise was
+  read out of two sources — `DEFAULT_TARGETS` and the `Some("build")` dispatch arm — and never
+  tested by running `build` and looking at the files. **"A text match is a hypothesis, not a
+  finding; run the instrument that owns the question."** The implementer's caveat that their *soak*
+  said nothing about the prebuilts was true of their soak, which drove only the kernel path; it was
+  generalised into a claim about the *gate*, which was not checked.
+- **What is true, and it strengthens E-107 rather than weakening anything.** Every `repro-check` run
+  has been rebuilding and comparing all 33 services all along. Across roughly **50 two-build runs**
+  — about 100 service builds — **only `fjell-kernel` ever differed**. That is far stronger evidence
+  than the architect's 11 hand-run builds, and it fits the mechanism exactly: the services are
+  single-crate binaries, while the kernel is the one artefact linked with **fat LTO across many
+  crates** and therefore the only one with merge-order freedom.
+- **Consequence for the cut:** this entry blocked it for a few hours on a false premise. **E-107
+  remains the only OPEN entry**, and the only real blocker.
 
 ## E-105 — `storaged` writes every sector to LBA 0, shifted and truncated, while `init` reports success
 
@@ -8183,8 +8184,8 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-104 a tier fails intermittently — `M6: block I/O error` then `TEST:M7:FAIL (init did not exit cleanly)` — after E-097's cause was fixed and while its boot invariant did not fire. Not tier-specific: seen in `mmio`, `svc`, `dma`, `capability` and `audit`; the error is `init`'s own, printed beside a `sys_exit(1)` in its M6 `storaged_write` guards, which run every boot. E-097's second shape, whose "not reproduced" inference this supersedes. **Cause established 2026-11-03** from three natural captures: the host does not complete a published write within `do_io`'s **500,000-round** budget, while the device stays healthy (`status=0x07`, `used == prev`, `avail == prev + 1`, `req_status=0xff`). The poll spans **1,004,789** and **1,004,892** traps in two captures where 65 of 73 round-trips in the same boot cost **3 or 6** and a matched passing control never exceeds **271** — so the stall is ~5 orders of magnitude beyond normal and "the bound ran out fast" is excluded. One capture holds two **near-misses that completed**, at 18% and **61%** of the budget: a threshold crossing on host latency, which degrades with accumulated host state, so **failures cluster and suite counts are not a Bernoulli rate**. Two earlier claims in this row were wrong and are withdrawn: the `task.fault` at `sepc 0x400aa` is `svc-fault`'s deliberate test and occurs in passing runs, and the host-load confound called weak **was the cause**. **No guest defect; deliberately not fixed** — the budget cannot express a duration (E-106, ABI, 0.42), the bound is not raised, and the residual behaviour is disclosed as row 19 of `v1-limitations.md` | RFC-0.41-006 | CLOSED |
 | E-105 `storaged` discards the first data word of every message as a badge, so `WRITE_BEGIN` reads the LBA's high word only — **every write lands at sector 0** — and `WRITE_CHUNK` copies `[w1, w2, w3, 0]` with a **hard-coded** fourth word, losing 8 bytes of every 32 and zeroing 8 more, while `init` prints `block write ok`. Latent: nothing reads the store back (`READ_CHUNK` is a placeholder). The `store` tier, the only gate over it, is NOT-GATED | 0.42 | ACCEPTED |
 | E-106 Fjell exposes **no notion of time to user space** — no syscall returns a clock or a counter, and the kernel never arms the timer or reads `mtime`, so no service can express a duration. `storaged`'s `do_io` substitutes a count of **500,000 `sys_yield` rounds** and prints its expiry as `io timeout`: a name claiming a property the code does not implement. Bounded, not unbounded — where it fires the count outlasts about a second of wall time (figures derived from the throttle rate, not measured) — but the remedy is an **ABI addition**, which must not be chosen under a cut. Two shapes already refused: publishing the audit trap counter as ABI, and returning it in `sys_yield`'s unused `a1`. **The misleading word is not deferred with the ABI:** the line is reworded to say what the code did, in 0.41, after E-104's hunt concludes | 0.42 | ACCEPTED |
-| E-107 two clean builds of `fjell-kernel` produced **different binaries** — `repro-check` reported `build1=18a2785f` / `build2=f856200d`, each build preceded by `cargo clean --release --target`, so not an incremental artefact. **1 failure in 18 runs** on one tree; the other 17 reported 34 artefacts identical. Contradicts `reproducibility.md`'s claim that all release artefacts are bit-for-bit reproducible. One hypothesis tested and **refuted** (a service source edit does not trigger it; probed with a no-op comment, then restored `cmp`-identically). **Cause class established 2026-11-04** from a retained capture: the two outputs are **stable across sessions**, carry **1211 symbols each**, and differ **only** in compiler-internal numbering — jump tables, `.L_MergedGlobals`, `.Lswitch.table`, and LLVM's trailing disambiguation suffixes; strip those and **all 174 source-level symbols are identical**. The architect's own "this host's I/O stalls (E-104) corrupted a read" is **withdrawn**: a corrupted read cannot yield a valid ELF with an identical symbol set. **Not an E-104 symptom** — it is nondeterministic LLVM codegen/LTO ordering. **The rate is per build:** from 2 failures in 48 runs, P(fail) = 2p(1−p) gives **p ≈ 2.1% per build**, so P(zero minority) is 94% at 3 builds, 58% at 25 and 4.0% at 150 — which explains a clean 25-run control without any change in host state and voids both earlier soak sizings, the architect's included. Measured: default+`JOBS=1` gives the majority digest 3 of 3; **`codegen-units = 1` gives a third output, `229decee…`, 3,912 bytes smaller (−1.15%)**. **Confirmed sufficient 2026-11-04:** interleaved 150-build arms gave the unpinned control a minority output **11 times in 150 (7.3%, superseding the 2.1% estimate)** and the pinned arm **one digest in 150** — ~10⁻⁵ by luck; +17% build time, kernel 3,912 B smaller. The two unpinned outputs are **not path-dependent** (20/20 in the main tree matched the worktree's dominant): `18a2785f…` is the **serial** answer and surfaces as the ~7% minority under parallelism. **Second limb:** `repro-check` hashes the built kernel plus the **committed** prebuilt directory, which `xtask build` never rewrites, so `PASS (34 artefacts identical)` is **one real comparison and 33 tautologies** — 8 clean `build-services` runs gave one 33-artefact set, byte-identical to the committed files, so the services look reproducible, but the gate never tested them. **Ruled 2026-11-04: pin `codegen-units` on first principles** — `reproducibility.md` claims bit-for-bit reproducibility and Cargo's default of 16 guarantees none, so **the claim never had grounds**; the 150-build interleaved soak tests sufficiency, not permission, and may yet show the race is in fat-LTO merge order rather than unit count. Stays **OPEN**; pinning moves **20 of 34 artefacts** — the kernel and **19 of 33 prebuilts**, 14 unchanged (the "all 34" figure was the architect's error, stated three times) — and needs a full `test-all`. **Self-review 2026-11-04 widened the remedy:** the claim's stated preconditions omit the Cargo profile, so pinning alone leaves `reproducibility.md` false as written, and an unexplained pin is one deletion from reverting; the knob lands with the precondition stated and a load-bearing comment. Verified since: the pinned kernel is **jobs-independent** (`JOBS=1` and `=32` agree) and the services are reproducible under the knob. Gate coverage refiled as **E-108** | 0.41 | OPEN |
-| E-108 the reproducible-build gate **reports thirty-four artefacts and tests one**. `repro-check`'s `DEFAULT_TARGETS` is the **built** kernel plus the directory of **committed** `prebuilt/*.bin` files, which `cargo xtask build` never rewrites — so between build 1 and build 2 those 33 files are the same bytes and cannot differ. `PASS (34 artefacts identical)` is **one real comparison and 33 tautologies**, while `reproducibility.md` claims *all* release artefacts are reproducible and names this gate as the evidence. Nobody had tested the services: the architect's 8 unpinned + 3 pinned `build-services` runs each gave a single 33-artefact set, byte-identical to the committed files, so they **do** appear reproducible — but the gate supplied none of that. **Was first recorded as a limb of E-107 to avoid a second cut blocker; that was schedule reasoning the architect had already refused twice on this register, so it is its own entry.** Remedy: rebuild the services inside the two-build comparison, or scope the gate's message and the claim to what it tests | 0.41 | OPEN |
+| E-107 two clean builds of `fjell-kernel` produced **different binaries** — `repro-check` reported `build1=18a2785f` / `build2=f856200d`, each build preceded by `cargo clean --release --target`, so not an incremental artefact. **1 failure in 18 runs** on one tree; the other 17 reported 34 artefacts identical. Contradicts `reproducibility.md`'s claim that all release artefacts are bit-for-bit reproducible. One hypothesis tested and **refuted** (a service source edit does not trigger it; probed with a no-op comment, then restored `cmp`-identically). **Cause class established 2026-11-04** from a retained capture: the two outputs are **stable across sessions**, carry **1211 symbols each**, and differ **only** in compiler-internal numbering — jump tables, `.L_MergedGlobals`, `.Lswitch.table`, and LLVM's trailing disambiguation suffixes; strip those and **all 174 source-level symbols are identical**. The architect's own "this host's I/O stalls (E-104) corrupted a read" is **withdrawn**: a corrupted read cannot yield a valid ELF with an identical symbol set. **Not an E-104 symptom** — it is nondeterministic LLVM codegen/LTO ordering. **The rate is per build:** from 2 failures in 48 runs, P(fail) = 2p(1−p) gives **p ≈ 2.1% per build**, so P(zero minority) is 94% at 3 builds, 58% at 25 and 4.0% at 150 — which explains a clean 25-run control without any change in host state and voids both earlier soak sizings, the architect's included. Measured: default+`JOBS=1` gives the majority digest 3 of 3; **`codegen-units = 1` gives a third output, `229decee…`, 3,912 bytes smaller (−1.15%)**. **Confirmed sufficient 2026-11-04:** interleaved 150-build arms gave the unpinned control a minority output **11 times in 150 (7.3%, superseding the 2.1% estimate)** and the pinned arm **one digest in 150** — ~10⁻⁵ by luck; +17% build time, kernel 3,912 B smaller. The two unpinned outputs are **not path-dependent** (20/20 in the main tree matched the worktree's dominant): `18a2785f…` is the **serial** answer and surfaces as the ~7% minority under parallelism. **Second limb:** `repro-check` hashes the built kernel plus the **committed** prebuilt directory, which `xtask build` never rewrites, so `PASS (34 artefacts identical)` is **one real comparison and 33 tautologies** — 8 clean `build-services` runs gave one 33-artefact set, byte-identical to the committed files, so the services look reproducible, but the gate never tested them. **Ruled 2026-11-04: pin `codegen-units` on first principles** — `reproducibility.md` claims bit-for-bit reproducibility and Cargo's default of 16 guarantees none, so **the claim never had grounds**; the 150-build interleaved soak tests sufficiency, not permission, and may yet show the race is in fat-LTO merge order rather than unit count. Stays **OPEN**; pinning moves **20 of 34 artefacts** — the kernel and **19 of 33 prebuilts**, 14 unchanged (the "all 34" figure was the architect's error, stated three times) — and needs a full `test-all`. **Self-review 2026-11-04 widened the remedy:** the claim's stated preconditions omit the Cargo profile, so pinning alone leaves `reproducibility.md` false as written, and an unexplained pin is one deletion from reverting; the knob lands with the precondition stated and a load-bearing comment. Verified since: the pinned kernel is **jobs-independent** (`JOBS=1` and `=32` agree) and the services are reproducible under the knob. A companion gate-coverage claim was filed as **E-108** and **withdrawn the same day** — the gate does compare all 34, and across ~50 runs **only the kernel ever differed**, which is stronger evidence for this entry than anything hand-run | 0.41 | OPEN |
+| E-108 **WITHDRAWN, filed and withdrawn 2026-11-04, both by the architect** — kept so the correction can be found from it. It claimed `repro-check`'s two-build comparison covers one artefact because `cargo xtask build` never rewrites the committed `prebuilt/*.bin`. **It does:** `build_all()` (`qemu.rs:131`) calls `build_services()` first, which rebuilds all 33 service ELFs and rewrites every `.bin`, and `run_build` invokes exactly that command — so **all 34 comparisons are real**. Settled by deliberately corrupting `fjell-auditd.bin` and watching `cargo xtask build` restore it byte-identically. The premise was read out of `DEFAULT_TARGETS` and the dispatch arm and never tested, against the architect's own rule that a text match is a hypothesis. **What is true strengthens E-107:** ~50 two-build runs have been comparing all 33 services all along and **only the kernel ever differed**, which fits the kernel being the only artefact linked with fat LTO across crates | 0.41 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
