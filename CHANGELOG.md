@@ -5,6 +5,160 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.41.0] — 2026-11-07 — The audit trail reaches someone, and says when it did not
+
+Six RFCs, **five errata closed** (**E-101**, **E-102**, **E-103**, **E-104**,
+**E-107**), two filed and carried to 0.42 (**E-105**, **E-106**, both ACCEPTED), and
+one filed and withdrawn (**E-108**). `auditd` drained the kernel's audit ring once at
+start-up and then waited on a message nothing sent, so the trail stopped at boot: a
+revocation after boot was recorded and never printed. It now parks on the ring itself,
+wakes on the append, drains until empty, and prints a notice where records were lost.
+The attestation record's remaining placeholders are disclosed instead of read as state.
+`FrameAllocator::reserve_range` is all-or-nothing. A new gate fails prose that still
+asserts a closed erratum. And an intermittent boot failure and an intermittent build
+difference, each blocking the cut, were found to have causes — one of which is a
+property of the host and is disclosed, not fixed.
+
+**There is no security advisory.** The kernel has never been distributed as a runnable
+artefact and the product has not been placed on the market. Five statements follow, each
+a case where what shipped is narrower or different from the obvious reading:
+
+1. **The trail now records less by default.** `task.switch` records are **no longer
+   appended at all** (`RECORD_TASK_SWITCH = false`). A reader told that "the audit trail
+   reaches someone" would expect it to have grown; one kind of it disappeared. The ring
+   drops the **newest** record when it is full, and `task.switch` arrives without bound
+   (about 32 per drain while services start), so it was evicting the bounded kinds that
+   matter — a flood of scheduling telemetry would have destroyed the revocation that
+   follows it. It is applied at the **append** site, not at rendering, because a record
+   dropped at the console has already taken a ring slot. It is a design position the
+   owner may reverse; the correctness half does not depend on it, because if it is turned
+   back on `auditd` reports the loss.
+2. **The trail is lossy, and it now says so.** A record count is not an event count. In a
+   normal boot of the `audit` profile the trail printed **905** records and reported
+   **1,447** dropped (retained run `tests/qemu/artifacts/audit/runs/20261104-004647`).
+   The loss is normal, disclosed and large.
+3. **The attestation record is schema 4, and a version-3 verifier cannot read it.**
+   `schema_version` is written into the **signed canonical stream**, so a v3 verifier
+   handed a v4 record gets a digest that does not match and a signature that does not
+   verify; it does not silently misparse the extra bytes.
+4. **No service can express a duration.** Fjell exposes no notion of time to user space
+   (**E-106**). `fjell-storaged` waits for the disk by counting 500,000 `sys_yield`
+   rounds, and its failure report no longer calls that a timeout.
+5. **The release profile is now part of the reproducibility claim** (**E-107**): the
+   kernel was not bit-for-bit reproducible until `codegen-units` was pinned.
+
+**What still does not hold, in the same breath.**
+
+- **A healthy disk that is merely slow fails the boot** (**E-104**, closed on a **cause**,
+  not on a fix — `v1-limitations.md` row 19). `init`'s M6 step gives up after the poll
+  budget and exits unclean. The behaviour is unchanged; its cause is now known.
+- **The store is written to the wrong sector** (**E-105**, row 17): `storaged` discards
+  the first data word of every message, so every write lands at sector 0 and each chunk
+  loses part of itself, while `init` prints `block write ok`. Latent — nothing reads the
+  store back, and the `store` tier that could notice is not gated.
+- Three of the measurement chain's four events are placeholders and the kernel's own
+  image is unmeasured (**E-095**); and the record is signed by the keyed-SHA-256
+  **development** provider, not a hardware root.
+
+### Fixed — the audit trail stops at boot (RFC-0.41-001 and RFC-0.41-002, closes E-102)
+
+- **`sys_audit_wait` (syscall 61)** blocks the caller until the kernel ring is non-empty,
+  under the same `AuditDrain` capability as `sys_audit_drain`. `auditd` drains **until
+  the kernel reports the ring empty**, then waits, and receives on no endpoint. The lost
+  wakeup is closed by a **level, not a latch**: a wait on a non-empty ring returns at
+  once. `a1` reports whether the call **parked**, and the `audit` tier requires the
+  guard's own path to have run during its sweep, so a sweep that stops reaching the race
+  fails instead of passing.
+- **A loss is reported where it happened**: `{"gap":{"dropped":N,"after_seq":S}}`, which
+  is not an event (no `seq`, no `kind`). The kernel's per-drain drop count had been
+  returned and discarded by the only renderer.
+- **The record line's final shape**, described once:
+
+  ```
+  {"seq":11,"kind":"ipc.send","arg0":7,"arg1":5,"result":0,"task":7,"tick":493}
+  {"gap":{"dropped":689,"after_seq":810}}
+  ```
+
+  `"task"` is the slot of the task that was running when the kernel trapped and renders
+  **`null`** when the record is not task-scoped — never a slot number. **`tick` is a count
+  of traps taken, not wall time**: the timer interrupt is deliberately never armed, so a
+  timer-tick count would read 0 forever; it orders a record against its neighbours and
+  is not a clock. Both were declared in the binary record and never populated (the
+  kernel wrote `tick` 0 and `task` `0xFFFF`), so the kernel now stamps them at the append.
+- **No task can receive on endpoint object 0.** Three images did (`configd`,
+  `neg-test` through copies of slot 0, and `netd`'s dead receive); each has a dedicated
+  object, `init` is no longer granted slot 0, the default arm grants none, and
+  `capability-topology` now fails any install that would give a receive right on it.
+- The `audit` tier asserts what an operator sees through four new profile directives
+  (`expect_echoed`, `expect_accounted`, `expect_observed`, `expect_scoped`); the two
+  in-service assertions that existed because `auditd` was blind are removed.
+
+### Fixed — the attestation record's placeholders no longer read as state (RFC-0.41-003, closes E-101)
+
+`AttestationRecordV2` `SCHEMA_VERSION` 3 → 4. Five availability bytes, each written
+immediately before the claim it qualifies — the three keyring anchor epochs (one flag),
+the snapshot id **with** its reason (one), the health status, the last-advance source
+and the freshness key epoch — and the claim is written as zero by the **encoder** when
+its flag is 0. The record `attestd` builds sets all five `false`, and prints them. The
+flag over the snapshot is named `snapshot.id_and_reason_available` for the two fields it
+governs; `claims_available` would have over-reached across `snapshot_digest`, which has
+its own flag. The trust-provider counter value is now zeroed by the encoder as well when
+its flag is false, so the property holds for a record built by field assignment.
+
+### Fixed — a failed frame reservation changes nothing (RFC-0.41-004, closes E-103)
+
+`FrameAllocator::reserve_range` validates the whole range before it applies any of it,
+so a failed call leaves used bits, the owner map, `free_count` and the allocation hint
+bit-for-bit untouched. The same-owner tolerance its doc comment promised was never
+built and is not; the comment now describes the code.
+
+### Added — a gate catches prose that still asserts a closed erratum (RFC-0.41-005)
+
+`consistency-check` has a **21st subcheck**, `closed-erratum-prose`: it fails a live
+status word (`ACCEPTED`, `OPEN`, …) attached to a closed erratum, and a present-tense
+claim resting on one — the two shapes 0.40.0 shipped, each shown failing on the real file.
+It matches forms, not meaning, and its module says so.
+
+### Fixed — a boot failure that had no cause (RFC-0.41-006, closes E-104 on a cause)
+
+An intermittent `M6: block I/O error` — about one boot in 270 — was found to be a host
+write that does not complete inside `storaged`'s 500,000-round poll budget while the
+device stays healthy. In two natural captures the poll spanned **1,004,789** and
+**1,004,892 traps** — about three times an entire normal boot — where 65 of 73
+round-trips in the same boot cost 3 or 6. **Quote traps, not seconds: nothing in the
+guest can convert one to the other.** The failure report now reads
+`storaged: io incomplete after 500000 poll rounds …` over **two** console lines (83 and
+133 characters; one line of all eight fields came to 187 and the console splits at 160,
+which had cut a field in half), each beginning `storaged: io incomplete`. The fault at
+`sepc 0x400aa` that the investigation started from is `fjell-svc-fault`'s deliberate
+NULL load and happens in every boot. `cargo xtask boot-loop` boots to `init`'s M6
+decision many times; it reproduced the signature on a deliberately slow disk and has
+**not** reproduced the natural rate, so a clean count from it is not evidence of a fix.
+
+### Fixed — two clean builds of the kernel could disagree (closes E-107)
+
+At Cargo's default of 16 codegen units, fat LTO left LLVM's internal symbol numbering to
+a parallel race: in an interleaved soak **11 of 150** unpinned builds produced a second,
+different kernel — the same program, with different internal numbering — and 150 of 150
+with **`codegen-units = 1`** produced one digest, independent of `CARGO_BUILD_JOBS`. The
+knob is pinned in `[profile.release]` with a comment saying why. It moved **20 of the 34
+artefacts** — the kernel (336,288 bytes, **3,912 smaller**) and 19 of the 33 prebuilts —
+and `reproducibility.md` now names the committed profile as an input to the claim. **The
+cost is not a measured number:** the interleaved soak's like-for-like figure is 2.9 s →
+3.4 s per build (about +17%); runs at different host loads varied more than that.
+`repro-check` now keeps both builds' artefacts when they differ (E-107's diagnosis
+depended on it). **E-108** claimed the two-build gate compared only one artefact; it
+compares all 34, and the entry was withdrawn the day it was filed.
+
+### Changed — documents and the register
+
+`v1-limitations.md` rows 11, 13 and 16 rewritten as closed, rows 17, 18 and 19 added
+(E-105, E-106, E-104); `CRA-I-2l` and `IEC-4-2-FR6` evidence cells updated. Figures:
+33 tiers, 24 profiles, 21 consistency subchecks, ABI snapshot 502, unsafe sites 288,
+host-lib tests 768 (0 ignored), 108 errata entries with 0 OPEN (13 ACCEPTED).
+
+---
+
 ## [0.40.0] — 2026-10-29 — The record stops asserting what never happened
 
 Three RFCs, two review fix-forward rounds, **three errata closed** (**E-092**,
