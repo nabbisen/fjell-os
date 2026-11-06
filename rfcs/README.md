@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 216 files
+## Implemented (done/) — 222 files
 
-215 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+221 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -519,29 +519,27 @@ Three independent lines, all drafted for this milestone and all shipped in it.
 | 0.40-002 | [A revocation is audited under a code the decoder knows](./done/RFC-0.40-002-a-revocation-is-audited-under-a-code-the-decoder-knows.md) — closed **E-092**; the kernel emitted `LeaseRevoked = 40` and the published decoder knew 16, so every revocation read as `Internal`. The kernel now emits 16 and the dead `CapDenied` is deleted; a tier asserts the decoded name. It found that `auditd` renders nothing after boot (**E-102**) | 0.40.0 |
 | 0.40-003 | [The allocator's tests get a home a gate can run](./done/RFC-0.40-003-the-allocators-tests-get-a-home-a-gate-can-run.md) — closed **E-100**; the frame allocator moved into a `no_std` crate (`fjell-frame-alloc`) that the host-lib tier builds, with the test E-097 would have failed. The new tests found that `reserve_range` is not all-or-nothing (**E-103**) | 0.40.0 |
 
+### 0.41 — the audit trail reaches someone, and says when it did not
+
+Six lines, all drafted for this milestone and all shipped in it. 0.41-001 and 0.41-002 are the two
+halves of **E-102**; 0.41-006 was added when an intermittent boot failure (**E-104**) turned up
+mid-milestone and blocked the cut.
+
+| RFC | Title | Shipped |
+|-----|-------|---------|
+| 0.41-001 | [The audit trail reaches someone, and says when it did not](./done/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md) — closed **E-102** with 0.41-002; `auditd` drained the kernel ring once at start-up and then waited on a message nothing sent, so the trail stopped at boot. It now parks on the ring itself (`sys_audit_wait`, which reports in `a1` whether it parked), drains until empty, and prints a `{"gap":…}` notice where records were lost; `TaskSwitch` is no longer recorded, because the ring drops the newest record when full | 0.41.0 |
+| 0.41-002 | [No service receives on a shared endpoint object](./done/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md) — closed **E-102** with 0.41-001; three images received on the one shared endpoint object 0 (`configd`, `neg-test` through copies of slot 0, and `netd`'s dead receive). Each now has a dedicated object, the default arm grants none, and `capability-topology` rejects any install that would give a receive right on object 0 | 0.41.0 |
+| 0.41-003 | [The attestation record's remaining placeholders stop reading as state](./done/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md) — closed **E-101**; `SCHEMA_VERSION` 3 → 4, five availability bytes each written before the placeholder it qualifies (keyring epochs, snapshot id with its reason, health status, last-advance source, freshness key epoch), the claim written as zero by the encoder when its flag is 0. A v3 verifier cannot read a v4 record | 0.41.0 |
+| 0.41-004 | [Frame reservation is all-or-nothing, and its doc says what it does](./done/RFC-0.41-004-frame-reservation-is-all-or-nothing.md) — closed **E-103**; `FrameAllocator::reserve_range` validates the whole range before it changes anything, so a failed reservation is a no-op, and its doc comment no longer promises a same-owner tolerance it never had | 0.41.0 |
+| 0.41-005 | [A gate catches prose that still asserts a closed erratum](./done/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md) — no erratum; a 21st `consistency-check` subcheck, `closed-erratum-prose`, fails a live status word beside a closed erratum and a present-tense claim resting on one — the two shapes 0.40.0 shipped | 0.41.0 |
+| 0.41-006 | [The intermittent boot fault gets a cause](./done/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md) — closed **E-104** on a cause, not a fix: a `storaged` write that does not complete inside a 500,000-round poll budget, the device healthy; disclosed as `v1-limitations.md` row 19. The audit trail now carries `task` and `tick`, `cargo xtask boot-loop` boots to the M6 decision many times, and `storaged` reports an incomplete I/O on two console lines | 0.41.0 |
+
 ---
 
-## Accepted (accepted/) — 6 RFCs
+## Accepted (accepted/) — none
 
-0.41's line. 0.41-001 through -005 were accepted 2026-10-30 and are **all complete**;
-**0.41-006 was accepted 2026-10-31 and no longer blocks the cut** — E-104 was **closed on a
-cause** 2026-11-03 (a host write that does not complete inside `do_io`'s 500,000-round budget,
-captured naturally three times), so Gate 7 passes; the behaviour itself is disclosed, not fixed. The milestone's sentence is **the trail reaches
-someone, and says when it did not**: 0.41-001 and 0.41-002 are the two halves of
-**E-102**, and 0.41-002 lands after 0.41-001 because that line removes `auditd`
-from the shared endpoint object as a consequence of its redesign. The other three
-are independent of each other and of the first two.
-
-| RFC | Title | Tracks |
-|-----|-------|--------|
-| 0.41-001 | [The audit trail reaches someone, and says when it did not](./accepted/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md) | E-102 |
-| 0.41-002 | [No service receives on a shared endpoint object](./accepted/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md) | E-102 |
-| 0.41-003 | [The attestation record's remaining placeholders stop reading as state](./accepted/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md) | E-101 |
-| 0.41-004 | [Frame reservation is all-or-nothing, and its doc says what it does](./accepted/RFC-0.41-004-frame-reservation-is-all-or-nothing.md) | E-103 |
-| 0.41-005 | [A gate catches prose that still asserts a closed erratum](./accepted/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md) | — |
-| 0.41-006 | [The intermittent boot fault gets a cause](./accepted/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md) | E-104 |
-
-`accepted/README.md` keeps the folder in a fresh clone and is not counted above.
+Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
+a fresh clone.
 
 ---
 

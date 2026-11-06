@@ -1,6 +1,6 @@
 # RFC-0.41-002: No service receives on a shared endpoint object
 
-**Status:** Accepted — accepted 2026-10-30
+**Status:** Implemented (0.41.0) — accepted 2026-10-30
 **Milestone:** 0.41
 **Tracks.** **E-102**, its latent half — twenty images hold slot 0 against endpoint object 0, each
 with `SEND`; two tasks run a receive loop on it; nothing sends to it today, which is the only

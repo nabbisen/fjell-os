@@ -1,6 +1,6 @@
 # RFC-0.41-005 R1–R7: a gate catches prose that still asserts a closed erratum
 
-**Governing RFC:** [../accepted/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md](../accepted/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md)
+**Governing RFC:** [../done/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md](../done/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md)
 **Handoff:** [../handoffs/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum/implementation-handoff.md](../handoffs/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum/implementation-handoff.md)
 
 Written against base `610006a`. The subcheck is `closed-erratum-prose`, module

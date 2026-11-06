@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.41-005
 
-**Governing RFC:** [RFC-0.41-005](../../accepted/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md)
+**Governing RFC:** [RFC-0.41-005](../../done/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md)
 **Milestone:** 0.41 · **Independent** of 0.41-001 through -004 — no ordering constraint
-**Status:** inherited from the governing RFC (Accepted, 0.41)
+**Status:** inherited from the governing RFC (Implemented, 0.41.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design conflict,

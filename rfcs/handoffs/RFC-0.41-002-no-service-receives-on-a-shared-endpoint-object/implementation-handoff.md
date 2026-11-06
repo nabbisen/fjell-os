@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.41-002
 
-**Governing RFC:** [RFC-0.41-002](../../accepted/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md)
+**Governing RFC:** [RFC-0.41-002](../../done/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md)
 **Milestone:** 0.41 · **Lands after RFC-0.41-001** — hard ordering, see §0.2
-**Status:** inherited from the governing RFC (Accepted, 0.41)
+**Status:** inherited from the governing RFC (Implemented, 0.41.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design conflict,

@@ -1,6 +1,6 @@
 # RFC-0.41-003 R2–R4 (and the escalation of R1): the encoder zeroes a pair, not the factory
 
-**Governing RFC:** [../accepted/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md](../accepted/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md)
+**Governing RFC:** [../done/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md](../done/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state.md)
 **Handoff:** [../handoffs/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state/implementation-handoff.md](../handoffs/RFC-0.41-003-the-attestation-records-placeholders-stop-reading-as-state/implementation-handoff.md)
 
 Written against base `21cff44`. **This line is partly done.** R2, R3 and R4 are done; **R1 is not, and neither is

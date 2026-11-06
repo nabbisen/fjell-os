@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.41-001
 
-**Governing RFC:** [RFC-0.41-001](../../accepted/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md)
+**Governing RFC:** [RFC-0.41-001](../../done/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md)
 **Milestone:** 0.41 · **Lands before RFC-0.41-002** — that line depends on this one
-**Status:** inherited from the governing RFC (Accepted, 0.41)
+**Status:** inherited from the governing RFC (Implemented, 0.41.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design conflict,

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.41-006
 
-**Governing RFC:** [RFC-0.41-006](../../accepted/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md)
+**Governing RFC:** [RFC-0.41-006](../../done/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md)
 **Milestone:** 0.41 · **No longer blocks the cut** — E-104 was closed on a cause 2026-11-03 and Gate 7 passes
-**Status:** inherited from the governing RFC (Accepted, 0.41)
+**Status:** inherited from the governing RFC (Implemented, 0.41.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design conflict,

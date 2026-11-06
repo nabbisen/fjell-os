@@ -1,6 +1,6 @@
 # RFC-0.41-006: The intermittent boot fault gets a cause
 
-**Status:** Accepted — accepted 2026-10-31
+**Status:** Implemented (0.41.0) — accepted 2026-10-31
 **Milestone:** 0.41
 **Tracks.** **E-104** — intermittently, `init`'s M6 block write fails, `init` calls
 `sys_exit(1)`, and whichever QEMU profile is running fails on the forbidden

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.41-004
 
-**Governing RFC:** [RFC-0.41-004](../../accepted/RFC-0.41-004-frame-reservation-is-all-or-nothing.md)
+**Governing RFC:** [RFC-0.41-004](../../done/RFC-0.41-004-frame-reservation-is-all-or-nothing.md)
 **Milestone:** 0.41 · **Independent** of 0.41-001, -002, -003 and -005 — no ordering constraint
-**Status:** inherited from the governing RFC (Accepted, 0.41)
+**Status:** inherited from the governing RFC (Implemented, 0.41.0)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a design conflict,

@@ -1,6 +1,6 @@
 # RFC-0.41-001: The audit trail reaches someone, and says when it did not
 
-**Status:** Accepted — accepted 2026-10-30
+**Status:** Implemented (0.41.0) — accepted 2026-10-30
 **Milestone:** 0.41
 **Tracks.** **E-102** — `auditd` drains the kernel ring once at start-up and then only on a
 message nothing sends, so the audit trail stops at boot. Also from the same entry, found while

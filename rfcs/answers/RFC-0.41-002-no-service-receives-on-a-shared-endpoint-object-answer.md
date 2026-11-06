@@ -1,6 +1,6 @@
 # RFC-0.41-002 R1–R6: no service receives on a shared endpoint object
 
-**Governing RFC:** [../accepted/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md](../accepted/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md)
+**Governing RFC:** [../done/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md](../done/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object.md)
 **Handoff:** [../handoffs/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object/implementation-handoff.md](../handoffs/RFC-0.41-002-no-service-receives-on-a-shared-endpoint-object/implementation-handoff.md)
 
 Written against base `e1be84a` (RFC-0.41-001 landed locally, so `auditd` receives on nothing — step 1).

@@ -1,6 +1,6 @@
 # RFC-0.41-004 R1–R6: frame reservation is all-or-nothing, and its doc says what it does
 
-**Governing RFC:** [../accepted/RFC-0.41-004-frame-reservation-is-all-or-nothing.md](../accepted/RFC-0.41-004-frame-reservation-is-all-or-nothing.md)
+**Governing RFC:** [../done/RFC-0.41-004-frame-reservation-is-all-or-nothing.md](../done/RFC-0.41-004-frame-reservation-is-all-or-nothing.md)
 **Handoff:** [../handoffs/RFC-0.41-004-frame-reservation-is-all-or-nothing/implementation-handoff.md](../handoffs/RFC-0.41-004-frame-reservation-is-all-or-nothing/implementation-handoff.md)
 
 Written against base `7747ed2`. E-103 is **not** closed by this line (see "Closure" below).

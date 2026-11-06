@@ -1,6 +1,6 @@
 # RFC-0.41-001 R1–R10: the audit trail reaches someone, and says when it did not
 
-**Governing RFC:** [../accepted/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md](../accepted/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md)
+**Governing RFC:** [../done/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md](../done/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not.md)
 **Handoff:** [../handoffs/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not/implementation-handoff.md](../handoffs/RFC-0.41-001-the-audit-trail-reaches-someone-and-says-when-it-did-not/implementation-handoff.md)
 
 Written against base `3f05c18`. E-102 is **not** closed by this line: it stays ACCEPTED until

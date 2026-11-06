@@ -1,6 +1,6 @@
 # RFC-0.41-003: The attestation record's remaining placeholders stop reading as state
 
-**Status:** Accepted — accepted 2026-10-30
+**Status:** Implemented (0.41.0) — accepted 2026-10-30
 **Milestone:** 0.41
 **Tracks.** **E-101** — the signed record still carries unqualified placeholders that read as this
 node's state: keyring anchor epochs `1`/`1`/`0`, `snapshot_id = "SN000001"` with `reason 0`,

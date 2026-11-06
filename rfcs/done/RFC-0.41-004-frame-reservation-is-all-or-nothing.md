@@ -1,6 +1,6 @@
 # RFC-0.41-004: Frame reservation is all-or-nothing, and its doc says what it does
 
-**Status:** Accepted — accepted 2026-10-30
+**Status:** Implemented (0.41.0) — accepted 2026-10-30
 **Milestone:** 0.41
 **Tracks.** **E-103** — `FrameAllocator::reserve_range` is not all-or-nothing in either
 direction, and its doc comment describes a same-owner tolerance the code does not implement.

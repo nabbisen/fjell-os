@@ -1,6 +1,6 @@
 # RFC-0.41-005: A gate catches prose that still asserts a closed erratum
 
-**Status:** Accepted — accepted 2026-10-30
+**Status:** Implemented (0.41.0) — accepted 2026-10-30
 **Milestone:** 0.41
 **Tracks.** No erratum. This is the **RFC-v0.22-001 shape**: a class of stale-status defect found
 by instance, fixed by a subcheck that makes the class unrepresentable. Instances below.
