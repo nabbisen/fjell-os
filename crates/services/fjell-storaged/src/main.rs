@@ -310,8 +310,9 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
             }
             t += 1;
             if t >= POLL_ROUNDS {
-                // SAFETY: category=raw-pointer-deref this driver's own mapped window and DMA page.
-                unsafe { report_io_incomplete(mmio, va, lba, prev, t) };
+                // Already inside this function's `unsafe` block, which is what
+                // `report_io_incomplete` requires: this driver's own mapped window and DMA page.
+                report_io_incomplete(mmio, va, lba, prev, t);
                 return false;
             }
             // Ring doorbell again every 1000 iterations to retrigger if missed
