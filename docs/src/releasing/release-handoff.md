@@ -55,6 +55,18 @@ failure, and five of them **look like success at the moment they happen**.
    produces an **empty `git diff`** — which reads as a clean result and is
    actually the failure. *(0.27.0.)*
 
+   **Expect only a few baseline lines to move, not all 33 — a small diff is
+   not a failed re-record.** `-C metadata` does change every service's
+   compiled output, but the baseline records the **flat `.bin`** files, and the
+   flat extraction keeps only the loadable image: symbol names and metadata
+   strings are not in it. Measured across the 0.41.0 bump: **all 33 service
+   ELFs changed and only 4 `.bin` files did** — 29 ELFs moved while their flat
+   binaries stayed byte-identical. So the honest check is not a line count.
+   **Build the pre-bump commit in a scratch worktree and confirm its own
+   prebuilts come back identical (0 differences); then every line that did move
+   is the bump's.** That control is what distinguishes a correct partial diff
+   from a stale re-record, and a line count cannot. *(0.41.0.)*
+
 3. **A non-zero `Added` in the ABI snapshot is now a finding, not cut work.**
    Since RFC-0.30-002, `fjell-abi-snapshot --verify` fails on `Added != 0`, so
    an ABI-adding line cannot merge without having already regenerated. If you
