@@ -152,8 +152,15 @@ compares all 34, and the entry was withdrawn the day it was filed.
 
 ### Changed — documents and the register
 
-`v1-limitations.md` rows 11, 13 and 16 rewritten as closed, rows 17, 18 and 19 added
-(E-105, E-106, E-104); `CRA-I-2l` and `IEC-4-2-FR6` evidence cells updated. Figures:
+`v1-limitations.md` rows 11, 13 and 16 rewritten as closed, rows 17, 18, 19 and 20 added
+(E-105, E-106, E-104, and a limitation without an erratum: nothing records which emulator
+produced the boot evidence — 27 of the 33 tiers boot QEMU, and no file in the tree names its
+version); `CRA-I-2l` and `IEC-4-2-FR6` evidence cells updated. Three claims the release's own
+changes made false were corrected at the cut: the limitations document's *"the build is, as
+measured, reproducible"* (its evidence was two runs that could not have found E-107's defect),
+`threat-model-v1.md` T20's *"29 service prebuilts (30 artefacts)"* against a tree of 33 and 34,
+and E-106's register row. `release-handoff.md`'s trap 2 now says a small baseline diff is
+expected and names the control that can tell a correct one from a stale re-record. Figures:
 33 tiers, 24 profiles, 21 consistency subchecks, ABI snapshot 502, unsafe sites 288,
 host-lib tests 768 (0 ignored), 108 errata entries with 0 OPEN (13 ACCEPTED).
 
