@@ -680,13 +680,27 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   claim in the paragraph above — "it now runs in CI on every push" — is true
   from `ca1dcd5` onward and was false for the six months before it.*
 
-  **The build is, as measured, reproducible.** Two independent runs (each
-  with its own clean) produced bit-for-bit identical output across all 30
-  artefacts — the kernel ELF plus all 29 service prebuilts, both counts
-  re-derived and confirmed — checked twice on 2026-09-09. Building the
+  **The build is reproducible, and it took until 0.41 to be entitled to say
+  so.** Two independent runs (each with its own clean) produced bit-for-bit
+  identical output across all 30 artefacts then current — the kernel ELF plus
+  all 29 service prebuilts — checked twice on 2026-09-09. **That measurement
+  could not have detected the defect that was there.** E-107 (0.41, closed
+  2026-11-04) found the kernel had **two stable outputs**, differing only in
+  LLVM's internal symbol numbering, with the minority appearing in about **7%
+  of builds**: two runs on one day would both land on the majority about 86% of
+  the time. So this paragraph asserted a measured property on evidence that was
+  consistent with the property being false, and it was false whenever a build
+  landed on the minority — which was so for as long as `[profile.release]` left
+  `codegen-units` at Cargo's default of 16.
+  **What supports the claim now:** `codegen-units = 1` is pinned, with the
+  reason recorded at the knob; one digest across **150 interleaved builds**;
+  and `repro-check` comparing **34 artefacts** — the kernel plus 33 service
+  prebuilts, all of which `cargo xtask build` regenerates. Building the
   identical commit from a different absolute checkout path also reproduced
   identically, ruling out the classic embedded-build-path hazard for this
-  toolchain/profile. This is **same-machine** reproducibility only —
+  toolchain/profile — **and E-107 corroborated that independently**, the same
+  dominant output appearing 20 of 20 times in the main checkout and 139 of 150
+  in a scratch worktree. This is **same-machine** reproducibility only —
   cross-machine remains untested and unclaimed — **this project makes no
   cross-machine claim**, and every digest it has ever recorded was produced
   on one machine. *(Stated on its own from 2026-09-12. This sentence used to
