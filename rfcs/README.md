@@ -536,10 +536,20 @@ mid-milestone and blocked the cut.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
-a fresh clone.
+0.42's line opens. The milestone's sentence is **the capability system gets the recursive-revocation
+coverage its own design claims** — 0.42-001 (E-091, E-093) is the lead and its design investigation
+is done but its RFC is not yet written; 0.42-002 (E-106, a notion of time) and 0.42-004 (the Verus
+prover pin) likewise. **0.42-003 is accepted first because it is the only line with no design
+question**, and it is independent of the other three. Scope:
+`.git-exclude/handoff/scope-0.42.md`.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.42-003 | [`storaged` writes where it is told, and the success it reports is the write that was asked for](./accepted/RFC-0.42-003-storaged-writes-where-it-is-told.md) | E-105 |
+
+`accepted/README.md` keeps the folder in a fresh clone.
 
 ---
 
