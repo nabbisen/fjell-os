@@ -7,8 +7,8 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ## [0.41.0] — 2026-11-07 — The audit trail reaches someone, and says when it did not
 
-Six RFCs, **five errata closed** (**E-101**, **E-102**, **E-103**, **E-104**,
-**E-107**), two filed and carried to 0.42 (**E-105**, **E-106**, both ACCEPTED), and
+Six RFCs, **six errata closed** (**E-101**, **E-102**, **E-103**, **E-104**,
+**E-107**, **E-109**), two filed and carried to 0.42 (**E-105**, **E-106**, both ACCEPTED), and
 one filed and withdrawn (**E-108**). `auditd` drained the kernel's audit ring once at
 start-up and then waited on a message nothing sent, so the trail stopped at boot: a
 revocation after boot was recorded and never printed. It now parks on the ring itself,
@@ -150,6 +150,21 @@ cost is not a measured number:** the interleaved soak's like-for-like figure is 
 depended on it). **E-108** claimed the two-build gate compared only one artefact; it
 compares all 34, and the entry was withdrawn the day it was filed.
 
+### Fixed — the setup document called the release-blocking prover optional (closes E-109)
+
+`docs/src/internals/local-development.md` described Verus as *"optional — only needed to run the
+formal proof checks (Gate 10)"* and left it out of the Prerequisites table, while Gate 10 is
+**release-required** and `release-rehearsal` exits non-zero without a real prover. Its Verus
+quick-reference was a verbatim copy of the recipe retired on 2026-07-30
+(`release/0.2026.05.24.ecee80a`, rustup 1.95.0), so following it installed a prover Gate 10 rejects
+on a version mismatch; two files restated Fjell's Rust channel as 1.91 against
+`rust-toolchain.toml`'s 1.98.1. **It cost this release a pause:** the cut's machine was provisioned
+from that table, Verus was skipped as optional, and the cut stopped at Gate 10 — the second
+mid-cut stop for a missing tool, after QEMU. The recipe is now cited from one place
+(`verification/verus/TOOLCHAIN.md`) and not copied, the table lists `verus` as required to cut a
+release, and the AUR package, which has moved past the pin, is recorded as no longer yielding the
+pinned prover. The gate failed closed, as it should; the defect was the document's.
+
 ### Changed — documents and the register
 
 `v1-limitations.md` rows 11, 13 and 16 rewritten as closed, rows 17, 18, 19 and 20 added
@@ -162,7 +177,7 @@ measured, reproducible"* (its evidence was two runs that could not have found E-
 and E-106's register row. `release-handoff.md`'s trap 2 now says a small baseline diff is
 expected and names the control that can tell a correct one from a stale re-record. Figures:
 33 tiers, 24 profiles, 21 consistency subchecks, ABI snapshot 502, unsafe sites 288,
-host-lib tests 768 (0 ignored), 108 errata entries with 0 OPEN (13 ACCEPTED).
+host-lib tests 768 (0 ignored), 109 errata entries with 0 OPEN (13 ACCEPTED).
 
 ---
 
