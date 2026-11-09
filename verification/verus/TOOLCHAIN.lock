@@ -19,7 +19,8 @@ platform       = "linux_x86_64"
 
 [toolchain]
 # Required by the Verus binary itself (via rustup). Independent of the Fjell
-# build toolchain in rust-toolchain.toml (channel 1.91) — Verus is never a
+# build toolchain in rust-toolchain.toml (whatever channel that file pins;
+# not restated here, because this comment said 1.91 long after it was 1.98.1) — Verus is never a
 # Fjell build dependency, and ordinary contributors need none of this.
 channel        = "1.97.1-x86_64-unknown-linux-gnu"
 installer      = "rustup"

@@ -34,6 +34,19 @@ self-contained, and the currently-pinned method:
 # provides /usr/bin/verus; also installs the rustc toolchain it needs
 paru -S verus-bin   # or: yay -S verus-bin
 verus --version     # → 0.2026.07.27.31579f0
+
+> **The AUR package tracks upstream and will overshoot this pin.** `verus-bin`
+> follows Verus releases, so after a while `paru -S verus-bin` installs
+> something newer than the pin above and **Gate 10 then blocks on a version
+> mismatch** — `verus-check` compares `verus --version` against this
+> directory's `TOOLCHAIN.lock` and fails closed, which is correct behaviour and
+> not a bug to work around. **Measured 2026-11-09: AUR served
+> `0.2026.11.02.8bf68ee`, three months past the pin.** So **check
+> `verus --version` against the lock before trusting the package route.** When
+> it has overshot there are exactly two honest ways forward: install the pinned
+> release by hand (below), or **update the pin — which requires a recorded
+> proof-review re-run**, per this file's own rule, and is therefore never cut
+> work.
 ```
 
 **Alternative: hand-unpacked GitHub release** (any Linux x86_64; not

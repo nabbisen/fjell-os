@@ -8,9 +8,17 @@
 | `riscv64gc-unknown-none-elf` target | — | Bare-metal kernel cross-build |
 | `qemu-system-riscv64` | ≥ 7.0 | Boot, smoke, and negative tests |
 | `ld.lld` (LLVM linker) | any | Cross-linker for the kernel |
+| `verus` | pinned exactly — see [`verification/verus/TOOLCHAIN.lock`](https://github.com/nabbisen/fjell-os/blob/main/verification/verus/TOOLCHAIN.lock) | **Required to cut a release** (Gate 10); not needed to build or test |
 
-Verus is **optional** — only needed to run the formal proof checks (Gate 10).
-See [Verus Setup](#verus-optional-gate-10) below.
+**On Verus, precisely, because the distinction matters when provisioning a
+machine:** it is **not needed to build or test Fjell** — `verus-check` falls
+back to conformance-only mode when `verus` is absent, and nothing in the test
+suite requires it. It **is required to cut a release**: Gate 10 of
+`release-rehearsal` is release-required, **conformance-only is explicitly not
+accepted as proof**, and the rehearsal exits non-zero without a real prover
+PASS. So "optional" is true for a contributor and false for a release machine,
+and this page used to say only the first half. See [Verus Setup](#verus-gate-10)
+below.
 
 ---
 
@@ -147,40 +155,24 @@ cd docs && mdbook serve --open
 
 ---
 
-## Verus (optional, Gate 10)
+## Verus (Gate 10)
 
 Verus runs the formal proof checks for the three pilot targets
 (capability, lease, boot-control). It is **never** required to build or
 test Fjell — `verus-check` falls back to conformance-only mode if `verus`
-is not on `PATH`. Gate 10 in `release-rehearsal` requires it for the
-final release sign-off.
+is not on `PATH`. **Gate 10 of `release-rehearsal` requires a real prover
+PASS, so a release cannot be cut without it**, and conformance-only does not
+count.
 
-The pinned version and a complete install recipe live in
-[`verification/verus/TOOLCHAIN.md`](https://github.com/nabbisen/fjell-os/blob/main/verification/verus/TOOLCHAIN.md).
-
-Quick reference (Linux x86\_64):
-
-```sh
-# 1. Rustup toolchain required by the Verus binary (separate from Fjell's 1.91)
-rustup toolchain install 1.95.0-x86_64-unknown-linux-gnu --profile minimal
-
-# 2. Download the pinned Verus release (bundled z3 included)
-TAG="release%2F0.2026.05.24.ecee80a"
-ASSET="verus-0.2026.05.24.ecee80a-x86-linux.zip"
-curl -sL "https://github.com/verus-lang/verus/releases/download/${TAG}/${ASSET}" \
-  -o /tmp/verus.zip
-mkdir -p ~/tools/verus && unzip -q /tmp/verus.zip -d ~/tools/verus
-chmod +x ~/tools/verus/verus-x86-linux/{verus,rust_verify,z3}
-
-# 3. Add to PATH (add to your shell rc for permanence)
-export PATH="$HOME/.cargo/bin:$HOME/tools/verus/verus-x86-linux:$PATH"
-
-# 4. Verify
-verus --version   # should show 0.2026.05.24.ecee80a
-
-# 5. Run
-cargo xtask verus-check --all-pilot
-```
+**The pinned version and the install recipe live in
+[`verification/verus/TOOLCHAIN.md`](https://github.com/nabbisen/fjell-os/blob/main/verification/verus/TOOLCHAIN.md),
+and this page deliberately does not repeat them.** It used to carry a "quick
+reference" copy, which drifted: it pinned `release/0.2026.05.24.ecee80a` and
+rustup `1.95.0` — both **retired on 2026-07-30** — and described Fjell's own
+Rust channel as 1.91 when it is the version in the table above. Following it
+installed a prover that Gate 10 then **rejected on a version mismatch**, which
+is the gate working correctly against a document that was not. One pinned
+recipe, in one place, cited from here.
 
 ---
 
