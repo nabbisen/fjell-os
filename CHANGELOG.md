@@ -5,7 +5,7 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.41.0] — 2026-11-07 — The audit trail reaches someone, and says when it did not
+## [0.41.0] — 2026-11-09 — The audit trail reaches someone, and says when it did not
 
 Six RFCs, **six errata closed** (**E-101**, **E-102**, **E-103**, **E-104**,
 **E-107**, **E-109**), two filed and carried to 0.42 (**E-105**, **E-106**, both ACCEPTED), and
