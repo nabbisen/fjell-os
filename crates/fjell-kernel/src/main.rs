@@ -655,6 +655,10 @@ pub unsafe extern "C" fn m_mode_setup(hart_id: usize, dtb_pa: usize) -> ! {
         csr::write_medeleg(0xFFFF);
         csr::write_mideleg(0x0222);
         csr::write_mstatus(1usize << 11); // MPP = S
+        // RFC-0.42-002: let S-mode read the `time` counter (TM, bit 1) -- reading only.
+        // This enables no interrupt: `sie`/`STIE` stay as they were (masked), and RFC 037's
+        // timer-preemption path stays dormant.
+        csr::write_mcounteren(1 << 1);
 
         // Configure PMP entry 0: grant S-mode RWX access to all physical memory.
         //

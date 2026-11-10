@@ -55,6 +55,8 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::IrqAck)          => sys_irq_ack(tf),
         // RFC-0.33-001 D8: platform reset.
         Some(SyscallNumber::PlatformReboot)  => sys_platform_reboot(tf),
+        // RFC-0.42-002: read the monotone clock.
+        Some(SyscallNumber::ClockNow)        => sys_clock_now(tf),
         // DebugWrite handled before
         Some(_) | None => {
             // TRAP-002: unknown syscall is not a kernel panic.
@@ -1201,6 +1203,34 @@ pub fn sys_platform_reboot(tf: &mut TrapFrame) {
 
     // Reached only if the device did not reset the machine.
     tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+}
+
+/// `sys_clock_now_ns(a0 = clock_cap) -> a0 = status, a1 = nanoseconds`
+///
+/// RFC-0.42-002. Needs a `CapKind::Clock` capability carrying `CLOCK_READ`; any other
+/// kind, a missing right, or an empty slot is refused by `require_cap_on_ct` before the
+/// counter is read. On success `a1` is a monotone count of **nanoseconds** since an
+/// origin the ABI does not define (the counter's zero, which is the machine's reset): only
+/// *differences* between two readings mean anything. `a1` is a plain word, meaningful
+/// only when `a0` is `Ok`.
+///
+/// **This reads; it does not arm.** The counter is observed through the `time` CSR. Nothing
+/// here sets `mtimecmp`, enables `STIE` or touches `sie`, so no interrupt is delivered
+/// that was not delivered before (R3). It never blocks and never changes scheduling.
+pub fn sys_clock_now(tf: &mut TrapFrame) {
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let tidx = crate::trap::dispatch::current_task_idx();
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+    if let Err(e) = require_cap_on_ct(ct, tidx, cap_h, CapKind::Clock, CapRights::CLOCK_READ, None)
+    {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
+    }
+    tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+    tf.gpr[REG_A1] = crate::arch::riscv64::timer::now_ns() as usize;
 }
 
 pub fn sys_irq_bind(tf: &mut TrapFrame) {

@@ -485,6 +485,22 @@ pub unsafe fn sys_audit_drain_ptr(
     Ok((r1, r2))
 }
 
+/// Read the monotone clock, in **nanoseconds** (RFC-0.42-002).
+///
+/// `clock` is a `CapKind::Clock` handle carrying `CLOCK_READ`; without one the kernel
+/// refuses. The value counts from an origin the ABI does not define, so **only the
+/// difference between two readings is meaningful** -- use `later - earlier`, never the
+/// absolute number. It is monotone (never decreases). The resolution is the platform's
+/// counter tick (100 ns on QEMU `virt`), so two readings in quick succession may be equal.
+///
+/// This is a clock to *read*. There is no `sleep` and no wait-until: blocking on time
+/// needs the timer interrupt, which stays masked.
+pub fn sys_clock_now_ns(clock: CapHandle) -> Result<u64, SysError> {
+    let (a0, a1) = ecall2(SyscallNumber::ClockNow as usize, clock.0 as usize, 0, 0, 0);
+    to_result(a0)?;
+    Ok(a1 as u64)
+}
+
 /// RFC 057: request a platform reboot.  Requires a `Reboot` cap with `REBOOT` right.
 /// On success, this call never returns.
 /// RFC 057: request platform reboot. Never returns on success.

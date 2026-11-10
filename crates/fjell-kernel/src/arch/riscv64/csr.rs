@@ -202,6 +202,36 @@ pub unsafe fn write_mideleg(v: usize) {
     unsafe { core::arch::asm!("csrw mideleg, {}", in(reg) v) };
 }
 
+/// Write `mcounteren`: which counters S-mode may read.
+///
+/// RFC-0.42-002: bit 1 (`TM`) lets S-mode execute `rdtime`. With `-bios none` nothing
+/// before the kernel sets it, and an S-mode `rdtime` with it clear is an illegal
+/// instruction. **It governs reading the counter only** -- it enables no interrupt,
+/// and `sie`/`STIE` are not touched.
+///
+/// # Safety
+/// Must be called from M-mode.
+#[inline]
+// SAFETY: category=csr-asm CSR access is valid in M-mode; register name is correct for riscv64gc.
+pub unsafe fn write_mcounteren(v: usize) {
+    // SAFETY: category=csr-asm M-mode shim context; the bits written only permit reads of counters.
+    unsafe { core::arch::asm!("csrw mcounteren, {}", in(reg) v) };
+}
+
+/// Read the `time` CSR: the same free-running counter as the CLINT's `mtime`.
+///
+/// # Safety
+/// S-mode needs `mcounteren.TM` set (see [`write_mcounteren`]); otherwise this traps
+/// as an illegal instruction.
+#[inline]
+// SAFETY: category=csr-asm read-only CSR, no side effects.
+pub unsafe fn read_time() -> u64 {
+    let v: u64;
+    // SAFETY: category=csr-asm read-only CSR, no side effects.
+    unsafe { core::arch::asm!("csrr {}, time", out(reg) v) };
+    v
+}
+
 /// Write `mepc` (machine exception program counter).
 ///
 /// # Safety

@@ -89,6 +89,16 @@ impl CapRights {
     /// the `LeaseAdmin` grants in the kernel, and nowhere else.
     pub const LEASE_BIND: Self = CapRights(1 << 30);
 
+    // Clock (RFC-0.42-002 R4, closes the authority half of E-106)
+    /// Authority to call `sys_clock_now_ns` on a [`CapKind::Clock`] capability — bit 31.
+    ///
+    /// A monotone counter is a timing side channel: it is what a task needs to measure
+    /// anything, including another task. So it is a right, and it is granted by name, at
+    /// the one place that needs it, and **deliberately in neither [`Self::ALL_NON_META`]
+    /// nor [`Self::ALL_DEFINED`]** — as [`Self::LEASE_BIND`] is, for the same reason: a
+    /// blanket grant must not silently confer a new authority.
+    pub const CLOCK_READ: Self = CapRights(1 << 31);
+
     /// All rights EXCLUDING meta-rights (CAP_INSTALL, CAP_REVOKE).
     /// Use for ordinary service grants. Formerly named `ALL`.
     pub const ALL_NON_META: Self = CapRights((1 << 26) - 1);
@@ -97,8 +107,8 @@ impl CapRights {
     pub const ALL: Self = Self::ALL_NON_META;
     /// All currently defined rights, including meta-rights CAP_INSTALL (bit 26)
     /// and the IRQ rights (bits 27-29, RFC-0.25-001), **except `LEASE_BIND`**
-    /// (bit 30, RFC-0.42-001): that right is granted by name only, so a blanket
-    /// grant never carries it.
+    /// (bit 30, RFC-0.42-001) **and `CLOCK_READ`** (bit 31, RFC-0.42-002): those
+    /// rights are granted by name only, so a blanket grant never carries them.
     /// Use only for cap-broker and trust-provider admin paths.
     pub const ALL_DEFINED: Self = CapRights((1 << 30) - 1);
     /// No rights.
@@ -214,6 +224,12 @@ pub enum CapKind {
     /// Grants `NET_SEND | NET_RECV` rights.
     NetDevice,
 
+    // ── v0.42 (time) ───────────────────────────────────────────────────────
+    /// Authority to read the monotone clock (RFC-0.42-002). Carries `CLOCK_READ`.
+    /// Its own kind, as `Reboot` and `AuditDrain` are: the object is "the clock",
+    /// and no other kind's capability can be mistaken for it.
+    Clock,
+
     // ── Backward-compatible aliases (v0.1.x names) ─────────────────────────
     // These are kept for the transition period; service code should migrate.
     /// Legacy: use `DmaRegion` for new code.
@@ -304,6 +320,7 @@ impl CapKind {
             // 0x14 = 20, 0x15 = 21 - handled above; net/interrupt get distinct values
             0x18 => Some(Self::Interrupt), // 24
             0x19 => Some(Self::NetDevice), // 25
+            0x1A => Some(Self::Clock),     // 26
             _ => None,                     // unknown kind → None (not Endpoint)
         }
     }
@@ -461,5 +478,29 @@ mod rfc_v074_003_cap_bind_tests {
     #[test]
     fn lease_create_right_is_bit_16() {
         assert_eq!(CapRights::LEASE_CREATE.0, 1 << 16);
+    }
+}
+
+#[cfg(test)]
+mod rfc_0_42_002_clock_tests {
+    use super::{CapKind, CapRights};
+
+    #[test]
+    fn clock_read_is_bit_31_and_beside_lease_bind() {
+        assert_eq!(CapRights::CLOCK_READ.0, 1 << 31);
+        assert_ne!(CapRights::CLOCK_READ, CapRights::LEASE_BIND);
+    }
+
+    /// The point of granting by name: no aggregate carries it.
+    #[test]
+    fn no_aggregate_carries_clock_read() {
+        assert!(!CapRights::ALL_NON_META.contains(CapRights::CLOCK_READ));
+        assert!(!CapRights::ALL_DEFINED.contains(CapRights::CLOCK_READ));
+    }
+
+    #[test]
+    fn clock_kind_round_trips_and_is_new() {
+        assert_eq!(CapKind::from_u8(0x1A), Some(CapKind::Clock));
+        assert_eq!(CapKind::from_u8(0x1B), None);
     }
 }

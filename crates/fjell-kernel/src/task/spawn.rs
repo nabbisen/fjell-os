@@ -544,6 +544,26 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 3: Clock cap -- granted to storaged only (RFC-0.42-002 R4).
+            // storaged is the line's one real consumer: it reads the clock across a
+            // poll and reports the elapsed time in its `io incomplete` line (R5). The
+            // right is named, not drawn from `ALL_NON_META`/`ALL_DEFINED`: a monotone
+            // counter is a timing side channel, and a blanket grant must not confer it.
+            if image_id == fjell_abi::service::ImageId::STORAGED {
+                let _ = cs.install_raw(
+                    3,
+                    Capability {
+                        kind: CapKind::Clock,
+                        object_id: 0,
+                        rights: CapRights::CLOCK_READ,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot 2: DmaRegion cap — granted to services that perform DMA
             // (storaged, driver-virtio-blk, neg-test).  RFC 017 / RFC 052.
             // Modernised from the legacy DmaAlloc alias (architect review

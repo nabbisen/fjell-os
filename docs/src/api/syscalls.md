@@ -38,6 +38,7 @@ full list and disposition. This page lists only the 26 that are live.
 | 90 | `MmioMap` | `sys_mmio_map` | Hardware |
 | 110 | `DmaAlloc` | `sys_dma_alloc` | Hardware |
 | 112 | `DmaRevoke` | `sys_dma_revoke` | Hardware |
+| 113 | `ClockNow` | `sys_clock_now_ns` (needs a `Clock` cap with `CLOCK_READ`) | Platform |
 
 Notes:
 
@@ -51,6 +52,11 @@ Notes:
 - `AuditWait` (61) returns `Ok` in `a0` and, in `a1`, `1` if it parked the caller or `0`
   if it returned at once because the audit ring was already non-empty (RFC-0.41-001 R11).
   `a1` is a plain word, meaningful only when `a0` is `Ok`.
+- `ClockNow` (113) returns `Ok` in `a0` and, in `a1`, a monotone count of **nanoseconds**
+  (RFC-0.42-002). The origin is not defined by the ABI: only the difference between two
+  readings is meaningful. The resolution is the platform counter's tick (100 ns on QEMU `virt`).
+  It is a clock to read -- there is no sleep or wait-until, since blocking on time needs the
+  timer interrupt, which stays masked. `a1` is a plain word, meaningful only when `a0` is `Ok`.
 - Every syscall except `DebugWrite` is capability-gated; the result is
   returned in `a0` as a typed `SysError` (or `Ok`). See
   [IPC Register Layout](../abi/ipc-register-layout.md) for the full

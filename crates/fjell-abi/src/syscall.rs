@@ -99,6 +99,10 @@ pub enum SyscallNumber {
     DmaAlloc = 110,
     DmaShare = 111,
     DmaRevoke = 112,
+    /// Read the monotone clock, in nanoseconds (RFC-0.42-002). Needs a
+    /// `CapKind::Clock` capability carrying `CLOCK_READ`. The next free number after
+    /// `DmaRevoke`: `120` is retired (below) and is not reused.
+    ClockNow = 113,
     // 120 was `Reboot`, an undispatched duplicate of `PlatformReboot` (18).
     // Retired at RFC-0.33-001 D8, once 18 had a real dispatch arm: two
     // numbers for one syscall is the thing D2 exists to not repeat. The
@@ -154,6 +158,7 @@ impl SyscallNumber {
             110 => Some(Self::DmaAlloc),
             111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
+            113 => Some(Self::ClockNow),
             _ => None,
         }
     }
@@ -210,4 +215,24 @@ impl SyscallNumber {
     // Requires DeviceInventory capability with REGION_RESOLVE right.
     // Reserved slot; implementation in v0.8.
     pub const PLATFORM_REGION_RESOLVE: usize = 0x60;
+}
+
+#[cfg(test)]
+mod rfc_0_42_002_tests {
+    use super::SyscallNumber;
+
+    #[test]
+    fn clock_now_is_113_and_round_trips() {
+        assert_eq!(SyscallNumber::ClockNow as usize, 113);
+        assert_eq!(
+            SyscallNumber::from_usize(113),
+            Some(SyscallNumber::ClockNow)
+        );
+    }
+
+    /// `120` was `Reboot`; reviving it would make old and new ABIs disagree silently.
+    #[test]
+    fn the_retired_number_stays_retired() {
+        assert_eq!(SyscallNumber::from_usize(120), None);
+    }
 }

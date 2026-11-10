@@ -16,7 +16,8 @@ mod rt;
 
 use core::sync::atomic::{Ordering, fence};
 use fjell_syscall::{
-    sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map, sys_yield,
+    sys_clock_now_ns, sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map,
+    sys_yield,
 };
 
 #[panic_handler]
@@ -97,6 +98,9 @@ const READ_ERR: usize = 0x20D;
 // Slot 34: MmioRegion cap for virtio-mmio region (base 0x1000_1000)
 const EP_SLOT: u32 = 0;
 const DMA_SLOT: u32 = 2;
+/// Slot 3: the `Clock` cap, `CLOCK_READ` only (RFC-0.42-002). Read in `do_io` to report
+/// how long a poll took; **never to decide anything** -- see [`POLL_ROUNDS`].
+const CLOCK_SLOT: u32 = 3;
 const MMIO_SLOT: u16 = 34;
 const REGION_BASE: usize = 0x1000_1000;
 
@@ -167,6 +171,11 @@ unsafe fn used_idx(va: usize) -> u16 {
 /// not a duration**: each round is a `sys_yield`, so the wall time it allows depends on how
 /// often this service is rescheduled, and Fjell gives user space no clock to say otherwise
 /// (E-106). The single copy of the bound; the failure line prints the count actually reached.
+///
+/// RFC-0.42-002: the clock now exists, and **the bound is still this count.** The failure
+/// line reports the time the polling took, as an added field, so a reader can tell what 500,000
+/// rounds came to on that host; it does not shorten, extend or replace the budget. `do_io`
+/// gives up at the same round it always did.
 const POLL_ROUNDS: u32 = 500_000;
 
 /// Print `v` as `0x` and eight hex digits.
@@ -196,6 +205,30 @@ fn put_dec(mut v: u32) {
     }
 }
 
+/// Print `v` in decimal (a 64-bit count: nanoseconds).
+fn put_dec64(mut v: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    loop {
+        i -= 1;
+        buf[i] = b'0' + (v % 10) as u8;
+        v /= 10;
+        if v == 0 {
+            break;
+        }
+    }
+    for b in &buf[i..] {
+        fjell_syscall::sys_debug_write_byte(*b);
+    }
+}
+
+/// Read the clock, in nanoseconds, or `None` if the kernel refuses (no `Clock` cap, or no
+/// `CLOCK_READ`). A failed read costs the report its duration and nothing else: it is
+/// observation only and no decision in this service depends on it.
+fn clock_ns() -> Option<u64> {
+    sys_clock_now_ns(CapHandle::new(CLOCK_SLOT as u16, 0)).ok()
+}
+
 /// An I/O did not complete within the poll budget. Say what the device and the queue
 /// look like, **once, on the failure path only** -- nothing here runs when an I/O
 /// succeeds, and it allocates nothing.
@@ -214,12 +247,25 @@ fn put_dec(mut v: u32) {
 /// set and says nothing about the request that stalled.
 ///
 /// `rounds` is the number of poll rounds actually spent, printed as a count with its
-/// unit. No duration is claimed: none was measured, and nothing here can measure one.
+/// unit. `started` is the clock reading taken just before the first poll round
+/// (RFC-0.42-002); the line also says how long the polling took, as `elapsed_ns=` -- a
+/// measured duration, in the unit its name states, or `unavailable` if the clock could not
+/// be read. It is reported and never acted on: the give-up condition is the round count.
 ///
 /// # Safety
 /// `mmio` and `va` are this driver's mapped device window and DMA page.
 // SAFETY: category=raw-pointer-deref reads of this driver's own mapped MMIO window and DMA page.
-unsafe fn report_io_incomplete(mmio: usize, va: usize, lba: u64, prev: u16, rounds: u32) {
+unsafe fn report_io_incomplete(
+    mmio: usize,
+    va: usize,
+    lba: u64,
+    prev: u16,
+    rounds: u32,
+    started: Option<u64>,
+) {
+    // Read the clock first, before anything below: the duration is the polling, not the
+    // time this report spends reading registers.
+    let ended = clock_ns();
     // Each read below is a status read -- it only observes; nothing is written to the device.
     // SAFETY: category=raw-pointer-deref reads of this driver's own mapped MMIO window and DMA page.
     let (status, isr, avail, used, hdr_ty, hdr_st) = unsafe {
@@ -248,6 +294,12 @@ unsafe fn report_io_incomplete(mmio: usize, va: usize, lba: u64, prev: u16, roun
     put_hex(lba as u32);
     sys_debug_write(" hdr_type=");
     put_hex(hdr_ty);
+    sys_debug_write(" elapsed_ns=");
+    match (started, ended) {
+        // Monotone, so `ended >= started`; saturate rather than trust it blindly.
+        (Some(a), Some(b)) => put_dec64(b.saturating_sub(a)),
+        _ => sys_debug_write("unavailable"),
+    }
     sys_debug_writeln("");
     sys_debug_write("storaged: io incomplete state status=");
     put_hex(status);
@@ -302,7 +354,9 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
         wr32(mmio, R_QUEUE_NOTIFY, 0);
         fence(Ordering::SeqCst);
 
-        // Poll for completion.
+        // Poll for completion. The clock is read once here, to say afterwards how long the
+        // polling took; nothing below branches on it (RFC-0.42-002 R5).
+        let started = clock_ns();
         let mut t = 0u32;
         loop {
             fence(Ordering::SeqCst);
@@ -313,7 +367,7 @@ fn do_io(mmio: usize, va: usize, pa: usize, lba: u64, write: bool) -> bool {
             if t >= POLL_ROUNDS {
                 // Already inside this function's `unsafe` block, which is what
                 // `report_io_incomplete` requires: this driver's own mapped window and DMA page.
-                report_io_incomplete(mmio, va, lba, prev, t);
+                report_io_incomplete(mmio, va, lba, prev, t, started);
                 return false;
             }
             // Ring doorbell again every 1000 iterations to retrigger if missed
