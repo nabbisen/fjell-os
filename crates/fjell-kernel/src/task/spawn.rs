@@ -650,7 +650,7 @@ pub fn spawn(
                     Capability {
                         kind: CapKind::LeaseAdmin,
                         object_id: 0,
-                        rights: CapRights::ALL_NON_META,
+                        rights: CapRights::ALL_NON_META | CapRights::LEASE_BIND,
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,
@@ -684,7 +684,7 @@ pub fn spawn(
                     Capability {
                         kind: CapKind::LeaseAdmin,
                         object_id: 0,
-                        rights: CapRights::ALL_NON_META,
+                        rights: CapRights::ALL_NON_META | CapRights::LEASE_BIND,
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,

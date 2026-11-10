@@ -75,6 +75,20 @@ impl CapRights {
     /// Authority to call `sys_irq_ack` on an `Interrupt` capability.
     pub const IRQ_ACK: Self = CapRights(1 << 29);
 
+    // Lease binding (RFC-0.42-001 R1, closes the right half of E-091)
+    /// Authority to call `sys_cap_bind_lease` — bit 30.
+    ///
+    /// `RFC-v0.7.4-003` specified this right at `1 << 25`; that bit now belongs to
+    /// [`Self::REBOOT`], and moving `REBOOT` would be an ABI break, so the right lives
+    /// at the first free bit above the IRQ rights. It is carried by a `LeaseAdmin`
+    /// capability **alongside** `LEASE_CREATE`: binding needs both.
+    ///
+    /// **Deliberately in neither [`Self::ALL_NON_META`] nor [`Self::ALL_DEFINED`].**
+    /// Widening an aggregate would hand a new authority to every holder of a blanket
+    /// grant, which inverts the reason for adding a right. It is granted by name, at
+    /// the `LeaseAdmin` grants in the kernel, and nowhere else.
+    pub const LEASE_BIND: Self = CapRights(1 << 30);
+
     /// All rights EXCLUDING meta-rights (CAP_INSTALL, CAP_REVOKE).
     /// Use for ordinary service grants. Formerly named `ALL`.
     pub const ALL_NON_META: Self = CapRights((1 << 26) - 1);
@@ -82,7 +96,9 @@ impl CapRights {
     #[deprecated(since = "0.7.1", note = "use ALL_NON_META or ALL_DEFINED explicitly")]
     pub const ALL: Self = Self::ALL_NON_META;
     /// All currently defined rights, including meta-rights CAP_INSTALL (bit 26)
-    /// and the IRQ rights (bits 27-29, RFC-0.25-001).
+    /// and the IRQ rights (bits 27-29, RFC-0.25-001), **except `LEASE_BIND`**
+    /// (bit 30, RFC-0.42-001): that right is granted by name only, so a blanket
+    /// grant never carries it.
     /// Use only for cap-broker and trust-provider admin paths.
     pub const ALL_DEFINED: Self = CapRights((1 << 30) - 1);
     /// No rights.
@@ -398,6 +414,24 @@ mod rfc_v074_003_tests {
     #[test]
     fn all_non_meta_is_subset_of_all_defined() {
         assert!(CapRights::ALL_NON_META.is_subset_of(CapRights::ALL_DEFINED));
+    }
+
+    // RFC-0.42-001 R1: `LEASE_BIND` is bit 30, not the `1 << 25` the done RFC named
+    // (that bit is `REBOOT`'s, and moving it is an ABI break).
+    #[test]
+    fn lease_bind_is_bit_30_and_leaves_reboot_alone() {
+        assert_eq!(CapRights::LEASE_BIND.0, 1 << 30);
+        assert_eq!(CapRights::REBOOT.0, 1 << 25);
+        assert_eq!(CapRights::LEASE_BIND.0 & CapRights::REBOOT.0, 0);
+    }
+
+    // The right is granted by name: a blanket grant never carries it. If an
+    // aggregate were widened to include it, every holder of that grant would
+    // gain the authority to bind leases, which is what the right exists to ration.
+    #[test]
+    fn no_aggregate_carries_lease_bind() {
+        assert!(!CapRights::ALL_NON_META.contains(CapRights::LEASE_BIND));
+        assert!(!CapRights::ALL_DEFINED.contains(CapRights::LEASE_BIND));
     }
 
     // NEG:CAP_INSTALL:UNKNOWN_KIND_REJECTED (format-level)

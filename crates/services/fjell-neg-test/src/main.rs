@@ -59,10 +59,29 @@ const SLOT_NARROW_CAP: u32 = 14; // minted cap with no management rights (RFC 04
 //                       SLOT_SCRATCH_A=6, SLOT_SCRATCH_B=7, _C=8, _D=9 ← collided with TaskControl(6).
 const SLOT_SCRATCH_A: u32 = 10; // copy of OWN_EP with lease bound
 const SLOT_SCRATCH_B: u32 = 11; // minted cap with narrowed rights
+const SLOT_SCRATCH_C: u32 = 12; // minted LeaseAdmin without LEASE_BIND (RFC-0.42-001 R1)
 const SLOT_MMIO_BASE: u32 = 31; // First MmioRegion cap (object 0)
 const SLOT_MMIO_RAM: u32 = 35; // MmioRegion cap for region 4 (neg-test-RAM, straddles RAM)
 const SLOT_BOOTCTL_EP: u32 = 18; // CALL-only cap to bootctl (RFC-0.35-001 R7)
 const SLOT_VERIFYD_EP: u32 = 19; // CALL-only cap to verifyd (RFC-0.35-001 R7)
+
+/// Reply label of the lease handshake with `sample-service`: `LEASE_REPLY | lease_id`.
+/// `sample-service`'s own private `LEASE_REPLY` has the same value -- two copies
+/// rather than a new public constant; if they drift the handshake fails and the
+/// `NEG:IPC:*` markers vanish.
+const LEASE_REPLY: usize = 0x1000;
+
+/// The lease named by a handshake reply, if it is one.
+///
+/// RFC-0.42-001 R2: a task binds only leases it created, so `sample-service` makes
+/// the lease it binds and tells us which, instead of us making one for it.
+fn lease_from_reply(reply: usize) -> Option<fjell_abi::lease::LeaseId> {
+    if reply & !0xFFF == LEASE_REPLY {
+        Some(fjell_abi::lease::LeaseId((reply & 0xFFF) as u32))
+    } else {
+        None
+    }
+}
 
 // ── RAM_BASE (must match kernel platform constant) ────────────────────────────
 const RAM_BASE: usize = 0x8000_0000;
@@ -449,8 +468,11 @@ fn test_cap_bind_lease_without_authority() {
     }
     // A LeaseAdmin capability that lacks LEASE_CREATE. SLOT_NARROW_CAP is empty
     // here: every earlier user of it drops it again.
-    let without_create =
-        fjell_cap::CapRights::ALL_NON_META.0 & !fjell_cap::CapRights::LEASE_CREATE.0;
+    // It keeps LEASE_BIND (RFC-0.42-001 R1), so the refusal below is specifically for
+    // the missing LEASE_CREATE and not for the right the aggregate does not carry.
+    let without_create = (fjell_cap::CapRights::ALL_NON_META.0
+        | fjell_cap::CapRights::LEASE_BIND.0)
+        & !fjell_cap::CapRights::LEASE_CREATE.0;
     let narrow = match sys_cap_mint(CapHandle(SLOT_LEASE_ADMIN), SLOT_NARROW_CAP, without_create) {
         Ok(h) => h,
         Err(_) => {
@@ -459,13 +481,37 @@ fn test_cap_bind_lease_without_authority() {
             return;
         }
     };
+    // RFC-0.42-001 R1: and one that has LEASE_CREATE but lacks LEASE_BIND (the
+    // aggregates carry the first and not the second). Between them the two narrow
+    // capabilities hold both rights -- one each.
+    let create_only = fjell_cap::CapRights::ALL_NON_META.0;
+    let narrow_bind_less =
+        match sys_cap_mint(CapHandle(SLOT_LEASE_ADMIN), SLOT_SCRATCH_C, create_only) {
+            Ok(h) => h,
+            Err(_) => {
+                setup_failed("bind_lease_authority: mint LeaseAdmin without LEASE_BIND");
+                let _ = _sys_cap_drop(narrow);
+                let _ = _sys_cap_drop(copied);
+                return;
+            }
+        };
     // Give up the full authority. Slot 4 was never dropped, so generation 0.
     if _sys_cap_drop(CapHandle(SLOT_LEASE_ADMIN)).is_err() {
         setup_failed("bind_lease_authority: drop LeaseAdmin");
+        let _ = _sys_cap_drop(narrow_bind_less);
         let _ = _sys_cap_drop(narrow);
         let _ = _sys_cap_drop(copied);
         return;
     }
+    // Rights do not pool across capabilities: `narrow` has LEASE_BIND and not
+    // LEASE_CREATE, `narrow_bind_less` the reverse, and neither alone is enough. If
+    // LEASE_BIND were not required, `narrow_bind_less` would authorise this bind.
+    check_err(
+        sys_cap_bind_lease(copied, l2),
+        SysError::PermissionDenied,
+        M::CAP_BIND_LEASE_WITHOUT_RIGHT,
+    );
+    let _ = _sys_cap_drop(narrow_bind_less);
     check_err(
         sys_cap_bind_lease(copied, l2),
         SysError::PermissionDenied,
@@ -769,30 +815,23 @@ const BLOCKED_RECV_POLL_BOUND: u32 = 500;
 /// qemu-log-check finds it in the serial log regardless of which service
 /// printed it.
 fn test_ipc_blocked_recv() {
-    // 1. Create a fresh lease (need LeaseAdmin cap in slot 4).
-    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
-        Ok(id) => id,
-        Err(_) => {
-            setup_failed("ipc_blocked_recv: lease_create");
-            return;
-        }
-    };
-
-    // 2. Send BIND_LEASE_FOR_IPC_TEST(w0=lease_id) to sample-service's
-    //    dedicated endpoint. This is an ipc_call — we block until it replies.
-    match sys_ipc_call_words(
+    // 1+2. Send BIND_LEASE_FOR_IPC_TEST to sample-service's dedicated endpoint.
+    //    This is an ipc_call -- we block until it replies. RFC-0.42-001 R2: a task
+    //    binds only leases it created, so sample-service creates the lease, binds
+    //    its copy to it, and names it in the reply.
+    let lease_id = match sys_ipc_call_words(
         SLOT_SAMPLE_EP, // endpoint 6 → sample-service
         tags::BIND_LEASE_FOR_IPC_TEST,
-        lease_id.0 as usize,
+        0,
         0,
         0,
     ) {
-        Ok(0) => {} // sample-service replied OK
-        _ => {
-            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
-            return;
-        }
-    }
+        Ok(v) => match lease_from_reply(v) {
+            Some(id) => id,
+            None => return,
+        },
+        _ => return,
+    };
 
     // 3. sample-service has replied and is about to send us a one-way
     //    IPC_TEST_ABOUT_TO_BLOCK announcement on this same dedicated object
@@ -836,53 +875,78 @@ fn test_ipc_blocked_recv() {
         return;
     }
 
+    // 4b. RFC-0.42-001 R6: sample-service created this lease and it is `Active`, so
+    //    it is not ours to bind to. Refused, and the refusal reaches the trail.
+    test_audit_refused_bind_reaches_the_trail(lease_id);
+
     // 5. Revoke the lease — this triggers cancel_blocked_ipc_for_lease in
     //    the kernel which wakes sample-service with LeaseRevoked.
     let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
     // (marker emitted by sample-service asynchronously)
 }
 
+/// R6 / E-091: a bind refused because the lease is another task's must appear in
+/// `auditd`'s own output, as a refused bind. This only causes it: try to bind a copy
+/// of our own endpoint to `foreign` -- a lease `sample-service` created and which is
+/// still `Active` -- expect `PermissionDenied`, and say which lease.
+///
+/// It first lets the system settle, as `test_audit_settle` does: while the rest of
+/// the system is still starting, a record is queued behind hundreds of boot records
+/// and the ring drops the newest when it is full. `sample-service` stays blocked on
+/// the lease throughout, so the lease stays `Active`.
+fn test_audit_refused_bind_reaches_the_trail(foreign: fjell_abi::lease::LeaseId) {
+    let_the_system_settle();
+    let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("audit_refused_bind: copy");
+            return;
+        }
+    };
+    match sys_cap_bind_lease(copied, foreign) {
+        Err(fjell_abi::error::SysError::PermissionDenied) => {
+            sys_debug_write("neg-test: audit: refused bind lease arg0=");
+            debug_dec(foreign.0 as u64);
+            sys_debug_writeln("");
+        }
+        Err(_) => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+        Ok(_) => sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK"),
+    }
+    let _ = _sys_cap_drop(copied);
+}
+
 /// IPC: trigger BLOCKED_CALL_WAKES and LATE_REPLY_REJECTED in one exchange.
 ///
 /// Protocol:
-/// 1. neg-test sends BIND_LEASE_AND_CALL_BACK(lease_id) to sample-service (ipc_call).
-/// 2. sample-service: copies slot 0 → slot 6, binds lease, replies OK, then
-///    calls neg-test back on the leased copy → blocks waiting for reply.
+/// 1. neg-test sends BIND_LEASE_AND_CALL_BACK to sample-service (ipc_call).
+/// 2. sample-service: creates a lease (RFC-0.42-001 R2: a task binds only leases it
+///    created), copies slot 0 → slot 6, binds the lease, replies with the lease id,
+///    then calls neg-test back on the leased copy → blocks waiting for reply.
 /// 3. neg-test: receives sample-service's callback (immediately from sendq).
 /// 4. neg-test: revokes lease → kernel wakes sample-service with LeaseRevoked
 ///    (sample-service prints NEG:IPC:BLOCKED_CALL_WAKES_ON_REVOKE:PASS).
 /// 5. neg-test: sys_ipc_reply → Err (reply edge cancelled by revoke)
 ///    → prints NEG:IPC:LATE_REPLY_REJECTED:PASS.
 fn test_ipc_blocked_call_and_late_reply() {
-    // 1. Create a lease.
-    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
-        Ok(id) => id,
+    // 1+2. Tell sample-service to create a lease, bind it and call us back.
+    //    RFC-0.42-001 R2: a task binds only leases it created, so sample-service
+    //    makes the lease and names it in the reply.
+    let lease_id = match sys_ipc_call_words(SLOT_SAMPLE_EP, tags::BIND_LEASE_AND_CALL_BACK, 0, 0, 0)
+    {
+        Ok(v) => match lease_from_reply(v) {
+            Some(id) => id, // sample-service replied and is now calling us back
+            None => {
+                sys_debug_writeln("neg-test: blocked_call handshake unexpected:");
+                debug_u(v);
+                return;
+            }
+        },
         Err(e) => {
-            sys_debug_writeln("neg-test: blocked_call lease_create failed:");
+            sys_debug_writeln("neg-test: blocked_call handshake unexpected:");
             debug_err(e);
             return;
         }
     };
-
-    // 2. Tell sample-service to bind lease and call us back.
-    match sys_ipc_call_words(
-        SLOT_SAMPLE_EP,
-        tags::BIND_LEASE_AND_CALL_BACK,
-        lease_id.0 as usize,
-        0,
-        0,
-    ) {
-        Ok(0) => {} // sample-service replied OK and is now calling us back
-        other => {
-            sys_debug_writeln("neg-test: blocked_call handshake unexpected:");
-            match other {
-                Ok(v) => debug_u(v),
-                Err(e) => debug_err(e),
-            }
-            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
-            return;
-        }
-    }
 
     // 3. Receive sample-service's callback call.
     //    sample-service is blocked in ipc_call (waiting for our reply).
@@ -1021,10 +1085,16 @@ fn audit_probe(nr: usize) {
 
 /// Let the rest of the system finish starting, and `auditd` print everything it queued.
 fn test_audit_settle() {
+    let_the_system_settle();
+    sys_debug_writeln("neg-test: audit tests begin (the system has settled)");
+}
+
+/// Yield until the rest of the system has finished starting and `auditd` has printed
+/// everything it queued.
+fn let_the_system_settle() {
     for _ in 0..30_000 {
         sys_yield();
     }
-    sys_debug_writeln("neg-test: audit tests begin (the system has settled)");
 }
 
 /// R10 / E-102: a revocation raised **after boot** must appear in `auditd`'s own

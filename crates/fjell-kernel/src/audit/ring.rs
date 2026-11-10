@@ -66,6 +66,15 @@ pub enum AuditKindInternal {
     /// `Internal` and the published variant was never emitted by anything. The
     /// published enum is the ABI and this is the implementation, so this moved.
     LeaseRevoked = 16,
+    /// RFC-0.42-001 R6 (E-091): a `sys_cap_bind_lease` that was refused. **`0x0604`**,
+    /// the code `RFC-v0.7.4-003` specified (`AUDIT_LEASE_BIND_REJECTED`) and never
+    /// built, and the value `fjell_audit_format::AuditKind::LeaseBindRejected` has --
+    /// a kind the published decoder does not know would render as `Internal`, which
+    /// is the E-092 defect RFC-0.40-002 closed.
+    ///
+    /// `arg0` = the lease id asked for, `arg1` = the capability slot, `result` = the
+    /// refusal (`SysError`).
+    LeaseBindRejected = 0x0604,
     // `CapDenied = 41` was here until RFC-0.40-002: emitted by nothing and absent
     // from the published decoder, so a kind nothing emits and nothing decodes. It
     // is gone rather than left to suggest that capability denials are audited

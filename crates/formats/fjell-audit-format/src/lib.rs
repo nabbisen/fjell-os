@@ -45,6 +45,9 @@ pub enum AuditKind {
     IpcDenied = 24,
     // v0.2 scheduler events (RFC 037)
     TaskQuantumExceeded = 30,
+    // RFC-0.42-001 (E-091): a refused lease bind. 0x0604 is the code RFC-v0.7.4-003
+    // specified as AUDIT_LEASE_BIND_REJECTED.
+    LeaseBindRejected = 0x0604,
     // Internal / unclassified
     Internal = 255,
 }
@@ -74,6 +77,7 @@ impl AuditKind {
             23 => Self::IpcReply,
             24 => Self::IpcDenied,
             30 => Self::TaskQuantumExceeded,
+            0x0604 => Self::LeaseBindRejected,
             _ => Self::Internal,
         }
     }
@@ -102,6 +106,7 @@ impl AuditKind {
             Self::IpcReply => "ipc.reply",
             Self::IpcDenied => "ipc.denied",
             Self::TaskQuantumExceeded => "task.quantum_exceeded",
+            Self::LeaseBindRejected => "lease.bind_rejected",
             Self::Internal => "internal",
         }
     }
@@ -361,6 +366,15 @@ mod tests {
             AuditKind::TaskQuantumExceeded.label(),
             "task.quantum_exceeded"
         );
+    }
+
+    // RFC-0.42-001 R6: a refused lease bind decodes under its own name. Without the
+    // variant it would decode as `Internal` -- the E-092 defect, again.
+    #[test]
+    fn a_refused_lease_bind_decodes_as_itself() {
+        assert_eq!(AuditKind::from_u16(0x0604), AuditKind::LeaseBindRejected);
+        assert_eq!(AuditKind::LeaseBindRejected.label(), "lease.bind_rejected");
+        assert_eq!(AuditKind::LeaseBindRejected as u16, 0x0604);
     }
 
     #[test]

@@ -11,6 +11,11 @@
 #
 #   * `expect_echoed` (1): a lease revoked after boot appears as `lease.revoked`, with
 #     its lease id. The decoded name is the assertion, as in RFC-0.40-002.
+#   * `expect_echoed` (1b), RFC-0.42-001 R6 (E-091): a bind refused because the lease is another
+#     task's appears as `lease.bind_rejected`, with the lease id. `neg-test` asks to bind to a
+#     lease `sample-service` created and still holds `Active`, is refused, and says which;
+#     `auditd` must then print the record under its decoded name (code `0x0604`, which the
+#     published decoder knows -- not `internal`, the E-092 shape).
 #   * `expect_echoed` (2), the lost wakeup (R4): 120 rounds, each a pair of probe records
 #     with `k` non-appending traps between them (k = 0..119) so the second lands at a
 #     different point of `auditd`'s drain/wait cycle; every probe's record is required to
@@ -54,6 +59,7 @@ expected_markers = [
 ]
 expect_echoed    = [
   "neg-test: audit: revoked lease arg0= => \"kind\":\"lease.revoked\",\"arg0\":{},",
+  "neg-test: audit: refused bind lease arg0= => \"kind\":\"lease.bind_rejected\",\"arg0\":{},",
   "neg-test: audit probe nr= => \"kind\":\"unknown_syscall\",\"arg0\":{}, => neg-test: audit settled",
 ]
 expect_observed  = [

@@ -3,24 +3,27 @@
 //! Serves heartbeat requests from service-manager and, for RFC 042 negative
 //! testing, handles the `BIND_LEASE_FOR_IPC_TEST` protocol:
 //!
-//! 1. neg-test sends `BIND_LEASE_FOR_IPC_TEST(lease_id)`.
-//! 2. sample-service copies its endpoint cap to a scratch slot, binds the
-//!    lease, replies OK, then calls `sys_ipc_recv` on the leased copy.
-//! 3. When neg-test revokes the lease, the kernel wakes sample-service with
-//!    `LeaseRevoked` → sample-service prints `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS`.
+//! 1. neg-test sends `BIND_LEASE_FOR_IPC_TEST`.
+//! 2. sample-service **creates a lease** (RFC-0.42-001 R2: a task binds only
+//!    leases it created, so the binder is the creator), copies its endpoint cap
+//!    to a scratch slot, binds the lease, replies with the lease id (label
+//!    `LEASE_REPLY | id`), then calls `sys_ipc_recv` on the leased copy.
+//! 3. neg-test revokes the lease -- `sys_lease_revoke` is checked by the
+//!    `LeaseAdmin` capability's scope, not by who created the lease -- and the
+//!    kernel wakes sample-service with `LeaseRevoked` → sample-service prints
+//!    `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS`.
 
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_abi::lease::LeaseId;
 use fjell_cap::{CapHandle, CapRights};
 use fjell_semantic_format::*;
 use fjell_service_api::semantic_stream as sem_proto;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
     sys_cap_bind_lease, sys_cap_copy, sys_cap_drop, sys_debug_writeln, sys_exit, sys_ipc_recv,
-    sys_ipc_recv_msg, sys_ipc_reply,
+    sys_ipc_recv_msg, sys_ipc_reply, sys_lease_create, sys_lease_revoke,
 };
 
 // Scratch CSpace slots for IPC tests.
@@ -28,6 +31,49 @@ const SLOT_LEASED_EP: u32 = 5; // blocked-recv test (BIND_LEASE_FOR_IPC_TEST)
 const SLOT_CALL_EP: u32 = 6; // blocked-call test (BIND_LEASE_AND_CALL_BACK)
 // Own endpoint slot (pre-installed; object 6 — dedicated, RFC 042).
 const SLOT_OWN_EP: u32 = 0;
+// LeaseAdmin capability (installed by spawn.rs; RFC 042, `LEASE_BIND` per RFC-0.42-001).
+const SLOT_LEASE_ADMIN: u32 = 1;
+/// Reply label of the lease handshake: `LEASE_REPLY | lease_id`. The same value is
+/// `neg-test`'s `LEASE_REPLY` -- two private copies rather than a new public
+/// constant; if they drift, the handshake fails and the `NEG:IPC:*` markers vanish.
+const LEASE_REPLY: usize = 0x1000;
+
+/// Create a lease, copy our endpoint to `dst`, and bind the copy to the lease.
+///
+/// RFC-0.42-001 R2: a task binds only leases it created, so the lease is made here,
+/// by the task that binds it. Returns the lease and the bound copy; on any failure
+/// nothing is left behind (the lease is revoked, the copy dropped).
+///
+/// Thread the generation-correct handle returned here through recv and the final
+/// drop. Earlier revisions dropped via the raw slot constant, which failed the
+/// generation check after the first cycle and left the slot occupied (architect
+/// review v0.18 follow-up -- same defect class as the neg-test quartet).
+fn lease_and_bound_copy(dst: u32, what: &str) -> Option<(fjell_abi::lease::LeaseId, CapHandle)> {
+    let lease_id = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(id) => id,
+        Err(_) => {
+            sys_debug_writeln("sample: lease create failed");
+            return None;
+        }
+    };
+    let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), dst) {
+        Ok(h) => h,
+        Err(_) => {
+            sys_debug_writeln(what);
+            sys_debug_writeln("sample: setup copy failed");
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+            return None;
+        }
+    };
+    if sys_cap_bind_lease(h, lease_id).is_err() {
+        sys_debug_writeln(what);
+        sys_debug_writeln("sample: setup bind failed");
+        let _ = sys_cap_drop(h);
+        let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+        return None;
+    }
+    Some((lease_id, h))
+}
 // RFC-0.28-001: the old dedicated "shared endpoint (object 0)" patch for
 // the SERVICE_READY signal is gone — every service now gets an
 // unconditional slot for this instead
@@ -167,8 +213,7 @@ pub extern "C" fn service_main() -> ! {
     emit_sample_intent();
 
     loop {
-        // Use recv_msg to capture data words (needed for BIND_LEASE_FOR_IPC_TEST).
-        let (label, w0, _, _, _, _) = match sys_ipc_recv_msg(ep) {
+        let (label, _, _, _, _, _) = match sys_ipc_recv_msg(ep) {
             // RFC 055: ignore sender identity
             Ok(v) => v,
             Err(_) => {
@@ -188,42 +233,24 @@ pub extern "C" fn service_main() -> ! {
 
             // ── RFC 042: IPC blocked-recv negative test protocol ─────────────
             //
-            // neg-test sends BIND_LEASE_FOR_IPC_TEST(w0=lease_id):
-            //   1. Copy slot 0 (Endpoint, obj 0) → slot SLOT_LEASED_EP.
-            //   2. Bind the lease (from w0) to slot SLOT_LEASED_EP.
-            //   3. Reply OK so neg-test knows we're ready to block.
-            //   4. Call sys_ipc_recv(SLOT_LEASED_EP):
+            // neg-test sends BIND_LEASE_FOR_IPC_TEST (RFC-0.42-001 R2: we create the
+            // lease, because a task binds only leases it created):
+            //   1. Create a lease; copy slot 0 (Endpoint, obj 0) → SLOT_LEASED_EP;
+            //      bind the lease to the copy.
+            //   2. Reply `LEASE_REPLY | lease_id` so neg-test knows we're ready to
+            //      block, and which lease to revoke (and to try, and fail, to bind).
+            //   3. Call sys_ipc_recv(SLOT_LEASED_EP):
             //      - Lease still active → task enters recvq.
             //      - neg-test revokes the lease → kernel wakes us with LeaseRevoked.
-            //   5. Print marker; drop scratch slot; loop continues.
+            //   4. Print marker; drop scratch slot; loop continues.
             l if l == (tags::BIND_LEASE_FOR_IPC_TEST & 0xFFFF) => {
-                let lease_id = LeaseId(w0 as u32);
-                // Thread the generation-correct handle returned by copy through
-                // bind, recv, and the final drop. Earlier revisions dropped via
-                // the raw slot constant, which failed the generation check after
-                // the first cycle and left the slot occupied (architect review
-                // v0.18 follow-up — same defect class as the neg-test quartet).
-                let leased_h = 'setup: {
-                    let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_LEASED_EP) {
-                        Ok(h) => h,
-                        Err(_) => {
-                            sys_debug_writeln("sample: blocked_recv setup copy failed");
-                            break 'setup None;
-                        }
-                    };
-                    if sys_cap_bind_lease(h, lease_id).is_err() {
-                        sys_debug_writeln("sample: blocked_recv setup bind failed");
-                        let _ = sys_cap_drop(h);
-                        break 'setup None;
-                    }
-                    Some(h)
-                };
-                let Some(leased_h) = leased_h else {
+                let leased = lease_and_bound_copy(SLOT_LEASED_EP, "sample: blocked_recv");
+                let Some((lease_id, leased_h)) = leased else {
                     let _ = sys_ipc_reply(usize::MAX); // setup failed
                     continue;
                 };
-                // Reply OK — neg-test is now unblocked.
-                let _ = sys_ipc_reply(0);
+                // Reply with the lease -- neg-test is now unblocked.
+                let _ = sys_ipc_reply(LEASE_REPLY | lease_id.0 as usize);
 
                 // RFC-0.28-003 (§4, shape 3): announce our identity to
                 // neg-test before blocking, so it can poll sys_task_status
@@ -258,36 +285,22 @@ pub extern "C" fn service_main() -> ! {
 
             // ── RFC 042: IPC blocked-call + late-reply test protocol ─────────
             //
-            // neg-test sends BIND_LEASE_AND_CALL_BACK(w0=lease_id):
-            //   1. Copy slot 0 → slot SLOT_CALL_EP; bind lease to copy.
-            //   2. Reply OK so neg-test knows we're ready.
+            // neg-test sends BIND_LEASE_AND_CALL_BACK (we create the lease; see above):
+            //   1. Create a lease; copy slot 0 → slot SLOT_CALL_EP; bind it to the copy.
+            //   2. Reply `LEASE_REPLY | lease_id` so neg-test knows we're ready.
             //   3. Call neg-test back on the leased copy → blocks waiting reply.
             //   4. neg-test revokes lease → kernel wakes us with LeaseRevoked.
             //      → print BLOCKED_CALL_WAKES_ON_REVOKE marker.
             //   5. Drop SLOT_CALL_EP; continue.
             l if l == (tags::BIND_LEASE_AND_CALL_BACK & 0xFFFF) => {
-                let lease_id = LeaseId(w0 as u32);
-                let call_h = 'setup2: {
-                    let h = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_CALL_EP) {
-                        Ok(h) => h,
-                        Err(_) => {
-                            sys_debug_writeln("sample: blocked_call setup copy failed");
-                            break 'setup2 None;
-                        }
-                    };
-                    if sys_cap_bind_lease(h, lease_id).is_err() {
-                        sys_debug_writeln("sample: blocked_call setup bind failed");
-                        let _ = sys_cap_drop(h);
-                        break 'setup2 None;
-                    }
-                    Some(h)
-                };
-                let Some(call_h) = call_h else {
+                let Some((lease_id, call_h)) =
+                    lease_and_bound_copy(SLOT_CALL_EP, "sample: blocked_call")
+                else {
                     let _ = sys_ipc_reply(usize::MAX);
                     continue;
                 };
-                // Reply OK — neg-test will now call sys_ipc_recv(0).
-                let _ = sys_ipc_reply(0);
+                // Reply with the lease -- neg-test will now call sys_ipc_recv(0).
+                let _ = sys_ipc_reply(LEASE_REPLY | lease_id.0 as usize);
                 // Call neg-test back with the leased cap.
                 // neg-test will receive this, revoke the lease, and try to reply.
                 // Fail-closed (RB-01 pattern): the marker is emitted ONLY for

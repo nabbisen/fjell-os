@@ -130,6 +130,14 @@ impl LeaseTable {
         Ok(LeaseEpoch(slot.epoch))
     }
 
+    /// The task that created lease `id`, whatever the lease's state.
+    ///
+    /// `InvalidCap` for a lease that does not exist. Used by `sys_cap_bind_lease`
+    /// (RFC-0.42-001 R2): a task binds only leases it created.
+    pub fn owner(&self, id: LeaseId) -> Result<TaskId, SysError> {
+        Ok(self.get(id)?.owner)
+    }
+
     /// Revoke a lease: O(1) epoch increment (RFC 033 §2.4, invariant LEASE-001).
     ///
     /// Returns the *new* epoch after revocation.

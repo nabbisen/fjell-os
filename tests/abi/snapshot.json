@@ -1,5 +1,5 @@
 [
-  {"count":507},
+  {"count":508},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"enum","name":"BootInfoError","sig":"4828e713cf352839"},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"c09a16a24cc0fd6e"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"ABSENT","sig":"92f7c9a87f60ee14"},
@@ -103,7 +103,7 @@
   {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"const","name":"AUDIT_PERSIST_RECORD_SIZE","sig":"eac886441011968f"},
   {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"const","name":"AUDIT_RECORD_BIN_SIZE","sig":"e7f0e8fe7650436f"},
   {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"const","name":"AUDIT_RING_CAPACITY","sig":"aef523b00344296f"},
-  {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"enum","name":"AuditKind","sig":"384d14be770bacaf"},
+  {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"enum","name":"AuditKind","sig":"14a8c3295ea73491"},
   {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"struct","name":"AuditEvent","sig":"55b18bb4dfda6372"},
   {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"struct","name":"AuditLogHeader","sig":"c37faf498538a629"},
   {"crate":"fjell-audit-format","module":"","impl_type":"","kind":"struct","name":"AuditPersistRecord","sig":"a1f50db563c3c1fa"},
@@ -179,6 +179,7 @@
   {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"IRQ_ACK","sig":"efb53f37e43100ad"},
   {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"IRQ_BIND","sig":"45e1b728489d1139"},
   {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"IRQ_UNBIND","sig":"8182c0764f62b557"},
+  {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"LEASE_BIND","sig":"667fdf6e290ab835"},
   {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"LEASE_CREATE","sig":"2cd7f965deee6e7a"},
   {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"LEASE_INSPECT","sig":"1219470262c906ec"},
   {"crate":"fjell-cap","module":"rights","impl_type":"CapRights","kind":"const","name":"LEASE_REVOKE","sig":"c2f55afa9418cbef"},

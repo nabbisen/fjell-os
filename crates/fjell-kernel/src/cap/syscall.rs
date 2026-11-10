@@ -405,6 +405,19 @@ pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     }
 }
 
+/// Refuse a `sys_cap_bind_lease` with `e` and put the refusal in the audit trail
+/// (RFC-0.42-001 R6): kind `LeaseBindRejected` (`0x0604`), `arg0` = the lease id
+/// asked for, `arg1` = the capability slot, `result` = the error.
+fn refuse_bind_lease(tf: &mut TrapFrame, e: SysError, lease_id: u32, slot: usize) {
+    err(tf, e);
+    AUDIT.lock_free_append(
+        AuditKindInternal::LeaseBindRejected,
+        lease_id as usize,
+        slot,
+        e as isize,
+    );
+}
+
 /// `sys_cap_bind_lease(a0=cap_handle, a1=lease_id) -> a0=status`
 ///
 /// Bind a lease to a capability in the caller's CSpace so that `require_cap`
@@ -422,27 +435,39 @@ pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 /// Checked in this order, and refused closed at each step:
 ///
 /// 1. **Authority** — the caller holds an `Active` `CapKind::LeaseAdmin`
-///    capability that carries `CapRights::LEASE_CREATE` and whose own lease
-///    binding, if it has one, is still live. Otherwise `PermissionDenied`. It is
-///    first so a caller without authority learns nothing about the target or the
-///    lease. The syscall's ABI carries no handle for the authority, so the
-///    caller's CSpace is scanned for one. Today `init`, `sample-service` and
-///    `neg-test` hold it.
+///    capability that carries **both** `CapRights::LEASE_CREATE` and
+///    `CapRights::LEASE_BIND` (RFC-0.42-001 R1) and whose own lease binding, if it
+///    has one, is still live. Otherwise `PermissionDenied`. It is first so a caller
+///    without authority learns nothing about the target or the lease. The syscall's
+///    ABI carries no handle for the authority, so the caller's CSpace is scanned
+///    for one. Today `init`, `sample-service` and `neg-test` hold it.
 /// 2. **The target** — `cap_handle` names an occupied slot of the caller's CSpace
 ///    (generation-checked), else `InvalidCap`; and it is **not already bound**,
 ///    else `BadState`. No existing `SysError` says "this capability already has a
 ///    lease" more exactly, and a new one would be an ABI addition.
-/// 3. **The lease is `Active`** — a binding to a `Revoked` lease is dead on
-///    arrival, so it is refused with `LeaseRevoked`; a lease that does not exist
-///    is `InvalidCap`.
+/// 3. **The lease is the caller's own** (RFC-0.42-001 R2) — *a task binds only
+///    leases it created.* A lease that does not exist is `InvalidCap`; one that
+///    exists but was created by another task is `PermissionDenied`, whatever its
+///    state, so a non-owner learns nothing about it. This closes the hole in the
+///    done RFC's own clause (`lease.owner != caller && !caller_has_lease_admin_over`):
+///    every `LeaseAdmin` in this tree has scope `Any`, so that second clause would
+///    have permitted everything.
+/// 4. **The lease is `Active`** — a binding to a `Revoked` lease is dead on
+///    arrival, so it is refused with `LeaseRevoked`.
 ///
 /// Only then is the capability stamped with the lease's current epoch.
+///
+/// **Every refusal is audited** as `AuditKindInternal::LeaseBindRejected` (`0x0604`):
+/// `arg0` = the lease id asked for, `arg1` = the capability slot, `result` = the
+/// error returned.
 pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     use fjell_abi::lease::LeaseId;
+    use fjell_abi::task::TaskId;
     use fjell_cap::CapState;
 
     let cap_h = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
+    let slot = cap_h.slot() as usize;
 
     // SAFETY: category=kernel-global-mutable  lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
@@ -456,6 +481,7 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
             c.kind == CapKind::LeaseAdmin
                 && c.state == CapState::Active
                 && c.rights.contains(CapRights::LEASE_CREATE)
+                && c.rights.contains(CapRights::LEASE_BIND)
                 && c.check_lease(&*lt).is_ok()
         }),
         None => {
@@ -464,7 +490,7 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
         }
     };
     if !authorised {
-        err(tf, SysError::PermissionDenied);
+        refuse_bind_lease(tf, SysError::PermissionDenied, lease_id.0, slot);
         return;
     }
 
@@ -478,30 +504,44 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
             return;
         }
     };
-    let idx = cap_h.slot() as usize;
     let cap = match cs.slot_by_handle_mut(cap_h) {
-        Ok(slot) => match &mut slot.cap {
+        Ok(s) => match &mut s.cap {
             Some(cap) => cap,
             None => {
-                err(tf, SysError::InvalidCap);
+                refuse_bind_lease(tf, SysError::InvalidCap, lease_id.0, slot);
                 return;
             }
         },
         Err(_) => {
-            err(tf, SysError::InvalidCap);
+            refuse_bind_lease(tf, SysError::InvalidCap, lease_id.0, slot);
             return;
         }
     };
     if cap.lease.is_some() {
-        err(tf, SysError::BadState);
+        refuse_bind_lease(tf, SysError::BadState, lease_id.0, slot);
         return;
     }
 
-    // 3. The lease must be Active (fail closed on Revoked).
+    // 3. The lease is the caller's own (RFC-0.42-001 R2). Checked before the
+    // lease's state, so a non-owner learns nothing about a lease that is not
+    // theirs -- not even whether it is still `Active`.
+    match lt.owner(lease_id) {
+        Ok(owner) if owner == TaskId::new(tidx as u16, 0) => {}
+        Ok(_) => {
+            refuse_bind_lease(tf, SysError::PermissionDenied, lease_id.0, slot);
+            return;
+        }
+        Err(e) => {
+            refuse_bind_lease(tf, e, lease_id.0, slot);
+            return;
+        }
+    }
+
+    // 4. The lease must be Active (fail closed on Revoked).
     let epoch = match lt.active_epoch(lease_id) {
         Ok(e) => e,
         Err(e) => {
-            err(tf, e);
+            refuse_bind_lease(tf, e, lease_id.0, slot);
             return;
         }
     };
@@ -511,7 +551,7 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
         epoch_at_issue: epoch,
     });
     ok(tf);
-    AUDIT.lock_free_append(AuditKindInternal::CapMint, idx, lease_id.0 as usize, 0);
+    AUDIT.lock_free_append(AuditKindInternal::CapMint, slot, lease_id.0 as usize, 0);
 }
 
 /// Deliver a PendingMessage into the current task's TrapFrame (for recv/call).
