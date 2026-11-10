@@ -94,6 +94,20 @@ struct RunInfo {
     profile: String,
     commit_sha: String,
     command: String,
+    /// The emulator that produced the run, as it reported itself.
+    ///
+    /// `v1-limitations.md` row 20: the build side is recorded to the LLVM version and the
+    /// emulator was recorded nowhere, so a promoted evidence file could not say what ran the
+    /// test. Written by `qemu_run::run_profile` into `run-info.txt`, which is **not tracked**
+    /// (`.gitignore:43` ignores `tests/qemu/artifacts/*/runs/`), so carrying it here is what
+    /// makes the fact durable — capturing it at run time alone would record it into a file
+    /// nothing keeps.
+    ///
+    /// **Optional, deliberately.** Every `run-info.txt` written before this field existed
+    /// lacks it, and promotion of an older run must not fail: it says so instead of guessing,
+    /// exactly as the existing `toolchain = unknown (predates this field; not recoverable)`
+    /// lines do.
+    emulator: Option<String>,
 }
 
 fn parse_run_info(src: &str) -> Option<RunInfo> {
@@ -101,6 +115,7 @@ fn parse_run_info(src: &str) -> Option<RunInfo> {
     let mut profile = None;
     let mut commit_sha = None;
     let mut command = None;
+    let mut emulator = None;
     for line in src.lines() {
         let Some((k, v)) = line.split_once('=') else {
             continue;
@@ -111,6 +126,7 @@ fn parse_run_info(src: &str) -> Option<RunInfo> {
             "profile" => profile = Some(v),
             "commit_sha" => commit_sha = Some(v),
             "command" => command = Some(v),
+            "emulator" => emulator = Some(v),
             _ => {}
         }
     }
@@ -119,6 +135,7 @@ fn parse_run_info(src: &str) -> Option<RunInfo> {
         profile: profile?,
         commit_sha: commit_sha?,
         command: command?,
+        emulator,
     })
 }
 
@@ -145,7 +162,7 @@ fn cmd_promote(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let (source, run_id, profile, commit_sha, command) = if let Some(run_dir) = &a.run_dir {
+    let (source, run_id, profile, commit_sha, command, emulator) = if let Some(run_dir) = &a.run_dir {
         let run_dir = Path::new(run_dir);
         let Ok(info_src) = fs::read_to_string(run_dir.join("run-info.txt")) else {
             eprintln!(
@@ -167,6 +184,7 @@ fn cmd_promote(args: &[String]) -> ExitCode {
             info.profile,
             info.commit_sha,
             info.command,
+            info.emulator,
         )
     } else {
         let (Some(source), Some(run_id), Some(profile), Some(commit), Some(command)) = (
@@ -188,6 +206,10 @@ fn cmd_promote(args: &[String]) -> ExitCode {
             profile,
             commit,
             command,
+            // `--source` is the historical-log shape, and this module infers nothing for one
+            // (see the refusal above). There is no `run-info.txt` to read an emulator from and
+            // no flag to supply it, so it is recorded as unrecoverable rather than guessed.
+            None,
         )
     };
 
@@ -213,6 +235,10 @@ fn cmd_promote(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     };
     let toolchain = observed.format_line();
+    // Row 20: say so rather than guess when promoting a run recorded before the field existed,
+    // following the `toolchain = unknown (predates this field…)` lines already in `tests/evidence`.
+    let emulator =
+        emulator.unwrap_or_else(|| "unknown (predates this field; not recoverable)".into());
 
     match check_ancestor(&commit_sha) {
         AncestorCheck::Ancestor => {}
@@ -250,7 +276,7 @@ fn cmd_promote(args: &[String]) -> ExitCode {
     }
 
     let provenance = format!(
-        "run_id = {run_id}\nprofile = {profile}\ncommit_sha = {commit_sha}\ncommand = {command}\ninstrumented = {instrumented}\ntoolchain = {toolchain}\n"
+        "run_id = {run_id}\nprofile = {profile}\ncommit_sha = {commit_sha}\ncommand = {command}\nemulator = {emulator}\ninstrumented = {instrumented}\ntoolchain = {toolchain}\n"
     );
     if let Err(e) = fs::write(&dest_prov, provenance.as_bytes()) {
         eprintln!(

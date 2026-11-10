@@ -371,6 +371,36 @@ fn git_head_sha() -> String {
 /// mismatch between the two is worth a promoter's attention, which is why
 /// this is recorded at all. Fails safe: if `git status` cannot be run,
 /// reports dirty rather than silently claiming a clean tree.
+/// The emulator that produced this run's boot evidence, as it reports itself.
+///
+/// RFC-0.42-002's milestone, `v1-limitations.md` row 20: 27 of the 33 tiers boot QEMU and
+/// their results are the main evidence a release offers about the running system, yet nothing
+/// in the tree recorded *which* emulator produced them. The build side is captured to the
+/// LLVM version; this was captured nowhere, and at the 0.41.0 cut `qemu-system-riscv64` was
+/// absent from the machine entirely and installed mid-cut — so that release's evidence came
+/// from a different install than the sessions before it.
+///
+/// Queried by **bare name**, exactly as `run_profile` invokes it (`qemu-system-riscv64` at
+/// the argv construction below), so this is the version of the binary the run actually used
+/// and not of some other copy on disk. First line only — that is where the version sits.
+/// `unknown` rather than a guess if the query fails, and a failure never fails the run:
+/// recording provenance must not be able to turn a passing tier red.
+fn emulator_version() -> String {
+    Command::new("qemu-system-riscv64")
+        .arg("--version")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .next()
+                .map(|l| l.trim().to_string())
+        })
+        .filter(|l| !l.is_empty())
+        .unwrap_or_else(|| "unknown".into())
+}
+
 fn git_tree_dirty() -> bool {
     Command::new("git")
         .args(["status", "--porcelain", "--untracked-files=no"])
@@ -595,10 +625,11 @@ pub fn run_profile(p: &Profile) -> ExitCode {
     let _ = fs::write(run_dir.join("serial.log"), &combined);
     let _ = fs::write(run_dir.join("qemu-command.txt"), argv.join(" ").as_bytes());
     let run_info = format!(
-        "run_id = {run_id}\nprofile = {}\ncommit_sha = {}\ntree_dirty_at_run_time = {}\ncommand = {}\n",
+        "run_id = {run_id}\nprofile = {}\ncommit_sha = {}\ntree_dirty_at_run_time = {}\nemulator = {}\ncommand = {}\n",
         p.name,
         git_head_sha(),
         git_tree_dirty(),
+        emulator_version(),
         argv.join(" "),
     );
     let _ = fs::write(run_dir.join("run-info.txt"), run_info.as_bytes());
