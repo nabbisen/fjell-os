@@ -175,6 +175,20 @@ fn sys_cap_bind_lease(tf: &mut TrapFrame) -> SyscallResult {
 }
 ```
 
+> **Architect's annotation, 2026-11-10 (RFC-0.42-001, E-091).** Two things this document specifies
+> were implemented differently, and the deviations are deliberate and recorded here so a reader of
+> `done/` is not misled:
+>
+> 1. **`LEASE_BIND` is `1 << 30`, not `1 << 25`.** Bit 25 was allocated to `CapRights::REBOOT`
+>    after this RFC was written, and moving it is an ABI break. `CapRights` is `u64`, so bit 30 was
+>    free and no widening was needed.
+> 2. **The bind check is owner-only.** This document's pseudocode refuses only when
+>    `lease.owner != caller_task() && !caller_has_lease_admin_over(lease)`. **That second clause is
+>    the hole E-091 describes**: every `LeaseAdmin` in the tree is `ObjectScope::Any`, so the clause
+>    permits binding any lease, which is the defect rather than the fix. Implemented as *a task may
+>    bind only a lease it created*, with `LEASE_CREATE` **and** `LEASE_BIND` required on the same
+>    capability. Audit code `0x0604` is as specified.
+
 ### `CapRights` deduplication
 
 ```rust

@@ -898,6 +898,23 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         // NEG:HARNESS:CSpace_LAYOUT_VALID:PASS, a real passing marker).
         "NEG:HARNESS:BLOCKED_RECV_IDENTITY_EXCHANGE_FAILED",
         "NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED",
+        // RFC-0.42-001's review, 2026-11-10: the seven below were emitted by
+        // `fjell-neg-test` and absent from this list, so the gate read a harness
+        // failure and passed. `fjell-neg-test` emits eleven `NEG:HARNESS:*`
+        // markers; four were listed. Found because an `audit`-profile boot printed
+        // `SETUP_FAILED` and the profile still reported PASS. `REBOOT_RETURNED` is
+        // the sharpest: `tests/qemu/profiles/reboot.toml:36` states it is "a
+        // forbidden harness marker" and that "the run fails closed", which was not
+        // true of this list. Each is a failure or a failed-setup signal, checked at
+        // its emitting site; none appears in any retained serial log, so adding
+        // them turns no tier red today.
+        "NEG:HARNESS:SETUP_FAILED",
+        "NEG:HARNESS:REBOOT_NARROW_MINT_FAILED",
+        "NEG:HARNESS:REBOOT_RETURNED",
+        "NEG:HARNESS:TRY_RECV_REPLY_REFUSED",
+        "NEG:HARNESS:UPGRADE_ACTIVE_SLOT_CALL_FAILED",
+        "NEG:HARNESS:UPGRADE_VERIFY_INVALID_CALL_FAILED",
+        "NEG:HARNESS:UPGRADE_VERIFY_UNSIGNED_CALL_FAILED",
         // RFC-0.39-004: the kernel's own refusals when it will not zero, free or
         // unmap a DMA frame it cannot verify. They are printed and the frame is
         // left alone, which is safe -- and invisible to a gate unless named here.
