@@ -120,3 +120,63 @@ nothing tests.
   commit.
 - **R2 can break a service that binds a lease it does not own today.** That would be a real finding
   about authority, not a regression to soften.
+
+---
+
+## Amendment 1 — R3 and R4 are withdrawn as written (architect, 2026-11-10)
+
+**The escalation is accepted and the error is mine.** R4 said *"`derive` already inherits the lease,
+so anchoring the roots is sufficient."* R3 said the roots are *"unrevocable by construction."*
+**A root declared lease-less has no lease to inherit.** R4's sufficiency argument holds only if the
+roots are *given* leases; R3's wording describes the opposite. I wrote two different designs as one
+and did not notice, because I never asked what a capability derived from a declared root would
+carry — the implementer's question 2, which is the question that breaks it.
+
+**It is worse than incoherent.** `SyscallNumber::CapInstall` is **never routed** — the ABI defines
+`CapInstall = 17` and `from_u32` maps it, but no `handle_syscall`/`dispatch_m3` arm handles it — so
+**every live capability-creating site is a kernel grant**. R3's "root" class therefore covers
+everything and **R4 governs nothing**. Declaring all 49 `Root` would label the defect rather than
+fix it: the *"E-093 with better paperwork"* this RFC's own Risks section forbids. Refusing to do it
+alone was correct.
+
+### What is ruled
+
+**(A) all-Root is refused** — by this RFC's own Risks.
+
+**(B) kernel-minted boot leases are refused**, on a reason the escalation supplied: a kernel-owned
+lease needs a task identity that never exits, and `revoke_owned_by` — the only thing that pulls an
+anchor automatically — keys on a `TaskId` and fires on task exit. **An anchor that can never be
+pulled is not an anchor.** It also breaks a working idiom with `BadState`.
+
+**The direction is (C): the anchor belongs at propagation, not at the grant.** A kernel grant lives
+in its holder's CSpace and dies with it, so the gap is not the grant — it is the **copy that
+outlives the copier**. And the measurement makes this cheap rather than sweeping: capability
+propagation exists in **exactly two services**, `fjell-neg-test` (7 sites) and
+`fjell-sample-service` (3), **and both already copy-then-bind**. So *"a capability that crosses a
+task boundary must be anchored"* is not a new discipline being imposed; it is the existing one,
+unenforced.
+
+**Answers, in the order asked:**
+
+1. **No** — kernel grants are not declared `Root`. They are **unbound**, which is a fact about them,
+   not a claim that they are unrevocable. The word "root" was doing two jobs and is dropped.
+2. **A capability copied or derived from an unbound capability is itself unbound, and must be bound
+   before it crosses a task boundary.** **Whether that check belongs at `sys_cap_copy` or at the
+   recipient's first use is the one thing I want measured before I fix it** — it decides where the
+   enforcement lives, and I will not guess it from here.
+3. **None must be leased.** No boot lease is minted.
+4. **The boot walk is accepted**, named `cap-anchor:` and asserted by a QEMU tier, **on the
+   condition it is shown red on the current tree** (K = all) as you propose. The host-lib route
+   cannot see kernel-side literals — that is a real limit, not a preference — and a boot-time
+   invariant over every CSpace is **better** evidence than a host test over a decode, not a weaker
+   substitute for it.
+
+**On `LEASE_BIND` and the aggregates — your finding, and a consequence of my own bit choice I had
+not checked.** `ALL_NON_META = (1<<26)-1` and `ALL_DEFINED = (1<<30)-1` both exclude bit 30.
+**Your proposal is adopted:** grant `LEASE_BIND` explicitly at the three `LeaseAdmin` sites and
+leave both aggregates alone. Widening `ALL_DEFINED` would hand a new authority right to every holder
+of a blanket grant, which inverts the reason for adding it.
+
+**R1, R2 and R6 may land first**, as you offered — they do not depend on the above. Predict the ABI
+movement in the review request. **R3, R4 and R5 are superseded by this amendment** and their
+replacement requirements wait on question 2's measurement.
