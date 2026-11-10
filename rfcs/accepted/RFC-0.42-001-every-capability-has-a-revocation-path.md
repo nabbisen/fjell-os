@@ -2,9 +2,9 @@
 
 **Status:** Accepted — accepted 2026-11-10
 **Milestone:** 0.42
-**Tracks.** **E-093** — recursive revocation covers nothing that was never lease-bound; **E-091** —
-nothing limits *which* lease a holder may bind to, and the `LEASE_BIND` right that would say so
-does not exist.
+**Tracks.** **E-091** — nothing limits *which* lease a holder may bind to, and the `LEASE_BIND`
+right that would say so does not exist. *(**E-093 was removed from this RFC by Amendment 2**: its
+premise did not survive measurement, and its true form needs a mechanism this line cannot supply.)*
 **Touches** *(indicative)*: `crates/fjell-cap/src/rights.rs`, `crates/fjell-cap/src/cspace.rs`,
 `crates/fjell-cap/src/slot.rs`, `crates/fjell-kernel/src/lease/mod.rs`,
 `crates/fjell-kernel/src/main.rs`, `crates/fjell-kernel/src/task/spawn.rs`,
@@ -180,3 +180,73 @@ of a blanket grant, which inverts the reason for adding it.
 **R1, R2 and R6 may land first**, as you offered — they do not depend on the above. Predict the ABI
 movement in the review request. **R3, R4 and R5 are superseded by this amendment** and their
 replacement requirements wait on question 2's measurement.
+
+---
+
+## Amendment 2 — E-093 leaves this RFC; the line is E-091 only (architect, 2026-11-10)
+
+**The second escalation is accepted, and Amendment 1 was wrong too.** It ruled that *"the anchor
+belongs at propagation"*. **There is no propagation.** Verified independently: `cap_present` is
+constructed **`false` at all four of its construction sites** (`fjell-ipc/src/endpoint.rs:269`,
+`:307`, `:386`, `cap/syscall.rs:357`) — the field exists and is never true, so **a message never
+carries a capability** — and every `cspace_mut` in `cap/syscall.rs` targets the **caller's own**
+CSpace except `:283`, which is `sys_cap_install`, which **has no dispatch arm**.
+
+So "the copy that outlives the copier" does not exist: a copy lives in its copier's CSpace and goes
+where the copier goes. A check at `sys_cap_copy` forbids the copy-then-bind idiom Amendment 1 called
+the existing discipline; a check at first use breaks boot, because every kernel grant is used
+unbound by its own holder. **Amendment 1 described a guard on a feature this tree does not have.**
+
+**I was wrong twice on this line, with one cause.** R3/R4 conflated two designs; Amendment 1 aimed
+at a non-existent path. Both times I reasoned from the register's framing and from `cspace.rs`'s own
+doc comment — *"recursive revocation is done via lease revocation"* — instead of measuring what the
+code does, and both times the implementer's measurement overturned me.
+
+### R3, R4 and R5 are withdrawn, not replaced
+
+**No propagation check is to be built.** It would belong to the RFC of the feature that introduces
+capability transfer (IPC-carried capabilities, or routing `sys_cap_install`), as a requirement of
+that feature. There is no code to attach it to.
+
+**`cap-anchor:`'s boot walk is dropped from this line** — reluctantly, because it was a good
+instrument. Without R3/R4 there is no invariant for it to assert, and an instrument with nothing to
+assert is the `store` tier's shape: four markers nothing produces. It belongs with E-093's remedy.
+
+**E-093 is restated and leaves this RFC.** The implementer's reading is the true one: the gap is not
+propagation but **no external revocation** — a kernel grant can be removed from a task only by
+killing the task or by the holder dropping it, and there is no way to say *"revoke authority X from
+task T"* without ending T. That needs a mechanism (a revoke-by-slot syscall for a privileged holder,
+or kernel-minted per-task leases once **E-110**'s recycling exists), which this line cannot supply.
+Restated in the register and disclosed; **not pretend-fixed here**.
+
+### R2 — ruling: **(ii), owner-only, and yes, reverse the two protocols**
+
+**(i) is refused because it would implement E-091 rather than fix it.** The done RFC's own clause
+(`RFC-v0.7.4-003:166-167`) refuses only when `lease.owner != caller_task() && !caller_has_lease_admin_over(lease)`
+— and **every `LeaseAdmin` in this tree is scope `Any`**, so that second clause permits everything.
+Implementing it faithfully reproduces the hole the entry describes. It would also give a check **no
+live boot could ever refuse**, making R6 unfalsifiable without inventing a kernel fixture grant — a
+new authority, to test a check that permits everything.
+
+**(ii) is adopted as you argued it.** The property is one sentence — *a task binds only leases it
+created* — it needs no scope arithmetic, it closes the `caller_has_lease_admin_over` hole, and **R6
+falls out for free** on a real boot. **Yes, reverse the `sample-service`/`neg-test` protocols**: both
+are test services, so the blast radius is test fixtures rather than production paths, and the
+`NEG:IPC:*` markers are unchanged. **R2's narrowing of the done RFC is deliberate** and the done
+RFC is annotated to say so, with the reason — mine, per §6.
+
+*(R2's one-line summary was narrower than the source it cited. You were right, and that was my
+error, not a shorthand.)*
+
+### `0x0604` — ruling: **a published `AuditKind` variant**
+
+A kernel-private code that the published decoder renders as `Internal` is **exactly E-092**, closed
+by RFC-0.40-002. Re-creating a known-closed defect to avoid an ABI line would be choosing the
+defect to dodge the gate. **Declare the predicted `Changed sig 1` on `AuditKind` in the review
+request**, as you did here — saying it in advance is what makes trap 3's "a finding, not cut work"
+wording apply to *unexpected* movement rather than to this.
+
+### What to build
+
+**R1, R2, R6, the `AuditKind` variant and the `audit.toml` `expect_echoed` line.** That is the whole
+of this line now. E-091 closes with it; E-093 does not.
