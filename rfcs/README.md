@@ -536,18 +536,20 @@ mid-milestone and blocked the cut.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 3 RFCs
 
 0.42's line opens. The milestone's sentence is **the capability system gets the recursive-revocation
 coverage its own design claims** — **0.42-001 (E-091, E-093) is the lead**, accepted
 2026-11-10 after its design investigation settled the granularity question. **0.42-003 was accepted
-first because it is the only line with no design question** and is already implemented. 0.42-002
-(E-106, a notion of time) and 0.42-004 (the Verus prover pin) are not yet written. All are
-independent of each other. Scope:
+first because it is the only line with no design question** and is already implemented. **0.42-002 (E-106) was accepted 2026-11-10**: the kernel's timer
+machinery is already written and dormant, so the line exposes a readable counter and **deliberately
+leaves `STIE` masked** rather than activating RFC 037's preemption path across every profile.
+0.42-004 (the Verus prover re-pin) waits on the newer prover being installed. All are independent. Scope:
 `.git-exclude/handoff/scope-0.42.md`.
 
 | RFC | Title | Tracks |
 |-----|-------|--------|
+| 0.42-002 | [User space can read a clock, and the timer stays dormant](./accepted/RFC-0.42-002-user-space-can-read-a-clock.md) | E-106 |
 | 0.42-001 | [Every capability has a revocation path, and the premise that says so is enforced](./accepted/RFC-0.42-001-every-capability-has-a-revocation-path.md) | E-091, E-093 |
 | 0.42-003 | [`storaged` writes where it is told, and the success it reports is the write that was asked for](./accepted/RFC-0.42-003-storaged-writes-where-it-is-told.md) | E-105 |
 
