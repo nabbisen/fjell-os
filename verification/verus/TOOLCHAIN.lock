@@ -4,6 +4,13 @@
 # machine-checked. Update only with a recorded proof-review re-run; refresh
 # last_success_date on each successful full run.
 #
+# Updated 2026-11-11 (0.42-004): prover upgraded from
+# release/0.2026.07.27.31579f0 to release/0.2026.11.02.8bf68ee, rustup 1.97.1 ->
+# 1.99.1, and z3 4.12.5 -> 4.16.0 — the solver changed this time, unlike the
+# upgrade below. All 20 obligations re-verified unchanged across all three pilot
+# targets (8 + 5 + 7), no proof source modified. Recorded proof-review re-run:
+#   docs/src/assurance/proofs/review-records/v0.42-prover-upgrade.md
+#
 # Updated 2026-07-30 (v0.21.3): prover upgraded from
 # release/0.2026.05.24.ecee80a to release/0.2026.07.27.31579f0, moving from a
 # hand-unpacked release zip to the package-managed AUR `verus-bin`. All 20
@@ -12,8 +19,12 @@
 #   docs/src/assurance/proofs/review-records/v0.21.3-prover-upgrade.md
 
 [verus]
-release        = "release/0.2026.07.27.31579f0"
+release        = "release/0.2026.11.02.8bf68ee"
 install        = "aur:verus-bin"           # Arch/CachyOS; Provides: verus
+# 0.42: this machine used a hand-unpacked GitHub release at
+# ~/.local/share/verus with ~/.local/bin/verus symlinked to it, because AUR had
+# overshot the previous pin (E-109). The pin is now level with AUR again, so the
+# package route works; `binary` below records the AUR path, not that symlink.
 binary         = "/usr/bin/verus"
 platform       = "linux_x86_64"
 
@@ -22,19 +33,22 @@ platform       = "linux_x86_64"
 # build toolchain in rust-toolchain.toml (whatever channel that file pins;
 # not restated here, because this comment said 1.91 long after it was 1.98.1) — Verus is never a
 # Fjell build dependency, and ordinary contributors need none of this.
-channel        = "1.97.1-x86_64-unknown-linux-gnu"
+channel        = "1.99.1-x86_64-unknown-linux-gnu"
 installer      = "rustup"
 
 [z3]
-version        = "4.12.5"                  # unchanged across the prover upgrade
+version        = "4.16.0"                  # CHANGED in the 0.42 upgrade (was 4.12.5)
+# Recorded, and NOT enforced: `verus_check.rs` compares only the Verus release
+# against this file, never z3, despite its own comment claiming otherwise. z3
+# moved 4.12.5 -> 4.16.0 across this upgrade and no gate noticed. See E-112.
 source         = "bundled-with-verus-package"
-path           = "/opt/verus/z3"
+path           = "/opt/verus/z3"          # AUR layout; a hand-install puts it beside the binary
 
 [run]
 command           = "cargo xtask verus-check --all-pilot"
 targets           = ["capability", "lease", "boot-control"]
 host_os           = "cachyos-linux (x86_64)"
-last_success_date = "2026-07-30"
+last_success_date = "2026-11-11"
 
 [result]
 # Latest full machine-check, recorded for regression reference.
@@ -49,7 +63,7 @@ total          = "20 verified, 0 errors"
 [history]
 # The previously pinned prover; its certification is not retracted. The same
 # obligations hold under both.
-previous_release  = "release/0.2026.05.24.ecee80a"
-previous_channel  = "1.95.0-x86_64-unknown-linux-gnu"
+previous_release  = "release/0.2026.07.27.31579f0"
+previous_channel  = "1.97.1-x86_64-unknown-linux-gnu"
 previous_host_os  = "ubuntu-24.04 (x86_64)"
 previous_success  = "2026-06-04"

@@ -158,6 +158,7 @@
   - [Proof Review Record: v0.17 Pilot Targets (capability, lease, boot-control)](./assurance/proofs/review-records/v0.17-pilot-targets.md)
   - [Architect Review — v0.18.3 Verus Layer — Decisions Record](./assurance/proofs/review-records/v0.18-architect-review-decisions.md)
   - [Proof-Review Re-Run — Verus prover upgrade (v0.21.3)](./assurance/proofs/review-records/v0.21.3-prover-upgrade.md)
+  - [Proof-Review Re-Run — Verus prover upgrade (0.42)](./assurance/proofs/review-records/v0.42-prover-upgrade.md)
   - [Verus Adoption Risk Register](./assurance/proofs/appendices/A-risk-register.md)
   - [Verus Adoption Anti-Patterns](./assurance/proofs/appendices/B-anti-patterns.md)
   - [Glossary Additions](./assurance/proofs/appendices/C-glossary-additions.md)

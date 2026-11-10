@@ -7,8 +7,8 @@ and test with the stable toolchain in `rust-toolchain.toml`. Verus is an
 ## Pinned version
 
 ```
-verus:     release/0.2026.07.27.31579f0   (AUR package `verus-bin`)
-toolchain: 1.97.1-x86_64-unknown-linux-gnu (rustup; required by the Verus binary)
+verus:     release/0.2026.11.02.8bf68ee   (AUR package `verus-bin`)
+toolchain: 1.99.1-x86_64-unknown-linux-gnu (rustup; required by the Verus binary)
 z3:        4.12.5                           (bundled with the Verus package)
 ```
 
@@ -33,9 +33,11 @@ self-contained, and the currently-pinned method:
 ```bash
 # provides /usr/bin/verus; also installs the rustc toolchain it needs
 paru -S verus-bin   # or: yay -S verus-bin
-verus --version     # → 0.2026.07.27.31579f0
+verus --version     # → 0.2026.11.02.8bf68ee
 
-> **The AUR package tracks upstream and will overshoot this pin.** `verus-bin`
+> **The pin is level with AUR as of 2026-11-11, and will fall behind again.** It was three
+> months behind at the 0.41.0 cut, which is why that release was gated with a hand-installed
+> prover (E-109). **The mechanism has not changed:** `verus-bin`
 > follows Verus releases, so after a while `paru -S verus-bin` installs
 > something newer than the pin above and **Gate 10 then blocks on a version
 > mismatch** — `verus-check` compares `verus --version` against this

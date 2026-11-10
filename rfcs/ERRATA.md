@@ -8116,6 +8116,37 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   from a hard-coded list, and a per-profile field would multiply the places that can drift. The
   honest fix for the drift is that the list is now complete and the comment is now true.
 
+## E-112 — `TOOLCHAIN.lock` pins the SMT solver and nothing checks it
+
+- **Found 2026-11-11 by the architect**, doing 0.42-004's prover upgrade. The upgrade is what
+  exposed it: **z3 moved from 4.12.5 to 4.16.0 and no gate noticed.**
+- **The lock pins z3 as part of a reproducibility pin.** `verification/verus/TOOLCHAIN.lock` has a
+  `[z3]` section with `version` and `path`, under a header calling the file a *"reproducibility
+  pin"* whose rule is *"Update only with a recorded proof-review re-run."*
+- **`verus-check` compares only the Verus release.** `verus_check.rs:85`'s own comment says it will
+  *"print detected Verus/z3 versions and compare against the pinned TOOLCHAIN.lock release"*. It
+  calls `detect_verus_version()` and `read_lock_release()` and **neither detects nor compares z3**,
+  nor prints it. So the comment describes behaviour the code does not have, and the z3 pin is
+  **documentation, not enforcement**.
+- **Why it matters more than the Verus version does.** z3 is what actually discharges the
+  obligations. A solver change is the likeliest single cause of a proof ceasing to verify —
+  different heuristics, different incompleteness, different timeouts. The gate that fails closed on
+  a *prover* mismatch is silent on the *solver*, which is the component with the greater effect on
+  whether `20 verified, 0 errors` means anything.
+- **It did not hide a regression this time**, and that is luck rather than process: all 20
+  obligations re-verified unchanged under 4.16.0 (`v0.42-prover-upgrade.md`). Had one failed, the
+  cause would have been ambiguous between two simultaneous changes, because nothing recorded which
+  solver ran.
+- **A second, smaller inaccuracy in the same section:** `[z3] path = "/opt/verus/z3"` is the AUR
+  layout and is wrong for a hand-install, where z3 sits beside the binary. Annotated rather than
+  replaced with one machine's path — the authority on what ran is `verus --version`'s own report.
+- **Remedy, not taken here.** Detect the bundled z3's version (it answers `--version`) and compare
+  it against the lock, failing closed as the prover comparison does; and fix the comment either way.
+  **Deliberately not done inside the upgrade**: 0.42-004's whole discipline is that the pin moves
+  only behind a recorded re-run, and bundling a gate change into that commit would mean the upgrade
+  and the instrument that validates it landing together, unreviewed against each other.
+  **Unscheduled.**
+
 ## E-105 — `storaged` writes every sector to LBA 0, shifted and truncated, while `init` reports success
 
 - **Found 2026-11-01 by the implementer of RFC-0.41-006**, in passing while establishing E-104's
@@ -8323,6 +8354,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-109 `local-development.md` called **Verus "optional"** and left it out of the Prerequisites table, while **Gate 10 is release-required** — `verus_check` blocks on anything but a real prover PASS, conformance-only included, and `release-rehearsal` exits non-zero without it. The same page's Verus "quick reference" was a verbatim copy of the recipe **retired on 2026-07-30** (`release/0.2026.05.24.ecee80a`, rustup `1.95.0`), so following it installed a prover Gate 10 **rejects on a version mismatch**; and two files restated Fjell's Rust channel as `1.91` against `rust-toolchain.toml`'s **1.98.1**. **It cost real time:** the 0.41.0 cut's machine was provisioned from that table, Verus skipped as optional, and the cut stopped at Gate 10 — the second mid-cut pause for a missing tool. Fixed structurally: the recipe is **cited, not copied**, the table lists `verus` as required to cut a release and points at `TOOLCHAIN.lock` instead of naming a version. Recorded alongside: AUR's `verus-bin` has **overshot the pin** (`0.2026.11.02.8bf68ee` on 2026-11-09), so the package route no longer yields the pinned prover and `verus-check` fails closed, as it should | 0.41 | CLOSED |
 | E-110 **a boot can create at most 32 leases, ever.** `MAX_LEASES = 32` and **slots are never recycled** (`lease/mod.rs:48`), so the figure is a whole-boot lifetime budget, not a concurrency limit; `create()` fails closed with `NoMemory` and nothing can recover, because nothing returns a slot. Measured: ids **0–8** already consumed in a normal boot, varying by profile, against task slots up to 21, 35 service images and `MAX_TASKS = 40`. **RFC-0.42-001 refused per-task revocation anchoring on this arithmetic** — ~20–40 slots on top of ~9, against 32 never returned, exhausting *by profile* and so failing intermittently; the architect's scope figure of "32 → 40+" was wrong for the same reason. **Also a false pointer, now made true by this entry:** `lease/mod.rs:54` deferred the question to "the lifetime question the register tracks" and the register did not track it. Remedy deferred: recyclable slots, which the `LeaseId` generation encoding already anticipates — a lifetime design with a revocation-safety question inside it, not to be taken under a milestone that needs it | unscheduled | ACCEPTED |
 | E-111 **seven of eleven `NEG:HARNESS:*` failure markers were invisible to the release gate.** `qemu_run.rs` holds a hard-coded, opt-in forbidden list whose own comment says a marker *"has no effect on this gate until it is added"*; `fjell-neg-test` emits eleven and four were listed, so the gate read a harness failure and passed. Found from an implementer's disclosure that an `audit` boot printed `SETUP_FAILED` while the profile reported PASS. **Worst case was a false safety claim:** `reboot.toml:36` stated `REBOOT_RETURNED` is "a forbidden harness marker" and that "the run fails closed", and it was not on the list. All seven added after checking each at its emitting site; none appears in any retained log, so no tier turns red — which is why it could persist. A per-profile `forbidden_markers` field was refused: prose drifting from a hard-coded list is the hazard, and another field would multiply the places that can drift | 0.42 | CLOSED |
+| E-112 **`TOOLCHAIN.lock` pins the SMT solver and nothing checks it.** The lock has a `[z3]` section under a header calling the file a reproducibility pin, and `verus_check.rs:85`'s own comment says it will *"print detected Verus/z3 versions and compare against the pinned TOOLCHAIN.lock release"* — it detects and compares **only the Verus release**, never z3, and does not print it. Found doing 0.42-004's upgrade, which is what exposed it: **z3 moved 4.12.5 → 4.16.0 and no gate noticed.** It matters more than the prover version does, because z3 is what discharges the obligations and a solver change is the likeliest cause of a proof ceasing to verify. It hid no regression this time — all 20 obligations re-verified under 4.16.0 — which was luck, not process: had one failed, the cause would have been ambiguous between two simultaneous changes. Remedy (detect and compare z3, failing closed; fix the comment either way) **deliberately not bundled into the upgrade commit**, since the pin is supposed to move only behind a recorded re-run and the instrument validating it must not land in the same change | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
