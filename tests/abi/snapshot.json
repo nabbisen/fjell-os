@@ -1,5 +1,5 @@
 [
-  {"count":502},
+  {"count":507},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"enum","name":"BootInfoError","sig":"4828e713cf352839"},
   {"crate":"fjell-abi","module":"boot","impl_type":"","kind":"struct","name":"BootInfo","sig":"c09a16a24cc0fd6e"},
   {"crate":"fjell-abi","module":"boot","impl_type":"BootInfo","kind":"const","name":"ABSENT","sig":"92f7c9a87f60ee14"},
@@ -402,6 +402,11 @@
   {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"const","name":"WRITE_COMMIT","sig":"6e0b777bd3dfdc29"},
   {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"const","name":"WRITE_ERR","sig":"3a3f264fbd1f2424"},
   {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"const","name":"WRITE_OK","sig":"680397eda3592ff4"},
+  {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"fn","name":"begin_words","sig":"1ccc4cf95e8f592d"},
+  {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"fn","name":"chunk_words","sig":"cd922b6484431399"},
+  {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"fn","name":"decode_begin","sig":"edf977f0d4e91b4e"},
+  {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"fn","name":"decode_chunk","sig":"b2e6fbf79d48d2ea"},
+  {"crate":"fjell-service-api","module":"storaged","impl_type":"","kind":"type","name":"Recv","sig":"55478d041cd348e7"},
   {"crate":"fjell-service-api","module":"sxt","impl_type":"","kind":"const","name":"CLOSE","sig":"7208c4723e24cabb"},
   {"crate":"fjell-service-api","module":"sxt","impl_type":"","kind":"const","name":"DIAG_ACK","sig":"3810151b8b1f77fe"},
   {"crate":"fjell-service-api","module":"sxt","impl_type":"","kind":"const","name":"DIAG_PUSH","sig":"fbdbe19c5f55255a"},

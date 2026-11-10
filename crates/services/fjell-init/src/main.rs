@@ -78,24 +78,30 @@ fn ipc_call(ep: usize, label: usize, w0: usize, w1: usize, w2: usize, w3: usize)
 ///   WRITE_BEGIN(lba_lo, lba_hi)   → ACK
 ///   WRITE_CHUNK(w0..w3) ×16       → ACK each  (16 × 32B = 512B)
 ///   WRITE_COMMIT                   → WRITE_OK or WRITE_ERR
+///
+/// **Every reply is checked** (RFC-0.42-003 R4, E-105). This used to discard the ACK of
+/// `WRITE_BEGIN` and of all sixteen `WRITE_CHUNK`s (`let _ =`) and judge the whole write by
+/// `WRITE_COMMIT`'s reply alone -- a reply that cannot know whether the sector it was told to
+/// write was the one asked for. That is why `storaged` could read every field one word late
+/// for as long as it did without anything noticing. A message that is not acknowledged now
+/// fails the write, and the words are encoded by the same functions `storaged` decodes with.
 fn storaged_write(ep: fjell_cap::CapHandle, lba: u64, data: &[u8; 512]) -> bool {
     use storaged_proto::*;
     let ep = ep.0 as usize;
     // BEGIN
-    let _ = ipc_call(ep, WRITE_BEGIN, lba as usize, (lba >> 32) as usize, 0, 0);
+    let b = begin_words(lba);
+    if ipc_call(ep, WRITE_BEGIN, b[0], b[1], b[2], b[3]) != WRITE_ACK {
+        return false;
+    }
     // 16 × 32-byte chunks (4 words each)
     for chunk in 0..16usize {
         let off = chunk * 32;
-        let mut words = [0usize; 4];
-        // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
-        unsafe {
-            core::ptr::copy_nonoverlapping(
-                data.as_ptr().add(off),
-                words.as_mut_ptr() as *mut u8,
-                32,
-            );
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&data[off..off + 32]);
+        let w = chunk_words(&bytes);
+        if ipc_call(ep, WRITE_CHUNK, w[0], w[1], w[2], w[3]) != WRITE_ACK {
+            return false;
         }
-        let _ = ipc_call(ep, WRITE_CHUNK, words[0], words[1], words[2], words[3]);
     }
     // COMMIT
     let reply = ipc_call(ep, WRITE_COMMIT, 0, 0, 0, 0);

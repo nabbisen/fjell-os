@@ -101,6 +101,7 @@ const MMIO_SLOT: u16 = 34;
 const REGION_BASE: usize = 0x1000_1000;
 
 use fjell_cap::CapHandle;
+use fjell_service_api::storaged as storaged_codec;
 
 // ── MMIO helpers ──────────────────────────────────────────────────────────────
 #[inline(always)]
@@ -459,12 +460,15 @@ pub extern "C" fn service_main() -> ! {
     let mut lba = 0u64;
 
     loop {
-        let (tag_packed, _badge, w1, w2, w3) = recv_call();
-        let w4 = 0usize;
-        let tag = tag_packed & 0xFFFF;
+        // `recv_call` returns (tag, w0, w1, w2, w3): four DATA words. This used to bind the
+        // second to `_badge` and throw it away, so every field was read one word late (E-105,
+        // RFC-0.42-003). The words are not unpacked here at all now: the shared decode in
+        // `fjell_service_api::storaged` takes the whole receive, and is tested on the host.
+        let recv = recv_call();
+        let tag = recv.0 & 0xFFFF;
         match tag {
             WRITE_BEGIN => {
-                lba = (w1 as u64) | ((w2 as u64) << 32);
+                lba = storaged_codec::decode_begin(recv);
                 chunk_off = 0;
                 // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
                 unsafe {
@@ -475,15 +479,8 @@ pub extern "C" fn service_main() -> ! {
             }
             WRITE_CHUNK => {
                 if chunk_off + 32 <= 512 {
-                    let words = [w1, w2, w3, w4];
-                    // SAFETY: category=raw-pointer-deref IPC buffer pointer is valid for the duration of the syscall; no aliasing with kernel state.
-                    unsafe {
-                        core::ptr::copy_nonoverlapping(
-                            words.as_ptr() as *const u8,
-                            buf.as_mut_ptr().add(chunk_off),
-                            32,
-                        );
-                    }
+                    let bytes = storaged_codec::decode_chunk(recv);
+                    buf[chunk_off..chunk_off + 32].copy_from_slice(&bytes);
                     chunk_off += 32;
                 }
                 reply(WRITE_ACK);
@@ -499,7 +496,8 @@ pub extern "C" fn service_main() -> ! {
                 reply(if ok { WRITE_OK } else { WRITE_ERR });
             }
             READ_BEGIN => {
-                lba = (w1 as u64) | ((w2 as u64) << 32);
+                // Same shape as WRITE_BEGIN, and it had the same one-word-late binding.
+                lba = storaged_codec::decode_begin(recv);
                 chunk_off = 0;
                 reply(READ_ACK);
             }

@@ -126,9 +126,11 @@ pub mod tags {
 pub mod storaged {
     /// Storaged is ready; init may proceed with storage operations.
     pub const READY: usize = 0x200;
-    /// Begin a 512-byte sector write. words[1]=lba_lo, words[2]=lba_hi.
+    /// Begin a 512-byte sector write. Data words: `w0` = LBA low 32 bits, `w1` = LBA high
+    /// 32 bits, `w2`/`w3` = 0 (see [`begin_words`]). Reply: `WRITE_ACK`.
     pub const WRITE_BEGIN: usize = 0x201;
-    /// One 64-byte chunk of sector data. words[0..8] = data bytes (little-endian).
+    /// One 32-byte chunk of sector data: the four data words `w0..w3`, each little-endian
+    /// (see [`chunk_words`]); sixteen of them make a sector. Reply: `WRITE_ACK`.
     pub const WRITE_CHUNK: usize = 0x202;
     /// Commit the staged write. Reply: WRITE_OK or WRITE_ERR.
     pub const WRITE_COMMIT: usize = 0x203;
@@ -143,6 +145,128 @@ pub mod storaged {
     pub const READ_DATA: usize = 0x20B;
     pub const READ_OK: usize = 0x20C;
     pub const READ_ERR: usize = 0x20D;
+
+    // ── The write codec (RFC-0.42-003, closes E-105) ──────────────────────────────
+    //
+    // Both ends of the write protocol go through these functions: `init` encodes with
+    // `begin_words` / `chunk_words`, `storaged` decodes with `decode_begin` /
+    // `decode_chunk`, and the tests below run one against the other. They exist because
+    // the two ends were each written by hand and disagreed by one word -- `storaged`
+    // bound the first data word to `_badge` and discarded it -- and the decode lived in
+    // a `no_std` binary where a test is coverage no gate can run (E-100's shape).
+
+    /// What `sys_ipc_recv_msg` hands a receiver: the label (`tag`, possibly with the word
+    /// count packed above bit 16) and the **four data words**, in that order.
+    pub type Recv = (usize, usize, usize, usize, usize);
+
+    // A word is 8 bytes: four of them are the 32-byte chunk, and `lba >> 32` is a real
+    // half. Fjell's only target is riscv64gc; this keeps a host build honest.
+    const _: () = assert!(core::mem::size_of::<usize>() == 8);
+
+    /// The four data words of a `WRITE_BEGIN` for `lba`: low 32 bits, high 32 bits, 0, 0.
+    pub fn begin_words(lba: u64) -> [usize; 4] {
+        [(lba & 0xFFFF_FFFF) as usize, (lba >> 32) as usize, 0, 0]
+    }
+
+    /// The LBA a received `WRITE_BEGIN` names.
+    pub fn decode_begin(r: Recv) -> u64 {
+        let (_tag, w0, w1, _w2, _w3) = r;
+        (w0 as u64 & 0xFFFF_FFFF) | ((w1 as u64) << 32)
+    }
+
+    /// The four data words that carry one 32-byte chunk, each little-endian.
+    pub fn chunk_words(bytes: &[u8; 32]) -> [usize; 4] {
+        let mut w = [0usize; 4];
+        for (i, word) in w.iter_mut().enumerate() {
+            let mut b = [0u8; 8];
+            b.copy_from_slice(&bytes[i * 8..i * 8 + 8]);
+            *word = usize::from_le_bytes(b);
+        }
+        w
+    }
+
+    /// The 32 bytes a received `WRITE_CHUNK` carries.
+    pub fn decode_chunk(r: Recv) -> [u8; 32] {
+        let (_tag, w0, w1, w2, w3) = r;
+        let words = [w0, w1, w2, w3];
+        let mut out = [0u8; 32];
+        for (i, word) in words.iter().enumerate() {
+            out[i * 8..i * 8 + 8].copy_from_slice(&word.to_le_bytes());
+        }
+        out
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        /// What the kernel delivers to `storaged` when `init` calls with `tag` and `w`.
+        fn delivered(tag: usize, w: [usize; 4]) -> Recv {
+            (tag, w[0], w[1], w[2], w[3])
+        }
+
+        #[test]
+        fn an_lba_arrives_as_the_lba_it_was_sent_as() {
+            for lba in [
+                0u64,
+                1,
+                65,
+                193,
+                0xFFFF_FFFF,
+                0x1_0000_0000,
+                0x1234_5678_9ABC_DEF0,
+            ] {
+                let r = delivered(WRITE_BEGIN, begin_words(lba));
+                assert_eq!(decode_begin(r), lba, "lba {lba:#x} changed in transit");
+            }
+        }
+
+        #[test]
+        fn init_s_own_lba_193_is_not_read_as_sector_zero() {
+            // E-105's headline: every write landed at sector 0 because the high word was
+            // read where the low word was sent.
+            assert_eq!(decode_begin(delivered(WRITE_BEGIN, begin_words(193))), 193);
+        }
+
+        #[test]
+        fn a_chunk_arrives_whole() {
+            let mut bytes = [0u8; 32];
+            for (i, b) in bytes.iter_mut().enumerate() {
+                *b = 0xA0 + i as u8;
+            }
+            let r = delivered(WRITE_CHUNK, chunk_words(&bytes));
+            assert_eq!(decode_chunk(r), bytes);
+        }
+
+        #[test]
+        fn no_byte_of_a_chunk_is_lost_or_zeroed() {
+            // Of every 32 bytes the caller sends, 32 must be written: change each byte in
+            // turn and require the change to arrive (8 were dropped and 8 zeroed).
+            for i in 0..32 {
+                let mut bytes = [0x11u8; 32];
+                bytes[i] = 0xEE;
+                let got = decode_chunk(delivered(WRITE_CHUNK, chunk_words(&bytes)));
+                assert_eq!(got[i], 0xEE, "byte {i} did not arrive");
+                assert_eq!(got, bytes, "chunk differed after changing byte {i}");
+            }
+        }
+
+        #[test]
+        fn a_whole_sector_round_trips() {
+            let mut sector = [0u8; 512];
+            for (i, b) in sector.iter_mut().enumerate() {
+                *b = (i & 0xFF) as u8; // the pattern init writes at LBA 193
+            }
+            let mut out = [0u8; 512];
+            for c in 0..16 {
+                let mut chunk = [0u8; 32];
+                chunk.copy_from_slice(&sector[c * 32..c * 32 + 32]);
+                out[c * 32..c * 32 + 32]
+                    .copy_from_slice(&decode_chunk(delivered(WRITE_CHUNK, chunk_words(&chunk))));
+            }
+            assert_eq!(out, sector);
+        }
+    }
 }
 
 // RFC-0.33-001 D2: the `bootctl` module that stood here (RFC 019 — READY,
