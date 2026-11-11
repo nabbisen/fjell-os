@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-09 02:18:05 UTC
-Version   : 0.41.0
+Generated : 2026-11-11 11:38:33 UTC
+Version   : 0.42.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -22,7 +22,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §2. LEASE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  LeaseId usage sites   : 83
+  LeaseId usage sites   : 85
   LeaseEpoch usage sites: 29
   Runtime lease state   : (available from running fleet in v0.11)
 
@@ -31,20 +31,20 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Service binaries in prebuilt/: 33
-    fjell-init.bin (30248 bytes)
+    fjell-init.bin (30392 bytes)
     fjell-configd.bin (464 bytes)
     fjell-cap-broker.bin (1544 bytes)
-    fjell-auditd.bin (3584 bytes)
+    fjell-auditd.bin (3574 bytes)
     fjell-service-manager.bin (1992 bytes)
-    fjell-sample-service.bin (7576 bytes)
-    fjell-neg-test.bin (13328 bytes)
+    fjell-sample-service.bin (7704 bytes)
+    fjell-neg-test.bin (13608 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (260 bytes)
     fjell-semantic-stream.bin (24856 bytes)
     fjell-proxy-text.bin (11848 bytes)
     fjell-devmgr.bin (5095 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
-    fjell-storaged.bin (2671 bytes)
+    fjell-storaged.bin (3416 bytes)
     fjell-bootctl.bin (924 bytes)
     fjell-upgraded.bin (4654 bytes)
     fjell-powerd.bin (134 bytes)
@@ -79,8 +79,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 288
-  with SAFETY comment: 288
+  total unsafe sites : 292
+  with SAFETY comment: 292
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -88,15 +88,15 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261108-141416
-  33    QEMU negative: user-copy                            60.1s  PASS
+  Latest test-all run: 20261111-110506
+  33    QEMU negative: user-copy                            60.2s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 33  |  PASS: 32  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
   
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 768 passed, 0 failed  [PASS]
+    Host tests   : 781 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 
