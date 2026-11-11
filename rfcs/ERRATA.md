@@ -6174,6 +6174,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   `docs/src/releasing/v1-limitations.md` row 14. What closing it needs is real release,
   rootfs and policy-bundle verification — a milestone, not a line, and one that should
   take E-094 with it so the record and the chain become true together.
+- **Why it is unscheduled — added 2026-11-11 by the architect, because `unscheduled` with no
+  reason reads as merely unprioritised.** It is **not blocked**: `cargo xtask provision-dev
+  --allow-tofu-provision` is implemented (`crates/fjell-tools/src/provision.rs`, silent default
+  TOFU prohibited), and `fjell-verifyd` already verifies signatures through a `Keyring` with a
+  `DevDigest32` anchor and `DevSignatureProvider`. **The 0.42 and 0.43 scope documents said it
+  stood downstream of trust-anchor provisioning; that was the architect's own wording, never
+  this entry's, and it is withdrawn.** What is true: it is **three artifact classes** — a
+  release, a rootfs, a policy bundle — and both the crypto and the trust provider underneath
+  them are **development-grade**, so verification shipped today would be bounded by that rather
+  than by its own logic. **What would change this:** a production signature provider and a
+  non-development trust anchor (row 6's factory station, v1.1), or an explicit owner decision
+  that verification against the dev provider is worth shipping first and is labelled as such
+  wherever it reports.
 
   > **Dependency carried here from E-096, 2026-10-27.** `APPEND_EVENT` reconstructs the
   > subject digest from `w1`/`w2` only — **16 of 32 bytes** — and a request cannot carry
