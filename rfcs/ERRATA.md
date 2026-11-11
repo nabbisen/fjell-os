@@ -6583,6 +6583,18 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   bit, the scope representation a lease-scoped capability would carry, and a decision
   about whether lease ownership alone should constrain the target. None of that is
   decided here.
+- **Resolution:** ~~**ACCEPTED**, `unscheduled`~~ → **CLOSED** by **RFC-0.42-001**.
+
+  > **Closed by RFC-0.42-001, 2026-11-10.** `LEASE_BIND` took bit **30**, not the `1 << 25`
+  > the done RFC specified: bit 25 is held by `REBOOT`, and moving a shipped bit is an ABI
+  > break, which is refused. No widening was needed — `CapRights` is `pub u64`, widened from
+  > `u32` in v0.2.0, with bits 0–29 allocated and 34 free. **The done RFC is annotated rather
+  > than silently deviated from**, so a reader who finds `1 << 25` in `rfcs/done/` can
+  > discover why without reading the diff. **Owner-only bind** was kept: the done RFC's
+  > `caller_has_lease_admin_over` clause was the hole, which the architect's first summary
+  > stated more narrowly than its source. Two amendments were needed, both correcting the
+  > architect: Amendment 1 withdrew R3/R4 as written, and Amendment 2 removed **E-093** from
+  > the line, leaving it restated and unscheduled.
 
 ## E-092 — the kernel audits lease revocation under a code the published decoder does not know, and the decoder's own `LeaseRevoked` is unreachable
 
@@ -7053,6 +7065,14 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   claim; and either the isolation of the v0.8.x root cause or an honest statement that it
   is unknown, in the register rather than in a comment. **Kernel memory management, and not
   a line to fold into a measurement milestone.**
+- **Resolution:** ~~**OPEN**~~ → **CLOSED** by **RFC-0.39-003**.
+
+  > **Closed by RFC-0.39-003.** All three defects were fixed: the discarded result of the
+  > frame free, the claim that the stale PTE was "harmless because the frame is zeroed
+  > before reuse", and the page-table corruption the comment said was never isolated. **The
+  > residue was split rather than carried in this entry** — the stale `R/W/U` mapping that
+  > survived the fix became **E-099**, found by the E-090/E-091 test. This bullet records in
+  > the body what the Summary table and that split already recorded.
 
   > **Partly addressed by RFC-0.39-003, 2026-10-28 — still OPEN, narrowed.**
   > *Done:* (1) the free's result is checked — four release sites (`revoke_by_id`,
@@ -8182,6 +8202,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   invisible. Correcting it changes what every storage tier writes, which is why the architect did not
   take it inside RFC-0.41-006's scope.
 - **Status:** **ACCEPTED**, `0.42`. Recorded in `docs/src/releasing/v1-limitations.md` row 17.
+- **Resolution:** ~~**ACCEPTED**, `0.42`~~ → **CLOSED** by **RFC-0.42-003**.
+
+  > **Closed by RFC-0.42-003, 2026-11-10.** The defect was a **wire-format disagreement**,
+  > not a `storaged` bug: `init` sends `WRITE_BEGIN(lba_lo, lba_hi)` with the low half in its
+  > first data word, while `storaged`'s only caller bound that word to `_badge`. The fix
+  > **removes the opportunity to misname it** rather than renaming it — `storaged` no longer
+  > unpacks the receive at all, passing the whole tuple to a shared encode/decode in
+  > `fjell_service_api::storaged` that `init` now encodes with too, so the two ends cannot
+  > drift again. Verified three ways, including five host tests **shown red against the old
+  > binding first** and four sectors of a real disk image compared against a scratch build of
+  > the base commit as the failure control. `v1-limitations.md` row 17 follows it, and records
+  > that its second closing condition was met by host tests rather than by the `store` tier,
+  > which stays NOT-GATED.
 
 ## E-106 — Fjell exposes no notion of time to user space, so no service can express a duration, and one prints a round count as a timeout
 
@@ -8239,6 +8272,19 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   makes a counter a side effect of yielding and changes a shipped item's meaning. Whichever shape is
   chosen, `do_io`'s bound and the word "timeout" in its line must then say the same thing.
 - **Status:** **ACCEPTED**, `0.42`. Recorded in `docs/src/releasing/v1-limitations.md` row 18.
+- **Resolution:** ~~**ACCEPTED**, `0.42`~~ → **CLOSED** by **RFC-0.42-002**.
+
+  > **Closed by RFC-0.42-002, 2026-11-10.** `sys_clock_now_ns` (syscall **113** — `120`
+  > stayed retired) returns a monotone nanosecond counter, capability-gated on a new `Clock`
+  > kind and `CapRights::CLOCK_READ` at bit 31, **in neither rights aggregate**, granted by
+  > name to `storaged` alone. Neither refused shape was taken. **The design turned on a
+  > separation the entry had not drawn:** the kernel's timer machinery was already written and
+  > wholly dormant, because `enable_interrupts()` — the only function setting `STIE` — has
+  > zero callers; reading a counter needs no interrupt, so the line exposes the counter and
+  > **leaves `STIE` masked**. One premise of the RFC was wrong and the implementer said so:
+  > the counter was *not* already readable, so they used the `time` CSR with `mcounteren` bit
+  > 1 (TM) only. **What this does not give is blocking on time**, which needs the interrupt
+  > plane; `v1-limitations.md` row 18 says so.
 
 ## E-113 — every GitHub action but `checkout` targeted the removed Node 20 runtime, and one action was pinned at two majors at once
 
@@ -8300,6 +8346,44 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   this the day it appeared — and a cut criterion for action currency shaped like criterion 10's
   toolchain-currency rule. Until one exists, the only thing standing between this and a repeat is
   that someone looks.
+- **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
+
+## E-114 — four closed errata still read as live in their own entry bodies, and nothing checks the register against itself
+
+- **Found 2026-11-11 by the architect**, noticing that E-106's body ended `- **Status:**
+  **ACCEPTED**, `0.42`` while the Summary table, `v1-limitations.md` row 18 and the closing commit
+  all said CLOSED. **The first guess was wrong and measuring the population corrected it:** this is
+  not one stale line but **four**, and it is not a missing convention but a convention skipped.
+- **The convention, read off the register rather than assumed.** A closed entry keeps its
+  filing-time `- **Status:**` bullet as the dated record and adds
+  `- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-…**` with a blockquote. Of the 20
+  entries carrying a `Status` bullet, 12 are CLOSED in the Summary table; **eight already carried
+  that Resolution bullet** (E-090, E-092, E-094, E-096, E-097, E-099, E-100, and E-104 in a prose
+  variant).
+- **The four that carried no closure anywhere in the body:** **E-091**, **E-098**, **E-105**,
+  **E-106**. Read alone, each said `ACCEPTED` or `OPEN` about a defect the project had fixed.
+  **Three of the four are this milestone's own closures and so the architect's** — E-091
+  (RFC-0.42-001), E-105 (RFC-0.42-003), E-106 (RFC-0.42-002); E-098 (RFC-0.39-003) predates them.
+- **Why no gate saw it, stated as the mechanism and not as a guess.** `closed-erratum-prose`
+  excludes `rfcs/ERRATA.md` **deliberately** — its own scope note says the register is *"read, never
+  edited: the register is the source of truth and the check consumes it."* That is the right
+  decision for that check's purpose, and it has a consequence the note does not draw: **the
+  register's internal agreement is checked by nothing.** Every other instrument reads the Summary
+  table's status, so a body contradicting it is invisible to all of them. The two superseded-status
+  bullets that *are* struck through (E-088, E-089) show the project has a mechanism for this; what
+  it lacks is something that notices when the mechanism is not used.
+- **Also why it is easy to skip:** closing an erratum touches **three** places — the Summary row,
+  the `v1-limitations.md` row where one exists, and the body bullet. The first two have gates behind
+  them (`errata-tracking`, `errata-limitations`); the third has nothing.
+- **Fixed:** a `Resolution` bullet added to each of the four, in the established form, with the
+  closing RFC taken from the Summary table's tracking column in every case rather than from memory
+  — including E-098's, whose row states *"All three fixed by RFC-0.39-003"* with the residue split
+  to E-099. **The `Status` bullets were left untouched**, because they are the disposition as of
+  filing and the convention supersedes rather than rewrites them.
+- **Remedy proposed, not taken here.** A `consistency-check` subcheck comparing **each entry body's
+  recorded status against its own Summary row** — purely local, reading only the register, which is
+  the one document every other errata gate already trusts. It is offered to the owner beside E-113's
+  two proposals rather than written unasked, since it adds a 22nd subcheck.
 - **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
 
 ## Summary
@@ -8418,6 +8502,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-111 **seven of eleven `NEG:HARNESS:*` failure markers were invisible to the release gate.** `qemu_run.rs` holds a hard-coded, opt-in forbidden list whose own comment says a marker *"has no effect on this gate until it is added"*; `fjell-neg-test` emits eleven and four were listed, so the gate read a harness failure and passed. Found from an implementer's disclosure that an `audit` boot printed `SETUP_FAILED` while the profile reported PASS. **Worst case was a false safety claim:** `reboot.toml:36` stated `REBOOT_RETURNED` is "a forbidden harness marker" and that "the run fails closed", and it was not on the list. All seven added after checking each at its emitting site; none appears in any retained log, so no tier turns red — which is why it could persist. A per-profile `forbidden_markers` field was refused: prose drifting from a hard-coded list is the hazard, and another field would multiply the places that can drift | 0.42 | CLOSED |
 | E-112 **`TOOLCHAIN.lock` pins the SMT solver and nothing checks it.** The lock has a `[z3]` section under a header calling the file a reproducibility pin, and `verus_check.rs:85`'s own comment says it will *"print detected Verus/z3 versions and compare against the pinned TOOLCHAIN.lock release"* — it detects and compares **only the Verus release**, never z3, and does not print it. Found doing 0.42-004's upgrade, which is what exposed it: **z3 moved 4.12.5 → 4.16.0 and no gate noticed.** It matters more than the prover version does, because z3 is what discharges the obligations and a solver change is the likeliest cause of a proof ceasing to verify. It hid no regression this time — all 20 obligations re-verified under 4.16.0 — which was luck, not process: had one failed, the cause would have been ambiguous between two simultaneous changes. Remedy (detect and compare z3, failing closed; fix the comment either way) **deliberately not bundled into the upgrade commit**, since the pin is supposed to move only behind a recorded re-run and the instrument validating it must not land in the same change | unscheduled | ACCEPTED |
 | E-113 **every GitHub action but `checkout` targeted the removed Node 20 runtime, and `upload-artifact` was pinned at two majors in one file.** Seven stale pins across four actions — `upload-artifact@v4` at four sites, plus `configure-pages@v5`, `upload-pages-artifact@v4`, `deploy-pages@v4` — where the 0.42 scope note had recorded **one** site and called the item cheap. The sharper half is self-contradiction, not staleness: the three fuzz-job uploads already used `@v7` with the *identical* input shape, so one file pinned one action at two majors with nothing saying which was intended. Evidence is the runner's own `##[warning]Node.js 20 is deprecated … forced to run on Node.js 24` in both jobs, naming a **transitive** instance too — `upload-pages-artifact@v4`'s internal SHA-pinned `upload-artifact@v4`, which `@v5`'s own changelog line (*"Update upload-artifact action to version 7"*) removes with the same bump. **Nothing was broken** — all four were forced onto Node 24 and the jobs passed — but **Node 20's removal date, 2026-09-23, is already past**, so the forcing is the post-removal fallback with no runway left, and v4 under Node 24 also emits `url.parse()`'s deprecation, whose text notes CVEs are not issued for it. **Noticed once before with nowhere to live:** RFC-0.32-001's handoff asked to *"confirm v4 is current rather than assume the mismatch is deliberate"* and nothing closed it, because a handoff is not an instrument. Target majors' release bodies read rather than assumed (no breaking change or required pairing in the Pages trio; `v7` only *adds* an optional `archive` input), and each major tag checked to exist and point at its newest patch. Closed by **absence with a control**: the warning is gone from both jobs, read from the run. **The cause is not fixed — nothing watches action currency:** no `dependabot.yml`, and currency cannot be a subcheck without network, which the release cycle rules out by design; a local *contradiction* subcheck and a criterion-10-shaped currency criterion are proposed to the owner | 0.42 | CLOSED |
+| E-114 **four closed errata still read as live in their own entry bodies.** E-091, E-098, E-105 and E-106 carried a filing-time `- **Status:** **ACCEPTED**/**OPEN**` bullet and **no closure anywhere in the body**, while the Summary table, the tracking RFC and the `v1-limitations.md` rows all said CLOSED — so each entry, read alone, asserted a defect the project had fixed. **Three of the four are this milestone's own closures and so the architect's.** The convention was skipped, not missing: of the 12 CLOSED entries with a `Status` bullet, eight already carried `- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-…**`. **No gate saw it, by design:** `closed-erratum-prose` excludes `rfcs/ERRATA.md` because *"the register is the source of truth and the check consumes it"* — correct for that check, with a consequence its note does not draw, that **the register's internal agreement is checked by nothing** while every other instrument reads only the Summary status. Closing an erratum touches three places and only two have gates behind them. Fixed by adding the `Resolution` bullet to each, with the closing RFC taken from the tracking column rather than memory, leaving the `Status` bullets as the dated record the convention supersedes. Remedy proposed to the owner, not taken here: a subcheck comparing each body's recorded status against its own Summary row | 0.42 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
