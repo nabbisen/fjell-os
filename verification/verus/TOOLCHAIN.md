@@ -9,7 +9,7 @@ and test with the stable toolchain in `rust-toolchain.toml`. Verus is an
 ```
 verus:     release/0.2026.11.02.8bf68ee   (AUR package `verus-bin`)
 toolchain: 1.99.1-x86_64-unknown-linux-gnu (rustup; required by the Verus binary)
-z3:        4.12.5                           (bundled with the Verus package)
+z3:        4.16.0                           (bundled with the Verus package; checked by `verus-check`)
 ```
 
 Updated 2026-07-30 (v0.21.3): upgraded from the hand-unpacked release asset

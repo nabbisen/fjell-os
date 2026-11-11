@@ -38,11 +38,12 @@ installer      = "rustup"
 
 [z3]
 version        = "4.16.0"                  # CHANGED in the 0.42 upgrade (was 4.12.5)
-# Recorded, and NOT enforced: `verus_check.rs` compares only the Verus release
-# against this file, never z3, despite its own comment claiming otherwise. z3
-# moved 4.12.5 -> 4.16.0 across this upgrade and no gate noticed. See E-112.
+# Enforced (RFC-0.43-001, E-112): `cargo xtask verus-check` runs the prover's own
+# bundled solver with `--version` and refuses on any difference from this line -- in
+# every mode, not only `--release-required`. There is deliberately no `path` here: where
+# the solver sits depends on the install route, and the check finds the one the prover
+# will actually run (`VERUS_Z3_PATH`, else `z3` beside the real `verus`).
 source         = "bundled-with-verus-package"
-path           = "/opt/verus/z3"          # AUR layout; a hand-install puts it beside the binary
 
 [run]
 command           = "cargo xtask verus-check --all-pilot"
