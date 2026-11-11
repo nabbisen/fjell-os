@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.41.0
+## Summary at 0.42.0
 
 | Status | Count |
 |--------|-------|
@@ -219,6 +219,20 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > intermittent boot fault gets a cause) change the *wording* of rows — the
 > attestation row was rewritten at E-101's closure — and no cell's *status* —
 > so only the heading and this clause moved.
+
+> **Re-taken 2026-11-11, at the 0.42.0 cut.** The heading was left to fire
+> rather than pre-empted: `readiness-summary` was seen red on the version
+> bump — *heading says "Summary at 0.41.0"; the workspace version is 0.42.0*
+> — which is the subcheck doing its job and is recorded here instead of a
+> clean transcript that proves nothing. `readiness-check` still counts
+> **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0** — unchanged by 0.42.0,
+> whose four lines (a capability is bound to a lease only with a right no
+> blanket grant carries, user space can read a clock while the timer stays
+> dormant, the store is written to the sector it was told, the prover pin
+> catches up to upstream) touch no cell of this matrix. Checked rather than
+> assumed that the *wording* also stands: no row in the matrix mentions a
+> clock, a duration, lease binding or the store, so unlike 0.41.0 there was
+> no row to rewrite — so only the heading and this clause moved.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent

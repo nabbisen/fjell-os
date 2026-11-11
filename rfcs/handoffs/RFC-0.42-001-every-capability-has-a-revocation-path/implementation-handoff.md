@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.42-001
 
-**Governing RFC:** [RFC-0.42-001](../../accepted/RFC-0.42-001-every-capability-has-a-revocation-path.md)
+**Governing RFC:** [RFC-0.42-001](../../done/RFC-0.42-001-every-capability-has-a-revocation-path.md)
 **Milestone:** 0.42 · the milestone's lead; independent of 0.42-003 (done) and 0.42-002
-**Status:** inherited from the governing RFC (Accepted, 0.42)
+**Status:** inherited from the governing RFC (Implemented, 0.42.0)
 **Revised 2026-11-10 for Amendments 1 and 2.** Your two escalations both held: R3, R4 and R5 are
 **withdrawn**, E-093 has **left this line**, and the scope is now **E-091 only**. Read the RFC's
 Amendment 2 first — it carries the rulings you asked for.

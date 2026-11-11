@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.42-002
 
-**Governing RFC:** [RFC-0.42-002](../../accepted/RFC-0.42-002-user-space-can-read-a-clock.md)
+**Governing RFC:** [RFC-0.42-002](../../done/RFC-0.42-002-user-space-can-read-a-clock.md)
 **Milestone:** 0.42 · independent of 0.42-001 (done) and 0.42-003 (done)
-**Status:** inherited from the governing RFC (Accepted, 0.42)
+**Status:** inherited from the governing RFC (Implemented, 0.42.0)
 **Audience:** implementation model
 
 ---

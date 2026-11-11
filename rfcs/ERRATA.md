@@ -8431,6 +8431,55 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   anyone who can install.
 - **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
 
+## E-116 — the cut needs eight version strings and five more steps than it documents; the gates, not the procedure, are what keep it correct
+
+- **Claim:** `v0-release-cycle.md`'s *"Before criterion 1 — bump the two version strings, **not
+  one**"* enumerates where a release's version lives: two in `Cargo.toml`, plus the three
+  crates.io logo URLs in its own later section. **Five strings.** The section exists precisely
+  because the version is written in more than one place, and **E-030** records the cut where
+  missing one broke the workspace.
+- **Tree, observed 2026-11-11 at the 0.42.0 cut: the version lives in eight places.** The three
+  the procedure never names:
+  - `README.md:22` — `Current version: **<version>**`
+  - `README.md:9` — the shields.io version badge, `version-<version>-blue.svg`
+  - `docs/src/releasing/v1-readiness.md` — the `## Summary at <version>` heading
+- **And a sixth step the procedure never names, larger than all of them: the milestone's RFCs
+  move `accepted/` → `done/`.** Every cut since at least 0.35.0 has done it as an explicit
+  numbered step — the 0.41.0 commit subject reads *"0.41.0 step 7: move 0.41's six RFCs
+  accepted/ -> done/, links, Status lines, rfcs/README.md"* — and it is **five** tasks, not the
+  four that subject implies: the `git mv`; each RFC's `**Status:** Accepted` →
+  `Implemented (<version>)`; each handoff's governing-RFC **link**; each handoff's own
+  `**Status:** inherited from the governing RFC (Accepted, …)` → `(Implemented, <version>)`;
+  and both counts plus two tables in `rfcs/README.md`.
+- **The correction this entry turns on, and it overturns its own first draft.** This was filed
+  asserting *"nothing checks `README.md:22`"*. **That is false.** `consistency-check`'s
+  **`version-currency`** subcheck reads `README.md` against the workspace version and fails on
+  any stale mention — observed here, quoted: `README.md mentions 0.41.0, but the workspace
+  version is 0.42.0`, which is how the badge at line 9 was found at all. **`readiness-summary`**
+  fails on the heading (`heading says "Summary at 0.41.0"; the workspace version is 0.42.0`), and
+  **`handoff-status`** fails a handoff whose Status disagrees with its governing RFC's — all
+  three fired at this cut and all three were fixed because they fired.
+  - *The first reading was reached by grepping the procedure and reasoning about which gate
+    existed, instead of running the instrument that owns the question — `consistency-check --all`
+    after a version bump, which names every one of them. That is this project's own rule about a
+    text match being a hypothesis, broken by the architect twice in one day.*
+- **So the defect is documentation, not enforcement — which is a sharper finding, not a milder
+  one.** A reader following only the written procedure produces a tree that **four subchecks then
+  reject**. The procedure is not what keeps the cut correct; `consistency-check` is. That is fine
+  as a safety net and poor as a record, because the written cut is the thing handed to an
+  implementer (E-039's cut was handed over exactly that way).
+- **The one genuinely ungated residue:** a **wholly skipped** `accepted/ → done/` move. If
+  nothing moves, every `Status:` still says `Accepted` and agrees with every handoff, and
+  `doc-counts` checks the five counts against the folders *as they are*, so RFCs left in
+  `accepted/` keep them self-consistent and **nothing fires**. Only a *partial* move is caught.
+- **Resolution:** **CLOSED**, tracked **`0.42`** — all eight strings bumped, step 7 performed in
+  full with its five tasks, and **all of it written into the procedure**, naming for each
+  omission the subcheck that catches it and the one case that none do. Two stale line pointers in
+  the neighbouring section were corrected with it (`Cargo.toml:153` → `:187`,
+  `crates/fjell-os/Cargo.toml:14` → `:15`), each confirmed against the tree rather than
+  renumbered by eye.
+- **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8549,6 +8598,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-113 **every GitHub action but `checkout` targeted the removed Node 20 runtime, and `upload-artifact` was pinned at two majors in one file.** Seven stale pins across four actions — `upload-artifact@v4` at four sites, plus `configure-pages@v5`, `upload-pages-artifact@v4`, `deploy-pages@v4` — where the 0.42 scope note had recorded **one** site and called the item cheap. The sharper half is self-contradiction, not staleness: the three fuzz-job uploads already used `@v7` with the *identical* input shape, so one file pinned one action at two majors with nothing saying which was intended. Evidence is the runner's own `##[warning]Node.js 20 is deprecated … forced to run on Node.js 24` in both jobs, naming a **transitive** instance too — `upload-pages-artifact@v4`'s internal SHA-pinned `upload-artifact@v4`, which `@v5`'s own changelog line (*"Update upload-artifact action to version 7"*) removes with the same bump. **Nothing was broken** — all four were forced onto Node 24 and the jobs passed — but **Node 20's removal date, 2026-09-23, is already past**, so the forcing is the post-removal fallback with no runway left, and v4 under Node 24 also emits `url.parse()`'s deprecation, whose text notes CVEs are not issued for it. **Noticed once before with nowhere to live:** RFC-0.32-001's handoff asked to *"confirm v4 is current rather than assume the mismatch is deliberate"* and nothing closed it, because a handoff is not an instrument. Target majors' release bodies read rather than assumed (no breaking change or required pairing in the Pages trio; `v7` only *adds* an optional `archive` input), and each major tag checked to exist and point at its newest patch. Closed by **absence with a control**: the warning is gone from both jobs, read from the run. **The cause is not fixed — nothing watches action currency:** no `dependabot.yml`, and currency cannot be a subcheck without network, which the release cycle rules out by design; a local *contradiction* subcheck and a criterion-10-shaped currency criterion are proposed to the owner | 0.42 | CLOSED |
 | E-114 **four closed errata still read as live in their own entry bodies.** E-091, E-098, E-105 and E-106 carried a filing-time `- **Status:** **ACCEPTED**/**OPEN**` bullet and **no closure anywhere in the body**, while the Summary table, the tracking RFC and the `v1-limitations.md` rows all said CLOSED — so each entry, read alone, asserted a defect the project had fixed. **Three of the four are this milestone's own closures and so the architect's.** The convention was skipped, not missing: of the 12 CLOSED entries with a `Status` bullet, eight already carried `- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-…**`. **No gate saw it, by design:** `closed-erratum-prose` excludes `rfcs/ERRATA.md` because *"the register is the source of truth and the check consumes it"* — correct for that check, with a consequence its note does not draw, that **the register's internal agreement is checked by nothing** while every other instrument reads only the Summary status. Closing an erratum touches three places and only two have gates behind them. Fixed by adding the `Resolution` bullet to each, with the closing RFC taken from the tracking column rather than memory, leaving the `Status` bullets as the dated record the convention supersedes. Remedy proposed to the owner, not taken here: a subcheck comparing each body's recorded status against its own Summary row | 0.42 | CLOSED |
 | E-115 **RUSTSEC-2026-0486 applied to `rustix 1.1.4`** — unsound, *xattr functions mark unwritten bytes as initialized when given a zero-length buffer*, patched `>=1.1.6`. Found by CI on `979dbd4`, green on `cefce90` the day before **with no dependency change in between**: the advisory was published, not introduced, and the database read was **0 days old** (1,453 advisories). `advisory-process.md` §7's mechanism working as written. **Reach, derived not assumed:** `rustix` arrives only via `tempfile` ← `proptest`, reached from three crates that `cargo tree -i` shows are **leaves — nothing depends on them** — so it reaches neither the kernel, the 33 prebuilts, nor either published crate, and is absent from `fuzz/Cargo.lock`. No built artefact moves, so **no repro baseline is re-recorded**, checked rather than assumed. Fixed the day it appeared: `rustix 1.1.4 → 1.1.6`, exactly its patched floor, one package and two lockfile lines, `cargo test -p fjell-proptest` passing (10 + 14). **What it cannot show:** E-053 recorded its red locally before the fix; **D24 does not govern this case** (it reads *"the deliberately-red tree is not pushed"*, and this red came from upstream), but the local transcript is still stronger evidence and is missing — reproducing it needs `cargo install cargo-audit`, which the architect does not do | 0.42 | CLOSED |
+| E-116 **the cut needs eight version strings and five more steps than it documents; the gates, not the procedure, are what keep it correct.** `v0-release-cycle.md`'s *"bump the two version strings, **not one**"* section enumerates five places the version lives — two in `Cargo.toml` plus three logo URLs — and names neither `README.md:22` (*"Current version"*), `README.md:9` (the shields.io badge), nor `v1-readiness.md`'s `## Summary at <version>` heading. Nor does it name the largest step of all: the milestone's RFCs move `accepted/` → `done/`, which is **five** tasks (the `git mv`, each RFC's `Status:` to `Implemented (<version>)`, each handoff's governing-RFC link, each handoff's own inherited `Status:`, and both counts plus two tables in `rfcs/README.md`), done as an explicit numbered step since at least 0.35.0 and written nowhere. **This entry overturns its own first draft:** it was filed asserting *"nothing checks `README.md:22`"*, which is **false** — `version-currency` reads `README.md` against the workspace version (*README.md mentions 0.41.0, but the workspace version is 0.42.0* — which is how the badge was found), `readiness-summary` fails on the heading, and `handoff-status` fails a handoff disagreeing with its RFC. All three fired at this cut. *The first reading came from grepping the procedure instead of running the instrument that owns the question, which is this project's own rule broken by the architect twice in one day.* **So the defect is documentation, not enforcement — the sharper finding:** a reader following only the written procedure produces a tree that **four subchecks reject**, and the written cut is what gets handed to an implementer. **The one ungated residue:** a *wholly skipped* move, where every `Status:` still agrees and `doc-counts` counts the folders as they are, so nothing fires. All eight strings bumped, step 7 done in full, and all of it written into the procedure naming which subcheck catches each omission | 0.42 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the

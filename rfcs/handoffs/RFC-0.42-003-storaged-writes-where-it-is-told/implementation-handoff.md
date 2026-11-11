@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.42-003
 
-**Governing RFC:** [RFC-0.42-003](../../accepted/RFC-0.42-003-storaged-writes-where-it-is-told.md)
+**Governing RFC:** [RFC-0.42-003](../../done/RFC-0.42-003-storaged-writes-where-it-is-told.md)
 **Milestone:** 0.42 · first line of the milestone, no dependency on 0.42-001 or 0.42-002
-**Status:** inherited from the governing RFC (Accepted, 0.42)
+**Status:** inherited from the governing RFC (Implemented, 0.42.0)
 **Audience:** implementation model
 
 ---

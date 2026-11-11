@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 222 files
+## Implemented (done/) — 225 files
 
-221 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+224 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -533,27 +533,16 @@ mid-milestone and blocked the cut.
 | 0.41-004 | [Frame reservation is all-or-nothing, and its doc says what it does](./done/RFC-0.41-004-frame-reservation-is-all-or-nothing.md) — closed **E-103**; `FrameAllocator::reserve_range` validates the whole range before it changes anything, so a failed reservation is a no-op, and its doc comment no longer promises a same-owner tolerance it never had | 0.41.0 |
 | 0.41-005 | [A gate catches prose that still asserts a closed erratum](./done/RFC-0.41-005-a-gate-catches-prose-that-still-asserts-a-closed-erratum.md) — no erratum; a 21st `consistency-check` subcheck, `closed-erratum-prose`, fails a live status word beside a closed erratum and a present-tense claim resting on one — the two shapes 0.40.0 shipped | 0.41.0 |
 | 0.41-006 | [The intermittent boot fault gets a cause](./done/RFC-0.41-006-the-intermittent-boot-fault-gets-a-cause.md) — closed **E-104** on a cause, not a fix: a `storaged` write that does not complete inside a 500,000-round poll budget, the device healthy; disclosed as `v1-limitations.md` row 19. The audit trail now carries `task` and `tick`, `cargo xtask boot-loop` boots to the M6 decision many times, and `storaged` reports an incomplete I/O on two console lines | 0.41.0 |
+| 0.42-001 | [Every capability has a revocation path, and the premise that says so is enforced](./done/RFC-0.42-001-every-capability-has-a-revocation-path.md) — closed **E-091**; `sys_cap_bind_lease` let a `LeaseAdmin` holder bind an unbound capability to any `Active` lease, including one it did not own, because `RFC-v0.7.4-003`'s `LEASE_BIND` right and lease-scope check were **never built**. `CapRights::LEASE_BIND` now exists at bit **30** — the done RFC's `1 << 25` belongs to `REBOOT`, and moving a shipped bit is an ABI break — **in neither rights aggregate**, so a blanket grant does not confer it; binding requires `LEASE_CREATE` *and* `LEASE_BIND` on the same capability and refuses a lease the caller does not own, auditing the refusal as `lease.bind_rejected` (`0x0604`). The implemented rule is deliberately **narrower than the document it came from**, whose own clause permitted everything. Two amendments withdrew the architect's R3/R4 and removed **E-093** from the line | 0.42.0 |
+| 0.42-002 | [User space can read a clock, and the timer stays dormant](./done/RFC-0.42-002-user-space-can-read-a-clock.md) — closed **E-106**; Fjell exposed **no notion of time to user space**, so no service could express a duration. `sys_clock_now_ns` (syscall **113** — `120` stayed retired) returns a monotone nanosecond counter, gated on a new `Clock` kind and `CapRights::CLOCK_READ` at bit **31**, in neither aggregate and granted by name to `storaged` alone. `STIE` stays **masked** and RFC 037's preemption path stays dormant, because reading a counter needs no interrupt. The RFC's premise that the counter was already readable was **wrong and the implementer said so**: CLINT is unmapped and `mcounteren` unset, so they used the `time` CSR with `mcounteren.TM` only. There is still no way to block on time | 0.42.0 |
+| 0.42-003 | [`storaged` writes where it is told, and the success it reports is the write that was asked for](./done/RFC-0.42-003-storaged-writes-where-it-is-told.md) — closed **E-105**; `storaged` bound `init`'s first data word to `_badge`, so **every write landed at sector 0** and each chunk lost 8 bytes of every 32 while `init` printed `block write ok`. The fix **removes the chance to misname the word** rather than renaming it: both ends share one encode/decode in `fjell_service_api::storaged`, so they cannot drift again, and `init` stops discarding seventeen of its eighteen replies. The `store` tier stays **NOT-GATED** — row 17's second condition was met by host tests instead, which is recorded rather than slid past | 0.42.0 |
 
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — none
 
-0.42's line opens. The milestone's sentence is **the capability system gets the recursive-revocation
-coverage its own design claims** — **0.42-001 (E-091, E-093) is the lead**, accepted
-2026-11-10 after its design investigation settled the granularity question. **0.42-003 was accepted
-first because it is the only line with no design question** and is already implemented. **0.42-002 (E-106) was accepted 2026-11-10**: the kernel's timer
-machinery is already written and dormant, so the line exposes a readable counter and **deliberately
-leaves `STIE` masked** rather than activating RFC 037's preemption path across every profile.
-0.42-004 (the Verus prover re-pin) waits on the newer prover being installed. All are independent. Scope:
-`.git-exclude/handoff/scope-0.42.md`.
-
-| RFC | Title | Tracks |
-|-----|-------|--------|
-| 0.42-002 | [User space can read a clock, and the timer stays dormant](./accepted/RFC-0.42-002-user-space-can-read-a-clock.md) | E-106 |
-| 0.42-001 | [Every capability has a revocation path, and the premise that says so is enforced](./accepted/RFC-0.42-001-every-capability-has-a-revocation-path.md) | E-091, E-093 |
-| 0.42-003 | [`storaged` writes where it is told, and the success it reports is the write that was asked for](./accepted/RFC-0.42-003-storaged-writes-where-it-is-told.md) | E-105 |
-
-`accepted/README.md` keeps the folder in a fresh clone.
+Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
+a fresh clone.
 
 ---
 

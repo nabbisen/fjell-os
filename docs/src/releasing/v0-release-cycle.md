@@ -311,8 +311,8 @@ the name cannot be released. This step is the owner's, like the tag.
 released. It is **not the only place the version is written**:
 
 ```
-Cargo.toml:153                 [workspace.package] version
-crates/fjell-os/Cargo.toml:14  fjell-abi = { path = "...", version = "<same>" }
+Cargo.toml:187                 [workspace.package] version
+crates/fjell-os/Cargo.toml:15  fjell-abi = { path = "...", version = "<same>" }
 ```
 
 A path dependency needs an explicit `version` to be publishable, and Cargo
@@ -325,6 +325,58 @@ which fails exit criterion 1 and makes every other criterion unevaluable.
 only the workspace version left `fjell-os` requiring `fjell-abi 0.26.0` from a
 workspace that now contained `0.27.0`, and `cargo metadata` failed. Nothing
 checks the two agree — recorded as **E-030**.*
+
+### Before criterion 1 — three more version strings, and the step 7 this procedure never named
+
+The section above names five strings: the two in `Cargo.toml`, and the three logo URLs
+below. **The version lives in eight places.** The other three:
+
+```
+README.md:22                        Current version: **<version>**
+README.md:9                         the shields.io badge, version-<version>-blue.svg
+docs/src/releasing/v1-readiness.md  ## Summary at <version>   (the heading)
+```
+
+Re-taking the readiness heading also means appending the cut's clause and re-running
+`cargo xtask readiness-check` for the counts rather than copying the previous cut's.
+
+**And the step nobody wrote down: the milestone's RFCs move `accepted/` → `done/`.** Every
+cut since at least 0.35.0 has done it as an explicit numbered step — the 0.41.0 commit
+subject reads *"0.41.0 step 7: move 0.41's six RFCs accepted/ -> done/, links, Status lines,
+rfcs/README.md"* — and it is **five** tasks, not the four that subject implies:
+
+1. `git mv rfcs/accepted/RFC-<ver>-*.md rfcs/done/` (the folder is the source of truth);
+2. each RFC's line 3, `**Status:** Accepted — accepted <date>` →
+   `**Status:** Implemented (<version>) — accepted <date>`, keeping its own accepted date;
+3. each `rfcs/handoffs/<RFC>/implementation-handoff.md` line 3 — the governing-RFC **link**,
+   `../../accepted/` → `../../done/`;
+4. the same file's line 5 — `**Status:** inherited from the governing RFC (Accepted, …)` →
+   `(Implemented, <version>)`;
+5. `rfcs/README.md`: move each RFC's row from the **Accepted** table to the **Implemented**
+   table with `<version>` in its `Shipped` column, set the Accepted heading to `— none` with
+   its one-line "Nothing is accepted and awaiting a cut" text, and update **both** counts at
+   the top of the file (`## Implemented (done/) — N files`, and the
+   `N RFCs plus \`v0.7.x-index.md\`` line, which is that total minus one).
+
+**Every omission above is caught by a subcheck — which is the point, and the problem.**
+`version-currency` reads `README.md` against the workspace version and fails on any stale
+mention; `readiness-summary` fails on the heading; `handoff-status` fails a handoff whose
+Status disagrees with its governing RFC's; `doc-links` fails a link left pointing into
+`accepted/`. A reader following only the five documented strings produces a tree that **four
+subchecks reject**. So the cut has been kept correct by `consistency-check` rather than by
+this document — adequate as a safety net, poor as the record that gets handed to an
+implementer.
+
+**The one case no gate catches: a wholly skipped move.** If nothing moves, every `Status:`
+still says `Accepted` and agrees with every handoff, and `doc-counts` checks the five counts
+against the folders *as they are* — so RFCs left in `accepted/` keep them self-consistent and
+nothing fires. Only a *partial* move is caught.
+
+*Added 2026-11-11, during the 0.42.0 cut, where `README.md:22` still read `0.41.0` after all
+five documented strings had been bumped. Recorded as **E-116**, whose first draft claimed
+nothing checked that line — `version-currency` does, and finding that out is what located the
+badge at line 9. The lesson kept in the entry: the question "is this gated?" is owned by
+running `consistency-check --all` after a bump, not by reading this procedure.*
 
 ### Before criterion 4 — rebuild before re-recording the repro baseline
 

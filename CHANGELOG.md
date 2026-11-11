@@ -5,6 +5,85 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.42.0] — 2026-11-11 — A clock, a sector, and a right — and four instruments that were not watching
+
+Four lines, **seven errata closed** (**E-091**, **E-105**, **E-106**, **E-111**, **E-113**,
+**E-114**, **E-115**), two filed and carried forward as accepted limitations (**E-110**,
+**E-112**), and one restated after three wrong framings (**E-093**). User space can read a
+clock for the first time. `storaged` writes to the sector `init` asked for instead of to
+sector 0. Binding a capability to a lease now needs a right that no blanket grant carries.
+The Verus prover is pinned to a current release.
+
+**The milestone's own finding is where its errata came from.** Four of the seven closed were
+defects in the **measuring apparatus**, not in the product: a release gate blind to seven of
+eleven harness failure markers (**E-111**), a reproducibility pin that never checked the
+solver (**E-112**, filed and deliberately left open), CI pinning one action at two majors
+while four actions targeted a removed runtime (**E-113**), and the errata register itself
+asserting as live four defects it had recorded as closed (**E-114**). None of those changed a
+line of the kernel. All four were instruments the project believed it had.
+
+**There is no security advisory.** The kernel has never been distributed as a runnable
+artefact and the product has not been placed on the market. One advisory *was* handled this
+cycle and it is not Fjell's: **E-115** closed `RUSTSEC-2026-0486` against `rustix`, reached
+only through `tempfile` ← `proptest` in three leaf crates that nothing depends on. It touches
+neither published crate, the kernel, nor any prebuilt. A green dependency-advisory run was
+never a statement about what Fjell ships, and a red one is not either.
+
+Five statements follow, each a case where what shipped is narrower or different from the
+obvious reading:
+
+1. **A service can read a clock and still cannot wait on one.** `sys_clock_now_ns`
+   (syscall **113**) returns a monotone nanosecond counter. It does **not** bring
+   scheduling on time: `STIE` stays masked and RFC 037's timer-preemption path stays
+   dormant on purpose, because delivering timer interrupts would change scheduling on
+   every profile. `fjell-storaged` still waits by counting 500,000 `sys_yield` rounds — it
+   now **reports** how long that took (`elapsed_ns=`, measured at 6.93 s and 7.58 s), which
+   is the thing that was impossible before. A `sleep` syscall is unscheduled.
+2. **The clock is granted to one service by name, and the origin is undefined.**
+   `CapRights::CLOCK_READ` is bit 31 and `LEASE_BIND` is bit 30; **neither is in any rights
+   aggregate**, so a blanket grant confers neither, and only `storaged` holds the clock. The
+   counter's origin is arbitrary — **only differences are meaningful** — and the resolution
+   is the platform tick, 100 ns on QEMU `virt`. A monotone counter is a timing side channel,
+   which is why it is rationed rather than ambient.
+3. **`ALL_DEFINED` no longer means all defined rights.** It excludes bits 30 and 31
+   deliberately, so that adding a right never widens an existing grant. Two tests enforce
+   the exclusion rather than leaving it to the comment. A reader going by the constant's
+   *name* would be wrong; its own doc comment says so at the definition.
+4. **The store is written where it was told, and still nothing reads it back.** **E-105** was
+   a wire-format disagreement — `storaged` bound `init`'s first data word to `_badge`, so
+   every write landed at sector 0 with 8 bytes of every 32 lost — and the fix removes the
+   chance to misname it rather than renaming it: both ends now share one encode/decode. But
+   the `store` tier is **still NOT-GATED**, and row 17's second closing condition was met by
+   host tests, not by the tier. That substitution is recorded, not slid past.
+5. **The prover moved and so did the solver, and only one of them is checked.** The pin
+   advanced to `0.2026.11.02.8bf68ee` with all 20 obligations re-verified unchanged (8 + 5 +
+   7, no proof source modified, recorded **before** the pin moved). z3 went **4.12.5 →
+   4.16.0** — and `verus-check` compares only the Verus release despite a comment claiming
+   otherwise, so the solver changed and no gate noticed (**E-112**). It hid no regression,
+   which was luck rather than process.
+
+**What still does not hold, in the same breath.**
+
+- **A boot can create at most 32 leases, ever** (**E-110**, row 21). Slots are never
+  recycled, so the figure is a whole-boot budget and not a concurrency limit; about nine are
+  already spent in a normal boot. `create()` fails closed and nothing can recover.
+- **The proof toolchain's pin is enforced for the prover and not for the solver**
+  (**E-112**, row 22), as item 5 states.
+- **Authority still cannot be withdrawn from a task without ending the task** (**E-093**,
+  row 12). Restated this cycle after three incorrect framings by the architect, and removed
+  from RFC-0.42-001's scope by its second amendment rather than carried wrongly.
+- **A healthy disk that is merely slow fails the boot** (**E-104**, row 19) — unchanged,
+  closed on a cause in 0.41.
+- Three of the measurement chain's four events are still placeholders and the kernel's own
+  image is unmeasured (**E-095**).
+
+**Process, recorded because it bears on the evidence.** CI was red on the two commits before
+this cycle's work began — `cargo fmt --check`, from a six-element destructuring that the
+0.41-era row-20 change pushed past rustfmt's width. It reached `origin` twice because
+`consistency-check --all` was treated as clearance for a mid-line push, and its 21 subchecks
+do not include formatting. Formatting is exit criterion 3 and CI's own job; a cut would have
+stopped on it, and did not need to.
+
 ## [0.41.0] — 2026-11-09 — The audit trail reaches someone, and says when it did not
 
 Six RFCs, **six errata closed** (**E-101**, **E-102**, **E-103**, **E-104**,
