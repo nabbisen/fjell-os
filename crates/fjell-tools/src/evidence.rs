@@ -162,7 +162,8 @@ fn cmd_promote(args: &[String]) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    let (source, run_id, profile, commit_sha, command, emulator) = if let Some(run_dir) = &a.run_dir {
+    let (source, run_id, profile, commit_sha, command, emulator) = if let Some(run_dir) = &a.run_dir
+    {
         let run_dir = Path::new(run_dir);
         let Ok(info_src) = fs::read_to_string(run_dir.join("run-info.txt")) else {
             eprintln!(
