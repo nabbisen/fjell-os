@@ -8493,6 +8493,73 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   renumbered by eye.
 - **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
 
+## E-117 — `capability-topology` checks nine fewer declarations than exist, and its slot-0 exclusion rests on a fallback RFC-0.41-002 deleted
+
+- **Claim:** `capability-topology` (RFC-0.35-001 R3/R4, E-072) exists so that *"a service's own
+  CSpace declaration and the kernel's install must agree"*, and its module doc states the
+  principle it was revised to serve: **"The universe is discovered, not enumerated"** — because a
+  hand-maintained list *"would be a third independent declaration of the topology"* and a twelfth
+  instance *"would simply not appear in it"*. A planted `CAP_ARCH_PROBE_12TH` passing silently
+  against the old enumerated list is recorded there as the review finding that forced the rewrite.
+- **Tree, observed 2026-11-12.** The universe is discovered **within one directory**:
+  `const SERVICES_DIR: &str = "crates/services"`. **The driver crates live in
+  `crates/drivers/`**, so `fjell-driver-uart` and `fjell-driver-virtio-net` are outside the scan
+  entirely. **Nine of the nineteen `const … CapHandle(<slot>)` declarations in the tree are
+  invisible to the instrument built to check them** — and a constant planted in `crates/drivers/`
+  would pass silently, which is the same defect the rewrite was for, on a different axis.
+- **One of the nine is wrong, and wrong twice.** `fjell-driver-virtio-net/src/main.rs:58` declares
+  `const CAP_MMIO: CapHandle = CapHandle(0)` under a header saying `slot 0 — MmioRegion (device
+  registers)`.
+  - **No slot-0 install reaches it.** The single `install_raw(0, …)` in `spawn.rs` is fed by a
+    `match image_id` with arms for eighteen images and `_ => None`; **`DRIVER_VIRTIO_NET` has no
+    arm**, so it gets nothing in slot 0.
+  - **And the kind is wrong even if it did.** That site installs `CapKind::Endpoint`, not
+    `MmioRegion`. MMIO capabilities install at **`31 + region_idx`**; virtio-net's region is 3, so
+    its slot is **34**.
+  - **`driver-uart` is the worked precedent and is correct:** `CAP_MMIO = CapHandle(32)` for
+    region 1 — *and it uses it*, in `sys_mmio_map`. virtio-net never uses its own, which is the
+    only reason the error has never fired. Its `CAP_INIT_EP = CapHandle(0)` **is** right, because
+    `DRIVER_UART => Some(9)` is one of the eighteen arms.
+- **The second half, and the more interesting one: the slot-0 exclusion's stated reason is false.**
+  The module excludes slot 0 *"for every service"* and gives this justification: *"every image's
+  own identity endpoint, installed unconditionally for every `image_id` by `spawn.rs`'s `_ => 0`
+  fallback arm"*. **That fallback does not exist.** `spawn.rs:327` records its removal in its own
+  words — *"`_ => 0`: twenty images pointed at one object, each with SEND"* — and RFC-0.41-002 R3
+  replaced it with `_ => None`: *"An image without a dedicated arm gets no capability in slot 0."*
+  - **The mechanical half of the exclusion still holds**: the install is inside a `match`, and the
+    module's `image_block_installs_slot` reads `if image_id == …` blocks, which it cannot name. So
+    the exclusion is not *unfounded* — it is **justified by a sentence that is no longer true**.
+  - **What changed is the consequence.** Before RFC-0.41-002 a declared slot 0 *could not be
+    wrong*, because every image got one; excluding it cost nothing. Now an image without an arm
+    gets nothing there, so a declared slot 0 **can** be wrong — and two declarations sit in
+    exactly that position unchecked: virtio-net's (wrong, above) and
+    `fjell-secure-transportd`'s `CAP_SESSION = CapHandle(0)`.
+  - **`CAP_SESSION` is *not* a defect**, and this entry says so because the 0.41 review record's
+    phrase *"never installed"* was carried into two scope documents as "false declaration" and is
+    withdrawn: the service's own header says it *"Receives a `Session` cap from `netd` via
+    cap-broker"*, so slot 0 is where a **runtime-delivered** capability arrives, and cap-broker's
+    `SxtSession = 9` is a `ResourceClass` discriminant, not a slot. It belongs in `WAIVERS` with
+    that reason once slot 0 is checked — which is the point: a waiver with a reason is the
+    instrument's own designed answer, and today the slot cannot even reach it.
+- **A third declaration, separate from the instrument's blind spots.** `spawn.rs:932` installs
+  `proxy-text`'s **slot 2** as `CapKind::Endpoint` with **`object_id: 0`** and
+  `SEND | REPLY | INSPECT`. **No arm of the match maps any image to object 0** — the arms use 1,
+  3–9 and named constants — so object 0 has no owner, and `capability-topology` separately affirms
+  *"no capability to receive on it"*. So this is a **send capability to an object with no possible
+  receiver: it can never deliver.** `capability-topology` permits it because the rule it enforces
+  there is about *receive* rights on object 0, and this carries none. (proxy-text's own slot 0 is
+  correct: `PROXY_TEXT => Some(8)`.)
+- **Why this is one erratum and not three declaration fixes.** All three declarations were noted
+  before 0.41, listed as unverified candidates in the 0.42 scope, and survived a milestone whose
+  stated subject was the measuring apparatus. They survived because **the instrument that owns
+  this exact class could not see two of them and does not judge the third's predicate.** Fixing
+  the declarations and leaving the instrument is the shape **E-113** records — a handoff asked
+  someone to confirm a pin and nothing re-read it. The design bar's first clause rules here: no
+  mechanism kept because removing it is awkward, and the smaller diff is to repair the instrument
+  once rather than to chase instances it will keep hiding.
+- **Status:** **OPEN**, scheduled to **0.43** (the scope's 0.43-003, reshaped by this entry from
+  "three declarations" to "the instrument, and then the declarations fall out of it").
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8612,6 +8679,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-114 **four closed errata still read as live in their own entry bodies.** E-091, E-098, E-105 and E-106 carried a filing-time `- **Status:** **ACCEPTED**/**OPEN**` bullet and **no closure anywhere in the body**, while the Summary table, the tracking RFC and the `v1-limitations.md` rows all said CLOSED — so each entry, read alone, asserted a defect the project had fixed. **Three of the four are this milestone's own closures and so the architect's.** The convention was skipped, not missing: of the 12 CLOSED entries with a `Status` bullet, eight already carried `- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-…**`. **No gate saw it, by design:** `closed-erratum-prose` excludes `rfcs/ERRATA.md` because *"the register is the source of truth and the check consumes it"* — correct for that check, with a consequence its note does not draw, that **the register's internal agreement is checked by nothing** while every other instrument reads only the Summary status. Closing an erratum touches three places and only two have gates behind them. Fixed by adding the `Resolution` bullet to each, with the closing RFC taken from the tracking column rather than memory, leaving the `Status` bullets as the dated record the convention supersedes. Remedy proposed to the owner, not taken here: a subcheck comparing each body's recorded status against its own Summary row | 0.42 | CLOSED |
 | E-115 **RUSTSEC-2026-0486 applied to `rustix 1.1.4`** — unsound, *xattr functions mark unwritten bytes as initialized when given a zero-length buffer*, patched `>=1.1.6`. Found by CI on `979dbd4`, green on `cefce90` the day before **with no dependency change in between**: the advisory was published, not introduced, and the database read was **0 days old** (1,453 advisories). `advisory-process.md` §7's mechanism working as written. **Reach, derived not assumed:** `rustix` arrives only via `tempfile` ← `proptest`, reached from three crates that `cargo tree -i` shows are **leaves — nothing depends on them** — so it reaches neither the kernel, the 33 prebuilts, nor either published crate, and is absent from `fuzz/Cargo.lock`. No built artefact moves, so **no repro baseline is re-recorded**, checked rather than assumed. Fixed the day it appeared: `rustix 1.1.4 → 1.1.6`, exactly its patched floor, one package and two lockfile lines, `cargo test -p fjell-proptest` passing (10 + 14). **What it cannot show:** E-053 recorded its red locally before the fix; **D24 does not govern this case** (it reads *"the deliberately-red tree is not pushed"*, and this red came from upstream), but the local transcript is still stronger evidence and is missing — reproducing it needs `cargo install cargo-audit`, which the architect does not do | 0.42 | CLOSED |
 | E-116 **the cut needs eight version strings and five more steps than it documents; the gates, not the procedure, are what keep it correct.** `v0-release-cycle.md`'s *"bump the two version strings, **not one**"* section enumerates five places the version lives — two in `Cargo.toml` plus three logo URLs — and names neither `README.md:22` (*"Current version"*), `README.md:9` (the shields.io badge), nor `v1-readiness.md`'s `## Summary at <version>` heading. Nor does it name the largest step of all: the milestone's RFCs move `accepted/` → `done/`, which is **five** tasks (the `git mv`, each RFC's `Status:` to `Implemented (<version>)`, each handoff's governing-RFC link, each handoff's own inherited `Status:`, and both counts plus two tables in `rfcs/README.md`), done as an explicit numbered step since at least 0.35.0 and written nowhere. **This entry overturns its own first draft:** it was filed asserting *"nothing checks `README.md:22`"*, which is **false** — `version-currency` reads `README.md` against the workspace version (*README.md mentions 0.41.0, but the workspace version is 0.42.0* — which is how the badge was found), `readiness-summary` fails on the heading, and `handoff-status` fails a handoff disagreeing with its RFC. All three fired at this cut. *The first reading came from grepping the procedure instead of running the instrument that owns the question, which is this project's own rule broken by the architect twice in one day.* **So the defect is documentation, not enforcement — the sharper finding:** a reader following only the written procedure produces a tree that **four subchecks reject**, and the written cut is what gets handed to an implementer. **The one ungated residue:** a *wholly skipped* move, where every `Status:` still agrees and `doc-counts` counts the folders as they are, so nothing fires. All eight strings bumped, step 7 done in full, and all of it written into the procedure naming which subcheck catches each omission | 0.42 | CLOSED |
+| E-117 **`capability-topology` checks nine fewer declarations than exist, and its slot-0 exclusion rests on a fallback RFC-0.41-002 deleted.** The instrument exists so *"a service's own CSpace declaration and the kernel's install must agree"*, and its doc states *"the universe is discovered, not enumerated"* after a planted constant passed against an enumerated list. But discovery is `const SERVICES_DIR = "crates/services"`, so **`crates/drivers/` is outside the scan** and **9 of the 19 `CapHandle(<slot>)` declarations are unchecked** — a constant planted in `crates/drivers/` would pass silently, the same defect on a different axis. **One of the nine is wrong twice:** `virtio-net`'s `CAP_MMIO = CapHandle(0)` gets no slot-0 install (the single `install_raw(0, …)` is fed by a `match` with arms for eighteen images and `_ => None`; `DRIVER_VIRTIO_NET` has no arm) and names the wrong kind anyway (that site installs `Endpoint`; MMIO installs at `31 + region_idx`, so region 3 means slot **34**). `driver-uart` is correct at `CapHandle(32)` for region 1 *and uses it*; virtio-net never uses its own, which is why it has never fired. **The slot-0 exclusion is justified by a false sentence:** it cites a `_ => 0` fallback installing slot 0 *"unconditionally for every `image_id`"*, which RFC-0.41-002 R3 replaced with `_ => None`. The mechanical reason (the install sits in a `match`, not an `if image_id ==` block) still holds; what changed is that a declared slot 0 **can** now be wrong, and two sit there unchecked. **`secure-transportd`'s `CAP_SESSION` is not a defect** — the 0.41 record's *"never installed"* was carried into two scope documents as "false declaration" and is withdrawn: slot 0 is where a runtime cap-broker delivery arrives, and it belongs in `WAIVERS` with that reason once the slot is checked at all. **Separately:** `proxy-text`'s slot 2 is an `Endpoint` at `object_id: 0`, which no arm maps to and nothing can receive on — a send capability that can never deliver. Filed as one erratum rather than three fixes because all three survived a milestone about instruments, and they survived because the instrument that owns the class cannot see them | 0.43 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
