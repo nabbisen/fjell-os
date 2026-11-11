@@ -265,13 +265,13 @@ jobs:
           count=$(ls docs/book/adr/*.html | wc -l)
           echo "ADR pages built: $count"
           [ "$count" -ge 30 ] || { echo "::error::only $count ADR pages in the built site"; exit 1; }
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: docs/book
       - name: Deploy to GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   ci-qemu-smoke:
     name: qemu-smoke
@@ -305,7 +305,7 @@ jobs:
         run: cargo xtask qemu-test ${{ matrix.milestone }}
       - name: Upload artefacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qemu-smoke-${{ matrix.milestone }}
           path: tests/qemu/artifacts/smoke-${{ matrix.milestone }}/
@@ -362,7 +362,7 @@ jobs:
         run: cargo xtask qemu-negative ${{ matrix.category }}
       - name: Upload artefacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qemu-negative-${{ matrix.category }}
           path: tests/qemu/artifacts/${{ matrix.category }}/
@@ -482,7 +482,7 @@ jobs:
         run: cargo xtask qemu-test ${{ matrix.category }}
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: qemu-v07-${{ matrix.category }}
           path: tests/qemu/artifacts/smoke-${{ matrix.category }}/
@@ -686,7 +686,7 @@ jobs:
           fi
       - name: Upload marker log (milestone record)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: verus-markers
           path: verus-markers.txt

@@ -8240,6 +8240,68 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   chosen, `do_io`'s bound and the word "timeout" in its line must then say the same thing.
 - **Status:** **ACCEPTED**, `0.42`. Recorded in `docs/src/releasing/v1-limitations.md` row 18.
 
+## E-113 — every GitHub action but `checkout` targeted the removed Node 20 runtime, and one action was pinned at two majors at once
+
+- **Found 2026-11-11 by the architect**, taking a 0.42 scope item that was recorded as one line.
+  **The scope note was wrong about the size of it:** it named `actions/upload-artifact@v4` at
+  `.github/workflows/ci.yml:308` and called the item cheap. Measured, the file held **seven stale
+  pins across four actions** — `upload-artifact@v4` at **four** sites (308, 365, 485, 689),
+  `configure-pages@v5`, `upload-pages-artifact@v4` and `deploy-pages@v4`. Recording the first grep
+  hit as the whole population is the same error as the scope's "only two rights bits remain"
+  (E-091's entry).
+- **The sharper half is not staleness but self-contradiction.** The same file pinned
+  `actions/upload-artifact` at **v4 and v7 simultaneously**: the three fuzz-job uploads (548, 590,
+  599) already used `@v7`, with the *identical* input shape (`name`, `path`, `if-no-files-found`)
+  as the four `@v4` sites. One file, one action, two majors, no comment anywhere saying which was
+  intended.
+- **The runner is the instrument, not a changelog.** Both affected jobs printed, verbatim:
+  `##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being
+  forced to run on Node.js 24: …` — naming `upload-artifact@v4` in `qemu-smoke`, and
+  `configure-pages@v5`, `deploy-pages@v4` and `upload-artifact@ea165f8d…` in `pages`.
+- **That third name is transitive, and it is why the Pages bump matters twice.**
+  `upload-artifact@ea165f8d…` is not one of our pins — it is `upload-pages-artifact@v4`'s own
+  internal dependency, pinned by SHA inside that action. `upload-pages-artifact@v5.0.0`'s changelog
+  entry is literally *"Update upload-artifact action to version 7"*, so the single bump removes the
+  direct and the transitive instance together.
+- **Nothing was broken, and the entry says so plainly.** All four were *forced* onto Node 24 and
+  every affected job passed. What makes it a defect rather than untidiness is that **Node 20's
+  scheduled removal date, 2026-09-23, is already past**: the forcing is the post-removal fallback,
+  so there is no further runway, and the behaviour depends on GitHub continuing to force rather
+  than refuse. `upload-artifact@v4` under Node 24 additionally emits `url.parse()`'s deprecation,
+  whose own text notes that **CVEs are not issued** for its vulnerabilities.
+- **This was noticed once before and the note had nowhere to live.**
+  `rfcs/handoffs/RFC-0.32-001-fuzzing-that-fuzzes/implementation-handoff.md:157` already said:
+  *"`actions/upload-artifact@v4` beside `actions/checkout@v7` — confirm v4 is current rather than
+  assume the mismatch is deliberate."* Nothing ever closed it, and the mismatch then widened from
+  *two different actions at different majors* into *one action at two majors*. **A handoff is not
+  an instrument** — nothing re-reads it after the line it belonged to is done.
+- **Breaking changes were read, not assumed.** Each target major's release body: the Pages trio
+  (`configure-pages@v6`, `upload-pages-artifact@v5`, `deploy-pages@v5`) are Node 24 plus dependency
+  bumps, with **no stated breaking change and no required pairing** between the three.
+  `upload-artifact@v5` is *labelled* `BREAKING CHANGE` while its own body says *"not a breaking
+  change per-se"* — it is the Node 24 move; `v7` only **adds** an optional `archive` input, with
+  nothing removed or renamed, which is why the four call sites' inputs are untouched. Each major
+  tag was also checked to **exist and to point at the newest patch in its major** (`v6`, `v5`, `v5`,
+  `v7` → 6.0.0, 5.0.0, 5.0.1, 7.0.2), because a major tag only works if the maintainer publishes
+  one.
+- **Fixed:** the seven pins. `actions/checkout@v7` (21 sites) is already current and was left alone;
+  pins stay major tags, the file's existing style — moving to SHA pinning is a separate question
+  and was not taken unasked.
+- **Verified by absence, with a control.** The closing evidence is that the Node 20 warning is
+  **gone from both jobs**, read from the run rather than inferred — an absence probe, so it is
+  re-run at the tip, and the quoted warning above is the control that it was ever there.
+  `actionlint` 1.7.12 exits 0 on the changed file; `consistency-check --all` PASS at 21 subchecks.
+- **Cause, and the half that is not fixed: nothing watches action currency.** There is no
+  `dependabot.yml` or `renovate.json`, and `consistency-check`'s 21 subchecks cannot test currency
+  at all without network access, which the release cycle rules out on purpose (*"The gates stay
+  local, and that is deliberate"*). Two remedies are **proposed to the owner and are that decision,
+  not this entry's**: a local subcheck for the *contradiction* rather than the currency — one action
+  must not be pinned at two majors in one workflow, which needs no network and would have caught
+  this the day it appeared — and a cut criterion for action currency shaped like criterion 10's
+  toolchain-currency rule. Until one exists, the only thing standing between this and a repeat is
+  that someone looks.
+- **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8355,6 +8417,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-110 **a boot can create at most 32 leases, ever.** `MAX_LEASES = 32` and **slots are never recycled** (`lease/mod.rs:48`), so the figure is a whole-boot lifetime budget, not a concurrency limit; `create()` fails closed with `NoMemory` and nothing can recover, because nothing returns a slot. Measured: ids **0–8** already consumed in a normal boot, varying by profile, against task slots up to 21, 35 service images and `MAX_TASKS = 40`. **RFC-0.42-001 refused per-task revocation anchoring on this arithmetic** — ~20–40 slots on top of ~9, against 32 never returned, exhausting *by profile* and so failing intermittently; the architect's scope figure of "32 → 40+" was wrong for the same reason. **Also a false pointer, now made true by this entry:** `lease/mod.rs:54` deferred the question to "the lifetime question the register tracks" and the register did not track it. Remedy deferred: recyclable slots, which the `LeaseId` generation encoding already anticipates — a lifetime design with a revocation-safety question inside it, not to be taken under a milestone that needs it | unscheduled | ACCEPTED |
 | E-111 **seven of eleven `NEG:HARNESS:*` failure markers were invisible to the release gate.** `qemu_run.rs` holds a hard-coded, opt-in forbidden list whose own comment says a marker *"has no effect on this gate until it is added"*; `fjell-neg-test` emits eleven and four were listed, so the gate read a harness failure and passed. Found from an implementer's disclosure that an `audit` boot printed `SETUP_FAILED` while the profile reported PASS. **Worst case was a false safety claim:** `reboot.toml:36` stated `REBOOT_RETURNED` is "a forbidden harness marker" and that "the run fails closed", and it was not on the list. All seven added after checking each at its emitting site; none appears in any retained log, so no tier turns red — which is why it could persist. A per-profile `forbidden_markers` field was refused: prose drifting from a hard-coded list is the hazard, and another field would multiply the places that can drift | 0.42 | CLOSED |
 | E-112 **`TOOLCHAIN.lock` pins the SMT solver and nothing checks it.** The lock has a `[z3]` section under a header calling the file a reproducibility pin, and `verus_check.rs:85`'s own comment says it will *"print detected Verus/z3 versions and compare against the pinned TOOLCHAIN.lock release"* — it detects and compares **only the Verus release**, never z3, and does not print it. Found doing 0.42-004's upgrade, which is what exposed it: **z3 moved 4.12.5 → 4.16.0 and no gate noticed.** It matters more than the prover version does, because z3 is what discharges the obligations and a solver change is the likeliest cause of a proof ceasing to verify. It hid no regression this time — all 20 obligations re-verified under 4.16.0 — which was luck, not process: had one failed, the cause would have been ambiguous between two simultaneous changes. Remedy (detect and compare z3, failing closed; fix the comment either way) **deliberately not bundled into the upgrade commit**, since the pin is supposed to move only behind a recorded re-run and the instrument validating it must not land in the same change | unscheduled | ACCEPTED |
+| E-113 **every GitHub action but `checkout` targeted the removed Node 20 runtime, and `upload-artifact` was pinned at two majors in one file.** Seven stale pins across four actions — `upload-artifact@v4` at four sites, plus `configure-pages@v5`, `upload-pages-artifact@v4`, `deploy-pages@v4` — where the 0.42 scope note had recorded **one** site and called the item cheap. The sharper half is self-contradiction, not staleness: the three fuzz-job uploads already used `@v7` with the *identical* input shape, so one file pinned one action at two majors with nothing saying which was intended. Evidence is the runner's own `##[warning]Node.js 20 is deprecated … forced to run on Node.js 24` in both jobs, naming a **transitive** instance too — `upload-pages-artifact@v4`'s internal SHA-pinned `upload-artifact@v4`, which `@v5`'s own changelog line (*"Update upload-artifact action to version 7"*) removes with the same bump. **Nothing was broken** — all four were forced onto Node 24 and the jobs passed — but **Node 20's removal date, 2026-09-23, is already past**, so the forcing is the post-removal fallback with no runway left, and v4 under Node 24 also emits `url.parse()`'s deprecation, whose text notes CVEs are not issued for it. **Noticed once before with nowhere to live:** RFC-0.32-001's handoff asked to *"confirm v4 is current rather than assume the mismatch is deliberate"* and nothing closed it, because a handoff is not an instrument. Target majors' release bodies read rather than assumed (no breaking change or required pairing in the Pages trio; `v7` only *adds* an optional `archive` input), and each major tag checked to exist and point at its newest patch. Closed by **absence with a control**: the warning is gone from both jobs, read from the run. **The cause is not fixed — nothing watches action currency:** no `dependabot.yml`, and currency cannot be a subcheck without network, which the release cycle rules out by design; a local *contradiction* subcheck and a criterion-10-shaped currency criterion are proposed to the owner | 0.42 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
