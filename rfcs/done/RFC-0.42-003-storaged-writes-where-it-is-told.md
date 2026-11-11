@@ -1,6 +1,6 @@
 # RFC-0.42-003: `storaged` writes where it is told, and the success it reports is the write that was asked for
 
-**Status:** Accepted — accepted 2026-11-09
+**Status:** Implemented (0.42.0) — accepted 2026-11-09
 **Milestone:** 0.42
 **Tracks.** **E-105** — `storaged` discards the first data word of every message, so every write
 lands at sector 0 with part of each chunk lost and 8 bytes of every 32 zeroed, while `init`

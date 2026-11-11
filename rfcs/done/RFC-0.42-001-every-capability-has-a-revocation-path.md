@@ -1,6 +1,6 @@
 # RFC-0.42-001: Every capability has a revocation path, and the premise that says so is enforced
 
-**Status:** Accepted — accepted 2026-11-10
+**Status:** Implemented (0.42.0) — accepted 2026-11-10
 **Milestone:** 0.42
 **Tracks.** **E-091** — nothing limits *which* lease a holder may bind to, and the `LEASE_BIND`
 right that would say so does not exist. *(**E-093 was removed from this RFC by Amendment 2**: its

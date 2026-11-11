@@ -1,6 +1,6 @@
 # RFC-0.42-002: User space can read a clock, and the timer stays dormant
 
-**Status:** Accepted — accepted 2026-11-10
+**Status:** Implemented (0.42.0) — accepted 2026-11-10
 **Milestone:** 0.42
 **Tracks.** **E-106** — Fjell exposes no notion of time to user space, so no service can express a
 duration.
