@@ -8386,6 +8386,51 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
   two proposals rather than written unasked, since it adds a 22nd subcheck.
 - **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
 
+## E-115 — RUSTSEC-2026-0486 applied to `rustix` in `Cargo.lock`, published between one push and the next
+
+- **Claim:** none — which is again the finding, as in E-053. Nothing claimed the graph was free of
+  published advisories; the mechanism that checks is what spoke.
+- **Found 2026-11-11 by CI**, on the run of `979dbd4`. `dependency-advisories` was green on
+  `cefce90` the day before and red here **with no dependency change in between**: the advisory was
+  published, not introduced. The database read was **0 days old** —
+  `31cf5a8673e10d3a4d7d829ad5095f47ed419049`, updated `2026-11-11T09:37:09+01:00`, 1,453 advisories.
+  This is `advisory-process.md` §7 working as written: *"found **mechanically**, not by chance."*
+
+  | Advisory | Crate | Kind | Patched |
+  |---|---|---|---|
+  | **RUSTSEC-2026-0486** | `rustix 1.1.4` | unsound — *xattr functions mark unwritten bytes as initialized when given a zero-length buffer* | `>=1.1.6` |
+
+- **Reach — narrow, and derived rather than assumed.** `rustix` arrives only through
+  `tempfile` ← `proptest`, and `proptest` is reached from exactly three crates:
+  `fjell-bootctl-model`, `fjell-store-model` and `fjell-proptest`. **`cargo tree -i` shows all three
+  are leaves — nothing in the workspace depends on any of them.** So it reaches neither the kernel,
+  nor any of the 33 prebuilts, nor either published crate (`fjell-os` and `fjell-abi` have no
+  third-party dependencies at all). It is **absent from `fuzz/Cargo.lock`**, which the script checks
+  separately and which reported clean.
+- **No built artefact moves, so no repro baseline is re-recorded.** Checked rather than assumed: a
+  dependency that reached a prebuilt would have required the baseline re-recorded in this same
+  commit, and the leaf result above is why it does not.
+- **Resolution:** **CLOSED**, tracked **`0.42`** — fixed the day it appeared by a patch-level
+  lockfile update, nothing added or removed.
+
+  > `rustix 1.1.4 → 1.1.6`, **exactly its patched floor**, one package and two lines of
+  > `Cargo.lock`, resolved within the Rust 1.91 compatibility floor (`cargo update -p rustix`
+  > reported *"Locking 1 package"*). `cargo test -p fjell-proptest` passes — 10 in `harness.rs`,
+  > 14 in `verus_lemma_properties.rs` — and the three affected crates build under `--all-targets`.
+  >
+  > **The correct reading of this red**, as E-053 established for its own: the property-test
+  > harness's temporary-file crate, not Fjell OS. A green run here was never a statement about what
+  > Fjell ships, and a red one is not either.
+- **What this entry cannot show, stated rather than glossed.** E-053 recorded its red **locally,
+  before the fix**, and cited RFC-0.32-003 **D24** for why it was not pushed red. **D24 does not
+  govern this case** — it reads *"the deliberately-red tree is not pushed"*, and this red arrived
+  from upstream between two pushes rather than being made on purpose. But the local transcript is
+  still the stronger evidence and **it is missing here**: reproducing it requires
+  `cargo install cargo-audit --locked --version 0.22.2`, and the architect does not install tools.
+  The evidence is therefore CI's own run, quoted above, and §7's two commands reproduce it for
+  anyone who can install.
+- **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8503,6 +8548,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-112 **`TOOLCHAIN.lock` pins the SMT solver and nothing checks it.** The lock has a `[z3]` section under a header calling the file a reproducibility pin, and `verus_check.rs:85`'s own comment says it will *"print detected Verus/z3 versions and compare against the pinned TOOLCHAIN.lock release"* — it detects and compares **only the Verus release**, never z3, and does not print it. Found doing 0.42-004's upgrade, which is what exposed it: **z3 moved 4.12.5 → 4.16.0 and no gate noticed.** It matters more than the prover version does, because z3 is what discharges the obligations and a solver change is the likeliest cause of a proof ceasing to verify. It hid no regression this time — all 20 obligations re-verified under 4.16.0 — which was luck, not process: had one failed, the cause would have been ambiguous between two simultaneous changes. Remedy (detect and compare z3, failing closed; fix the comment either way) **deliberately not bundled into the upgrade commit**, since the pin is supposed to move only behind a recorded re-run and the instrument validating it must not land in the same change | unscheduled | ACCEPTED |
 | E-113 **every GitHub action but `checkout` targeted the removed Node 20 runtime, and `upload-artifact` was pinned at two majors in one file.** Seven stale pins across four actions — `upload-artifact@v4` at four sites, plus `configure-pages@v5`, `upload-pages-artifact@v4`, `deploy-pages@v4` — where the 0.42 scope note had recorded **one** site and called the item cheap. The sharper half is self-contradiction, not staleness: the three fuzz-job uploads already used `@v7` with the *identical* input shape, so one file pinned one action at two majors with nothing saying which was intended. Evidence is the runner's own `##[warning]Node.js 20 is deprecated … forced to run on Node.js 24` in both jobs, naming a **transitive** instance too — `upload-pages-artifact@v4`'s internal SHA-pinned `upload-artifact@v4`, which `@v5`'s own changelog line (*"Update upload-artifact action to version 7"*) removes with the same bump. **Nothing was broken** — all four were forced onto Node 24 and the jobs passed — but **Node 20's removal date, 2026-09-23, is already past**, so the forcing is the post-removal fallback with no runway left, and v4 under Node 24 also emits `url.parse()`'s deprecation, whose text notes CVEs are not issued for it. **Noticed once before with nowhere to live:** RFC-0.32-001's handoff asked to *"confirm v4 is current rather than assume the mismatch is deliberate"* and nothing closed it, because a handoff is not an instrument. Target majors' release bodies read rather than assumed (no breaking change or required pairing in the Pages trio; `v7` only *adds* an optional `archive` input), and each major tag checked to exist and point at its newest patch. Closed by **absence with a control**: the warning is gone from both jobs, read from the run. **The cause is not fixed — nothing watches action currency:** no `dependabot.yml`, and currency cannot be a subcheck without network, which the release cycle rules out by design; a local *contradiction* subcheck and a criterion-10-shaped currency criterion are proposed to the owner | 0.42 | CLOSED |
 | E-114 **four closed errata still read as live in their own entry bodies.** E-091, E-098, E-105 and E-106 carried a filing-time `- **Status:** **ACCEPTED**/**OPEN**` bullet and **no closure anywhere in the body**, while the Summary table, the tracking RFC and the `v1-limitations.md` rows all said CLOSED — so each entry, read alone, asserted a defect the project had fixed. **Three of the four are this milestone's own closures and so the architect's.** The convention was skipped, not missing: of the 12 CLOSED entries with a `Status` bullet, eight already carried `- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-…**`. **No gate saw it, by design:** `closed-erratum-prose` excludes `rfcs/ERRATA.md` because *"the register is the source of truth and the check consumes it"* — correct for that check, with a consequence its note does not draw, that **the register's internal agreement is checked by nothing** while every other instrument reads only the Summary status. Closing an erratum touches three places and only two have gates behind them. Fixed by adding the `Resolution` bullet to each, with the closing RFC taken from the tracking column rather than memory, leaving the `Status` bullets as the dated record the convention supersedes. Remedy proposed to the owner, not taken here: a subcheck comparing each body's recorded status against its own Summary row | 0.42 | CLOSED |
+| E-115 **RUSTSEC-2026-0486 applied to `rustix 1.1.4`** — unsound, *xattr functions mark unwritten bytes as initialized when given a zero-length buffer*, patched `>=1.1.6`. Found by CI on `979dbd4`, green on `cefce90` the day before **with no dependency change in between**: the advisory was published, not introduced, and the database read was **0 days old** (1,453 advisories). `advisory-process.md` §7's mechanism working as written. **Reach, derived not assumed:** `rustix` arrives only via `tempfile` ← `proptest`, reached from three crates that `cargo tree -i` shows are **leaves — nothing depends on them** — so it reaches neither the kernel, the 33 prebuilts, nor either published crate, and is absent from `fuzz/Cargo.lock`. No built artefact moves, so **no repro baseline is re-recorded**, checked rather than assumed. Fixed the day it appeared: `rustix 1.1.4 → 1.1.6`, exactly its patched floor, one package and two lockfile lines, `cargo test -p fjell-proptest` passing (10 + 14). **What it cannot show:** E-053 recorded its red locally before the fix; **D24 does not govern this case** (it reads *"the deliberately-red tree is not pushed"*, and this red came from upstream), but the local transcript is still stronger evidence and is missing — reproducing it needs `cargo install cargo-audit`, which the architect does not do | 0.42 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
