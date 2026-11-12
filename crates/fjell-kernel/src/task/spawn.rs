@@ -560,16 +560,20 @@ pub fn spawn(
                 );
             }
             // Slot 2: DmaRegion cap — granted to services that perform DMA
-            // (storaged, driver-virtio-blk, neg-test).  RFC 017 / RFC 052.
+            // (storaged, neg-test).  RFC 017 / RFC 052.
+            //
+            // `DRIVER_VIRTIO_BLK` is deliberately not here (0.43 small item 2, the
+            // companion of RFC-0.43-003 R4): it is a registration stub whose body is
+            // `sys_exit(0)` -- it allocates and revokes nothing, so a `DmaRegion` it holds
+            // is authority it never exercises, and an image that exits at once holds nothing.
+            // `storaged` uses its DMA and `neg-test` is the audited exception; both stay.
             // Modernised from the legacy DmaAlloc alias (architect review
             // v0.18 follow-up): sys_dma_alloc accepts both kinds, but
             // sys_dma_revoke requires DmaRegion, so the legacy grant made
             // explicit revocation silently impossible for these services.
             let needs_dma = matches!(
                 image_id,
-                fjell_abi::service::ImageId::STORAGED
-                    | fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK
-                    | fjell_abi::service::ImageId::NEG_TEST
+                fjell_abi::service::ImageId::STORAGED | fjell_abi::service::ImageId::NEG_TEST
             );
             if needs_dma {
                 let _ = cs.install_raw(
