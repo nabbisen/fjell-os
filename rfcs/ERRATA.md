@@ -8543,6 +8543,23 @@ which is history removes the disagreement instead of detecting it, and needs no 
   `crates/fjell-os/Cargo.toml:14` → `:15`), each confirmed against the tree rather than
   renumbered by eye.
 - **Status:** **CLOSED 2026-11-11**, milestone `0.42`.
+- **The residue is narrowed, not closed — added 2026-11-12 after RFC-0.43-004.** This entry's one
+  ungated case was a **wholly skipped** `accepted/` → `done/` move. `cargo xtask rfc promote
+  <version>` now performs all five tasks as one all-or-nothing operation, refusing on any of a
+  dozen preconditions and putting everything back if a write fails mid-apply. **But nothing gates
+  that the command was run**, so the wholly-skipped case is now *unlikely* rather than *detected*,
+  and `v0-release-cycle.md`'s step 7 says so in those words.
+  - **What the tool does close is the failure that actually happened.** `a130ace` committed three
+    renames with none of their `Status:` edits, because `git mv` stages the rename the moment it
+    runs and the edits come after. The tool **never touches the index** — plain rename, then it
+    prints the changed paths for explicit staging — so there is no state in which the index shows
+    a rename whose edits are missing. Demonstrated: after a real run nothing was staged and
+    `git status` showed `M`/`D`/`??`; staging exactly the printed list left `0` `RM` entries.
+  - **Validated against this project's own history rather than only against tests:** promoted on a
+    worktree of `a130ace^` and compared to the hand-performed cut — RFCs and handoffs
+    byte-identical, `rfcs/README.md` identical but for three hand-written summary cells. That
+    comparison caught a bug no unit test had: the Implemented section's closing rule is the *last*
+    `---` before the next heading, not the first.
 
 ## E-117 — `capability-topology` checks nine fewer declarations than exist, and its slot-0 exclusion rests on a fallback RFC-0.41-002 deleted
 
