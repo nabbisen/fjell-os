@@ -373,16 +373,44 @@ Re-taking the readiness heading also means appending the cut's clause and re-run
 **And the step nobody wrote down: the milestone's RFCs move `accepted/` → `done/`.** Every
 cut since at least 0.35.0 has done it as an explicit numbered step — the 0.41.0 commit
 subject reads *"0.41.0 step 7: move 0.41's six RFCs accepted/ -> done/, links, Status lines,
-rfcs/README.md"* — and it is **five** tasks, not the four that subject implies:
+rfcs/README.md"* — and it is **five** tasks, not the four that subject implies.
 
-1. `git mv rfcs/accepted/RFC-<ver>-*.md rfcs/done/` (the folder is the source of truth);
+**Run the command (RFC-0.43-004, E-116):**
+
+```bash
+cargo xtask rfc promote 0.43.0 --dry-run   # prints exactly what it would change; writes nothing
+cargo xtask rfc promote 0.43.0             # does it
+```
+
+`<version>` is the full release version; it matches `rfcs/accepted/RFC-0.43-NNN-*.md` and is
+written into each RFC's `Implemented (<version>)` status and the README's `Shipped` column.
+The command is **all-or-nothing** — if any task cannot be derived for any RFC it changes nothing
+and lists every reason — and it **does not touch the git index**: it renames with the filesystem
+(not `git mv`) and prints the complete list of changed paths, **old and new**, for you to stage
+explicitly (`git add -- <the printed paths>`). That is deliberate: `git mv` stages the rename the
+moment it runs, and the edits come after, which is the window in which `a130ace` committed three
+renames with none of their `Status:` edits. It does **not** repair a half-moved tree (it refuses
+and says what is inconsistent) and it does not run the gates: run
+`cargo xtask consistency-check --all` afterwards.
+
+**What it does not write is prose.** The moved README rows are mechanical stubs
+(`— tracks <erratum>`); the hand-written summary — `closed **E-nnn**; …` — is the architect's.
+And when the Accepted folder empties, the milestone narrative in that README section is replaced
+by the fixed "Nothing is accepted" text, as the 0.42.0 cut did by hand: copy the narrative
+elsewhere first if it should be kept.
+
+**The five tasks it performs — kept written down, so the shape of the move survives the tool
+and can be done by hand if the tool is unavailable:**
+
+1. move `rfcs/accepted/RFC-<ver>-*.md` to `rfcs/done/` (the folder is the source of truth) —
+   with a plain rename, **then stage explicitly**, not `git mv` followed by edits;
 2. each RFC's line 3, `**Status:** Accepted — accepted <date>` →
    `**Status:** Implemented (<version>) — accepted <date>`, keeping its own accepted date;
 3. each `rfcs/handoffs/<RFC>/implementation-handoff.md` line 3 — the governing-RFC **link**,
    `../../accepted/` → `../../done/`;
 4. the same file's line 5 — `**Status:** inherited from the governing RFC (Accepted, …)` →
    `(Implemented, <version>)`;
-5. `rfcs/README.md`: move each RFC's row from the **Accepted** table to the **Implemented**
+5. `rfcs/README.md`: move each RFC's row from the **Accepted** table to the **last Implemented**
    table with `<version>` in its `Shipped` column, set the Accepted heading to `— none` with
    its one-line "Nothing is accepted and awaiting a cut" text, and update **both** counts at
    the top of the file (`## Implemented (done/) — N files`, and the
@@ -400,7 +428,9 @@ implementer.
 **The one case no gate catches: a wholly skipped move.** If nothing moves, every `Status:`
 still says `Accepted` and agrees with every handoff, and `doc-counts` checks the five counts
 against the folders *as they are* — so RFCs left in `accepted/` keep them self-consistent and
-nothing fires. Only a *partial* move is caught.
+nothing fires. Only a *partial* move is caught. (`cargo xtask rfc promote` makes the wholly
+skipped move unlikely rather than detected: there is one command to run, and it refuses rather than
+half-doing it. It does not make the skip impossible — nothing gates that the command was run.)
 
 *Added 2026-11-11, during the 0.42.0 cut, where `README.md:22` still read `0.41.0` after all
 five documented strings had been bumped. Recorded as **E-116**, whose first draft claimed

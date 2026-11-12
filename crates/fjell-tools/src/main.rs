@@ -63,6 +63,7 @@ mod qemu_run;
 mod qemu_shutdown; // RFC-0.33-001: telling a machine reset from a hang
 mod registry;
 mod release_rehearsal; // RFC-v0.16-008 release gate runner
+mod rfc_promote; // RFC-0.43-004 rfc promote (step 7 of the cut)
 mod schema; // RFC-0.33-003: generated .frozen files
 mod sign_bundle;
 mod smoke;
@@ -241,6 +242,7 @@ fn main() -> ExitCode {
         Some("package-release") => package_release::cmd_package_release(),
         Some("provision-dev") => provision::cmd_provision_dev(&args[1..]),
         Some("verus-check") => verus_check::cmd_verus_check(&args[1..]),
+        Some("rfc") => rfc_promote::cmd_rfc(&args[1..]),
         Some("release-rehearsal") => release_rehearsal::cmd_release_rehearsal(&args[1..]),
         Some("schema") => schema::cmd_schema(&args[1..]),
         Some("test-all") => test_all::cmd_test_all(&args[1..]),
@@ -273,6 +275,7 @@ Subcommands:
   boot-loop [--boots N] [--jobs J] [--drive-extra STR] [--kernel PATH] [--out DIR]
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
   dev lint <manifest.toml>
+  rfc promote <version> [--dry-run]  (RFC-0.43-004: step 7 of the cut -- move the milestone's RFCs accepted/ -> done/; never touches the git index)
   verus-check [--candidate] [<target>|--all-pilot|--release-required]  (RFC-v0.17-005; --candidate: RFC-0.43-001 A1, run proofs under a mismatched pin, certifies nothing)
   release-rehearsal              run v1.0 tag gates (RFC-v0.16-008)
   consistency-check [<subcheck>|--all]  declared vs. actual state (RFC-v0.22-001)
