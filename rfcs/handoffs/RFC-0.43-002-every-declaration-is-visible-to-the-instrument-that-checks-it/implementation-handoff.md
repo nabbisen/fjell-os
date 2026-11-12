@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.43-002
 
-**Governing RFC:** [RFC-0.43-002](../../accepted/RFC-0.43-002-every-declaration-is-visible-to-the-instrument-that-checks-it.md)
+**Governing RFC:** [RFC-0.43-002](../../done/RFC-0.43-002-every-declaration-is-visible-to-the-instrument-that-checks-it.md)
 **Milestone:** 0.43 · independent of 0.43-001
-**Status:** inherited from the governing RFC (Accepted, 0.43)
+**Status:** inherited from the governing RFC (Implemented, 0.43.0)
 **Audience:** implementation model
 
 ---

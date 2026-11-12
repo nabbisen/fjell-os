@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-11 11:38:33 UTC
-Version   : 0.42.0
+Generated : 2026-11-12 15:12:54 UTC
+Version   : 0.43.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -37,7 +37,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-auditd.bin (3574 bytes)
     fjell-service-manager.bin (1992 bytes)
     fjell-sample-service.bin (7704 bytes)
-    fjell-neg-test.bin (13608 bytes)
+    fjell-neg-test.bin (13992 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (260 bytes)
     fjell-semantic-stream.bin (24856 bytes)
@@ -55,7 +55,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-attestd.bin (15136 bytes)
     fjell-recoveryd.bin (581 bytes)
     fjell-syncd.bin (3814 bytes)
-    fjell-driver-virtio-net.bin (1030 bytes)
+    fjell-driver-virtio-net.bin (177 bytes)
     fjell-netd.bin (235 bytes)
     fjell-secure-transportd.bin (1701 bytes)
     fjell-diagnosticsd.bin (6480 bytes)
@@ -88,8 +88,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261111-110506
-  33    QEMU negative: user-copy                            60.2s  PASS
+  Latest test-all run: 20261112-144347
+  33    QEMU negative: user-copy                            60.1s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 33  |  PASS: 32  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
   

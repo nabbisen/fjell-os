@@ -1,6 +1,6 @@
 # RFC-0.43-001: The solver pin is enforced, and the comment stops describing what the code does not do
 
-**Status:** Accepted — accepted 2026-11-12
+**Status:** Implemented (0.43.0) — accepted 2026-11-12
 **Milestone:** 0.43
 **Tracks.** **E-112** — `TOOLCHAIN.lock` pins the SMT solver and nothing checks it.
 **Touches** *(indicative)*: `crates/fjell-tools/src/verus_check.rs`,

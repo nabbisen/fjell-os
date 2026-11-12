@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 225 files
+## Implemented (done/) — 229 files
 
-224 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+228 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -536,28 +536,17 @@ mid-milestone and blocked the cut.
 | 0.42-001 | [Every capability has a revocation path, and the premise that says so is enforced](./done/RFC-0.42-001-every-capability-has-a-revocation-path.md) — closed **E-091**; `sys_cap_bind_lease` let a `LeaseAdmin` holder bind an unbound capability to any `Active` lease, including one it did not own, because `RFC-v0.7.4-003`'s `LEASE_BIND` right and lease-scope check were **never built**. `CapRights::LEASE_BIND` now exists at bit **30** — the done RFC's `1 << 25` belongs to `REBOOT`, and moving a shipped bit is an ABI break — **in neither rights aggregate**, so a blanket grant does not confer it; binding requires `LEASE_CREATE` *and* `LEASE_BIND` on the same capability and refuses a lease the caller does not own, auditing the refusal as `lease.bind_rejected` (`0x0604`). The implemented rule is deliberately **narrower than the document it came from**, whose own clause permitted everything. Two amendments withdrew the architect's R3/R4 and removed **E-093** from the line | 0.42.0 |
 | 0.42-002 | [User space can read a clock, and the timer stays dormant](./done/RFC-0.42-002-user-space-can-read-a-clock.md) — closed **E-106**; Fjell exposed **no notion of time to user space**, so no service could express a duration. `sys_clock_now_ns` (syscall **113** — `120` stayed retired) returns a monotone nanosecond counter, gated on a new `Clock` kind and `CapRights::CLOCK_READ` at bit **31**, in neither aggregate and granted by name to `storaged` alone. `STIE` stays **masked** and RFC 037's preemption path stays dormant, because reading a counter needs no interrupt. The RFC's premise that the counter was already readable was **wrong and the implementer said so**: CLINT is unmapped and `mcounteren` unset, so they used the `time` CSR with `mcounteren.TM` only. There is still no way to block on time | 0.42.0 |
 | 0.42-003 | [`storaged` writes where it is told, and the success it reports is the write that was asked for](./done/RFC-0.42-003-storaged-writes-where-it-is-told.md) — closed **E-105**; `storaged` bound `init`'s first data word to `_badge`, so **every write landed at sector 0** and each chunk lost 8 bytes of every 32 while `init` printed `block write ok`. The fix **removes the chance to misname the word** rather than renaming it: both ends share one encode/decode in `fjell_service_api::storaged`, so they cannot drift again, and `init` stops discarding seventeen of its eighteen replies. The `store` tier stays **NOT-GATED** — row 17's second condition was met by host tests instead, which is recorded rather than slid past | 0.42.0 |
+| 0.43-001 | [The solver pin is enforced, and the comment stops describing what the code does not do](./done/RFC-0.43-001-the-solver-pin-is-enforced.md) — closed **E-112**; `TOOLCHAIN.lock` recorded a `[z3]` version that `verus-check` never compared, so the 0.42 upgrade moved z3 4.12.5 → 4.16.0 with nothing noticing. The solver is now read from the binary the prover will actually run and **both pins block in every mode**, including a version that cannot be *established*; the `[z3] path` field is deleted rather than corrected, since it was right for one install route and wrong for the other. **Amendment 1** adds `--candidate`, because enforcing the pin made the procedure the pin governs unperformable: it runs the proofs under a mismatched pin, emits `CANDIDATE-ONLY` and never the machine-checked marker, and is refused under `--release-required` | 0.43.0 |
+| 0.43-002 | [Every declaration is visible to the instrument that checks it](./done/RFC-0.43-002-every-declaration-is-visible-to-the-instrument-that-checks-it.md) — closed **E-117**; `capability-topology` discovered `CapHandle` declarations in one hard-coded directory, so **nine of nineteen** sat outside its universe and a constant planted in `crates/drivers/` passed silently — the same defect that forced the module's rewrite once before, on a different axis. Discovery now walks every crate and **fails rather than skips** on a non-spawnable one; slot 0 is judged from the `ep_obj` arms instead of excluded on a `_ => 0` fallback RFC-0.41-002 had deleted; the `mmio_regions_for_service` table is attributed too, with its base read from the install | 0.43.0 |
+| 0.43-003 | [`driver-virtio-net` says only what it does](./done/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md) — closed **E-118**; the image was spawned every boot, called `sys_irq_bind` on a slot nothing installed and exited — and printed *"device descriptor loaded"*, *"features negotiated"* and *"rx queue initialised"* with `sys_mmio_map` **never called in the crate**. `IRQ bind failed` was in 5,075 retained artefacts going back to 2026-07-31, unread, because `netd` emits the v0.4 net marker without needing the driver. Now a 44-line stub that says what it is and exits 0; the MMIO region grant is removed from **both** stub drivers. **Not a decision against a real NIC driver** — that needs an authority design and is neither taken nor foreclosed | 0.43.0 |
+| 0.43-004 | [The milestone's RFCs move by one command](./done/RFC-0.43-004-the-milestones-rfcs-move-by-one-command.md) — no erratum closed; narrows **E-116**'s residue. The `accepted/` → `done/` move was five hand tasks, documented for the first time in 0.42 after twelve correct repetitions — and `a130ace` committed three renames with none of their `Status:` edits, because `git mv` stages the rename the moment it runs. `cargo xtask rfc promote <version>` performs all five all-or-nothing, **never touches the git index** (so no state exists in which a staged rename hides missing edits), and restores everything if a write fails mid-apply. Validated by promoting a worktree of the real 0.42.0 cut and comparing byte-for-byte with the hand result. **Still ungated: that the command was run at all** | 0.43.0 |
 
 ---
 
-## Accepted (accepted/) — 4 RFCs
+## Accepted (accepted/) — none
 
-0.43's line opens. The milestone's sentence is **the instruments check the things they claim to
-check, and the declarations in the tree name capabilities that exist** — 0.42's own finding is
-0.43's subject, because four of that milestone's seven closed errata were defects in the
-measuring apparatus rather than in the product. Neither line touches the ABI, which is
-deliberate after 0.42 moved the snapshot twice. **0.43-001** enforces the solver half of a
-reproducibility pin that compares only its prover; **0.43-002** repairs the instrument that owns
-declaration-versus-install, which cannot see nine of the nineteen declarations it exists to
-check. **0.43-004** was added on 2026-11-12 for E-116's one ungated residue — the `accepted/` → `done/` move, five hand-performed tasks documented for the first time this milestone after twelve correct repetitions, and the step where `a130ace` committed three renames with none of their `Status:` edits. **0.43-003** was added the same day, out of 0.43-002's own review: the widened instrument found six declarations with no install rather than the one predicted, and `driver-virtio-net` turns out to be spawned every boot, to exit at its first capability-bearing syscall, and to print four lines of device work with the device's registers never mapped (**E-118**). 0.43-001 is independent; **0.43-002 is held and lands with 0.43-003**, because neither may push a red tree (RFC-0.32-003 D24). Scope: `.git-exclude/handoff/scope-0.43.md`.
-
-| RFC | Title | Tracks |
-|-----|-------|--------|
-| 0.43-001 | [The solver pin is enforced, and the comment stops describing what the code does not do](./accepted/RFC-0.43-001-the-solver-pin-is-enforced.md) | E-112 |
-| 0.43-002 | [Every declaration is visible to the instrument that checks it](./accepted/RFC-0.43-002-every-declaration-is-visible-to-the-instrument-that-checks-it.md) | E-117 |
-| 0.43-003 | [`driver-virtio-net` says only what it does](./accepted/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md) | E-118 |
-| 0.43-004 | [The milestone's RFCs move by one command](./accepted/RFC-0.43-004-the-milestones-rfcs-move-by-one-command.md) | E-116 |
-
-`accepted/README.md` keeps the folder in a fresh clone.
+Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
+a fresh clone.
 
 ---
 

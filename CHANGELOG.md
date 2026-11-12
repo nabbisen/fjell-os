@@ -5,6 +5,75 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.43.0] — 2026-11-12 — The instruments check what they claim, and a driver stops claiming
+
+Four lines, **four errata closed** (**E-112**, **E-117**, **E-118**, **E-119**), two small items,
+and one new release criterion. No ABI additions by design, after 0.42 moved the snapshot twice —
+one item added a single marker constant and regenerated it in its own commit.
+
+**0.42 found that four of its seven closed errata were defects in the measuring apparatus. 0.43
+took that as its subject**, and the apparatus turned out to be hiding something in the product:
+a driver that has never worked.
+
+**There is no security advisory.** The kernel has never been distributed as a runnable artefact and
+the product has not been placed on the market.
+
+Five statements follow, each a case where what shipped is narrower or different from the obvious
+reading:
+
+1. **`driver-virtio-net` never worked, and the evidence was in 5,075 retained files.** It was
+   spawned on every boot, called `sys_irq_bind` on a slot nothing installed, and exited — and
+   `IRQ bind failed` sits in 5,075 retained QEMU artefacts and 8 run logs, the earliest from
+   **2026-07-31**. **Worse, it printed four lines of device work it had not done:** `sys_mmio_map`
+   is never called in the crate, so *"device descriptor loaded"*, *"features negotiated"* and
+   *"rx queue initialised"* were written with the device's registers never mapped. It is now a
+   **44-line stub** that says `registration stub, not wired to the device` and exits 0. No tier was
+   ever red, because `TEST:V0.4-NET:PASS` is emitted by `netd`, which never needed the driver.
+   **This is not a decision against a real NIC driver** — that needs an authority design and is
+   neither taken nor foreclosed here. What was refused is shipping an image that claims to do it.
+2. **A proof can no longer be certified under an unrecorded solver — and enforcing that made the
+   next prover upgrade impossible until a mode was added for it.** `verus-check` now compares the
+   bundled z3 as well as the Verus release, and **both block in every mode**, including a version
+   it cannot establish. That broke the procedure the pin exists to govern: a new prover bundles a
+   new z3, so nothing could run the proofs until the pin moved, while the lock says the pin moves
+   only behind a recorded re-run. **`verus-check --candidate`** is the named way through — it runs
+   the proofs under a mismatched pin, emits `CANDIDATE-ONLY` and **never** the machine-checked
+   marker, and is refused under `--release-required`.
+3. **The instrument that checks declarations against installs could not see nine of nineteen.**
+   `capability-topology` discovered declarations in one hard-coded directory, so every crate under
+   `crates/drivers/` was outside it — and a constant planted there **passed silently**, which is
+   the same defect that forced the module's rewrite once before, on a different axis. Its slot-0
+   exclusion was also justified by a `_ => 0` fallback that RFC-0.41-002 had deleted. Both fixed;
+   slot 0 is now judged, and two waivers print their reasons.
+4. **The Clock gate's rights check is demonstrated by nothing, and `v1-limitations.md` row 18 says
+   so.** A permanent negative case now requires `sys_clock_now_ns` to refuse a caller with no clock
+   authority and one holding an endpoint with every ordinary right. It is shown failing four ways —
+   but weakening the *required right* to nothing leaves it passing, because that needs a
+   `Clock`-kind capability lacking `CLOCK_READ` and `neg-test` holds none. Scheduled, and disclosed
+   rather than implied away.
+5. **The five-task `accepted/ → done/` move is one command now, but nothing gates that it was
+   run.** `cargo xtask rfc promote <version>` performs all five all-or-nothing, never touches the
+   git index, and puts everything back if a write fails mid-apply. It was validated by promoting a
+   worktree of the **real 0.42.0 cut** and comparing byte-for-byte with the hand result. E-116's
+   residue is **narrowed, not closed**.
+
+**What still does not hold, in the same breath.**
+
+- **The Clock gate's rights enforcement is untested** (row 18, statement 4 above).
+- **A boot can create at most 32 leases, ever** (**E-110**, row 21) — slots are never recycled.
+- **Authority cannot be withdrawn from a task without ending it** (**E-093**, row 12).
+- **Three of the measurement chain's four events are placeholders** (**E-095**), which this release
+  records a *reason* for rather than a blocker: an anchor and a verification path both exist, so it
+  is unscheduled on size and on development-grade crypto, not blocked.
+- **`doc-counts`' five-count rule is now implemented twice** — once in the subcheck, once in
+  `rfc promote`'s pre-flight — because the check lives in a binary rather than its library.
+  Disclosed by the implementer, pinned by a test, and scheduled for removal.
+
+**New in the release procedure.** **Criterion 12 — action currency read**: every `uses:` pin
+compared against its action's current major. Being behind is recorded; being behind on a runtime
+upstream has *removed* blocks the tag, because the evidence criterion 9 reads arrives through those
+actions. Its first exercise, this cut: all five pins at their current major, gap 0.
+
 ## [0.42.0] — 2026-11-11 — A clock, a sector, and a right — and four instruments that were not watching
 
 Four lines, **seven errata closed** (**E-091**, **E-105**, **E-106**, **E-111**, **E-113**,

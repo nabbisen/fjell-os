@@ -1,6 +1,6 @@
 # RFC-0.43-003: `driver-virtio-net` says only what it does
 
-**Status:** Accepted — accepted 2026-11-12
+**Status:** Implemented (0.43.0) — accepted 2026-11-12
 **Milestone:** 0.43
 **Tracks.** **E-118** — the image is spawned every boot, exits at its first capability-bearing
 syscall, and prints four lines of device work it never did. **Unblocks E-117**, whose instrument

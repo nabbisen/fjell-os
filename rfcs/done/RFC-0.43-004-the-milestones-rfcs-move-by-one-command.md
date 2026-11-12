@@ -1,6 +1,6 @@
 # RFC-0.43-004: The milestone's RFCs move by one command
 
-**Status:** Accepted — accepted 2026-11-12
+**Status:** Implemented (0.43.0) — accepted 2026-11-12
 **Milestone:** 0.43
 **Tracks.** **E-116** — its one ungated residue: a wholly skipped `accepted/` → `done/` move.
 **Touches** *(indicative)*: `crates/fjell-tools/src/main.rs`, a new module beside

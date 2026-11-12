@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.42.0
+## Summary at 0.43.0
 
 | Status | Count |
 |--------|-------|
@@ -233,6 +233,22 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > assumed that the *wording* also stands: no row in the matrix mentions a
 > clock, a duration, lease binding or the store, so unlike 0.41.0 there was
 > no row to rewrite — so only the heading and this clause moved.
+
+> **Re-taken 2026-11-13, at the 0.43.0 cut.** The heading was moved in the
+> version-bump commit, so `readiness-summary` was not seen red this time — the
+> opposite choice from 0.42.0, and worth noting only because the subcheck's
+> firing is itself the evidence that it works, which 0.42.0's record carries.
+> `readiness-check` still counts **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0**
+> — unchanged by 0.43.0, whose four lines (the solver pin enforced in every mode
+> with a candidate mode for the re-run it governs, every `CapHandle` declaration
+> visible to the instrument that checks it, `driver-virtio-net` reduced to a stub
+> that says only what it does, and the milestone's RFC move performed by one
+> command) touch no cell of this matrix. **Checked rather than assumed that the
+> wording also stands:** the Verus row claims *"20 obligations machine-checked;
+> callsite-audit Gate 11 blocking"*, and 0.43-001 changed how the toolchain pin is
+> *enforced* rather than the obligations or the gate, so the row is still exact. No
+> other row mentions a solver, a declaration or a driver — so only the heading and
+> this clause moved.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.43-004
 
-**Governing RFC:** [RFC-0.43-004](../../accepted/RFC-0.43-004-the-milestones-rfcs-move-by-one-command.md)
+**Governing RFC:** [RFC-0.43-004](../../done/RFC-0.43-004-the-milestones-rfcs-move-by-one-command.md)
 **Milestone:** 0.43 · independent of 0.43-001/002/003, all landed
-**Status:** inherited from the governing RFC (Accepted, 0.43)
+**Status:** inherited from the governing RFC (Implemented, 0.43.0)
 **Audience:** implementation model
 
 ---

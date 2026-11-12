@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.43-003
 
-**Governing RFC:** [RFC-0.43-003](../../accepted/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md)
+**Governing RFC:** [RFC-0.43-003](../../done/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md)
 **Milestone:** 0.43 · **0.43-002 is held and lands with this line** (D24); independent of 0.43-001
-**Status:** inherited from the governing RFC (Accepted, 0.43)
+**Status:** inherited from the governing RFC (Implemented, 0.43.0)
 **Audience:** implementation model
 
 ---

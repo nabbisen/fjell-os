@@ -1416,7 +1416,17 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   outside this line's scope. **`fjell-driver-virtio-net` is also not one of
   these** (removed from this list by RFC-0.37-002, E-082): it has no
   `sys_exit(0)` anywhere, and `service_main` reaches a real
-  `loop { sys_irq_wait(...) }` after binding its IRQ — the same early-exit
+  `loop { sys_irq_wait(...) }` after binding its IRQ
+  — ***and that was false when written. Corrected 2026-11-12 at the 0.43.0 cut
+  (E-118).** The image **never bound its IRQ**: `sys_irq_bind` was called on a slot
+  nothing installed and failed on every boot, so that loop was never reached, and
+  `IRQ bind failed` sits in 5,075 retained artefacts going back to 2026-07-31 —
+  before this sentence was written. The judgement was read off the source's
+  structure and contradicted by every retained log at the time. **The comment this
+  account called false was wrong about the reason and right about the behaviour:**
+  the image did exit early, not by design but by failure. RFC-0.43-003 made it an
+  honest 44-line stub, which does have a `sys_exit(0)`, so the first clause is now
+  untrue in its own terms too.* — the same early-exit
   sentence was copied, verbatim, from `netd`'s own stub comment into this
   crate's top comment and was never true of this code. A third instance of
   the same copied claim, found while re-deriving this crate's lint

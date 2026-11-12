@@ -1,6 +1,6 @@
 # RFC-0.43-002: Every declaration is visible to the instrument that checks it
 
-**Status:** Accepted — accepted 2026-11-12
+**Status:** Implemented (0.43.0) — accepted 2026-11-12
 **Milestone:** 0.43
 **Tracks.** **E-117** — `capability-topology` checks nine fewer declarations than exist, and its
 slot-0 exclusion rests on a fallback RFC-0.41-002 deleted.

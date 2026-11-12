@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.43-001
 
-**Governing RFC:** [RFC-0.43-001](../../accepted/RFC-0.43-001-the-solver-pin-is-enforced.md)
+**Governing RFC:** [RFC-0.43-001](../../done/RFC-0.43-001-the-solver-pin-is-enforced.md)
 **Milestone:** 0.43 · independent of 0.43-002
-**Status:** inherited from the governing RFC (Accepted, 0.43)
+**Status:** inherited from the governing RFC (Implemented, 0.43.0)
 **Audience:** implementation model
 
 ---

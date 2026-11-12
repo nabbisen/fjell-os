@@ -8740,6 +8740,22 @@ which is history removes the disagreement instead of detecting it, and needs no 
   > after-state**: `check_smoke_pass` re-emits every milestone marker on each task exit once `netd`
   > has exited cleanly, so the count tracks task exits, not what passed. Judges test marker
   > *presence*, so nothing gated moved — verified independently at review.
+- **A document had claimed the opposite since 0.37, and criterion 8 found it at the 0.43.0 cut.**
+  `v1-limitations.md`'s E-082 account states that this image *"is also not one of these"* — not an
+  early-exit stub — because *"it has no `sys_exit(0)` anywhere, and `service_main` reaches a real
+  `loop { sys_irq_wait(...) }` after binding its IRQ"*. **It never bound its IRQ**: the call was
+  made on a slot nothing installed and failed on every boot, so that loop was never reached, and
+  `IRQ bind failed` was already in retained artefacts going back to **2026-07-31** — before the
+  sentence was written.
+  - **The judgement was read off the source's structure rather than from a boot**, which is this
+    project's recurring failure in its sharpest form: the structure was real (the loop exists
+    after the bind) and the behaviour was the opposite (the bind never succeeded).
+  - **And it inverted a comment that was accidentally right.** RFC-0.37-002 deleted the crate's
+    top comment for *"independently and falsely"* claiming an early exit "by design". The image
+    did exit early — **not by design but by failure** — so the comment was wrong about the reason
+    and right about the behaviour, and the correction removed the true half.
+  - Annotated rather than rewritten, since the account is a dated record of what RFC-0.37-002
+    concluded; what is added is that it was false when written.
 
 ## E-119 — `verus-setup.md` carried its own copy of the pinned versions, two upgrades stale, and E-109's remedy was never applied to it
 
