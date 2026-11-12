@@ -4,6 +4,14 @@
 # machine-checked. Update only with a recorded proof-review re-run; refresh
 # last_success_date on each successful full run.
 #
+# Both pins are enforced, and in every mode (RFC-0.43-001 + Amendment 1, E-112
+# closed): `cargo xtask verus-check` compares the Verus release and the bundled
+# z3 against this file and refuses on either mismatch, or on a version it cannot
+# establish. The re-run this rule requires is therefore run with
+# `verus-check --candidate`, which runs the proofs under a mismatched pin, marks
+# them CANDIDATE-ONLY rather than machine-checked, and is refused under
+# --release-required. Procedure: verification/verus/TOOLCHAIN.md.
+#
 # Updated 2026-11-11 (0.42-004): prover upgraded from
 # release/0.2026.07.27.31579f0 to release/0.2026.11.02.8bf68ee, rustup 1.97.1 ->
 # 1.99.1, and z3 4.12.5 -> 4.16.0 — the solver changed this time, unlike the
