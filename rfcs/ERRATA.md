@@ -10,6 +10,29 @@ resolution status, and the tracking RFC that closes it.
 Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 **ACCEPTED** (drift is a documented, deliberate v1.0 limitation).
 
+**Where an erratum's status lives — one place, stated here because it was ambiguous and four
+entries disagreed with themselves (E-114).** The **Summary table at the foot of this file is the
+single live status**, and it is what every instrument reads: `errata-tracking`,
+`errata-limitations` and `closed-erratum-prose` all consume it through one shared parser.
+
+An entry **body** therefore records **events, not state**:
+
+- `- **Status:** …` is the disposition **as of filing** — a dated fact that does not change.
+- `- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-…**` records a later change, with the
+  superseded word struck through so the original is still legible.
+
+So a body saying `**Status:** **ACCEPTED**` under an entry the table calls CLOSED is **not a
+contradiction** — it is what was true when the entry was filed, and the `Resolution:` bullet says
+what happened next. **What would be a defect is a closed entry with no `Resolution:` bullet at
+all**, because then the body records no event explaining the table. Four entries were in that
+state on 2026-11-11 (E-091, E-098, E-105, E-106) and were repaired.
+
+*Written 2026-11-12. An earlier architect proposal would have added a 22nd `consistency-check`
+subcheck to reconcile the two copies; it was withdrawn, because adding a mechanism to police a
+fact written twice is what **E-030** and **E-037** exist to warn against — the toolchain action
+takes no version input precisely so there is no second place. Naming which of the two is state and
+which is history removes the disagreement instead of detecting it, and needs no new gate.*
+
 ---
 
 ## E-001 — RFC-v0.11-002 §4: Ed25519 test vectors

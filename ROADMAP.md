@@ -94,6 +94,13 @@ down to meet modern demands", not "an over-stuffed next-generation OS".
 
 ## Post v0.1.0
 
+> **What shipped is recorded in [`CHANGELOG.md`](./CHANGELOG.md)**, which carries a dated entry
+> for every release from `0.20.0` to the current one; `docs/src/history/` holds the v0.1.x–v0.9.x
+> notes. **The sections below are the plans**, each annotated with the release that delivered it.
+> Where the two differ, the changelog is the record of what happened and this file is the record
+> of what was intended. *(Note added 2026-11-12.)*
+
+
 ### v0.1.x — Stabilization / Audit / CI Foundation (**shipped** — v0.1.2 … v0.1.5)
 
 The v0.1.x release line freezes the v0.1.0 prototype, documents its
@@ -381,7 +388,35 @@ into, a latent over-grant the same narrowing `init` received would close. See
 `rfcs/answers/RFC-0.26-004-readiness-channel-answer.md`'s "Follow-up recorded at
 review" section.
 
-### Beyond 0.27 — under discussion, not yet decided
+### Beyond 0.27 — the options paper as it stood in 2026-08 (a snapshot, not maintained)
+
+> **Dated 2026-11-12 by the architect. Read this section as a record of what was being
+> weighed in 2026-08, not as the current state.** It has not been maintained since, and three
+> things in it are no longer true:
+>
+> - **The errata it lists as open candidates are closed.** **E-013** (`fjell-kernel` has no
+>   `[lib]` target), **E-015**, **E-016** and **E-017** are all **CLOSED**; **E-014** is
+>   ACCEPTED. The register is the live record, not this list.
+> - **"17 of 29 services" is stale**: there are **33** service binaries in
+>   `crates/fjell-kernel/prebuilt/` today. Several of the specific findings below — the TOML
+>   array parser, the M8 slot confusion, the marker defect, the link rot sweep — were fixed in
+>   0.23–0.29 and have their own closed errata.
+> - **"not yet decided" is no longer accurate** for much of what follows: 0.28 through 0.42
+>   have shipped, and `CHANGELOG.md` is the record of what each of them did.
+>
+> **What is still in force** is the owner's direction quoted immediately below — v1.0 is
+> explicitly not in view, and functional advancement must precede any v1.0 consideration —
+> together with the four candidate directions, which remain candidates. **Current milestone
+> direction is decided per cut** and lives in the scope document for that milestone, not here.
+>
+> *Why this is annotated rather than deleted or rewritten: the section records what was being
+> considered at a point in time, which `CHANGELOG.md` (a record of what shipped) does not
+> carry. Rewriting it would need the owner's direction on what comes next, which is theirs;
+> annotating it only removes a false reading. An earlier architect ruling proposed deleting the
+> per-release narrative above as a duplicate of `CHANGELOG.md` — that was withdrawn on
+> measurement: those sections are **plans annotated `(shipped <date>)`**, so they record intent
+> where the changelog records outcome, and they are dated and labelled.*
+
 
 **v1.0 is explicitly not in view** (owner, 2026-07-30); v0 development
 continues. The owner has directed that functional advancement, not only

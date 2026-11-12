@@ -55,6 +55,7 @@ All four must hold before beginning:
 | 9 | The release commit's CI runs read | the push run and a `workflow_dispatch` run of the release commit, each by `gh run view <id> --json jobs`: run ids and per-job conclusions, plus a `Done N runs` line per `fuzz-run` job; the latest `schedule` run's id and date as context |
 | 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
 | 11 | Advisories read | the release commit's `dependency-advisories` job: run id, conclusion, packages checked per lockfile, and the advisory database's commit and date — no more than 7 days old at the cut; the advisory register's count, from Gate 12 |
+| 12 | Action currency read | every `uses:` pin in `.github/workflows/` compared against its action's current major upstream; each pin, the current major and the gap recorded. **A pin whose runtime upstream has removed blocks the tag**; one merely behind is recorded and does not. Currency needs the network, so this is a criterion and not a subcheck — and it is the only thing that looks (E-113) |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
 gate.** [`docs/src/releasing/v1-limitations.md`](./v1-limitations.md)
@@ -304,6 +305,35 @@ is the one outsiders see first.
 
 **Publishing is irreversible.** A version can be yanked but never deleted, and
 the name cannot be released. This step is the owner's, like the tag.
+
+### Before criterion 12 — read the action pins against upstream
+
+**Shaped deliberately like criterion 10**, which records the toolchain pin against current stable
+and blocks a tag at more than three minor versions behind. The same question, for the actions that
+produce a release's evidence.
+
+```sh
+/usr/bin/grep -arn 'uses:' .github/ | sort -u
+```
+
+For each distinct `actions/<name>@vN`, compare `N` against the action's current major, and record
+the pin, the current major and the gap. **What blocks a tag is not being behind — it is being
+behind on a runtime upstream has removed.** A pin two majors back that still runs is recorded; a
+pin whose Node runtime no longer exists on the runner is a release blocker, because the evidence
+criterion 9 reads arrives through those actions.
+
+**Why this is a cut criterion and not a subcheck.** Currency cannot be judged without the network,
+and *"the gates stay local, and that is deliberate"* — the sentence criterion 9's own section uses.
+There is no `dependabot.yml` either; **this criterion is the only thing that looks.**
+
+*Added 2026-11-12, after **E-113**. At the 0.42 cut, four actions targeted Node 20 — whose removal
+from hosted runners was already seven weeks past — and the runner said so in every job:
+`##[warning]Node.js 20 is deprecated … forced to run on Node.js 24`. Nothing read it. The 0.42
+scope had recorded the problem as **one** stale pin at one line; it was **seven pins across four
+actions**, and `upload-artifact` was pinned at **two different majors in the same file** with
+nothing saying which was intended. A second subcheck forbidding that split was proposed and
+**withdrawn**: it catches the symptom, and this criterion catches the cause whether or not a
+second major ever appears.*
 
 ### Before criterion 1 — bump the two version strings, not one
 
