@@ -1,40 +1,61 @@
 //! `capability-topology` — a service's own CSpace declaration and the
 //! kernel's install must agree (RFC-0.35-001 R3/R4, E-072).
 //!
-//! **The universe is discovered, not enumerated.** Every
-//! `crates/services/*/src/main.rs` is scanned for its own
-//! `const NAME: CapHandle = CapHandle(<slot>)` declarations — the shape
-//! every one of E-072's eleven instances takes. A hand-maintained list of
-//! "the eleven" would be a **third** independent declaration of the
-//! topology, alongside the service's own source and `spawn.rs`'s installs,
-//! and a twelfth instance added anywhere would simply not appear in it
-//! (caught in review: a planted `CAP_ARCH_PROBE_12TH` slot passed silently
-//! against the enumerated list this module used before this revision).
-//! `WAIVERS` below is now what its name says — slots this line does not
-//! install, each with a reason — not the set this check looks for.
+//! **The universe is discovered, not enumerated -- anywhere under `crates/`.**
+//! Every `.rs` file beneath `crates/`, at any depth, is scanned for
+//! `const NAME: CapHandle = CapHandle(<slot>)` declarations -- the shape
+//! every one of E-072's eleven instances takes. Each hit is attributed to the
+//! crate that contains it (the nearest ancestor directory holding a
+//! `Cargo.toml`) and from there to the `ImageId` it spawns as, read from
+//! `fjell-abi`'s own list of images. A hand-maintained list of "the eleven" --
+//! or of directories to search, which `SERVICES_DIR = "crates/services"` was --
+//! would be a **third** independent declaration of the topology, alongside the
+//! service's own source and `spawn.rs`'s installs, and a declaration written
+//! anywhere it does not name would simply not appear in it. Two caught in
+//! review: a planted `CAP_ARCH_PROBE_12TH` passed silently against the
+//! enumerated list this module used first, and nine of the nineteen
+//! declarations in the tree (`crates/drivers/`) were never scanned because the
+//! search was one hard-coded directory (RFC-0.43-002, E-117).
+//! A declaration in a crate that is **not** a spawnable image (no `ImageId` to
+//! attribute it to) is a failure, not a skip: a slot this check cannot judge is
+//! one it cannot vouch for.
+//! `WAIVERS` below is what its name says -- slots this line does not
+//! install, each with a reason -- not the set this check looks for.
 //!
-//! **Two slots are excluded from discovery entirely, not waived**, because
-//! this module cannot evaluate them at all, not because their outcome is
-//! deferred:
-//! - **slot 0**, for every service — every image's own identity endpoint,
-//!   installed unconditionally for every `image_id` by `spawn.rs`'s
-//!   `_ => 0` fallback arm, outside any per-image condition this module's
-//!   `image_block_installs_slot` can even name.
-//! - **`fjell-init`**, entirely — `init` is spawned directly in
+//! **One service is excluded from discovery, not waived**, because this module
+//! cannot evaluate it at all, not because its outcome is deferred:
+//! - **`fjell-init`**, entirely -- `init` is spawned directly in
 //!   `crates/fjell-kernel/src/main.rs`, never through `spawn.rs`'s
 //!   per-image blocks this module reads (confirmed, RFC-0.35-001 R1's own
 //!   control: `init`'s CSpace install is a different site). Its declared
-//!   `UART_RX_EP` (slot 8) **is** installed — `main.rs:1293`'s own
-//!   `install_raw(8, …)` inside `init`'s special-cased spawn path — this
+//!   `UART_RX_EP` (slot 8) **is** installed -- `main.rs:1293`'s own
+//!   `install_raw(8, …)` inside `init`'s special-cased spawn path -- this
 //!   module simply has no way to check it, and says so here rather than
 //!   mis-reporting it as waived-but-uninstalled or silently passing it.
 //!
+//! **Slot 0 is judged, not excluded** (RFC-0.43-002 R2). It used to be skipped
+//! for every service on the grounds that `spawn.rs`'s `_ => 0` fallback
+//! installed it unconditionally for every image -- true until RFC-0.41-002 R3
+//! deleted that fallback. Now `spawn.rs`'s `ep_obj` table maps an image to an
+//! endpoint object or to `None`, and **an image has slot 0 installed if and only
+//! if its arm grants `Some(..)`**; an image with no arm gets nothing there, so a
+//! declared slot 0 can be wrong. This module reads those arms
+//! (`object_zero::ep_obj_installs`) and fails closed on a shape it cannot
+//! attribute.
+//!
+//! **MMIO capabilities install at `<base> + region_idx`**, from a second table
+//! (`mmio_regions_for_service`), in a loop -- not in any `if image_id == …` block.
+//! They are read the same way (`object_zero::mmio_slots_by_image`, base read from
+//! the install itself), so `fjell-driver-uart`'s correct `CapHandle(32)` (region 1)
+//! is shown installed rather than waived.
+//!
 //! **What this checks, for each discovered slot:**
-//! 1. *Installed* — `spawn.rs` contains an `install_raw(<slot>, …)` call
-//!    inside the brace-matched body of an `if image_id == … ImageId::<X>`
-//!    condition naming this slot's image (handling a `||`-joined
-//!    condition, as `PROXY_BRAILLE`/`SVC_PRESENTATION_FAULT` already share
-//!    one).
+//! 1. *Installed* — one of: `spawn.rs` contains an `install_raw(<slot>, …)`
+//!    call inside the brace-matched body of an `if image_id == … ImageId::<X>`
+//!    condition naming this slot's image (handling a `||`-joined condition, as
+//!    `PROXY_BRAILLE`/`SVC_PRESENTATION_FAULT` already share one); or the slot is
+//!    0 and the image's `ep_obj` arm grants an object; or the slot is
+//!    `<base> + r` for a region `r` in the image's `mmio_regions_for_service` arm.
 //! 2. *Or waived* — `WAIVERS` names this exact (image, slot) with a reason.
 //!    Whether to serve a waived slot is **RFC-0.35-002's decision** —
 //!    installing authority a component does not yet exercise is the
@@ -73,7 +94,10 @@ use std::process::ExitCode;
 
 const NAME: &str = "capability-topology";
 const SPAWN_PATH: &str = "crates/fjell-kernel/src/task/spawn.rs";
-const SERVICES_DIR: &str = "crates/services";
+/// The root of the scan: every crate in the workspace (RFC-0.43-002 R1). Not a services
+/// directory and not a list of directories.
+const CRATES_DIR: &str = "crates";
+const ABI_SERVICE_PATH: &str = "crates/fjell-abi/src/service.rs";
 
 /// Spawned outside `spawn.rs`'s per-image blocks entirely (see the module
 /// doc) — excluded from discovery, not waived: this module cannot evaluate
@@ -106,21 +130,50 @@ struct Waiver {
 /// installed `CALL` capability, so its waiver is **gone** -- not reworded. A
 /// waiver that has been satisfied is not a waiver with new text.
 /// Re-check these whenever a line named here closes.
-const WAIVERS: &[Waiver] = &[Waiver {
-    image: "DIAGNOSTICSD",
-    slot: 2,
-    purpose: "secure-transportd",
-    reason: "E-069 closed: transportd serves one endpoint and never this \
+const WAIVERS: &[Waiver] = &[
+    Waiver {
+        image: "DIAGNOSTICSD",
+        slot: 2,
+        purpose: "secure-transportd",
+        reason: "E-069 closed: transportd serves one endpoint and never this \
                  one; `push_bundle` fails closed on the absence and the caller \
                  replies PUSH_FAULT, so nothing reads a false value",
-}];
+    },
+    // RFC-0.43-002 R4. Slot 0 is where a capability delivered **at runtime by
+    // cap-broker** arrives; there is no spawn-time install to find, so "declared and
+    // not installed by spawn.rs" is the expected state, not a mismatch. `SECURE_TRANSPORTD`
+    // has no `ep_obj` arm, which is correct: it receives nothing at spawn.
+    // **cap-broker's `SxtSession = 9` is a `ResourceClass` discriminant, not a slot** -- a
+    // reader who sees `9` beside this waiver must not take it for a slot mismatch.
+    Waiver {
+        image: "SECURE_TRANSPORTD",
+        slot: 0,
+        purpose: "cap-broker",
+        reason: "slot 0 is where a capability delivered at runtime by cap-broker \
+                 is meant to arrive (`CAP_SESSION`); there is no spawn-time install \
+                 to find. That delivery is not live yet: the constant is \
+                 `#[allow(dead_code)]` and read nowhere. cap-broker's `SxtSession = 9` \
+                 is a ResourceClass discriminant, not a slot",
+    },
+];
 
 #[derive(Debug)]
 struct DiscoveredSlot {
+    /// The declaring crate's directory name (`fjell-driver-virtio-net`).
     service_dir: String,
     const_name: String,
     image: String,
     slot: u32,
+    /// Where it was declared, for the report.
+    file: String,
+}
+
+/// What discovery found: the slots it could attribute to an image, and the declarations
+/// it could not (a crate that is not a spawnable image). The second list is a failure.
+#[derive(Debug, Default)]
+struct Discovery {
+    slots: Vec<DiscoveredSlot>,
+    unattributed: Vec<String>,
 }
 
 /// `crates/services/<dir>` → the `ImageId::<X>` this service spawns as —
@@ -181,89 +234,105 @@ fn find_cap_handle_consts(src: &str) -> Vec<(String, u32)> {
     out
 }
 
-/// Every `<services_dir>/*/src/main.rs` directory name, sorted, so output
-/// order is stable across runs and platforms. `services_dir` is a
-/// parameter (not the `SERVICES_DIR` constant) solely so this crate's own
-/// tests can point it at an absolute path and avoid `set_current_dir` —
-/// production always calls this with `SERVICES_DIR`.
-fn service_dirs(services_dir: &str) -> Option<Vec<String>> {
-    let entries = crate::read_dir_named(NAME, services_dir)?;
-    let mut dirs: Vec<String> = Vec::new();
-    for entry in entries {
-        let Ok(entry) = entry else { continue };
-        if !entry.path().is_dir() {
-            continue;
+/// Every `ImageId` name declared in `fjell-abi`'s `service.rs`
+/// (`pub const NAME: ImageId = ImageId(..)`) -- the authoritative list of what can be spawned.
+fn image_ids(abi_service: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for line in abi_service.lines() {
+        let l = line.trim();
+        if let Some(rest) = l.strip_prefix("pub const ") {
+            if let Some((name, ty)) = rest.split_once(':') {
+                if ty.trim_start().starts_with("ImageId") {
+                    out.push(name.trim().to_string());
+                }
+            }
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if EXCLUDED_SERVICE_DIRS.contains(&name.as_str()) {
-            continue;
-        }
-        dirs.push(name);
     }
-    dirs.sort();
-    Some(dirs)
+    out
 }
 
-/// Every `.rs` file under one service's `src/`, sorted, deepest-last.
-/// **Not `main.rs` alone**: `fjell-secure-transportd` already ships three
-/// source files (`main.rs`, `channel.rs`, `rt.rs`), and a slot declared in
-/// any of them is as real as one declared in `main.rs` — an architect probe
-/// on 2026-10-14 planted `CapHandle(9)` in `channel.rs` and this check
-/// passed with it there.
-fn service_rs_files(src_dir: &str, out: &mut Vec<String>) {
-    let Some(entries) = crate::read_dir_named(NAME, src_dir) else {
-        return;
+/// Walk `dir` recursively and collect every `.rs` file, each with the directory name of the
+/// crate that contains it (the nearest ancestor holding a `Cargo.toml`), in sorted order.
+/// `crate_name` is the enclosing crate on entry. Read failures report through
+/// `read_dir_named`, the module's one traversal helper, and abort discovery.
+fn rs_files_with_crate(
+    dir: &str,
+    crate_name: Option<&str>,
+    out: &mut Vec<(String, Option<String>)>,
+) -> bool {
+    let Some(entries) = crate::read_dir_named(NAME, dir) else {
+        return false;
     };
-    let mut here: Vec<String> = Vec::new();
+    let mut files: Vec<String> = Vec::new();
     let mut subdirs: Vec<String> = Vec::new();
+    let mut has_manifest = false;
     for entry in entries {
         let Ok(entry) = entry else { continue };
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().into_owned();
         if path.is_dir() {
-            subdirs.push(format!("{src_dir}/{name}"));
+            subdirs.push(name);
+        } else if name == "Cargo.toml" {
+            has_manifest = true;
         } else if name.ends_with(".rs") {
-            here.push(format!("{src_dir}/{name}"));
+            files.push(name);
         }
     }
-    here.sort();
+    let here_crate: Option<String> = if has_manifest {
+        std::path::Path::new(dir)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+    } else {
+        crate_name.map(str::to_string)
+    };
+    files.sort();
     subdirs.sort();
-    out.append(&mut here);
-    for d in subdirs {
-        service_rs_files(&d, out);
+    for f in files {
+        out.push((format!("{dir}/{f}"), here_crate.clone()));
     }
+    for d in subdirs {
+        if !rs_files_with_crate(&format!("{dir}/{d}"), here_crate.as_deref(), out) {
+            return false;
+        }
+    }
+    true
 }
 
-fn discover_slots(services_dir: &str) -> Option<Vec<DiscoveredSlot>> {
-    let mut out = Vec::new();
-    for service_dir in service_dirs(services_dir)? {
-        let mut files = Vec::new();
-        service_rs_files(&format!("{services_dir}/{service_dir}/src"), &mut files);
-        if files.is_empty() {
-            eprintln!(
-                "{NAME}: FAIL — {services_dir}/{service_dir}/src holds no .rs file; \
-                 a service this check cannot read is a service it cannot vouch for"
-            );
-            return None;
-        }
-        let image = image_name_for(&service_dir);
-        let mut pairs = Vec::new();
-        for path in &files {
-            let src = read_file(NAME, path)?;
-            pairs.extend(find_cap_handle_consts(&src));
-        }
-        for (const_name, slot) in pairs {
-            if slot == 0 {
-                // Every image's own identity endpoint — spawn.rs's
-                // unconditional fallback, not a per-image install this
-                // module can name a condition for. See the module doc.
+/// Discover every `CapHandle` slot declaration under `crates_dir`. `images` is the list of
+/// spawnable `ImageId` names. `crates_dir` is a parameter (not the `CRATES_DIR` constant)
+/// solely so this crate's own tests can point it at an absolute path.
+fn discover_slots(crates_dir: &str, images: &[String]) -> Option<Discovery> {
+    let mut files = Vec::new();
+    if !rs_files_with_crate(crates_dir, None, &mut files) {
+        return None;
+    }
+    let mut out = Discovery::default();
+    for (path, krate) in files {
+        let src = read_file(NAME, &path)?;
+        for (const_name, slot) in find_cap_handle_consts(&src) {
+            let Some(krate) = krate.as_deref() else {
+                out.unattributed.push(format!(
+                    "`{const_name}` = CapHandle({slot}) in {path}, which is under no crate"
+                ));
+                continue;
+            };
+            if EXCLUDED_SERVICE_DIRS.contains(&krate) {
                 continue;
             }
-            out.push(DiscoveredSlot {
-                service_dir: service_dir.clone(),
+            let image = image_name_for(krate);
+            if !images.contains(&image) {
+                out.unattributed.push(format!(
+                    "`{const_name}` = CapHandle({slot}) in {path}: crate `{krate}` is not a \
+                     spawnable image (no `ImageId::{image}`), so no install can be matched to it"
+                ));
+                continue;
+            }
+            out.slots.push(DiscoveredSlot {
+                service_dir: krate.to_string(),
                 const_name,
-                image: image.clone(),
+                image,
                 slot,
+                file: path.clone(),
             });
         }
     }
@@ -342,63 +411,153 @@ fn image_block_installs_slot(spawn_src: &str, image: &str, slot: u32) -> bool {
     false
 }
 
+/// How one discovered slot is accounted for.
+#[derive(Debug, PartialEq, Eq)]
+enum Disposition {
+    Installed(&'static str),
+    Waived,
+    WaivedButInstalled,
+    Defect,
+}
+
+/// The judgement of every discovered slot, with the lines to print. Pure over its inputs.
+#[derive(Debug, Default)]
+struct Verdict {
+    installed: usize,
+    waived: usize,
+    /// One line per slot: what was found, so the population is visible and not just counted.
+    population: Vec<String>,
+    /// Lines for `eprintln!` -- the declarations that are neither installed nor waived.
+    failures: Vec<String>,
+    notes: Vec<String>,
+}
+
+/// Judge `slots` against `spawn.rs` (and `fjell-abi`'s object constants). `Err` if a table
+/// this needs cannot be read -- never a silent pass.
+fn judge_slots(
+    slots: &[DiscoveredSlot],
+    spawn_src: &str,
+    abi_service: &str,
+) -> Result<Verdict, String> {
+    let ep_images = crate::object_zero::ep_obj_installs(spawn_src, abi_service)?;
+    let mmio = crate::object_zero::mmio_slots_by_image(spawn_src)?;
+    let mut v = Verdict::default();
+    for decl in slots {
+        let waiver = WAIVERS
+            .iter()
+            .find(|w| w.image == decl.image && w.slot == decl.slot);
+        let how: Option<&'static str> =
+            if image_block_installs_slot(spawn_src, &decl.image, decl.slot) {
+                Some("`if image_id ==` block")
+            } else if decl.slot == 0 && ep_images.iter().any(|i| *i == decl.image) {
+                Some("`ep_obj` arm")
+            } else if mmio
+                .iter()
+                .any(|(i, slots)| *i == decl.image && slots.contains(&decl.slot))
+            {
+                Some("MMIO `<base> + region_idx`")
+            } else {
+                None
+            };
+        let disp = match (waiver, how) {
+            (None, Some(h)) => Disposition::Installed(h),
+            (None, None) => Disposition::Defect,
+            (Some(_), Some(_)) => Disposition::WaivedButInstalled,
+            (Some(_), None) => Disposition::Waived,
+        };
+        let line = format!(
+            "{} slot {} `{}` ({}): {}",
+            decl.image,
+            decl.slot,
+            decl.const_name,
+            decl.file,
+            match &disp {
+                Disposition::Installed(h) => format!("installed ({h})"),
+                Disposition::Waived => "waived".to_string(),
+                Disposition::WaivedButInstalled => "waived AND installed".to_string(),
+                Disposition::Defect =>
+                    "DEFECT -- declared, installed nowhere, not waived".to_string(),
+            }
+        );
+        v.population.push(line);
+        match (waiver, disp) {
+            (_, Disposition::Installed(_)) => v.installed += 1,
+            (_, Disposition::Defect) => v.failures.push(format!(
+                "{} slot {} (`{}`, {}) is declared but spawn.rs installs nothing there, \
+                 and no waiver names it",
+                decl.image, decl.slot, decl.const_name, decl.service_dir
+            )),
+            (Some(w), Disposition::WaivedButInstalled) => {
+                v.waived += 1;
+                // A waived slot that turns out to be installed is not a failure -- it
+                // means the next line already landed -- but it is worth a plain line.
+                v.notes.push(format!(
+                    "note — {} slot {} ({}) is installed; waiver ({}) can be retired",
+                    decl.image, decl.slot, w.purpose, w.reason
+                ));
+            }
+            (Some(w), Disposition::Waived) => {
+                v.waived += 1;
+                v.notes.push(format!(
+                    "note — {} slot {} ({}) is declared, spawn.rs installs nothing there, \
+                     and that is accounted for: {}",
+                    decl.image, decl.slot, w.purpose, w.reason
+                ));
+            }
+            (None, _) => {}
+        }
+    }
+    Ok(v)
+}
+
 pub fn check() -> ExitCode {
     let Some(spawn_src) = read_file(NAME, SPAWN_PATH) else {
         return ExitCode::FAILURE;
     };
-    let Some(discovered) = discover_slots(SERVICES_DIR) else {
+    let Some(abi_service) = read_file(NAME, ABI_SERVICE_PATH) else {
         return ExitCode::FAILURE;
     };
+    let images = image_ids(&abi_service);
+    if images.is_empty() {
+        eprintln!(
+            "{NAME}: FAIL — {ABI_SERVICE_PATH} declares no `ImageId`; nothing can be attributed"
+        );
+        return ExitCode::FAILURE;
+    }
+    let Some(discovery) = discover_slots(CRATES_DIR, &images) else {
+        return ExitCode::FAILURE;
+    };
+    let discovered = &discovery.slots;
 
     let mut ok = true;
-    let mut installed = 0;
-    let mut waived = 0;
-
-    for decl in &discovered {
-        let waiver = WAIVERS
-            .iter()
-            .find(|w| w.image == decl.image && w.slot == decl.slot);
-        let is_installed = image_block_installs_slot(&spawn_src, &decl.image, decl.slot);
-
-        match (waiver, is_installed) {
-            (None, true) => {
-                installed += 1;
-            }
-            (None, false) => {
-                ok = false;
-                eprintln!(
-                    "{NAME}: FAIL — {} slot {} (`{}`, {}) is declared but spawn.rs installs \
-                     nothing there, and no waiver names it",
-                    decl.image, decl.slot, decl.const_name, decl.service_dir
-                );
-            }
-            (Some(w), true) => {
-                waived += 1;
-                // A waived slot that turns out to be installed is not a
-                // failure — it means the next line already landed —
-                // but it is worth a plain line rather than silence.
-                println!(
-                    "{NAME}: note — {} slot {} ({}) is installed; waiver ({}) can be retired",
-                    decl.image, decl.slot, w.purpose, w.reason
-                );
-            }
-            (Some(w), false) => {
-                waived += 1;
-                // Still printed, not silent: this is what lets one
-                // invocation show every declared-but-uninstalled slot at
-                // once (R4's "show that run"), with the exit status
-                // carrying only the ones no waiver names.
-                println!(
-                    "{NAME}: note — {} slot {} ({}) is declared, spawn.rs installs \
-                     nothing there, and that is accounted for: {}",
-                    decl.image, decl.slot, w.purpose, w.reason
-                );
-            }
-        }
+    for u in &discovery.unattributed {
+        ok = false;
+        eprintln!("{NAME}: FAIL — {u}");
     }
+    let (installed, waived) = match judge_slots(discovered, &spawn_src, &abi_service) {
+        Err(why) => {
+            eprintln!("{NAME}: FAIL — {why}");
+            return ExitCode::FAILURE;
+        }
+        Ok(v) => {
+            if std::env::var_os("CAPABILITY_TOPOLOGY_POPULATION").is_some() {
+                for l in &v.population {
+                    println!("{NAME}: population — {l}");
+                }
+            }
+            for n in &v.notes {
+                println!("{NAME}: {n}");
+            }
+            for f in &v.failures {
+                ok = false;
+                eprintln!("{NAME}: FAIL — {f}");
+            }
+            (v.installed, v.waived)
+        }
+    };
 
-    // RFC-0.41-002 R5: slot 0 is excluded from the per-slot discovery above (see the
-    // module doc), but not from governance: the invariant that made it dangerous --
+    // RFC-0.41-002 R5: slot 0 is now judged per image above (RFC-0.43-002); this is the
+    // separate, tree-wide invariant that made it dangerous --
     // an endpoint object more than one task could receive on, object 0 -- is judged
     // here, from the installs (`object_zero`).
     let abi_src = read_file(NAME, "crates/fjell-abi/src/service.rs");
@@ -495,46 +654,277 @@ mod tests {
         );
     }
 
-    #[test]
-    fn discovery_reads_every_rs_file_under_a_service_src_not_only_main() {
-        // An architect probe on 2026-10-14 planted
-        // `CapHandle(9)` in `fjell-secure-transportd`'s `channel.rs` — a
-        // service that already ships three source files — and this check
-        // passed with it there, because discovery read `main.rs` alone.
-        // Fixtured here so the walk cannot quietly narrow again.
-        let dir = std::env::temp_dir().join(format!(
-            "fjell-cap-topology-walk-{}-{}",
+    /// A fixture workspace: `crates/<group>/<crate>/{Cargo.toml,src/...}`.
+    fn fixture(tag: &str, files: &[(&str, &str)]) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "fjell-cap-topology-{tag}-{}-{}",
             std::process::id(),
             line!()
         ));
-        let src = dir.join("fjell-probe-svc").join("src");
-        let nested = src.join("inner");
-        std::fs::create_dir_all(&nested).expect("fixture dirs");
-        std::fs::write(
-            src.join("main.rs"),
-            "const CAP_A: CapHandle = CapHandle(1);\n",
-        )
-        .expect("main.rs");
-        std::fs::write(
-            src.join("channel.rs"),
-            "pub const CAP_B: fjell_cap::CapHandle = fjell_cap::CapHandle(9);\n",
-        )
-        .expect("channel.rs");
-        std::fs::write(
-            nested.join("deep.rs"),
-            "pub const CAP_C: CapHandle = CapHandle(12);\n",
-        )
-        .expect("deep.rs");
+        let _ = std::fs::remove_dir_all(&root);
+        for (rel, body) in files {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).expect("fixture dir");
+            std::fs::write(&p, body).expect("fixture file");
+        }
+        root
+    }
 
-        let found = discover_slots(&dir.to_string_lossy()).expect("discovery");
-        let mut slots: Vec<u32> = found.iter().map(|d| d.slot).collect();
-        slots.sort();
-        std::fs::remove_dir_all(&dir).ok();
-        assert_eq!(
-            slots,
-            vec![1, 9, 12],
-            "every .rs under src/, recursively — not main.rs alone: {found:#?}"
+    fn imgs(names: &[&str]) -> Vec<String> {
+        names.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn discovery_reads_every_rs_file_under_a_crate_not_only_main() {
+        // An architect probe on 2026-10-14 planted `CapHandle(9)` in
+        // `fjell-secure-transportd`'s `channel.rs` and this check passed with it there,
+        // because discovery read `main.rs` alone. Fixtured so the walk cannot narrow again.
+        let root = fixture(
+            "walk",
+            &[
+                ("crates/services/fjell-probe-svc/Cargo.toml", ""),
+                (
+                    "crates/services/fjell-probe-svc/src/main.rs",
+                    "const CAP_A: CapHandle = CapHandle(1);\n",
+                ),
+                (
+                    "crates/services/fjell-probe-svc/src/channel.rs",
+                    "pub const CAP_B: fjell_cap::CapHandle = fjell_cap::CapHandle(9);\n",
+                ),
+                (
+                    "crates/services/fjell-probe-svc/src/inner/deep.rs",
+                    "pub const CAP_C: CapHandle = CapHandle(12);\n",
+                ),
+            ],
         );
+        let d = discover_slots(
+            &root.join("crates").to_string_lossy(),
+            &imgs(&["PROBE_SVC"]),
+        )
+        .expect("discovery");
+        std::fs::remove_dir_all(&root).ok();
+        let mut slots: Vec<u32> = d.slots.iter().map(|x| x.slot).collect();
+        slots.sort();
+        assert_eq!(slots, vec![1, 9, 12], "{d:#?}");
+        assert!(d.unattributed.is_empty());
+    }
+
+    /// RFC-0.43-002 R1: the universe is every crate under `crates/`, not a directory name.
+    /// A crate laid out somewhere nobody listed -- a new group, a nested one -- is seen.
+    #[test]
+    fn discovery_reaches_a_declaration_wherever_it_is_under_crates() {
+        let root = fixture(
+            "anywhere",
+            &[
+                ("crates/services/fjell-a/Cargo.toml", ""),
+                (
+                    "crates/services/fjell-a/src/main.rs",
+                    "const X_A: CapHandle = CapHandle(1);\n",
+                ),
+                ("crates/drivers/fjell-b/Cargo.toml", ""),
+                (
+                    "crates/drivers/fjell-b/src/main.rs",
+                    "const X_B: CapHandle = CapHandle(2);\n",
+                ),
+                // a group that did not exist when this check was written
+                ("crates/brand-new-group/nested/fjell-c/Cargo.toml", ""),
+                (
+                    "crates/brand-new-group/nested/fjell-c/src/lib.rs",
+                    "const X_C: CapHandle = CapHandle(3);\n",
+                ),
+            ],
+        );
+        let d = discover_slots(
+            &root.join("crates").to_string_lossy(),
+            &imgs(&["A", "B", "C"]),
+        )
+        .expect("discovery");
+        std::fs::remove_dir_all(&root).ok();
+        let mut got: Vec<(String, u32, String)> = d
+            .slots
+            .iter()
+            .map(|x| (x.image.clone(), x.slot, x.service_dir.clone()))
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec![
+                ("A".to_string(), 1, "fjell-a".to_string()),
+                ("B".to_string(), 2, "fjell-b".to_string()),
+                ("C".to_string(), 3, "fjell-c".to_string()),
+            ]
+        );
+    }
+
+    /// A declaration in a crate that is not a spawnable image is reported, not skipped.
+    #[test]
+    fn a_declaration_in_a_non_image_crate_is_unattributed_not_ignored() {
+        let root = fixture(
+            "unattributed",
+            &[
+                ("crates/libs/fjell-not-an-image/Cargo.toml", ""),
+                (
+                    "crates/libs/fjell-not-an-image/src/lib.rs",
+                    "const Y: CapHandle = CapHandle(4);\n",
+                ),
+            ],
+        );
+        let d = discover_slots(
+            &root.join("crates").to_string_lossy(),
+            &imgs(&["SOMETHING_ELSE"]),
+        )
+        .expect("discovery");
+        std::fs::remove_dir_all(&root).ok();
+        assert!(d.slots.is_empty());
+        assert_eq!(d.unattributed.len(), 1, "{d:#?}");
+        assert!(d.unattributed[0].contains("not a spawnable image"));
+    }
+
+    #[test]
+    fn fjell_init_stays_excluded() {
+        let root = fixture(
+            "init",
+            &[
+                ("crates/services/fjell-init/Cargo.toml", ""),
+                (
+                    "crates/services/fjell-init/src/main.rs",
+                    "        const UART_RX_EP: CapHandle = CapHandle(8);\n",
+                ),
+            ],
+        );
+        let d = discover_slots(&root.join("crates").to_string_lossy(), &imgs(&["INIT"]))
+            .expect("discovery");
+        std::fs::remove_dir_all(&root).ok();
+        assert!(d.slots.is_empty() && d.unattributed.is_empty(), "{d:#?}");
+    }
+
+    #[test]
+    fn image_ids_reads_the_abi_list() {
+        let abi = "    pub const STORAGED: ImageId = ImageId(0x01);\n\
+                   pub const DRIVER_UART: ImageId = ImageId(0x1b); // c\n\
+                   pub const NETD_EP_OBJECT: u32 = 3;\n\
+                   pub const SERVICE_READY_SEND_SLOT: u32 = 20;\n";
+        assert_eq!(image_ids(abi), vec!["STORAGED", "DRIVER_UART"]);
+    }
+
+    const SPAWN: &str = "\
+let ep_obj: Option<u32> = match image_id {\n\
+    fjell_abi::service::ImageId::STORAGED => Some(1),\n\
+    fjell_abi::service::ImageId::A | fjell_abi::service::ImageId::B => Some(2),\n\
+    fjell_abi::service::ImageId::EXPLICIT_NONE => None,\n\
+    fjell_abi::service::ImageId::BLOCKY => {\n        Some(3)\n    }\n\
+    _ => None,\n};\n\
+let mmio_regions_for_service: Option<&[usize]> = match image_id {\n\
+    fjell_abi::service::ImageId::DRIVER_UART => {\n        static UART0: &[usize] = &[1];\n        Some(UART0)\n    }\n\
+    fjell_abi::service::ImageId::MANY => {\n        static ALL: &[usize] = &[0, 3, 4];\n        Some(ALL)\n    }\n\
+    _ => None,\n};\n\
+if let Some(regions) = mmio_regions_for_service {\n    for &region_idx in regions {\n        let _ = cs.install_raw(\n            31 + region_idx,\n            Capability {},\n        );\n    }\n}\n";
+
+    /// R2: an image with a `Some` arm has slot 0; one with none, or an explicit `None`, does not.
+    #[test]
+    fn ep_obj_arms_are_attributed_to_images() {
+        let got = crate::object_zero::ep_obj_installs(SPAWN, "").expect("attributable");
+        assert_eq!(got, vec!["STORAGED", "A", "B", "BLOCKY"]);
+        assert!(!got.contains(&"EXPLICIT_NONE".to_string()));
+        assert!(!got.contains(&"NEVER_MENTIONED".to_string()));
+    }
+
+    /// Fail closed on a shape it cannot attribute -- and name it.
+    #[test]
+    fn ep_obj_shapes_it_cannot_attribute_fail_closed() {
+        let guard =
+            "let ep_obj: Option<u32> = match image_id {\n X if cond => Some(1),\n _ => None,\n};";
+        assert!(
+            crate::object_zero::ep_obj_installs(guard, "")
+                .unwrap_err()
+                .contains("guard or binding")
+        );
+        let notimg =
+            "let ep_obj: Option<u32> = match image_id {\n some_var => Some(1),\n _ => None,\n};";
+        assert!(
+            crate::object_zero::ep_obj_installs(notimg, "")
+                .unwrap_err()
+                .contains("not `ImageId::<NAME>`")
+        );
+        let dflt = "let ep_obj: Option<u32> = match image_id {\n _ => Some(0),\n};";
+        assert!(
+            crate::object_zero::ep_obj_installs(dflt, "")
+                .unwrap_err()
+                .contains("default arm")
+        );
+        assert!(
+            crate::object_zero::ep_obj_installs("fn nothing() {}", "")
+                .unwrap_err()
+                .contains("no `let ep_obj")
+        );
+    }
+
+    /// MMIO slots are `<base> + region`, the base read from the install, not restated.
+    #[test]
+    fn mmio_slots_are_attributed_with_the_base_read_from_the_install() {
+        let got = crate::object_zero::mmio_slots_by_image(SPAWN).expect("attributable");
+        assert_eq!(
+            got,
+            vec![
+                ("DRIVER_UART".to_string(), vec![32]),
+                ("MANY".to_string(), vec![31, 34, 35]),
+            ]
+        );
+        // A different base is followed, not assumed.
+        let rebased = SPAWN.replace("31 + region_idx", "40 + region_idx");
+        let got = crate::object_zero::mmio_slots_by_image(&rebased).unwrap();
+        assert_eq!(got[0].1, vec![41]);
+        // Formula not recognised -> fail closed.
+        let odd = SPAWN.replace("31 + region_idx", "region_idx * 2");
+        assert!(
+            crate::object_zero::mmio_slots_by_image(&odd)
+                .unwrap_err()
+                .contains("formula not recognised")
+        );
+    }
+
+    fn slot(image: &str, slot: u32) -> DiscoveredSlot {
+        DiscoveredSlot {
+            service_dir: format!("fjell-{}", image.to_lowercase()),
+            const_name: "C".into(),
+            image: image.into(),
+            slot,
+            file: "f.rs".into(),
+        }
+    }
+
+    /// The control on the new axis: declared slot 0, image with no arm -> a defect, not a skip.
+    #[test]
+    fn slot_zero_is_judged_not_excluded() {
+        let slots = [
+            slot("STORAGED", 0),
+            slot("NO_ARM_IMAGE", 0),
+            slot("EXPLICIT_NONE", 0),
+        ];
+        let v = judge_slots(&slots, SPAWN, "").expect("judges");
+        assert_eq!(v.installed, 1);
+        assert_eq!(v.failures.len(), 2, "{v:#?}");
+        assert!(v.failures.iter().any(|f| f.contains("NO_ARM_IMAGE slot 0")));
+        assert!(
+            v.failures
+                .iter()
+                .any(|f| f.contains("EXPLICIT_NONE slot 0"))
+        );
+    }
+
+    #[test]
+    fn mmio_declarations_are_installed_not_defects() {
+        let slots = [slot("DRIVER_UART", 32), slot("MANY", 34), slot("MANY", 33)];
+        let v = judge_slots(&slots, SPAWN, "").expect("judges");
+        assert_eq!(v.installed, 2, "{v:#?}");
+        assert_eq!(v.failures.len(), 1);
+        assert!(v.failures[0].contains("MANY slot 33"));
+    }
+
+    /// A table it cannot read is an `Err`, never a pass.
+    #[test]
+    fn unreadable_tables_are_an_error_not_a_pass() {
+        assert!(judge_slots(&[slot("X", 0)], "fn nothing() {}", "").is_err());
     }
 
     #[test]
@@ -577,51 +967,40 @@ mod tests {
     }
 
     #[test]
-    fn discovery_on_the_current_tree_matches_the_known_seven() {
-        // `cargo test` runs with this crate's own directory as the working
-        // directory, not the workspace root `check()` assumes in
-        // production (`cargo xtask consistency-check` always runs from the
-        // root) — pass the computed root's own services dir in, rather
-        // than `set_current_dir` (which races every other test in this
-        // binary run in parallel on the same process-wide cwd).
+    fn discovery_on_the_current_tree_finds_the_whole_population() {
+        // `cargo test` runs with this crate's own directory as the working directory, not
+        // the workspace root `check()` assumes in production -- pass the computed root's
+        // crates dir in, rather than `set_current_dir` (which races every other test).
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .and_then(|p| p.parent())
             .expect("tools/fjell-consistency-check is two levels under the workspace root");
-        let services_dir = root.join(SERVICES_DIR);
-        let discovered = discover_slots(&services_dir.to_string_lossy())
+        let abi = std::fs::read_to_string(root.join(ABI_SERVICE_PATH)).expect("service.rs");
+        let d = discover_slots(&root.join(CRATES_DIR).to_string_lossy(), &image_ids(&abi))
             .expect("discovery must succeed on the real tree");
-        // E-072's eleven, less the five RFC-0.35-002 closed by deleting the
-        // declaration outright (SECURE_TRANSPORTD slots 3/4, DIAGNOSTICSD
-        // slot 3, E-068/E-069; ATTESTD slot 5, NETD slot 1, E-074), less one
-        // more RFC-0.36-001 closed the same way (SECURE_TRANSPORTD's
-        // `CAP_SMGR_EP`, slot 1, E-075 — adopted `SERVICE_READY_SEND_SLOT`
-        // instead, which needs no local constant), plus one RFC-0.37-001
-        // added: `FLEETD`'s own `CAP_DIAGNOSTICSD_EP` (slot 1), a new
-        // declaration this line installs rather than leaves dangling, plus one
-        // RFC-0.40-001 added: `ATTESTD`'s `CAP_MEASUREDD_EP` (slot 4), the CALL
-        // capability it reads the chain head through.
-        assert_eq!(
-            discovered.len(),
-            7,
-            "expected exactly the seven slots the tree carries today: {discovered:#?}",
-        );
-        let unwaived = discovered
+        assert!(d.unattributed.is_empty(), "{:#?}", d.unattributed);
+        // Nineteen `const .. CapHandle(<slot>)` declarations existed under `crates/` when
+        // RFC-0.43-002 widened the scan: ten in services, nine in drivers -- nine the old
+        // scan never saw. Six of the nine (`fjell-driver-virtio-net`'s) were then deleted
+        // with the paths that used them (RFC-0.43-003, E-118: the image never had those
+        // capabilities and exited at the first one it used). `fjell-init`'s one is excluded
+        // by design. That leaves twelve judged: nine in services, three in
+        // `fjell-driver-uart`. If a crate adds or loses a declaration this number moves, and
+        // the change is made on purpose. What must stay true is that the driver crates are
+        // *in the universe*: planting a constant there is caught (the RFC-0.43-002 control).
+        assert_eq!(d.slots.len(), 12, "{:#?}", d.slots);
+        let drivers = d
+            .slots
             .iter()
-            .filter(|d| {
-                !WAIVERS
-                    .iter()
-                    .any(|w| w.image == d.image && w.slot == d.slot)
-            })
+            .filter(|s| s.file.contains("/drivers/"))
             .count();
         assert_eq!(
-            unwaived, 6,
-            "six slots are installed outright: the update-path channel's two \
-             (SECURE_TRANSPORTD slot 2, UPGRADED slot 6), RFC-0.37-001's two \
-             (FLEETD slot 1, DIAGNOSTICSD slot 1 -- newly installed, no longer \
-             waived), RFC-0.39-002's one (DIAGNOSTICSD slot 4, a CALL \
-             capability to measuredd), and RFC-0.40-001's one (ATTESTD slot 4, \
-             a CALL capability to measuredd)"
+            drivers, 3,
+            "the driver crates' declarations must be in the universe"
+        );
+        assert!(
+            d.slots.iter().any(|s| s.slot == 0),
+            "slot 0 must be discovered, not skipped"
         );
     }
 }

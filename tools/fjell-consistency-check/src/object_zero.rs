@@ -269,6 +269,148 @@ fn grant(expr: &str, consts: &HashMap<String, u32>) -> Result<Option<u32>, Strin
     Err(format!("`{e}` is neither `None` nor `Some(<object>)`"))
 }
 
+/// RFC-0.43-002 R2: which images get slot 0 installed, read from the `ep_obj` table.
+///
+/// An image with a dedicated arm that grants `Some(..)` has slot 0 installed; an image
+/// with no arm, or an explicit `None`, does not (the default arm is `None` since
+/// RFC-0.41-002 R3). Returns the image names (`ImageId::<NAME>` -> `NAME`).
+///
+/// **Fails closed on any arm shape it cannot attribute** -- a guard (`X if ..`), a pattern
+/// that is not `ImageId::<NAME>` (or `|`-joined ones), a default that is not `None`, an
+/// object it cannot evaluate. An over-attributing reader would report an install that does
+/// not exist, which is worse than the exclusion this replaces; the `Err` names the shape.
+pub fn ep_obj_installs(spawn: &str, abi_service: &str) -> Result<Vec<String>, String> {
+    let spawn_c = strip_line_comments(spawn);
+    let consts = u32_consts(&[spawn, abi_service]);
+    let head = "let ep_obj: Option<u32> = match image_id {";
+    let at = spawn_c.find(head).ok_or_else(|| {
+        format!("spawn.rs has no `{head}`: slot 0 cannot be attributed to any image")
+    })?;
+    let body = braced(&spawn_c, at).ok_or("the `ep_obj` match is not brace-balanced")?;
+    let mut out = Vec::new();
+    for (pat, expr) in arms(body) {
+        let granted = grant(&expr, &consts).map_err(|e| format!("ep_obj arm `{pat}`: {e}"))?;
+        if pat == "_" {
+            if granted.is_some() {
+                return Err(
+                    "the `ep_obj` default arm grants an object: every image would have slot 0, \
+                     which this check cannot attribute per image"
+                        .into(),
+                );
+            }
+            continue;
+        }
+        if pat.contains(" if ") || pat.contains('(') || pat.contains('@') {
+            return Err(format!(
+                "ep_obj arm pattern `{pat}` has a guard or binding: a shape this check does not attribute"
+            ));
+        }
+        for part in pat.split('|') {
+            let part = part.trim();
+            let name = part
+                .strip_prefix("fjell_abi::service::ImageId::")
+                .or_else(|| part.strip_prefix("ImageId::"))
+                .unwrap_or("");
+            if name.is_empty()
+                || !name
+                    .chars()
+                    .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+            {
+                return Err(format!(
+                    "ep_obj arm pattern `{part}` is not `ImageId::<NAME>`: a shape this check does not attribute"
+                ));
+            }
+            if granted.is_some() {
+                out.push(name.to_string());
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// RFC-0.43-002: the MMIO capability slots each image is given, read from the
+/// `mmio_regions_for_service` table and the `<base> + region_idx` install that follows it.
+///
+/// Returns `(image, slots)`. The base (`31`) is **read from the install**, not restated here,
+/// so the number cannot drift from `spawn.rs`. Fails closed on any arm that is not
+/// `ImageId::<NAME> => { .. static X: &[usize] = &[<decimal>, ..]; Some(X) }` or a `_ => None`
+/// default, and on a missing or differently-shaped `<base> + region_idx` install.
+pub fn mmio_slots_by_image(spawn: &str) -> Result<Vec<(String, Vec<u32>)>, String> {
+    let spawn_c = strip_line_comments(spawn);
+    let head = "let mmio_regions_for_service: Option<&[usize]> = match image_id {";
+    let at = spawn_c.find(head).ok_or_else(|| {
+        format!("spawn.rs has no `{head}`: MMIO slots cannot be attributed to any image")
+    })?;
+    let body =
+        braced(&spawn_c, at).ok_or("the `mmio_regions_for_service` match is not brace-balanced")?;
+
+    // The slot formula, read from the install that consumes the table.
+    let tail = &spawn_c[at..];
+    let uses = tail
+        .find("if let Some(regions) = mmio_regions_for_service")
+        .ok_or("the `mmio_regions_for_service` table has no `if let Some(regions)` consumer")?;
+    let consumer = &tail[uses..];
+    let install = consumer
+        .find("install_raw(")
+        .ok_or("the MMIO consumer has no `install_raw(` call")?;
+    let arg = consumer[install + "install_raw(".len()..].trim_start();
+    let base: u32 = arg
+        .split_once("+ region_idx")
+        .and_then(|(b, _)| b.trim().parse().ok())
+        .ok_or("the MMIO install's slot is not `<decimal> + region_idx`: formula not recognised")?;
+
+    let mut out = Vec::new();
+    for (pat, expr) in arms(body) {
+        if pat == "_" {
+            if expr.trim() != "None" {
+                return Err(format!(
+                    "the `mmio_regions_for_service` default arm is `{}`, not `None`",
+                    expr.trim()
+                ));
+            }
+            continue;
+        }
+        let name = pat
+            .strip_prefix("fjell_abi::service::ImageId::")
+            .or_else(|| pat.strip_prefix("ImageId::"))
+            .unwrap_or("");
+        if name.is_empty()
+            || !name
+                .chars()
+                .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+        {
+            return Err(format!(
+                "mmio arm pattern `{pat}` is not a single `ImageId::<NAME>`: shape not attributed"
+            ));
+        }
+        let Some(sp) = expr.find("static ") else {
+            return Err(format!(
+                "mmio arm `{name}` has no `static X: &[usize] = &[..]` list: shape not attributed"
+            ));
+        };
+        let after = &expr[sp..];
+        let list = after
+            .split_once("&[usize] = &[")
+            .and_then(|(_, r)| r.split_once(']'))
+            .ok_or_else(|| format!("mmio arm `{name}`: list is not `&[usize] = &[..]`"))?
+            .0;
+        let mut regions = Vec::new();
+        for n in list.split(',') {
+            let n = n.trim();
+            if n.is_empty() {
+                continue;
+            }
+            regions.push(
+                base + n.parse::<u32>().map_err(|_| {
+                    format!("mmio arm `{name}`: region `{n}` is not a decimal literal")
+                })?,
+            );
+        }
+        out.push((name.to_string(), regions));
+    }
+    Ok(out)
+}
+
 /// The objects of the loop that encloses an install written `object_id,`: the second
 /// element of each tuple in the nearest preceding `for (.., object_id) in [ .. ]`.
 fn loop_objects(before: &str) -> Option<Vec<String>> {
