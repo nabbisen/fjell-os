@@ -42,8 +42,16 @@ detected, and that an ordinary build is unaffected is a defect in this line, not
 **R1 — Detect the solver from the prover that is actually going to run.** The bundled z3 answers
 `--version`. Derive the figure from the installed prover, not from a path recorded in the lock.
 
-**R2 — Compare it against the lock's `[z3] version`, and fail closed**, exactly as the prover
-comparison already does. A mismatch stops the run; it is not a warning.
+**R2 — Compare it against the lock's `[z3] version`, and fail closed in every mode.** A mismatch
+stops the run; it is not a warning.
+
+> **Corrected 2026-11-12, during review.** This requirement first read *"fail closed, exactly as
+> the prover comparison already does"* **and** *"a mismatch stops the run; it is not a warning"*.
+> Those disagree: the prover comparison warns outside `--release-required` and blocks only under
+> it. The implementer took the second sentence and said so, which was right — Gate 10 counts
+> `:MACHINE-CHECKED-PASS` out of a marker log CI retains, so a certified-looking marker produced
+> under an unrecorded solver must not be reachable in any mode. The requirement now says only
+> that.
 
 **R3 — Delete the `[z3] path` field.** `path = "/opt/verus/z3"` is the AUR layout and is wrong for
 a hand-install, where z3 sits beside the binary — and a field that is correct on one of two
@@ -84,3 +92,38 @@ ordinary `cargo xtask build` or any host tier.
 - **The check must not become a reason to skip `verus-check`.** If it proves noisy in practice,
   report that rather than relaxing it; an instrument worked around by rephrasing is worth less than
   none.
+
+---
+
+## Amendment 1 — a candidate mode, because the line as built makes the next upgrade impossible
+
+**Added 2026-11-12 by the architect, at this line's review. This is a consequence of R2, which I
+wrote, and not a defect in the implementation.**
+
+The z3 comparison blocks in every mode with no escape hatch. A new prover bundles a new z3, so at
+the next upgrade **no invocation of `verus-check` can run the proofs** until `[z3] version` is
+edited — while `TOOLCHAIN.lock`'s rule is *"Update only with a recorded proof-review re-run"*,
+which requires running them. Circular. The only ways through are editing a copy of the lock in a
+scratch worktree — what 0.42-004 actually did — or a `VERUS_Z3_PATH` wrapper that lies. **A
+procedure performable only by a workaround outside the architecture fails the design bar's first
+clause**, and accepting the line as it stands would institutionalise that workaround.
+
+**R7 — a named candidate mode.** `verus-check --candidate` (name is the implementer's to choose)
+runs the proofs with either pin mismatched, for the express purpose of a recorded re-run, and:
+
+- **emits a distinct marker and never `MACHINE-CHECKED-PASS`.** Gate 10 counts that exact string
+  and CI retains `verus-markers.txt` as an artefact; the marker vocabulary already separates
+  `CONFORMANCE-ONLY`, so a candidate state fits the existing shape rather than inventing one.
+- **is refused under `--release-required`**, so it can never stand in for certification.
+- **states in its own output that the run certifies nothing**, naming both detected versions and
+  both pins.
+
+**R8 — the Verus release comparison blocks in every mode too, once R7 exists.** The asymmetry the
+implementer flagged — z3 blocking always, the prover warning outside `--release-required` — is
+real and should not survive. The reason the prover comparison only warned was to leave room for
+precisely the experiment R7 now provides properly. Two pins, one behaviour, and the room to
+experiment named as a mode rather than hidden in a severity.
+
+**Not required, and explicitly out of scope:** making the candidate mode usable in CI, or recording
+candidate runs anywhere a gate reads. A candidate run is a human step inside a recorded re-run, and
+`TOOLCHAIN.lock`'s procedure already says what that record is.

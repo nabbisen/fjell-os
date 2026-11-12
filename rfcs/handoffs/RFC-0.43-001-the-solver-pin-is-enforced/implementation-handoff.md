@@ -38,9 +38,11 @@ wrong for a hand-install; a field correct on one of two supported routes is fict
   with this machine's path either.**
 - **`RUSTUP_TOOLCHAIN` must be unset in your shell.** Verus's launcher sets it internally; an
   inherited value makes failures that look like prover bugs.
-- **`verus-check` fails closed on a Verus version mismatch**, which means that if you edit the
-  lock to produce R5's red, the tool may refuse for the *wrong* reason. Make the two refusals
-  distinguishable, and quote both so a reader can tell which fired.
+- **`verus-check` blocks on a Verus version mismatch only under `--release-required`** and warns
+  otherwise — *corrected 2026-11-12; this bullet first said it fails closed outright, which
+  overstated the existing behaviour.* Either way, if you edit the lock to produce R5's red the tool
+  may refuse for the *wrong* reason. Make the two refusals distinguishable, and quote both so a
+  reader can tell which fired.
 - **Experiment in a scratch worktree, not the main tree** — `.git-exclude/tmp/<name>` — and put a
   `pwd -P` check in the same command as the first edit. A previous session's experiment landed an
   edit in the main tree because the `cd` and the edit were in different commands.
@@ -65,8 +67,15 @@ wrong for a hand-install; a field correct on one of two supported routes is fict
 
 - The installed z3 does not match the lock. **Do not update the lock to match the machine** — that
   inverts the pin.
-- `verus --version` does not report a z3 version at all, or reports one in a form you cannot parse
-  strictly. That is a finding about the prover's interface and changes R1.
+- **The z3 binary** does not report a version, or reports one in a form you cannot parse strictly.
+  That is a finding about the solver's interface and changes R1.
+
+  > **Corrected 2026-11-12, after this condition misfired.** It first read *"`verus --version` does
+  > not report a z3 version at all"*, and `verus --version` carries no solver version — so taken
+  > literally it told the implementer to stop where **R1 told them to continue**: R1 says *the
+  > bundled z3* answers `--version`, which it does (`Z3 version 4.16.0 - 64 bit`), and §3.1 of this
+  > handoff anticipated exactly that case. **The error was mine**; they followed the RFC and §3.1,
+  > disclosed the judgement, and were right.
 - Making the check fail closed turns any host tier or `release-rehearsal` gate red for a reason
   unrelated to z3.
 

@@ -8173,6 +8173,17 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **A second, smaller inaccuracy in the same section:** `[z3] path = "/opt/verus/z3"` is the AUR
   layout and is wrong for a hand-install, where z3 sits beside the binary. Annotated rather than
   replaced with one machine's path — the authority on what ran is `verus --version`'s own report.
+- **Corrected 2026-11-12 by the implementer of RFC-0.43-001, and the correction narrows this
+  entry: "no gate noticed" was too strong.** Verus has its **own** solver-version check
+  (`-V no-solver-version-check` appears in `verus --help` as *"skip the check that the solver has
+  the expected version"*), so a mismatched solver would have been refused **for the Verus release
+  it shipped with**. Established by experiment rather than from the flag's name: a wrapper
+  reporting `4.99.0` for `--version` while delegating the SMT session was **accepted**
+  (`1 verified, 0 errors`), so that check does not read `--version` — it enforces Verus's own
+  hard-coded expectation over the session. **What nothing enforced is what this entry is actually
+  about:** that the solver equals **`TOOLCHAIN.lock`'s record**, and that the run records which
+  solver it used. Both remain true, and the z3 pin was still documentation rather than
+  enforcement. The sweep of the original wording is withdrawn; its substance is not.
 - **Remedy, not taken here.** Detect the bundled z3's version (it answers `--version`) and compare
   it against the lock, failing closed as the prover comparison does; and fix the comment either way.
   **Deliberately not done inside the upgrade**: 0.42-004's whole discipline is that the pin moves
@@ -8576,6 +8587,67 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 - **Status:** **OPEN**, scheduled to **0.43** (the scope's 0.43-003, reshaped by this entry from
   "three declarations" to "the instrument, and then the declarations fall out of it").
 
+## E-118 — `driver-virtio-net` is spawned every boot, exits at its first capability-bearing syscall, and prints four lines of device work it never did
+
+- **Found 2026-11-12.** Layers 1 and 2 by the implementer of RFC-0.43-002, from the widened
+  `capability-topology`; layer 3 by the architect, checking their evidence against the crate.
+- **Layer 1 — six declarations, no installs.** `fjell-driver-virtio-net` declares
+  `CAP_MMIO(0)`, `CAP_DMA_RX(1)`, `CAP_DMA_TX(2)`, `CAP_IRQ(3)`, `CAP_NETD_EP(4)` and
+  `CAP_SMGR_EP(5)`. **`spawn.rs` installs none of them.** `DRIVER_VIRTIO_NET` has no arm in the
+  `ep_obj` match, so slot 0 is empty; it appears only in `mmio_regions_for_service`, whose install
+  lands at `31 + region_idx` — region 3, so slot **34**, not 0. This is **E-117**'s blind spot
+  showing what it was hiding, and it is why the RFC predicted one defect here and the instrument
+  found six.
+  - **The header's explanation is false.** `main.rs:52` says *"devmgr installs capabilities into
+    these CSpace slots before starting the driver"*. `devmgr` prints
+    `devmgr: registered virtio-net` and installs nothing, and `sys_cap_install` has no dispatch
+    arm. Nothing has ever installed these.
+  - **Slot 5 is wrong in a second way:** `CAP_SMGR_EP` names the service-manager ready endpoint,
+    which is installed at `SERVICE_READY_SEND_SLOT = 20` for every service. Installing at 5 would
+    not have fixed it — RFC-0.36-001 already applied slot 20 to `secure-transportd`.
+- **Layer 2 — the image is spawned every boot and dies.** `init` starts it; `main.rs:146` calls
+  `sys_irq_bind(CAP_IRQ)` on slot 3, fails, and `sys_exit(1)`s. Slots 4 and 5 are used after that
+  point and are unreachable; slots 1 and 2 are `#[allow(dead_code)]` and read nowhere. So the
+  driver has **never worked**, on any boot, since it was added.
+- **Layer 3 — and before it dies it asserts four things that did not happen.**
+  **`sys_mmio_map` is never called in the crate.** `CAP_MMIO` is declared at `main.rs:58` and used
+  nowhere. Yet the console, on a real `audit` boot (`tests/qemu/artifacts/audit/serial.log`,
+  2026-11-11), carries:
+
+  ```
+  driver-virtio-net: device descriptor loaded
+  driver-virtio-net: legacy mode (no VIRTIO_F_VERSION_1)
+  driver-virtio-net: features negotiated
+  driver-virtio-net: rx queue initialised
+  ```
+
+  **The device's registers were never mapped**, so no descriptor was read, no features were
+  negotiated and no queue was initialised against hardware. These are `sys_debug_writeln` calls at
+  lines 99, 122 and 143 standing in for work the code does not do. This is **E-105's class
+  exactly** — *a message that asserts more than the code knows* — and it is the design bar's second
+  clause failing on the operator's screen, which that bar gives equal weight to correctness.
+- **Why no tier is red.** `TEST:V0.4-NET:PASS` is emitted **four times in the same boot by
+  `netd`**, which reaches its own exit without needing the driver. The marker names the v0.4 net
+  path; a reader of that tier cannot tell the driver died in it. **This is not a new gate defect** —
+  the marker is `netd`'s and says what it says — but it is why eight console lines of a failing
+  driver have sat in retained logs unexamined.
+- **What closing it needs, and the order matters.** The fix for layer 3 is **not** a capability: a
+  driver that has not mapped its device must not print that it has, and that correction is
+  available immediately and independently. The fix for layers 1 and 2 is a **capability grant to a
+  driver** — two `DmaRegion`s, an `Interrupt`, an `Endpoint`, and slot **20** for the ready send —
+  which is authority and architecture, and is `0.43-003`'s subject. **`CAP_MMIO` → 34** rides with
+  it, derived as `31 + 3` against `driver-uart`'s correct `CapHandle(32)` for region 1.
+  **Slots 1 and 2 are deleted rather than installed or waived** (RFC-0.35-002's settled treatment
+  of a dead declaration).
+- **Refused as a disposition: waiving slots 3–5.** `WAIVERS` means *"slots this line does not
+  install"* — a decision about authority a component **does not exercise**. These are exercised,
+  and their absence stops the image, so a waiver would make `capability-topology` report the
+  topology consistent over a driver that cannot start. The implementer proposed it, said in the
+  same breath that *"a waiver pointing at nothing is the instrument talked out of its finding"*,
+  and declined to write the reasons without an erratum id. The architect refused the mechanism:
+  an erratum makes a finding recorded, it does not make a waiver's claim true.
+- **Status:** **OPEN**, scheduled to **0.43-003**.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8696,6 +8768,7 @@ Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 | E-115 **RUSTSEC-2026-0486 applied to `rustix 1.1.4`** — unsound, *xattr functions mark unwritten bytes as initialized when given a zero-length buffer*, patched `>=1.1.6`. Found by CI on `979dbd4`, green on `cefce90` the day before **with no dependency change in between**: the advisory was published, not introduced, and the database read was **0 days old** (1,453 advisories). `advisory-process.md` §7's mechanism working as written. **Reach, derived not assumed:** `rustix` arrives only via `tempfile` ← `proptest`, reached from three crates that `cargo tree -i` shows are **leaves — nothing depends on them** — so it reaches neither the kernel, the 33 prebuilts, nor either published crate, and is absent from `fuzz/Cargo.lock`. No built artefact moves, so **no repro baseline is re-recorded**, checked rather than assumed. Fixed the day it appeared: `rustix 1.1.4 → 1.1.6`, exactly its patched floor, one package and two lockfile lines, `cargo test -p fjell-proptest` passing (10 + 14). **What it cannot show:** E-053 recorded its red locally before the fix; **D24 does not govern this case** (it reads *"the deliberately-red tree is not pushed"*, and this red came from upstream), but the local transcript is still stronger evidence and is missing — reproducing it needs `cargo install cargo-audit`, which the architect does not do | 0.42 | CLOSED |
 | E-116 **the cut needs eight version strings and five more steps than it documents; the gates, not the procedure, are what keep it correct.** `v0-release-cycle.md`'s *"bump the two version strings, **not one**"* section enumerates five places the version lives — two in `Cargo.toml` plus three logo URLs — and names neither `README.md:22` (*"Current version"*), `README.md:9` (the shields.io badge), nor `v1-readiness.md`'s `## Summary at <version>` heading. Nor does it name the largest step of all: the milestone's RFCs move `accepted/` → `done/`, which is **five** tasks (the `git mv`, each RFC's `Status:` to `Implemented (<version>)`, each handoff's governing-RFC link, each handoff's own inherited `Status:`, and both counts plus two tables in `rfcs/README.md`), done as an explicit numbered step since at least 0.35.0 and written nowhere. **This entry overturns its own first draft:** it was filed asserting *"nothing checks `README.md:22`"*, which is **false** — `version-currency` reads `README.md` against the workspace version (*README.md mentions 0.41.0, but the workspace version is 0.42.0* — which is how the badge was found), `readiness-summary` fails on the heading, and `handoff-status` fails a handoff disagreeing with its RFC. All three fired at this cut. *The first reading came from grepping the procedure instead of running the instrument that owns the question, which is this project's own rule broken by the architect twice in one day.* **So the defect is documentation, not enforcement — the sharper finding:** a reader following only the written procedure produces a tree that **four subchecks reject**, and the written cut is what gets handed to an implementer. **The one ungated residue:** a *wholly skipped* move, where every `Status:` still agrees and `doc-counts` counts the folders as they are, so nothing fires. All eight strings bumped, step 7 done in full, and all of it written into the procedure naming which subcheck catches each omission | 0.42 | CLOSED |
 | E-117 **`capability-topology` checks nine fewer declarations than exist, and its slot-0 exclusion rests on a fallback RFC-0.41-002 deleted.** The instrument exists so *"a service's own CSpace declaration and the kernel's install must agree"*, and its doc states *"the universe is discovered, not enumerated"* after a planted constant passed against an enumerated list. But discovery is `const SERVICES_DIR = "crates/services"`, so **`crates/drivers/` is outside the scan** and **9 of the 19 `CapHandle(<slot>)` declarations are unchecked** — a constant planted in `crates/drivers/` would pass silently, the same defect on a different axis. **One of the nine is wrong twice:** `virtio-net`'s `CAP_MMIO = CapHandle(0)` gets no slot-0 install (the single `install_raw(0, …)` is fed by a `match` with arms for eighteen images and `_ => None`; `DRIVER_VIRTIO_NET` has no arm) and names the wrong kind anyway (that site installs `Endpoint`; MMIO installs at `31 + region_idx`, so region 3 means slot **34**). `driver-uart` is correct at `CapHandle(32)` for region 1 *and uses it*; virtio-net never uses its own, which is why it has never fired. **The slot-0 exclusion is justified by a false sentence:** it cites a `_ => 0` fallback installing slot 0 *"unconditionally for every `image_id`"*, which RFC-0.41-002 R3 replaced with `_ => None`. The mechanical reason (the install sits in a `match`, not an `if image_id ==` block) still holds; what changed is that a declared slot 0 **can** now be wrong, and two sit there unchecked. **`secure-transportd`'s `CAP_SESSION` is not a defect** — the 0.41 record's *"never installed"* was carried into two scope documents as "false declaration" and is withdrawn: slot 0 is where a runtime cap-broker delivery arrives, and it belongs in `WAIVERS` with that reason once the slot is checked at all. **Corrected hours after filing:** this entry first called `proxy-text`'s slot 2 (`Endpoint` at `object_id: 0`) a send capability that can never deliver. **It is not a send path but an introspection subject** — the install comment says proxy-text *"introspects [it] via `sys_cap_inspect` to obtain its OWN kernel-verified rights"*, it does so at `main.rs:44`, and `sys_cap_inspect` resolves the slot, checks lease and `INSPECT`, and **never dereferences the object**. So **one** of the three "pre-existing false declarations" is real, not three — a phrase carried unexamined from the 0.41 review record through four documents. Filed as one erratum rather than three fixes because all three survived a milestone about instruments, and they survived because the instrument that owns the class cannot see them | 0.43 | OPEN |
+| E-118 **`driver-virtio-net` is spawned every boot, exits at its first capability-bearing syscall, and prints four lines of device work it never did.** Three layers. **One:** all six of its `CapHandle` declarations — `CAP_MMIO(0)`, `CAP_DMA_RX(1)`, `CAP_DMA_TX(2)`, `CAP_IRQ(3)`, `CAP_NETD_EP(4)`, `CAP_SMGR_EP(5)` — have **no install**; `DRIVER_VIRTIO_NET` has no `ep_obj` arm and its MMIO install lands at `31 + region 3` = slot **34**, not 0. The header's claim that *"devmgr installs capabilities into these CSpace slots"* is false: devmgr installs nothing and `sys_cap_install` has no dispatch arm. `CAP_SMGR_EP` is wrong twice — the ready endpoint is `SERVICE_READY_SEND_SLOT = 20` (RFC-0.36-001's shape). **Two:** `init` starts the image every boot and `sys_irq_bind(CAP_IRQ)` on slot 3 fails and exits, so the driver has **never worked**; slots 4–5 are unreachable past that point and 1–2 are dead. **Three, found checking the evidence rather than reported:** `sys_mmio_map` is **never called in the crate**, yet a real `audit` boot's console carries *"device descriptor loaded"*, *"legacy mode (no VIRTIO_F_VERSION_1)"*, *"features negotiated"* and *"rx queue initialised"* — four assertions of device work with the registers never mapped. **E-105's class** on the operator's screen. No tier is red because `TEST:V0.4-NET:PASS` is emitted four times by `netd`, which never needed the driver. Layer 3's fix is not a capability and is available immediately; layers 1–2 need a capability grant to a driver, which is `0.43-003`. **Waiving slots 3–5 was proposed and refused:** `WAIVERS` means authority a component does not exercise, these are exercised, and a waiver would have the gate report consistency over an image that cannot start | 0.43 | OPEN |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
