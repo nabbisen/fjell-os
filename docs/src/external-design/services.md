@@ -25,7 +25,7 @@ restartable (NFR-REL-002).
 | `service-manager` | Service lifecycle: start, health, fault, restart (RFC 058) | NFR-REL-002 |
 | `devmgr` | Device discovery, capability assignment, driver startup | FR-SVC-002 |
 | `driver-virtio-blk` | Block device driver (user space) | FR-SVC-001 |
-| `driver-virtio-net` | Network device driver (user space) | FR-SVC-001 |
+| `driver-virtio-net` | Registration stub; exits immediately and is not wired to the device | FR-SVC-001 |
 | `storaged` | virtio-blk I/O / storage service | FR-SVC-003 |
 | `bootctl` | Boot-control (A/B slot management) | FR-BOOT-003 |
 | `upgraded` | Immutable A/B upgrade staging | FR-BOOT-003 |
