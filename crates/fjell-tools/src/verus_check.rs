@@ -12,7 +12,16 @@
 //! Two toolchain pins are compared against `verification/verus/TOOLCHAIN.lock` before any
 //! proof runs (RFC-0.43-001): the **Verus release** (`[verus] release`) and the **z3
 //! solver** (`[z3] version`). They are reported separately and refuse separately, because
-//! they are different components with different remedies -- see [`z3_refusal`].
+//! they are different components with different remedies -- see [`z3_refusal`] and
+//! [`verus_mismatch_refusal`]. **Both block in every mode** (Amendment 1, R8).
+//!
+//! **`--candidate` is the one way to run the proofs with a pin mismatched** (R7): a new
+//! prover bundles a new z3, so at an upgrade no ordinary run can happen until the lock
+//! moves, and the lock moves only behind a recorded proof-review re-run, which needs the
+//! proofs run. A candidate run does that and **certifies nothing**: its markers are
+//! `CANDIDATE-ONLY` / `CANDIDATE-FAIL`, never `MACHINE-CHECKED-PASS` (which Gate 10 counts
+//! and CI retains), it states its own status and both pairs of versions, and
+//! `--release-required` refuses it.
 //!
 //! Output markers (one per target, architect C7 — conformance never reports
 //! a bare PASS, and the JSON distinguishes machine_check pass/fail/not_run):
@@ -20,6 +29,8 @@
 //!   VERUS:TARGET:<name>:MACHINE-CHECKED-FAIL
 //!   VERUS:TARGET:<name>:CONFORMANCE-ONLY      (verus absent, conformance ok)
 //!   VERUS:TARGET:<name>:CONFORMANCE-FAIL      (verus absent, conformance failed)
+//!   VERUS:TARGET:<name>:CANDIDATE-ONLY        (--candidate: proofs ran and passed; certifies nothing)
+//!   VERUS:TARGET:<name>:CANDIDATE-FAIL        (--candidate: a proof failed)
 //!
 //! Plus a JSON summary line per target for CI.
 
@@ -243,7 +254,7 @@ fn z3_refusal(problem: &Z3Problem, pinned: Option<&str>) -> String {
         not the Verus release). Pinned z3: {}. {what}.\n\
         verus-check:   z3 decides whether the proofs verify, so an unidentified solver is \
         an uncertified result. Use the Verus release TOOLCHAIN.lock pins (it bundles its \
-        z3), or re-run the proofs under a recorded proof-review and update the lock.\n\
+        z3); `--candidate` also needs the solver's version, to be able to name it.\n\
         verus-check:   Not affected: `cargo xtask build` and every host test tier never \
         need Verus or z3 (verification/verus/TOOLCHAIN.md).",
         pinned.unwrap_or("(unreadable)")
@@ -258,22 +269,34 @@ fn z3_mismatch_refusal(detected: &str, pinned: &str, path: &str, source: &Z3Sour
         reports {detected}.\n\
         verus-check:   z3 decides whether the proofs verify, so the proofs were certified \
         under {pinned}, not {detected}. Use the Verus release TOOLCHAIN.lock pins (it \
-        bundles its z3), or re-run the proofs under a recorded proof-review and update the \
-        lock -- not the other way round.\n\
+        bundles its z3), or -- to run the proofs for a recorded proof-review re-run before \
+        moving the pin -- `cargo xtask verus-check --candidate`, which certifies nothing. \
+        The lock moves after that re-run, not before.\n\
         verus-check:   Not affected: `cargo xtask build` and every host test tier never \
         need Verus or z3 (verification/verus/TOOLCHAIN.md).",
         source.describe()
     )
 }
 
-/// The solver check, end to end: `Ok(())` to proceed, `Err(text)` to refuse (print it,
-/// exit non-zero). Pure over its inputs -- the lock text, the environment override and the
-/// `PATH` -- so the refusal logic is testable without a prover.
-fn check_z3_pin(
+/// The z3 solver as detected and as pinned, with where it was found.
+#[derive(Debug, PartialEq, Eq)]
+struct Z3Reading {
+    detected: String,
+    pinned: String,
+    path: String,
+    source: Z3Source,
+}
+
+/// Establish the solver's identity: the lock's pin, the located solver, its parsed version.
+/// `Err` is the refusal text for anything that stops that being established -- a mismatch
+/// is **not** an error here: it is a reading, and the caller decides (an ordinary run
+/// refuses it, a candidate run reports it). Pure over its inputs -- the lock text, the
+/// environment override and the `PATH` -- so it is testable without a prover.
+fn read_z3_pin(
     lock_text: Option<&str>,
     env_override: Option<std::ffi::OsString>,
     path_var: &std::ffi::OsStr,
-) -> Result<String, String> {
+) -> Result<Z3Reading, String> {
     let pinned = lock_text.and_then(read_lock_z3_version);
     let Some(pinned_v) = pinned.as_deref() else {
         return Err(z3_refusal(&Z3Problem::LockUnreadable, None));
@@ -281,18 +304,210 @@ fn check_z3_pin(
     let (path, source) =
         locate_z3(env_override, path_var).map_err(|p| z3_refusal(&p, Some(pinned_v)))?;
     let detected = detect_z3_version(&path).map_err(|p| z3_refusal(&p, Some(pinned_v)))?;
-    let shown = path.display().to_string();
-    if detected != pinned_v {
-        return Err(z3_mismatch_refusal(&detected, pinned_v, &shown, &source));
+    Ok(Z3Reading {
+        detected,
+        pinned: pinned_v.to_string(),
+        path: path.display().to_string(),
+        source,
+    })
+}
+
+/// The solver check for an ordinary or release-required run: `Ok(report)` to proceed,
+/// `Err(text)` to refuse (print it, exit non-zero).
+fn check_z3_pin(
+    lock_text: Option<&str>,
+    env_override: Option<std::ffi::OsString>,
+    path_var: &std::ffi::OsStr,
+) -> Result<String, String> {
+    let r = read_z3_pin(lock_text, env_override, path_var)?;
+    if r.detected != r.pinned {
+        return Err(z3_mismatch_refusal(
+            &r.detected,
+            &r.pinned,
+            &r.path,
+            &r.source,
+        ));
     }
     Ok(format!(
-        "verus-check: detected z3 version: {detected} ({shown}, {})\n\
-        verus-check: pinned  z3 version: {pinned_v} (TOOLCHAIN.lock [z3] version)",
-        source.describe()
+        "verus-check: detected z3 version: {} ({}, {})\n\
+        verus-check: pinned  z3 version: {} (TOOLCHAIN.lock [z3] version)",
+        r.detected,
+        r.path,
+        r.source.describe(),
+        r.pinned
     ))
 }
 
+// ── Invocation, the two pin readings, and the candidate mode (Amendment 1) ───
+
+/// Which targets to run.
+#[derive(Debug, PartialEq, Eq)]
+enum Selection {
+    AllPilot,
+    ReleaseRequired,
+    Target(String),
+}
+
+/// A parsed command line: the selection, and whether this is a candidate run.
+#[derive(Debug, PartialEq, Eq)]
+struct Invocation {
+    candidate: bool,
+    selection: Selection,
+}
+
+/// Parse `args`. `--candidate` may appear anywhere, once; at most one selector remains
+/// (`--all-pilot`, `--release-required` or a target name; none means `--all-pilot`).
+/// `--candidate` with `--release-required` is refused: a candidate run certifies nothing
+/// and a release-required run exists to certify. Anything else is refused rather than
+/// ignored -- an extra argument that is silently dropped is how a flag stops meaning
+/// what its author thought.
+fn parse_invocation(args: &[String]) -> Result<Invocation, String> {
+    let mut candidate = false;
+    let mut selectors: Vec<&str> = Vec::new();
+    for a in args {
+        if a == "--candidate" {
+            if candidate {
+                return Err("`--candidate` given twice".into());
+            }
+            candidate = true;
+        } else {
+            selectors.push(a);
+        }
+    }
+    if selectors.len() > 1 {
+        return Err(format!(
+            "more than one target selector ({}): give at most one of --all-pilot, \
+            --release-required or a target name",
+            selectors.join(", ")
+        ));
+    }
+    let selection = match selectors.first().copied() {
+        None | Some("--all-pilot") => Selection::AllPilot,
+        Some("--release-required") => Selection::ReleaseRequired,
+        Some(name) => Selection::Target(name.to_string()),
+    };
+    if candidate && selection == Selection::ReleaseRequired {
+        return Err(
+            "`--candidate` cannot be combined with `--release-required`: a candidate \
+            run certifies nothing, and a release-required run exists to certify. Run the \
+            candidate, record the re-run, move the pin in TOOLCHAIN.lock, then run \
+            `--release-required` on its own."
+                .into(),
+        );
+    }
+    Ok(Invocation {
+        candidate,
+        selection,
+    })
+}
+
+/// The Verus release as detected and as pinned. Compared with the `release/` prefix
+/// stripped from both (`TOOLCHAIN.lock` stores `release/X.Y.Z`; the binary reports `X.Y.Z`).
+#[derive(Debug, PartialEq, Eq)]
+struct VerusReading {
+    detected: String,
+    pinned: String,
+}
+
+impl VerusReading {
+    fn matches(&self) -> bool {
+        let bare = |v: &str| v.strip_prefix("release/").unwrap_or(v).to_string();
+        bare(&self.detected) == bare(&self.pinned)
+    }
+}
+
+/// Establish the Verus release identity, or say why it cannot be established. Unlike the
+/// z3 reading this never "proceeds with unknown": an unparseable detected version or an
+/// unreadable lock is a refusal in every mode (it used to be one only under
+/// `--release-required`).
+fn read_verus_pin(detected: Option<&str>, pinned: Option<&str>) -> Result<VerusReading, String> {
+    match (detected, pinned) {
+        (Some(d), Some(p)) => Ok(VerusReading {
+            detected: d.to_string(),
+            pinned: p.to_string(),
+        }),
+        _ => Err(format!(
+            "verus-check: BLOCKING — Verus RELEASE identity not established (this is the \
+            prover release, not the z3 solver). Detected: {}. Pinned: {}.\n\
+            verus-check:   A run that cannot tell which prover it used certifies nothing. \
+            Fix the installation or TOOLCHAIN.lock; `--candidate` needs both versions too, \
+            to be able to name them.\n\
+            verus-check:   Not affected: `cargo xtask build` and every host test tier never \
+            need Verus or z3 (verification/verus/TOOLCHAIN.md).",
+            detected.unwrap_or("unknown"),
+            pinned.unwrap_or("(unreadable)"),
+        )),
+    }
+}
+
+/// The refusal for a prover release that is not the pinned one. Names the component (the
+/// prover release, not the solver), both versions, the way to run the proofs anyway for a
+/// recorded re-run, and that an ordinary build is unaffected.
+fn verus_mismatch_refusal(r: &VerusReading) -> String {
+    format!(
+        "verus-check: BLOCKING — Verus RELEASE mismatch (this is the prover release, not the \
+        z3 solver). TOOLCHAIN.lock [verus] pins {}; the installed prover reports {}.\n\
+        verus-check:   the proofs were certified under {}, not {}. Use the pinned release, \
+        or -- to run the proofs for a recorded proof-review re-run before moving the pin -- \
+        `cargo xtask verus-check --candidate`, which certifies nothing.\n\
+        verus-check:   Not affected: `cargo xtask build` and every host test tier never \
+        need Verus or z3 (verification/verus/TOOLCHAIN.md).",
+        r.pinned, r.detected, r.pinned, r.detected
+    )
+}
+
+/// The statement a candidate run makes about itself, before any proof runs: that it
+/// certifies nothing, both detected versions, both pins, and which pin (if any) differs.
+fn candidate_notice(v: &VerusReading, z: &Z3Reading) -> String {
+    let word = |m: bool| if m { "matches" } else { "DIFFERS" };
+    let zm = z.detected == z.pinned;
+    let mut out = format!(
+        "verus-check: CANDIDATE RUN -- this run certifies nothing.\n\
+        verus-check:   Verus release: detected {}, pinned {} ({})\n\
+        verus-check:   z3 solver:     detected {}, pinned {} ({})\n\
+        verus-check:   The proofs are run for a recorded proof-review re-run \
+        (TOOLCHAIN.lock: \"Update only with a recorded proof-review re-run\"). Markers below \
+        are CANDIDATE-ONLY / CANDIDATE-FAIL, never the machine-checked pass marker, and \
+        `--release-required` refuses this mode. To certify: record the re-run, move the \
+        pin(s) in TOOLCHAIN.lock, then run `verus-check --release-required` on its own.",
+        v.detected,
+        v.pinned,
+        word(v.matches()),
+        z.detected,
+        z.pinned,
+        word(zm),
+    );
+    if v.matches() && zm {
+        out.push_str(
+            "\nverus-check:   (both pins match: an ordinary run would certify this; \
+            --candidate is for when they do not.)",
+        );
+    }
+    out
+}
+
+/// `(status, marker, machine_check)` for one target that ran under the prover. A candidate
+/// run **never** produces `MACHINE-CHECKED-PASS`, whatever the proof did: Gate 10 counts
+/// that exact string and CI retains the marker log, so a candidate run that emitted it
+/// would leave a certified-looking line in the record with nothing to tell it apart.
+fn prover_outcome(candidate: bool, passed: bool) -> (&'static str, &'static str, &'static str) {
+    match (candidate, passed) {
+        (false, true) => ("machine_checked_pass", "MACHINE-CHECKED-PASS", "pass"),
+        (false, false) => ("machine_checked_fail", "MACHINE-CHECKED-FAIL", "fail"),
+        (true, true) => ("candidate_only", "CANDIDATE-ONLY", "candidate_pass"),
+        (true, false) => ("candidate_fail", "CANDIDATE-FAIL", "candidate_fail"),
+    }
+}
+
 pub fn cmd_verus_check(args: &[String]) -> ExitCode {
+    let inv = match parse_invocation(args) {
+        Ok(i) => i,
+        Err(e) => {
+            println!("verus-check: BLOCKING — {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let targets = match load_targets("verification/verus/verus-targets.toml") {
         Ok(t) => t,
         Err(e) => {
@@ -306,15 +521,26 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     // Architect follow-up (v0.18 review §8.3.3): print the detected Verus and z3
     // versions and compare each against its TOOLCHAIN.lock pin.
     //
-    //   * Verus release (`[verus] release`): a mismatch WARNS, and BLOCKS only under
-    //     `--release-required`, as it always did.
-    //   * z3 solver (`[z3] version`, RFC-0.43-001): a mismatch -- or a solver whose
-    //     version cannot be established -- BLOCKS in EVERY mode. The z3 pin was, until
-    //     then, recorded in the lock and compared by nothing (E-112).
+    //   * Verus release (`[verus] release`) and z3 solver (`[z3] version`,
+    //     RFC-0.43-001): a mismatch -- or a version that cannot be established --
+    //     BLOCKS, in EVERY mode (Amendment 1, R8: the Verus comparison used to warn
+    //     outside `--release-required`, which let an ordinary run print
+    //     `MACHINE-CHECKED-PASS` under a prover the proofs were not certified with).
+    //   * `--candidate` (R7) is the only way past a mismatch: it runs the proofs for a
+    //     recorded re-run, states that it certifies nothing, names both pairs of versions,
+    //     and never emits `MACHINE-CHECKED-PASS`.
     //
     // The z3 figure is the solver binary's own `--version`, located as the prover
     // locates it; the lock's old `[z3] path` field is gone (it was only ever right for
     // one install route).
+    if inv.candidate && !verus_present {
+        println!(
+            "verus-check: BLOCKING — `--candidate` needs the prover: there is nothing to run \
+            a candidate proof with, and the conformance fallback certifies no re-run."
+        );
+        return ExitCode::FAILURE;
+    }
+    let mut candidate_notice_text: Option<String> = None;
     if verus_present {
         let detected = detect_verus_version();
         let pinned = read_lock_release("verification/verus/TOOLCHAIN.lock");
@@ -326,73 +552,53 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
             "verus-check: pinned  version: {}",
             pinned.as_deref().unwrap_or("(unreadable)")
         );
-        let release_required_run = args
-            .first()
-            .map(|a| a == "--release-required")
-            .unwrap_or(false);
-        // H-04 (architect review v0.19): release-required mode is fail-closed
-        // on version identity — an unparseable detected version or an
-        // unreadable lock both block, not just an explicit mismatch.
-        if release_required_run && (detected.is_none() || pinned.is_none()) {
-            println!(
-                "verus-check: BLOCKING — could not establish Verus version \
-                identity (detected: {}, pinned: {}). --release-required requires \
-                a verifiable toolchain match against TOOLCHAIN.lock.",
-                detected.as_deref().unwrap_or("unknown"),
-                pinned.as_deref().unwrap_or("unreadable")
-            );
-            return ExitCode::FAILURE;
-        }
-        let mismatch = match (&detected, &pinned) {
-            (Some(d), Some(p)) => {
-                // TOOLCHAIN.lock stores "release/X.Y.Z"; verus binary reports "X.Y.Z".
-                // Compare both stripped of the "release/" prefix.
-                let d_bare = d.strip_prefix("release/").unwrap_or(d);
-                let p_bare = p.strip_prefix("release/").unwrap_or(p);
-                d_bare != p_bare
-            }
-            _ => false,
-        };
-        if mismatch {
-            println!(
-                "verus-check: WARNING: detected Verus version does not match \
-                TOOLCHAIN.lock pin — proofs were certified under the pinned version. \
-                Update TOOLCHAIN.lock if you intend to use this version."
-            );
-            if release_required_run {
-                println!(
-                    "verus-check: BLOCKING — --release-required requires the pinned \
-                    Verus version (see TOOLCHAIN.lock). Certify proofs under the pinned \
-                    version or update the lock with a recorded proof-review re-run."
-                );
-                return ExitCode::FAILURE;
-            }
-        }
-
-        // RFC-0.43-001: the solver pin, in every mode. After the Verus comparison so
-        // that, under `--release-required`, a Verus mismatch is reported as that and not
-        // as a solver problem; the two refusals name different components.
-        let lock_text = std::fs::read_to_string("verification/verus/TOOLCHAIN.lock").ok();
-        let path_var = std::env::var_os("PATH").unwrap_or_default();
-        match check_z3_pin(
-            lock_text.as_deref(),
-            std::env::var_os("VERUS_Z3_PATH"),
-            &path_var,
-        ) {
-            Ok(report) => println!("{report}"),
+        let verus_reading = match read_verus_pin(detected.as_deref(), pinned.as_deref()) {
+            Ok(r) => r,
             Err(refusal) => {
                 println!("{refusal}");
                 return ExitCode::FAILURE;
             }
+        };
+        if !inv.candidate && !verus_reading.matches() {
+            println!("{}", verus_mismatch_refusal(&verus_reading));
+            return ExitCode::FAILURE;
         }
+
+        // The solver pin, after the Verus comparison so that a Verus mismatch is reported
+        // as that and not as a solver problem; the two refusals name different components.
+        let lock_text = std::fs::read_to_string("verification/verus/TOOLCHAIN.lock").ok();
+        let path_var = std::env::var_os("PATH").unwrap_or_default();
+        let z3_env = std::env::var_os("VERUS_Z3_PATH");
+        if inv.candidate {
+            match read_z3_pin(lock_text.as_deref(), z3_env, &path_var) {
+                Ok(z) => {
+                    candidate_notice_text = Some(candidate_notice(&verus_reading, &z));
+                }
+                Err(refusal) => {
+                    println!("{refusal}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        } else {
+            match check_z3_pin(lock_text.as_deref(), z3_env, &path_var) {
+                Ok(report) => println!("{report}"),
+                Err(refusal) => {
+                    println!("{refusal}");
+                    return ExitCode::FAILURE;
+                }
+            }
+        }
+    }
+    if let Some(n) = &candidate_notice_text {
+        println!("{n}");
     }
 
     // Selection
-    let selected: Vec<&Target> = match args.first().map(String::as_str) {
-        Some("--all-pilot") | None => targets.iter().collect(),
-        Some("--release-required") => targets.iter().filter(|t| t.release_required).collect(),
-        Some(name) => {
-            let hit: Vec<&Target> = targets.iter().filter(|t| t.name == name).collect();
+    let selected: Vec<&Target> = match &inv.selection {
+        Selection::AllPilot => targets.iter().collect(),
+        Selection::ReleaseRequired => targets.iter().filter(|t| t.release_required).collect(),
+        Selection::Target(name) => {
+            let hit: Vec<&Target> = targets.iter().filter(|t| &t.name == name).collect();
             if hit.is_empty() {
                 eprintln!(
                     "verus-check: unknown target `{name}` \
@@ -417,16 +623,19 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     }
 
     let mut any_blocking_fail = false;
+    let mut any_candidate_fail = false;
+    let mut ran = 0usize;
 
     for t in selected {
         // Architect C7: status values distinguish a real machine-check from
         // the conformance fallback; conformance never reports a bare PASS.
         let (status, marker, machine_check) = if verus_present {
-            if run_verus(t) {
-                ("machine_checked_pass", "MACHINE-CHECKED-PASS", "pass")
-            } else {
-                ("machine_checked_fail", "MACHINE-CHECKED-FAIL", "fail")
+            ran += 1;
+            let passed = run_verus(t);
+            if inv.candidate && !passed {
+                any_candidate_fail = true;
             }
+            prover_outcome(inv.candidate, passed)
         } else {
             let ok = run_cmd(&t.conformance_cmd);
             if ok {
@@ -446,12 +655,27 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
         // machine-checked pass clears the gate. A FAIL *and* the not_run
         // fallback (prover absent) both block — you cannot certify a
         // release-required proof without actually running Verus. Experimental
-        // targets never block (Stage A philosophy).
-        if t.release_required && machine_check != "pass" {
+        // targets never block (Stage A philosophy). A candidate run is not a
+        // release-required run and certifies nothing, so this does not apply to it.
+        if !inv.candidate && t.release_required && machine_check != "pass" {
             any_blocking_fail = true;
         }
     }
 
+    if inv.candidate {
+        if any_candidate_fail {
+            println!(
+                "VERUS-CHECK: CANDIDATE RUN FAILED -- a proof did not verify under the candidate \
+                toolchain (certifies nothing either way)"
+            );
+            return ExitCode::FAILURE;
+        }
+        println!(
+            "VERUS-CHECK: candidate run complete -- {ran} target(s) verified under the candidate \
+            toolchain; this certifies nothing. Record the re-run, then move the pin(s)."
+        );
+        return ExitCode::SUCCESS;
+    }
     if any_blocking_fail {
         println!("VERUS-CHECK: BLOCKING FAILURE (release-required target not proved)");
         ExitCode::FAILURE
@@ -634,9 +858,7 @@ mod rfc_0_43_001_tests {
     }
 
     fn script(path: &std::path::Path, body: &str) {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
-        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        crate::verus_check::test_support::write_executable(path, body);
     }
 
     /// A prover directory with a `verus` and a `z3` that reports `banner`, plus a symlink
@@ -727,5 +949,222 @@ mod rfc_0_43_001_tests {
         let e = z3_mismatch_refusal("4.12.5", "4.16.0", "/x/z3", &Z3Source::BesideProver);
         assert!(e.contains("z3 SOLVER"));
         assert!(!e.contains("requires the pinned Verus version"));
+    }
+}
+
+#[cfg(test)]
+mod rfc_0_43_001_amendment_tests {
+    use super::*;
+
+    fn a(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn invocation_parsing() {
+        assert_eq!(
+            parse_invocation(&a(&[])).unwrap(),
+            Invocation {
+                candidate: false,
+                selection: Selection::AllPilot
+            }
+        );
+        assert_eq!(
+            parse_invocation(&a(&["--release-required"]))
+                .unwrap()
+                .selection,
+            Selection::ReleaseRequired
+        );
+        let c = parse_invocation(&a(&["--candidate"])).unwrap();
+        assert!(c.candidate && c.selection == Selection::AllPilot);
+        // the flag may come before or after a selector
+        for args in [&["--candidate", "lease"][..], &["lease", "--candidate"][..]] {
+            let i = parse_invocation(&a(args)).unwrap();
+            assert!(i.candidate);
+            assert_eq!(i.selection, Selection::Target("lease".into()));
+        }
+    }
+
+    /// R7: a candidate run can never stand in for certification.
+    #[test]
+    fn candidate_is_refused_under_release_required_in_either_order() {
+        for args in [
+            &["--candidate", "--release-required"][..],
+            &["--release-required", "--candidate"][..],
+        ] {
+            let e = parse_invocation(&a(args)).unwrap_err();
+            assert!(
+                e.contains("cannot be combined with `--release-required`"),
+                "{e}"
+            );
+            assert!(e.contains("certifies nothing"));
+        }
+    }
+
+    #[test]
+    fn extra_or_repeated_arguments_are_refused_not_ignored() {
+        assert!(parse_invocation(&a(&["--candidate", "--candidate"])).is_err());
+        assert!(parse_invocation(&a(&["lease", "capability"])).is_err());
+        assert!(parse_invocation(&a(&["--all-pilot", "--release-required"])).is_err());
+    }
+
+    /// R7: whatever the proof does, a candidate run never yields the certified marker --
+    /// and an ordinary run still does, so the distinction is the mode and not the outcome.
+    #[test]
+    fn a_candidate_run_never_emits_machine_checked_pass() {
+        for passed in [true, false] {
+            let (status, marker, mc) = prover_outcome(true, passed);
+            assert!(!marker.contains("MACHINE-CHECKED"), "{marker}");
+            assert!(!marker.contains("PASS"), "{marker}");
+            assert!(!status.contains("machine_checked"));
+            assert!(mc.starts_with("candidate_"));
+        }
+        assert_eq!(prover_outcome(true, true).1, "CANDIDATE-ONLY");
+        assert_eq!(prover_outcome(true, false).1, "CANDIDATE-FAIL");
+        assert_eq!(prover_outcome(false, true).1, "MACHINE-CHECKED-PASS");
+        assert_eq!(prover_outcome(false, false).1, "MACHINE-CHECKED-FAIL");
+    }
+
+    #[test]
+    fn the_verus_pin_compares_without_the_release_prefix() {
+        let m = read_verus_pin(
+            Some("0.2026.11.02.8bf68ee"),
+            Some("release/0.2026.11.02.8bf68ee"),
+        )
+        .unwrap();
+        assert!(m.matches());
+        let d = read_verus_pin(
+            Some("0.2026.11.02.8bf68ee"),
+            Some("release/0.2026.07.27.31579f0"),
+        )
+        .unwrap();
+        assert!(!d.matches());
+    }
+
+    /// R8: the refusal names the component, both versions, the way through, and the blast
+    /// radius -- and does not read as the solver's.
+    #[test]
+    fn the_verus_refusal_says_what_it_is() {
+        let r = read_verus_pin(
+            Some("0.2026.11.02.8bf68ee"),
+            Some("release/0.2026.07.27.31579f0"),
+        )
+        .unwrap();
+        let e = verus_mismatch_refusal(&r);
+        assert!(e.contains("BLOCKING"));
+        assert!(e.contains("Verus RELEASE mismatch"));
+        assert!(e.contains("not the z3 solver"));
+        assert!(e.contains("release/0.2026.07.27.31579f0") && e.contains("0.2026.11.02.8bf68ee"));
+        assert!(e.contains("--candidate"));
+        assert!(e.contains("cargo xtask build"));
+        let z = z3_mismatch_refusal("4.12.5", "4.16.0", "/x/z3", &Z3Source::BesideProver);
+        assert!(z.contains("--candidate"));
+        assert!(!e.contains("z3 SOLVER") && !z.contains("Verus RELEASE"));
+    }
+
+    /// An unparseable detected version, or an unreadable lock, refuses in EVERY mode now
+    /// (it used to only under `--release-required`).
+    #[test]
+    fn an_unestablished_verus_identity_refuses() {
+        let e = read_verus_pin(None, Some("release/x")).unwrap_err();
+        assert!(e.contains("not established") && e.contains("Detected: unknown"));
+        let e = read_verus_pin(Some("1"), None).unwrap_err();
+        assert!(e.contains("(unreadable)"));
+    }
+
+    fn z3(detected: &str, pinned: &str) -> Z3Reading {
+        Z3Reading {
+            detected: detected.into(),
+            pinned: pinned.into(),
+            path: "/x/z3".into(),
+            source: Z3Source::BesideProver,
+        }
+    }
+
+    /// R7: the run states that it certifies nothing and names BOTH pairs of versions.
+    #[test]
+    fn the_candidate_notice_names_both_pairs_and_says_it_certifies_nothing() {
+        let v = read_verus_pin(
+            Some("0.2026.11.02.8bf68ee"),
+            Some("release/0.2026.07.27.31579f0"),
+        )
+        .unwrap();
+        let n = candidate_notice(&v, &z3("4.16.0", "4.12.5"));
+        assert!(n.contains("certifies nothing"));
+        assert!(n.contains(
+            "detected 0.2026.11.02.8bf68ee, pinned release/0.2026.07.27.31579f0 (DIFFERS)"
+        ));
+        assert!(n.contains("detected 4.16.0, pinned 4.12.5 (DIFFERS)"));
+        assert!(
+            n.contains("CANDIDATE-ONLY") && n.contains("never the machine-checked pass marker")
+        );
+        // The literal must be ABSENT from a candidate run's output, prose included: a plain
+        // `grep MACHINE-CHECKED-PASS` over a retained log must find nothing to mistake.
+        assert!(!n.contains("MACHINE-CHECKED"), "{n}");
+        assert!(!n.contains("both pins match"));
+    }
+
+    #[test]
+    fn a_candidate_run_with_nothing_mismatched_says_so() {
+        let v = read_verus_pin(Some("0.1"), Some("release/0.1")).unwrap();
+        let n = candidate_notice(&v, &z3("4.16.0", "4.16.0"));
+        assert!(n.contains("(matches)") && n.contains("both pins match"));
+        assert!(n.contains("certifies nothing"));
+        assert!(!n.contains("MACHINE-CHECKED"), "{n}");
+    }
+
+    /// `read_z3_pin` reports a mismatch as a reading (the candidate path); `check_z3_pin`
+    /// refuses it (the ordinary path). One source of truth for the figure.
+    #[test]
+    fn a_z3_mismatch_is_a_reading_for_candidate_and_a_refusal_for_ordinary() {
+        let root = std::env::temp_dir().join(format!("fjell-0431a-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let z = root.join("z3");
+        crate::verus_check::test_support::write_executable(&z, "echo 'Z3 version 4.99.0 - 64 bit'");
+        let pin = "[z3]\nversion = \"4.16.0\"\n";
+        let env = Some(z.clone().into_os_string());
+        let r = read_z3_pin(Some(pin), env.clone(), std::ffi::OsStr::new("")).unwrap();
+        assert_eq!(
+            (r.detected.as_str(), r.pinned.as_str()),
+            ("4.99.0", "4.16.0")
+        );
+        assert!(check_z3_pin(Some(pin), env, std::ffi::OsStr::new("")).is_err());
+        // but an unestablishable solver is an error on BOTH paths
+        let bad = Some(std::ffi::OsString::from("/nonexistent/z3"));
+        assert!(read_z3_pin(Some(pin), bad, std::ffi::OsStr::new("")).is_err());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
+/// Shared by the tests that execute a script they have just written.
+#[cfg(test)]
+mod test_support {
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::Path;
+    use std::process::Command;
+
+    /// Write `body` as an executable `#!/bin/sh` script at `path`, and do not return until it
+    /// can actually be executed.
+    ///
+    /// Why the wait: tests run on parallel threads, and a thread that forks while this one
+    /// still holds the new file open for writing hands the child a copy of that descriptor;
+    /// `exec` of the file then fails with `ETXTBSY` ("Text file busy", errno 26) until that
+    /// child execs or exits. It showed up as a test failing about one run in eight. The
+    /// production code under test reported it correctly (it refuses, and says "Text file
+    /// busy") -- the fault was the fixture's, so the fixture waits it out rather than the
+    /// product being made to retry.
+    pub fn write_executable(path: &Path, body: &str) {
+        std::fs::write(path, format!("#!/bin/sh\n{body}\n")).unwrap();
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).unwrap();
+        for _ in 0..500 {
+            match Command::new(path).arg("--version").output() {
+                Err(e) if e.raw_os_error() == Some(26) => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                _ => return,
+            }
+        }
+        panic!("{} still `Text file busy` after 5s", path.display());
     }
 }

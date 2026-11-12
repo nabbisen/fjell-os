@@ -41,13 +41,14 @@ verus --version     # → 0.2026.11.02.8bf68ee
 > follows Verus releases, so after a while `paru -S verus-bin` installs
 > something newer than the pin above and **Gate 10 then blocks on a version
 > mismatch** — `verus-check` compares `verus --version` against this
-> directory's `TOOLCHAIN.lock` and fails closed, which is correct behaviour and
+> directory's `TOOLCHAIN.lock` and fails closed (in every mode), which is correct behaviour and
 > not a bug to work around. **Measured 2026-11-09: AUR served
 > `0.2026.11.02.8bf68ee`, three months past the pin.** So **check
 > `verus --version` against the lock before trusting the package route.** When
 > it has overshot there are exactly two honest ways forward: install the pinned
 > release by hand (below), or **update the pin — which requires a recorded
-> proof-review re-run**, per this file's own rule, and is therefore never cut
+> proof-review re-run** (its proofs are run with `--candidate`; see "Upgrading the
+> prover" below), per this file's own rule, and is therefore never cut
 > work.
 ```
 
@@ -72,7 +73,30 @@ verus --version
 cargo xtask verus-check capability        # one target
 cargo xtask verus-check --all-pilot       # all pilot targets
 cargo xtask verus-check --release-required # only release-gated targets
+cargo xtask verus-check --candidate         # upgrade re-run only: proofs under a mismatched pin; certifies nothing
 ```
+
+**Both pins block in every mode.** `verus-check` compares the Verus release (`[verus] release`) and
+the bundled z3 solver (`[z3] version`, read from the solver's own `--version`) against the lock and
+refuses on any difference, naming which component differed. The only way to run the proofs past a
+mismatch is `--candidate`, below.
+
+## Upgrading the prover (or the solver)
+
+A new Verus release bundles a new z3, so after an upgrade no ordinary run is possible until the lock
+moves — and the lock moves only behind a recorded proof-review re-run, which needs the proofs run.
+`--candidate` is the step that breaks that circle:
+
+1. Install the new prover (do not edit the lock yet).
+2. `cargo xtask verus-check --candidate` — runs the pilot proofs under the installed toolchain. It
+   prints both detected versions against both pins and says the run **certifies nothing**; its
+   markers are `VERUS:TARGET:<name>:CANDIDATE-ONLY` (or `CANDIDATE-FAIL`), **never**
+   `MACHINE-CHECKED-PASS`, so a retained log cannot be mistaken for a certification.
+3. Write the proof-review record (`docs/src/assurance/proofs/review-records/`), as the lock's header
+   requires.
+4. Only then edit `TOOLCHAIN.lock`: `[verus] release`, `[z3] version`, `[toolchain] channel`.
+5. `cargo xtask verus-check --release-required` — on its own. `--candidate` is **refused** together
+   with `--release-required`, so a candidate run can never stand in for the certifying one.
 
 ## Conformance-only mode
 

@@ -17,6 +17,18 @@ struct Gate {
     detail: String,
 }
 
+/// `(machine-checked passes, conformance-only, failures)` counted from a `verus-check` marker
+/// log. Pulled out of the gate so the question "does a candidate run count as a pass?" can be
+/// asked of the real counting code: it must not (RFC-0.43-001 Amendment 1, R7 -- a candidate
+/// run emits `CANDIDATE-ONLY`/`CANDIDATE-FAIL`, never the exact string counted here).
+fn verus_marker_counts(log: &str) -> (usize, usize, usize) {
+    (
+        log.matches(":MACHINE-CHECKED-PASS").count(),
+        log.matches(":CONFORMANCE-ONLY").count(),
+        log.matches(":MACHINE-CHECKED-FAIL").count() + log.matches(":CONFORMANCE-FAIL").count(),
+    )
+}
+
 pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     println!("=== Fjell OS release rehearsal (RFC-v0.16-008) ===");
     println!("Running v1.0 tag gates. No tag will be applied.\n");
@@ -299,10 +311,7 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
         "verus-check",
         "--all-pilot",
     ]);
-    let pass = verus.matches(":MACHINE-CHECKED-PASS").count();
-    let conf = verus.matches(":CONFORMANCE-ONLY").count();
-    let vfail =
-        verus.matches(":MACHINE-CHECKED-FAIL").count() + verus.matches(":CONFORMANCE-FAIL").count();
+    let (pass, conf, vfail) = verus_marker_counts(&verus);
     println!(
         "  [ ~~ ] Verus  Proof targets (all)           {} machine-checked, {} conformance-only, {} fail (experimental targets non-blocking)",
         pass, conf, vfail
@@ -432,5 +441,44 @@ fn sh_status(parts: &[&str]) -> (bool, String) {
             (o.status.success(), s)
         }
         Err(e) => (false, format!("command failed: {}", e)),
+    }
+}
+
+#[cfg(test)]
+mod verus_marker_tests {
+    use super::verus_marker_counts;
+
+    /// A real ordinary run's markers (three targets, all machine-checked).
+    const ORDINARY: &str = "VERUS:TARGET:capability:MACHINE-CHECKED-PASS\n\
+        {\"target\":\"capability\",\"machine_check\":\"pass\"}\n\
+        VERUS:TARGET:lease:MACHINE-CHECKED-PASS\n\
+        VERUS:TARGET:boot-control:MACHINE-CHECKED-PASS\n";
+
+    /// The shape of a real `--candidate` run's markers (RFC-0.43-001 Amendment 1).
+    const CANDIDATE: &str = "verus-check: CANDIDATE RUN -- this run certifies nothing.\n\
+        VERUS:TARGET:capability:CANDIDATE-ONLY\n\
+        {\"target\":\"capability\",\"machine_check\":\"candidate_pass\",\"status\":\"candidate_only\"}\n\
+        VERUS:TARGET:lease:CANDIDATE-ONLY\n\
+        VERUS:TARGET:boot-control:CANDIDATE-FAIL\n";
+
+    #[test]
+    fn an_ordinary_run_counts_as_passes() {
+        assert_eq!(verus_marker_counts(ORDINARY), (3, 0, 0));
+    }
+
+    /// The control the amendment asks for: a candidate log fed through the gate's own
+    /// counting contributes **no** machine-checked pass.
+    #[test]
+    fn a_candidate_run_counts_as_no_passes() {
+        let (pass, _conf, _fail) = verus_marker_counts(CANDIDATE);
+        assert_eq!(pass, 0);
+        assert!(!CANDIDATE.contains("MACHINE-CHECKED-PASS"));
+    }
+
+    /// And mixing the two cannot launder one into the other.
+    #[test]
+    fn a_candidate_log_appended_to_an_ordinary_one_adds_nothing() {
+        let both = format!("{ORDINARY}{CANDIDATE}");
+        assert_eq!(verus_marker_counts(&both), verus_marker_counts(ORDINARY));
     }
 }

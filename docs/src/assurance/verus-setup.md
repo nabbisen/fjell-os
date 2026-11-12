@@ -46,6 +46,7 @@ verus --version   # → 0.2026.05.24.ecee80a
 cargo xtask verus-check --all-pilot         # all three pilot targets
 cargo xtask verus-check --release-required  # capability + lease only (Gate 10)
 cargo xtask verus-check capability          # one target
+cargo xtask verus-check --candidate         # prover/solver upgrade re-run only: certifies nothing
 ```
 
 ### Offline use (from the logs archive)

@@ -273,7 +273,7 @@ Subcommands:
   boot-loop [--boots N] [--jobs J] [--drive-extra STR] [--kernel PATH] [--out DIR]
   dev run --svc <name> --kernel <path>  (RFC v0.9-005)
   dev lint <manifest.toml>
-  verus-check [<target>|--all-pilot|--release-required]  (RFC-v0.17-005)
+  verus-check [--candidate] [<target>|--all-pilot|--release-required]  (RFC-v0.17-005; --candidate: RFC-0.43-001 A1, run proofs under a mismatched pin, certifies nothing)
   release-rehearsal              run v1.0 tag gates (RFC-v0.16-008)
   consistency-check [<subcheck>|--all]  declared vs. actual state (RFC-v0.22-001)
   test-all [--no-qemu]           run every tier, save logs to tests/runs/
