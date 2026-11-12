@@ -539,7 +539,7 @@ mid-milestone and blocked the cut.
 
 ---
 
-## Accepted (accepted/) — 2 RFCs
+## Accepted (accepted/) — 3 RFCs
 
 0.43's line opens. The milestone's sentence is **the instruments check the things they claim to
 check, and the declarations in the tree name capabilities that exist** — 0.42's own finding is
@@ -548,12 +548,13 @@ measuring apparatus rather than in the product. Neither line touches the ABI, wh
 deliberate after 0.42 moved the snapshot twice. **0.43-001** enforces the solver half of a
 reproducibility pin that compares only its prover; **0.43-002** repairs the instrument that owns
 declaration-versus-install, which cannot see nine of the nineteen declarations it exists to
-check. They are independent. Scope: `.git-exclude/handoff/scope-0.43.md`.
+check. **0.43-003** was added on 2026-11-12, out of 0.43-002's own review: the widened instrument found six declarations with no install rather than the one predicted, and `driver-virtio-net` turns out to be spawned every boot, to exit at its first capability-bearing syscall, and to print four lines of device work with the device's registers never mapped (**E-118**). 0.43-001 is independent; **0.43-002 is held and lands with 0.43-003**, because neither may push a red tree (RFC-0.32-003 D24). Scope: `.git-exclude/handoff/scope-0.43.md`.
 
 | RFC | Title | Tracks |
 |-----|-------|--------|
 | 0.43-001 | [The solver pin is enforced, and the comment stops describing what the code does not do](./accepted/RFC-0.43-001-the-solver-pin-is-enforced.md) | E-112 |
 | 0.43-002 | [Every declaration is visible to the instrument that checks it](./accepted/RFC-0.43-002-every-declaration-is-visible-to-the-instrument-that-checks-it.md) | E-117 |
+| 0.43-003 | [`driver-virtio-net` says only what it does](./accepted/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md) | E-118 |
 
 `accepted/README.md` keeps the folder in a fresh clone.
 
