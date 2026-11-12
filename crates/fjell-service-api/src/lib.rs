@@ -749,6 +749,14 @@ pub mod negative_markers {
     /// (Demonstration 4: a boundary is shown to exist by it saying no).
     pub const IRQ_BIND_WITHOUT_RIGHT: &str = "NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED:PASS";
 
+    // ── the clock (RFC-0.42-002; 0.43 small item 1) ──────────────────────────
+    /// `sys_clock_now_ns` is refused without a `Clock` capability carrying `CLOCK_READ`:
+    /// through a slot holding no capability at all, and through a capability that holds every
+    /// ordinary right but is not a `Clock` (a blanket grant does not confer the clock). It
+    /// asserts **denial** and nothing about time (RFC-0.42-002's risk section forbids a
+    /// time-dependent assertion in any tier).
+    pub const CLOCK_READ_WITHOUT_RIGHT: &str = "NEG:CLOCK:READ_WITHOUT_RIGHT_REJECTED:PASS";
+
     // ── v0.2 release gate ─────────────────────────────────────────────────────
     /// All v0.2 negative-test categories have been exercised.
     pub const V02_RELEASE_GATE: &str = "TEST:V02:PASS";

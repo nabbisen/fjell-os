@@ -50,6 +50,10 @@ const SLOT_SAMPLE_EP: u32 = 7; // Endpoint cap to sample-service (object 6, RFC 
 const SLOT_REBOOT: u32 = 16; // Reboot cap, full rights (RFC-0.33-001 D15)
 const SLOT_REBOOT_NARROW: u32 = 17; // scratch: the Reboot cap minted down to no REBOOT right
 const SLOT_IRQ: u32 = 9; // Interrupt cap, IRQ_ACK only, no IRQ_BIND (RFC-0.25-001)
+/// A slot nothing grants and no test uses (0.43 small item 1): `neg-test` holds **no** `Clock`
+/// capability, so a clock read through here must be refused. `test_clock_read_without_right`
+/// checks that it really is empty before relying on that.
+const SLOT_NEVER_GRANTED: u32 = 50;
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 #[allow(dead_code)]
@@ -168,6 +172,46 @@ fn test_irq_bind_without_right() {
         fjell_abi::error::SysError::PermissionDenied,
         M::IRQ_BIND_WITHOUT_RIGHT,
     );
+}
+
+/// CLOCK: `sys_clock_now_ns` is refused without a `Clock` capability carrying `CLOCK_READ`
+/// (RFC-0.42-002 R4; 0.43 small item 1 -- the permanent demonstration that the gate
+/// `v1-limitations.md` row 18 calls sound can fail).
+///
+/// `neg-test` holds **no Clock capability at all**; the absence is the point. Two refusals:
+///   * a slot holding nothing -> `InvalidCap`;
+///   * `SLOT_OWN_EP`, an `Endpoint` granted `ALL_NON_META` -- every ordinary right and still
+///     not the clock -> `WrongType`. A blanket grant does not confer it.
+///
+/// **Asserts the error, never a value, and nothing about time**: the counter's content and
+/// advance are deliberately not touched (a wall-time assertion is flaky on a loaded host,
+/// RFC-0.42-002 risk / E-104). One marker, emitted only if BOTH refusals are exactly right;
+/// any other outcome (including a successful read) emits a forbidden `NEG:HARNESS:*` marker.
+fn test_clock_read_without_right() {
+    // The "never granted" slot must really be empty, or the first assertion proves nothing.
+    // "Empty" is exactly `SlotEmpty` (what `sys_cap_inspect` reports for a slot holding
+    // nothing): ANY other result -- success, or `PermissionDenied` from an occupied slot whose
+    // capability lacks `INSPECT` (a Clock capability would) -- means something is granted
+    // there. (A first version treated every error as empty, and a mutation that granted the
+    // clock at this slot walked straight through it; the second compared to `InvalidCap`,
+    // which is what the clock path says for an empty slot but not what inspect says, and
+    // refused the clean tree. Both caught by running the clean tree and the mutation.)
+    if fjell_syscall::sys_cap_inspect(CapHandle(SLOT_NEVER_GRANTED))
+        != Err(fjell_abi::error::SysError::SlotEmpty)
+    {
+        setup_failed("clock_read: SLOT_NEVER_GRANTED is not empty");
+        return;
+    }
+    let none_at_all = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_NEVER_GRANTED));
+    let blanket_grant = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_OWN_EP));
+    use fjell_abi::error::SysError;
+    match (none_at_all, blanket_grant) {
+        (Err(SysError::InvalidCap), Err(SysError::WrongType)) => {
+            sys_debug_writeln(M::CLOCK_READ_WITHOUT_RIGHT)
+        }
+        (Ok(_), _) | (_, Ok(_)) => sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK"),
+        _ => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+    }
 }
 
 /// CAP: copy a cap, bind a lease, revoke the lease, use the cap → LeaseRevoked.
@@ -1484,6 +1528,7 @@ pub extern "C" fn service_main() -> ! {
     test_cap_binding_is_set_once();
     test_cap_wrong_kind();
     test_irq_bind_without_right();
+    test_clock_read_without_right();
     // ── RFC 049: capability management rights ─────────────────────────────────
     test_cap_copy_without_right();
     test_cap_mint_without_right();

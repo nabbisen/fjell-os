@@ -15,6 +15,11 @@
 # RFC-0.25-001 Demonstration 4 adds NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED: a
 # task without IRQ_BIND is refused.
 #
+# 0.43 small item 1 adds NEG:CLOCK:READ_WITHOUT_RIGHT_REJECTED: `sys_clock_now_ns` is refused with
+# no capability at all and with a capability that is not a Clock -- the permanent demonstration
+# that the gate `v1-limitations.md` row 18 publishes as sound can fail (RFC-0.24-001). It asserts
+# denial only, never the counter's value or advance.
+#
 # (History: the profile reader used to fold a `#` comment placed inside the array
 # into the last marker; a comment between entries is now ignored -- E-057, closed
 # by RFC-0.33-004 D6. See semantic.toml.)
@@ -31,6 +36,7 @@ expected_markers = [
   "NEG:CAP:REVOKE_WITHOUT_RIGHT_REJECTED:PASS",
   "NEG:CAP:INSPECT_WITHOUT_RIGHT_REJECTED:PASS",
   "NEG:IRQ:BIND_WITHOUT_RIGHT_REJECTED:PASS",
+  "NEG:CLOCK:READ_WITHOUT_RIGHT_REJECTED:PASS",
   "NEG:CAP:REBIND_AFTER_REVOKE_REFUSED:PASS",
   "NEG:CAP:REVOKED_STAYS_REVOKED:PASS",
   "NEG:CAP:BIND_LEASE_WITHOUT_RIGHT_REJECTED:PASS",
