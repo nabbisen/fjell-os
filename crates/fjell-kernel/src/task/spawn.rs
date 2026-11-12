@@ -442,16 +442,11 @@ pub fn spawn(
                     static VQ: &[usize] = &[3];
                     Some(VQ)
                 }
-                fjell_abi::service::ImageId::DRIVER_VIRTIO_BLK => {
-                    // Dedicated virtio-blk driver — region 3 (virtio-mmio range).
-                    static VQ: &[usize] = &[3];
-                    Some(VQ)
-                }
-                fjell_abi::service::ImageId::DRIVER_VIRTIO_NET => {
-                    // Dedicated virtio-net driver — region 3 (same virtio-mmio range).
-                    static VQ: &[usize] = &[3];
-                    Some(VQ)
-                }
+                // RFC-0.43-003 R4: `DRIVER_VIRTIO_BLK` and `DRIVER_VIRTIO_NET` are not here.
+                // Both are registration stubs that exit at once and map nothing; an image
+                // that does nothing holds nothing. `storaged`, above, is the one that maps
+                // region 3 -- services drive their devices in this tree. A driver that
+                // really drives one earns its region with the line that writes it.
                 fjell_abi::service::ImageId::NEG_TEST => {
                     // Integration test harness — needs all regions for negative-test
                     // coverage. Audited exception.

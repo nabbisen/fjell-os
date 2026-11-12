@@ -1,36 +1,34 @@
-//! driver-virtio-net — User-space virtio-mmio network driver for Fjell OS.
+//! driver-virtio-net — a registration stub. It does not drive the network device.
 //!
-//! v0.4.0-alpha.1: Driver skeleton.  Receives caps from `devmgr`, binds the
-//! IRQ, negotiates features, emits `NET_DRIVER_READY`, then enters an IRQ-wait
-//! loop using `sys_irq_wait` / `sys_irq_ack` (RFC v0.4-001 §7.3).
+//! This image is spawned by `init` on every boot, prints one line saying what it is, and
+//! exits cleanly (RFC-0.43-003, closes E-118). It holds no capability beyond the ones every
+//! image gets, maps no device register, allocates no DMA and binds no interrupt.
 //!
-//! Full virtio register reads and ring ops land in v0.4.0-alpha.2.
+//! **It used to claim otherwise.** Until RFC-0.43-003 this file declared six capability slots
+//! (`MmioRegion`, two `DmaRegion`s, an `Interrupt`, two `Endpoint`s), a header said `devmgr`
+//! installed them, and the console carried *"device descriptor loaded"*, *"features
+//! negotiated"* and *"rx queue initialised"*. None of it was true: `devmgr` installs nothing,
+//! `sys_mmio_map` was never called, and the first call that needed a capability the image
+//! was never given (`sys_irq_bind`) failed and ended the image -- on every boot, behind a
+//! green tier, because `TEST:V0.4-NET:PASS` is `netd`'s and never needed this driver.
 //!
-//! RFC-0.37-002 (closes E-082): this crate's own top comment, and
-//! `v1-limitations.md`'s smoke-test-stub list, both used to say this
-//! service "signals readiness and exits before its main loop by design" —
-//! **false of this code**: there is no `sys_exit(0)` anywhere in it, and
-//! `service_main` reaches a real `loop { sys_irq_wait(...) }` after
-//! binding its IRQ. That claim was copied boilerplate from `netd`'s own
-//! stub comment (the same text, verbatim) and was never true here;
-//! `fjell-secure-transportd` and `fjell-proxy-text` were already removed
-//! from the same `v1-limitations.md` list by earlier lines for the
-//! identical reason — this is a third instance, found while re-deriving
-//! this crate's lint inventory rather than inheriting the RFC's own list
-//! of three `unreachable_code` suppressors.
+//! **Why a stub and not a driver.** In this tree services drive their own devices:
+//! `storaged` maps its virtio-blk region and allocates its own DMA, and
+//! `driver-virtio-blk` is the same shape as this file. Making this image a real driver would
+//! mean granting a driver image DMA, an interrupt and endpoints -- a privileged driver plane,
+//! which is an authority design (which plane owns DMA, how an interrupt reaches a user task,
+//! whether three images should share the whole virtio-mmio range) that is neither decided nor
+//! foreclosed here. This image stops *claiming* to be that driver; a working NIC is a later
+//! line that earns its grants.
+//!
+//! The host-testable virtqueue, ring, state-machine and feature-negotiation code in
+//! `src/core/` (the `fjell_driver_virtio_net` library) is untouched and is **not linked into
+//! this image**.
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_cap::CapHandle;
-use fjell_net_format::{NetDeviceDescriptor, NetIpcTag};
-use fjell_syscall::{sys_debug_writeln, sys_exit, sys_irq_ack, sys_irq_wait};
-
-// Re-use the host-testable core types.
-use fjell_driver_virtio_net::{
-    DriverState, DriverStateBlock, FeatureError, Ring, VirtQueue, VirtioFeatureFlags,
-    negotiate_features_checked,
-};
+use fjell_syscall::{sys_debug_writeln, sys_exit};
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -38,164 +36,9 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     sys_exit(1);
 }
 
-// ── Cap slot indices ──────────────────────────────────────────────────────────
-//
-// devmgr installs capabilities into these CSpace slots before starting
-// the driver:
-//   slot 0 — MmioRegion  (device registers)
-//   slot 1 — DmaRegion   (RX ring)
-//   slot 2 — DmaRegion   (TX ring)
-//   slot 3 — Interrupt   (IRQ line)
-//   slot 4 — Endpoint    (netd send-end; driver posts RX events here)
-//   slot 5 — Endpoint    (service-manager ready endpoint)
-//
-// RFC-0.37-002 (closes E-082): these three name slots `devmgr` installs,
-// not referenced by code yet -- full MMIO register reads and DMA ring ops
-// land in v0.4.0-alpha.2 (this file's own top comment); feature negotiation
-// today uses compile-time QEMU-known constants, not a live register read.
-// Re-derived, not inherited from the crate-level blanket this line removed.
-#[allow(dead_code)]
-const CAP_MMIO: CapHandle = CapHandle(0);
-#[allow(dead_code)]
-const CAP_DMA_RX: CapHandle = CapHandle(1);
-#[allow(dead_code)]
-const CAP_DMA_TX: CapHandle = CapHandle(2);
-const CAP_IRQ: CapHandle = CapHandle(3);
-const CAP_NETD_EP: CapHandle = CapHandle(4);
-const CAP_SMGR_EP: CapHandle = CapHandle(5);
-
-// ── IPC helpers ─────────────────────────────────────────────────────────────
-
-fn ipc_send_tag(ep: CapHandle, tag: u16) {
-    // RFC-0.28-002: was a hand-rolled `IpcSend` asm block; `fjell_syscall`'s
-    // wrapper is a correct, audited superset of this shape.
-    let _ = fjell_syscall::sys_ipc_send(ep.0 as u32, tag as usize);
-}
-
-// ── Driver entry ─────────────────────────────────────────────────────────────
-
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
-    sys_debug_writeln("driver-virtio-net: starting");
-
-    let mut state = DriverStateBlock::new();
-    // Legacy ring helpers kept for backward compat; VirtQueue is the real path.
-    let _rx_ring = Ring::new();
-    let _tx_ring = Ring::new();
-
-    // ── Init phase ───────────────────────────────────────────────────────────
-    state.transition(DriverState::Init).unwrap_or_else(|_| {
-        sys_debug_writeln("driver-virtio-net: state transition failed");
-        sys_exit(1);
-    });
-
-    // Read device descriptor from static QEMU defaults (devmgr will provide
-    // via IPC in v0.4.0-alpha.2; for now use the known QEMU virt parameters).
-    // Not read by anything below yet -- feature negotiation uses its own
-    // compile-time constants. Named `_dev` rather than allowed: the
-    // underscore prefix is the narrower fix for a genuinely unused local
-    // (RFC-0.37-002, E-082).
-    let _dev = NetDeviceDescriptor::QEMU_VIRT_DEFAULT;
-    sys_debug_writeln("driver-virtio-net: device descriptor loaded");
-
-    // Feature negotiation — RFC-v0.7.3-001: use negotiate_features_checked
-    // which reads the real device-offered feature set and fails closed if
-    // required features are absent (MAC + STATUS).
-    //
-    // For the QEMU virt board, the offered set is known at compile time;
-    // a full MMIO read path lands once devmgr provides the mapped MMIO VA.
-    // For now we use the QEMU-known minimal set (MAC + STATUS only).
-    let offered = VirtioFeatureFlags(
-        fjell_driver_virtio_net::VIRTIO_NET_F_MAC | fjell_driver_virtio_net::VIRTIO_NET_F_STATUS,
-    );
-    let (negotiated, legacy) = match negotiate_features_checked(offered) {
-        Ok(r) => r,
-        Err(FeatureError::MissingRequired) => {
-            sys_debug_writeln("driver-virtio-net: ERROR required features missing");
-            sys_exit(1);
-        }
-    };
-    let _ = negotiated;
-    if legacy {
-        sys_debug_writeln("driver-virtio-net: legacy mode (no VIRTIO_F_VERSION_1)");
-    }
-    sys_debug_writeln("driver-virtio-net: features negotiated");
-
-    // Initialise per-direction VirtQueues (RFC-v0.7.3-001).
-    let mut rx_virtq = VirtQueue::new();
-    // Not read or posted to below yet -- TX path lands with full ring ops in
-    // v0.4.0-alpha.2 (this file's own top comment). `_tx_virtq`, not `mut`:
-    // the narrower fix for a genuinely unused, never-mutated local
-    // (RFC-0.37-002, E-082).
-    let _tx_virtq = VirtQueue::new();
-
-    // Pre-fill RX queue with empty receive buffers.
-    // DMA buffer addresses are known from sys_dma_alloc at boot;
-    // for the initial ring we use placeholder PAs until full DMA wiring lands.
-    const RX_BUF_PA_BASE: u64 = 0x8800_0000; // placeholder QEMU PA
-    const RX_BUF_SIZE: u32 = 256;
-    for i in 0..8u64 {
-        let pa = RX_BUF_PA_BASE + i * RX_BUF_SIZE as u64;
-        if rx_virtq.post_rx_buffer(pa, RX_BUF_SIZE).is_none() {
-            break;
-        }
-    }
-    sys_debug_writeln("driver-virtio-net: rx queue initialised");
-
-    // Bind IRQ (blocking bind; real kernel call in cross-compiled binary).
-    match fjell_syscall::sys_irq_bind(CAP_IRQ) {
-        Ok(()) => sys_debug_writeln("driver-virtio-net: IRQ bound"),
-        Err(_) => {
-            sys_debug_writeln("driver-virtio-net: IRQ bind failed");
-            sys_exit(1);
-        }
-    }
-
-    // Transition to Ready.
-    state
-        .transition(DriverState::Ready)
-        .unwrap_or_else(|_| sys_exit(1));
-    sys_debug_writeln("driver-virtio-net: ready");
-
-    // Notify service-manager.
-    ipc_send_tag(CAP_SMGR_EP, NetIpcTag::DriverReady as u16);
-    sys_debug_writeln("driver-virtio-net: sent NET_DRIVER_READY");
-
-    // ── IRQ wait loop ────────────────────────────────────────────────────────
-    loop {
-        match sys_irq_wait(CAP_IRQ) {
-            Ok(()) => {
-                state.transition(DriverState::HandleRx).unwrap_or_else(|_| {
-                    state.fault();
-                });
-
-                if !state.is_faulted() {
-                    // RFC-v0.7.3-001: process completed RX descriptors from
-                    // the used ring. Each completed entry means the device
-                    // wrote a received packet into the buffer.
-                    let mut packets = 0u32;
-                    while let Some((_desc_idx, _pkt_len)) = rx_virtq.pop_used() {
-                        packets += 1;
-                        // Notify netd of the received packet.
-                        ipc_send_tag(CAP_NETD_EP, NetIpcTag::PacketRx as u16);
-                        // Re-post the descriptor for future receives.
-                        // (PA would be recovered from the descriptor table.)
-                    }
-                    if packets == 0 {
-                        // Spurious interrupt (config change or other event).
-                        ipc_send_tag(CAP_NETD_EP, NetIpcTag::LinkUp as u16);
-                    }
-                    state.transition(DriverState::Ready).unwrap_or_default();
-                }
-
-                sys_irq_ack(CAP_IRQ).unwrap_or_default();
-            }
-            Err(_) => {
-                sys_debug_writeln("driver-virtio-net: irq_wait error; entering faulted");
-                state.fault();
-                ipc_send_tag(CAP_NETD_EP, NetIpcTag::DeviceRevoked as u16);
-                sys_exit(1);
-            }
-        }
-    }
+    // One line, and it says what this is. It must not read as device work done.
+    sys_debug_writeln("driver-virtio-net: registration stub, not wired to the device");
+    sys_exit(0)
 }
