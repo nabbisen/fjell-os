@@ -8798,6 +8798,51 @@ which is history removes the disagreement instead of detecting it, and needs no 
   there is no second place to go stale.**
 - **Status:** **CLOSED 2026-11-12**, milestone `0.43`.
 
+## E-120 — `attestd`'s export replies "done" having sent nothing, and its chunk constant is used nowhere at all
+
+- **Found 2026-11-15 by the architect**, scoping 0.44 — by reading **E-087** on the merits for the
+  first time (it had been carried as a title since 2026-10-19) and noticing that
+  `fjell-service-api` declares a **second** `EXPORT_CHUNK`/`EXPORT_DONE` pair.
+- **Claim:** `fjell_service_api::attestd` declares `EXPORT` (`0x316`), `EXPORT_CHUNK` (`0x317`) and
+  `EXPORT_DONE` (`0x318`), under the doc comment *"Export attestation record (PlainText
+  projection)"* — a chunked export of the attestation record.
+- **Tree, observed 2026-11-15.** The handler is **one line**
+  (`fjell-attestd/src/main.rs:401`–`:403`):
+
+  ```rust
+  proto::EXPORT => {
+      reply(proto::EXPORT_DONE);
+  }
+  ```
+
+  - **`EXPORT` (0x316) has two occurrences tree-wide** — its declaration and that arm. **No caller
+    has ever existed.**
+  - **`EXPORT_CHUNK` (0x317) has one occurrence tree-wide: its declaration.** It is used by
+    nothing, **not even by the handler that would send the chunks it exists for.**
+  - So the reply is `EXPORT_DONE` over an export that sent **zero chunks** and **zero bytes**.
+- **This is strictly worse than the instance already on record.** E-087's `measuredd` export at
+  least replies one `EXPORT_CHUNK` carrying a sequence number before `EXPORT_DONE`; this one sends
+  no chunk at all. Both are the same defect: **a declared export that reports success having
+  transferred nothing**, which the design bar's second clause rules out on its own — a caller
+  cannot distinguish "exported, nothing to send" from "not implemented".
+- **Why it was not found with E-087, and the shape is familiar.** E-087 was found by reading
+  `measuredd`'s handler; **nothing then asked whether another service declared the same protocol
+  shape.** That is the axis-blindness of **E-117** (an instrument that searched one directory) and
+  **E-119** (a remedy applied to one page of two) — a correct finding, scoped to the instance that
+  produced it. The register now holds two instances of one class, and **neither was found by an
+  instrument**: both were found by a person reading a handler.
+- **What closing it needs — E-087's plan applies verbatim, and the two should be decided together.**
+  Either the export works, accumulating real content across chunks as `fjell-storaged`'s
+  `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` does — the pattern `fjell-service-api`'s own ABDD note
+  names as the model — or the three constants and the arm go the way `AUDIT_QUERY` went in
+  **RFC-0.35-002**, with the decision recorded. Deciding one and leaving the other would repeat the
+  mistake that produced this entry.
+- **One thing a reader should not conclude.** The attestation record itself is real and is exercised
+  elsewhere (`GENERATED`, `VERIFY_LATEST`). What is hollow is the **export path**, and no live
+  result depends on it, because nothing calls it.
+- **Status:** **ACCEPTED**, `unscheduled` pending the owner's 0.44 decision; proposed there beside
+  **E-087** as one line covering both.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8920,6 +8965,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-117 **`capability-topology` checks nine fewer declarations than exist, and its slot-0 exclusion rests on a fallback RFC-0.41-002 deleted.** The instrument exists so *"a service's own CSpace declaration and the kernel's install must agree"*, and its doc states *"the universe is discovered, not enumerated"* after a planted constant passed against an enumerated list. But discovery is `const SERVICES_DIR = "crates/services"`, so **`crates/drivers/` is outside the scan** and **9 of the 19 `CapHandle(<slot>)` declarations are unchecked** — a constant planted in `crates/drivers/` would pass silently, the same defect on a different axis. **One of the nine is wrong twice:** `virtio-net`'s `CAP_MMIO = CapHandle(0)` gets no slot-0 install (the single `install_raw(0, …)` is fed by a `match` with arms for eighteen images and `_ => None`; `DRIVER_VIRTIO_NET` has no arm) and names the wrong kind anyway (that site installs `Endpoint`; MMIO installs at `31 + region_idx`, so region 3 means slot **34**). `driver-uart` is correct at `CapHandle(32)` for region 1 *and uses it*; virtio-net never uses its own, which is why it has never fired. **The slot-0 exclusion is justified by a false sentence:** it cites a `_ => 0` fallback installing slot 0 *"unconditionally for every `image_id`"*, which RFC-0.41-002 R3 replaced with `_ => None`. The mechanical reason (the install sits in a `match`, not an `if image_id ==` block) still holds; what changed is that a declared slot 0 **can** now be wrong, and two sit there unchecked. **`secure-transportd`'s `CAP_SESSION` is not a defect** — the 0.41 record's *"never installed"* was carried into two scope documents as "false declaration" and is withdrawn: slot 0 is where a runtime cap-broker delivery arrives, and it belongs in `WAIVERS` with that reason once the slot is checked at all. **Corrected hours after filing:** this entry first called `proxy-text`'s slot 2 (`Endpoint` at `object_id: 0`) a send capability that can never deliver. **It is not a send path but an introspection subject** — the install comment says proxy-text *"introspects [it] via `sys_cap_inspect` to obtain its OWN kernel-verified rights"*, it does so at `main.rs:44`, and `sys_cap_inspect` resolves the slot, checks lease and `INSPECT`, and **never dereferences the object**. So **one** of the three "pre-existing false declarations" is real, not three — a phrase carried unexamined from the 0.41 review record through four documents. Filed as one erratum rather than three fixes because all three survived a milestone about instruments, and they survived because the instrument that owns the class cannot see them | RFC-0.43-002 | CLOSED |
 | E-118 **`driver-virtio-net` is spawned every boot, exits at its first capability-bearing syscall, and prints four lines of device work it never did.** Three layers. **One:** all six of its `CapHandle` declarations — `CAP_MMIO(0)`, `CAP_DMA_RX(1)`, `CAP_DMA_TX(2)`, `CAP_IRQ(3)`, `CAP_NETD_EP(4)`, `CAP_SMGR_EP(5)` — have **no install**; `DRIVER_VIRTIO_NET` has no `ep_obj` arm and its MMIO install lands at `31 + region 3` = slot **34**, not 0. The header's claim that *"devmgr installs capabilities into these CSpace slots"* is false: devmgr installs nothing and `sys_cap_install` has no dispatch arm. `CAP_SMGR_EP` is wrong twice — the ready endpoint is `SERVICE_READY_SEND_SLOT = 20` (RFC-0.36-001's shape). **Two:** `init` starts the image every boot and `sys_irq_bind(CAP_IRQ)` on slot 3 fails and exits, so the driver has **never worked**; slots 4–5 are unreachable past that point and 1–2 are dead. **Three, found checking the evidence rather than reported:** `sys_mmio_map` is **never called in the crate**, yet a real `audit` boot's console carries *"device descriptor loaded"*, *"legacy mode (no VIRTIO_F_VERSION_1)"*, *"features negotiated"* and *"rx queue initialised"* — four assertions of device work with the registers never mapped. **E-105's class** on the operator's screen. No tier is red because `TEST:V0.4-NET:PASS` is emitted four times by `netd`, which never needed the driver. Layer 3's fix is not a capability and is available immediately; layers 1–2 need a capability grant to a driver, which is `0.43-003`. **Waiving slots 3–5 was proposed and refused:** `WAIVERS` means authority a component does not exercise, these are exercised, and a waiver would have the gate report consistency over an image that cannot start | RFC-0.43-003 | CLOSED |
 | E-119 **`verus-setup.md` carried its own copy of the pinned versions, two upgrades stale.** A section headed *"### Pinned version"*, in the document a contributor installs Verus from, naming `release/0.2026.05.24.ecee80a` (two pins behind), `1.95.0 … (separate from Fjell's 1.91)` — the same wrong channel figure `TOOLCHAIN.lock`'s own comment was corrected for, in a second document — and `z3: 4.12.5` against 4.16.0. **This is E-109's defect in a page E-109 never reached:** that erratum's fix was structural, the page ceasing to carry a copy because the figures live in `TOOLCHAIN.md`, and it names `local-development.md`; nobody asked whether a second page had the same copy. **Amendment 1 made it bite harder**, which is why it surfaced there: R8 makes both pins block in every mode, so a contributor installing the version this page named now gets a hard refusal rather than a warning and a run. **No gate's scope reached it** — `toolchain-declarations` checks the Fjell channel, not a prover release, and `version-currency` reads `README.md` against the workspace version. The implementer flagged it as historical and left it, correctly leaving the page to the architect; that judgement was overturned, because a block under that heading is what a reader installs from. Closed by E-109's own remedy applied here: the block is replaced by a pointer to `TOOLCHAIN.lock` and `TOOLCHAIN.md`, naming both errata so the next person reads why there is no copy | 0.43 | CLOSED |
+| E-120 **`attestd`'s export replies "done" having sent nothing, and its chunk constant is used nowhere at all.** `fjell_service_api::attestd` declares `EXPORT` (0x316), `EXPORT_CHUNK` (0x317) and `EXPORT_DONE` (0x318) under *"Export attestation record (PlainText projection)"*; the handler is one line, `proto::EXPORT => { reply(proto::EXPORT_DONE); }`. **`EXPORT` has two occurrences tree-wide** — its declaration and that arm, so no caller ever existed — and **`EXPORT_CHUNK` has one: its declaration**, used by nothing, not even the handler that would send the chunks it exists for. **Strictly worse than E-087's `measuredd` instance**, which at least replies one chunk carrying a sequence number. Same defect: a declared export reporting success having transferred nothing, so a caller cannot distinguish *"exported, nothing to send"* from *"not implemented"*. **Found scoping 0.44 by reading E-087 on the merits for the first time** and noticing a second `EXPORT_CHUNK`/`EXPORT_DONE` pair in the shared API — the axis-blindness of **E-117** (one directory searched) and **E-119** (one page of two): a correct finding scoped to the instance that produced it. Two instances of one class now stand in the register and **neither was found by an instrument**; both were found by a person reading a handler. Closing needs E-087's plan applied to both together — the export works as `storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` does, or the constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the decision recorded. No live result depends on it, because nothing calls it | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
