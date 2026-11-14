@@ -543,10 +543,25 @@ mid-milestone and blocked the cut.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 1 RFC
 
-Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
-a fresh clone.
+0.44's line opens. The milestone's sentence is **what a declaration claims, something now
+compares** — 0.43 repaired the instruments that compare a description against the thing described,
+and 0.44 takes the surfaces that had no comparer at all. **0.44-001 is the lead and it reverses an
+architect recommendation:** `attestd` serves three request tags and **no image can address it**
+(**E-121**), and the first ruling was to delete the surface — reasoning from *nothing calls it*,
+which cannot distinguish unwanted from unfinished. The owner asked whether introducing the missing
+caller was not the reasonable move, and `fjell-diag-format`'s bundle turned out to carry
+`last_attestation` beside a flag documented *"permanently `false` today"* because nothing queries.
+So the query is wired, on RFC-0.39-002's precedent — and the two hollow chunked exports
+(**E-120**, **E-087**) go, now on the grounds that the consumer wants 32 bytes rather than that
+nothing calls them. Scope: `.git-exclude/handoff/scope-0.44.md`.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.44-001 | [The attestation can be asked for, and the export nobody wants goes](./accepted/RFC-0.44-001-the-attestation-can-be-asked-for.md) | E-121, E-120, E-087 |
+
+`accepted/README.md` keeps the folder in a fresh clone.
 
 ---
 
