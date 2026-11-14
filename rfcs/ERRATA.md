@@ -8843,6 +8843,57 @@ which is history removes the disagreement instead of detecting it, and needs no 
 - **Status:** **ACCEPTED**, `unscheduled` pending the owner's 0.44 decision; proposed there beside
   **E-087** as one line covering both.
 
+## E-121 — `attestd`'s whole request surface is unreachable: it receives on an endpoint no image can address
+
+- **Found 2026-11-15 by the architect**, answering the owner's question about what `attestd`'s
+  export was *for*. The export (**E-120**) turned out to be the smaller half.
+- **Claim:** `attestd` is described by its own header as the *"**Local** attestation service"*,
+  producing `AttestationRecordV2` when the trust-provider registry is Enforcing, and it serves
+  three request tags: `GENERATE` (0x311), `VERIFY_LATEST` (0x313) and `EXPORT` (0x316).
+- **Tree, observed 2026-11-15: nothing in the system can send it any of them.**
+  - `spawn.rs`'s `ep_obj` match gives `ATTESTD => Some(3)`, so attestd **receives** on endpoint
+    object 3.
+  - **No `install_raw` anywhere has `object_id: 3`.** Every endpoint install in `spawn.rs` was
+    enumerated: the destinations are each image's own `ep_obj`, `SERVICE_MANAGER_EP_OBJECT`,
+    `INIT_RELAY_EP_OBJECT`, `BOOTCTL_EP_OBJECT`, `DIAGNOSTICSD_TOOLS_EP_OBJECT`,
+    `MEASUREDD_EP_OBJECT` (twice), `UPDATE_CHANNEL_EP_OBJECT` (twice), `NEG_TEST_EP_OBJECT`,
+    `FLEETD_TRIGGER_EP_OBJECT`, and the literals 0, 5, 6 and 7. **Object 3 appears nowhere as a
+    destination.**
+  - **`ATTESTD_EP_OBJECT` does not exist as a named constant**, unlike `MEASUREDD_EP_OBJECT`,
+    `BOOTCTL_EP_OBJECT`, `VERIFYD_EP_OBJECT`, `NETD_EP_OBJECT`, `CONFIGD_EP_OBJECT` and
+    `NEG_TEST_OWN_EP_OBJECT`. attestd's arm is a bare `Some(3)`.
+  - **The contrast proves the shape is not inherent.** `measuredd` has a named endpoint constant
+    and **two** holders of a capability to it — `diagnosticsd` slot 4 and `attestd` slot 4. So
+    services here do address each other; attestd is simply not addressable.
+- **What is real, so a reader does not over-read this.** attestd **does** construct a record at
+  boot and report it: a real `audit`-profile boot carries *"attestd: trust-provider + keyring
+  wired; v2 signing active"*, *"attestd ready"*, and its availability flags
+  (`measurement=1`, every other digest `0` — which is **E-095**). The record exists. What does not
+  exist is any way to ask for it, verify it on demand, or export it. The `GENERATE` arm's
+  *"record generated (v2)"* line has never been printed by any boot, because the arm never runs.
+- **Why no instrument catches it.** `capability-topology` compares a service's **own declared
+  `CapHandle` slots** against `spawn.rs`'s installs — it answers *"does this service get what it
+  says it needs?"* and never *"can anyone reach this service?"* An endpoint with a receiver and no
+  sender satisfies every check in the tree. This is the **E-068/E-069 declared-but-not-serving
+  shape, inverted**: those were capabilities installed to serve a peer that never came; this is a
+  server nobody was given a way to call.
+- **It is the same defect RFC-0.35-002 already deleted code for, in this same file.** That line
+  removed `push_attestation`, its `CAP_SXT_EP`, and the SXT helpers it alone used, because it *"had
+  no caller anywhere in the tree"* and *"addressed a peer through a capability nobody installs:
+  built, never wired to a caller"*. **Deleted, not stubbed**, with the ruling's reason that
+  *"bolting a path onto an existing comment retrofits a design to a sentence, not the other way
+  around."* The remaining three tags are the mirror image of what that ruling removed, and were
+  left standing.
+- **What closing it needs — a decision, not a patch.** Either attestd is meant to be queried, and
+  **one named endpoint constant plus one capability install for a named caller** makes it so (and
+  then `GENERATE`/`VERIFY_LATEST` can be exercised and E-120's export decided on its merits); or it
+  is not, and the three tags go the way `push_attestation` went, leaving the boot-time record and
+  its availability reporting — which is what actually works today. **Deciding the export without
+  deciding this would repeat RFC-0.35-002's reason 1.**
+- **Status:** **ACCEPTED**, `unscheduled` pending the owner's 0.44 decision; proposed there as the
+  line that **E-120 and E-087 fold into**, since an export for an unreachable service cannot be
+  judged on its own.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -8966,6 +9017,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-118 **`driver-virtio-net` is spawned every boot, exits at its first capability-bearing syscall, and prints four lines of device work it never did.** Three layers. **One:** all six of its `CapHandle` declarations — `CAP_MMIO(0)`, `CAP_DMA_RX(1)`, `CAP_DMA_TX(2)`, `CAP_IRQ(3)`, `CAP_NETD_EP(4)`, `CAP_SMGR_EP(5)` — have **no install**; `DRIVER_VIRTIO_NET` has no `ep_obj` arm and its MMIO install lands at `31 + region 3` = slot **34**, not 0. The header's claim that *"devmgr installs capabilities into these CSpace slots"* is false: devmgr installs nothing and `sys_cap_install` has no dispatch arm. `CAP_SMGR_EP` is wrong twice — the ready endpoint is `SERVICE_READY_SEND_SLOT = 20` (RFC-0.36-001's shape). **Two:** `init` starts the image every boot and `sys_irq_bind(CAP_IRQ)` on slot 3 fails and exits, so the driver has **never worked**; slots 4–5 are unreachable past that point and 1–2 are dead. **Three, found checking the evidence rather than reported:** `sys_mmio_map` is **never called in the crate**, yet a real `audit` boot's console carries *"device descriptor loaded"*, *"legacy mode (no VIRTIO_F_VERSION_1)"*, *"features negotiated"* and *"rx queue initialised"* — four assertions of device work with the registers never mapped. **E-105's class** on the operator's screen. No tier is red because `TEST:V0.4-NET:PASS` is emitted four times by `netd`, which never needed the driver. Layer 3's fix is not a capability and is available immediately; layers 1–2 need a capability grant to a driver, which is `0.43-003`. **Waiving slots 3–5 was proposed and refused:** `WAIVERS` means authority a component does not exercise, these are exercised, and a waiver would have the gate report consistency over an image that cannot start | RFC-0.43-003 | CLOSED |
 | E-119 **`verus-setup.md` carried its own copy of the pinned versions, two upgrades stale.** A section headed *"### Pinned version"*, in the document a contributor installs Verus from, naming `release/0.2026.05.24.ecee80a` (two pins behind), `1.95.0 … (separate from Fjell's 1.91)` — the same wrong channel figure `TOOLCHAIN.lock`'s own comment was corrected for, in a second document — and `z3: 4.12.5` against 4.16.0. **This is E-109's defect in a page E-109 never reached:** that erratum's fix was structural, the page ceasing to carry a copy because the figures live in `TOOLCHAIN.md`, and it names `local-development.md`; nobody asked whether a second page had the same copy. **Amendment 1 made it bite harder**, which is why it surfaced there: R8 makes both pins block in every mode, so a contributor installing the version this page named now gets a hard refusal rather than a warning and a run. **No gate's scope reached it** — `toolchain-declarations` checks the Fjell channel, not a prover release, and `version-currency` reads `README.md` against the workspace version. The implementer flagged it as historical and left it, correctly leaving the page to the architect; that judgement was overturned, because a block under that heading is what a reader installs from. Closed by E-109's own remedy applied here: the block is replaced by a pointer to `TOOLCHAIN.lock` and `TOOLCHAIN.md`, naming both errata so the next person reads why there is no copy | 0.43 | CLOSED |
 | E-120 **`attestd`'s export replies "done" having sent nothing, and its chunk constant is used nowhere at all.** `fjell_service_api::attestd` declares `EXPORT` (0x316), `EXPORT_CHUNK` (0x317) and `EXPORT_DONE` (0x318) under *"Export attestation record (PlainText projection)"*; the handler is one line, `proto::EXPORT => { reply(proto::EXPORT_DONE); }`. **`EXPORT` has two occurrences tree-wide** — its declaration and that arm, so no caller ever existed — and **`EXPORT_CHUNK` has one: its declaration**, used by nothing, not even the handler that would send the chunks it exists for. **Strictly worse than E-087's `measuredd` instance**, which at least replies one chunk carrying a sequence number. Same defect: a declared export reporting success having transferred nothing, so a caller cannot distinguish *"exported, nothing to send"* from *"not implemented"*. **Found scoping 0.44 by reading E-087 on the merits for the first time** and noticing a second `EXPORT_CHUNK`/`EXPORT_DONE` pair in the shared API — the axis-blindness of **E-117** (one directory searched) and **E-119** (one page of two): a correct finding scoped to the instance that produced it. Two instances of one class now stand in the register and **neither was found by an instrument**; both were found by a person reading a handler. Closing needs E-087's plan applied to both together — the export works as `storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` does, or the constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the decision recorded. No live result depends on it, because nothing calls it | unscheduled | ACCEPTED |
+| E-121 **`attestd`'s whole request surface is unreachable: it receives on an endpoint no image can address.** The *"Local attestation service"* serves `GENERATE`, `VERIFY_LATEST` and `EXPORT`, and `spawn.rs` gives it `Some(3)` to receive on — but **no `install_raw` anywhere has `object_id: 3`**, so nothing can send it any of them. Every endpoint install was enumerated; object 3 appears nowhere as a destination, and **`ATTESTD_EP_OBJECT` does not exist as a named constant** unlike measuredd's, bootctl's, verifyd's, netd's and configd's. **The contrast shows the shape is not inherent:** `measuredd` has a named constant and two holders (`diagnosticsd` and `attestd`, both slot 4). **What is real:** attestd constructs a record at boot and reports its availability flags (`measurement=1`, the rest 0 — E-095); its `GENERATE` arm's *"record generated (v2)"* line has never been printed, because the arm never runs. **No instrument catches it:** `capability-topology` asks *"does this service get what it says it needs?"*, never *"can anyone reach this service?"* — an endpoint with a receiver and no sender satisfies every check. It is **E-068/E-069's declared-but-not-serving shape inverted**, and the same defect **RFC-0.35-002 deleted code for in this very file**, removing `push_attestation` because it *"had no caller anywhere in the tree"* and addressed a peer *"through a capability nobody installs"* — deleted, not stubbed, on the reasoning that bolting a path onto an existing comment retrofits a design to a sentence. Closing needs a decision: one named endpoint constant plus one install for a named caller, or the three tags go as `push_attestation` did, leaving the boot-time record that works. **E-087 and E-120 fold into this**, because an export for an unreachable service cannot be judged alone | unscheduled | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
