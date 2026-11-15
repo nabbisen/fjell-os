@@ -5,6 +5,77 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.44.0] — 2026-11-15 — What a declaration claims, something now compares
+
+One line, five small items, **five errata closed** (**E-027**, **E-028**, **E-087**, **E-120**,
+**E-121**), one filed (**E-122**), and a line **withdrawn before it was written**.
+`consistency-check` is **22 subchecks**. The ABI net movement is −1 item: six constants left and
+five arrived.
+
+**0.43 repaired the instruments that compare a description against the thing described. 0.44 took
+the surfaces that had no comparer at all** — a declared export, a claimed gate, two pointers, a
+published capability — and in three of the four cases the thing that had been missing turned out to
+be a *caller*, not a *reason to delete*.
+
+**There is no security advisory.** The kernel has never been distributed as a runnable artefact and
+the product has not been placed on the market.
+
+Five statements follow, each a case where what shipped is narrower or different from the obvious
+reading:
+
+1. **The attestation can now be asked for — and "available" is not "attested".** `attestd`'s
+   record was built on every boot and no *diagnostic bundle* could ask for it:
+   `last_attestation_available` was documented *"permanently `false` today"* while
+   `fjell-diag-format` carried a field waiting for it. `diagnosticsd` now holds a `CALL`-only
+   capability and queries the digest. **But the record says very little** — a real boot reports
+   `measurement=1` with every other availability bit `0` (**E-095**), and it is signed by the
+   development trust provider with a zero dev key, **which authenticates nothing**. So a bundle can
+   report an available attestation whose claims are nearly all placeholders. That is the truth and
+   the field's own documentation says so.
+2. **Two declared exports were deleted rather than implemented**, and not because nothing called
+   them. `measuredd`'s and `attestd`'s chunked exports replied success having transferred nothing
+   (**E-087**, **E-120**). Once the consumer was identified it wants **32 bytes** — one `Digest32`,
+   which a single reply carries in four words. `0x307`–`0x309` and `0x316`–`0x318` are **retired,
+   not reassigned**.
+3. **A gate the project claimed for over a year now exists — and its first run found an
+   unmitigated threat.** Two documents asserted a "threat-model gate"; neither a gate nor the name
+   one of them used existed (**E-027**). The new subcheck derives the threat population, requires
+   each to cite a *resolving* RFC in `rfcs/done/`, and cross-checks `standards-mapping.md`'s count.
+   **`T23` cites none: its `Defence` reads `None.`** It is waived **by name**, only while that line
+   says so, and the in-scope heading now states that it commits to *mitigating* rather than to
+   *having mitigated*.
+4. **The Clock gate's rights check is demonstrated for the first time.** 0.43's case proved refusal
+   for *no authority* and *wrong kind* but not that the **right** is checked. `neg-test` now holds a
+   `Clock` capability with **zero rights**, and the three outcomes are distinct by construction, so
+   `PermissionDenied` can only be the rights check refusing. Shown red seven ways.
+5. **A line was withdrawn before it was written, on an erratum's own reasoning.** 0.44-002 would
+   have given `fjell-net-format`'s two layouts a schema. Neither type has **any consumer** —
+   `netd` imports neither, the unlinked driver library imports neither, and one is not even
+   re-exported. A schema would have been *"a file asserting coverage of bytes nobody writes"*,
+   which is the class **E-073** itself refuses. Its net half stays ACCEPTED.
+
+**What still does not hold, in the same breath.**
+
+- **There is no working network, and no test environment has ever had one** (**E-122**, row 25).
+  All three v0.4 images are non-functional, and the QEMU harness attaches only `virtio-blk-device`
+  — no `-netdev`, no `virtio-net-device`, every profile's `extra_args` empty. **The owner has ruled
+  the plane in view**, so that row records a present condition, not a non-goal; the milestone's
+  first step is a NIC in the test environment rather than the driver.
+- **Three of the measurement chain's four events are placeholders** (**E-095**), which is what
+  statement 1 publishes a digest of.
+- **A boot can create at most 32 leases, ever** (**E-110**), and **authority cannot be withdrawn
+  from a task without ending it** (**E-093**).
+- **Two documents RFC-v0.7.3-002 specified still do not exist.** E-028 closed by correcting the
+  **pointers** — including one inside a `compile_error!` a developer sees on a misconfigured build
+  — not by writing them. Commissioning them is the owner's.
+
+**Process, recorded because it bears on the evidence.** Three claims the architect wrote were
+refuted by measurement during this milestone, each by someone else reading the tree: that `attestd`
+*"cannot be asked for anything"* (the kernel installs a `CALL` capability to it for `init`, outside
+the file that had been searched); that all 23 threats cite an RFC (a script whose last section ran
+to end-of-file and swallowed the citations after it); and that the net-format layouts wanted a
+description. All three are recorded in the errata they belong to rather than quietly corrected.
+
 ## [0.43.0] — 2026-11-12 — The instruments check what they claim, and a driver stops claiming
 
 Four lines, **four errata closed** (**E-112**, **E-117**, **E-118**, **E-119**), two small items,

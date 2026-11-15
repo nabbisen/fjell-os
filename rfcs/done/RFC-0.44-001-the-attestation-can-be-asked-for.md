@@ -1,6 +1,6 @@
 # RFC-0.44-001: The attestation can be asked for, and the export nobody wants goes
 
-**Status:** Accepted — accepted 2026-11-15
+**Status:** Implemented (0.44.0) — accepted 2026-11-15
 **Milestone:** 0.44
 **Tracks.** **E-121** — `attestd` receives on an endpoint no image can address. **E-120** and
 **E-087** — two declared chunked exports that reply "done" having transferred nothing.

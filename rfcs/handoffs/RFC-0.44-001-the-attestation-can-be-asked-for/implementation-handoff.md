@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.44-001
 
-**Governing RFC:** [RFC-0.44-001](../../accepted/RFC-0.44-001-the-attestation-can-be-asked-for.md)
+**Governing RFC:** [RFC-0.44-001](../../done/RFC-0.44-001-the-attestation-can-be-asked-for.md)
 **Milestone:** 0.44 · first line
-**Status:** inherited from the governing RFC (Accepted, 0.44)
+**Status:** inherited from the governing RFC (Implemented, 0.44.0)
 **Audience:** implementation model
 
 ---

@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 229 files
+## Implemented (done/) — 230 files
 
-228 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+229 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -540,28 +540,14 @@ mid-milestone and blocked the cut.
 | 0.43-002 | [Every declaration is visible to the instrument that checks it](./done/RFC-0.43-002-every-declaration-is-visible-to-the-instrument-that-checks-it.md) — closed **E-117**; `capability-topology` discovered `CapHandle` declarations in one hard-coded directory, so **nine of nineteen** sat outside its universe and a constant planted in `crates/drivers/` passed silently — the same defect that forced the module's rewrite once before, on a different axis. Discovery now walks every crate and **fails rather than skips** on a non-spawnable one; slot 0 is judged from the `ep_obj` arms instead of excluded on a `_ => 0` fallback RFC-0.41-002 had deleted; the `mmio_regions_for_service` table is attributed too, with its base read from the install | 0.43.0 |
 | 0.43-003 | [`driver-virtio-net` says only what it does](./done/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md) — closed **E-118**; the image was spawned every boot, called `sys_irq_bind` on a slot nothing installed and exited — and printed *"device descriptor loaded"*, *"features negotiated"* and *"rx queue initialised"* with `sys_mmio_map` **never called in the crate**. `IRQ bind failed` was in 5,075 retained artefacts going back to 2026-07-31, unread, because `netd` emits the v0.4 net marker without needing the driver. Now a 44-line stub that says what it is and exits 0; the MMIO region grant is removed from **both** stub drivers. **Not a decision against a real NIC driver** — that needs an authority design and is neither taken nor foreclosed | 0.43.0 |
 | 0.43-004 | [The milestone's RFCs move by one command](./done/RFC-0.43-004-the-milestones-rfcs-move-by-one-command.md) — no erratum closed; narrows **E-116**'s residue. The `accepted/` → `done/` move was five hand tasks, documented for the first time in 0.42 after twelve correct repetitions — and `a130ace` committed three renames with none of their `Status:` edits, because `git mv` stages the rename the moment it runs. `cargo xtask rfc promote <version>` performs all five all-or-nothing, **never touches the git index** (so no state exists in which a staged rename hides missing edits), and restores everything if a write fails mid-apply. Validated by promoting a worktree of the real 0.42.0 cut and comparing byte-for-byte with the hand result. **Still ungated: that the command was run at all** | 0.43.0 |
+| 0.44-001 | [The attestation can be asked for, and the export nobody wants goes](./done/RFC-0.44-001-the-attestation-can-be-asked-for.md) — closed **E-121**, **E-120** and **E-087**; `attestd` built a record on every boot that **no image could ask it for**, while `fjell-diag-format`'s bundle carried `last_attestation_available` documented *"permanently `false` today"* precisely because nothing queried. `diagnosticsd` now holds `CAP_ATTESTD_EP` — slot 5, **`CALL` only** — and sends `LATEST_DIGEST`, answered with a 32-byte `LATEST_DIGEST_REPLY` or `NO_RECORD`; `attestd`'s state became a single `Option<Digest32>`, which makes **E-076's zero digest unrepresentable** rather than guarded against. The two chunked exports that replied success having transferred nothing were **deleted rather than implemented** — `0x307`–`0x309` and `0x316`–`0x318` are **retired, not reassigned** — on the ground that the consumer wants 32 bytes, which one reply carries in four words, and not on the ground that nothing called them. **The architect's first ruling was the opposite and is recorded as such:** it reasoned from *nothing calls it*, which cannot distinguish unwanted from unfinished, and the owner's challenge is what turned the surface into a caller. | 0.44.0 |
 
 ---
 
-## Accepted (accepted/) — 1 RFC
+## Accepted (accepted/) — none
 
-0.44's line opens. The milestone's sentence is **what a declaration claims, something now
-compares** — 0.43 repaired the instruments that compare a description against the thing described,
-and 0.44 takes the surfaces that had no comparer at all. **0.44-001 is the lead and it reverses an
-architect recommendation:** `attestd` serves three request tags and **no image can address it**
-(**E-121**), and the first ruling was to delete the surface — reasoning from *nothing calls it*,
-which cannot distinguish unwanted from unfinished. The owner asked whether introducing the missing
-caller was not the reasonable move, and `fjell-diag-format`'s bundle turned out to carry
-`last_attestation` beside a flag documented *"permanently `false` today"* because nothing queries.
-So the query is wired, on RFC-0.39-002's precedent — and the two hollow chunked exports
-(**E-120**, **E-087**) go, now on the grounds that the consumer wants 32 bytes rather than that
-nothing calls them. Scope: `.git-exclude/handoff/scope-0.44.md`.
-
-| RFC | Title | Tracks |
-|-----|-------|--------|
-| 0.44-001 | [The attestation can be asked for, and the export nobody wants goes](./accepted/RFC-0.44-001-the-attestation-can-be-asked-for.md) | E-121, E-120, E-087 |
-
-`accepted/README.md` keeps the folder in a fresh clone.
+Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
+a fresh clone.
 
 ---
 

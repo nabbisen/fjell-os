@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.43.0
+## Summary at 0.44.0
 
 | Status | Count |
 |--------|-------|
@@ -249,6 +249,41 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > *enforced* rather than the obligations or the gate, so the row is still exact. No
 > other row mentions a solver, a declaration or a driver — so only the heading and
 > this clause moved.
+
+> **Re-taken 2026-11-15, at the 0.44.0 cut.** The heading moved in the
+> version-bump commit again, so `readiness-summary` was not seen red — this cut's
+> evidence that the subcheck works is instead that `release-rehearsal` read it
+> green with the heading and the workspace version both at 0.44.0.
+> `readiness-check` counts **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0**,
+> exit 0 — unchanged by 0.44.0, whose line and five small items (the attestation
+> record made askable and its two hollow chunked exports deleted, the
+> threat-model gate built after a year of being asserted, the Clock gate's rights
+> check demonstrated, two pointers at unwritten documents corrected,
+> `doc-counts`' rule implemented once instead of twice, and the `remote-diag`
+> bundle's digest judged) touch no cell of this matrix.
+>
+> **Checked rather than assumed that the wording also stands**, on the two rows
+> 0.44 could have moved. *Attestation profile v2* says the record's uncomputable
+> digests "are written as zero behind an availability byte the encoder zeroes"
+> and that `attestd` holds a `CALL`-only capability to `measuredd`. 0.44 adds a
+> second `CALL` edge in the same direction — `diagnosticsd` to `attestd` — and
+> turns `attestd`'s *last verified record's* digest into an `Option<Digest32>`
+> ([`crates/services/fjell-attestd/src/main.rs:374`](https://github.com/nabbisen/fjell-os/blob/main/crates/services/fjell-attestd/src/main.rs)),
+> which is not one of the record's claim fields, so neither clause moves. *Threat
+> model finalized* stands too, and it is the row worth a sentence: 0.44's new gate
+> found **T23 citing no RFC, its own `Defence` line reading `None.`**, and this
+> project's in-scope heading now promises *mitigating* rather than *having
+> mitigated*. A model is finalized when its enumeration is settled; a threat
+> without a defence is a gap in mitigation, not an unfinished model.
+>
+> **The finding this re-reading produced is about the matrix itself:** the word
+> *mitigate* appears **nowhere** in this document. **No row requires a defence
+> for every in-scope threat**, so an unmitigated entry touches no cell and v1.0
+> is not, as written, blocked by one. Making it a requirement would need a **new
+> row**, not a status change — which is the owner's decision and is left open
+> here rather than taken. It is recorded because a gate document that quietly
+> does not require what its readers assume is the **E-014** class, and the
+> response to that is to say so.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent

@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-12 15:12:54 UTC
-Version   : 0.43.0
+Generated : 2026-11-15 10:05:55 UTC
+Version   : 0.44.0
 Mode      : full
 Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-linux-gnu / LLVM 22.1.8
 
@@ -37,7 +37,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-auditd.bin (3574 bytes)
     fjell-service-manager.bin (1992 bytes)
     fjell-sample-service.bin (7704 bytes)
-    fjell-neg-test.bin (13992 bytes)
+    fjell-neg-test.bin (14024 bytes)
     fjell-svc-timeout.bin (32 bytes)
     fjell-svc-fault.bin (260 bytes)
     fjell-semantic-stream.bin (24856 bytes)
@@ -51,14 +51,14 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
     fjell-verifyd.bin (3944 bytes)
     fjell-rootfsd.bin (54 bytes)
     fjell-snapshotd.bin (54 bytes)
-    fjell-measuredd.bin (6412 bytes)
-    fjell-attestd.bin (15136 bytes)
+    fjell-measuredd.bin (6308 bytes)
+    fjell-attestd.bin (16136 bytes)
     fjell-recoveryd.bin (581 bytes)
     fjell-syncd.bin (3814 bytes)
     fjell-driver-virtio-net.bin (177 bytes)
     fjell-netd.bin (235 bytes)
     fjell-secure-transportd.bin (1701 bytes)
-    fjell-diagnosticsd.bin (6480 bytes)
+    fjell-diagnosticsd.bin (7344 bytes)
     fjell-fleetd.bin (5692 bytes)
     fjell-driver-uart.bin (686 bytes)
     fjell-proxy-braille.bin (12944 bytes)
@@ -79,8 +79,8 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 292
-  with SAFETY comment: 292
+  total unsafe sites : 293
+  with SAFETY comment: 293
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -88,7 +88,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261112-144347
+  Latest test-all run: 20261115-093709
   33    QEMU negative: user-copy                            60.1s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 33  |  PASS: 32  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
@@ -96,7 +96,7 @@ Toolchain : 1.98.1 / 48a229ceaefd4985c50990b14116b6d856af0985 / x86_64-unknown-l
   ✓ ALL REQUIRED TIERS PASSED
 
   Live host test count:
-    Host tests   : 781 passed, 0 failed  [PASS]
+    Host tests   : 795 passed, 0 failed  [PASS]
     Proptest     : 10 properties × 1000 cases
     QEMU smoke   : see last test-all run for live verdicts
 
