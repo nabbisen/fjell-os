@@ -25,6 +25,16 @@ Every threat is keyed to an adversary capability, not a named actor.
 
 ## In-scope threats (v1.0 commits to mitigating)
 
+> **What this heading commits to, stated because one entry does not meet it.** The commitment is to
+> **mitigating** these threats, not a claim to have **already mitigated** every one. **T23 has
+> `Defence: None.`** — a compromised presentation showing false state to the attending operator,
+> the one entry in this model whose victim is a person, and the one with no defence today. Its
+> Residual paragraph says why rather than asserting the gap away. It is kept **in scope** because
+> moving it to *Out-of-scope* would assert that v1.0 **declines** to defend the operator archetype
+> (**A4**) this project exists to serve, which is not the position; and because the gate waives it
+> **by name, only while that `Defence` line still reads `None.`**, so the exception is printed on
+> every run rather than absorbed. *(Added 2026-11-15, architect, at E-027's closure.)*
+
 ### T1 — Unauthorised capability acquisition
 
 **Adversary:** C-NODE-EXEC  
@@ -353,4 +363,4 @@ state it claims to report.
 
 ---
 
-*Gate: `ci-threat-model-check` verifies every T<n> references a merged RFC in `done/`.*
+*Gate: `cargo xtask consistency-check threat-model` verifies that every `T<n>` cites at least one RFC resolving to a file in `rfcs/done/`, that every well-formed citation resolves, that the `T<n>` and `OS<n>` numberings are complete, and that `standards-mapping.md`'s in-scope count agrees with this document. **Built in 0.44 (E-027).** Until then this line named `ci-threat-model-check`, **a gate that did not exist** — the same claim the v0.9–v0.15 handoff made, in a second document, which E-027 did not record because it was scoped to the first.*

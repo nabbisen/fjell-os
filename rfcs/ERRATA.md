@@ -1186,6 +1186,42 @@ which is history removes the disagreement instead of detecting it, and needs no 
   natural fit for whatever line takes **E-026** and the **E-014** literal-
   predicate family; if built, it carries RFC-v0.22-001's demonstration
   requirement.
+- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **0.44 small item A**.
+
+  > **Closed 2026-11-15.** `cargo xtask consistency-check threat-model` is the 22nd subcheck. It
+  > derives the `T<n>` population rather than hard-coding it, requires each to cite **at least one**
+  > RFC resolving to a file in `rfcs/done/` — *merged*, as the original claim said — and requires
+  > **every** well-formed citation to resolve, because a pointer to nothing is E-028's shape. It
+  > also checks the `OS<n>` numbering and that **`standards-mapping.md`'s in-scope count agrees**,
+  > which is the one place that figure is restated and exactly what drifted from 20 to 23
+  > unnoticed. The predicate excludes `RFC 8032` — T10's citation of the IETF's Ed25519 — because
+  > a bare `RFC` substring matches external standards and prose.
+  >
+  > **Two things this closure records that the entry above did not know.**
+  >
+  > **First: the claim lived in two documents, and this entry was scoped to one.** It cites the
+  > v0.9–v0.15 handoff. The **live threat model** carried the same claim by a specific name —
+  > *"Gate: `ci-threat-model-check` verifies every T<n> references a merged RFC in `done/`"* — and
+  > nobody noticed, because the entry named the handoff and the search stopped there. **The same
+  > one-document scoping as E-117 (one directory), E-119 (one page of two) and E-121 (one file of
+  > two).** That line now names the subcheck that exists and records what it used to claim.
+  >
+  > **Second: "the property itself holds" was false, and the error was the architect's script.**
+  > This entry says the property was *"checked by hand on 2026-08-31"* and the 0.44 scope repeated
+  > it as *"all 23 cite an RFC"*. **T23 cites none** — its own text reads `**Defence:** None.` The
+  > scope's figure came from a script that split on `### T[0-9]` and ran the **last** section to
+  > end-of-file, so T23 swallowed the *Out-of-scope* and *Operator obligations* sections after it,
+  > which cite `RFC-v0.13-003`, `RFC-v0.13-004` and `RFC-v0.13-003/005`. The implementer diagnosed
+  > the mechanism and pinned it with a test,
+  > `the_last_section_does_not_inherit_the_citations_that_follow_it`.
+  >
+  > **T23 is waived by name, not excused.** The waiver holds only while its `Defence` line reads
+  > exactly `None.`; it expires loudly if T23 gains a citation; naming a section that no longer
+  > exists is a failure; and **a new uncited section is not covered** — *"a new unmitigated threat
+  > needs a reviewed code edit, not a freedom the document grants itself."* The in-scope heading
+  > now states that its commitment is to *mitigating* rather than to *having mitigated*, naming
+  > T23; whether v1.0 should instead require a defence for every in-scope threat is the owner's,
+  > and deleting the waiver is the one line that puts it to them.
 
 ## E-028 — `RFC-v0.7.3-002`'s specified deliverable docs do not exist in the tree
 
@@ -1220,6 +1256,21 @@ which is history removes the disagreement instead of detecting it, and needs no 
   gets built inside a documentation RFC), and the standards mapping's own
   row (CRA-I-2e, IEC-4-2-FR4) already discloses the underlying gap this
   missing documentation would have described.
+- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **0.44 small item B**.
+
+  > **Closed 2026-11-15, and what was fixed is the pointers rather than the absence.** The crate's
+  > doc-comment and its `compile_error!` both named `crypto-profile.md` and `crypto-roadmap.md`;
+  > the `compile_error!` mattered most, because it is what a developer sees on a misconfigured
+  > build — an error message telling them to read a file that is not there. Both now state that
+  > the two documents **do not exist** and that the crate's own Development Profile Notice is the
+  > whole of the write-up.
+  >
+  > **The two documents are still missing, deliberately.** Writing them is real work about a
+  > development crypto profile's risk and migration plan, and it was not commissioned — the item
+  > was scoped to the pointers precisely so that the architect did not volunteer the owner for
+  > documentation inside a cleanup. `standards-mapping.md`'s and `v1-limitations.md`'s bullets are
+  > updated to say that the pointers were corrected and the deliverables remain absent; the
+  > annotation of `rfcs/done/RFC-v0.7.3-002`, whose acceptance criteria were not met, is still open.
 
 ## E-029 — two historical QEMU-log citations remain unresolvable, with a sunset
 
@@ -8960,8 +9011,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-024 `init` co-receives on four services' own endpoints (corrected from "nine"); RFC-0.26-004's one-receiver invariant is narrower than its text | RFC-0.28-001 | CLOSED |
 | E-025 `trust-report` and `unsafe-audit` walk untracked scratch trees; three tools carry three disagreeing exclusion lists | RFC-0.28-005 | CLOSED |
 | E-026 no QEMU evidence has ever been committed with the document citing it; `tests/runs/` tier logs carry no serial transcript | RFC-0.27-004 | CLOSED |
-| E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | unscheduled | ACCEPTED |
-| E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | unscheduled | ACCEPTED |
+| E-027 the "threat-model gate" asserted by the v0.9–v0.15 handoff was never built | 0.44 | CLOSED |
+| E-028 RFC-v0.7.3-002's specified crypto-profile/crypto-roadmap docs do not exist in the tree | 0.44 | CLOSED |
 | E-029 two historical QEMU-log citations (RFC-0.26-004, archived RFC-0.26-002) remain unresolvable | RFC-0.28-005 | CLOSED |
 | E-030 nothing checks that `[workspace.package] version` and `fjell-os`'s `fjell-abi` version pin agree | RFC-0.28-005 | CLOSED |
 | E-031 RFC 058's `READY_ACCEPTED` is unreachable by construction; the svc profile expects 2 of 4 markers | RFC-0.28-001 | CLOSED |

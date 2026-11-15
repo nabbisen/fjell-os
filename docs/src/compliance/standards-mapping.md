@@ -317,12 +317,16 @@ correspondence only.
   (Status: Implemented, v0.7.1) specifies creating
   `docs/src/security/crypto-profile.md` and
   `docs/src/security/crypto-roadmap.md`, and lists their existence as its
-  own acceptance criteria. Neither file exists anywhere in the tree today,
-  while `fjell-sxt-crypto`'s live doc-comment still points at both. This is
-  the same defect shape as E-023 (a release tool RFC marked done while most
+  own acceptance criteria. **Neither file exists anywhere in the tree**, which
+  is the same defect shape as E-023 (a release tool RFC marked done while most
   of its specified behaviour was never built) recurring in a different RFC.
-  Filed as **E-028** (`rfcs/ERRATA.md`), ACCEPTED, `unscheduled` — not
-  fixed here, per this RFC's non-goal on building mechanisms.
+  *Updated 2026-11-15: **E-028 is CLOSED** (0.44 small item B). What was fixed
+  is the **pointers**, not the absence: the crate's doc-comment and its
+  `compile_error!` used to name both paths — one of them in an error a
+  developer sees on a misconfigured build — and now state that the two
+  documents do not exist and that the notice is the whole of the write-up.
+  **Writing them remains uncommissioned**, so this bullet's clause stands: the
+  deliverables are still missing, and nothing now points a reader at nothing.*
 - **No clause in Annex I resisted the mapping outright.** Every clause
   produced at least one honest row; none required inventing a Fjell
   mechanism that does not exist to force a fit. The clauses that came
