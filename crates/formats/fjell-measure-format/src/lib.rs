@@ -44,6 +44,3 @@ pub const SCHEMA_VERSION: u16 = 1;
 
 /// Domain separator for chain digest inputs.
 pub const CHAIN_DOMAIN: &[u8] = b"FJELL-MEASUREMENT-V1";
-
-/// Maximum export events per chunk.
-pub const MAX_EXPORT_CHUNK: usize = 8;

@@ -5,7 +5,8 @@ diagnosticsd: measurement_head_available=true
 diagnosticsd: measurement_event_count=4
 diagnosticsd: measurement_events_kernel_digested=1
 diagnosticsd: keyring_anchor_epoch_available=false
-diagnosticsd: last_attestation_available=false
+diagnosticsd: last_attestation_available=true
+diagnosticsd: last_attestation sha256:
 diagnosticsd: audit_available=false
 fleetd: bundle ready (audit_event_count=0)
 NEG:REMOTE_DIAG:BUNDLE_READY:PASS

@@ -257,6 +257,40 @@ pub fn sys_ipc_reply(reply_tag: usize) -> Result<(), SysError> {
     to_result(ecall2(SyscallNumber::IpcReply as usize, 0, reply_tag, 0, 0).0).map(|_| ())
 }
 
+/// Reply to the caller blocked in `IpcCall`, carrying **four words** (RFC-0.44-001 R3).
+///
+/// `sys_ipc_reply` carries none: it declares only `a0..a3`, so `a2..a5` -- the registers
+/// the kernel copies into the caller's frame -- are whatever the compiler left there. A reply
+/// that must carry a whole 32-byte digest (`attestd`'s `LATEST_DIGEST_REPLY`) needs all four
+/// declared, and until now the only site that did was `measuredd`'s hand-written asm, held on
+/// the callsite audit's allowlist. This is the audited wrapper for the same shape, so a second
+/// service does not need a second allowlist entry. Whatever a caller does not need it passes as
+/// zero: nothing is left to chance in a register the kernel reads.
+pub fn sys_ipc_reply4(reply_tag: usize, words: [usize; 4]) -> Result<(), SysError> {
+    let status: usize;
+    #[cfg(target_arch = "riscv64")]
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    unsafe {
+        core::arch::asm!(
+            "li a7, 23", "ecall",
+            inlateout("a0") 0usize => status,
+            in("a1") reply_tag,
+            in("a2") words[0],
+            in("a3") words[1],
+            in("a4") words[2],
+            in("a5") words[3],
+            lateout("a7") _,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        let _ = (reply_tag, words);
+        status = 0;
+    }
+    to_result(status).map(|_| ())
+}
+
 // ── M4 task syscalls ──────────────────────────────────────────────────────────
 
 /// RFC 048: first arg is the `TaskCreate` cap handle; second is the image id.

@@ -26,6 +26,7 @@ fn default_builder() -> BundleBuilder {
         42_000,
         TrustProviderId(1),
         Some(MeasurementReport::new(Digest32([0xAAu8; 32]), 4, 1).unwrap()),
+        None,
     )
 }
 
@@ -349,7 +350,7 @@ fn measurement_counts_move_the_digest_when_available() {
 /// "unavailable" or a count with no head.
 #[test]
 fn the_builder_takes_the_measurement_section_all_or_nothing() {
-    let none = BundleBuilder::new(*b"nomeasur", 1, TrustProviderId(1), None).finalise();
+    let none = BundleBuilder::new(*b"nomeasur", 1, TrustProviderId(1), None, None).finalise();
     assert!(!none.measurement_head_available);
     assert_eq!(none.measurement_head, Digest32([0u8; 32]));
     assert_eq!(none.measurement_event_count, 0);
@@ -377,14 +378,67 @@ fn an_incoherent_measurement_report_is_refused() {
 }
 
 /// RFC-0.36-001 (closes E-079's third instance): `BundleBuilder::new` has no
-/// parameter for `keyring_anchor_epoch` or `last_attestation` any more --
-/// nothing obtains either value, so there is nothing honest to accept. Both
-/// stay at `zeroed()`'s unavailable defaults through the builder.
+/// parameter for `keyring_anchor_epoch` -- nothing obtains it, so there is nothing honest
+/// to accept. It stays at `zeroed()`'s unavailable defaults through the builder.
+/// (RFC-0.44-001 R4: `last_attestation` used to be in this sentence and is not any more --
+/// `diagnosticsd` now has a path to it; see the tests below.)
 #[test]
-fn builder_cannot_be_asked_for_an_epoch_or_an_attestation_it_never_obtained() {
+fn builder_cannot_be_asked_for_an_epoch_it_never_obtained() {
     let bundle = default_builder().finalise();
     assert!(!bundle.keyring_anchor_epoch_available);
     assert_eq!(bundle.keyring_anchor_epoch, 0);
+}
+
+/// RFC-0.44-001 R4: with nothing obtained, the attestation stays unavailable and zero.
+#[test]
+fn no_attestation_obtained_leaves_the_flag_false_and_the_digest_zero() {
+    let bundle = default_builder().finalise();
     assert!(!bundle.last_attestation_available);
     assert_eq!(bundle.last_attestation.0, [0u8; 32]);
+}
+
+/// R4: a digest that was obtained makes the flag `true` and is carried whole.
+#[test]
+fn an_obtained_attestation_digest_sets_the_flag_and_is_carried() {
+    let d = Digest32([0x5Cu8; 32]);
+    let bundle = BundleBuilder::new(*b"attested", 1, TrustProviderId(1), None, Some(d)).finalise();
+    assert!(bundle.last_attestation_available);
+    assert_eq!(bundle.last_attestation, d);
+}
+
+/// E-076's shape, closed at the builder: an all-zero "digest" is what a failed query used to
+/// look like, so it is NOT taken as data -- the flag stays `false` and the digest zero.
+#[test]
+fn a_zero_attestation_digest_is_not_a_digest() {
+    let bundle = BundleBuilder::new(
+        *b"zerodgst",
+        1,
+        TrustProviderId(1),
+        None,
+        Some(Digest32([0u8; 32])),
+    )
+    .finalise();
+    assert!(!bundle.last_attestation_available);
+    assert_eq!(bundle.last_attestation.0, [0u8; 32]);
+}
+
+/// R4: availability is in the signed bytes, so a bundle that obtained a digest and one that
+/// did not cannot share a bundle digest -- and the digest value is covered once available.
+#[test]
+fn the_attestation_section_moves_the_bundle_digest() {
+    let mk = |a: Option<Digest32>| {
+        BundleBuilder::new(*b"digestmv", 1, TrustProviderId(1), None, a)
+            .finalise()
+            .bundle_digest
+    };
+    let none = mk(None);
+    let a = mk(Some(Digest32([1u8; 32])));
+    let b = mk(Some(Digest32([2u8; 32])));
+    assert_ne!(none, a);
+    assert_ne!(a, b);
+    assert_eq!(
+        none,
+        mk(Some(Digest32([0u8; 32]))),
+        "a zero digest is the same as none"
+    );
 }

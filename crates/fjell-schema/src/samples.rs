@@ -151,6 +151,9 @@ pub fn diag_bundle() -> fjell_diag_format::DiagnosticBundle {
             fjell_diag_format::MeasurementReport::new(digest(0x30), 0x0000_0004, 0x0000_0001)
                 .expect("coherent"),
         ),
+        // RFC-0.44-001: no attestation digest in the sample, so the golden bundle digest is
+        // unchanged (the encoder already wrote `last_attestation_available` and the 32 bytes).
+        None,
     );
     b.add_audit_event(
         0x3132_3334,

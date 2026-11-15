@@ -32,9 +32,14 @@
 //! kernel produced the digest -- because a signed bundle that reported a
 //! measurement root while withholding that three of the chain's four events are
 //! `init`'s literal `0xAB` (E-095) would be a misleading artefact. **This does not
-//! make attestation real** (the signed attestation record is produced by
-//! `attestd`, not here; `last_attestation_available` stays `false`) **nor does it
 //! make the chain fully measured** (three of four events are placeholders, E-095).
+//!
+//! RFC-0.44-001: `CAP_ATTESTD_EP` (slot 5) is **installed**, as a `CALL` capability,
+//! and `last_attestation_available` reads `true` when `attestd` answers
+//! `LATEST_DIGEST` with a digest (`NO_RECORD`, no reply, or anything else leaves it
+//! `false` and the digest zero -- E-076's rule). **Available is not attested:** the
+//! record whose digest this fetches is mostly placeholders (E-095) and signed by the
+//! development provider; see `DiagnosticBundle::last_attestation_available`.
 #![no_std]
 #![no_main]
 mod rt;
@@ -71,6 +76,10 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 const CAP_TOOLS_EP: CapHandle = CapHandle(1);
 const CAP_SXT_EP: CapHandle = CapHandle(2);
 const CAP_MEASUREDD_EP: CapHandle = CapHandle(4);
+/// RFC-0.44-001 R2: a `CALL` capability to `attestd`'s endpoint, so the bundle can carry
+/// the digest of the last attestation record. `CALL` and nothing else. Slot 5: free for this
+/// image (0 and 3 are retired, 1/2/4 are the three above), and installed by `spawn.rs`.
+const CAP_ATTESTD_EP: CapHandle = CapHandle(5);
 
 // RFC-0.37-001 R2 (closes E-083): this used to hand-copy five of
 // `secure-transportd`'s own `SxtTag` values under local `SXT_*` names, and
@@ -162,6 +171,51 @@ fn query_measurement() -> Option<MeasurementReport> {
     .ok()
 }
 
+// ── Last attestation digest query ─────────────────────────────────────────────
+
+/// What `attestd` answered when asked for the last record's digest. Three outcomes, kept
+/// apart so the reason for an unavailable attestation can be printed, while the bundle
+/// itself only ever sees `Option<Digest32>`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Attestation {
+    /// `LATEST_DIGEST_REPLY` with a non-zero digest. The only variant that is data.
+    Record(Digest32),
+    /// `NO_RECORD`: `attestd` answered, and said there is nothing to report yet.
+    NoRecord,
+    /// A call error (no capability, `attestd` gone), a tag that is neither of the two
+    /// replies, or a digest of all zeros. **Never data.**
+    Unanswered,
+}
+
+/// RFC-0.44-001 R3/R4. Ask `attestd` (a call: its reply needs the reply edge only an
+/// `IpcCall` creates) for the digest of its last verified record.
+///
+/// E-076's rule, which binds here: whatever makes the flag `true` is the code that
+/// obtained the value. A call error, an unexpected tag, or a zero digest is
+/// [`Attestation::Unanswered`] -- never a `Record`, and in particular never a 32-byte zero
+/// that `build_bundle` could forward as if it were a reading.
+fn query_attestation() -> Attestation {
+    let Ok((label, w)) = fjell_syscall::sys_ipc_call4(
+        CAP_ATTESTD_EP.0,
+        fjell_service_api::attestd::LATEST_DIGEST,
+        [0; 4],
+    ) else {
+        return Attestation::Unanswered;
+    };
+    match label {
+        fjell_service_api::attestd::LATEST_DIGEST_REPLY => {
+            let d = measuredd::words_to_digest(w);
+            if d == [0u8; 32] {
+                Attestation::Unanswered
+            } else {
+                Attestation::Record(Digest32(d))
+            }
+        }
+        fjell_service_api::attestd::NO_RECORD => Attestation::NoRecord,
+        _ => Attestation::Unanswered,
+    }
+}
+
 // ── Bundle assembly ───────────────────────────────────────────────────────────
 
 /// RFC-0.35-002 (closes E-068): this used to also query `auditd` here, via
@@ -178,12 +232,21 @@ fn query_measurement() -> Option<MeasurementReport> {
 /// `BundleBuilder::new` has no parameter to receive a fabricated
 /// attestation digest any more, and no call here invents an intent. A
 /// bundle with no intents is honest; one with an invented one was not.
+///
+/// RFC-0.44-001 (closes the second half of E-079's third instance): `last_attestation` is a
+/// real input again, obtained by [`query_attestation`]. Returned alongside the bundle is what
+/// `attestd` said, so the caller can print *why* the attestation is unavailable.
 fn build_bundle(
     provider_id: TrustProviderId,
     tick: u64,
-) -> fjell_diag_format::bundle::DiagnosticBundle {
-    let builder = BundleBuilder::new(*b"diag0001", tick, provider_id, query_measurement());
-    builder.finalise()
+) -> (fjell_diag_format::bundle::DiagnosticBundle, Attestation) {
+    let attestation = query_attestation();
+    let last = match attestation {
+        Attestation::Record(d) => Some(d),
+        Attestation::NoRecord | Attestation::Unanswered => None,
+    };
+    let builder = BundleBuilder::new(*b"diag0001", tick, provider_id, query_measurement(), last);
+    (builder.finalise(), attestation)
 }
 
 // ── Push via secure-transportd ────────────────────────────────────────────────
@@ -282,7 +345,7 @@ pub extern "C" fn service_main() -> ! {
             Ok((tag, w0, _w1)) => (tag, w0),
         };
         if tag == proto::BUILD_BUNDLE {
-            let bundle = build_bundle(PROVIDER_ID, w0 as u64);
+            let (bundle, attestation) = build_bundle(PROVIDER_ID, w0 as u64);
             sys_debug_writeln("diagnosticsd: bundle built");
             // RFC-0.37-001 R6: the deciding service's own output, not only
             // the instigator's (`fleetd`'s) — the tier asserts flags, not
@@ -315,11 +378,28 @@ pub extern "C" fn service_main() -> ! {
                 "last_attestation_available",
                 bundle.last_attestation_available,
             );
+            // RFC-0.44-001: the digest itself, read back out of the BUNDLE (what the
+            // encoder will sign), so a tier can compare it with the line `attestd`
+            // printed when it generated the record. Only when available. And WHY not,
+            // when not: `NO_RECORD` (attestd answered, nothing to report) is a different
+            // fact from "no usable reply" (no capability, no answer, a malformed one).
+            if bundle.last_attestation_available {
+                let mut hex = [0u8; 64];
+                sys_debug_write("diagnosticsd: last_attestation sha256:");
+                sys_debug_writeln(bundle.last_attestation.to_hex(&mut hex));
+            } else {
+                sys_debug_writeln(match attestation {
+                    Attestation::NoRecord => {
+                        "diagnosticsd: last_attestation unavailable: attestd has no record yet"
+                    }
+                    _ => "diagnosticsd: last_attestation unavailable: attestd gave no usable reply",
+                });
+            }
             print_bool("audit_available", bundle.audit_available);
             let _ = bundle.audit_event_count;
             send_tag(CAP_TOOLS_EP, proto::BUNDLE_READY);
         } else if tag == proto::PUSH {
-            let bundle = build_bundle(PROVIDER_ID, w0 as u64);
+            let (bundle, _attestation) = build_bundle(PROVIDER_ID, w0 as u64);
             let ok = push_bundle(&bundle);
             let reply = if ok {
                 proto::PUSH_ACK

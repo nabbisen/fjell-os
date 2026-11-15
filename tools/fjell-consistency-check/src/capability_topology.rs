@@ -966,6 +966,29 @@ if let Some(regions) = mmio_regions_for_service {\n    for &region_idx in region
         assert!(image_block_installs_slot(src, "SVC_PRESENTATION_FAULT", 1));
     }
 
+    /// RFC-0.44-001 R1 replaced `ATTESTD => Some(3)` with `Some(fjell_abi::service::
+    /// ATTESTD_EP_OBJECT)` inside the `ep_obj` match. The subcheck must still attribute the
+    /// arm -- through a path-qualified constant it resolves from `fjell-abi` -- or slot 0 for
+    /// `attestd` would silently stop being judged. Read from the REAL `spawn.rs`.
+    #[test]
+    fn the_named_constant_ep_obj_arm_is_still_attributed_on_the_real_tree() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(|p| p.parent())
+            .unwrap();
+        let spawn = std::fs::read_to_string(root.join(SPAWN_PATH)).unwrap();
+        let abi = std::fs::read_to_string(root.join(ABI_SERVICE_PATH)).unwrap();
+        assert!(
+            spawn.contains("ImageId::ATTESTD => Some(fjell_abi::service::ATTESTD_EP_OBJECT)"),
+            "the arm no longer reads as this test expects; update the test, do not skip it"
+        );
+        let images = crate::object_zero::ep_obj_installs(&spawn, &abi).expect("attributable");
+        assert!(images.iter().any(|i| i == "ATTESTD"), "{images:?}");
+        // and an `attestd` slot-0 declaration WOULD now be judged installed (not a defect)
+        let v = judge_slots(&[slot("ATTESTD", 0)], &spawn, &abi).expect("judges");
+        assert_eq!((v.installed, v.failures.len()), (1, 0), "{v:#?}");
+    }
+
     #[test]
     fn discovery_on_the_current_tree_finds_the_whole_population() {
         // `cargo test` runs with this crate's own directory as the working directory, not
@@ -984,11 +1007,13 @@ if let Some(regions) = mmio_regions_for_service {\n    for &region_idx in region
         // scan never saw. Six of the nine (`fjell-driver-virtio-net`'s) were then deleted
         // with the paths that used them (RFC-0.43-003, E-118: the image never had those
         // capabilities and exited at the first one it used). `fjell-init`'s one is excluded
-        // by design. That leaves twelve judged: nine in services, three in
-        // `fjell-driver-uart`. If a crate adds or loses a declaration this number moves, and
+        // by design. That left twelve judged: nine in services, three in
+        // `fjell-driver-uart`. RFC-0.44-001 R2 added a thirteenth: `diagnosticsd`'s
+        // `CAP_ATTESTD_EP` (slot 5), a declaration this line installs rather than leaves
+        // dangling. If a crate adds or loses a declaration this number moves, and
         // the change is made on purpose. What must stay true is that the driver crates are
         // *in the universe*: planting a constant there is caught (the RFC-0.43-002 control).
-        assert_eq!(d.slots.len(), 12, "{:#?}", d.slots);
+        assert_eq!(d.slots.len(), 13, "{:#?}", d.slots);
         let drivers = d
             .slots
             .iter()

@@ -69,8 +69,9 @@ paired with another moment's counts.
 
 What this is **not**: strong attestation (the kernel's own image is unmeasured and
 the signature is the development provider's), and a fully measured chain (three of
-four events are placeholders). The bundle's `last_attestation_available` stays
-`false`: the attestation record is a separate artefact.
+four events are placeholders). The bundle's `last_attestation_available` is a
+separate question, answered in the next section: `diagnosticsd` asks `attestd` for the
+last record's digest, and the flag reads `true` only when it receives one.
 
 ## Attestation
 
@@ -103,6 +104,17 @@ Now:
   them, so none is claimed; a `0` beside flag `0` is not a reading, and a valid `0` (a
   reason, a status) beside flag `1` is. `attestd` prints the five flags beside the
   others (`attestd: record availability keyring_epochs=0 …`).
+
+**The record can be asked for** (RFC-0.44-001). `attestd` serves `GENERATE`,
+`VERIFY_LATEST` and `LATEST_DIGEST`: the last, from a `CALL` capability `diagnosticsd`
+holds (slot 5), returns the 32-byte `Digest32` of the last record that was built, signed
+and verified — or a distinct `NO_RECORD`, **never a zero digest**. The diagnostic bundle's
+`last_attestation_available` is `true` exactly when that reply arrived; `NO_RECORD`, no
+reply, or a malformed reply leaves it `false` and the digest zero. The chunked `EXPORT`
+that was declared beside it replied "done" having sent nothing (E-120) and is gone, as is
+`measuredd`'s `EXPORT_LOG` (E-087): the one consumer wants a digest, not the record.
+**"Available" is not "attested":** the flag means a digest was fetched, and the record it
+digests is mostly unavailable placeholders, signed by the development provider (below).
 
 `attestd` has no way to write the chain: the capability cannot tell a read from an
 append, so `measuredd` refuses an append from `attestd` (it is not a source

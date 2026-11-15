@@ -3,6 +3,11 @@
 //! v0.3.0: produces `AttestationRecordV2` when the trust-provider registry
 //! is in Enforcing phase (RFC v0.3-004).  Falls back to the v1 dev path
 //! when still in Bootstrap (development / early boot).
+//!
+//! RFC-0.44-001: serves three requests and nothing else -- `GENERATE`, `VERIFY_LATEST`
+//! and `LATEST_DIGEST` (the 32-byte digest of the last verified record, or `NO_RECORD`).
+//! Its `EXPORT` is gone: it replied `EXPORT_DONE` having sent nothing (E-120), and the
+//! one consumer there is -- `diagnosticsd`'s bundle -- wants the digest, not the record.
 #![no_std]
 #![no_main]
 mod rt;
@@ -91,6 +96,12 @@ fn recv_call() -> (usize, usize, usize) {
 fn reply(tag: usize) {
     // RFC-0.28-002: was a hand-rolled asm block; now the audited wrapper.
     let _ = fjell_syscall::sys_ipc_reply(tag);
+}
+
+/// Reply carrying a whole digest: four words, little-endian, in the order
+/// `measuredd::{digest_to_words, words_to_digest}` define for every reader and writer.
+fn reply_digest(tag: usize, d: &Digest32) {
+    let _ = fjell_syscall::sys_ipc_reply4(tag, fjell_service_api::measuredd::digest_to_words(&d.0));
 }
 
 // ── Trust-provider / keyring init ────────────────────────────────────────────
@@ -354,8 +365,13 @@ pub extern "C" fn service_main() -> ! {
 
     let mut record_seq: u32 = 0;
     let mut generation: u32 = 0;
-    let mut last_ok: bool = false;
-    let mut last_digest = Digest32::ZERO;
+    // RFC-0.44-001 R3: the last record's digest, **or nothing**. This replaces a
+    // `last_ok: bool` beside a `last_digest: Digest32` that was `ZERO` whenever signing
+    // failed -- two variables that together could present a zero digest as a record
+    // (E-076's shape). `Some` exists only for a record that was built, signed and
+    // verified; a failed `GENERATE` sets it back to `None`, so `LATEST_DIGEST` and
+    // `VERIFY_LATEST` can never disagree about whether there is a latest record.
+    let mut latest: Option<Digest32> = None;
 
     loop {
         let (tag_packed, w0, _w1) = recv_call();
@@ -386,24 +402,32 @@ pub extern "C" fn service_main() -> ! {
                 } else {
                     sign_v1(record_seq, 0)
                 };
-                last_digest = digest;
-                last_ok = ok;
+                latest = ok.then_some(digest);
                 reply(proto::GENERATED);
                 sys_debug_writeln("attestd: record generated (v2)");
+                // The digest itself, so a tier can compare it with what a consumer
+                // (`diagnosticsd`) reports it received -- two services' lines that must
+                // be equal. Only for a record that verified.
+                if let Some(d) = latest {
+                    let mut hex = [0u8; 64];
+                    fjell_syscall::sys_debug_write("attestd: record digest sha256:");
+                    sys_debug_writeln(d.to_hex(&mut hex));
+                }
             }
             proto::VERIFY_LATEST => {
-                reply(if last_ok {
+                reply(if latest.is_some() {
                     proto::VERIFY_OK
                 } else {
                     proto::VERIFY_FAIL
                 });
             }
-            proto::EXPORT => {
-                reply(proto::EXPORT_DONE);
-            }
+            // RFC-0.44-001 R3: the digest, or `NO_RECORD`. Never a zero digest.
+            proto::LATEST_DIGEST => match latest {
+                Some(d) => reply_digest(proto::LATEST_DIGEST_REPLY, &d),
+                None => reply(proto::NO_RECORD),
+            },
             _ => reply(proto::ERR),
         }
-        let _ = last_digest;
     }
 }
 

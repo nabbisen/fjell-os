@@ -331,6 +331,14 @@ pub const VERIFYD_EP_OBJECT: u32 = 18;
 // never fired. The default is gone: an image without a dedicated arm gets **no**
 // endpoint capability in slot 0, and these three earn theirs.
 
+/// `attestd`'s own endpoint object (its slot 0), where it receives `GENERATE`,
+/// `VERIFY_LATEST` and `LATEST_DIGEST` (RFC-0.44-001 R1). It was the bare literal
+/// `Some(3)` in `spawn.rs`'s per-image table and `object_id: 3` in `init`'s CSpace --
+/// two sites naming one object by number, which is how a service ends up findable
+/// only by reading the allocator. `init` holds a `CALL` capability to it (slot 4,
+/// kernel `main.rs`); `diagnosticsd` holds one too (RFC-0.44-001 R2).
+pub const ATTESTD_EP_OBJECT: u32 = 3;
+
 /// `netd`'s own endpoint object (its slot 0). `netd` exits before its event loop by
 /// design (a smoke-test stub), so nothing receives on it today; the object exists
 /// so that the day the loop runs it owns what it waits on.
@@ -444,6 +452,7 @@ mod endpoint_allocation_tests {
             ("VERIFYD_EP_OBJECT", VERIFYD_EP_OBJECT),
             ("DIAGNOSTICSD_TOOLS_EP_OBJECT", DIAGNOSTICSD_TOOLS_EP_OBJECT),
             ("FLEETD_TRIGGER_EP_OBJECT", FLEETD_TRIGGER_EP_OBJECT),
+            ("ATTESTD_EP_OBJECT", ATTESTD_EP_OBJECT),
             ("NETD_EP_OBJECT", NETD_EP_OBJECT),
             ("CONFIGD_EP_OBJECT", CONFIGD_EP_OBJECT),
             ("NEG_TEST_OWN_EP_OBJECT", NEG_TEST_OWN_EP_OBJECT),
@@ -465,15 +474,26 @@ mod endpoint_allocation_tests {
             + SPAWN[start..]
                 .find("_ => None,")
                 .expect("ep_obj's default arm is not `_ => None` (RFC-0.41-002 R3)");
+        // Every `ImageId::X => Some(..)` arm is COUNTED, whether its object is a literal
+        // or a name; only a literal can be range-checked here (a name is checked by
+        // `every_named_endpoint_object_is_below_the_count`, which lists it). RFC-0.44-001 R1
+        // turned one more literal arm (`ATTESTD => Some(3)`) into a name, so counting
+        // literals alone dropped below this floor -- the floor is on the table the parse
+        // sees, not on how many of its arms happen to still be spelled as numbers.
         let mut seen = 0;
+        let mut literal = 0;
         for line in SPAWN[start..end].lines() {
             let line = line.trim();
             if let Some(rest) = line.strip_prefix("fjell_abi::service::ImageId::") {
                 if let Some(n) = rest.split("=>").nth(1) {
                     let n = n.trim().trim_end_matches(',');
-                    let n = n.strip_prefix("Some(").and_then(|r| r.strip_suffix(')'));
-                    if let Some(Ok(id)) = n.map(|n| n.trim().parse::<u32>()) {
-                        seen += 1;
+                    let Some(inner) = n.strip_prefix("Some(").and_then(|r| r.strip_suffix(')'))
+                    else {
+                        continue; // `None`, a block arm, or a shape this test does not read
+                    };
+                    seen += 1;
+                    if let Ok(id) = inner.trim().parse::<u32>() {
+                        literal += 1;
                         assert!(
                             id < ENDPOINT_OBJECT_COUNT,
                             "spawn.rs names object {id}: `{line}`"
@@ -484,7 +504,11 @@ mod endpoint_allocation_tests {
         }
         assert!(
             seen >= 8,
-            "read only {seen} literal arms; the parse is not seeing the table"
+            "read only {seen} `Some(..)` arms; the parse is not seeing the table"
+        );
+        assert!(
+            literal > 0,
+            "no literal arm left to range-check; this test has gone vacuous"
         );
     }
 }

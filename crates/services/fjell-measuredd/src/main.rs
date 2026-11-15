@@ -315,11 +315,10 @@ pub extern "C" fn service_main() -> ! {
                     chain.kernel_digested as usize,
                 );
             }
-            // E-087: still a stub that sends no content; only its arity changed.
-            proto::EXPORT_LOG => {
-                reply(proto::EXPORT_CHUNK, chain.head.latest_seq as usize, 0, 0, 0);
-                reply(proto::EXPORT_DONE, 0, 0, 0, 0);
-            }
+            // RFC-0.44-001 R6 (closes E-087): `EXPORT_LOG` was here -- one `EXPORT_CHUNK`
+            // carrying a sequence number, then `EXPORT_DONE`, transferring no log. Deleted,
+            // not stubbed. A request for it now reaches the arm below and is answered `ERR`,
+            // which is true: there is no such operation.
             _ => reply(proto::ERR, MeasurementError::Internal as usize, 0, 0, 0),
         }
     }

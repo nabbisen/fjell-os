@@ -984,7 +984,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     let measuredd_ep_id = et.alloc().expect("alloc measuredd endpoint");
     let _ = measuredd_ep_id; // id=2
     let attestd_ep_id = et.alloc().expect("alloc attestd endpoint");
-    let _ = attestd_ep_id; // id=3
+    assert_eq!(
+        attestd_ep_id,
+        fjell_abi::service::ATTESTD_EP_OBJECT,
+        "ATTESTD_EP_OBJECT does not name the object just allocated"
+    );
     let recoveryd_ep_id = et.alloc().expect("alloc recoveryd endpoint");
     let _ = recoveryd_ep_id; // id=4
     // RFC 040: cap-broker's dedicated endpoint. The spawn layout (broker
@@ -1484,9 +1488,9 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             let _ = cs.install_raw(
                 4,
                 Capability {
-                    // attestd (ep id=3)
+                    // attestd (RFC-0.44-001 R1: named, not the literal 3)
                     kind: CapKind::Endpoint,
-                    object_id: 3,
+                    object_id: fjell_abi::service::ATTESTD_EP_OBJECT,
                     rights: CapRights::CALL,
                     badge: 0,
                     scope: ObjectScope::Any,

@@ -273,7 +273,7 @@ pub fn spawn(
             let ep_obj: Option<u32> = match image_id {
                 fjell_abi::service::ImageId::STORAGED => Some(1),
                 fjell_abi::service::ImageId::MEASUREDD => Some(MEASUREDD_EP_OBJECT),
-                fjell_abi::service::ImageId::ATTESTD => Some(3),
+                fjell_abi::service::ImageId::ATTESTD => Some(fjell_abi::service::ATTESTD_EP_OBJECT),
                 fjell_abi::service::ImageId::RECOVERYD => Some(4),
                 // RFC 040: cap-broker gets its own dedicated endpoint (5)
                 // so policy tests can route to it without ambiguity.
@@ -1054,6 +1054,34 @@ pub fn spawn(
                     Capability {
                         kind: CapKind::Endpoint,
                         object_id: MEASUREDD_EP_OBJECT,
+                        rights: CapRights::CALL,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+                // RFC-0.44-001 R2: slot 5, `CAP_ATTESTD_EP`. `CALL` and nothing else: the
+                // digest query is a call (`attestd` answers with `sys_ipc_reply`, which
+                // needs the reply edge only an `IpcCall` creates). One caller, named --
+                // `diagnosticsd`, the bundle's builder -- and no other image is given
+                // this: `init` already holds its own (kernel `main.rs`, slot 4).
+                //
+                // **What this capability does NOT do is stop `diagnosticsd` sending
+                // `GENERATE`.** `CALL` is a right to send a request to the endpoint, not
+                // to one operation, exactly as with slot 4 above. The worst a caller
+                // can do is ask `attestd` to produce another record (it takes no words
+                // and appends to nothing); `attestd` never writes the chain and never
+                // signs anything it did not build itself. Slot 5 was chosen because
+                // nothing installs it for this image (0 and 3 are retired, 1/2/4 are
+                // in use; `capability-topology` reads the install against the
+                // declaration).
+                let _ = cs.install_raw(
+                    5,
+                    Capability {
+                        kind: CapKind::Endpoint,
+                        object_id: fjell_abi::service::ATTESTD_EP_OBJECT,
                         rights: CapRights::CALL,
                         badge: 0,
                         scope: ObjectScope::Any,

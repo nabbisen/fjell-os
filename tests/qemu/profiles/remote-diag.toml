@@ -28,10 +28,16 @@
 #     kernel produced. The other 3 are `init`'s literal `0xAB` (E-095), and the
 #     bundle says so by number -- that disclosure, not the flag, is the point.
 #
-# The other three flags still read `false`: `audit_available` and the keyring
-# and attestation flags have never had a source (RFC-0.36-001), and
-# `last_attestation_available` stays `false` because the signed attestation
-# record is independent constants (E-094) and this line does not touch it.
+# RFC-0.44-001: `last_attestation_available` is `true` now (slot 5 is a CALL
+# capability to `attestd`, which `init` had already asked to GENERATE a record). The
+# tier asserts the flag AND that the digest line is printed, and the host check in the
+# review request compares it with the digest `attestd` printed when it generated the
+# record. **It asserts "a record exists and its digest was fetched" and nothing more:**
+# the record's claims are nearly all placeholders (E-095) and "available" is not
+# "attested" -- the field's own doc comment says so.
+#
+# The other two flags still read `false`: `audit_available` (retracted, E-068) and
+# `keyring_anchor_epoch_available` have never had a source.
 
 name                 = "remote-diag"
 timeout_secs         = 60
@@ -45,7 +51,8 @@ expected_markers = [
     "diagnosticsd: measurement_event_count=4",
     "diagnosticsd: measurement_events_kernel_digested=1",
     "diagnosticsd: keyring_anchor_epoch_available=false",
-    "diagnosticsd: last_attestation_available=false",
+    "diagnosticsd: last_attestation_available=true",
+    "diagnosticsd: last_attestation sha256:",
     "diagnosticsd: audit_available=false",
     "fleetd: bundle ready (audit_event_count=0)",
     "NEG:REMOTE_DIAG:BUNDLE_READY:PASS",

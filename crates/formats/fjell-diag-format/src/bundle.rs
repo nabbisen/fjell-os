@@ -83,12 +83,32 @@ pub struct DiagnosticBundle {
     /// reader who treats this field as "how much of the chain is trustworthy"
     /// has read more into it than it says. Zero when the head is unavailable.
     pub measurement_events_kernel_digested: u32,
-    /// `false` until something queries a real last-attestation digest —
-    /// RFC-0.36-001 (closes E-079): nothing has ever obtained one, the same
-    /// shape as `audit_available` and `keyring_anchor_epoch_available`.
-    /// Permanently `false` today.
+    /// `true` only when `diagnosticsd` asked `attestd` for the last record's digest
+    /// (`LATEST_DIGEST`) and **received one** (RFC-0.44-001 R4) -- `false` when
+    /// `attestd` replied `NO_RECORD`, did not reply, or replied with something that is
+    /// not a digest. Whatever sets this `true` must be the code that obtained the value
+    /// (E-076, closed by RFC-0.36-001): the builder takes the digest and its
+    /// availability as one `Option`, so it cannot be set from a failure.
+    ///
+    /// **"Available" is not "attested", and a reader who treats it as such has read far
+    /// more into it than it says** (RFC-0.44-001 R7). It means *a 32-byte digest of the
+    /// last `AttestationRecordV2` was obtained*. It says **nothing about how much of that
+    /// record is filled in**. The record says only what is true (RFC-0.40-001) and so,
+    /// today, says very little: its claims are nearly all unavailable placeholders
+    /// (E-095) -- a real boot reports `measurement=1` and every other availability bit
+    /// `0` (`kernel_digest`, `release_digest`, `rootfs_digest`, `policy_digest`,
+    /// `snapshot_digest`, `keyring_epochs`, `health_status` and the rest) -- and it is
+    /// signed by the development trust provider with a zero dev key (`DevDigest32`),
+    /// which authenticates nothing. So a bundle can carry
+    /// `last_attestation_available == true` beside a digest of a record that is largely
+    /// empty. That is the truth and it is meant to be visible. Read the record's own
+    /// availability bits (`attestd`'s `record availability` line) for what it claims;
+    /// read this flag only for "a record exists and its digest was fetched". The same
+    /// warning is owed to `measurement_events_kernel_digested` above, for the same reason.
     pub last_attestation_available: bool,
-    /// SHA-256 digest of the last `AttestationRecordV2`.
+    /// SHA-256 digest of the last `AttestationRecordV2` -- a digest of a record, **not**
+    /// a claim that the node is attested; see `last_attestation_available`. Zero (and
+    /// written as zero) whenever that flag is `false`.
     pub last_attestation: Digest32,
     /// `false` whenever the audit section was never queried — RFC-0.35-002
     /// (closes E-068): the audit-query sub-protocol diagnosticsd once sent

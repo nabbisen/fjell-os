@@ -36,25 +36,37 @@ impl BundleBuilder {
     /// Construct a new builder seeded with metadata.
     ///
     /// RFC-0.36-001 (closes E-079's third instance, E-079): `keyring_anchor_epoch`
-    /// and `last_attestation` are **not** parameters here, on purpose. Nothing in
-    /// this crate or `fjell-diagnosticsd` has ever obtained either value —
-    /// `diagnosticsd` has no `fjell-keyring` dependency at all, and nothing
-    /// queries a real last attestation — so a constructor that accepted them
-    /// would only ever be handed a literal standing in for state that should
-    /// vary, which is the exact defect this line closes. Both stay at
-    /// `DiagnosticBundle::zeroed()`'s defaults (`0`, flagged unavailable) until a
-    /// future line gives this service a real path to either value, at which
-    /// point that line adds the parameter back alongside the capability to fill
-    /// it honestly. The measurement section keeps a parameter because
-    /// `query_measurement_head` has a real, sometimes-succeeding path (closes
+    /// is **not** a parameter here, on purpose. Nothing in this crate or
+    /// `fjell-diagnosticsd` has ever obtained it -- `diagnosticsd` has no
+    /// `fjell-keyring` dependency at all -- so a constructor that accepted it would
+    /// only ever be handed a literal standing in for state that should vary, which is
+    /// the exact defect this line closes. It stays at `DiagnosticBundle::zeroed()`'s
+    /// defaults (`0`, flagged unavailable) until a future line gives this service a
+    /// real path to it, at which point that line adds the parameter back alongside
+    /// the capability to fill it honestly. The measurement section keeps a parameter
+    /// because `query_measurement_head` has a real, sometimes-succeeding path (closes
     /// E-076). RFC-0.39-002: it is `Option<MeasurementReport>` -- the head, its
     /// availability and the chain's composition as one value -- not a head and a
     /// separate boolean the caller could contradict.
+    ///
+    /// RFC-0.44-001 R4: `last_attestation` **is** a parameter now, because it now has
+    /// a path: `diagnosticsd` asks `attestd` (`LATEST_DIGEST`). It is
+    /// `Option<Digest32>` on the same reasoning as the measurement section -- the
+    /// digest and its availability arrive as ONE value, so there is no way to pass a
+    /// digest with "unavailable", or "available" with no digest. `None` -- `attestd`
+    /// said `NO_RECORD`, or did not answer, or answered something that is not a
+    /// digest -- leaves the flag `false`. **`Some` of an all-zero digest is treated as
+    /// `None`** (E-076's failure *was* a zero digest that looked like data; a real
+    /// SHA-256 is never that, so a zero here is a failure someone forgot to turn into
+    /// `None`, and failing closed costs nothing).
+    ///
+    /// **Available is not attested.** See [`DiagnosticBundle::last_attestation_available`].
     pub fn new(
         bundle_id: [u8; 8],
         created_tick: u64,
         provider_id: TrustProviderId,
         measurement: Option<MeasurementReport>,
+        last_attestation: Option<Digest32>,
     ) -> Self {
         let mut b = DiagnosticBundle::zeroed();
         b.bundle_id = bundle_id;
@@ -69,6 +81,13 @@ impl BundleBuilder {
             b.measurement_head = m.head();
             b.measurement_event_count = m.event_count();
             b.measurement_events_kernel_digested = m.kernel_digested();
+        }
+        // RFC-0.44-001 R4: the same discipline, and a zero digest is not a digest.
+        if let Some(d) = last_attestation {
+            if d.0 != [0u8; 32] {
+                b.last_attestation_available = true;
+                b.last_attestation = d;
+            }
         }
         Self { bundle: b }
     }

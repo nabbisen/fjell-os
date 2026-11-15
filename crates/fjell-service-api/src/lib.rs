@@ -309,10 +309,11 @@ pub mod measuredd {
     /// Get a specific event by seq.
     pub const GET_EVENT: usize = 0x305;
     pub const EVENT_REPLY: usize = 0x306;
-    /// Start log export.
-    pub const EXPORT_LOG: usize = 0x307;
-    pub const EXPORT_CHUNK: usize = 0x308;
-    pub const EXPORT_DONE: usize = 0x309;
+    // 0x307..=0x309 were `EXPORT_LOG` / `EXPORT_CHUNK` / `EXPORT_DONE`: a chunked export
+    // that replied one chunk (the sequence number) and `EXPORT_DONE`, transferring nothing
+    // (E-087). Deleted by RFC-0.44-001 R6, not stubbed -- the way `AUDIT_QUERY` went in
+    // RFC-0.35-002 -- because the only consumer of the chain that exists asks for one
+    // 32-byte digest (`GET_HEAD`), not a log. The numbers are retired, not reassigned.
     /// Append the boot-time **service image set** measurement: words[0..4] =
     /// the 32-byte set digest, whole (RFC-0.38-001 R2). The classification is
     /// fixed by this operation, not chosen by the caller — kind
@@ -441,10 +442,30 @@ pub mod attestd {
     pub const VERIFY_LATEST: usize = 0x313;
     pub const VERIFY_OK: usize = 0x314;
     pub const VERIFY_FAIL: usize = 0x315;
-    /// Export attestation record (PlainText projection).
-    pub const EXPORT: usize = 0x316;
-    pub const EXPORT_CHUNK: usize = 0x317;
-    pub const EXPORT_DONE: usize = 0x318;
+    // 0x316..=0x318 were `EXPORT` / `EXPORT_CHUNK` / `EXPORT_DONE`: the handler replied
+    // `EXPORT_DONE` having sent no chunk at all (E-120). Deleted by RFC-0.44-001 R6; the
+    // consumer, once identified (`diagnosticsd`'s bundle), wants 32 bytes, not the record.
+    // The numbers are retired, not reassigned.
+
+    /// Ask for the digest of the last record `attestd` generated (RFC-0.44-001 R3).
+    /// Takes no words. Needs a `CALL` capability (the reply uses `sys_ipc_reply`, which
+    /// needs the reply edge only an `IpcCall` creates). Reply: `LATEST_DIGEST_REPLY` or
+    /// `NO_RECORD`.
+    pub const LATEST_DIGEST: usize = 0x319;
+    /// Reply to `LATEST_DIGEST`: words[0..4] = the `Digest32` of the last
+    /// `AttestationRecordV2`, **whole**, in the shared little-endian word order
+    /// (`measuredd::words_to_digest`). Sent only for a record that was built, signed and
+    /// verified; never for a failed `GENERATE`, and never a zero digest.
+    ///
+    /// **This is the digest of a record, not a statement that the node is attested.** The
+    /// record's claims are mostly placeholders (E-095): a real boot reports `measurement=1`
+    /// with every other availability bit `0`. A reader who treats a digest arriving here as
+    /// "this node's state has been attested" has read more into it than it says.
+    pub const LATEST_DIGEST_REPLY: usize = 0x31A;
+    /// Reply to `LATEST_DIGEST` when no record has been generated (or the last
+    /// `GENERATE` failed to produce a verified one). A tag of its own, **not a zero
+    /// digest**: a caller that cannot tell "none yet" from "here it is" is E-076.
+    pub const NO_RECORD: usize = 0x31B;
     pub const ERR: usize = 0x31F;
 }
 
