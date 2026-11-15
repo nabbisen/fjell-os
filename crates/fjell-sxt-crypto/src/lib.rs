@@ -9,7 +9,10 @@
 //! was inaccurate and has been removed.
 //!
 //! **Do not use in production.** Migration to a vetted no_std crypto library
-//! is planned for v0.9. See `docs/src/security/crypto-roadmap.md`.
+//! is planned for v0.9. The disclosure is this notice (and `aes128.rs`'s header): development
+//! profile only, not for production, with the cache-timing leak above. RFC-v0.7.3-002 also
+//! specified `docs/src/security/crypto-profile.md` and `crypto-roadmap.md`; **those two
+//! documents do not exist** (E-028), so this notice is the whole of the write-up.
 #![no_std]
 
 #[cfg(not(feature = "crypto-profile-development"))]
@@ -17,7 +20,9 @@ compile_error!(
     "fjell-sxt-crypto requires the `crypto-profile-development` feature. \
      This crate is a development/reference profile and is NOT suitable for \
      production cryptographic use. Enable the feature explicitly to acknowledge \
-     this limitation. See RFC-v0.7.3-002 and docs/src/security/crypto-profile.md."
+     this limitation. The disclosure is the Development Profile Notice at the top of \
+     crates/fjell-sxt-crypto/src/lib.rs (RFC-v0.7.3-002); the dedicated crypto-profile \
+     and crypto-roadmap write-ups it specified do not exist."
 );
 
 pub mod aead;
