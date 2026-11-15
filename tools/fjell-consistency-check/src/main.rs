@@ -37,6 +37,9 @@
 //!   - `closed-erratum-prose` — live prose does not still assert a defect the
 //!     register says is CLOSED: no live status beside a closed erratum, no
 //!     present-tense claim resting on one (RFC-0.41-005)
+//!   - `threat-model` — every `### Tn` threat cites an RFC that exists in
+//!     `rfcs/done/`; `Tn`/`OSn` numbering and the one count another document states
+//!     are derived from the document (0.44 small item A, E-027)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -69,6 +72,7 @@ mod security_advisories;
 mod standards_mapping;
 mod status;
 mod syscall_surface;
+mod threat_model; // 0.44 small item A (E-027): the threat-model gate the handoff claimed
 mod toolchain_declarations;
 mod version_currency;
 
@@ -131,6 +135,9 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     // RFC-0.41-005: a CLOSED erratum's id may not sit in live prose beside a live
     // status or as the grounds of a present-tense claim.
     ("closed-erratum-prose", closed_erratum_prose::check),
+    // 0.44 small item A (E-027): every in-scope threat cites a merged RFC; the counts are
+    // derived from the document, not written down.
+    ("threat-model", threat_model::check),
 ];
 
 #[cfg(test)]

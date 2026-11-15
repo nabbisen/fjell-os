@@ -53,4 +53,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "capability-topology",
     "readiness-summary",
     "closed-erratum-prose",
+    "threat-model",
 ];
