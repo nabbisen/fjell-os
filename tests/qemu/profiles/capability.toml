@@ -18,7 +18,10 @@
 # 0.43 small item 1 adds NEG:CLOCK:READ_WITHOUT_RIGHT_REJECTED: `sys_clock_now_ns` is refused with
 # no capability at all and with a capability that is not a Clock -- the permanent demonstration
 # that the gate `v1-limitations.md` row 18 publishes as sound can fail (RFC-0.24-001). It asserts
-# denial only, never the counter's value or advance.
+# denial only, never the counter's value or advance. 0.44 small item C extended it to the RIGHT:
+# `neg-test` holds a `Clock`-kind capability with NO rights (spawn.rs slot 15), and the case
+# requires `PermissionDenied` on it -- the right kind without `CLOCK_READ`, so only the rights
+# check can be what refuses. Before that, weakening the required right to `NONE` left this green.
 #
 # (History: the profile reader used to fold a `#` comment placed inside the array
 # into the last marker; a comment between entries is now ignored -- E-057, closed

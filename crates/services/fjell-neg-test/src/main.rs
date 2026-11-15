@@ -54,6 +54,10 @@ const SLOT_IRQ: u32 = 9; // Interrupt cap, IRQ_ACK only, no IRQ_BIND (RFC-0.25-0
 /// capability, so a clock read through here must be refused. `test_clock_read_without_right`
 /// checks that it really is empty before relying on that.
 const SLOT_NEVER_GRANTED: u32 = 50;
+/// A `Clock`-kind capability holding **no rights** (0.44 small item C; `spawn.rs` slot 15). The
+/// kind is right and the right is absent, so the only thing that can refuse a clock read through
+/// it is the rights check -- which is what the denial test could not otherwise reach.
+const SLOT_CLOCK_NO_RIGHT: u32 = 15;
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 #[allow(dead_code)]
@@ -178,14 +182,18 @@ fn test_irq_bind_without_right() {
 /// (RFC-0.42-002 R4; 0.43 small item 1 -- the permanent demonstration that the gate
 /// `v1-limitations.md` row 18 calls sound can fail).
 ///
-/// `neg-test` holds **no Clock capability at all**; the absence is the point. Two refusals:
+/// `neg-test` holds **no Clock capability that can read** (its one `Clock` cap has no rights);
+/// the absence of authority is the point. Three refusals:
 ///   * a slot holding nothing -> `InvalidCap`;
 ///   * `SLOT_OWN_EP`, an `Endpoint` granted `ALL_NON_META` -- every ordinary right and still
 ///     not the clock -> `WrongType`. A blanket grant does not confer it.
+///   * `SLOT_CLOCK_NO_RIGHT`, a `Clock` capability holding **no rights** -> `PermissionDenied`:
+///     the right kind without `CLOCK_READ`, so it is the rights check that refuses (0.44 small
+///     item C; before it, weakening the required right to `NONE` left this case green).
 ///
 /// **Asserts the error, never a value, and nothing about time**: the counter's content and
 /// advance are deliberately not touched (a wall-time assertion is flaky on a loaded host,
-/// RFC-0.42-002 risk / E-104). One marker, emitted only if BOTH refusals are exactly right;
+/// RFC-0.42-002 risk / E-104). One marker, emitted only if ALL THREE refusals are exactly right;
 /// any other outcome (including a successful read) emits a forbidden `NEG:HARNESS:*` marker.
 fn test_clock_read_without_right() {
     // The "never granted" slot must really be empty, or the first assertion proves nothing.
@@ -204,12 +212,18 @@ fn test_clock_read_without_right() {
     }
     let none_at_all = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_NEVER_GRANTED));
     let blanket_grant = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_OWN_EP));
+    // The right, specifically: right KIND, no `CLOCK_READ`. Empty slot would be `InvalidCap`,
+    // another kind `WrongType`, and the right present would succeed -- so `PermissionDenied`
+    // can only mean the rights check refused it.
+    let kind_without_right = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_CLOCK_NO_RIGHT));
     use fjell_abi::error::SysError;
-    match (none_at_all, blanket_grant) {
-        (Err(SysError::InvalidCap), Err(SysError::WrongType)) => {
+    match (none_at_all, blanket_grant, kind_without_right) {
+        (Err(SysError::InvalidCap), Err(SysError::WrongType), Err(SysError::PermissionDenied)) => {
             sys_debug_writeln(M::CLOCK_READ_WITHOUT_RIGHT)
         }
-        (Ok(_), _) | (_, Ok(_)) => sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK"),
+        (Ok(_), _, _) | (_, Ok(_), _) | (_, _, Ok(_)) => {
+            sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK")
+        }
         _ => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
     }
 }

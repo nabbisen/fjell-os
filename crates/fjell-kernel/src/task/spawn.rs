@@ -590,6 +590,30 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 15: a Clock cap for NEG_TEST with NO RIGHTS AT ALL (0.44 small item C).
+            // Same shape as slot 9's deliberately rights-less Interrupt cap: it confers
+            // nothing -- `CapRights::NONE` is not `CLOCK_READ`, so it cannot read the clock --
+            // and exists so that `sys_clock_now_ns` can be refused for the *right* specifically.
+            // Without it the denial test proved refusal for "no capability" and "wrong kind"
+            // but not for "the right is what is checked": weakening the required right to
+            // `NONE` left it green, and `v1-limitations.md` row 18 publishes a claim about the
+            // right (RFC-0.24-001: an instrument claimed sound carries a demonstration of it
+            // failing). The kind is correct, so the only thing that can refuse is the right.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(
+                    15,
+                    Capability {
+                        kind: CapKind::Clock,
+                        object_id: 0,
+                        rights: CapRights::NONE,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot 9: Interrupt cap for NEG_TEST, deliberately WITHOUT
             // IRQ_BIND (RFC-0.25-001 Demonstration 4: a task without the
             // right must be refused, not merely lack the capability kind —
