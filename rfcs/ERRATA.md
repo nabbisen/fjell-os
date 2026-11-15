@@ -5199,6 +5199,29 @@ which is history removes the disagreement instead of detecting it, and needs no 
   **separate, kernel-side** change with its own demonstration that the bytes did not
   move. Until the kernel half is designed, `fjell-audit-format` stays a survivor and
   says why. `fjell-net-format` has no kernel dependency and may go first.
+- **The `fjell-net-format` half examined 2026-11-15, scoping 0.44 — and a line to close it was
+  withdrawn before it was written, on this entry's own reasoning.** A schema for those two types
+  was scoped, then refused: **neither has any consumer.** `netd` imports `MAX_SESSIONS`,
+  `NetDeviceDescriptor`, `NetIpcTag`, `NetSession`, `SessionError`, `SessionId`, `SessionState` —
+  neither of them. `driver-virtio-net`'s unlinked `src/core/` imports `NET_DESCRIPTOR_PAYLOAD`,
+  `NET_RING_DESCRIPTORS`, `NetDeviceState`, `NetMac` — neither of them. **`NetDescriptorHeader` is
+  not even re-exported** from the crate's `lib.rs` and has no use beyond its definition;
+  `NetDriverPacket` has an `impl` and three tests, all inside the crate.
+  - **So nothing writes those bytes, and describing them would be "a file asserting coverage of
+    bytes nobody writes that way"** — the E-014 class this entry names and refuses, three bullets
+    above, about its *other* half. The architect was one commit from doing in the net half what
+    this entry forbids in the audit half.
+  - **And D6 is already satisfied for them.** Its rule is *"a file **or a recorded reason**"*;
+    these are written nowhere and `fjell-schema`'s registry carries the reason. The
+    `Exclusion::Survivor` entry **is** the compliant answer, not a gap in it.
+  - **What they actually are: dead declarations waiting on the virtio-net driver decision.** They
+    are the wire types a real driver would need, in a crate whose first-named consumer
+    RFC-0.43-003 reduced to a 44-line stub. Their fate belongs with the 1,293-line `src/core/`
+    library that line kept deliberately — delete both together, or keep both with the exclusion.
+    **Writing a description in the meantime would manufacture coverage.**
+  - **The audit half is unaffected** and remains the only part of this entry with a real closure
+    path, which is kernel-side: `AuditRecordBin` is still written raw at
+    `trap/syscall.rs:782`, on the path every audit record takes.
 
 ## E-074 — two capability-addressing functions that no caller reaches, inside an entry that is now closed
 
