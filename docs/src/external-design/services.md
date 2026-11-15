@@ -37,7 +37,7 @@ restartable (NFR-REL-002).
 | `recoveryd` | Recovery plane | FR-SEC-004 |
 | `powerd` | Power/sustainability telemetry | FR-KRN-006, NFR-GRN-* |
 | `netd` | Packet/session routing | FR-SVC-001 |
-| `secure-transportd` | Authenticated control-plane channel — **present but non-functional**: its session capability is never delivered, so the handshake fails on every boot (**E-122**) | FR-SEM-004 |
+| `secure-transportd` | Authenticated control-plane channel — **present but non-functional**: in a release build its handshake is an **unimplemented stub that returns `HandshakeFailed` unconditionally** (`perform_tls_handshake`, commented *"for now fails closed"*), so it fails on every boot **whatever capabilities it holds**. Two further gaps sit behind it, each independent: its `CAP_SESSION` is never delivered (**E-123**), and the implementation plan's first step reads a `sys_net_recv` that **does not exist** in the ABI, the dispatch table or the wrapper (**E-122**) | FR-SEM-004 |
 | `syncd` | Offline-first snapshot sync | (fleet, Could-tier) |
 | `diagnosticsd` | Diagnostic bundle builder | FR-AUD-002 |
 | `semantic-stream` | Semantic/Intent stream service | FR-SEM-001 |
