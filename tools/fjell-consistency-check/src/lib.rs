@@ -19,6 +19,7 @@
 pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 
 pub mod errata;
+pub mod readme_counts;
 pub mod toolchain;
 
 /// The names of every subcheck, in the order Gate 12 reports them.

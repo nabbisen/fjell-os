@@ -33,23 +33,22 @@
 //! replaced with the fixed "nothing accepted" text — as the 0.42.0 cut did by hand — and the
 //! output says how many lines that removed.
 //!
-//! The five counts are validated before anything is planned, with the same parsing rules
-//! `consistency-check`'s `doc-counts` uses (that subcheck lives in a binary and cannot be called
-//! from here, so the rules are restated and a test pins them to the real README).
+//! The five counts are validated before anything is planned by
+//! `fjell_consistency_check::readme_counts::disagreements` -- **the same function the
+//! `doc-counts` subcheck calls** (0.44 small item D). It used to be restated here, pinned to
+//! the current tree by a test; two implementations of one rule drift (E-030/E-037's hazard), so
+//! there is now one. A README shape it cannot parse is a disagreement there, hence a refusal here.
 
+use fjell_consistency_check::readme_counts::{
+    ACCEPTED_DIR, DONE_DIR, FolderCounts, NON_RFC_FILES, count_folders, disagreements,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 use std::process::ExitCode;
 
-const ACCEPTED_DIR: &str = "rfcs/accepted";
-const DONE_DIR: &str = "rfcs/done";
-const PROPOSED_DIR: &str = "rfcs/proposed";
-const ARCHIVE_DIR: &str = "rfcs/archive";
 const HANDOFFS_DIR: &str = "rfcs/handoffs";
 const README_PATH: &str = "rfcs/README.md";
-/// Folder-local index pages: in the folder, not RFCs (as `doc-counts` treats them).
-const NON_RFC_FILES: &[&str] = &["README.md", "v0.7.x-index.md"];
 
 /// The text that replaces the Accepted section's body when the folder empties.
 const EMPTY_ACCEPTED_BODY: &[&str] = &[
@@ -60,16 +59,6 @@ const EMPTY_ACCEPTED_BODY: &[&str] = &[
 ];
 
 // ── The in-memory tree the pure planner reads ────────────────────────────────
-
-/// File counts as `doc-counts` derives them: `.md` files per folder, less the index pages.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Counts {
-    /// All `.md` files in `done/` (including `v0.7.x-index.md`).
-    pub done_total: usize,
-    pub accepted: usize,
-    pub proposed: usize,
-    pub archive: usize,
-}
 
 /// Everything the planner reads. Nothing here touches the disk.
 #[derive(Debug, Clone)]
@@ -82,7 +71,7 @@ pub struct Tree {
     /// File names already in `rfcs/done/`.
     pub done_names: BTreeSet<String>,
     pub readme: String,
-    pub counts: Counts,
+    pub counts: FolderCounts,
 }
 
 /// One content edit, at its final path.
@@ -161,79 +150,6 @@ fn row_cells(line: &str, n: usize) -> Option<Vec<String>> {
     let inner = t.strip_prefix('|')?.strip_suffix('|')?;
     let cells: Vec<String> = inner.split('|').map(|c| c.trim().to_string()).collect();
     (cells.len() == n).then_some(cells)
-}
-
-fn leading_digits(s: &str) -> Option<usize> {
-    let d: String = s.chars().take_while(|c| c.is_ascii_digit()).collect();
-    d.parse().ok()
-}
-
-// ── The five counts, validated before anything is planned ────────────────────
-
-/// What the README claims. `None` means the line could not be found or parsed.
-#[derive(Debug, PartialEq, Eq)]
-struct Claims {
-    done_header: Option<usize>,
-    rfcs_plus: Option<usize>,
-    accepted: Option<usize>,
-    proposed: Option<usize>,
-    archive: Option<usize>,
-}
-
-fn folder_header_count(src: &str, label: &str, folder: &str) -> Option<usize> {
-    let prefix = format!("## {label} ({folder})");
-    let line = src.lines().find(|l| l.starts_with(&prefix))?;
-    let rest = line[line.rfind('—')? + '—'.len_utf8()..].trim();
-    if rest.eq_ignore_ascii_case("none") {
-        return Some(0);
-    }
-    leading_digits(rest)
-}
-
-fn read_claims(readme: &str) -> Claims {
-    let done_header = readme
-        .lines()
-        .find(|l| l.starts_with("## Implemented (done/)"))
-        .and_then(|l| {
-            let rest = l[l.rfind('—')? + '—'.len_utf8()..].trim();
-            leading_digits(rest)
-        });
-    let rfcs_plus = readme
-        .lines()
-        .find(|l| l.contains("RFCs plus"))
-        .and_then(leading_digits);
-    Claims {
-        done_header,
-        rfcs_plus,
-        accepted: folder_header_count(readme, "Accepted", "accepted/"),
-        proposed: folder_header_count(readme, "Proposed", "proposed/"),
-        archive: folder_header_count(readme, "Archive", "archive/"),
-    }
-}
-
-/// Every way the README's five counts disagree with the folders (empty = they agree).
-fn count_disagreements(readme: &str, c: &Counts) -> Vec<String> {
-    let claims = read_claims(readme);
-    let mut out = Vec::new();
-    let mut cmp = |name: &str, claimed: Option<usize>, actual: usize| match claimed {
-        Some(n) if n == actual => {}
-        Some(n) => out.push(format!("{name} claims {n}, the folder holds {actual}")),
-        None => out.push(format!("{name} could not be found in rfcs/README.md")),
-    };
-    cmp(
-        "`## Implemented (done/) — N files`",
-        claims.done_header,
-        c.done_total,
-    );
-    cmp(
-        "\"N RFCs plus `v0.7.x-index.md`\"",
-        claims.rfcs_plus,
-        c.done_total.saturating_sub(1),
-    );
-    cmp("`## Accepted (accepted/)`", claims.accepted, c.accepted);
-    cmp("`## Proposed (proposed/)`", claims.proposed, c.proposed);
-    cmp("`## Archive (archive/)`", claims.archive, c.archive);
-    out
 }
 
 // ── The README, located and edited ───────────────────────────────────────────
@@ -493,7 +409,7 @@ pub fn plan_promotion(version: &str, tree: &Tree) -> Result<Plan, Vec<String>> {
 
     // The tree must already agree with itself: building on a tree `doc-counts` rejects would
     // bury that disagreement under this tool's own edit.
-    for d in count_disagreements(&tree.readme, &tree.counts) {
+    for d in disagreements(&tree.readme, &tree.counts) {
         why.push(format!(
             "rfcs/README.md already disagrees with the folders before anything is moved — {d}. \
             Fix that first (`consistency-check doc-counts` names it); this tool will not build \
@@ -657,7 +573,7 @@ pub fn plan_promotion(version: &str, tree: &Tree) -> Result<Plan, Vec<String>> {
 
     // Task 5: the README.
     let new_done_total = tree.counts.done_total + moved.len();
-    let accepted_remaining = tree.counts.accepted.saturating_sub(moved.len());
+    let accepted_remaining = tree.counts.accepted_rfcs.saturating_sub(moved.len());
     let readme_edit = if why.is_empty() {
         match edit_readme(
             &tree.readme,
@@ -799,15 +715,6 @@ fn md_files(dir: &Path) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
-fn rfc_count(dir: &Path) -> Result<usize, String> {
-    let files = md_files(dir)?;
-    let non = NON_RFC_FILES
-        .iter()
-        .filter(|f| dir.join(f).is_file())
-        .count();
-    Ok(files.len().saturating_sub(non))
-}
-
 /// Read everything the planner needs for `milestone` from the current directory.
 pub fn load_tree(milestone: &str) -> Result<Tree, String> {
     load_tree_in(Path::new("."), milestone)
@@ -839,12 +746,7 @@ pub fn load_tree_in(root: &Path, milestone: &str) -> Result<Tree, String> {
         }
     }
     let done_files = md_files(&root.join(DONE_DIR))?;
-    let counts = Counts {
-        done_total: done_files.len(),
-        accepted: rfc_count(&root.join(ACCEPTED_DIR))?,
-        proposed: rfc_count(&root.join(PROPOSED_DIR))?,
-        archive: rfc_count(&root.join(ARCHIVE_DIR))?,
-    };
+    let counts = count_folders(root)?; // the one rule `doc-counts` uses
     Ok(Tree {
         accepted,
         handoffs,
@@ -974,6 +876,7 @@ fn cmd_promote(args: &[String]) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fjell_consistency_check::readme_counts::{ARCHIVE_DIR, PROPOSED_DIR};
 
     const V: &str = "0.43.0";
 
@@ -1027,11 +930,11 @@ mod tests {
             handoffs,
             done_names: BTreeSet::new(),
             readme: readme(&rows, 10, Some(ids.len())),
-            counts: Counts {
+            counts: FolderCounts {
                 done_total: 10,
-                accepted: ids.len(),
-                proposed: 0,
-                archive: 2,
+                accepted_rfcs: ids.len(),
+                proposed_rfcs: 0,
+                archive_rfcs: 2,
             },
         }
     }
@@ -1143,7 +1046,7 @@ mod tests {
     fn a_partial_promotion_keeps_the_section_and_its_other_rows() {
         let mut t = tree(&["001", "002"]);
         t.accepted.push(rfc_other_milestone());
-        t.counts.accepted = 3;
+        t.counts.accepted_rfcs = 3;
         t.readme = readme(&[("001", "E-1"), ("002", "E-2")], 10, Some(3));
         // a 0.44 row stays in the Accepted table
         t.readme = t.readme.replace(
@@ -1282,7 +1185,7 @@ mod tests {
             "{e:?}"
         );
         let mut t = tree(&["001"]);
-        t.counts.archive = 5; // README says 2
+        t.counts.archive_rfcs = 5; // README says 2
         assert!(
             refusals(&t)
                 .iter()
@@ -1290,11 +1193,7 @@ mod tests {
         );
         let mut t = tree(&["001"]);
         t.readme = t.readme.replace("RFCs plus", "RFCs and");
-        assert!(
-            refusals(&t)
-                .iter()
-                .any(|r| r.contains("could not be found"))
-        );
+        assert!(refusals(&t).iter().any(|r| r.contains("could not find")));
     }
 
     #[test]
@@ -1412,7 +1311,7 @@ mod tests {
         let root = scratch("round");
         write_tree(&root, &tree(&["001", "002"]));
         let loaded = load_tree_in(&root, "0.43").unwrap();
-        assert!(count_disagreements(&loaded.readme, &loaded.counts).is_empty());
+        assert!(disagreements(&loaded.readme, &loaded.counts).is_empty());
         let plan = plan_promotion(V, &loaded).unwrap();
         apply_in(&root, &plan).unwrap();
         let after = dump(&root);
@@ -1422,9 +1321,9 @@ mod tests {
         // and the result is itself consistent: the counts agree with the moved folders
         let again = load_tree_in(&root, "0.43").unwrap();
         assert!(
-            count_disagreements(&again.readme, &again.counts).is_empty(),
+            disagreements(&again.readme, &again.counts).is_empty(),
             "{:?}",
-            count_disagreements(&again.readme, &again.counts)
+            disagreements(&again.readme, &again.counts)
         );
         // promoting twice finds nothing to promote
         assert!(plan_promotion(V, &again).is_err());
@@ -1465,9 +1364,9 @@ mod tests {
             .unwrap();
         let t = load_tree_in(root, "0.43").expect("real tree loads");
         assert!(
-            count_disagreements(&t.readme, &t.counts).is_empty(),
+            disagreements(&t.readme, &t.counts).is_empty(),
             "{:?}",
-            count_disagreements(&t.readme, &t.counts)
+            disagreements(&t.readme, &t.counts)
         );
     }
 

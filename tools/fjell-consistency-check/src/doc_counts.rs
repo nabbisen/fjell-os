@@ -14,20 +14,13 @@
 //! source of truth (see `version_currency`'s design note for the sibling
 //! problem in S3). This checks exactly the five counts named in the RFC
 //! (`rfcs/README.md`'s folder headers), each mechanically derivable as "the
-//! number of files in a directory":
+//! number of files in a directory".
 //!
-//!   1. `## Implemented (done/) — N files` — total `.md` files in `done/`.
-//!   2. `"N RFCs plus \`v0.7.x-index.md\`"` — the same total minus the one
-//!      documented non-RFC file in that folder.
-//!   3. `## Accepted (accepted/) — N RFCs`
-//!   4. `## Proposed (proposed/) — none` (or `N RFCs`)
-//!   5. `## Archive (archive/) — N RFCs`
-//!
-//! `README.md` (the file, present in `accepted/`, `proposed/`, and
-//! `archive/` as a folder-local index page — mirroring `done/`'s
-//! `v0.7.x-index.md`) is excluded from counts 3–5 the same way
-//! `v0.7.x-index.md` is excluded from count 2: it is an index of the RFCs
-//! in that folder, not one of them.
+//! **The rule itself is not in this file** (0.44 small item D). The five counts, how each is
+//! parsed and compared, and how the folders are counted are
+//! [`fjell_consistency_check::readme_counts`], in the library half of this crate, so that
+//! `cargo xtask rfc promote`'s pre-flight calls the very same function rather than restating
+//! it. This module reads the README, asks the library, and reports.
 //!
 //! **Excluded deliberately**, per the handoff's instruction to say so: the
 //! instrument audit's own totals table (`docs/src/assurance/instrument-audit.md`
@@ -41,117 +34,31 @@
 //! explicitly rules out.
 
 use crate::read_file;
-use std::fs;
+use fjell_consistency_check::readme_counts::{FolderCounts, count_folders, disagreements};
+use std::path::Path;
 use std::process::ExitCode;
 
 const README_PATH: &str = "rfcs/README.md";
-const DONE_DIR: &str = "rfcs/done";
-const ACCEPTED_DIR: &str = "rfcs/accepted";
-const PROPOSED_DIR: &str = "rfcs/proposed";
-const ARCHIVE_DIR: &str = "rfcs/archive";
-
-/// A folder's non-RFC index file, if it has one, excluded from its "N RFCs"
-/// count the same way `v0.7.x-index.md` is excluded from `done/`'s.
-const NON_RFC_FILES: &[&str] = &["README.md", "v0.7.x-index.md"];
-
 const NAME: &str = "doc-counts";
 
 pub fn check() -> ExitCode {
     let Some(readme_src) = read_file(NAME, README_PATH) else {
         return ExitCode::FAILURE;
     };
-    // RFC-0.30-002 R1: named individually, not folded into one "one or more"
-    // message — the previous shape couldn't say which of the four failed.
-    let mut counted: Vec<usize> = Vec::new();
-    for dir in [DONE_DIR, ACCEPTED_DIR, PROPOSED_DIR, ARCHIVE_DIR] {
-        match count_md_files(dir) {
-            Ok(n) => counted.push(n),
-            Err(e) => {
-                eprintln!("{NAME}: FAIL — cannot read {dir}: {e}");
-                return ExitCode::FAILURE;
-            }
+    // RFC-0.30-002 R1: an unreadable folder is named, not folded into one message.
+    let counts = match count_folders(Path::new(".")) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{NAME}: FAIL — {e}");
+            return ExitCode::FAILURE;
         }
-    }
-    let [d, a, p, ar] = <[usize; 4]>::try_from(counted).unwrap();
-    let counts = ActualCounts {
-        done_total: d,
-        accepted_rfcs: a.saturating_sub(non_rfc_present(ACCEPTED_DIR)),
-        proposed_rfcs: p.saturating_sub(non_rfc_present(PROPOSED_DIR)),
-        archive_rfcs: ar.saturating_sub(non_rfc_present(ARCHIVE_DIR)),
     };
     run_check(&readme_src, &counts)
 }
 
-fn count_md_files(dir: &str) -> std::io::Result<usize> {
-    Ok(fs::read_dir(dir)?
-        .filter_map(|e| e.ok())
-        .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
-        .count())
-}
-
-/// How many of `NON_RFC_FILES` actually exist in `dir` (0 or 1 in practice
-/// today, but counted rather than assumed).
-fn non_rfc_present(dir: &str) -> usize {
-    NON_RFC_FILES
-        .iter()
-        .filter(|f| std::path::Path::new(dir).join(f).is_file())
-        .count()
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub struct ActualCounts {
-    pub done_total: usize,
-    pub accepted_rfcs: usize,
-    pub proposed_rfcs: usize,
-    pub archive_rfcs: usize,
-}
-
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
-pub fn run_check(readme_src: &str, actual: &ActualCounts) -> ExitCode {
-    let mut problems = Vec::new();
-
-    match parse_done_header(readme_src) {
-        Some(claimed) if claimed == actual.done_total => {}
-        Some(claimed) => problems.push(format!(
-            "`## Implemented (done/)` claims {claimed} files; actual is {}",
-            actual.done_total
-        )),
-        None => {
-            problems.push("could not find `## Implemented (done/) — N files` header".to_string())
-        }
-    }
-
-    match parse_done_rfc_count(readme_src) {
-        Some(claimed) if claimed == actual.done_total.saturating_sub(1) => {}
-        Some(claimed) => problems.push(format!(
-            "\"{claimed} RFCs plus `v0.7.x-index.md`\" claims {claimed}; actual (total minus the index page) is {}",
-            actual.done_total.saturating_sub(1)
-        )),
-        None => problems.push("could not find the \"N RFCs plus `v0.7.x-index.md`\" line".to_string()),
-    }
-
-    check_folder_count(
-        readme_src,
-        "Accepted",
-        "accepted/",
-        actual.accepted_rfcs,
-        &mut problems,
-    );
-    check_folder_count(
-        readme_src,
-        "Proposed",
-        "proposed/",
-        actual.proposed_rfcs,
-        &mut problems,
-    );
-    check_folder_count(
-        readme_src,
-        "Archive",
-        "archive/",
-        actual.archive_rfcs,
-        &mut problems,
-    );
-
+pub fn run_check(readme_src: &str, actual: &FolderCounts) -> ExitCode {
+    let problems = disagreements(readme_src, actual);
     if problems.is_empty() {
         println!("doc-counts: PASS (5 counts in {README_PATH} match the tree)");
         ExitCode::SUCCESS
@@ -162,56 +69,6 @@ pub fn run_check(readme_src: &str, actual: &ActualCounts) -> ExitCode {
         }
         ExitCode::FAILURE
     }
-}
-
-fn check_folder_count(
-    src: &str,
-    label: &str,
-    folder: &str,
-    actual: usize,
-    problems: &mut Vec<String>,
-) {
-    match parse_folder_header(src, label, folder) {
-        Some(claimed) if claimed == actual => {}
-        Some(claimed) => problems.push(format!(
-            "`## {label} ({folder})` claims {claimed}; actual is {actual}"
-        )),
-        None => problems.push(format!(
-            "could not find `## {label} ({folder}) — N RFCs` header"
-        )),
-    }
-}
-
-/// Parse `## Implemented (done/) — N files`.
-fn parse_done_header(src: &str) -> Option<usize> {
-    let line = src
-        .lines()
-        .find(|l| l.starts_with("## Implemented (done/)"))?;
-    let dash = line.rfind('—')?;
-    let rest = line[dash + '—'.len_utf8()..].trim();
-    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    digits.parse().ok()
-}
-
-/// Parse `N RFCs plus \`v0.7.x-index.md\``.
-fn parse_done_rfc_count(src: &str) -> Option<usize> {
-    let line = src.lines().find(|l| l.contains("RFCs plus"))?;
-    let digits: String = line.chars().take_while(|c| c.is_ascii_digit()).collect();
-    digits.parse().ok()
-}
-
-/// Parse `## <Label> (<folder>) — N RFCs` or `## <Label> (<folder>) — none`.
-/// Returns `Some(0)` for `none`.
-fn parse_folder_header(src: &str, label: &str, folder: &str) -> Option<usize> {
-    let prefix = format!("## {label} ({folder})");
-    let line = src.lines().find(|l| l.starts_with(&prefix))?;
-    let dash = line.rfind('—')?;
-    let rest = line[dash + '—'.len_utf8()..].trim();
-    if rest.eq_ignore_ascii_case("none") {
-        return Some(0);
-    }
-    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
-    digits.parse().ok()
 }
 
 #[cfg(test)]
@@ -226,8 +83,8 @@ mod tests {
          ## Archive (archive/) — 1 RFC\n"
     }
 
-    fn matching_counts() -> ActualCounts {
-        ActualCounts {
+    fn matching_counts() -> FolderCounts {
+        FolderCounts {
             done_total: 166,
             accepted_rfcs: 2,
             proposed_rfcs: 0,
@@ -235,35 +92,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn parses_done_header() {
-        assert_eq!(parse_done_header(fixture_readme()), Some(166));
-    }
-
-    #[test]
-    fn parses_done_rfc_count() {
-        assert_eq!(parse_done_rfc_count(fixture_readme()), Some(165));
-    }
-
-    #[test]
-    fn parses_none_as_zero() {
-        assert_eq!(
-            parse_folder_header(fixture_readme(), "Proposed", "proposed/"),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn parses_numeric_folder_count() {
-        assert_eq!(
-            parse_folder_header(fixture_readme(), "Accepted", "accepted/"),
-            Some(2)
-        );
-        assert_eq!(
-            parse_folder_header(fixture_readme(), "Archive", "archive/"),
-            Some(1)
-        );
-    }
+    // The parsing and the comparison are tested where they live
+    // (`readme_counts`); these pin that the SUBCHECK still turns a disagreement into a
+    // failing exit, which is the only thing it adds.
 
     #[test]
     fn matching_counts_pass() {
@@ -278,7 +109,7 @@ mod tests {
     /// hand rather than caught by any check).
     #[test]
     fn drifted_done_count_fails() {
-        let actual = ActualCounts {
+        let actual = FolderCounts {
             done_total: 170, // tree grew; README.md was not updated
             ..matching_counts()
         };
@@ -287,7 +118,7 @@ mod tests {
 
     #[test]
     fn drifted_accepted_count_fails() {
-        let actual = ActualCounts {
+        let actual = FolderCounts {
             accepted_rfcs: 3,
             ..matching_counts()
         };
@@ -296,10 +127,18 @@ mod tests {
 
     #[test]
     fn proposed_folder_gaining_an_rfc_without_updating_none_fails() {
-        let actual = ActualCounts {
+        let actual = FolderCounts {
             proposed_rfcs: 1, // an RFC was added; header still says "none"
             ..matching_counts()
         };
         assert_eq!(run_check(fixture_readme(), &actual), ExitCode::FAILURE);
+    }
+
+    #[test]
+    fn an_unparseable_readme_fails_closed() {
+        assert_eq!(
+            run_check("# no counts at all\n", &matching_counts()),
+            ExitCode::FAILURE
+        );
     }
 }
