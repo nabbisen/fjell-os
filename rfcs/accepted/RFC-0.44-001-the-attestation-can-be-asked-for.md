@@ -14,11 +14,20 @@
 
 ## What is wrong
 
-**`attestd` cannot be asked for anything.** It serves `GENERATE`, `VERIFY_LATEST` and `EXPORT`,
-and `spawn.rs` gives it `Some(3)` to receive on — but **no `install_raw` anywhere targets
-`object_id: 3`**, so none of the three has a possible sender. `ATTESTD_EP_OBJECT` does not exist as
-a named constant, unlike `measuredd`'s, `bootctl`'s, `verifyd`'s, `netd`'s and `configd`'s. Its
-`GENERATE` arm's *"record generated (v2)"* line has never been printed by any boot (**E-121**).
+**No diagnostic bundle can ask `attestd` for anything.** `fjell-diag-format`'s
+`last_attestation_available` is documented *"permanently `false` today"* because nothing queries,
+and `ATTESTD_EP_OBJECT` does not exist as a named constant, unlike `measuredd`'s, `bootctl`'s,
+`verifyd`'s, `netd`'s and `configd`'s (**E-121**).
+
+> **Corrected 2026-11-15, at this line's own review, by its implementer.** This paragraph first
+> said `attestd` *"cannot be asked for anything"* and that its `GENERATE` arm's *"record generated
+> (v2)"* line *"has never been printed by any boot"*. **Both were false.** The kernel's `main.rs`
+> installs slot 4 → `object_id: 3`, `CapRights::CALL` into **`init`'s** CSpace, and `init`'s M8
+> step 5 has sent `GENERATE` and `VERIFY_LATEST` on every boot. The architect enumerated every
+> endpoint install **in `spawn.rs`** and wrote it up as every install — while `init` is spawned
+> from `main.rs`, as `capability-topology`'s own module doc states. **The requirements below rest
+> on the narrower truth and were unaffected**; it is the premise that was wrong, and E-121 carries
+> the retraction.
 
 **And the consumer has been waiting, with a comment explaining why it is empty.**
 `fjell-diag-format`'s bundle carries `last_attestation: Digest32` beside

@@ -6263,6 +6263,16 @@ which is history removes the disagreement instead of detecting it, and needs no 
   constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the
   decision recorded. **A declared export that replies "done" having sent nothing is
   not acceptable**, least of all one cited elsewhere as proof the capability exists.
+- **Resolution:** ~~**ACCEPTED**, `unscheduled`~~ → **CLOSED** by **RFC-0.44-001**.
+
+  > **Closed by RFC-0.44-001, 2026-11-15.**
+  > `measuredd`'s `EXPORT_LOG`/`EXPORT_CHUNK`/`EXPORT_DONE` and their two-line arm are **deleted**,
+  > the way `AUDIT_QUERY` went in RFC-0.35-002 — and `0x307`–`0x309` are recorded as **retired, not
+  > reassigned**, the lesson of syscall 120. The removal rested on a sweep over `crates tools tests
+  > docs/src .github` that found only the declarations, the arm, snapshot entries and limitations
+  > prose: no sender, no test, no `init` call. A stray request now reaches `_ => ERR`.
+  > `fjell_measure_format::MAX_EXPORT_CHUNK`, the export's dead companion with zero uses, went with
+  > it.
 
 ## E-088 — `sys_cap_bind_lease` performs no authority check, fails open, and its own justification is false
 
@@ -8842,57 +8852,60 @@ which is history removes the disagreement instead of detecting it, and needs no 
   result depends on it, because nothing calls it.
 - **Status:** **ACCEPTED**, `unscheduled` pending the owner's 0.44 decision; proposed there beside
   **E-087** as one line covering both.
+- **Resolution:** ~~**ACCEPTED**, `unscheduled`~~ → **CLOSED** by **RFC-0.44-001**.
 
-## E-121 — `attestd`'s whole request surface is unreachable: it receives on an endpoint no image can address
+  > **Closed by RFC-0.44-001, 2026-11-15.**
+  > `attestd`'s `EXPORT`/`EXPORT_CHUNK`/`EXPORT_DONE` and the one-line arm are **deleted**;
+  > `0x316`–`0x318` are retired, not reassigned. **The reason is not that nothing called it** — that
+  > was the reasoning this entry's own scoping had to withdraw. It is that once the consumer was
+  > identified, it wants **32 bytes**: `fjell-diag-format`'s `last_attestation: Digest32`, which a
+  > single reply carries in four words. A chunked export of the dozen-field record is wanted by
+  > nobody.
 
-- **Found 2026-11-15 by the architect**, answering the owner's question about what `attestd`'s
-  export was *for*. The export (**E-120**) turned out to be the smaller half.
-- **Claim:** `attestd` is described by its own header as the *"**Local** attestation service"*,
-  producing `AttestationRecordV2` when the trust-provider registry is Enforcing, and it serves
-  three request tags: `GENERATE` (0x311), `VERIFY_LATEST` (0x313) and `EXPORT` (0x316).
-- **Tree, observed 2026-11-15: nothing in the system can send it any of them.**
-  - `spawn.rs`'s `ep_obj` match gives `ATTESTD => Some(3)`, so attestd **receives** on endpoint
-    object 3.
-  - **No `install_raw` anywhere has `object_id: 3`.** Every endpoint install in `spawn.rs` was
-    enumerated: the destinations are each image's own `ep_obj`, `SERVICE_MANAGER_EP_OBJECT`,
-    `INIT_RELAY_EP_OBJECT`, `BOOTCTL_EP_OBJECT`, `DIAGNOSTICSD_TOOLS_EP_OBJECT`,
-    `MEASUREDD_EP_OBJECT` (twice), `UPDATE_CHANNEL_EP_OBJECT` (twice), `NEG_TEST_EP_OBJECT`,
-    `FLEETD_TRIGGER_EP_OBJECT`, and the literals 0, 5, 6 and 7. **Object 3 appears nowhere as a
-    destination.**
-  - **`ATTESTD_EP_OBJECT` does not exist as a named constant**, unlike `MEASUREDD_EP_OBJECT`,
-    `BOOTCTL_EP_OBJECT`, `VERIFYD_EP_OBJECT`, `NETD_EP_OBJECT`, `CONFIGD_EP_OBJECT` and
-    `NEG_TEST_OWN_EP_OBJECT`. attestd's arm is a bare `Some(3)`.
-  - **The contrast proves the shape is not inherent.** `measuredd` has a named endpoint constant
-    and **two** holders of a capability to it — `diagnosticsd` slot 4 and `attestd` slot 4. So
-    services here do address each other; attestd is simply not addressable.
-- **What is real, so a reader does not over-read this.** attestd **does** construct a record at
-  boot and report it: a real `audit`-profile boot carries *"attestd: trust-provider + keyring
-  wired; v2 signing active"*, *"attestd ready"*, and its availability flags
-  (`measurement=1`, every other digest `0` — which is **E-095**). The record exists. What does not
-  exist is any way to ask for it, verify it on demand, or export it. The `GENERATE` arm's
-  *"record generated (v2)"* line has never been printed by any boot, because the arm never runs.
-- **Why no instrument catches it.** `capability-topology` compares a service's **own declared
-  `CapHandle` slots** against `spawn.rs`'s installs — it answers *"does this service get what it
-  says it needs?"* and never *"can anyone reach this service?"* An endpoint with a receiver and no
-  sender satisfies every check in the tree. This is the **E-068/E-069 declared-but-not-serving
-  shape, inverted**: those were capabilities installed to serve a peer that never came; this is a
-  server nobody was given a way to call.
-- **It is the same defect RFC-0.35-002 already deleted code for, in this same file.** That line
-  removed `push_attestation`, its `CAP_SXT_EP`, and the SXT helpers it alone used, because it *"had
-  no caller anywhere in the tree"* and *"addressed a peer through a capability nobody installs:
-  built, never wired to a caller"*. **Deleted, not stubbed**, with the ruling's reason that
-  *"bolting a path onto an existing comment retrofits a design to a sentence, not the other way
-  around."* The remaining three tags are the mirror image of what that ruling removed, and were
-  left standing.
-- **What closing it needs — a decision, not a patch.** Either attestd is meant to be queried, and
-  **one named endpoint constant plus one capability install for a named caller** makes it so (and
-  then `GENERATE`/`VERIFY_LATEST` can be exercised and E-120's export decided on its merits); or it
-  is not, and the three tags go the way `push_attestation` went, leaving the boot-time record and
-  its availability reporting — which is what actually works today. **Deciding the export without
-  deciding this would repeat RFC-0.35-002's reason 1.**
-- **Status:** **ACCEPTED**, `unscheduled` pending the owner's 0.44 decision; proposed there as the
-  line that **E-120 and E-087 fold into**, since an export for an unreachable service cannot be
-  judged on its own.
+## E-121 — ~~`attestd`'s whole request surface is unreachable~~ → **no *bundle* could ask**: the title's claim was false
+
+- **RETRACTED IN PART, 2026-11-15, at RFC-0.44-001's review, by the implementer of that line.**
+  **This entry's central claim was wrong and is withdrawn before anything else is read.** It said
+  `attestd` *"cannot be asked for anything"*, that *"no `install_raw` anywhere targets
+  `object_id: 3`"*, and that its `GENERATE` arm's line *"has never been printed by any boot"*.
+  - **`crates/fjell-kernel/src/main.rs` installs slot 4 → `object_id: 3`, `CapRights::CALL`, into
+    `init`'s CSpace** (comment: `// attestd (ep id=3)`), and `init`'s M8 step 5 sends `GENERATE`
+    and `VERIFY_LATEST` through it. A real `audit` boot carries `attestd: record generated (v2)`,
+    `M8: attestation record generated`, `M8: attestation verified`. **Every boot.**
+  - **How the error was made, because it is the error this entry was about.** The architect
+    enumerated every endpoint install **in `spawn.rs`** and wrote it up as *every endpoint
+    install*. `init` is not spawned through `spawn.rs` — and `capability-topology`'s own module
+    doc says so: *"`fjell-init`, entirely — `init` is spawned directly in
+    `crates/fjell-kernel/src/main.rs`, never through `spawn.rs`'s per-image blocks this module
+    reads."* That sentence had been read in full three days earlier, while analysing **E-117**.
+    So this entry committed, inside a finding about axis-blindness, the same axis-blindness:
+    **a complete enumeration of one file presented as a complete enumeration of the system** —
+    E-117 was one directory, E-119 one page of two, this one file of two.
+- **What was true, and what the line was built on.** **No `diagnosticsd`, and therefore no
+  diagnostic bundle, could ask.** `fjell-diag-format`'s `last_attestation_available` was
+  *"permanently `false` today"* for exactly that reason, and `builder.rs` declined the value as a
+  parameter *"on purpose. Nothing in [the tree] queries a real last attestation."* And
+  `ATTESTD_EP_OBJECT` was a bare literal `3` in `spawn.rs`'s arm, unlike the five named endpoint
+  objects beside it.
+- **Why no instrument caught the narrow truth either.** `capability-topology` compares a service's
+  own declared `CapHandle` slots against the installs — *"does this service get what it says it
+  needs?"*, never *"can this consumer reach that producer?"* A bundle field documented as
+  permanently false satisfies every check in the tree.
+- **Resolution:** ~~**ACCEPTED**, `unscheduled`~~ → **CLOSED** by **RFC-0.44-001**.
+
+  > **Closed by RFC-0.44-001, 2026-11-15.** `ATTESTD_EP_OBJECT` is a named constant used by
+  > `spawn.rs`'s arm, the kernel's allocation assertion and `init`'s own install; `diagnosticsd`
+  > holds `CAP_ATTESTD_EP` at slot 5 as a **`CALL`-only** capability; and a digest query
+  > (`LATEST_DIGEST` → `LATEST_DIGEST_REPLY` | `NO_RECORD`) lets the bundle obtain the last
+  > record's `Digest32`. `last_attestation_available` now reads `true` **because something
+  > obtained the value**, which E-076's rule requires. `capability-topology` reports 13 judged
+  > slots, naming `DIAGNOSTICSD slot 5 CAP_ATTESTD_EP: installed`.
+  >
+  > **The implementation went past the requirement in the way that matters:** `attestd`'s state
+  > became a single `Option<Digest32>`, replacing a `bool` plus a digest that was `ZERO` on
+  > signing failure — **two variables that together could present a zero digest** — and
+  > `BundleBuilder` takes the `Option`, so digest and availability are one value. **E-076's defect
+  > is now unrepresentable rather than guarded against.**
 
 ## Summary
 
@@ -8983,7 +8996,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-084 `fjell-netd`'s complete IPC event loop is statically unreachable after `sys_exit(0)` (which is `-> !`), and the crate suppresses `unreachable_code` crate-wide so the compiler never says so; the exit is disclosed in the stub list, the dead loop behind it is not — split from E-081 because the remedy differs | RFC-0.37-002 | CLOSED |
 | E-085 `fjell-measuredd`'s `GET_HEAD` replies with 8 of the chain digest's 32 bytes (`cd_lo`) alongside a sequence number and a dropped count, in a 3-word `reply` — so the protocol cannot return the digest it names, for any consumer; fixing E-083's tags alone would land a sequence number in a `Digest32` and report it `available: true` | RFC-0.38-001 | CLOSED |
 | E-086 `fjell-init` appends four measurement events per boot whose "subject digest" is a literal (`0x0011`, `0xAB` ×3) with the rest zero, and nothing in the tree computes a digest of anything — the kernel embeds every service binary with `include_bytes!` and never hashes one. The attestation root is built from placeholders, live on every boot, disclosed nowhere | RFC-0.38-001 | CLOSED |
-| E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | unscheduled | ACCEPTED |
+| E-087 `measuredd`'s `EXPORT_LOG` replies `EXPORT_CHUNK` with a sequence number and zeros then `EXPORT_DONE` — no loop, no content, no caller ever — and E-085's own resolution cited it as the working chunking pattern to follow | RFC-0.44-001 | CLOSED |
 | E-088 `sys_cap_bind_lease` performs no authority check, is dispatched ungated, and sets `cap.lease` unconditionally — its doc comment promises a `LeaseAdmin`/`LEASE_CREATE` gate and its own justification ("all spawned services receive a LeaseAdmin cap at slot 4") is false: three tasks hold one, only `neg-test` at slot 4. The epoch read admitted a `Revoked` slot too; the closure records that rebinding to the *same* revoked lease was measured **not** to revive the capability (`check_active` needs `Active`), and that a task with no `LeaseAdmin` binding it to a *different* `Active` lease did — the one step RFC 015 never covered. Fails **open**, so E-011's ground for ACCEPTED does not apply | RFC-0.38-002 | CLOSED |
 | E-089 `sys_ipc_try_recv` discards its task table, so it never wakes a one-way sender nor installs a reply edge; `driver-uart` blocks in its send and never reaches `sys_irq_ack`, so UART RX delivers exactly one byte per boot — invisible because all nine injecting profiles send a single character | RFC-0.38-003 | CLOSED |
 | E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | CLOSED |
@@ -9016,8 +9029,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-117 **`capability-topology` checks nine fewer declarations than exist, and its slot-0 exclusion rests on a fallback RFC-0.41-002 deleted.** The instrument exists so *"a service's own CSpace declaration and the kernel's install must agree"*, and its doc states *"the universe is discovered, not enumerated"* after a planted constant passed against an enumerated list. But discovery is `const SERVICES_DIR = "crates/services"`, so **`crates/drivers/` is outside the scan** and **9 of the 19 `CapHandle(<slot>)` declarations are unchecked** — a constant planted in `crates/drivers/` would pass silently, the same defect on a different axis. **One of the nine is wrong twice:** `virtio-net`'s `CAP_MMIO = CapHandle(0)` gets no slot-0 install (the single `install_raw(0, …)` is fed by a `match` with arms for eighteen images and `_ => None`; `DRIVER_VIRTIO_NET` has no arm) and names the wrong kind anyway (that site installs `Endpoint`; MMIO installs at `31 + region_idx`, so region 3 means slot **34**). `driver-uart` is correct at `CapHandle(32)` for region 1 *and uses it*; virtio-net never uses its own, which is why it has never fired. **The slot-0 exclusion is justified by a false sentence:** it cites a `_ => 0` fallback installing slot 0 *"unconditionally for every `image_id`"*, which RFC-0.41-002 R3 replaced with `_ => None`. The mechanical reason (the install sits in a `match`, not an `if image_id ==` block) still holds; what changed is that a declared slot 0 **can** now be wrong, and two sit there unchecked. **`secure-transportd`'s `CAP_SESSION` is not a defect** — the 0.41 record's *"never installed"* was carried into two scope documents as "false declaration" and is withdrawn: slot 0 is where a runtime cap-broker delivery arrives, and it belongs in `WAIVERS` with that reason once the slot is checked at all. **Corrected hours after filing:** this entry first called `proxy-text`'s slot 2 (`Endpoint` at `object_id: 0`) a send capability that can never deliver. **It is not a send path but an introspection subject** — the install comment says proxy-text *"introspects [it] via `sys_cap_inspect` to obtain its OWN kernel-verified rights"*, it does so at `main.rs:44`, and `sys_cap_inspect` resolves the slot, checks lease and `INSPECT`, and **never dereferences the object**. So **one** of the three "pre-existing false declarations" is real, not three — a phrase carried unexamined from the 0.41 review record through four documents. Filed as one erratum rather than three fixes because all three survived a milestone about instruments, and they survived because the instrument that owns the class cannot see them | RFC-0.43-002 | CLOSED |
 | E-118 **`driver-virtio-net` is spawned every boot, exits at its first capability-bearing syscall, and prints four lines of device work it never did.** Three layers. **One:** all six of its `CapHandle` declarations — `CAP_MMIO(0)`, `CAP_DMA_RX(1)`, `CAP_DMA_TX(2)`, `CAP_IRQ(3)`, `CAP_NETD_EP(4)`, `CAP_SMGR_EP(5)` — have **no install**; `DRIVER_VIRTIO_NET` has no `ep_obj` arm and its MMIO install lands at `31 + region 3` = slot **34**, not 0. The header's claim that *"devmgr installs capabilities into these CSpace slots"* is false: devmgr installs nothing and `sys_cap_install` has no dispatch arm. `CAP_SMGR_EP` is wrong twice — the ready endpoint is `SERVICE_READY_SEND_SLOT = 20` (RFC-0.36-001's shape). **Two:** `init` starts the image every boot and `sys_irq_bind(CAP_IRQ)` on slot 3 fails and exits, so the driver has **never worked**; slots 4–5 are unreachable past that point and 1–2 are dead. **Three, found checking the evidence rather than reported:** `sys_mmio_map` is **never called in the crate**, yet a real `audit` boot's console carries *"device descriptor loaded"*, *"legacy mode (no VIRTIO_F_VERSION_1)"*, *"features negotiated"* and *"rx queue initialised"* — four assertions of device work with the registers never mapped. **E-105's class** on the operator's screen. No tier is red because `TEST:V0.4-NET:PASS` is emitted four times by `netd`, which never needed the driver. Layer 3's fix is not a capability and is available immediately; layers 1–2 need a capability grant to a driver, which is `0.43-003`. **Waiving slots 3–5 was proposed and refused:** `WAIVERS` means authority a component does not exercise, these are exercised, and a waiver would have the gate report consistency over an image that cannot start | RFC-0.43-003 | CLOSED |
 | E-119 **`verus-setup.md` carried its own copy of the pinned versions, two upgrades stale.** A section headed *"### Pinned version"*, in the document a contributor installs Verus from, naming `release/0.2026.05.24.ecee80a` (two pins behind), `1.95.0 … (separate from Fjell's 1.91)` — the same wrong channel figure `TOOLCHAIN.lock`'s own comment was corrected for, in a second document — and `z3: 4.12.5` against 4.16.0. **This is E-109's defect in a page E-109 never reached:** that erratum's fix was structural, the page ceasing to carry a copy because the figures live in `TOOLCHAIN.md`, and it names `local-development.md`; nobody asked whether a second page had the same copy. **Amendment 1 made it bite harder**, which is why it surfaced there: R8 makes both pins block in every mode, so a contributor installing the version this page named now gets a hard refusal rather than a warning and a run. **No gate's scope reached it** — `toolchain-declarations` checks the Fjell channel, not a prover release, and `version-currency` reads `README.md` against the workspace version. The implementer flagged it as historical and left it, correctly leaving the page to the architect; that judgement was overturned, because a block under that heading is what a reader installs from. Closed by E-109's own remedy applied here: the block is replaced by a pointer to `TOOLCHAIN.lock` and `TOOLCHAIN.md`, naming both errata so the next person reads why there is no copy | 0.43 | CLOSED |
-| E-120 **`attestd`'s export replies "done" having sent nothing, and its chunk constant is used nowhere at all.** `fjell_service_api::attestd` declares `EXPORT` (0x316), `EXPORT_CHUNK` (0x317) and `EXPORT_DONE` (0x318) under *"Export attestation record (PlainText projection)"*; the handler is one line, `proto::EXPORT => { reply(proto::EXPORT_DONE); }`. **`EXPORT` has two occurrences tree-wide** — its declaration and that arm, so no caller ever existed — and **`EXPORT_CHUNK` has one: its declaration**, used by nothing, not even the handler that would send the chunks it exists for. **Strictly worse than E-087's `measuredd` instance**, which at least replies one chunk carrying a sequence number. Same defect: a declared export reporting success having transferred nothing, so a caller cannot distinguish *"exported, nothing to send"* from *"not implemented"*. **Found scoping 0.44 by reading E-087 on the merits for the first time** and noticing a second `EXPORT_CHUNK`/`EXPORT_DONE` pair in the shared API — the axis-blindness of **E-117** (one directory searched) and **E-119** (one page of two): a correct finding scoped to the instance that produced it. Two instances of one class now stand in the register and **neither was found by an instrument**; both were found by a person reading a handler. Closing needs E-087's plan applied to both together — the export works as `storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` does, or the constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the decision recorded. No live result depends on it, because nothing calls it | unscheduled | ACCEPTED |
-| E-121 **`attestd`'s whole request surface is unreachable: it receives on an endpoint no image can address.** The *"Local attestation service"* serves `GENERATE`, `VERIFY_LATEST` and `EXPORT`, and `spawn.rs` gives it `Some(3)` to receive on — but **no `install_raw` anywhere has `object_id: 3`**, so nothing can send it any of them. Every endpoint install was enumerated; object 3 appears nowhere as a destination, and **`ATTESTD_EP_OBJECT` does not exist as a named constant** unlike measuredd's, bootctl's, verifyd's, netd's and configd's. **The contrast shows the shape is not inherent:** `measuredd` has a named constant and two holders (`diagnosticsd` and `attestd`, both slot 4). **What is real:** attestd constructs a record at boot and reports its availability flags (`measurement=1`, the rest 0 — E-095); its `GENERATE` arm's *"record generated (v2)"* line has never been printed, because the arm never runs. **No instrument catches it:** `capability-topology` asks *"does this service get what it says it needs?"*, never *"can anyone reach this service?"* — an endpoint with a receiver and no sender satisfies every check. It is **E-068/E-069's declared-but-not-serving shape inverted**, and the same defect **RFC-0.35-002 deleted code for in this very file**, removing `push_attestation` because it *"had no caller anywhere in the tree"* and addressed a peer *"through a capability nobody installs"* — deleted, not stubbed, on the reasoning that bolting a path onto an existing comment retrofits a design to a sentence. Closing needs a decision: one named endpoint constant plus one install for a named caller, or the three tags go as `push_attestation` did, leaving the boot-time record that works. **E-087 and E-120 fold into this**, because an export for an unreachable service cannot be judged alone | unscheduled | ACCEPTED |
+| E-120 **`attestd`'s export replies "done" having sent nothing, and its chunk constant is used nowhere at all.** `fjell_service_api::attestd` declares `EXPORT` (0x316), `EXPORT_CHUNK` (0x317) and `EXPORT_DONE` (0x318) under *"Export attestation record (PlainText projection)"*; the handler is one line, `proto::EXPORT => { reply(proto::EXPORT_DONE); }`. **`EXPORT` has two occurrences tree-wide** — its declaration and that arm, so no caller ever existed — and **`EXPORT_CHUNK` has one: its declaration**, used by nothing, not even the handler that would send the chunks it exists for. **Strictly worse than E-087's `measuredd` instance**, which at least replies one chunk carrying a sequence number. Same defect: a declared export reporting success having transferred nothing, so a caller cannot distinguish *"exported, nothing to send"* from *"not implemented"*. **Found scoping 0.44 by reading E-087 on the merits for the first time** and noticing a second `EXPORT_CHUNK`/`EXPORT_DONE` pair in the shared API — the axis-blindness of **E-117** (one directory searched) and **E-119** (one page of two): a correct finding scoped to the instance that produced it. Two instances of one class now stand in the register and **neither was found by an instrument**; both were found by a person reading a handler. Closing needs E-087's plan applied to both together — the export works as `storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` does, or the constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the decision recorded. No live result depends on it, because nothing calls it | RFC-0.44-001 | CLOSED |
+| E-121 **`attestd`'s whole request surface is unreachable: it receives on an endpoint no image can address.** The *"Local attestation service"* serves `GENERATE`, `VERIFY_LATEST` and `EXPORT`, and `spawn.rs` gives it `Some(3)` to receive on — but **no `install_raw` anywhere has `object_id: 3`**, so nothing can send it any of them. Every endpoint install was enumerated; object 3 appears nowhere as a destination, and **`ATTESTD_EP_OBJECT` does not exist as a named constant** unlike measuredd's, bootctl's, verifyd's, netd's and configd's. **The contrast shows the shape is not inherent:** `measuredd` has a named constant and two holders (`diagnosticsd` and `attestd`, both slot 4). **What is real:** attestd constructs a record at boot and reports its availability flags (`measurement=1`, the rest 0 — E-095); its `GENERATE` arm's *"record generated (v2)"* line has never been printed, because the arm never runs. **No instrument catches it:** `capability-topology` asks *"does this service get what it says it needs?"*, never *"can anyone reach this service?"* — an endpoint with a receiver and no sender satisfies every check. It is **E-068/E-069's declared-but-not-serving shape inverted**, and the same defect **RFC-0.35-002 deleted code for in this very file**, removing `push_attestation` because it *"had no caller anywhere in the tree"* and addressed a peer *"through a capability nobody installs"* — deleted, not stubbed, on the reasoning that bolting a path onto an existing comment retrofits a design to a sentence. Closing needs a decision: one named endpoint constant plus one install for a named caller, or the three tags go as `push_attestation` did, leaving the boot-time record that works. **E-087 and E-120 fold into this**, because an export for an unreachable service cannot be judged alone | RFC-0.44-001 | CLOSED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
