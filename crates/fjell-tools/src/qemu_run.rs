@@ -159,6 +159,16 @@ pub struct Profile {
     /// containing the substring must carry a `"task"` that is a number (or `null`) and
     /// a `"tick"`. See `audit_trail::judge_scoped`. Empty elsewhere.
     pub expect_scoped: Vec<String>,
+    /// 0.44 small item E: `"<prefix A> => <prefix B>"`. Two services print the same 32-byte
+    /// digest, one as the producer and one as the consumer that fetched it (`attestd`'s
+    /// `record digest` and `diagnosticsd`'s `last_attestation`). Each prefix is followed by 64
+    /// hex digits; **every B line must equal the most recent A line before it**. It fails when
+    /// the values differ, when either line is **absent** (a comparison that passes on a
+    /// missing line is worse than none), when a line is malformed, when B precedes any A, and
+    /// when the value is all zeros (two zeros "agree", and a zero is what a failed query used
+    /// to look like -- E-076). Console lines only: nothing is recomputed on the host. See
+    /// [`judge_equal_digests`]. Empty for every other profile.
+    pub expect_equal: Vec<String>,
 }
 
 impl Profile {
@@ -187,6 +197,7 @@ impl Profile {
             expect_accounted: vec![],
             expect_observed: vec![],
             expect_scoped: vec![],
+            expect_equal: vec![],
         }
     }
 }
@@ -238,6 +249,93 @@ fn judge_hex_prefixes(
         }
     }
     all
+}
+
+/// 0.44 small item E: compare two digests that two services print on the console.
+///
+/// `spec` is `"<prefix A> => <prefix B>"`. A *digest line* for a prefix is a line containing
+/// the prefix immediately followed by exactly 64 hex digits (and no further hex digit). Lines are
+/// read in order, and **every B line must equal the most recent A line before it** -- the
+/// consumer reports the latest thing the producer printed. It is `Err` when:
+///   * the spec is not `A => B` with both prefixes non-empty and different;
+///   * no line contains A, or none contains B -- **absence is a failure, never a pass**;
+///   * a line containing a prefix is not followed by 64 hex digits (malformed);
+///   * a B line comes before any A line;
+///   * a B value differs from the A value in force;
+///   * the value is all zeros (two zero digests "agree", and a zero is what a failed query
+///     used to look like -- E-076).
+pub fn judge_equal_digests(text: &str, spec: &str) -> Result<String, String> {
+    let Some((a, b)) = spec.split_once(" => ") else {
+        return Err(format!(
+            "bad expect_equal `{spec}`: want `<prefix A> => <prefix B>`"
+        ));
+    };
+    let (a, b) = (a.trim_end(), b.trim_start());
+    if a.is_empty() || b.is_empty() || a == b {
+        return Err(format!(
+            "bad expect_equal `{spec}`: the two prefixes must be non-empty and different"
+        ));
+    }
+    // The 64 hex digits after `prefix` on `line`, or why there are not.
+    let digest_after = |line: &str, prefix: &str| -> Result<String, String> {
+        let at = line
+            .find(prefix)
+            .expect("caller checked the prefix is present");
+        let rest = &line[at + prefix.len()..];
+        let hex: String = rest.chars().take_while(|c| c.is_ascii_hexdigit()).collect();
+        if hex.len() == 64 {
+            Ok(hex.to_ascii_lowercase())
+        } else {
+            Err(format!(
+                "the line `{}` carries {} hex digits after `{prefix}`, not 64",
+                line.trim(),
+                hex.len()
+            ))
+        }
+    };
+    // Absence first, and named as absence: "B before any A" would be the symptom of a missing
+    // producer line, not its cause.
+    for (p, who) in [(a, "producer's"), (b, "consumer's")] {
+        if !text.lines().any(|l| l.contains(p)) {
+            return Err(format!(
+                "no line contains `{p}`: the {who} digest was never printed, so nothing was compared"
+            ));
+        }
+    }
+    let mut last_a: Option<String> = None;
+    let (mut a_lines, mut b_lines) = (0usize, 0usize);
+    for line in text.lines() {
+        if line.contains(a) {
+            let d = digest_after(line, a)?;
+            if d.bytes().all(|c| c == b'0') {
+                return Err(format!("`{a}…` is an all-zero digest: {}", line.trim()));
+            }
+            a_lines += 1;
+            last_a = Some(d);
+        } else if line.contains(b) {
+            let d = digest_after(line, b)?;
+            if d.bytes().all(|c| c == b'0') {
+                return Err(format!("`{b}…` is an all-zero digest: {}", line.trim()));
+            }
+            b_lines += 1;
+            match &last_a {
+                None => {
+                    return Err(format!(
+                        "`{b}…` is printed before any `{a}…` line, so there is nothing for it to equal"
+                    ));
+                }
+                Some(want) if *want != d => {
+                    return Err(format!(
+                        "DIFFERENT digests: `{a}…` printed sha256:{want}, but `{b}…` printed sha256:{d}"
+                    ));
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    Ok(format!(
+        "{b_lines} `{b}…` line(s) equal the `{a}…` digest before them ({a_lines} produced)"
+    ))
 }
 
 /// Where artefacts are written for one run.
@@ -570,6 +668,11 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             "\n{spec}    [observed: the required line occurs between the begin and end lines]"
         ));
     }
+    for spec in &p.expect_equal {
+        expected_text.push_str(&format!(
+            "\n{spec}    [equal: every B digest equals the most recent A digest before it; both present, 64 hex, non-zero]"
+        ));
+    }
     for spec in &p.expect_scoped {
         expected_text.push_str(&format!(
             "\n{spec}    [scoped: every such record names its task (or null) and carries a tick]"
@@ -646,6 +749,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         && p.expect_accounted.is_empty()
         && p.expect_observed.is_empty()
         && p.expect_scoped.is_empty()
+        && p.expect_equal.is_empty()
     {
         art.write_summary(
             "result-summary.txt",
@@ -836,6 +940,26 @@ pub fn run_profile(p: &Profile) -> ExitCode {
                 let _ = fs::write(run_dir.join("chain-head.txt"), record);
             }
         }
+    }
+    // 0.44 small item E: a digest one service produced and another reports it fetched must
+    // be the same digest, compared as two console lines.
+    if !p.expect_equal.is_empty() {
+        let text = String::from_utf8_lossy(&combined);
+        let mut record = String::new();
+        for spec in &p.expect_equal {
+            match judge_equal_digests(&text, spec) {
+                Ok(note) => {
+                    println!("[xtask] `{spec}` — {note} ✓");
+                    record.push_str(&format!("equal: {spec}: {note}\n"));
+                }
+                Err(why) => {
+                    eprintln!("[xtask] equality check FAILED — {why}");
+                    record.push_str(&format!("equal: {spec}: FAILED {why}\n"));
+                    all_ok = false;
+                }
+            }
+        }
+        let _ = fs::write(run_dir.join("equal-digests.txt"), record);
     }
     // RFC-0.41-001: what a test did must reach the trail (in time), and the trail
     // must account for a burst it overflowed.
@@ -1191,6 +1315,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_accounted_v: Vec<String> = Vec::new();
     let mut expect_observed_v: Vec<String> = Vec::new();
     let mut expect_scoped_v: Vec<String> = Vec::new();
+    let mut expect_equal_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -1282,6 +1407,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             "expect_accounted" => expect_accounted_v = array_items(&path, k, idx, v)?,
             "expect_observed" => expect_observed_v = array_items(&path, k, idx, v)?,
             "expect_scoped" => expect_scoped_v = array_items(&path, k, idx, v)?,
+            "expect_equal" => expect_equal_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -1365,6 +1491,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         expect_accounted: expect_accounted_v,
         expect_observed: expect_observed_v,
         expect_scoped: expect_scoped_v,
+        expect_equal: expect_equal_v,
     })
 }
 
@@ -2059,6 +2186,139 @@ mod discover_tests {
             load_profile(&r, "p").unwrap().expect_observed,
             ["b => e => w"]
         );
+    }
+
+    // ── 0.44 small item E: judge_equal_digests ───────────────────────────────────
+
+    const EQ_SPEC: &str =
+        "attestd: record digest sha256: => diagnosticsd: last_attestation sha256:";
+
+    fn hex(c: char) -> String {
+        std::iter::repeat(c).take(64).collect()
+    }
+
+    fn eq_log(a: Option<&str>, b: Option<&str>) -> String {
+        let mut t = String::from("noise\n");
+        if let Some(a) = a {
+            t.push_str(&format!("attestd: record digest sha256:{a}\n"));
+        }
+        t.push_str("middle line\n");
+        if let Some(b) = b {
+            t.push_str(&format!("diagnosticsd: last_attestation sha256:{b}\n"));
+        }
+        t
+    }
+
+    #[test]
+    fn equal_digests_pass() {
+        let d = hex('a');
+        let note = judge_equal_digests(&eq_log(Some(&d), Some(&d)), EQ_SPEC).unwrap();
+        assert!(
+            note.contains("1 `diagnosticsd: last_attestation sha256:…` line(s) equal"),
+            "{note}"
+        );
+    }
+
+    /// The three reds the handoff asks for.
+    #[test]
+    fn digests_that_differ_fail() {
+        let e =
+            judge_equal_digests(&eq_log(Some(&hex('a')), Some(&hex('b'))), EQ_SPEC).unwrap_err();
+        assert!(e.contains("DIFFERENT digests"), "{e}");
+        assert!(e.contains(&hex('a')) && e.contains(&hex('b')), "{e}");
+    }
+
+    #[test]
+    fn a_missing_producer_line_fails_rather_than_passing_vacuously() {
+        let e = judge_equal_digests(&eq_log(None, Some(&hex('b'))), EQ_SPEC).unwrap_err();
+        // named as ABSENCE (the cause), not as "B before any A" (the symptom)
+        assert!(
+            e.contains("no line contains `attestd: record digest sha256:`"),
+            "{e}"
+        );
+        // and with NEITHER side present at all
+        let e = judge_equal_digests("just noise\n", EQ_SPEC).unwrap_err();
+        assert!(
+            e.contains("no line contains `attestd: record digest sha256:`"),
+            "{e}"
+        );
+    }
+
+    /// Both present, but the consumer printed first: nothing for it to equal at that point.
+    #[test]
+    fn a_consumer_line_before_the_producers_fails() {
+        let log = format!(
+            "diagnosticsd: last_attestation sha256:{}\nattestd: record digest sha256:{}\n",
+            hex('a'),
+            hex('a')
+        );
+        let e = judge_equal_digests(&log, EQ_SPEC).unwrap_err();
+        assert!(e.contains("before any"), "{e}");
+    }
+
+    #[test]
+    fn a_missing_consumer_line_fails_rather_than_passing_vacuously() {
+        let e = judge_equal_digests(&eq_log(Some(&hex('a')), None), EQ_SPEC).unwrap_err();
+        assert!(
+            e.contains("no line contains `diagnosticsd: last_attestation sha256:`"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn malformed_zero_and_overlong_values_fail() {
+        // short
+        let e = judge_equal_digests(&eq_log(Some(&hex('a')), Some("abcd")), EQ_SPEC).unwrap_err();
+        assert!(e.contains("carries 4 hex digits"), "{e}");
+        // 65 hex digits: the value is not 64
+        let long = format!("{}f", hex('a'));
+        assert!(judge_equal_digests(&eq_log(Some(&hex('a')), Some(&long)), EQ_SPEC).is_err());
+        // all zeros on both sides: "equal", and exactly E-076's failure
+        let z = "0".repeat(64);
+        let e = judge_equal_digests(&eq_log(Some(&z), Some(&z)), EQ_SPEC).unwrap_err();
+        assert!(e.contains("all-zero"), "{e}");
+        // a prefix with nothing after it
+        assert!(judge_equal_digests(&eq_log(Some(&hex('a')), Some("")), EQ_SPEC).is_err());
+    }
+
+    /// The consumer reports the latest thing the producer printed: a second record
+    /// supersedes the first, and a consumer line that matches only the OLD one is stale.
+    #[test]
+    fn the_consumer_must_equal_the_most_recent_producer_line_before_it() {
+        let (a1, a2) = (hex('1'), hex('2'));
+        let log = format!(
+            "attestd: record digest sha256:{a1}\nattestd: record digest sha256:{a2}\n\
+             diagnosticsd: last_attestation sha256:{a2}\n"
+        );
+        assert!(judge_equal_digests(&log, EQ_SPEC).is_ok());
+        let stale = log.replace(
+            &format!("last_attestation sha256:{a2}"),
+            &format!("last_attestation sha256:{a1}"),
+        );
+        assert!(
+            judge_equal_digests(&stale, EQ_SPEC)
+                .unwrap_err()
+                .contains("DIFFERENT")
+        );
+    }
+
+    #[test]
+    fn a_bad_spec_is_an_error_not_a_pass() {
+        for bad in ["only one prefix", " => b", "a => ", "same => same"] {
+            assert!(
+                judge_equal_digests("a\nb\n", bad)
+                    .unwrap_err()
+                    .contains("bad expect_equal"),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn expect_equal_is_opt_in_and_loads_a_list() {
+        assert!(Profile::smoke("m1", "x").expect_equal.is_empty());
+        let r = scratch_root("ee1", "name = \"p\"\nexpect_equal = [\"a: => b:\"]\n");
+        assert_eq!(load_profile(&r, "p").unwrap().expect_equal, ["a: => b:"]);
     }
 
     #[test]

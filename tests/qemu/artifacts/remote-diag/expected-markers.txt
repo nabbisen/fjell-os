@@ -11,3 +11,4 @@ diagnosticsd: audit_available=false
 fleetd: bundle ready (audit_event_count=0)
 NEG:REMOTE_DIAG:BUNDLE_READY:PASS
 diagnosticsd: measurement_head sha256:<64 hex: the measurement chain head after the four events a boot appends, recomputed on the host (chain_head.rs)>    [equality]
+attestd: record digest sha256: => diagnosticsd: last_attestation sha256:    [equal: every B digest equals the most recent A digest before it; both present, 64 hex, non-zero]

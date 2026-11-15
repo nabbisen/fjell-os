@@ -36,6 +36,13 @@
 # the record's claims are nearly all placeholders (E-095) and "available" is not
 # "attested" -- the field's own doc comment says so.
 #
+# 0.44 small item E (`expect_equal`): the digest the bundle carries must EQUAL the one `attestd`
+# printed when it generated the record -- two services' console lines compared, so a regression
+# that made `diagnosticsd` report something other than what it fetched fails the tier. It fails
+# when the values differ, when either line is absent, when a line is malformed and when the value
+# is all zeros. (It compares what the services SAY; it does not recompute the record's digest on
+# the host, which would be a second copy of `attestd`'s signing.)
+#
 # The other two flags still read `false`: `audit_available` (retracted, E-068) and
 # `keyring_anchor_epoch_available` have never had a source.
 
@@ -59,5 +66,8 @@ expected_markers = [
 ]
 expect_chain_head = [
     "diagnosticsd: measurement_head sha256:",
+]
+expect_equal = [
+    "attestd: record digest sha256: => diagnosticsd: last_attestation sha256:",
 ]
 extra_args       = []
