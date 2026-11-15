@@ -8,6 +8,3 @@ description = "Fleet partition state machine, reconciliation, and re-attestation
 publish     = false
 
 [dependencies]
-fjell-fleet-format    = { path = "../formats/fjell-fleet-format" }
-fjell-identity-format = { path = "../formats/fjell-identity-format" }
-fjell-measure-format  = { path = "../formats/fjell-measure-format" }

@@ -14,4 +14,3 @@ path = "src/main.rs"
 fjell-audit-format = { path = "../../formats/fjell-audit-format" }
 fjell-abi         = { path = "../../fjell-abi" }
 fjell-syscall     = { path = "../../fjell-syscall" }
-fjell-service-api = { path = "../../fjell-service-api" }

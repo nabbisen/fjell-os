@@ -8,5 +8,3 @@ description = "Host-side QEMU launcher and service integration test harness (RFC
 publish     = false
 
 [dependencies]
-fjell-bundle-format   = { path = "../formats/fjell-bundle-format" }
-fjell-cap-manifest    = { path = "../fjell-cap-manifest" }

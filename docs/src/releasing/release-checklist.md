@@ -22,8 +22,8 @@ git status --short
 
 ```bash run-verified
 # 2 — Verify toolchain
-rustc --version | grep "1.98.1"
-# Expected: line containing "1.98.1"
+rustc --version | grep "1.100.0"
+# Expected: line containing "1.100.0"
 ```
 
 ---

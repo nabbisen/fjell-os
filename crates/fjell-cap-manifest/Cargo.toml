@@ -11,5 +11,4 @@ publish     = false
 # CapManifest is a build-time artefact, never loaded at runtime.
 
 [dependencies]
-fjell-cap         = { path = "../fjell-cap" }
 fjell-semantic-v1 = { path = "../fjell-semantic-v1" }

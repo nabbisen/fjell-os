@@ -14,5 +14,4 @@ path = "src/main.rs"
 fjell-abi      = { path = "../../fjell-abi" }
 fjell-syscall  = { path = "../../fjell-syscall" }
 fjell-snapshot-format  = { path = "../../formats/fjell-snapshot-format" }
-fjell-identity-format  = { path = "../../formats/fjell-identity-format" }
 fjell-measure-format   = { path = "../../formats/fjell-measure-format" }

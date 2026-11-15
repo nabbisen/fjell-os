@@ -451,7 +451,6 @@ dependencies = [
  "fjell-measure-format",
  "fjell-trust-provider",
  "fjell-upgrade-format",
- "fjell-verify-format",
 ]
 
 [[package]]
@@ -467,7 +466,6 @@ dependencies = [
  "fjell-syscall",
  "fjell-trust-provider",
  "fjell-upgrade-format",
- "fjell-verify-format",
 ]
 
 [[package]]
@@ -480,7 +478,6 @@ version = "0.44.0"
 dependencies = [
  "fjell-abi",
  "fjell-audit-format",
- "fjell-service-api",
  "fjell-syscall",
 ]
 
@@ -533,7 +530,6 @@ name = "fjell-bundle-format"
 version = "0.44.0"
 dependencies = [
  "fjell-canon",
- "fjell-cap-manifest",
  "fjell-measure-format",
 ]
 
@@ -562,7 +558,6 @@ dependencies = [
 name = "fjell-cap-manifest"
 version = "0.44.0"
 dependencies = [
- "fjell-cap",
  "fjell-semantic-v1",
 ]
 
@@ -593,10 +588,6 @@ version = "0.44.0"
 [[package]]
 name = "fjell-dev-harness"
 version = "0.44.0"
-dependencies = [
- "fjell-bundle-format",
- "fjell-cap-manifest",
-]
 
 [[package]]
 name = "fjell-device-format"
@@ -607,14 +598,9 @@ name = "fjell-devmgr"
 version = "0.44.0"
 dependencies = [
  "fjell-abi",
- "fjell-block-format",
- "fjell-device-format",
  "fjell-measure-format",
  "fjell-platform-format",
- "fjell-service-api",
- "fjell-store-format",
  "fjell-syscall",
- "fjell-upgrade-format",
 ]
 
 [[package]]
@@ -651,9 +637,6 @@ name = "fjell-driver-virtio-blk"
 version = "0.44.0"
 dependencies = [
  "fjell-abi",
- "fjell-block-format",
- "fjell-device-format",
- "fjell-service-api",
  "fjell-syscall",
 ]
 
@@ -691,11 +674,6 @@ dependencies = [
 [[package]]
 name = "fjell-fleet-sync"
 version = "0.44.0"
-dependencies = [
- "fjell-fleet-format",
- "fjell-identity-format",
- "fjell-measure-format",
-]
 
 [[package]]
 name = "fjell-fleetd"
@@ -725,7 +703,6 @@ version = "0.44.0"
 dependencies = [
  "fjell-canon",
  "fjell-measure-format",
- "fjell-platform-format",
 ]
 
 [[package]]
@@ -812,9 +789,6 @@ dependencies = [
 [[package]]
 name = "fjell-net-format"
 version = "0.44.0"
-dependencies = [
- "fjell-measure-format",
-]
 
 [[package]]
 name = "fjell-netd"
@@ -853,12 +827,7 @@ name = "fjell-powerd"
 version = "0.44.0"
 dependencies = [
  "fjell-abi",
- "fjell-block-format",
- "fjell-device-format",
- "fjell-service-api",
- "fjell-store-format",
  "fjell-syscall",
- "fjell-upgrade-format",
 ]
 
 [[package]]
@@ -919,7 +888,6 @@ dependencies = [
 name = "fjell-remote-diag-format"
 version = "0.44.0"
 dependencies = [
- "fjell-diag-format",
  "fjell-measure-format",
 ]
 
@@ -1004,7 +972,6 @@ dependencies = [
  "fjell-cap",
  "fjell-net-format",
  "fjell-service-api",
- "fjell-sxt-crypto",
  "fjell-syscall",
 ]
 
@@ -1039,7 +1006,6 @@ dependencies = [
 name = "fjell-semantic-toolkit"
 version = "0.44.0"
 dependencies = [
- "fjell-semantic-format",
  "fjell-semantic-v1",
 ]
 
@@ -1100,13 +1066,9 @@ name = "fjell-storaged"
 version = "0.44.0"
 dependencies = [
  "fjell-abi",
- "fjell-block-format",
  "fjell-cap",
- "fjell-device-format",
  "fjell-service-api",
- "fjell-store-format",
  "fjell-syscall",
- "fjell-upgrade-format",
 ]
 
 [[package]]
@@ -1135,9 +1097,7 @@ name = "fjell-summary-format"
 version = "0.44.0"
 dependencies = [
  "fjell-canon",
- "fjell-identity-format",
  "fjell-measure-format",
- "fjell-upgrade-format",
 ]
 
 [[package]]
@@ -1194,7 +1154,6 @@ name = "fjell-syncd"
 version = "0.44.0"
 dependencies = [
  "fjell-abi",
- "fjell-identity-format",
  "fjell-measure-format",
  "fjell-snapshot-format",
  "fjell-syscall",
@@ -1250,12 +1209,8 @@ name = "fjell-upgraded"
 version = "0.44.0"
 dependencies = [
  "fjell-abi",
- "fjell-block-format",
  "fjell-cap",
- "fjell-device-format",
  "fjell-keyring",
- "fjell-service-api",
- "fjell-store-format",
  "fjell-syscall",
  "fjell-trust-provider",
  "fjell-upgrade-format",

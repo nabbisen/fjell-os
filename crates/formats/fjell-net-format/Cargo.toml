@@ -12,4 +12,3 @@ name = "fjell_net_format"
 path = "src/lib.rs"
 
 [dependencies]
-fjell-measure-format = { path = "../fjell-measure-format" }
