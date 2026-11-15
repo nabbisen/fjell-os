@@ -9042,6 +9042,64 @@ which is history removes the disagreement instead of detecting it, and needs no 
   a milestone awaiting the owner's direction on what networking is *for* first: packets routed by
   `netd`, or the authenticated control plane the fleet services were built against.
 
+## E-123 — RFC 056 is marked `Implemented`, the kernel rejects the primitive it specifies, and the broker that would call it cites a requirement that does not exist
+
+- **Found 2026-11-15 by the architect**, scoping 0.45 — reading the capability-delivery path that
+  **E-121**'s `SECURE_TRANSPORTD` slot-0 waiver points at, to size the work.
+- **Claim:** `rfcs/done/056-cap-broker-capability-installation-primitive.md:5` reads
+  **`**Status:** Implemented`**. The RFC specifies `sys_cap_install` as a *new kernel primitive*
+  held by cap-broker alone, with `CapKind::CapInstall` and `CapRights::CAP_INSTALL = 1 << 26`, and
+  shows the broker calling it to install a capability into a requester's CSpace.
+- **Shipped, measured at `9d1cb26`:**
+  - **`CapInstall` has no dispatch arm.** `SyscallNumber::CapInstall` has **zero** occurrences in
+    `crates/fjell-kernel/src/trap/syscall.rs`. `syscall-surface` reports **36 declared / 32
+    dispatched / 4 undispatched**; the four are `CapInstall`, `DmaShare`, `MmioUnmap`, `TaskKill`.
+    Every call fails closed with `UnknownSyscall`, so **the primitive the RFC's title names has
+    never executed**.
+  - **The broker cites a requirement that exists nowhere.**
+    `crates/services/fjell-cap-broker/src/main.rs:587-588` reads `// BROKER-004: make the grant
+    lease-bound.` followed by `let _lease_id: u16 = 0; // lease binding for installed cap
+    (simplified)` — **a discarded variable**. **`BROKER-004` is defined in no document, RFC or
+    register in the live tree**; its only other occurrences are `.git-exclude/tmp/` scratch copies
+    of this same file. This is **E-027's class** — a named obligation nobody built — found one
+    layer in from where E-027 found it, and with no document to correct, because there is none.
+  - **The kind mapping fails open.** `main.rs:594-599` ends `_ => fjell_cap::CapKind::Endpoint as
+    u8`, so an unrecognised `ResourceClass` — including `SxtSession = 9`, the class
+    `secure-transportd` waits on — would receive an **Endpoint capability rather than a refusal**.
+    Unreachable today **only** because the install syscall is rejected. It is the `_ => 0` fallback
+    class **RFC-0.41-002** deleted elsewhere and **E-117** found still cited after deletion.
+- **What was already recorded, stated so this entry is not read as new where it is not.** **E-011**
+  (ACCEPTED) records the doc-comments' unexecuted rights validation, the discarded `rights_bits`,
+  the missing dispatch arm and the fail-closed behaviour; **E-118**'s body notes in passing that
+  *"`sys_cap_install` has no dispatch arm"*. **Neither records RFC 056's `Implemented` status, the
+  `BROKER-004` citation, or the fail-open fallback** — and E-011's own Resolution still says *"the
+  other 8 declared-but-undispatched syscalls"*, a count that is now **3**.
+- **No instrument reaches it, and this is the structural half.** `rfc-status-folder` compares an
+  RFC's **status string against its folder** — that is its documented job
+  (`tools/fjell-consistency-check/src/rfc_status_folder.rs:1-11`) — so RFC 056 passes it correctly
+  across **229 RFCs checked**. **Nothing in the tree compares an RFC's claim to have been
+  implemented against whether the mechanism it specifies runs.** `syscall-surface` prints the
+  undispatched *count* at every rehearsal and names no syscall, and `capability-topology` asks
+  whether a service gets what it declares, never whether the path that would deliver it exists.
+- **The consumer is named, waived on every run, and failing in a live boot** — which is why this
+  closes by implementing rather than deleting, the ruling **E-121** cost us the hard way.
+  `capability-topology` prints `SECURE_TRANSPORTD` slot 0 as *"a capability delivered at runtime by
+  cap-broker… That delivery is not live yet"* at every rehearsal, and an `svc` boot at this tip
+  prints `secure-transportd: starting`, `ready`, **`handshake failed`**, with `upgraded: update
+  index fetch returned no index` immediately after.
+- **Closing needs**, in this order: `CapInstall` dispatched **with the rights validation its
+  doc-comment promises** (dispatching it without the check would ship the hole the check was
+  claimed to close — E-011's live half); the broker's grant made genuinely lease-bound **or**
+  `BROKER-004` no longer cited; and `_ =>` made a refusal. The negative cases — wrong rights, no
+  `CAP_INSTALL`, unknown resource class, a revoked lease — matter more than the happy path and each
+  must be shown red, because this is the most authority-bearing surface in the milestone.
+- **Status:** **ACCEPTED**, tracking **0.45** — the milestone, not an RFC id, because the line that
+  closes this (**0.45-002** of the approved scope) is not written yet and `errata-tracking` rightly
+  refuses a tracking id with no file behind it. The owner approved the 0.45 scope on
+  2026-11-15 and authorised this filing. Filed ACCEPTED rather than OPEN on **E-011's precedent**
+  (*"ACCEPTED pending RFC-v0.21.3-001"*): the path **fails closed**, so it is a documented
+  divergence and not a live hole. Disclosed as v1.0 limitation row **26** while it stands.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9167,6 +9225,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-120 **`attestd`'s export replies "done" having sent nothing, and its chunk constant is used nowhere at all.** `fjell_service_api::attestd` declares `EXPORT` (0x316), `EXPORT_CHUNK` (0x317) and `EXPORT_DONE` (0x318) under *"Export attestation record (PlainText projection)"*; the handler is one line, `proto::EXPORT => { reply(proto::EXPORT_DONE); }`. **`EXPORT` has two occurrences tree-wide** — its declaration and that arm, so no caller ever existed — and **`EXPORT_CHUNK` has one: its declaration**, used by nothing, not even the handler that would send the chunks it exists for. **Strictly worse than E-087's `measuredd` instance**, which at least replies one chunk carrying a sequence number. Same defect: a declared export reporting success having transferred nothing, so a caller cannot distinguish *"exported, nothing to send"* from *"not implemented"*. **Found scoping 0.44 by reading E-087 on the merits for the first time** and noticing a second `EXPORT_CHUNK`/`EXPORT_DONE` pair in the shared API — the axis-blindness of **E-117** (one directory searched) and **E-119** (one page of two): a correct finding scoped to the instance that produced it. Two instances of one class now stand in the register and **neither was found by an instrument**; both were found by a person reading a handler. Closing needs E-087's plan applied to both together — the export works as `storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` does, or the constants and the arm go the way `AUDIT_QUERY` went in RFC-0.35-002, with the decision recorded. No live result depends on it, because nothing calls it | RFC-0.44-001 | CLOSED |
 | E-121 **`attestd`'s whole request surface is unreachable: it receives on an endpoint no image can address.** The *"Local attestation service"* serves `GENERATE`, `VERIFY_LATEST` and `EXPORT`, and `spawn.rs` gives it `Some(3)` to receive on — but **no `install_raw` anywhere has `object_id: 3`**, so nothing can send it any of them. Every endpoint install was enumerated; object 3 appears nowhere as a destination, and **`ATTESTD_EP_OBJECT` does not exist as a named constant** unlike measuredd's, bootctl's, verifyd's, netd's and configd's. **The contrast shows the shape is not inherent:** `measuredd` has a named constant and two holders (`diagnosticsd` and `attestd`, both slot 4). **What is real:** attestd constructs a record at boot and reports its availability flags (`measurement=1`, the rest 0 — E-095); its `GENERATE` arm's *"record generated (v2)"* line has never been printed, because the arm never runs. **No instrument catches it:** `capability-topology` asks *"does this service get what it says it needs?"*, never *"can anyone reach this service?"* — an endpoint with a receiver and no sender satisfies every check. It is **E-068/E-069's declared-but-not-serving shape inverted**, and the same defect **RFC-0.35-002 deleted code for in this very file**, removing `push_attestation` because it *"had no caller anywhere in the tree"* and addressed a peer *"through a capability nobody installs"* — deleted, not stubbed, on the reasoning that bolting a path onto an existing comment retrofits a design to a sentence. Closing needs a decision: one named endpoint constant plus one install for a named caller, or the three tags go as `push_attestation` did, leaving the boot-time record that works. **E-087 and E-120 fold into this**, because an export for an unreachable service cannot be judged alone | RFC-0.44-001 | CLOSED |
 | E-122 **the v0.4 network plane is three non-functional images, one published as working, and no test environment has ever presented a NIC.** `driver-virtio-net` is a 44-line stub (E-118); `netd` prints `session table initialised` and exits before its event loop; `secure-transportd` prints `ready` then **`handshake failed`** on every boot — and is published in `services.md` as an *"Authenticated control-plane channel"* **without** being listed among the stubs, the same overclaim `driver-virtio-net`'s row carried until RFC-0.43-003, in the row directly below it. **The foundation is the finding:** the harness's QEMU argv carries only `-device virtio-blk-device`, **no `-netdev` and no `virtio-net-device`**, and every profile's `extra_args` is `[]`. So **E-118's fiction was doubly fictional** — even had the driver mapped MMIO, nothing was at the virtio-mmio range — `netd`'s early exit and the failed handshake are consistent rather than independent defects, and `src/core/`'s 1,293 lines have **never executed against a device**. **No instrument reaches it:** nothing compares a `services.md` capability row against what its image does, nothing checks that a declared driver has a device, and the plane appears in no limitations row and no readiness row, so the project has never published that it has no working network. The owner has ruled the plane **in view**; closing needs a NIC in the test environment **first**, then who drives it (storage answers this the other way — `storaged` drives its device and `driver-virtio-blk` is a stub), then E-118's authority list, then `netd`'s loop and the `SxtSession` delivery E-121 records as not live. The documentation half is corrected here | unscheduled | ACCEPTED |
+| E-123 **RFC 056 is marked `Implemented`, the kernel rejects the primitive it specifies, and the broker that would call it cites a requirement that does not exist.** RFC 056 specifies `sys_cap_install` as a new kernel primitive held by cap-broker alone; **`CapInstall` has no dispatch arm** (`syscall-surface`: 36 declared / 32 dispatched / 4 undispatched — `CapInstall`, `DmaShare`, `MmioUnmap`, `TaskKill`), so the primitive in the RFC's title has never executed and every call fails closed with `UnknownSyscall`. Beside it, `cap-broker/src/main.rs:587-588` cites **`BROKER-004`, a requirement defined nowhere in the live tree**, and "implements" it with a discarded `let _lease_id: u16 = 0` — **E-027's class** with no document to correct — while `main.rs:594-599`'s `_ => CapKind::Endpoint` would grant an Endpoint for any unrecognised `ResourceClass`, `SxtSession = 9` included, **fail-open**, unreachable only because the install is rejected. **E-011** and **E-118** record the missing dispatch arm; **neither records the RFC's `Implemented` status, `BROKER-004`, or the fallback**. **The structural half:** `rfc-status-folder` compares status against **folder**, its documented job, so RFC 056 passes correctly across 229 RFCs — **nothing compares an RFC's claim to implement against whether its mechanism runs**. The consumer is named, waived at every rehearsal (`SECURE_TRANSPORTD` slot 0, *"not live yet"*) and failing in a live boot (`handshake failed`), so this closes by **implementing, not deleting** — E-121's lesson | 0.45 | ACCEPTED |
 | E-066 a fleet roster's digest was built in a 512-byte buffer by a writer that truncates silently, so it covered only the first eight of up to 64 members: rosters differing only in the ninth had the same digest | 0.33 | CLOSED |
 E-018 was filed during RFC-0.25-001 (ACCEPTED, after the 0.24.0 cut) and
 closed by RFC-0.26-001; E-019 was filed during RFC-0.26-001 itself, as the
