@@ -37,7 +37,7 @@ restartable (NFR-REL-002).
 | `recoveryd` | Recovery plane | FR-SEC-004 |
 | `powerd` | Power/sustainability telemetry | FR-KRN-006, NFR-GRN-* |
 | `netd` | Packet/session routing | FR-SVC-001 |
-| `secure-transportd` | Authenticated control-plane channel | FR-SEM-004 |
+| `secure-transportd` | Authenticated control-plane channel — **present but non-functional**: its session capability is never delivered, so the handshake fails on every boot (**E-122**) | FR-SEM-004 |
 | `syncd` | Offline-first snapshot sync | (fleet, Could-tier) |
 | `diagnosticsd` | Diagnostic bundle builder | FR-AUD-002 |
 | `semantic-stream` | Semantic/Intent stream service | FR-SEM-001 |
@@ -69,6 +69,12 @@ capability in the init CSpace, and a `wait_service_ready` call before first IPC.
 
 ## 5. As-built scope limits & gaps
 
+- **The whole v0.4 network plane is non-functional** (**E-122**), and no test
+  environment has ever presented a network device — the QEMU harness attaches
+  only `virtio-blk-device`. `driver-virtio-net` is a registration stub,
+  `netd` exits before its event loop, and `secure-transportd` reaches a failed
+  handshake. The owner has ruled the plane in view; it is a milestone, and a NIC
+  in the test environment is its first step rather than the driver.
 - **Some services are smoke-test stubs** at v1.0 (`netd`,
   `driver-virtio-net`, and others signal ready and exit by design). This is
   documented in `docs/src/releasing/v1-limitations.md`.
