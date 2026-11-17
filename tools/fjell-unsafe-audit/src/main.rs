@@ -436,7 +436,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
     use tempfile_helper::TmpFile;
 
     // Minimal file-write helper (no external dep).

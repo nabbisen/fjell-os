@@ -269,11 +269,18 @@ pub fn b6_active_is_valid_slot(m: &BootModel, ops: &[BootOp]) -> Result<(), Stri
 }
 
 // ── Proptest generators ───────────────────────────────────────────────────────
+//
+// Test-only: `#[cfg(test)]` so the library build does not carry them. The
+// `proptest!` block below expands to `#[test]` functions, which are themselves
+// test-only, so without this gate these three and `mod props` are dead in the
+// lib build and the compiler says so (fixed 2026-11-17).
 
+#[cfg(test)]
 fn arb_slot() -> impl Strategy<Value = Slot> {
     prop_oneof![Just(Slot::A), Just(Slot::B)]
 }
 
+#[cfg(test)]
 fn arb_boot_op() -> impl Strategy<Value = BootOp> {
     prop_oneof![
         arb_slot().prop_map(BootOp::SetPending),
@@ -284,6 +291,7 @@ fn arb_boot_op() -> impl Strategy<Value = BootOp> {
     ]
 }
 
+#[cfg(test)]
 fn arb_boot_sequence() -> impl Strategy<Value = Vec<BootOp>> {
     prop::collection::vec(arb_boot_op(), 0..=32)
 }
@@ -333,6 +341,7 @@ proptest! {
     }
 }
 
+#[cfg(test)]
 mod props {
     pub use super::{
         b1_never_confirm_unbooted, b2_pending_not_confirmed, b3_health_fail_rolls_back,

@@ -9,7 +9,7 @@
 //!   1 — one or more consistency violations found
 //!   2 — argument or input error
 
-use fjell_fleet_sync::{ConsistencyError, check_summary_consistency};
+use fjell_fleet_sync::check_summary_consistency;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {

@@ -17,7 +17,6 @@
 #![forbid(unsafe_code)]
 
 extern crate alloc;
-use alloc::string::String;
 use alloc::vec::Vec;
 
 // ── Fleet partition state machine ─────────────────────────────────────────────
