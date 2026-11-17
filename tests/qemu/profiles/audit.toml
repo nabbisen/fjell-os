@@ -64,8 +64,12 @@ expect_echoed    = [
   # the trail under their own names (`0x0601` / `0x0602`, which the published decoder knows --
   # not `internal`, the E-092 shape). This is what gates a runtime install: `capability-topology`
   # compares spawn-time installs and cannot see this one.
-  "neg-test: audit: installed cap arg0= => \"kind\":\"cap.installed\",\"arg0\":{},",
-  "neg-test: audit: refused install arg0= => \"kind\":\"cap.install_rejected\",\"arg0\":{},",
+  # `arg1` is the OBJECT (`NEG_TEST_OWN_EP_OBJECT` = 23, written literally: `judge_echoes` substitutes the
+  # one captured value for every `{}`, so a second placeholder would get arg0's digits). Nothing else
+  # pins which object the kernel installed -- `sys_cap_inspect` returns no object id and the
+  # `recv`-is-denied check fires whatever object the capability names.
+  "neg-test: audit: installed cap arg0= => \"kind\":\"cap.installed\",\"arg0\":{},\"arg1\":23,",
+  "neg-test: audit: refused install arg0= => \"kind\":\"cap.install_rejected\",\"arg0\":{},\"arg1\":23,",
   "neg-test: audit probe nr= => \"kind\":\"unknown_syscall\",\"arg0\":{}, => neg-test: audit settled",
 ]
 expect_observed  = [
