@@ -35,6 +35,7 @@
 mod rt;
 
 use fjell_cap::CapHandle;
+use fjell_driver_virtio_net::scan::{Observation, Report, Scan};
 use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit, sys_mmio_map};
 
 /// The `MmioRegion` capability for kernel region 3 (the virtio-mmio range): slot `31 + 3`. Declared
@@ -42,10 +43,6 @@ use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit, sys_mmio_map};
 /// install -- a driver that names a slot nothing installs is exactly what E-072 was.
 const CAP_MMIO_VIRTIO: CapHandle = CapHandle(34);
 
-/// `"virt"` little-endian: every virtio-mmio transport's `MagicValue`.
-const VIRTIO_MAGIC: u32 = 0x7472_6976;
-/// `DeviceID` of a network device.
-const DEVICE_ID_NET: u32 = 1;
 /// virtio-mmio transports in the region, 0x1000 bytes each.
 const TRANSPORTS: usize = 8;
 const TRANSPORT_SIZE: usize = 0x1000;
@@ -103,53 +100,58 @@ fn print_hex32(v: u32) {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
-    // How many transports were mapped **and read**, and the last refusal: absence may be reported
-    // only if every one of the eight was read.
-    let mut read = 0usize;
-    let mut last_err: isize = 0;
+    // What the scan may *say* is `fjell_driver_virtio_net::scan` (pure, host-tested and mutated
+    // there): found only on magic AND id; absence only after all eight transports were read;
+    // otherwise cannot-scan. This function only maps, reads and prints what that decides.
+    let mut scan = Scan::new(TRANSPORTS);
 
     for slot in 0..TRANSPORTS {
-        let va = match sys_mmio_map(CAP_MMIO_VIRTIO, slot * TRANSPORT_SIZE, TRANSPORT_SIZE) {
-            Ok(va) if va != 0 => va,
-            Ok(_) => {
-                last_err = 0;
-                continue;
+        let obs = match sys_mmio_map(CAP_MMIO_VIRTIO, slot * TRANSPORT_SIZE, TRANSPORT_SIZE) {
+            Ok(va) if va != 0 => {
+                // SAFETY: category=raw-pointer-deref `va` is the window `sys_mmio_map` just returned for this transport.
+                let magic = unsafe { rd32(va, 0x000) };
+                // SAFETY: category=raw-pointer-deref same window, `DeviceID` register.
+                let device_id = unsafe { rd32(va, 0x008) };
+                Observation::Read { magic, device_id }
             }
-            Err(e) => {
-                last_err = e as isize;
-                continue;
-            }
+            Ok(_) => Observation::Refused(0),
+            Err(e) => Observation::Refused(e as isize),
         };
-        // SAFETY: category=raw-pointer-deref `va` is the window `sys_mmio_map` just returned for this transport.
-        let magic = unsafe { rd32(va, 0x000) };
-        // SAFETY: category=raw-pointer-deref same window, `DeviceID` register.
-        let device_id = unsafe { rd32(va, 0x008) };
-        read += 1;
-        if magic == VIRTIO_MAGIC && device_id == DEVICE_ID_NET {
+        if let Some(report) = scan.observe(slot, obs) {
+            print_report(report);
+            sys_exit(0);
+        }
+    }
+    print_report(scan.finish());
+    sys_exit(0)
+}
+
+/// Print the one line `report` allows.
+fn print_report(report: Report) {
+    match report {
+        Report::Found { slot, magic } => {
             sys_debug_write("driver-virtio-net: found virtio-mmio device id=1 at slot ");
             print_dec(slot as u64);
             sys_debug_write(" magic=");
             print_hex32(magic);
             sys_debug_writeln("");
-            sys_exit(0);
         }
-    }
-
-    if read == TRANSPORTS {
-        // A completed scan: every transport was read and none is a network device.
-        sys_debug_writeln("driver-virtio-net: no virtio-net device found (scanned 8 transports)");
-    } else {
-        // Not a verified absence. Say what could not be done, with the refusal.
-        sys_debug_write("driver-virtio-net: cannot scan the virtio-mmio region (read ");
-        print_dec(read as u64);
-        sys_debug_write(" of 8 transports, last error code ");
-        if last_err < 0 {
-            sys_debug_write("-");
+        Report::NoDevice { scanned } => {
+            sys_debug_write("driver-virtio-net: no virtio-net device found (scanned ");
+            print_dec(scanned as u64);
+            sys_debug_writeln(" transports)");
+        }
+        Report::CannotScan { read, of, last_err } => {
+            sys_debug_write("driver-virtio-net: cannot scan the virtio-mmio region (read ");
+            print_dec(read as u64);
+            sys_debug_write(" of ");
+            print_dec(of as u64);
+            sys_debug_write(" transports, last error code ");
+            if last_err < 0 {
+                sys_debug_write("-");
+            }
             print_dec(last_err.unsigned_abs() as u64);
-        } else {
-            print_dec(last_err as u64);
+            sys_debug_writeln(")");
         }
-        sys_debug_writeln(")");
     }
-    sys_exit(0)
 }

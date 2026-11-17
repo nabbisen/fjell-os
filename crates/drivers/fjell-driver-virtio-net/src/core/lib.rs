@@ -9,6 +9,7 @@
 pub mod features;
 pub mod mmio;
 pub mod ring;
+pub mod scan;
 pub mod state;
 pub mod virtq;
 
