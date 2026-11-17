@@ -9133,11 +9133,20 @@ which is history removes the disagreement instead of detecting it, and needs no 
     required at exactly one (`cap/syscall.rs:284`). **`init`'s slot 27 is removed**, the capability
     whose comment promised a revocation that never happened.
 - **Not closed by this, and carried forward rather than buried:** the kernel does not bound *which*
-  `object_id` an installer may name — it arrives in a register and is installed unexamined, with
-  `RECV` inside the envelope, so `object-zero`'s invariant now rests on cap-broker's policy table
-  rather than on the kernel. That is a **new** finding of the review, not part of this entry, and it
-  is filed separately; RFC 056 carries a dated annotation for the three ways the shipped design
-  differs from its text.
+  `object_id` an installer may name. That is a **new** finding of the review, not part of this
+  entry, and it is filed separately; RFC 056 carries a dated annotation for the three ways the
+  shipped design differs from its text.
+  *Narrowed 2026-11-18, the same day, by the 0.45 follow-ups (`9cdf071`): as first written this
+  bullet said `object_id` "arrives in a register and is installed unexamined, with `RECV` inside the
+  envelope, so `object-zero`'s invariant now rests on cap-broker's policy table rather than on the
+  kernel". Two of those bounds now exist in the kernel — `check_install` refuses endpoint object 0
+  (`PermissionDenied`) and an object that names no allocated endpoint (`InvalidArg`), both
+  host-tested and shown red by mutation — so **`object-zero`'s invariant is a kernel refusal again,
+  not a property of the policy table.** What remains is narrower and is the 0.46 item: which
+  **allocated, non-zero** endpoint may be named is still the policy table's choice, because the
+  installer **fabricates** a capability from an integer rather than deriving one it holds. The dev
+  team pointed out that this bullet and `v1-limitations.md` row 26 both over-stated the gap by
+  exactly those two bounds.*
 - **Status:** **CLOSED** (was ACCEPTED, tracking **0.45** — the milestone, not an RFC id, because
   the line that closed this, **0.45-002**, was not written at filing time and `errata-tracking`
   rightly refuses a tracking id with no file behind it). The owner approved the 0.45 scope on
