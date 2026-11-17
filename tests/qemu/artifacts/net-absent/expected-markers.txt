@@ -1,1 +1,2 @@
 driver-virtio-net: no virtio-net device found (scanned 8 transports)
+driver-virtio-net: found    [absent: no console line may contain this text]
