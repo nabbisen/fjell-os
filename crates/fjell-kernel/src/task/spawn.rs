@@ -614,6 +614,32 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 26: a CapInstall cap for NEG_TEST with NO RIGHTS AT ALL (RFC-0.45-002 R8).
+            // (Not 20: that is `SERVICE_READY_SEND_SLOT`, installed for every image -- the first
+            // version of this grant collided with it and the case read `WrongType`.)
+            // The 0.44-item-C shape again (slot 15's rights-less Clock): `CapRights::NONE` is
+            // not `CAP_INSTALL`, so this confers **nothing** -- the kernel refuses an install
+            // through it -- and exists so the refusal is demonstrably the *right's*. The kind is
+            // correct, so the only thing that can refuse `sys_cap_install` here is the missing
+            // `CAP_INSTALL`; without it no caller exists that has the kind and lacks the right
+            // (the broker alone holds the real one), and weakening the kernel's right check
+            // would leave every tier green. It is **not** an install capability and does not
+            // reopen who may install: only the broker's slot 10 carries `CAP_INSTALL`.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(
+                    26,
+                    Capability {
+                        kind: CapKind::CapInstall,
+                        object_id: 0,
+                        rights: CapRights::NONE,
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot 9: Interrupt cap for NEG_TEST, deliberately WITHOUT
             // IRQ_BIND (RFC-0.25-001 Demonstration 4: a task without the
             // right must be refused, not merely lack the capability kind —
@@ -969,7 +995,23 @@ pub fn spawn(
         }
     }
 
-    // RFC 056: CapInstall cap for CAP_BROKER (slot 10).
+    // RFC 056 / RFC-0.45-002 R2 (closes the right half of E-123): the install authority and
+    // the lease authority for CAP_BROKER, and for nobody else.
+    //
+    // Slot 10 -- `CapInstall`, carrying `CAP_INSTALL` **by name** plus the *envelope* of
+    // rights an install may confer. `CAP_INSTALL` is in neither `ALL_NON_META` nor an
+    // aggregate (the `LEASE_BIND` / `CLOCK_READ` precedent), so the earlier grant of
+    // `ALL_NON_META` conferred a capability that `sys_cap_install` could only ever refuse:
+    // no capability in the tree carried the right the arm requires. `init` no longer holds
+    // a `CapInstall` at all (`main.rs`): nothing used it and its "revoked after bootstrap"
+    // comment described a revocation that never happened.
+    //
+    // Slot 11 -- `LeaseAdmin` with `LEASE_CREATE | LEASE_REVOKE`. NOT `LEASE_BIND`: the
+    // kernel does the binding inside the install, so the broker never needs to bind a
+    // lease to a capability itself. This is what `BROKER-004` rests on -- every capability
+    // the broker installs is bound to a lease the broker created and owns, so revoking the
+    // lease kills the capability. (The broker's `sys_lease_revoke(11, ..)` has always
+    // named this slot; until now it was empty.)
     {
         use fjell_cap::slot::Capability;
         use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
@@ -982,7 +1024,22 @@ pub fn spawn(
                     Capability {
                         kind: CapKind::CapInstall,
                         object_id: 0,
-                        rights: CapRights::ALL_NON_META,
+                        rights: CapRights(
+                            CapRights::CAP_INSTALL.0 | fjell_cap::install::ENDPOINT_ENVELOPE.0,
+                        ),
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+                let _ = cs.install_raw(
+                    11,
+                    Capability {
+                        kind: CapKind::LeaseAdmin,
+                        object_id: 0,
+                        rights: CapRights(CapRights::LEASE_CREATE.0 | CapRights::LEASE_REVOKE.0),
                         badge: 0,
                         scope: ObjectScope::Any,
                         state: CapState::Active,

@@ -30,9 +30,13 @@
 //!   one-way senders are installed with `ALL_NON_META`, which carries `RECV` they never
 //!   use. A structural "two holders of `RECV`" rule would fail on both. Object 0 is the
 //!   one object whose being shared was the defect.
-//! - It does not see capabilities created at runtime by `sys_cap_install`. Nothing in
-//!   the tree calls it, and `init` -- the only holder of `CapInstall` -- revokes it at
-//!   bootstrap; if that changes, this check must say so rather than quietly missing it.
+//! - It does not see capabilities created at runtime by `sys_cap_install` (RFC-0.45-002).
+//!   Since 0.45 exactly one task calls it -- `cap-broker`, the only holder of `CapInstall`
+//!   (`init`'s slot 27 was removed, RFC-0.45-002 R2) -- and what it installs is `Endpoint`
+//!   only, lease-bound, into the task being served. Those installs are not gated by this
+//!   check or by `capability-topology` (both compare **spawn-time** installs); the gate is
+//!   the audit trail: every install is `cap.installed` and every refusal is
+//!   `cap.install_rejected`, and the `policy` tier asserts both.
 //! - A rights or object expression it cannot evaluate is a **failure**, not a pass: a
 //!   check that skips what it cannot read would vouch for nothing.
 

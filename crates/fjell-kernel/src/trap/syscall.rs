@@ -27,6 +27,8 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::CapInspect) |
         Some(SyscallNumber::CapDrop)    |
         Some(SyscallNumber::CapBindLease) |
+        // RFC-0.45-002: the broker's runtime install (E-123).
+        Some(SyscallNumber::CapInstall) |
         // M3 IPC syscalls
         Some(SyscallNumber::IpcSend) |
         Some(SyscallNumber::IpcRecv) |
@@ -394,6 +396,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
         Some(SyscallNumber::CapInspect) => sys_cap_inspect(tf, tidx, ct),
         Some(SyscallNumber::CapDrop) => sys_cap_drop(tf, tidx, ct),
         Some(SyscallNumber::CapBindLease) => sys_cap_bind_lease(tf, tidx, ct),
+        Some(SyscallNumber::CapInstall) => sys_cap_install(tf, tidx, ct, table),
         Some(SyscallNumber::IpcSend) => sys_ipc_send(tf, tidx, ct, et, table, sched, cur_id),
         Some(SyscallNumber::IpcRecv) => sys_ipc_recv(tf, tidx, ct, et, table, sched, cur_id),
         Some(SyscallNumber::IpcCall) => sys_ipc_call(tf, tidx, ct, et, table, sched, cur_id),

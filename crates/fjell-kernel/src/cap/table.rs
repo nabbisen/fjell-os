@@ -138,6 +138,18 @@ impl CapTable {
         (cancelled, n)
     }
 
+    /// Read the reply edge for task `server_idx` **without consuming it**
+    /// (RFC-0.45-002, ruling 1).
+    ///
+    /// A distinct accessor from [`CapTable::take_reply`], and the reason it exists:
+    /// `sys_cap_install` must learn *whom the server is serving* while leaving the
+    /// edge's lifecycle exactly as it was -- the reply is still to be sent, and it is
+    /// `sys_ipc_reply` that consumes the edge. Nothing here, or in the install, may
+    /// write to it.
+    pub fn peek_reply(&self, server_idx: usize) -> Option<&ReplyEdge> {
+        self.replies.get(server_idx).and_then(|r| r.edge.as_ref())
+    }
+
     /// Consume the reply edge for task `server_idx`.
     ///
     /// Returns `Err(SysError::BadState)` if no reply edge exists.

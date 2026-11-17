@@ -28,10 +28,10 @@ use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
     ipc_sender_tid, sys_cap_bind_lease, sys_cap_copy, sys_cap_drop as _sys_cap_drop,
-    sys_cap_inspect, sys_cap_mint, sys_cap_revoke, sys_debug_write, sys_debug_writeln,
-    sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv, sys_ipc_recv_msg,
-    sys_lease_create, sys_lease_revoke, sys_mmio_map, sys_reboot, sys_task_spawn, sys_task_start,
-    sys_task_status, sys_yield,
+    sys_cap_inspect, sys_cap_install, sys_cap_mint, sys_cap_revoke, sys_debug_write,
+    sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv,
+    sys_ipc_recv_msg, sys_ipc_send, sys_lease_create, sys_lease_inspect, sys_lease_revoke,
+    sys_mmio_map, sys_reboot, sys_task_spawn, sys_task_start, sys_task_status, sys_yield,
 };
 
 // ── CSpace slot constants for this service ────────────────────────────────────
@@ -58,6 +58,10 @@ const SLOT_NEVER_GRANTED: u32 = 50;
 /// kind is right and the right is absent, so the only thing that can refuse a clock read through
 /// it is the rights check -- which is what the denial test could not otherwise reach.
 const SLOT_CLOCK_NO_RIGHT: u32 = 15;
+/// A `CapInstall`-kind capability holding **no rights** (RFC-0.45-002 R8; `spawn.rs` slot 26).
+/// The kind is right and `CAP_INSTALL` is absent, so the only thing that can refuse an install
+/// through it is the kernel's rights check. It confers nothing: only the broker holds the right.
+const SLOT_INSTALL_NO_RIGHT: u32 = 26;
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 #[allow(dead_code)]
@@ -1122,6 +1126,167 @@ fn test_policy_identity_spoofing() {
     }
 }
 
+// ── Capability installation (RFC-0.45-002, closes E-123) ──────────────────────
+//
+// `neg-test` holds no install **authority**, and must not: its one `CapInstall`-kind capability
+// (slot 26) has no rights, so it can only be refused. The kernel's refusals of a real
+// *holder* (rights outside the envelope, a lease it does not own, a full CSpace, ...) are
+// shown on the host against `fjell_cap::install::check_install`, and the broker -- the one
+// holder -- is shown here, end to end, through its real policy.
+
+/// `CapRights::SEND` (bit 3): the one right `NEG_TEST`'s policy rule confers.
+const RIGHT_SEND_BIT: usize = 1 << 3;
+/// Broker resource classes (`fjell-cap-broker`'s `ResourceClass`).
+const CLASS_ENDPOINT: usize = 1;
+const CLASS_SEMANTIC: usize = 7;
+/// `CAP_REVOKE` (RFC 040 §2.5), as `fjell-cap-broker` spells it.
+const CAP_REVOKE_TAG: usize = 0x023;
+
+/// CAP_INSTALL: the syscall is dispatched, and authority is checked first.
+///
+/// Before RFC-0.45-002 every call was `UnknownSyscall`. `neg-test` is not allowed to
+/// install anything, so the refusal it can reach is the first one: through a capability
+/// that is not a `CapInstall` (`WrongType`) and through a slot with nothing in it
+/// (`InvalidCap`). Each refusal is audited as `cap.install_rejected`; the trail is what
+/// gates a runtime install (`capability-topology` sees only spawn-time ones).
+fn test_cap_install_without_authority() {
+    use fjell_abi::error::SysError;
+    let kind = fjell_cap::CapKind::Endpoint as u8;
+    let obj = fjell_abi::service::NEG_TEST_OWN_EP_OBJECT;
+    check_err(
+        sys_cap_install(
+            CapHandle(SLOT_OWN_EP),
+            kind,
+            obj,
+            RIGHT_SEND_BIT as u64,
+            fjell_abi::lease::LeaseId(1),
+        ),
+        SysError::WrongType,
+        M::CAP_INSTALL_WITHOUT_AUTHORITY,
+    );
+    // The right, specifically: right kind, no `CAP_INSTALL`. Only the rights check can refuse.
+    check_err(
+        sys_cap_install(
+            CapHandle(SLOT_INSTALL_NO_RIGHT),
+            kind,
+            obj,
+            RIGHT_SEND_BIT as u64,
+            fjell_abi::lease::LeaseId(1),
+        ),
+        SysError::PermissionDenied,
+        M::CAP_INSTALL_WITHOUT_RIGHT,
+    );
+    check_err(
+        sys_cap_install(
+            CapHandle(SLOT_NEVER_GRANTED),
+            kind,
+            obj,
+            RIGHT_SEND_BIT as u64,
+            fjell_abi::lease::LeaseId(1),
+        ),
+        SysError::InvalidCap,
+        M::CAP_INSTALL_EMPTY_SLOT,
+    );
+}
+
+/// POLICY (RFC-0.45-002 R5/R8): a grant installs a usable capability, and revoking its
+/// lease kills it -- `BROKER-004`, which until now was a comment.
+fn test_policy_grant_installs_and_revoke_kills() {
+    use fjell_abi::error::SysError;
+    let reply = match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        CLASS_ENDPOINT, // w0 = resource class
+        0,              // w1 unused
+        RIGHT_SEND_BIT, // w2 = requested rights (the rule allows SEND only)
+    ) {
+        Ok(r) => r,
+        Err(_) => {
+            setup_failed("grant: broker call");
+            return;
+        }
+    };
+    if (reply & 0xFFFF) != (tags::CAP_GRANTED & 0xFFFF) {
+        debug_policy("neg-test: grant not granted:", Ok(reply));
+        return;
+    }
+    let handle = CapHandle(((reply >> 16) & 0xFFFF_FFFF) as u32);
+    let lease = fjell_abi::lease::LeaseId(((reply >> 48) & 0xFF) as u32);
+    let requester_tid = reply >> 56;
+    let _ = requester_tid; // the audit scenario below prints it; here it is not needed
+
+    // Usable: the handle resolves to an `Endpoint` capability and carries exactly what was
+    // asked. `RECV` was *not* asked for, so a receive reaches the rights check and is refused
+    // there -- not `InvalidCap` (nothing installed), not `WrongType`.
+    check_err(
+        sys_ipc_recv(handle.0),
+        SysError::PermissionDenied,
+        M::POLICY_GRANT_INSTALLS_USABLE_CAP,
+    );
+
+    // R7: the grantee asks the broker to revoke the lease it was granted under.
+    match sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, lease.0 as usize, 0, 0) {
+        Ok(v) if v != usize::MAX => {}
+        _ => {
+            setup_failed("grant: CAP_REVOKE of own grant was refused");
+            let _ = _sys_cap_drop(handle);
+            return;
+        }
+    }
+    // `SEND` is held, so the rights check passes; the only thing left to refuse is the lease.
+    check_err(
+        sys_ipc_send(handle.0, 0),
+        SysError::LeaseRevoked,
+        M::POLICY_GRANT_REVOKE_KILLS_CAP,
+    );
+    let _ = _sys_cap_drop(handle);
+}
+
+/// POLICY (R7): the broker will not revoke a lease it did not grant.
+///
+/// `neg-test` creates a lease of its own and asks the broker -- which holds a `LeaseAdmin`
+/// able to revoke *any* lease -- to revoke it. The broker must refuse, and the lease's epoch
+/// must be exactly as it was: a refusal that revoked anyway would be the confused deputy.
+fn test_policy_revoke_foreign_lease_refused() {
+    let lease = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(l) => l,
+        Err(_) => {
+            setup_failed("foreign revoke: lease_create");
+            return;
+        }
+    };
+    let before = sys_lease_inspect(SLOT_LEASE_ADMIN, lease);
+    let reply = sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, lease.0 as usize, 0, 0);
+    let after = sys_lease_inspect(SLOT_LEASE_ADMIN, lease);
+    match (reply, before, after) {
+        (Ok(v), Ok(b), Ok(a)) if v == usize::MAX && b == a => {
+            check(true, M::POLICY_REVOKE_FOREIGN_LEASE_REFUSED);
+        }
+        (r, _, _) => debug_policy("neg-test: foreign revoke unexpected:", r),
+    }
+    let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease);
+}
+
+/// POLICY (R6): an *allowed* class with no installable mapping is refused.
+///
+/// `NEG_TEST` has an `Allow` rule for `Semantic` that confers nothing. It used to fall
+/// into `_ => Endpoint`; now the broker refuses it, and says why on the console -- which the
+/// profile requires, so a refusal by *default deny* (a different, earlier path) cannot pass.
+fn test_policy_unmapped_class_refused() {
+    match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        CLASS_SEMANTIC,
+        0,
+        RIGHT_SEND_BIT,
+    ) {
+        Ok(reply) if (reply & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => {
+            check(true, M::POLICY_UNMAPPED_CLASS_REFUSED);
+        }
+        other => debug_policy("neg-test: unmapped class unexpected:", other),
+    }
+}
+
 // ── Audit trail (RFC-0.41-001) ────────────────────────────────────────────────
 //
 // These three tests do not read the trail. They **cause** things, print what they
@@ -1173,6 +1338,65 @@ fn test_audit_revocation_reaches_the_trail() {
     sys_debug_write("neg-test: audit: revoked lease arg0=");
     debug_dec(lease_id.0 as u64);
     sys_debug_writeln("");
+}
+
+/// RFC-0.45-002 R4: a runtime install, and a refused one, must reach the trail **under
+/// their own names** -- `cap.installed` (`0x0601`) and `cap.install_rejected` (`0x0602`),
+/// not `internal` (the E-092 shape). This is what gates a runtime install:
+/// `capability-topology` and `object-zero` compare spawn-time installs and cannot see one.
+///
+/// It runs here, after the settle, and not with the policy scenarios: the install records
+/// are appended while the rest of the system is still starting, and the ring drops what
+/// `auditd` has not yet drained (a `{"gap":...}` notice, not a record) -- which the first
+/// version of this scenario, placed early, showed.
+///
+/// This only causes the two records and says which; the profile requires `auditd`'s own
+/// output to show them. The grant is revoked and dropped again, so the CSpace is as found.
+fn test_audit_install_reaches_the_trail() {
+    use fjell_abi::lease::LeaseId;
+    // A refused install: through a capability that is not a `CapInstall`. It reached no
+    // target, so its record names 0xFFFF.
+    let refused = sys_cap_install(
+        CapHandle(SLOT_OWN_EP),
+        fjell_cap::CapKind::Endpoint as u8,
+        fjell_abi::service::NEG_TEST_OWN_EP_OBJECT,
+        RIGHT_SEND_BIT as u64,
+        LeaseId(1),
+    );
+    if refused.is_err() {
+        sys_debug_write("neg-test: audit: refused install arg0=");
+        debug_dec(0xFFFF);
+        sys_debug_writeln("");
+    } else {
+        sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
+    }
+    // A granted one: `arg0` of its record is the task it was installed into -- this one.
+    let reply = match sys_ipc_call_words(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        CLASS_ENDPOINT,
+        0,
+        RIGHT_SEND_BIT,
+    ) {
+        Ok(r) if (r & 0xFFFF) == (tags::CAP_GRANTED & 0xFFFF) => r,
+        _ => {
+            setup_failed("audit_install: grant");
+            return;
+        }
+    };
+    let handle = CapHandle(((reply >> 16) & 0xFFFF_FFFF) as u32);
+    let lease = (reply >> 48) & 0xFF;
+    sys_debug_write("neg-test: audit: installed cap arg0=");
+    debug_dec((reply >> 56) as u64);
+    sys_debug_writeln("");
+    let _ = sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, lease, 0, 0);
+    let _ = _sys_cap_drop(handle);
+    // Let `auditd` print what this queued before the next scenario starts. The lost-wakeup
+    // sweep that follows measures *when* a record is printed relative to its round, and its
+    // window depends on `auditd` having no backlog: without this, this scenario's records
+    // were still being printed when the sweep began, and its first probe was "echoed too
+    // late" (the first run of this scenario showed exactly that).
+    let_the_system_settle();
 }
 
 /// R4: the lost wakeup, really run.
@@ -1571,6 +1795,11 @@ pub extern "C" fn service_main() -> ! {
     test_policy_bootstrap_guard();
     test_policy_deny_priority();
     test_policy_identity_spoofing();
+    // ── Capability installation (RFC-0.45-002) ────────────────────────────────
+    test_cap_install_without_authority();
+    test_policy_grant_installs_and_revoke_kills();
+    test_policy_revoke_foreign_lease_refused();
+    test_policy_unmapped_class_refused();
 
     // ── Service lifecycle (RFC 038) ───────────────────────────────────────────
     test_svc_start_timeout();
@@ -1599,6 +1828,7 @@ pub extern "C" fn service_main() -> ! {
     // Before `test_cap_bind_lease_without_authority`, which drops LeaseAdmin.
     test_audit_settle();
     test_audit_revocation_reaches_the_trail();
+    test_audit_install_reaches_the_trail();
     test_audit_wake_is_not_lost();
     test_audit_overflow_is_reported();
 

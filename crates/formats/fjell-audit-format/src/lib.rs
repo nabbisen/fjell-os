@@ -48,6 +48,11 @@ pub enum AuditKind {
     // RFC-0.42-001 (E-091): a refused lease bind. 0x0604 is the code RFC-v0.7.4-003
     // specified as AUDIT_LEASE_BIND_REJECTED.
     LeaseBindRejected = 0x0604,
+    // RFC-0.45-002 (E-123): a capability installed by the broker, and a refused install.
+    // 0x0601 / 0x0602 are the codes RFC-v0.7.4-003 specified (AUDIT_CAP_INSTALLED,
+    // AUDIT_CAP_INSTALL_REJECTED).
+    CapInstalled = 0x0601,
+    CapInstallRejected = 0x0602,
     // Internal / unclassified
     Internal = 255,
 }
@@ -78,6 +83,8 @@ impl AuditKind {
             24 => Self::IpcDenied,
             30 => Self::TaskQuantumExceeded,
             0x0604 => Self::LeaseBindRejected,
+            0x0601 => Self::CapInstalled,
+            0x0602 => Self::CapInstallRejected,
             _ => Self::Internal,
         }
     }
@@ -107,6 +114,8 @@ impl AuditKind {
             Self::IpcDenied => "ipc.denied",
             Self::TaskQuantumExceeded => "task.quantum_exceeded",
             Self::LeaseBindRejected => "lease.bind_rejected",
+            Self::CapInstalled => "cap.installed",
+            Self::CapInstallRejected => "cap.install_rejected",
             Self::Internal => "internal",
         }
     }
@@ -375,6 +384,15 @@ mod tests {
         assert_eq!(AuditKind::from_u16(0x0604), AuditKind::LeaseBindRejected);
         assert_eq!(AuditKind::LeaseBindRejected.label(), "lease.bind_rejected");
         assert_eq!(AuditKind::LeaseBindRejected as u16, 0x0604);
+        assert_eq!(AuditKind::from_u16(0x0601), AuditKind::CapInstalled);
+        assert_eq!(AuditKind::CapInstalled.label(), "cap.installed");
+        assert_eq!(AuditKind::CapInstalled as u16, 0x0601);
+        assert_eq!(AuditKind::from_u16(0x0602), AuditKind::CapInstallRejected);
+        assert_eq!(
+            AuditKind::CapInstallRejected.label(),
+            "cap.install_rejected"
+        );
+        assert_eq!(AuditKind::CapInstallRejected as u16, 0x0602);
     }
 
     #[test]

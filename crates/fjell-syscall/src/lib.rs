@@ -847,48 +847,69 @@ pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
     to_result(ecall2(SyscallNumber::CapRevoke as usize, cap.0 as usize, 0, 0, 0).0).map(|_| ())
 }
 
-/// RFC 056: install a capability into another task's CSpace.
-/// `target_tid` = packed `(index | generation << 16)` task handle.
-/// Returns `Ok(handle)` — the new slot handle in the target's CSpace.
+/// Execute a syscall with five arguments (`a0`..`a4`); returns (a0, a1).
 ///
-/// RFC-v0.7.4-003: rights, scope, and lease parameters are now accepted.
-/// The kernel validates that `rights` ⊆ installer authority (ALL_NON_META).
-/// Pass `rights = 0` to use `ALL_NON_META` (default behaviour for cap-broker).
+/// Only `sys_cap_install` needs a fifth argument.
+#[inline]
+fn ecall5(nr: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize) -> (usize, usize) {
+    let r0: usize;
+    let r1: usize;
+    #[cfg(target_arch = "riscv64")]
+    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+    unsafe {
+        core::arch::asm!(
+            "ecall",
+            in("a7") nr,
+            inlateout("a0") a0 => r0,
+            inlateout("a1") a1 => r1,
+            in("a2") a2,
+            in("a3") a3,
+            in("a4") a4,
+            options(nostack),
+        );
+    }
+    #[cfg(not(target_arch = "riscv64"))]
+    {
+        let _ = (nr, a0, a1, a2, a3, a4);
+        r0 = 0;
+        r1 = 0;
+    }
+    (r0, r1)
+}
+
+/// `sys_cap_install` -- RFC 056, as made true by RFC-0.45-002.
+///
+/// Installs a capability of `cap_kind` naming `object_id`, with **exactly** `rights`,
+/// bound to `lease`, into the CSpace of **the task the caller is serving**: the caller of
+/// the pending IPC reply edge. **There is no target argument**, so a stale or forged
+/// target cannot be expressed; call this between `sys_ipc_recv_msg` and `sys_ipc_reply`.
+/// Returns `Ok(handle)` -- the new slot's handle in *the target's* CSpace.
+///
+/// The kernel refuses (see `fjell_cap::install::check_install`) a caller without a
+/// `CapInstall` capability carrying `CAP_INSTALL`; with no pending reply edge or a caller
+/// that is not blocked (`BadState`); any kind but `Endpoint`; empty rights or rights
+/// outside the installer's envelope; a lease that is zero, not the caller's own, or not
+/// `Active`; and a full target CSpace (`NoMemory`).
+///
+/// There is no `rights = 0` default and no fallback to attenuate afterwards: the earlier
+/// `sys_cap_install_with_rights` discarded its rights parameter (E-011) and is gone.
 pub fn sys_cap_install(
     install_cap: CapHandle,
-    target_tid: usize,
     cap_kind: u8,
     object_id: u32,
+    rights: u64,
+    lease: LeaseId,
 ) -> Result<CapHandle, SysError> {
-    let (r0, r1) = ecall2(
+    let (r0, r1) = ecall5(
         SyscallNumber::CapInstall as usize,
         install_cap.0 as usize,
-        target_tid,
         cap_kind as usize,
         object_id as usize,
+        rights as usize,
+        lease.0 as usize,
     );
     to_result(r0)?;
     Ok(CapHandle(r1 as u32))
-}
-
-/// Extended cap_install with explicit rights (RFC-v0.7.4-003).
-///
-/// Allows cap-broker to install caps with a narrower right set than
-/// `ALL_NON_META`.  Passing `rights_bits = 0` falls back to `ALL_NON_META`.
-pub fn sys_cap_install_with_rights(
-    install_cap: CapHandle,
-    target_tid: usize,
-    cap_kind: u8,
-    object_id: u32,
-    rights_bits: u64,
-) -> Result<CapHandle, SysError> {
-    // v0.7.x: the kernel's sys_cap_install ignores the extra parameter
-    // gracefully (registers a2..a3 carry kind/object_id; a4 carries rights).
-    // Full ABI support lands in v0.8 when the syscall table is versioned.
-    // For now, fall back to the standard path; cap-broker calls cap_mint
-    // after to attenuate rights.
-    let _ = rights_bits;
-    sys_cap_install(install_cap, target_tid, cap_kind, object_id)
 }
 
 /// `sys_cap_inspect(cap) → Ok((kind, rights, badge))` — RFC 049: requires INSPECT right.

@@ -41,33 +41,30 @@ Dispatched groups (as-built at v0.21.2, 26 syscalls):
 Every syscall except the debug helper is capability-gated. The result is
 returned in `a0` as a typed `SysError` (or `Ok`).
 
-### Declared, not dispatched (9 of the 35)
+### Declared, not dispatched (3 of the 36)
 
-These `SyscallNumber` variants exist in `fjell-abi` and have user-space
-wrapper functions in `fjell-syscall`, but `trap/syscall.rs` has no dispatch
-arm for them — the fallthrough (`Some(_) | None => SysError::UnknownSyscall`,
-`syscall.rs:52`) rejects every one. Calling any of them from user space
-returns `UnknownSyscall`, not the behaviour their wrapper's doc-comment may
-suggest:
+These `SyscallNumber` variants exist in `fjell-abi`, but `trap/syscall.rs` has
+no dispatch arm for them -- the fallthrough (`Some(_) | None =>
+SysError::UnknownSyscall`) rejects every one, so calling any of them returns
+`UnknownSyscall`, not the behaviour a doc-comment may suggest. The set is held
+equal to the source by `cargo run -p fjell-consistency-check -- syscall-surface`
+against `tests/syscall/expected.toml`:
 
 | Syscall number | Wrapper(s) that issue it |
 |---|---|
-| `CapInstall` (17) | `sys_cap_install`, `sys_cap_install_with_rights` |
-| `PlatformReboot` (18) | `sys_reboot` |
-| `TaskKill` (43) | — (no wrapper) |
-| `MmioUnmap` (91) | — (no wrapper) |
-| `IrqBind` (100) | `sys_irq_bind` |
-| `IrqAck` (101) | `sys_irq_ack` |
-| `IrqWait` (102) | `sys_irq_wait` |
-| `DmaShare` (111) | — (no wrapper) |
-| `Reboot` (120) | — (no wrapper; distinct from `PlatformReboot`) |
+| `TaskKill` (43) | -- (no wrapper) |
+| `MmioUnmap` (91) | -- (no wrapper) |
+| `DmaShare` (111) | -- (no wrapper) |
+
+`CapInstall` (17) was the fourth until RFC-0.45-002: it is dispatched now, as
+`sys_cap_install` (see [Capability and lease](./capability-lease.md)).
 
 `sys_platform_region_resolve` is a separate case: it is an explicit
 host-side stub that returns `UnknownSyscall` without issuing an `ecall` at
 all, so it never reaches the kernel.
 
-The disposition of these 9 — implement, remove from the ABI, or keep
-permanently reserved — is not decided; see
+The disposition of these 3 -- implement, remove from the ABI, or keep
+permanently reserved -- is not decided; see
 `rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
 §Deferred.
 

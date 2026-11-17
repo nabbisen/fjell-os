@@ -12,7 +12,7 @@
 # another and still pass.
 
 declared_count = 36
-dispatched_count = 32
+dispatched_count = 33
 
 # RFC-0.41-001: AuditWait (61) is declared and dispatched (`sys_audit_wait`), so
 # both counts rise by one and `undispatched` does not change.
@@ -20,13 +20,16 @@ dispatched_count = 32
 # RFC-0.42-002: ClockNow (113) is declared and dispatched (`sys_clock_now`), so both
 # counts rise by one and `undispatched` does not change.
 
+# RFC-0.45-002 (closes E-123): CapInstall (17) is dispatched (`sys_cap_install`, targeting the
+# task the caller is serving), so `dispatched_count` rises by one and `undispatched` loses
+# `CapInstall`. Declared stays 36. Changed in the same commit as the dispatch arm.
+
 # RFC-0.33-001 D8/§C: PlatformReboot (18) now has a kernel dispatch arm
 # (crates/fjell-kernel/src/trap/syscall.rs::sys_platform_reboot), and its
 # undispatched duplicate Reboot (120) is retired from the enum rather than
 # left declared-but-unreachable. Changed in the same commit as the dispatch
 # arm, per RFC 000's drift rule.
 undispatched = [
-    "CapInstall",
     "TaskKill",
     "MmioUnmap",
     "DmaShare",

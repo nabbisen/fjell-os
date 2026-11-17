@@ -75,6 +75,19 @@ pub enum AuditKindInternal {
     /// `arg0` = the lease id asked for, `arg1` = the capability slot, `result` = the
     /// refusal (`SysError`).
     LeaseBindRejected = 0x0604,
+    /// RFC-0.45-002 R4 (ruling 4): a `sys_cap_install` that succeeded. **`0x0601`**, the
+    /// code `RFC-v0.7.4-003` specified (`AUDIT_CAP_INSTALLED`) and never built, and the
+    /// value `fjell_audit_format::AuditKind::CapInstalled` has.
+    ///
+    /// `arg0` = the target task index, `arg1` = the object id, `result` = 0.
+    CapInstalled = 0x0601,
+    /// RFC-0.45-002 R4 (ruling 4): a `sys_cap_install` that was refused. **`0x0602`**
+    /// (`AUDIT_CAP_INSTALL_REJECTED`). A separate kind from `CapInstalled` so a reader of
+    /// the ring need not decode a result field to tell a grant from a refusal.
+    ///
+    /// `arg0` = the target task index, or `0xFFFF` if none had been determined;
+    /// `arg1` = the object id asked for; `result` = the refusal (`SysError`).
+    CapInstallRejected = 0x0602,
     // `CapDenied = 41` was here until RFC-0.40-002: emitted by nothing and absent
     // from the published decoder, so a kind nothing emits and nothing decodes. It
     // is gone rather than left to suggest that capability denials are audited

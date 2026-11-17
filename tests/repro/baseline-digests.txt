@@ -1,9 +1,9 @@
 # algo: sha256 (64 hex chars per entry)
 # toolchain: 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-linux-gnu / LLVM 23.1.5
 de6f7bab1039ddf7da7d5a74fc24d7ccc263017a6c9c428a4c633a842e57d655 crates/fjell-kernel/prebuilt/fjell-attestd.bin
-58922e53dfee446913a1a8339aa09095ab973623eb14c703982b2dd49bb97e2c crates/fjell-kernel/prebuilt/fjell-auditd.bin
+95b2664b1a45fb86cf74c0432128d29ab097fad8ee40a4a3918ee6683a584379 crates/fjell-kernel/prebuilt/fjell-auditd.bin
 9a8b0b685d104e3c7e9e418f4a73500e9739f3d7e18e6559710390d91741c214 crates/fjell-kernel/prebuilt/fjell-bootctl.bin
-3f23da3820fe6a6f63309ff35635c85043e6c258edb33603600ea89dc6b51327 crates/fjell-kernel/prebuilt/fjell-cap-broker.bin
+fbdc76ece7d6837942d4b9b638e0fa9146c23e8efd714d2297d99ccac2a1ef8e crates/fjell-kernel/prebuilt/fjell-cap-broker.bin
 2bcdab3de577aa12d7740e9d9fdc4979cf037658e34c26807cee362917c9905b crates/fjell-kernel/prebuilt/fjell-configd.bin
 a8bf07f94baa52121f5c4c627d4db114bd956bde18dd545215c1fcdb352eed51 crates/fjell-kernel/prebuilt/fjell-devmgr.bin
 aeaf5b145baf496e2e6547e96a0415d50fb655ad26ff29a49aa259e5fd967ff1 crates/fjell-kernel/prebuilt/fjell-diagnosticsd.bin
@@ -13,7 +13,7 @@ fe3e2b2de5b89edcd3b11bc37b81aa962e028a18b91ea6763822609b702fe12d crates/fjell-ke
 7a7dc5f6e28112287c2b4cb10622a0ca205b24dc09553fd13b4b8f10e376b005 crates/fjell-kernel/prebuilt/fjell-fleetd.bin
 39f05e1d6cd84b8f5ea928cb7670796e5206dfa2f2777ab9f574136747890f75 crates/fjell-kernel/prebuilt/fjell-init.bin
 ccaad8b7b9afe788e8bd9254707cb27ea6712bce43e0c521f4d5bfe649c75a1c crates/fjell-kernel/prebuilt/fjell-measuredd.bin
-ca937373af56c6afdcf7be269f4951718a5281c81e6e3160d8f36c19210eb625 crates/fjell-kernel/prebuilt/fjell-neg-test.bin
+21a913e667db9cc849fb06cdbdb842cec54eed1364ead73ff0ff8fcd43646f00 crates/fjell-kernel/prebuilt/fjell-neg-test.bin
 3747181865cf7b1fe0893c9e2e247fce9714955b8a5201d39d49636cde9123a1 crates/fjell-kernel/prebuilt/fjell-netd.bin
 7a3933943fbfc66aa5a307e507ed1f735f4a12bdaaf95ea970cecb7c3d00780e crates/fjell-kernel/prebuilt/fjell-powerd.bin
 e1017871c643f5d266b95d0fac3bd55f0e03936e0109132edcbc4efe73ac7060 crates/fjell-kernel/prebuilt/fjell-proxy-braille.bin

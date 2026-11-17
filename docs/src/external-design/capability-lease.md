@@ -39,72 +39,32 @@ an `Active` `LeaseAdmin` capability carrying `LEASE_CREATE` (otherwise
 `PermissionDenied`) and the lease must be `Active` (otherwise `LeaseRevoked`) —
 RFC-0.38-002. It replaces any earlier binding of that capability.
 
-`cap_install` and `cap_install_with_rights` are declared in `fjell-abi` and
-have user-space wrappers, but `trap/syscall.rs` has no dispatch arm for
-`CapInstall` — see [Kernel](./kernel.md) §2 "Declared, not dispatched".
-Bootstrap capability installation at v0.21.2 goes entirely through the
-in-kernel `CSpace::install_raw` path, called directly from `main.rs` during
-service spawn — not through a syscall a running service can invoke.
+`cap_install` installs a capability into the CSpace of **the task the caller is
+serving** -- the caller of its pending IPC reply edge. It has no target argument,
+so a stale or forged target cannot be named (RFC-0.45-002, which made RFC 056's
+primitive true; `cap_install_with_rights`, which discarded its rights parameter,
+is gone). The caller must hold a `CapInstall` capability carrying `CAP_INSTALL`
+(granted **by name**, in no aggregate: `ALL_NON_META` excludes it); the kernel
+installs `Endpoint` capabilities only, with exactly the rights asked for, inside
+the installer's envelope, **always bound to a lease the installer owns**, and
+audits every install (`cap.installed`, `0x0601`) and every refusal
+(`cap.install_rejected`, `0x0602`). The one holder is `cap-broker`, whose grant
+is therefore lease-bound (`BROKER-004`): revoking the lease kills the
+capability. Bootstrap installation at spawn still goes through the in-kernel
+`CSpace::install_raw` path, called directly from `main.rs`.
 
-### Lease operations (syscalls)
-
-`lease_create` (under a `LeaseAdmin` cap), `lease_revoke` (advances epoch),
-`lease_inspect` (reads current epoch).
-
-## 3. Requirements coverage
-
-| Requirement | Design response | As-built evidence |
-|---|---|---|
-| FR-KRN-003 Unforgeable capabilities | Typed handle = (generation, slot); rights mask; kind | `fjell-cap/src/handle.rs`, `rights.rs` |
-| FR-KRN-003 delegation / restricted delegation | `cap_copy` (equal), `cap_mint` (subset only) | mint enforces `is_subset_of` |
-| FR-KRN-003 revocation | `cap_revoke`; lease revoke cascades | `lease/mod.rs` |
-| FR-KRN-003 audit recording | Cap create/mint/revoke/drop emit audit events | `AuditKind::Cap*` |
-| FR-SEC-001 Least privilege | Each service receives only the caps it needs at spawn | cap-broker + service manifests |
-| FR-SEC-002 Explicit delegation | No implicit delegation; source/target/subject/limits recorded | `cap_mint` + audit |
-| FR-SEC-003 Sandboxing | A service's reachable objects = its CSpace contents | per-task CSpace |
-| FR-SEC-004 Secure failure | Missing right → `PermissionDenied`, no grant | default-deny mapping |
-| NFR-SEC-001 Default deny | Undelegated capability access is rejected | universal in `require_cap_on_ct` |
-
-## 4. Two formally-verified invariants
-
-Machine-checked in Verus and enforced as release gate 10:
-
-- **Non-amplification** (`capability` target): `cap_mint` can never produce a
-  child whose rights exceed the parent — `child & !parent == 0`. 8 proof
-  obligations.
-- **Bounded lease revocation** (`lease` target): the lease epoch is monotonic
-  and revocation is bounded; retire-before-wrap at `u32::MAX`. 5 obligations.
-
-These prove the *predicates*. The syscall paths that invoke them are
-unit-tested, property-tested, and QEMU-negative-tested — not proven end-to-end
-(see [Security & Trust](./security-trust.md) for the verification-scope
-statement).
-
-## 5. Lease revocation semantics (external contract)
-
-`sys_lease_revoke` is atomic with respect to in-flight IPC:
-
-1. The lease epoch is advanced (monotonic).
-2. Any sender blocked in an endpoint queue with a lease-bound capability is
-   cancelled and woken with `Err(LeaseRevoked)`.
-3. Any pending reply edge bound to the lease is cleared via
-   `cancel_replies_for_lease`; the blocked caller is woken with
-   `Err(LeaseRevoked)`.
-4. `sys_ipc_reply` additionally checks the reply edge's lease binding
-   (defense-in-depth) and refuses if revoked.
-
-This satisfies the requirement that revoked authority must not leave IPC
-hanging.
 
 ## 6. As-built scope limits & gaps
 
 - Capability persistence across reboot is out of scope for v1.0 (caps are
   bootstrapped fresh at boot).
-- No syscall-level capability-installation authority exists in user space at
-  all: the `CapInstall` syscall is declared but not dispatched (§2 above).
-  What RFC 056 describes as cap-broker/init bootstrap installation is the
-  in-kernel `CSpace::install_raw` path invoked directly from `main.rs`, not
-  a capability a service holds and exercises via syscall.
+- Runtime capability installation is narrow by design (RFC-0.45-002): `Endpoint`
+  only, into the task being served, lease-bound, and one holder (`cap-broker`).
+  Other kinds (`TaskControl`, `MmioRegion`, ...) are refused until a scoped
+  design and a consumer exist. The broker's `SxtSession` class names no object
+  yet, so `secure-transportd`'s `CAP_SESSION` delivery still cannot happen.
+  Lease slots are never recycled (E-110), and each grant consumes one for the
+  life of the boot.
 
 There are no known correctness gaps in the capability/lease core at v0.21.2; the
 Verus proofs and negative tests cover the security-critical predicates.

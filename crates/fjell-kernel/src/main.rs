@@ -1365,21 +1365,12 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             let cs = cap_table
                 .cspace_mut(1 /* init task index */)
                 .expect("init CSpace");
-            // Slot 27: CapInstall — init can delegate caps during bootstrap;
-            // revoked after BOOTSTRAP_COMPLETE is sent to cap-broker (v0.3 cleanup).
-            let _ = cs.install_raw(
-                27,
-                Capability {
-                    kind: CapKind::CapInstall,
-                    object_id: 0,
-                    rights: CapRights::ALL_NON_META,
-                    badge: 0,
-                    scope: ObjectScope::Any,
-                    state: CapState::Active,
-                    parent: None,
-                    lease: None,
-                },
-            );
+            // Slot 27 is deliberately empty (RFC-0.45-002 R2). It held a `CapInstall`
+            // capability described as "revoked after BOOTSTRAP_COMPLETE (v0.3 cleanup)";
+            // the revocation never happened, nothing in `fjell-init` used the slot, and
+            // RFC 056 says only the broker holds the install authority after bootstrap.
+            // A capability whose comment promises a revocation that does not occur is
+            // removed, not kept.
             // Slot 28: TaskCreate — init can spawn service tasks.
             let _ = cs.install_raw(
                 28,

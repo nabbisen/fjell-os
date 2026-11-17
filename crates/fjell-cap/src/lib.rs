@@ -31,6 +31,7 @@ pub use fjell_abi::task::TaskId;
 pub mod cspace;
 pub mod enforcement;
 pub mod handle;
+pub mod install;
 pub mod rights;
 pub mod slot;
 

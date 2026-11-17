@@ -123,6 +123,58 @@ pub mod tags {
 }
 
 // ── RFC 019: storaged IPC protocol ────────────────────────────────────────────
+/// The capability broker's own rules that are worth testing on the host
+/// (RFC-0.45-002 R7). The broker is a bare-metal binary with no host tests, and a rule
+/// that only a QEMU boot can exercise is only as strong as the requesters that boot has.
+pub mod cap_broker {
+    /// Whether a `CAP_REVOKE` for a lease is honoured.
+    ///
+    /// The broker revokes with its **own** `LeaseAdmin`, which -- unlike a requester's -- can
+    /// revoke any lease in the system. So the request is honoured only if **both** hold:
+    ///
+    /// * the lease is one the broker granted: `grantee` is `Some` (it is in the delegation
+    ///   table). A lease the broker did not create is not the broker's to revoke;
+    /// * and the sender is that grant's grantee, or `init`.
+    ///
+    /// Anything else is a confused deputy: a service using the broker to revoke a lease
+    /// it has no claim to. `grantee` is the requester `ImageId` recorded at grant time;
+    /// `sender` is the kernel-attested `ImageId` of the caller (never the payload).
+    pub fn revoke_authorised(grantee: Option<u16>, sender: u16, init: u16) -> bool {
+        match grantee {
+            Some(g) => sender == g || sender == init,
+            None => false,
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::revoke_authorised;
+        const INIT: u16 = 0;
+        const NEG_TEST: u16 = 20;
+        const OTHER: u16 = 7;
+
+        #[test]
+        fn the_grantee_may_revoke_its_own_grant() {
+            assert!(revoke_authorised(Some(NEG_TEST), NEG_TEST, INIT));
+        }
+        #[test]
+        fn init_may_revoke_any_grant() {
+            assert!(revoke_authorised(Some(NEG_TEST), INIT, INIT));
+        }
+        #[test]
+        fn another_service_may_not_revoke_someone_elses_grant() {
+            assert!(!revoke_authorised(Some(NEG_TEST), OTHER, INIT));
+        }
+        #[test]
+        fn a_lease_the_broker_did_not_grant_is_never_revocable_by_anyone() {
+            // Not even init, and not a sender who "matches" nothing: there is no record.
+            for sender in [INIT, NEG_TEST, OTHER] {
+                assert!(!revoke_authorised(None, sender, INIT), "{sender}");
+            }
+        }
+    }
+}
+
 pub mod storaged {
     /// Storaged is ready; init may proceed with storage operations.
     pub const READY: usize = 0x200;
@@ -732,6 +784,35 @@ pub mod negative_markers {
     /// RFC 055: kernel-attested identity prevents spoofing requester id.
     pub const POLICY_IDENTITY_SPOOFING_REJECTED: &str =
         "NEG:POLICY:IDENTITY_SPOOFING_REJECTED:PASS";
+
+    // ── capability installation (RFC-0.45-002, closes E-123) ──────────────────
+    /// A request the policy allows is **granted**: the broker created a lease, the kernel
+    /// installed an `Endpoint` capability into the requester, and the requester finds it --
+    /// the kind is right and it carries exactly the rights asked for (`SEND`, not `RECV`).
+    /// RFC 056's own test plan named this and it appears in no source file until now.
+    pub const POLICY_GRANT_INSTALLS_USABLE_CAP: &str = "NEG:POLICY:GRANT_INSTALLS_USABLE_CAP:PASS";
+    /// **`BROKER-004`'s check**: revoking the lease the broker bound the installed capability
+    /// to kills the capability -- its next use is `LeaseRevoked`, and by the rights check
+    /// having passed first, the kill is the lease's and not a missing right's.
+    pub const POLICY_GRANT_REVOKE_KILLS_CAP: &str = "NEG:POLICY:GRANT_REVOKE_KILLS_CAP:PASS";
+    /// The broker refuses to revoke a lease it did not grant (R7): the confused-deputy case
+    /// its own `LeaseAdmin` would otherwise open. The lease is untouched.
+    pub const POLICY_REVOKE_FOREIGN_LEASE_REFUSED: &str =
+        "NEG:POLICY:REVOKE_FOREIGN_LEASE_REFUSED:PASS";
+    /// A class the policy *allows* but which has no installable mapping is refused (R6) -- it
+    /// no longer falls through to an `Endpoint` install.
+    pub const POLICY_UNMAPPED_CLASS_REFUSED: &str = "NEG:POLICY:UNMAPPED_CLASS_REFUSED:PASS";
+    /// `sys_cap_install` through a capability that is not a `CapInstall` is refused
+    /// `WrongType` -- the syscall is dispatched (it was `UnknownSyscall` before) and
+    /// authority is checked first.
+    pub const CAP_INSTALL_WITHOUT_AUTHORITY: &str =
+        "NEG:CAP_INSTALL:WITHOUT_AUTHORITY_REJECTED:PASS";
+    /// `sys_cap_install` through a `CapInstall` capability that **lacks `CAP_INSTALL`** is
+    /// refused `PermissionDenied`: the kind is right and the right is absent, so the only
+    /// thing that can refuse is the kernel's rights check (the 0.44 item C shape).
+    pub const CAP_INSTALL_WITHOUT_RIGHT: &str = "NEG:CAP_INSTALL:WITHOUT_RIGHT_REJECTED:PASS";
+    /// `sys_cap_install` through an empty slot is refused `InvalidCap`.
+    pub const CAP_INSTALL_EMPTY_SLOT: &str = "NEG:CAP_INSTALL:EMPTY_SLOT_REJECTED:PASS";
 
     // ── safe user copy (RFC 039) ──────────────────────────────────────────────
     /// `copy_to_user` rejects a null destination pointer.

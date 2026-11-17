@@ -51,6 +51,13 @@ impl CSpace {
         Err(SysError::NoMemory)
     }
 
+    /// Whether `install_any` would find a slot: the one predicate `sys_cap_install` asks
+    /// **before** it writes (RFC-0.45-002 R3 f), so a full CSpace refuses with nothing touched.
+    /// It is `install_any`'s own scan, so the two cannot disagree (a host test holds them to it).
+    pub fn has_free_slot(&self) -> bool {
+        self.slots.iter().any(|s| s.state == CapSlotState::Empty)
+    }
+
     /// Build a handle for slot `idx` using its current generation.
     fn handle_for(&self, idx: usize) -> CapHandle {
         CapHandle::new(idx as u16, self.slots[idx].generation)

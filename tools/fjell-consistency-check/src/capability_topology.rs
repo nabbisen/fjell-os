@@ -151,9 +151,13 @@ const WAIVERS: &[Waiver] = &[
         purpose: "cap-broker",
         reason: "slot 0 is where a capability delivered at runtime by cap-broker \
                  is meant to arrive (`CAP_SESSION`); there is no spawn-time install \
-                 to find. That delivery is not live yet: the constant is \
-                 `#[allow(dead_code)]` and read nowhere. cap-broker's `SxtSession = 9` \
-                 is a ResourceClass discriminant, not a slot",
+                 to find. The mechanism is live since RFC-0.45-002 (`sys_cap_install` \
+                 is dispatched), but this delivery still cannot happen: it is `Endpoint`-only, \
+                 and no object exists for the `SxtSession` class to name (sessions are \
+                 `netd`'s, which exits before its loop) -- so its policy rule confers \
+                 `object: None` and is refused. The constant is `#[allow(dead_code)]` and \
+                 read nowhere. cap-broker's `SxtSession = 9` is a ResourceClass \
+                 discriminant, not a slot",
     },
 ];
 
@@ -1010,10 +1014,14 @@ if let Some(regions) = mmio_regions_for_service {\n    for &region_idx in region
         // by design. That left twelve judged: nine in services, three in
         // `fjell-driver-uart`. RFC-0.44-001 R2 added a thirteenth: `diagnosticsd`'s
         // `CAP_ATTESTD_EP` (slot 5), a declaration this line installs rather than leaves
-        // dangling. If a crate adds or loses a declaration this number moves, and
+        // dangling. RFC-0.45-002 R5 added two more, `cap-broker`'s `CAP_INSTALL_CAP` (slot 10)
+        // and `LEASE_ADMIN_CAP` (slot 11): the broker used to write both slots as bare
+        // literals (`CapHandle(10u32)`), which this discovery -- by design -- does not see, so
+        // its authority was undeclared; now it is declared and read against `spawn.rs`.
+        // If a crate adds or loses a declaration this number moves, and
         // the change is made on purpose. What must stay true is that the driver crates are
         // *in the universe*: planting a constant there is caught (the RFC-0.43-002 control).
-        assert_eq!(d.slots.len(), 13, "{:#?}", d.slots);
+        assert_eq!(d.slots.len(), 15, "{:#?}", d.slots);
         let drivers = d
             .slots
             .iter()

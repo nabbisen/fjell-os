@@ -13,7 +13,7 @@
 //! message carries no payload in v0.2 (policy is compiled in).
 //!
 //! **Enforcing state**: all requests go through the three-phase evaluator
-//! (deny → allow → default deny).  Grants are lease-bound; the lease is
+//! (deny → allow → default deny).  Grants are lease-bound (BROKER-004); the lease is
 //! recorded in the `DelegationRecord` tree.
 //!
 //! # Policy evaluation (BROKER-001 through BROKER-008)
@@ -24,15 +24,30 @@
 //! Phase 3: default Deny   → reject (BROKER-001)
 //! ```
 //!
+//! # BROKER-004 (RFC-0.45-002 R5)
+//!
+//! **Every capability the broker installs is bound to a lease the broker owns, so that
+//! revoking the lease kills the capability.** The broker creates one lease per granted
+//! request (`LEASE_CREATE`, slot 11), the kernel binds the installed capability to it
+//! inside `sys_cap_install`, and the real lease id is recorded in the `DelegationRecord`.
+//! The comment that used to cite this rule defined it nowhere and discarded the lease.
+//!
 //! # IPC protocol
 //!
 //! ```text
-//! CAP_REQUEST (label=0x020, nwords=4):
-//!   w0 = requester_id    (ImageId, u16)
-//!   w1 = resource_class  (ResourceClass discriminant, u32)
+//! CAP_REQUEST (label=0x020, nwords=3):
+//!   w0 = resource_class   (ResourceClass discriminant, u32)
+//!   w1 = unused
 //!   w2 = requested_rights (CapRights bits, u64 low 32)
-//!   w3 = 0 reserved
-//! Reply (CAP_GRANTED | lease_id<<16 | rights<<32) or CAP_DENIED.
+//!   The requester is the kernel-attested sender ImageId (RFC 055), never the payload.
+//! Reply: CAP_DENIED, or
+//!   CAP_GRANTED | handle << 16 | lease << 48 | requester_tid << 56
+//!   (the installed capability's handle in the *requester's* CSpace, the lease it is
+//!   bound to, and the requester's task index -- all of which the requester may need).
+//!
+//! CAP_REVOKE (label=0x023): w0 = lease id. Honoured only for a lease in the broker's own
+//!   delegation table, and only at the request of that record's grantee or of `init`
+//!   (RFC-0.45-002 R7). Reply: the lease's new epoch, or usize::MAX if refused.
 //!
 //! BOOTSTRAP_COMPLETE (label=0x100):
 //!   no payload
@@ -43,10 +58,27 @@
 #![no_main]
 mod rt;
 
+use fjell_abi::lease::LeaseId;
+use fjell_cap::CapHandle;
 use fjell_service_api::tags;
 use fjell_syscall::{
-    sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_reply, sys_lease_revoke, sys_yield,
+    sys_cap_install, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_reply,
+    sys_lease_create, sys_lease_revoke, sys_yield,
 };
+
+// ── The broker's own capabilities (installed by the kernel at spawn) ─────────
+//
+// Declared as constants so `capability-topology` reads them against `spawn.rs`'s installs.
+// (A runtime install is not seen by that instrument -- see `fjell-consistency-check`'s
+// `object_zero` note; the audit trail is what gates those.)
+
+/// `CapInstall` capability: `CAP_INSTALL` plus the envelope of rights an install may confer.
+const CAP_INSTALL_CAP: CapHandle = CapHandle(10);
+/// `LeaseAdmin` capability: `LEASE_CREATE | LEASE_REVOKE` (not `LEASE_BIND`).
+const LEASE_ADMIN_CAP: CapHandle = CapHandle(11);
+
+/// `CAP_REVOKE` request label (RFC 040 §2.5).
+const CAP_REVOKE_TAG: usize = 0x023;
 
 // ── CapRights constants (v0.2 u64 bit layout) ───────────────────────────────
 //
@@ -139,6 +171,12 @@ pub struct PolicyRule {
     pub kind: PolicyKind,
     /// Rights mask (v0.2 u64 layout). Meaningful only for Allow.
     pub rights: u64,
+    /// The kernel object an `Allow` rule confers (RFC-0.45-002 R6): the `Endpoint` object id
+    /// the broker installs a capability to. **`None` means the rule confers nothing the broker
+    /// can install** -- the request is refused (`CAP_DENIED`) and says so. Only `Endpoint` is
+    /// installable today (`fjell_cap::install::INSTALLABLE_KINDS`), and a rule gets an object
+    /// only together with a consumer that needs it; every rule below but one is `None`.
+    pub object: Option<u32>,
 }
 
 const WILDCARD: u16 = 0xFFFF;
@@ -183,6 +221,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::Any as u16,
         kind: PolicyKind::Deny,
         rights: 0,
+        object: None,
     },
     // ── Explicit allows ───────────────────────────────────────────────────────
     // init: task management + endpoint routing during boot.
@@ -191,12 +230,14 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::TaskControl as u16,
         kind: PolicyKind::Allow,
         rights: TASK_MGMT | RIGHT_LEASE_CREATE | RIGHT_LEASE_REVOKE,
+        object: None,
     },
     PolicyRule {
         requester: INIT,
         resource: ResourceClass::Endpoint as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW | RIGHT_MINT,
+        object: None,
     },
     // ── RFC 042: neg-test policy rules (demonstrate DENY_PRIORITY) ────────────
     // NEG_TEST is denied from Config — explicit deny takes precedence even when
@@ -206,6 +247,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::Config as u16,
         kind: PolicyKind::Deny,
         rights: 0,
+        object: None,
     },
     // This allow would grant Config access to NEG_TEST, but the deny above
     // is evaluated first (phase 1 > phase 2), so it never fires.
@@ -214,6 +256,33 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::Config as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW,
+        object: None,
+    },
+    // ── RFC-0.45-002: the grant path's demonstration (the only installable rule) ─
+    // NEG_TEST may be handed a `SEND`-only capability to **its own scratch endpoint**
+    // (`NEG_TEST_OWN_EP_OBJECT`). This is not a convenience kept for a test: the capability
+    // is a strict subset of the one `neg-test` already holds on that object (slot 0, with
+    // more rights), so the grant confers **no authority it does not have** -- it exists so the
+    // first runtime install is exercised on a requester and an object that really exist.
+    // Nothing else in the tree can serve as a requester (`SECURE_TRANSPORTD`'s `SxtSession`
+    // names no object yet). The `policy` tier asserts this grant, its use and its revocation.
+    PolicyRule {
+        requester: NEG_TEST,
+        resource: ResourceClass::Endpoint as u16,
+        kind: PolicyKind::Allow,
+        rights: RIGHT_SEND,
+        object: Some(fjell_abi::service::NEG_TEST_OWN_EP_OBJECT),
+    },
+    // An *allowed* class with no installable mapping, to show the broker refuses it rather
+    // than falling through to an `Endpoint` install (the `_ =>` arm RFC-0.45-002 R6 removed).
+    // The rule confers nothing -- `object: None` -- and is refused by design; it exists only so
+    // that refusal is reachable from a requester the harness controls.
+    PolicyRule {
+        requester: NEG_TEST,
+        resource: ResourceClass::Semantic as u16,
+        kind: PolicyKind::Allow,
+        rights: RIGHT_SEND,
+        object: None,
     },
     // service-manager: task lifecycle + endpoint management.
     PolicyRule {
@@ -221,18 +290,21 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::TaskControl as u16,
         kind: PolicyKind::Allow,
         rights: TASK_MGMT,
+        object: None,
     },
     PolicyRule {
         requester: SVC_MANAGER,
         resource: ResourceClass::Endpoint as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW,
+        object: None,
     },
     PolicyRule {
         requester: SVC_MANAGER,
         resource: ResourceClass::Config as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW,
+        object: None,
     },
     // auditd: kernel audit ring drain.
     PolicyRule {
@@ -240,6 +312,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::AuditDrain as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_AUDIT_DRAIN | RIGHT_INSPECT,
+        object: None,
     },
     // storaged + virtio-blk driver: hardware access.
     PolicyRule {
@@ -247,24 +320,28 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::MmioRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_MMIO_MAP | RIGHT_INSPECT,
+        object: None,
     },
     PolicyRule {
         requester: STORAGED,
         resource: ResourceClass::DmaRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_DMA_ALLOC | RIGHT_DMA_USE | RIGHT_DMA_REVOKE,
+        object: None,
     },
     PolicyRule {
         requester: VIRTIO_DRIVER,
         resource: ResourceClass::MmioRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_MMIO_MAP | RIGHT_INSPECT,
+        object: None,
     },
     PolicyRule {
         requester: VIRTIO_DRIVER,
         resource: ResourceClass::DmaRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_DMA_ALLOC | RIGHT_DMA_USE | RIGHT_DMA_REVOKE,
+        object: None,
     },
     // configd: config read.
     PolicyRule {
@@ -272,6 +349,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::Config as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW,
+        object: None,
     },
     // devmgr: MMIO enumeration.
     PolicyRule {
@@ -279,6 +357,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::MmioRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_MMIO_MAP | RIGHT_INSPECT,
+        object: None,
     },
     // semantic-stream / proxy-text.
     PolicyRule {
@@ -286,12 +365,14 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::Semantic as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW,
+        object: None,
     },
     PolicyRule {
         requester: PROXY_TEXT,
         resource: ResourceClass::Semantic as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_SEND | RIGHT_RECV | RIGHT_COPY,
+        object: None,
     },
     // ── RFC v0.4-001: virtio-net driver ──────────────────────────────────────
     // The virtio-net driver may map MMIO and DMA regions, and bind/ack IRQs.
@@ -300,12 +381,14 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::MmioRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_MMIO_MAP | RIGHT_INSPECT,
+        object: None,
     },
     PolicyRule {
         requester: VIRTIO_NET,
         resource: ResourceClass::DmaRegion as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_DMA_ALLOC | RIGHT_DMA_USE | RIGHT_DMA_REVOKE,
+        object: None,
     },
     // The driver may send/recv packets on its NetDevice capability.
     PolicyRule {
@@ -313,6 +396,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::NetDevice as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_SEND | RIGHT_RECV | RIGHT_INSPECT,
+        object: None,
     },
     // ── RFC v0.4-002: netd ────────────────────────────────────────────────────
     // netd receives the NetDevice capability and allocates Session caps.
@@ -321,12 +405,14 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::NetDevice as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_RECV | RIGHT_INSPECT | RIGHT_MINT,
+        object: None,
     },
     PolicyRule {
         requester: NETD,
         resource: ResourceClass::Endpoint as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW | RIGHT_MINT,
+        object: None,
     },
     // ── RFC v0.4-003: secure-transportd ──────────────────────────────────────
     // secure-transportd may acquire SxtSession caps and open Endpoint channels.
@@ -335,12 +421,14 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::SxtSession as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_SEND | RIGHT_RECV | RIGHT_MINT,
+        object: None,
     },
     PolicyRule {
         requester: SECURE_TRANSPORTD,
         resource: ResourceClass::Endpoint as u16,
         kind: PolicyKind::Allow,
         rights: EP_RW,
+        object: None,
     },
     // upgraded may open an SxtSession to request update metadata.
     PolicyRule {
@@ -348,6 +436,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::SxtSession as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_SEND | RIGHT_RECV,
+        object: None,
     },
     // ── RFC v0.4-005: diagnosticsd ────────────────────────────────────────────
     // diagnosticsd is the only service permitted to construct DiagBundle.
@@ -356,12 +445,14 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::DiagBundle as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_MINT | RIGHT_INSPECT,
+        object: None,
     },
     PolicyRule {
         requester: DIAGNOSTICSD,
         resource: ResourceClass::SxtSession as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_SEND | RIGHT_RECV,
+        object: None,
     },
     // All other services are denied DiagBundle authority.
     PolicyRule {
@@ -369,6 +460,7 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::DiagBundle as u16,
         kind: PolicyKind::Deny,
         rights: 0,
+        object: None,
     },
     // attestd: may request an SxtSession for attestation push (v0.4-005 §5.3).
     PolicyRule {
@@ -376,13 +468,19 @@ const POLICY: &[PolicyRule] = &[
         resource: ResourceClass::SxtSession as u16,
         kind: PolicyKind::Allow,
         rights: RIGHT_SEND | RIGHT_RECV,
+        object: None,
     },
 ];
 
 // ── Policy evaluator ─────────────────────────────────────────────────────────
 
 pub enum PolicyResult {
-    Granted(u64 /* intersected rights mask */),
+    /// `rights`: the intersected rights mask; `object`: what the matching rule confers
+    /// (`None` = nothing installable, RFC-0.45-002 R6).
+    Granted {
+        rights: u64,
+        object: Option<u32>,
+    },
     Denied,
 }
 
@@ -394,7 +492,10 @@ pub enum PolicyResult {
 pub fn evaluate(requester: u16, resource: u16, requested_rights: u64) -> PolicyResult {
     // cap-broker itself always succeeds self-queries.
     if requester == CAP_BROKER {
-        return PolicyResult::Granted(requested_rights & ALL_RIGHTS);
+        return PolicyResult::Granted {
+            rights: requested_rights & ALL_RIGHTS,
+            object: None,
+        };
     }
 
     // Phase 1: explicit deny.
@@ -424,7 +525,10 @@ pub fn evaluate(requester: u16, resource: u16, requested_rights: u64) -> PolicyR
         if req_m && res_m {
             let granted = rule.rights & requested_rights;
             if granted != 0 {
-                return PolicyResult::Granted(granted);
+                return PolicyResult::Granted {
+                    rights: granted,
+                    object: rule.object,
+                };
             }
         }
     }
@@ -501,6 +605,22 @@ impl DelegationTree {
             }
         }
         false
+    }
+
+    /// Room for one more record. Checked **before** a lease is created or a capability
+    /// installed, so a full table refuses the request instead of leaving an installed
+    /// capability the broker has no record of.
+    fn has_room(&self) -> bool {
+        self.records.iter().any(|r| !r.active)
+    }
+
+    /// The grantee of the active record for `lease_id`, if the broker granted one
+    /// (RFC-0.45-002 R7: a lease the broker did not create is not the broker's to revoke).
+    fn grantee_of(&self, lease_id: u16) -> Option<u16> {
+        self.records
+            .iter()
+            .find(|r| r.active && r.lease_id == lease_id)
+            .map(|r| r.requester)
     }
 
     fn revoke_lease(&mut self, lease_id: u16) {
@@ -583,41 +703,83 @@ pub extern "C" fn service_main() -> ! {
                     let requested_rights = w2 as u64; // v0.2: u64 rights
 
                     match evaluate(requester_id, resource_class, requested_rights) {
-                        PolicyResult::Granted(granted_rights) => {
-                            // BROKER-004: make the grant lease-bound.
-                            let _lease_id: u16 = 0; // lease binding for installed cap (simplified)
-
-                            // RFC 056: install the cap into the requester's CSpace.
-                            // sender_tid is the requester's task id (low 16 bits of sender_identity).
-                            let sender_tid =
-                                fjell_syscall::ipc_sender_tid(sender_identity) as usize;
-                            // Map resource class to cap kind (simplified endpoint grant).
+                        PolicyResult::Granted {
+                            rights: granted_rights,
+                            object,
+                        } => {
+                            // R6: class -> kind is an explicit table with **no wildcard
+                            // arm**. It used to end `_ => Endpoint`, so a class with no
+                            // mapping silently became an Endpoint install. Class 2
+                            // (`TaskControl`) stays refused: it would be `ObjectScope::Any`
+                            // control over every task, and there is no scoped design for it.
                             let cap_kind = match resource_class {
                                 1 => fjell_cap::CapKind::Endpoint as u8,
-                                2 => fjell_cap::CapKind::TaskControl as u8,
-                                _ => fjell_cap::CapKind::Endpoint as u8,
+                                _ => {
+                                    sys_debug_writeln(
+                                        "cap-broker: refused: resource class has no installable mapping",
+                                    );
+                                    let _ = sys_ipc_reply(tags::CAP_DENIED);
+                                    continue;
+                                }
                             };
-                            match fjell_syscall::sys_cap_install(
-                                fjell_cap::CapHandle(10u32), // broker's CapInstall cap (slot 10)
-                                sender_tid,
+                            let Some(object_id) = object else {
+                                sys_debug_writeln(
+                                    "cap-broker: refused: the matching rule confers no installable object",
+                                );
+                                let _ = sys_ipc_reply(tags::CAP_DENIED);
+                                continue;
+                            };
+                            if !tree.has_room() {
+                                sys_debug_writeln("cap-broker: refused: delegation table full");
+                                let _ = sys_ipc_reply(tags::CAP_DENIED);
+                                continue;
+                            }
+
+                            // BROKER-004: the grant is lease-bound. The lease is created by,
+                            // and owned by, the broker; the kernel binds the installed
+                            // capability to it inside `sys_cap_install`.
+                            //
+                            // NB the call's own lease binding (the reply edge's) is
+                            // irrelevant to this: an unbound call can be served an install.
+                            let lease = match sys_lease_create(LEASE_ADMIN_CAP.0, 0) {
+                                Ok(l) => l,
+                                Err(_) => {
+                                    sys_debug_writeln("cap-broker: refused: no lease available");
+                                    let _ = sys_ipc_reply(tags::CAP_DENIED);
+                                    continue;
+                                }
+                            };
+
+                            // RFC-0.45-002: the capability is installed into the task being
+                            // served -- the caller of this very call. There is no target to
+                            // name, so none can be wrong.
+                            match sys_cap_install(
+                                CAP_INSTALL_CAP,
                                 cap_kind,
-                                0, // object_id
+                                object_id,
+                                granted_rights,
+                                lease,
                             ) {
                                 Ok(new_handle) => {
-                                    // Record delegation.
                                     tree.insert(DelegationRecord {
                                         parent_idx: 0,
                                         requester: requester_id,
                                         resource: resource_class,
                                         rights: granted_rights,
-                                        lease_id: 0,
+                                        lease_id: lease.0 as u16,
                                         active: true,
                                     });
-                                    // Reply with the installed cap handle.
-                                    let reply = tags::CAP_GRANTED | ((new_handle.0 as usize) << 16);
+                                    let requester_tid =
+                                        fjell_syscall::ipc_sender_tid(sender_identity) as usize;
+                                    let reply = tags::CAP_GRANTED
+                                        | ((new_handle.0 as usize) << 16)
+                                        | (((lease.0 as usize) & 0xFF) << 48)
+                                        | ((requester_tid & 0xFF) << 56);
                                     let _ = sys_ipc_reply(reply);
                                 }
                                 Err(_) => {
+                                    // Nothing was installed: do not leave the lease Active.
+                                    let _ = sys_lease_revoke(LEASE_ADMIN_CAP.0, lease);
                                     let _ = sys_ipc_reply(tags::CAP_DENIED);
                                 }
                             }
@@ -629,13 +791,30 @@ pub extern "C" fn service_main() -> ! {
                     continue;
                 }
 
-                // ── Grant revocation ─────────────────────────────────────────
-                if tag == 0x023 {
-                    // CAP_REVOKE: w0 = lease_id to revoke (RFC 040 §2.5).
+                // ── Grant revocation (RFC-0.45-002 R7) ───────────────────────
+                if tag == CAP_REVOKE_TAG {
+                    // w0 = lease id. **Authorised**: this arm revokes with the broker's own
+                    // `LeaseAdmin`, which -- unlike the requester's -- can revoke any lease in
+                    // the system. Without these two checks, any service that can call the
+                    // broker could revoke any lease: a confused deputy, created the moment the
+                    // broker was given the authority (`R5`). So:
+                    //  * the lease must be one **this broker granted** (it is in the table);
+                    //  * and the sender must be that grant's grantee, or `init`.
                     let lid = w0 as u16;
-                    use fjell_abi::lease::LeaseId;
-                    // RFC 048: sys_lease_revoke needs LeaseAdmin cap (slot 11 = broker's LeaseAdmin).
-                    match sys_lease_revoke(11u32, LeaseId(lid as u32)) {
+                    let sender_image_id = fjell_syscall::ipc_sender_image_id(sender_identity);
+                    let authorised = fjell_service_api::cap_broker::revoke_authorised(
+                        tree.grantee_of(lid),
+                        sender_image_id,
+                        INIT,
+                    );
+                    if !authorised {
+                        sys_debug_writeln(
+                            "cap-broker: CAP_REVOKE refused (not the grantee, or not a granted lease)",
+                        );
+                        let _ = sys_ipc_reply(usize::MAX);
+                        continue;
+                    }
+                    match sys_lease_revoke(LEASE_ADMIN_CAP.0, LeaseId(lid as u32)) {
                         Ok(new_epoch) => {
                             // Cascade: remove delegation records for this lease.
                             tree.revoke_lease(lid);
