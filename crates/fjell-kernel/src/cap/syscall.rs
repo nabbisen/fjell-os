@@ -257,6 +257,7 @@ fn refuse_cap_install(tf: &mut TrapFrame, e: SysError, target: Option<usize>, ob
 /// a. the installer holds a `CapKind::CapInstall` capability carrying `CAP_INSTALL`;
 /// b. it has a pending reply edge whose caller is `Blocked`;
 /// c. `kind` is known and installable (`Endpoint` only);
+/// c'. `object_id` is not endpoint object 0 and names an allocated endpoint;
 /// d. `rights` is non-empty and inside the installer's envelope;
 /// e. `lease_id` is non-zero, `Active`, and **owned by the installer**;
 /// f. the target has a free slot -- else `NoMemory`, with no existing slot touched.
@@ -264,7 +265,13 @@ fn refuse_cap_install(tf: &mut TrapFrame, e: SysError, target: Option<usize>, ob
 /// The installed capability has **exactly** the requested rights, `ObjectScope::Any`,
 /// `lease_id` bound at its current epoch, and no parent. Success and every refusal are
 /// audited (`CapInstalled` `0x0601` / `CapInstallRejected` `0x0602`).
-pub fn sys_cap_install(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable, tasks: &TaskTable) {
+pub fn sys_cap_install(
+    tf: &mut TrapFrame,
+    tidx: usize,
+    ct: &mut CapTable,
+    tasks: &TaskTable,
+    et: &EndpointTable,
+) {
     use fjell_abi::lease::LeaseId;
     use fjell_cap::install::{InstallFacts, LeaseFact, ReplyEdgeFact, check_install};
     use fjell_cap::{CapState, rights::ObjectScope, slot::Capability, slot::LeaseBinding};
@@ -347,6 +354,8 @@ pub fn sys_cap_install(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable, tasks
         rights,
         installer_rights,
         lease,
+        object_id,
+        object_allocated: et.is_allocated(object_id),
         target_has_free_slot,
     }) {
         Ok(k) => k,

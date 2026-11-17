@@ -162,7 +162,7 @@
   {"crate":"fjell-cap","module":"install","impl_type":"","kind":"enum","name":"LeaseFact","sig":"3c5359d816d2be3b"},
   {"crate":"fjell-cap","module":"install","impl_type":"","kind":"enum","name":"ReplyEdgeFact","sig":"bfaec7eda6652f98"},
   {"crate":"fjell-cap","module":"install","impl_type":"","kind":"fn","name":"check_install","sig":"1e63c6f7abfe43df"},
-  {"crate":"fjell-cap","module":"install","impl_type":"","kind":"struct","name":"InstallFacts","sig":"6e61c9618001a448"},
+  {"crate":"fjell-cap","module":"install","impl_type":"","kind":"struct","name":"InstallFacts","sig":"67bdd66fa9d251e8"},
   {"crate":"fjell-cap","module":"rights","impl_type":"","kind":"enum","name":"CapError","sig":"26f2710d320399b4"},
   {"crate":"fjell-cap","module":"rights","impl_type":"","kind":"enum","name":"CapKind","sig":"f0cbf87a31a664a7"},
   {"crate":"fjell-cap","module":"rights","impl_type":"","kind":"enum","name":"CapState","sig":"6606a8244286cdfa"},

@@ -40,6 +40,14 @@ impl EndpointTable {
         Some(idx as u32)
     }
 
+    /// Whether `id` names an allocated endpoint -- the table's own `used` flag, read without
+    /// touching the endpoint (RFC-0.45-002 follow-up: `sys_cap_install` refuses an object that
+    /// names nothing, and asks this rather than reaching into the table's representation).
+    pub fn is_allocated(&self, id: u32) -> bool {
+        let idx = id as usize;
+        idx < MAX_ENDPOINTS && self.used[idx]
+    }
+
     /// Get a mutable reference to an endpoint.
     pub fn get_mut(&mut self, id: u32) -> Option<&mut Endpoint> {
         let idx = id as usize;

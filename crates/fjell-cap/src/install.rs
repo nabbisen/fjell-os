@@ -1,6 +1,6 @@
 //! The decision `sys_cap_install` makes, as a pure function (RFC-0.45-002 R3).
 //!
-//! The kernel gathers six facts and hands them here; **this function owns the order of
+//! The kernel gathers its facts and hands them here; **this function owns the order of
 //! the refusals and each refusal's error**, so both are testable on the host and each
 //! can be shown red by mutation (R8). The kernel arm does no deciding of its own beyond
 //! the first check (the caller's `CapInstall` authority), which needs the CSpace and
@@ -10,6 +10,10 @@
 //!
 //! * **b** the caller has a pending reply edge whose caller is `Blocked` -- else `BadState`;
 //! * **c** `kind` is known (`InvalidArg`) and on [`INSTALLABLE_KINDS`] (`PermissionDenied`);
+//!   and **the object** is not endpoint object `0` (`PermissionDenied`: `object-zero`'s invariant
+//!   -- no task can receive on it -- is preserved by *refusal*, not by the policy table) and names
+//!   an **allocated** endpoint (`InvalidArg`: a capability naming nothing is a lie in the task's
+//!   own CSpace);
 //! * **d** `rights` is non-empty and inside the installer's envelope -- else `PermissionDenied`;
 //! * **e** `lease` is non-zero, owned by the caller, and `Active` -- else `PermissionDenied`
 //!   / the lease's own error;
@@ -29,14 +33,17 @@ use fjell_abi::error::SysError;
 /// compromised broker can install, whatever its policy table says.**
 ///
 /// **It is not the whole bound, and the gap is named here rather than left to be inferred.**
-/// The kernel bounds four things: the kind (here), the rights (check **d**), the target (there is
-/// no target argument), and the lease (check **e**). It does **not** bound `object_id`, which
-/// arrives in a register and is installed unexamined. So *which* object a compromised broker may
-/// confer is bounded by the broker's policy table alone -- and `RECV` is inside
-/// [`ENDPOINT_ENVELOPE`], so `object-zero`'s invariant ("no task can receive on endpoint object 0")
-/// rests on that table too. Recorded 2026-11-17 at RFC-0.45-002's review; the architect ruled a
-/// refusal of `object_id == 0` and an allocated-object check, and filed the deeper
-/// derive-rather-than-fabricate property for 0.46.
+/// The kernel bounds the kind (here), the rights (check **d**), the target (there is no target
+/// argument), the lease (check **e**), and -- since the 0.45 follow-ups -- two things about
+/// `object_id`: it is **not object 0** (so `object-zero`'s invariant, "no task can receive on
+/// endpoint object 0", no longer rests on the broker's policy table; `RECV` is inside
+/// [`ENDPOINT_ENVELOPE`]) and it **names an allocated endpoint**.
+///
+/// **It is still not the whole bound.** *Which* allocated endpoint a compromised broker may confer
+/// -- any of them, with the envelope's rights -- is bounded by the policy table alone: the
+/// installer **fabricates** a capability from an integer rather than deriving one it holds. That
+/// is the 0.46 RFC-level property the architect filed at RFC-0.45-002's review (2026-11-17):
+/// require the installer to hold a capability to that object carrying at least the rights conferred.
 pub const INSTALLABLE_KINDS: [CapKind; 1] = [CapKind::Endpoint];
 
 /// The rights an `Endpoint` install may confer: exactly the union the broker's policy
@@ -92,6 +99,10 @@ pub struct InstallFacts {
     /// The rights the installer's `CapInstall` capability carries.
     pub installer_rights: CapRights,
     pub lease: LeaseFact,
+    /// The object id asked for (an `Endpoint` object).
+    pub object_id: u32,
+    /// Whether `object_id` names an **allocated** endpoint (`EndpointTable`'s own `used` flag).
+    pub object_allocated: bool,
     /// Whether the target's CSpace has a free slot.
     pub target_has_free_slot: bool,
 }
@@ -108,6 +119,14 @@ pub fn check_install(f: &InstallFacts) -> Result<CapKind, SysError> {
     let kind = CapKind::from_u8(f.kind_raw).ok_or(SysError::InvalidArg)?;
     if !INSTALLABLE_KINDS.contains(&kind) {
         return Err(SysError::PermissionDenied);
+    }
+    // c (object). Never object 0: nobody may be handed `RECV` on it (`object-zero`'s invariant),
+    // and no runtime install has a use for it. Then: it must be a real, allocated endpoint.
+    if f.object_id == 0 {
+        return Err(SysError::PermissionDenied);
+    }
+    if !f.object_allocated {
+        return Err(SysError::InvalidArg);
     }
 
     // d. rights: non-empty, inside what the installer holds (and never a meta-right).
@@ -145,6 +164,8 @@ mod tests {
             rights: CapRights::SEND,
             installer_rights: CapRights(CapRights::CAP_INSTALL.0 | ENDPOINT_ENVELOPE.0),
             lease: LeaseFact::Owned(Ok(())),
+            object_id: 23,
+            object_allocated: true,
             target_has_free_slot: true,
         }
     }
@@ -279,6 +300,30 @@ mod tests {
         assert_eq!(check_install(&f), Err(SysError::NoMemory));
     }
 
+    // ── c (object) ────────────────────────────────────────────────────────────
+    #[test]
+    fn endpoint_object_zero_is_never_installable() {
+        // `object-zero`'s invariant as a preventive control: RECV is in the envelope, so the
+        // refusal -- not the policy table -- is what keeps anyone receiving on object 0.
+        let mut f = good();
+        f.object_id = 0;
+        f.rights = CapRights::RECV;
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
+        // Even when object 0 is allocated (it is), and with every other fact in order.
+        f.object_allocated = true;
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
+        // Control: the same request against a real object passes.
+        f.object_id = 23;
+        assert_eq!(check_install(&f), Ok(CapKind::Endpoint));
+    }
+
+    #[test]
+    fn an_object_that_is_not_an_allocated_endpoint_is_invalid_arg() {
+        let mut f = good();
+        f.object_allocated = false;
+        assert_eq!(check_install(&f), Err(SysError::InvalidArg));
+    }
+
     // ── order ─────────────────────────────────────────────────────────────────
     #[test]
     fn the_checks_run_in_the_documented_order() {
@@ -290,6 +335,8 @@ mod tests {
             rights: CapRights(0),
             installer_rights: CapRights(CapRights::CAP_INSTALL.0 | ENDPOINT_ENVELOPE.0),
             lease: LeaseFact::Zero,
+            object_id: 0,
+            object_allocated: false,
             target_has_free_slot: false,
         };
         assert_eq!(check_install(&f), Err(SysError::BadState)); // b
@@ -298,6 +345,10 @@ mod tests {
         f.kind_raw = CapKind::TaskControl as u8;
         assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // c (uninstallable)
         f.kind_raw = CapKind::Endpoint as u8;
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // c (object 0)
+        f.object_id = 23;
+        assert_eq!(check_install(&f), Err(SysError::InvalidArg)); // c (unallocated)
+        f.object_allocated = true;
         assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // d (empty)
         f.rights = CapRights::SEND;
         f.lease = LeaseFact::NotOwned;
