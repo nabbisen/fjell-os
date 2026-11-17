@@ -76,9 +76,11 @@ impl Scan {
     }
 
     /// The report once every transport has been tried and none was a network device.
-    /// **Absence only if all of them were read.**
+    /// **Absence only if all of them were read -- and a scan of no transports read nothing.**
+    /// `read == transports` holds vacuously at zero, so that case is `CannotScan` explicitly: this
+    /// predicate exists so a false absence is impossible, not merely documented.
     pub fn finish(&self) -> Report {
-        if self.read == self.transports {
+        if self.transports != 0 && self.read == self.transports {
             Report::NoDevice {
                 scanned: self.transports,
             }
@@ -173,9 +175,16 @@ mod tests {
     }
 
     #[test]
-    fn a_scan_of_zero_transports_has_read_everything_vacuously_and_that_is_the_callers_to_avoid() {
-        // Pinned so nobody mistakes it for a property: `Scan::new(0)` reports "no device (0)".
-        // The image passes the real transport count.
-        assert_eq!(Scan::new(0).finish(), Report::NoDevice { scanned: 0 });
+    fn a_scan_of_no_transports_verified_nothing_so_it_cannot_report_absence() {
+        // `read == transports` holds vacuously at zero; the predicate must not read it as a
+        // completed scan.
+        assert_eq!(
+            Scan::new(0).finish(),
+            Report::CannotScan {
+                read: 0,
+                of: 0,
+                last_err: 0
+            }
+        );
     }
 }
