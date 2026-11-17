@@ -1,6 +1,7 @@
 # RFC-0.45-002: Capability installation is made to run — narrowly — and the broker's grant is lease-bound
 
 **Status:** Accepted — accepted 2026-11-17
+**Evidence:** syscall:CapInstall, marker:policy:NEG:POLICY:GRANT_INSTALLS_USABLE_CAP:PASS, marker:policy:NEG:POLICY:GRANT_REVOKE_KILLS_CAP:PASS, marker:policy:NEG:CAP_INSTALL:WITHOUT_RIGHT_REJECTED:PASS, test:crates/fjell-cap/src/install.rs::the_checks_run_in_the_documented_order
 **Milestone:** 0.45
 **Tracks.** **E-123** — `rfcs/done/056-…` says `Implemented` and the kernel rejects its primitive.
 **E-011** — narrows it: its live half, the rights validation that has never executed, becomes real.

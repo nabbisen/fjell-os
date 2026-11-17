@@ -99,8 +99,24 @@ impl CapRights {
     /// blanket grant must not silently confer a new authority.
     pub const CLOCK_READ: Self = CapRights(1 << 31);
 
-    /// All rights EXCLUDING meta-rights (CAP_INSTALL, CAP_REVOKE).
-    /// Use for ordinary service grants. Formerly named `ALL`.
+    /// Bits 0..=25: every right below [`Self::CAP_INSTALL`]. Use for ordinary service grants.
+    /// Formerly named `ALL`.
+    ///
+    /// **What it excludes, exactly** — the name says "non-meta" and only `CAP_INSTALL` (bit 26)
+    /// is a meta-right, so read the list rather than the name: it also excludes
+    /// [`Self::IRQ_BIND`], [`Self::IRQ_UNBIND`] and [`Self::IRQ_ACK`] (bits 27-29), which are
+    /// ordinary rights granted **by name** at the two interrupt grants in `spawn.rs`, and
+    /// [`Self::LEASE_BIND`] and [`Self::CLOCK_READ`] (bits 30-31), excluded deliberately as their
+    /// own docs explain. A blanket `ALL_NON_META` grant therefore confers **none** of those five.
+    ///
+    /// *Corrected 2026-11-17, at RFC-0.45-002's review: this doc read "All rights EXCLUDING
+    /// meta-rights (CAP_INSTALL, CAP_REVOKE)". **`CAP_REVOKE` is not a right** — that doc comment
+    /// was its only occurrence in this file, and everywhere else in the tree `CAP_REVOKE` is
+    /// cap-broker's protocol opcode, so a reader who went looking landed on a message tag. And the
+    /// exclusion list was five rights short. The constant's value never changed; only this
+    /// description of it was wrong. It matters now because RFC-0.45-002 made this mask the
+    /// enforcement bound of the `sys_cap_install` envelope (`fjell_cap::install::check_install`),
+    /// so this sentence is one a reader of that path relies on.*
     pub const ALL_NON_META: Self = CapRights((1 << 26) - 1);
     /// Backward-compatible alias for `ALL_NON_META`.
     #[deprecated(since = "0.7.1", note = "use ALL_NON_META or ALL_DEFINED explicitly")]

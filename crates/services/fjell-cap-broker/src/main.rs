@@ -275,8 +275,16 @@ const POLICY: &[PolicyRule] = &[
     },
     // An *allowed* class with no installable mapping, to show the broker refuses it rather
     // than falling through to an `Endpoint` install (the `_ =>` arm RFC-0.45-002 R6 removed).
-    // The rule confers nothing -- `object: None` -- and is refused by design; it exists only so
-    // that refusal is reachable from a requester the harness controls.
+    // It exists only so that refusal is reachable from a requester the harness controls.
+    //
+    // **Which refusal fires: the class->kind `match`, not the object.** `Semantic` (7) has no arm,
+    // so the grant path replies `CAP_DENIED` with "resource class has no installable mapping"
+    // *before* `object` is read. `object: None` on this rule is therefore unreachable
+    // belt-and-braces, not the cause -- and this rule can never confer anything, so the `Allow`
+    // and the `rights` below are inert. *Corrected 2026-11-17 at the architect's review: this
+    // comment said the rule "confers nothing -- `object: None` -- and is refused by design",
+    // naming the wrong mechanism for a correct outcome. The marker it makes reachable
+    // (`UNMAPPED_CLASS_REFUSED`) tests the class arm, which is what it should test.*
     PolicyRule {
         requester: NEG_TEST,
         resource: ResourceClass::Semantic as u16,

@@ -1,6 +1,7 @@
 # RFC-0.45-001: The test environment presents a NIC, and the driver reports only what it read
 
 **Status:** Accepted — accepted 2026-11-17
+**Evidence:** marker:net:magic=0x74726976, marker:net-absent:driver-virtio-net: no virtio-net device found (scanned 8 transports), test:crates/fjell-tools/src/qemu_run.rs::the_loader_rejects_expect_absent_with_no_required_marker
 **Milestone:** 0.45
 **Tracks.** **E-122** — narrows its foundation half: no test environment has ever presented a network
 device. Follows through on **E-118** (RFC-0.43-003), whose authority list it explicitly neither took

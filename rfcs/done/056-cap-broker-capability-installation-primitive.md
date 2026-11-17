@@ -7,6 +7,35 @@
 **Phase:** Service separation + release-gate close
 **Closes review item:** RB-11 (installation half)
 **Depends on:** RFC 040 (cap-broker bootstrap), RFC 055 (sender identity)
+**Superseded in part by:** [RFC-0.45-002](../accepted/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) — see the annotation below.
+
+> **Annotation, 2026-11-17, by the architect (RFC-0.45-002's implementation review).**
+> **This RFC's `Implemented` status became true on 2026-11-17 and was false for every day before
+> it.** `sys_cap_install` now has a dispatch arm; until RFC-0.45-002 landed it had none, and every
+> call returned `UnknownSyscall` while this line read `Implemented`. That divergence was recorded
+> as erratum **E-123**, which RFC-0.45-002 — not this document — resolved.
+>
+> **The status is now true; three specifics of the design below are not what shipped**, and they are
+> annotated rather than edited, because a done RFC is a record of what was decided:
+>
+> 1. **There is no `target_task_id` argument.** This document specifies one (the signature sketch,
+>    `arg0 = target_task_id`, and the notes). The shipped primitive is
+>    `sys_cap_install(install_cap, kind, object, rights, lease)` and installs into **the caller of
+>    the installer's pending IPC reply edge**, read without consuming it. The parameter was deleted
+>    rather than validated, which makes a stale or forged target *unrepresentable* instead of
+>    rejected — a stronger property than this RFC asked for.
+> 2. **The lease is owned by the installer, not the target.** "Implementation notes" says *"The
+>    lease created for the grant is owned by `target_task_id` so that task exit revokes the cap."*
+>    The shipped lease is created by, and owned by, **cap-broker** (RFC-0.45-002 R5, `BROKER-004`),
+>    so that revoking it kills the installed capability. Task-exit revocation is **not** what binds
+>    it.
+> 3. **`Endpoint` only.** Installation is restricted to `CapKind::Endpoint`
+>    (`fjell_cap::install::INSTALLABLE_KINDS`), deny-by-default, to be grown one kind at a time and
+>    never ahead of a consumer. This document is not so restricted.
+>
+> **Still outstanding against this RFC, and tracked elsewhere:** the kernel does not check that
+> `object_id` names an allocated endpoint, and bounds *which* object the installer may name not at
+> all — see RFC-0.45-002's review record and the 0.46 follow-ups.
 
 ## Problem
 

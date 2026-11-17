@@ -25,8 +25,18 @@ use fjell_abi::error::SysError;
 
 /// The kinds `sys_cap_install` will install. **`Endpoint` only** (RFC-0.45-002 ruling 2):
 /// deny by default, grown one kind at a time **with a consumer**, never ahead of one.
-/// Every other kind is refused `PermissionDenied`, which is what bounds a compromised
-/// broker whatever its policy table says.
+/// Every other kind is refused `PermissionDenied`, **which is what bounds the *kind* a
+/// compromised broker can install, whatever its policy table says.**
+///
+/// **It is not the whole bound, and the gap is named here rather than left to be inferred.**
+/// The kernel bounds four things: the kind (here), the rights (check **d**), the target (there is
+/// no target argument), and the lease (check **e**). It does **not** bound `object_id`, which
+/// arrives in a register and is installed unexamined. So *which* object a compromised broker may
+/// confer is bounded by the broker's policy table alone -- and `RECV` is inside
+/// [`ENDPOINT_ENVELOPE`], so `object-zero`'s invariant ("no task can receive on endpoint object 0")
+/// rests on that table too. Recorded 2026-11-17 at RFC-0.45-002's review; the architect ruled a
+/// refusal of `object_id == 0` and an allocated-object check, and filed the deeper
+/// derive-rather-than-fabricate property for 0.46.
 pub const INSTALLABLE_KINDS: [CapKind; 1] = [CapKind::Endpoint];
 
 /// The rights an `Endpoint` install may confer: exactly the union the broker's policy

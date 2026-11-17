@@ -1,6 +1,7 @@
 # RFC-0.45-003: An RFC marked `Implemented` shows that its mechanism runs
 
 **Status:** Accepted — accepted 2026-11-17
+**Evidence:** file:tools/fjell-consistency-check/src/rfc_evidence.rs, test:tools/fjell-consistency-check/src/rfc_evidence.rs::rfc_056s_exact_case_is_red_while_the_syscall_is_undispatched, test:crates/fjell-tools/src/rfc_promote.rs::refuses_an_rfc_from_0_45_with_no_evidence_line_and_names_it
 **Milestone:** 0.45
 **Tracks.** The finding that outranks the other 0.45 lines (`rulings-2026-11-15-three-open-questions.md`):
 three RFCs in `rfcs/done/` assert `Implemented` where the work has not shipped, and **no instrument
@@ -87,8 +88,21 @@ citation is a defect wherever it is written).
 threat-model gate. A waiver is an in-code `(rfc id, reason)`; it applies to **any** `done/` RFC,
 including pre-0.45 ones, because its purpose is to keep a *known-false* status visible rather than to
 excuse a missing field. It is printed on every run. A waiver for an RFC that no longer exists, or
-that now carries resolving evidence, is a note ("can be retired") or a failure respectively — **a
-waiver is not a place to park a name**. Initial waivers:
+that now carries resolving evidence, is **a failure in both cases** — **a waiver is not a place to
+park a name**.
+
+*Corrected 2026-11-17, at the implementation review, by the architect who wrote both sentences: R3
+said the first case was "a note (\"can be retired\")" while **R5 listed "a waiver for an RFC that
+does not exist" among the cases to show failing**. The two contradicted each other and the dev team
+had to choose; they chose R5 and were right, so R3 is corrected to match rather than left for the
+next reader to adjudicate. The ground is that a note is a thing this project has proved it can carry
+for milestones — T23's has outlived several — while a stale entry is the register asserting a problem
+that no longer exists, which is exactly what this gate exists to catch; and unlike T23 the remedy is
+one deleted line. The implementation also added a third case, an entry whose RFC is no longer
+`Implemented`, which is accepted: the owner resolving the lifecycle question is precisely when the
+entry must go.*
+
+Initial waivers:
 
 * **`RFC-v0.7.3-001`** and **`RFC-v0.7.3-002`** — each with its reason (the table above) and the
   statement that **their status lines are not touched**: the disposition is a lifecycle question
