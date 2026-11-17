@@ -42,6 +42,7 @@
 use fjell_consistency_check::readme_counts::{
     ACCEPTED_DIR, DONE_DIR, FolderCounts, NON_RFC_FILES, count_folders, disagreements,
 };
+use fjell_consistency_check::rfc_evidence::{FsWorld, promotion_problems};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
@@ -72,6 +73,11 @@ pub struct Tree {
     pub done_names: BTreeSet<String>,
     pub readme: String,
     pub counts: FolderCounts,
+    /// RFC-0.45-003 R6: for each accepted RFC of the milestone being promoted, what
+    /// `fjell_consistency_check::rfc_evidence::promotion_problems` says about it **as an
+    /// `Implemented` RFC in `done/`** -- the gate's own function, not a second reading of the rule.
+    /// An RFC absent from the map has no problem. Empty for every RFC before 0.45.
+    pub evidence_problems: BTreeMap<String, Vec<String>>,
 }
 
 /// One content edit, at its final path.
@@ -458,6 +464,18 @@ pub fn plan_promotion(version: &str, tree: &Tree) -> Result<Plan, Vec<String>> {
             continue;
         }
 
+        // RFC-0.45-003 R6: refuse an RFC the `rfc-evidence` gate would reject the moment it
+        // became `Implemented` -- so the requirement is met when the status becomes true, not
+        // discovered red at the next `consistency-check`.
+        if let Some(problems) = tree.evidence_problems.get(name) {
+            for p in problems {
+                why.push(format!(
+                    "{from}: {p} [`rfc-evidence` (RFC-0.45-003): an RFC from 0.45 on may not become \
+                    `Implemented` without evidence that resolves]"
+                ));
+            }
+        }
+
         // Task 2: line 3 of the RFC.
         let mut rfc_lines = lines_keep(text);
         let mut rfc_ok = true;
@@ -747,12 +765,22 @@ pub fn load_tree_in(root: &Path, milestone: &str) -> Result<Tree, String> {
     }
     let done_files = md_files(&root.join(DONE_DIR))?;
     let counts = count_folders(root)?; // the one rule `doc-counts` uses
+    // R6: ask the `rfc-evidence` gate's own function about each RFC about to become Implemented.
+    let world = FsWorld::load(root);
+    let mut evidence_problems = BTreeMap::new();
+    for (name, text) in accepted.iter().filter(|(n, _)| n.starts_with(&prefix)) {
+        let problems = promotion_problems(name, text, &world);
+        if !problems.is_empty() {
+            evidence_problems.insert(name.clone(), problems);
+        }
+    }
     Ok(Tree {
         accepted,
         handoffs,
         done_names: done_files.into_iter().collect(),
         readme,
         counts,
+        evidence_problems,
     })
 }
 
@@ -936,6 +964,7 @@ mod tests {
                 proposed_rfcs: 0,
                 archive_rfcs: 2,
             },
+            evidence_problems: BTreeMap::new(),
         }
     }
 
@@ -1174,6 +1203,98 @@ mod tests {
         );
     }
 
+    /// RFC-0.45-003 R6. The map is built exactly as `load_tree_in` builds it -- by asking the
+    /// gate's own `promotion_problems` -- so these tests hold the *refusal* to account, and the
+    /// gate's own tests (in `fjell-consistency-check`) hold the predicate to account.
+    mod evidence {
+        use super::*;
+        use fjell_consistency_check::rfc_evidence::{SyscallState, World, promotion_problems};
+
+        /// A world with one real syscall, one real file, nothing else.
+        struct W;
+        impl World for W {
+            fn syscall(&self, n: &str) -> SyscallState {
+                if n == "CapMint" {
+                    SyscallState::Dispatched
+                } else {
+                    SyscallState::Undeclared
+                }
+            }
+            fn profile_markers(&self, _: &str) -> Option<String> {
+                None
+            }
+            fn file_size(&self, rel: &str) -> Option<u64> {
+                (rel == "docs/x.md").then_some(1)
+            }
+            fn read(&self, _: &str) -> Option<String> {
+                None
+            }
+        }
+
+        /// Fill `evidence_problems` the way `load_tree_in` does. The fixture tree is milestone 0.43
+        /// (its README, handoff and rows are written for it), so the gate is *asked as if the RFC
+        /// were `RFC-0.45-001`* -- the first milestone that must carry evidence -- and the answer
+        /// is filed under the fixture's own file name, which is what the planner looks up.
+        fn with_evidence(header: &str) -> Tree {
+            let mut t = tree(&["001"]);
+            for (name, text) in t.accepted.iter_mut() {
+                // The evidence line goes in the header block, before the first `---`/`## `.
+                let at = text
+                    .find("\n---")
+                    .or_else(|| text.find("\n## "))
+                    .unwrap_or(text.len());
+                text.insert_str(at, &format!("\n{header}"));
+                let as_045 = name.replace("RFC-0.43-", "RFC-0.45-");
+                let p = promotion_problems(&as_045, text, &W);
+                if !p.is_empty() {
+                    t.evidence_problems.insert(name.clone(), p);
+                }
+            }
+            t
+        }
+
+        #[test]
+        fn refuses_an_rfc_from_0_45_with_no_evidence_line_and_names_it() {
+            let t = with_evidence("");
+            let e = plan_promotion(V, &t).expect_err("no evidence: must refuse");
+            assert!(
+                e.iter().any(|r| r.contains("RFC-0.43-001")
+                    && r.contains("**Evidence:**")
+                    && r.contains("rfc-evidence")),
+                "{e:#?}"
+            );
+        }
+
+        #[test]
+        fn refuses_evidence_that_does_not_resolve_with_the_gates_own_words() {
+            let t = with_evidence("**Evidence:** syscall:NoSuchCall");
+            let e = plan_promotion(V, &t).expect_err("unresolved: must refuse");
+            assert!(
+                e.iter()
+                    .any(|r| r.contains("no `SyscallNumber::NoSuchCall`")),
+                "{e:#?}"
+            );
+        }
+
+        #[test]
+        fn promotes_when_the_evidence_resolves() {
+            let t = with_evidence("**Evidence:** syscall:CapMint, file:docs/x.md");
+            assert!(
+                t.evidence_problems.is_empty(),
+                "control: the gate finds nothing"
+            );
+            plan_promotion(V, &t).expect("evidence resolves: may move");
+        }
+
+        #[test]
+        fn a_milestone_before_0_45_is_not_asked_for_evidence() {
+            // The same tree, left at 0.43: no field, no problem, and `tree()`'s own tests pass.
+            let t = tree(&["001"]);
+            assert!(promotion_problems(&t.accepted[0].0, &t.accepted[0].1, &W).is_empty());
+            plan_promotion(V, &t).expect("0.43 needs no evidence");
+        }
+    }
+
     #[test]
     fn refuses_when_the_counts_already_disagree() {
         let mut t = tree(&["001"]);
@@ -1327,6 +1448,52 @@ mod tests {
         );
         // promoting twice finds nothing to promote
         assert!(plan_promotion(V, &again).is_err());
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// RFC-0.45-003 R6, on disk: `load_tree_in` fills `evidence_problems` by asking the gate's own
+    /// function **with the real filesystem as the world** -- a cited file that exists resolves, one
+    /// that does not is refused, and an RFC with no line at all is refused. (The pure tests above
+    /// hold the refusal to account; this holds the *loading* to account.)
+    #[test]
+    fn load_tree_in_asks_the_gate_about_each_rfc_of_the_milestone() {
+        let root = scratch("evidence-load");
+        write_tree(&root, &tree(&["001"]));
+        fs::create_dir_all(root.join("docs")).unwrap();
+        fs::write(root.join("docs/real.md"), "real").unwrap();
+        let rfc = |extra: &str| {
+            format!(
+                "# RFC\n\n**Status:** Accepted — accepted 2026-11-12\n{extra}\n\n---\n\n## Body\n"
+            )
+        };
+        for (n, extra) in [
+            ("RFC-0.45-001-bare.md", ""),
+            ("RFC-0.45-002-good.md", "**Evidence:** file:docs/real.md"),
+            (
+                "RFC-0.45-003-dangling.md",
+                "**Evidence:** file:docs/missing.md",
+            ),
+        ] {
+            fs::write(root.join(ACCEPTED_DIR).join(n), rfc(extra)).unwrap();
+        }
+        let t = load_tree_in(&root, "0.45").unwrap();
+        assert!(
+            t.evidence_problems.contains_key("RFC-0.45-001-bare.md"),
+            "{:#?}",
+            t.evidence_problems
+        );
+        assert!(
+            !t.evidence_problems.contains_key("RFC-0.45-002-good.md"),
+            "{:#?}",
+            t.evidence_problems
+        );
+        assert!(
+            t.evidence_problems.contains_key("RFC-0.45-003-dangling.md"),
+            "{:#?}",
+            t.evidence_problems
+        );
+        // Only the milestone being promoted is asked: the 0.43 RFC from the fixture is not.
+        assert!(!t.evidence_problems.contains_key("RFC-0.43-001-thing.md"));
         let _ = fs::remove_dir_all(&root);
     }
 

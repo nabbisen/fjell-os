@@ -40,6 +40,9 @@
 //!   - `threat-model` — every `### Tn` threat cites an RFC that exists in
 //!     `rfcs/done/`; `Tn`/`OSn` numbering and the one count another document states
 //!     are derived from the document (0.44 small item A, E-027)
+//!   - `rfc-evidence` — an RFC from 0.45 on that says `Implemented` cites machine-checkable
+//!     evidence and every citation resolves; older RFCs are counted, not covered; three known-false
+//!     statuses are reported by name (RFC-0.45-003)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -67,10 +70,11 @@ mod evidence;
 mod handoff_status;
 mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
+mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is in the lib)
 mod rfc_status_folder;
 mod security_advisories;
 mod standards_mapping;
-mod status;
+use fjell_consistency_check::status; // shared with the lib (RFC-0.45-003)
 mod syscall_surface;
 mod threat_model; // 0.44 small item A (E-027): the threat-model gate the handoff claimed
 mod toolchain_declarations;
@@ -138,6 +142,9 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     // 0.44 small item A (E-027): every in-scope threat cites a merged RFC; the counts are
     // derived from the document, not written down.
     ("threat-model", threat_model::check),
+    // RFC-0.45-003: an `Implemented` RFC cites evidence that resolves -- and the line says
+    // what it does NOT cover.
+    ("rfc-evidence", rfc_evidence_gate::check),
 ];
 
 #[cfg(test)]

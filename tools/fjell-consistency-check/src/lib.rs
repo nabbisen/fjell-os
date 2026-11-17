@@ -20,6 +20,9 @@ pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 
 pub mod errata;
 pub mod readme_counts;
+pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
+pub mod status; // shared status-keyword parsing (was a bin module)
+pub mod syscall_table; // `syscall-surface`'s two parsers, shared with `rfc-evidence`
 pub mod toolchain;
 
 /// The names of every subcheck, in the order Gate 12 reports them.
@@ -55,4 +58,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "readiness-summary",
     "closed-erratum-prose",
     "threat-model",
+    "rfc-evidence",
 ];
