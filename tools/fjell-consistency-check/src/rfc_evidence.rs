@@ -467,6 +467,17 @@ pub fn resolve(c: &Citation, w: &dyn World) -> Result<(), String> {
             Some(text) => {
                 if text.lines().any(|l| l == marker) {
                     Ok(())
+                } else if let Some(line) = text.lines().find(|l| l.trim() == marker.trim()) {
+                    // The gated line has leading or trailing whitespace; a citation is trimmed
+                    // before it is read, so it can never name such a line. Say *that* -- "not a
+                    // line of the file" sends the reader to a file in which they can see it.
+                    Err(format!(
+                        "`{}`: the line is there but cannot be cited -- `{profile}`'s \
+                         `expected-markers.txt` holds {line:?}, which has leading or trailing \
+                         whitespace, and a citation is trimmed before it is read. Cite a different \
+                         marker of that profile",
+                        c.render()
+                    ))
                 } else {
                     Err(format!(
                         "`{}`: `{marker}` is not a line of `{MARKERS_DIR}/{profile}/expected-markers.txt`",
@@ -990,6 +1001,34 @@ mod tests {
                 &FsWorld::load(Path::new("."))
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn a_gated_marker_with_trailing_whitespace_says_it_cannot_be_cited_rather_than_that_it_is_absent()
+     {
+        let mut w = world();
+        w.markers.insert("net", "found at slot \nmagic=0x1\n");
+        let m = |k: &str| Citation::Marker {
+            profile: "net".into(),
+            marker: k.into(),
+        };
+        // The trimmed citation (as `parse_citations` hands it over) matches only after trimming.
+        let e = resolve(&m("found at slot"), &w).unwrap_err();
+        assert!(
+            e.contains("cannot be cited")
+                && e.contains("trailing")
+                && e.contains("\"found at slot \""),
+            "{e}"
+        );
+        assert!(!e.contains("is not a line of"), "{e}");
+        // Controls: a line without whitespace resolves; a marker that is really absent still
+        // says so.
+        assert!(resolve(&m("magic=0x1"), &w).is_ok());
+        assert!(
+            resolve(&m("nothing like it"), &w)
+                .unwrap_err()
+                .contains("is not a line of")
         );
     }
 
