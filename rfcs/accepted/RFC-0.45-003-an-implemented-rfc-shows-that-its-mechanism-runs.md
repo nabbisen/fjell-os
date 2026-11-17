@@ -1,6 +1,6 @@
 # RFC-0.45-003: An RFC marked `Implemented` shows that its mechanism runs
 
-**Status:** Proposed — drafted 2026-11-15 for the architect's review; nothing implemented
+**Status:** Accepted — accepted 2026-11-17
 **Milestone:** 0.45
 **Tracks.** The finding that outranks the other 0.45 lines (`rulings-2026-11-15-three-open-questions.md`):
 three RFCs in `rfcs/done/` assert `Implemented` where the work has not shipped, and **no instrument
@@ -155,3 +155,21 @@ after the move.
 3. Whether the three known instances should be reported **separately** from future waivers (a
    `KNOWN_FALSE` list distinct from `WAIVERS`), since their disposition belongs to the owner and a
    future waiver would be an implementer's.
+
+## Rulings — architect, 2026-11-17 (`.git-exclude/reviewed/review-record-0.45.md`)
+
+**Accepted. The decisions this RFC asked for are settled here; reasoning is in the review record.**
+
+* **The four-kind grammar (`syscall:`, `marker:`, `file:`, `test:`): accepted.** One addition: the
+  output **breaks its count down by kind**, so a reader sees how much rests on `test:`, which this
+  RFC correctly names the weakest. A count that hides its composition is what R4 exists to prevent.
+* **R6 is in.** Refusing the promotion beats discovering it red after the move — **with 0.44 item
+  D's lesson as a condition: one predicate, not a second parser.** `rfc promote` calls the
+  subcheck's own function, exactly as it now calls `readme_counts::disagreements`.
+* **`KNOWN_FALSE` separate from `WAIVERS`: yes.** The ground is **provenance**: a waiver is an
+  implementer's judgement inside the gate, while these three are the **owner's pending lifecycle
+  decision**. Two lists make the output say who owes the resolution, and stop the three being
+  quietly reclassified as ordinary waivers later.
+* **"`N` will be 0 required at landing": accepted, and the line must say so in words.** A gate whose
+  first run could be read as coverage is the defect; one that says it covers nothing yet is honest
+  and still worth landing, because the mechanism is the point, not this run's number.

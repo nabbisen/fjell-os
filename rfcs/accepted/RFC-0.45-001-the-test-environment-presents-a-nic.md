@@ -1,6 +1,6 @@
 # RFC-0.45-001: The test environment presents a NIC, and the driver reports only what it read
 
-**Status:** Proposed — drafted 2026-11-15 for the architect's review **before implementation**
+**Status:** Accepted — accepted 2026-11-17
 **Milestone:** 0.45
 **Tracks.** **E-122** — narrows its foundation half: no test environment has ever presented a network
 device. Follows through on **E-118** (RFC-0.43-003), whose authority list it explicitly neither took
@@ -157,3 +157,23 @@ not write a frame); feature negotiation; interrupts; the per-transport region (n
 - **Timing.** The `net` profile adds a device; the kernel never touches it, so no logical counter
   should move. Measured and reported, not assumed (the 0.42-002 lesson).
 - **The over-grant** (above) is real and is not closed here.
+
+## Rulings — architect, 2026-11-17 (`.git-exclude/reviewed/review-record-0.45.md`)
+
+**Accepted. The decisions this RFC asked for are settled here; reasoning is in the review record.**
+
+* **D3 `expect_absent`: accepted as proposed**, including the loader check that rejects a profile
+  whose `expect_absent` also appears in its own `expected_markers`. **E-111's refusal does not reach
+  this:** E-111 refused a profile field that would *duplicate a global hard-coded list*, with prose
+  free to drift from it; this has **no hard-coded twin** and is scenario-specific. Required, as
+  offered: **shown red on a real boot**, the discipline `expect_equal` already follows.
+* **D5 `devmgr` wording: fix it here.** `devmgr: board profile declares virtio-net`, and the same
+  for the other four classes. Leaving the contradiction directly above the absence tier's own output
+  would put the defect on the operator's console.
+* **The holder — `driver-virtio-net`, `MMIO_MAP` only, no IRQ, no DMA, no endpoint: accepted.** The
+  over-grant of region 3 is accepted as **inherited, not as fine**, on RFC-0.43-003's ruling; it is
+  accepted *because* this RFC names it rather than hiding it. The per-transport region is its own
+  line.
+* **The three distinct driver lines — found / none-after-a-full-scan / cannot-scan: accepted**, and
+  this is the part the architect would have asked for had it not been proposed. "No device found"
+  printed when the grant is missing would be **E-118 from the other side**.

@@ -1,6 +1,6 @@
 # RFC-0.45-002: Capability installation is made to run — narrowly — and the broker's grant is lease-bound
 
-**Status:** Proposed — drafted 2026-11-15 for the architect's review; nothing implemented
+**Status:** Accepted — accepted 2026-11-17
 **Milestone:** 0.45
 **Tracks.** **E-123** — `rfcs/done/056-…` says `Implemented` and the kernel rejects its primitive.
 **E-011** — narrows it: its live half, the rights validation that has never executed, becomes real.
@@ -166,3 +166,40 @@ exists to be); and the happy path — the installed capability is usable.
   right for the wrong reason).
 - **The kernel moves**, so the repro baseline is re-recorded in the same commit; the ABI moves
   (syscall surface, `CapKind`/`CapRights`, `AuditKind`) and is predicted in the review request.
+
+## Rulings — architect, 2026-11-17 (`.git-exclude/reviewed/review-record-0.45.md`)
+
+**Accepted. The decisions this RFC asked for are settled here; reasoning is in the review record.**
+
+1. **Reply-edge targeting: accepted**, over RFC 056's explicit target. It makes a stale or forged
+   target **unrepresentable** rather than validated — the move 0.44 made with `Option<Digest32>` —
+   and bounds a compromised broker to tasks *currently blocked in a call to it*. Changing RFC 056's
+   signature is not a cost worth protecting: that RFC's status is already false. **Two additions:**
+   * the non-consuming read is a **distinct accessor** from `take_reply` (`cap/table.rs:144`
+     consumes), and this RFC states that the install leaves the edge's lifecycle untouched so the
+     reply is still sent;
+   * `ReplyEdge.lease` is `Option<LeaseBinding>`, `None` for bootstrap/unbound calls. **State that
+     the call's own binding is irrelevant** — the install's lease is R3(e)'s, owned by the broker —
+     or a later reader will conclude an unbound call cannot receive an install.
+2. **Installable list = `Endpoint` only: accepted.** Grow it per kind **with a consumer**, never
+   ahead of one.
+3. **The `NEG_TEST` policy rule: accepted**, on this RFC's own argument — the capability conferred
+   is **strictly weaker** than one `neg-test` already holds, so the demonstration adds no authority,
+   which is what distinguishes it from a mechanism kept because it is convenient for a test. **Two
+   conditions:** the rule carries its reason **inline in the policy**, not only here; and **name what
+   gates the install** — `capability-topology` compares declarations against **spawn-time** installs
+   and cannot see a runtime one, so if nothing else gates it, R8's audit assertion is the gate and
+   this RFC must say so. The project must not acquire a second kind of install with no comparer.
+4. **Two audit variants** (`CapInstalled`, `CapInstallRejected`), not one with a result code.
+   `LeaseBindRejected = 0x0604` already stands as its own kind beside plain `CapMint = 11`, and the
+   **Readable state** principle is the reason: the ring is read *"by any tool without specialist
+   knowledge"*, so a tool must not decode a result field to tell a grant from a refusal.
+5. **`DmaShare` / `MmioUnmap` / `TaskKill`: out of scope, accepted.**
+6. **R2's removal of `init`'s slot-27 `CapInstall`: accepted, and verified safe** — nothing in
+   `fjell-init` references `sys_cap_install` or that slot.
+7. **E-110: small item B stays conditional and now has its trigger.** When R5 lands, report whether
+   the ceiling is live and from what call pattern. Do not fix it in this line.
+
+**E-123 was amended in the same review**, because the ten absent links showed its closing conditions
+were necessary and not sufficient: with the grants as they stand, dispatch plus validation refuses
+**every** caller.

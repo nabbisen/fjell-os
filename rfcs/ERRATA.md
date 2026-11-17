@@ -9102,6 +9102,18 @@ which is history removes the disagreement instead of detecting it, and needs no 
   `BROKER-004` no longer cited; and `_ =>` made a refusal. The negative cases — wrong rights, no
   `CAP_INSTALL`, unknown resource class, a revoked lease — matter more than the happy path and each
   must be shown red, because this is the most authority-bearing surface in the milestone.
+- **Amended 2026-11-17, at RFC-0.45-002's review: the prescription above was necessary and not
+  sufficient, and a reader following it would have shipped a worse defect than the one it names.**
+  **No capability in the tree carries `CAP_INSTALL`.** It is bit 26 (`fjell-cap/src/rights.rs:68`);
+  `ALL_NON_META` is `(1 << 26) - 1` (`:104`) and a test pins that it **excludes** `CAP_INSTALL`
+  (`:422-423`); and **both** `CapInstall` grants confer `ALL_NON_META` — cap-broker's slot 10
+  (`task/spawn.rs:985`) and `init`'s slot 27 (`main.rs:1373-1375`). So dispatching the arm with its
+  promised check and changing nothing else yields **`PermissionDenied` to every caller**: a path
+  that runs and refuses everyone, **which is worse than one that is never reached**, because a
+  refusal reads as policy working. Granting the right where the arm requires it — and nowhere else —
+  is therefore part of closing this, not a separate concern. Found by the dev team reading the whole
+  path rather than the arm; the architect's own statement of this erratum had enumerated the kernel
+  arm and the broker and still missed it.
 - **Status:** **ACCEPTED**, tracking **0.45** — the milestone, not an RFC id, because the line that
   closes this (**0.45-002** of the approved scope) is not written yet and `errata-tracking` rightly
   refuses a tracking id with no file behind it. The owner approved the 0.45 scope on

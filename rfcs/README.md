@@ -544,25 +544,31 @@ mid-milestone and blocked the cut.
 
 ---
 
-## Accepted (accepted/) — none
+## Accepted (accepted/) — 3 RFCs
 
-Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
-a fresh clone.
-
----
-
-## Proposed (proposed/) — 3 RFCs
-
-0.45's three lines, **drafted by the implementer for the architect's review; nothing is implemented**
-(RFC-0.45-001 explicitly "before implementation"; 0.45-003 follows 0.45-002). Each states the
-decisions it asks the architect to make rather than makes. Scope: `.git-exclude/handoff/scope-0.45.md`.
+0.45's three lines, **accepted 2026-11-17; none implemented.** The milestone's subject is **the
+project's own record**: three RFCs in `done/` say `Implemented` where the work has not shipped. Each
+RFC carries a *Rulings* section settling the decisions it asked the architect to make; the reasoning
+is in `.git-exclude/reviewed/review-record-0.45.md`. **Implementation order is 0.45-002 → 0.45-003 →
+0.45-001**, because 002 makes RFC 056's status true and so removes 003's most awkward waiver; if the
+milestone runs short, **001 is the line to drop**. Scope: `.git-exclude/handoff/scope-0.45.md`.
 
 | RFC | Title | Tracks |
 |-----|-------|--------|
-| 0.45-001 | [The test environment presents a NIC, and the driver reports only what it read](./proposed/RFC-0.45-001-the-test-environment-presents-a-nic.md) | E-122 (narrows), E-118 |
-| 0.45-002 | [Capability installation is made to run — narrowly — and the broker's grant is lease-bound](./proposed/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) | E-123, E-011 |
-| 0.45-003 | [An RFC marked `Implemented` shows that its mechanism runs](./proposed/RFC-0.45-003-an-implemented-rfc-shows-that-its-mechanism-runs.md) | the `rfc-status-folder` gap (E-123's structural half) |
+| 0.45-002 | [Capability installation is made to run — narrowly — and the broker's grant is lease-bound](./accepted/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) | E-123, E-011 |
+| 0.45-003 | [An RFC marked `Implemented` shows that its mechanism runs](./accepted/RFC-0.45-003-an-implemented-rfc-shows-that-its-mechanism-runs.md) | the `rfc-status-folder` gap (E-123's structural half) |
+| 0.45-001 | [The test environment presents a NIC, and the driver reports only what it read](./accepted/RFC-0.45-001-the-test-environment-presents-a-nic.md) | E-122 (narrows), E-118 |
 
+**0.45-002's review found what E-123's own prescription missed:** no capability in the tree carries
+`CAP_INSTALL`, so dispatching the arm with its promised validation and changing nothing else would
+refuse **every** caller. E-123 is amended accordingly. `accepted/README.md` keeps the folder in a
+fresh clone.
+
+---
+
+## Proposed (proposed/) — none
+
+Nothing is under review. 0.45's three lines were accepted on 2026-11-17 and are below.
 `proposed/README.md` keeps the folder in a fresh clone. 0.34's two deferred candidates — descriptions
 for E-065's four remaining formats, and a check that the readiness matrix's summary matches its own
 rows — are recorded in the register, not here.
