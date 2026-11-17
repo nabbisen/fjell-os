@@ -1018,17 +1018,22 @@ if let Some(regions) = mmio_regions_for_service {\n    for &region_idx in region
         // and `LEASE_ADMIN_CAP` (slot 11): the broker used to write both slots as bare
         // literals (`CapHandle(10u32)`), which this discovery -- by design -- does not see, so
         // its authority was undeclared; now it is declared and read against `spawn.rs`.
+        // RFC-0.45-001 R2 added a sixteenth: `driver-virtio-net`'s `CAP_MMIO_VIRTIO` (slot 34),
+        // which `spawn.rs` installs again for that image (region 3, `MMIO_MAP` only) and this
+        // instrument judges against that install -- so a driver that names a slot nothing
+        // installs is red (the 0.43-002 control, on this crate). That is also the fourth driver
+        // declaration (the three `fjell-driver-uart`'s, and this).
         // If a crate adds or loses a declaration this number moves, and
         // the change is made on purpose. What must stay true is that the driver crates are
         // *in the universe*: planting a constant there is caught (the RFC-0.43-002 control).
-        assert_eq!(d.slots.len(), 15, "{:#?}", d.slots);
+        assert_eq!(d.slots.len(), 16, "{:#?}", d.slots);
         let drivers = d
             .slots
             .iter()
             .filter(|s| s.file.contains("/drivers/"))
             .count();
         assert_eq!(
-            drivers, 3,
+            drivers, 4,
             "the driver crates' declarations must be in the universe"
         );
         assert!(

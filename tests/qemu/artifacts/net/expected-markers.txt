@@ -1,0 +1,2 @@
+driver-virtio-net: found virtio-mmio device id=1 at slot 
+magic=0x74726976

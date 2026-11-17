@@ -1,0 +1,25 @@
+# RFC-0.45-001 (narrows E-122, follows E-118): the test environment PRESENTS a network device,
+# and the driver reports only what it read.
+#
+# Until this profile no test environment had ever attached a NIC: every profile's `extra_args`
+# was `[]`, so `driver-virtio-net` (which RFC-0.43-003 made an honest stub) had nothing to find.
+# Here QEMU is given a `virtio-net-device` on the `user` backend with `restrict=on` -- the guest
+# cannot reach the host network, and there is no packet path in this line to offer one for. The
+# committed `qemu-command.txt` beside this profile's artefacts is the evidence a reader checks:
+# it must show `virtio-net-device`, and `net-absent`'s must not.
+#
+# The driver scans the eight virtio-mmio transports and reports the one it read. The slot QEMU
+# chooses is NOT pinned here (it is QEMU's, measured at implementation and reported, and a
+# different QEMU may place it differently): the profile requires that a device with `DeviceID=1`
+# and the `virtio` magic WAS found, at whatever slot.
+#
+# Its other half is `net-absent`: a tier that passes only when a device is present would leave
+# E-118's hole where it was.
+
+name             = "net"
+timeout_secs     = 60
+expected_markers = [
+  "driver-virtio-net: found virtio-mmio device id=1 at slot ",
+  "magic=0x74726976",
+]
+extra_args       = ["-netdev", "user,id=n0,restrict=on", "-device", "virtio-net-device,netdev=n0"]

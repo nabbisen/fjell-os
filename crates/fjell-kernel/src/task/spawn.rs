@@ -442,11 +442,24 @@ pub fn spawn(
                     static VQ: &[usize] = &[3];
                     Some(VQ)
                 }
-                // RFC-0.43-003 R4: `DRIVER_VIRTIO_BLK` and `DRIVER_VIRTIO_NET` are not here.
-                // Both are registration stubs that exit at once and map nothing; an image
-                // that does nothing holds nothing. `storaged`, above, is the one that maps
-                // region 3 -- services drive their devices in this tree. A driver that
-                // really drives one earns its region with the line that writes it.
+                // RFC-0.43-003 R4: `DRIVER_VIRTIO_BLK` is not here. It is a registration stub
+                // that exits at once and maps nothing; an image that does nothing holds nothing.
+                // `storaged`, above, is the one that maps region 3 for the block device --
+                // services drive their devices in this tree.
+                //
+                // RFC-0.45-001 R3: `DRIVER_VIRTIO_NET` IS here again, the exact inverse of that
+                // line for this one image -- because it now maps region 3 and reads two ID
+                // registers per transport to find its device (slot 34 = 31 + 3, `MMIO_MAP` only,
+                // as the install below grants every MMIO region: no `INSPECT`, no IRQ, no DMA, no
+                // endpoint). **The over-grant is named, not hidden:** region 3 is all eight
+                // transports, including the block device, the mapping is read-write, and the kernel
+                // cannot enforce "reads only"; what bounds it is the driver's source (two
+                // `read_volatile`s, each `MMIO-ORDER`-annotated) and that `storaged` and
+                // `neg-test` hold the same reach. The per-transport region is its own line.
+                fjell_abi::service::ImageId::DRIVER_VIRTIO_NET => {
+                    static NET: &[usize] = &[3];
+                    Some(NET)
+                }
                 fjell_abi::service::ImageId::NEG_TEST => {
                     // Integration test harness — needs all regions for negative-test
                     // coverage. Audited exception.

@@ -1,0 +1,25 @@
+# RFC-0.45-001 R4 (follows E-118): with NO network device attached, `driver-virtio-net` must
+# report absence -- and print NO device fact.
+#
+# This is the half that matters. For five thousand artefacts the old image printed three device
+# facts with `sys_mmio_map` never called, and nothing failed. A tier that passes only when a
+# device is present (`net`) leaves that hole exactly where it was; this one is red if the driver
+# claims a device that is not there.
+#
+#   * `expected_markers`: the driver's absence line, which it prints **only after a completed
+#     scan** (all eight transports mapped and read). If the grant is missing it prints a different
+#     line -- `cannot scan the virtio-mmio region` -- and this profile is red, because "no device
+#     found" printed by a path that never looked would be E-118 from the other side.
+#   * `expect_absent` (RFC-0.45-001 D3): no console line may contain `driver-virtio-net: found`.
+#     The negation is scenario-specific. It is not a profile-level `forbidden_markers`, which E-111
+#     refused (it would duplicate the global `FORBIDDEN_MARKERS` list, with prose free to drift from
+#     it); this has no hard-coded twin, and the loader rejects a profile whose absent text is
+#     contained in its own required markers.
+
+name             = "net-absent"
+timeout_secs     = 60
+expected_markers = [
+  "driver-virtio-net: no virtio-net device found (scanned 8 transports)",
+]
+expect_absent    = ["driver-virtio-net: found"]
+extra_args       = []

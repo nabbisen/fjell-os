@@ -40,24 +40,31 @@ fn verify_and_load_profiles() -> Result<BoardProfile, &'static str> {
 
 // ── Device registration ───────────────────────────────────────────────────────
 
+/// List what the **board profile declares** -- a static table (`BoardProfile::qemu_virt_default`).
+///
+/// `devmgr` reads no device here. These lines used to say `registered virtio-net` and so on,
+/// which read as a device having been found and registered: on every boot, with no NIC attached,
+/// from a table. (RFC-0.45-001 D5: the same shape as the four lines RFC-0.43-003 deleted, one
+/// layer out, and it would have sat directly above the absence tier's own `no virtio-net device
+/// found`.) What a driver actually *read* is the driver's line, not this one.
 fn register_devices(bp: &BoardProfile) {
     for i in 0..bp.device_count as usize {
         let dev = &bp.devices[i];
         match dev.class {
             DeviceClass::Uart8250 => {
-                sys_debug_writeln("devmgr: registered UART");
+                sys_debug_writeln("devmgr: board profile declares UART");
             }
             DeviceClass::VirtioNetMmio => {
-                sys_debug_writeln("devmgr: registered virtio-net");
+                sys_debug_writeln("devmgr: board profile declares virtio-net");
             }
             DeviceClass::VirtioBlkMmio => {
-                sys_debug_writeln("devmgr: registered virtio-blk");
+                sys_debug_writeln("devmgr: board profile declares virtio-blk");
             }
             DeviceClass::Plic => {
-                sys_debug_writeln("devmgr: registered PLIC");
+                sys_debug_writeln("devmgr: board profile declares PLIC");
             }
             DeviceClass::Clint => {
-                sys_debug_writeln("devmgr: registered CLINT");
+                sys_debug_writeln("devmgr: board profile declares CLINT");
             }
             _ => {}
         }
@@ -81,7 +88,7 @@ pub extern "C" fn service_main() -> ! {
 
     sys_debug_writeln("devmgr: profiles verified");
     register_devices(&bp);
-    sys_debug_writeln("devmgr: devices registered");
+    sys_debug_writeln("devmgr: board profile listed");
 
     // Emit PLATFORM.PROFILES_READY to semantic-stream (alpha.2: full IPC).
     sys_debug_writeln("devmgr: PLATFORM.PROFILES_READY");

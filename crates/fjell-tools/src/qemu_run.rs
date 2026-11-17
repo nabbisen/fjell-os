@@ -169,6 +169,16 @@ pub struct Profile {
     /// to look like -- E-076). Console lines only: nothing is recomputed on the host. See
     /// [`judge_equal_digests`]. Empty for every other profile.
     pub expect_equal: Vec<String>,
+    /// RFC-0.45-001 D3: `"<text>"`. **No console line may contain `<text>`.** A scenario-specific
+    /// negation: the `net-absent` profile attaches no NIC, and the driver must then print no
+    /// `driver-virtio-net: found` line -- a gate that passes only when a device *is* present would
+    /// leave E-118's hole where it was. **Not** a profile-level `forbidden_markers`: E-111 refused
+    /// that because it would duplicate the global hard-coded list (`FORBIDDEN_MARKERS`) with prose
+    /// free to drift from it. This has no hard-coded twin. The loader rejects a profile whose
+    /// `expect_absent` text is contained in one of its own required markers (it could never pass)
+    /// and a profile that has `expect_absent` but no required marker at all (a run that never
+    /// booted would pass it). See [`judge_absent`]. Empty for every other profile.
+    pub expect_absent: Vec<String>,
 }
 
 impl Profile {
@@ -198,6 +208,7 @@ impl Profile {
             expect_observed: vec![],
             expect_scoped: vec![],
             expect_equal: vec![],
+            expect_absent: vec![],
         }
     }
 }
@@ -249,6 +260,59 @@ fn judge_hex_prefixes(
         }
     }
     all
+}
+
+/// RFC-0.45-001 D3: the `expect_absent` judge. **No line of `text` may contain `needle`.**
+///
+/// `Err` names the **first offending line and its number** -- the line is the evidence. An empty
+/// needle is refused (it is contained in every line, so it would "fail" for no reason, and a
+/// typo that left one blank would pass the loader). The judge says nothing about whether the run
+/// *happened*; that is the loader's rule (a profile with `expect_absent` must also require a
+/// marker), and the profile's own required markers.
+pub fn judge_absent(text: &str, needle: &str) -> Result<String, String> {
+    if needle.trim().is_empty() {
+        return Err("bad expect_absent: the text must be non-empty".to_string());
+    }
+    for (i, line) in text.lines().enumerate() {
+        if line.contains(needle) {
+            return Err(format!(
+                "`{needle}` must not occur, but line {} reads `{}`",
+                i + 1,
+                line.trim()
+            ));
+        }
+    }
+    Ok(format!(
+        "no line of {} contains `{needle}`",
+        text.lines().count()
+    ))
+}
+
+/// Why a profile's `expect_absent` is unusable, if it is (RFC-0.45-001 D3's loader checks).
+fn expect_absent_problem(absent: &[String], required: &[String]) -> Option<String> {
+    if absent.is_empty() {
+        return None;
+    }
+    if required.is_empty() {
+        return Some(
+            "`expect_absent` with no required marker: a run that never booted would satisfy it. \
+             Require at least one marker (for an absence scenario, the line that reports the \
+             absence)"
+                .to_string(),
+        );
+    }
+    for a in absent {
+        if a.trim().is_empty() {
+            return Some("`expect_absent` holds an empty text".to_string());
+        }
+        if let Some(m) = required.iter().find(|m| m.contains(a.as_str())) {
+            return Some(format!(
+                "`expect_absent` text `{a}` is contained in the required marker `{m}`: the \
+                 profile contradicts itself and could never pass"
+            ));
+        }
+    }
+    None
 }
 
 /// 0.44 small item E: compare two digests that two services print on the console.
@@ -673,6 +737,11 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             "\n{spec}    [equal: every B digest equals the most recent A digest before it; both present, 64 hex, non-zero]"
         ));
     }
+    for text in &p.expect_absent {
+        expected_text.push_str(&format!(
+            "\n{text}    [absent: no console line may contain this text]"
+        ));
+    }
     for spec in &p.expect_scoped {
         expected_text.push_str(&format!(
             "\n{spec}    [scoped: every such record names its task (or null) and carries a tick]"
@@ -750,6 +819,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
         && p.expect_observed.is_empty()
         && p.expect_scoped.is_empty()
         && p.expect_equal.is_empty()
+        && p.expect_absent.is_empty()
     {
         art.write_summary(
             "result-summary.txt",
@@ -960,6 +1030,26 @@ pub fn run_profile(p: &Profile) -> ExitCode {
             }
         }
         let _ = fs::write(run_dir.join("equal-digests.txt"), record);
+    }
+    // RFC-0.45-001 D3: lines that must NOT occur (an absence scenario: no NIC attached, so no
+    // `found` line may be printed).
+    if !p.expect_absent.is_empty() {
+        let text = String::from_utf8_lossy(&combined);
+        let mut record = String::new();
+        for needle in &p.expect_absent {
+            match judge_absent(&text, needle) {
+                Ok(note) => {
+                    println!("[xtask] absent: {note} ✓");
+                    record.push_str(&format!("absent: {needle}: {note}\n"));
+                }
+                Err(why) => {
+                    eprintln!("[xtask] absence check FAILED — {why}");
+                    record.push_str(&format!("absent: {needle}: FAILED {why}\n"));
+                    all_ok = false;
+                }
+            }
+        }
+        let _ = fs::write(run_dir.join("absent.txt"), record);
     }
     // RFC-0.41-001: what a test did must reach the trail (in time), and the trail
     // must account for a burst it overflowed.
@@ -1316,6 +1406,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut expect_observed_v: Vec<String> = Vec::new();
     let mut expect_scoped_v: Vec<String> = Vec::new();
     let mut expect_equal_v: Vec<String> = Vec::new();
+    let mut expect_absent_v: Vec<String> = Vec::new();
 
     let mut lines = src.lines().enumerate().peekable();
     while let Some((idx, raw)) = lines.next() {
@@ -1408,6 +1499,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             "expect_observed" => expect_observed_v = array_items(&path, k, idx, v)?,
             "expect_scoped" => expect_scoped_v = array_items(&path, k, idx, v)?,
             "expect_equal" => expect_equal_v = array_items(&path, k, idx, v)?,
+            "expect_absent" => expect_absent_v = array_items(&path, k, idx, v)?,
             _ => {} // forward-compatibility: ignore unknown keys
         }
     }
@@ -1419,6 +1511,16 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
              already have open",
             path.display()
         ));
+    }
+
+    // RFC-0.45-001 D3: an `expect_absent` that cannot work is refused at load time.
+    {
+        let mut required: Vec<String> = markers.clone();
+        required.extend(once_v.iter().cloned());
+        required.extend(per_boot_v.iter().cloned());
+        if let Some(why) = expect_absent_problem(&expect_absent_v, &required) {
+            return Err(format!("{}: {why}", path.display()));
+        }
     }
 
     // RFC-0.33-001: a typo here must not silently become "no expectation" —
@@ -1492,6 +1594,7 @@ fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         expect_observed: expect_observed_v,
         expect_scoped: expect_scoped_v,
         expect_equal: expect_equal_v,
+        expect_absent: expect_absent_v,
     })
 }
 
@@ -2312,6 +2415,92 @@ mod discover_tests {
                 "{bad}"
             );
         }
+    }
+
+    // ── RFC-0.45-001 D3: expect_absent ─────────────────────────────────────────
+
+    const RUN: &str =
+        "boot\ndriver-virtio-net: no virtio-net device found (scanned 8 transports)\ndone\n";
+
+    #[test]
+    fn absent_passes_when_no_line_contains_the_text_and_names_what_it_checked() {
+        let note = judge_absent(RUN, "driver-virtio-net: found").unwrap();
+        assert!(
+            note.contains("no line of 3 contains `driver-virtio-net: found`"),
+            "{note}"
+        );
+    }
+
+    #[test]
+    fn absent_fails_on_the_first_offending_line_and_names_it() {
+        let run =
+            "boot\ndriver-virtio-net: found virtio-mmio device id=1 at slot 6 magic=0x74726976\n";
+        let e = judge_absent(run, "driver-virtio-net: found").unwrap_err();
+        assert!(
+            e.contains("line 2") && e.contains("found virtio-mmio device id=1"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn absent_is_a_containment_test_not_a_prefix_test() {
+        // A device fact printed after another prefix on the line still counts.
+        let run = "[1.0] driver-virtio-net: found x\n";
+        assert!(judge_absent(run, "driver-virtio-net: found").is_err());
+        // And a near miss does not.
+        assert!(
+            judge_absent(
+                "driver-virtio-net: no device found\n",
+                "driver-virtio-net: found"
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn absent_refuses_an_empty_text_which_every_line_contains() {
+        assert!(judge_absent(RUN, "").unwrap_err().contains("non-empty"));
+        assert!(judge_absent(RUN, "   ").is_err());
+    }
+
+    #[test]
+    fn absent_on_an_empty_run_passes_which_is_why_the_loader_demands_a_required_marker() {
+        // The judge cannot tell "nothing happened" from "nothing wrong": that is the loader's
+        // rule, below. This pins that the judge alone is vacuous on an empty run.
+        assert!(judge_absent("", "driver-virtio-net: found").is_ok());
+    }
+
+    #[test]
+    fn the_loader_rejects_an_absent_text_contained_in_its_own_required_marker() {
+        let r = scratch_root(
+            "ea-self",
+            "name = \"p\"\nexpected_markers = [\"driver-virtio-net: found one\"]\nexpect_absent = [\"driver-virtio-net: found\"]\n",
+        );
+        let e = load_profile(&r, "p").unwrap_err();
+        assert!(
+            e.contains("contradicts itself") && e.contains("driver-virtio-net: found one"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn the_loader_rejects_expect_absent_with_no_required_marker() {
+        let r = scratch_root("ea-vac", "name = \"p\"\nexpect_absent = [\"x: found\"]\n");
+        let e = load_profile(&r, "p").unwrap_err();
+        assert!(e.contains("never booted"), "{e}");
+    }
+
+    #[test]
+    fn the_loader_accepts_a_sound_profile_and_it_is_opt_in() {
+        assert!(Profile::smoke("m1", "x").expect_absent.is_empty());
+        let r = scratch_root(
+            "ea-ok",
+            "name = \"p\"\nexpected_markers = [\"driver-virtio-net: no virtio-net device found\"]\nexpect_absent = [\"driver-virtio-net: found\"]\n",
+        );
+        assert_eq!(
+            load_profile(&r, "p").unwrap().expect_absent,
+            ["driver-virtio-net: found"]
+        );
     }
 
     #[test]

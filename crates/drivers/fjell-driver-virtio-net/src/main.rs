@@ -1,34 +1,54 @@
-//! driver-virtio-net — a registration stub. It does not drive the network device.
+//! driver-virtio-net -- finds the virtio network device and **reports only what it read**
+//! (RFC-0.45-001). It does not drive the device.
 //!
-//! This image is spawned by `init` on every boot, prints one line saying what it is, and
-//! exits cleanly (RFC-0.43-003, closes E-118). It holds no capability beyond the ones every
-//! image gets, maps no device register, allocates no DMA and binds no interrupt.
+//! This image is spawned by `init` on every boot. It scans the eight virtio-mmio transports
+//! through its one `MmioRegion` capability (region 3, `MMIO_MAP` only -- no interrupt, no DMA, no
+//! endpoint), reads each transport's `MagicValue` and `DeviceID`, prints **one** line, and exits 0:
 //!
-//! **It used to claim otherwise.** Until RFC-0.43-003 this file declared six capability slots
-//! (`MmioRegion`, two `DmaRegion`s, an `Interrupt`, two `Endpoint`s), a header said `devmgr`
-//! installed them, and the console carried *"device descriptor loaded"*, *"features
-//! negotiated"* and *"rx queue initialised"*. None of it was true: `devmgr` installs nothing,
-//! `sys_mmio_map` was never called, and the first call that needed a capability the image
-//! was never given (`sys_irq_bind`) failed and ended the image -- on every boot, behind a
-//! green tier, because `TEST:V0.4-NET:PASS` is `netd`'s and never needed this driver.
+//! * `driver-virtio-net: found virtio-mmio device id=1 at slot <N> magic=0x74726976` -- a transport
+//!   whose magic is `virtio` and whose `DeviceID` is 1 (a network device);
+//! * `driver-virtio-net: no virtio-net device found (scanned 8 transports)` -- **only** after all
+//!   eight were mapped and read and none was a network device;
+//! * `driver-virtio-net: cannot scan the virtio-mmio region (read <k> of 8 transports, last error
+//!   code <e>)` -- the scan could not run, or could not finish. **Never "no device found"**: absence
+//!   is only reportable after a successful scan, and printing it when the grant was missing would
+//!   be E-118 from the other side -- a true-sounding line from a path that never looked.
 //!
-//! **Why a stub and not a driver.** In this tree services drive their own devices:
-//! `storaged` maps its virtio-blk region and allocates its own DMA, and
-//! `driver-virtio-blk` is the same shape as this file. Making this image a real driver would
-//! mean granting a driver image DMA, an interrupt and endpoints -- a privileged driver plane,
-//! which is an authority design (which plane owns DMA, how an interrupt reaches a user task,
-//! whether three images should share the whole virtio-mmio range) that is neither decided nor
-//! foreclosed here. This image stops *claiming* to be that driver; a working NIC is a later
-//! line that earns its grants.
+//! Each line is something this image read from a register or was refused. It negotiates no
+//! features, sets up no queue, moves no frame and claims no `Ready`.
 //!
-//! The host-testable virtqueue, ring, state-machine and feature-negotiation code in
-//! `src/core/` (the `fjell_driver_virtio_net` library) is untouched and is **not linked into
-//! this image**.
+//! **History.** Until RFC-0.43-003 this file claimed six capabilities, a header said `devmgr`
+//! installed them, and the console carried *"device descriptor loaded"*, *"features negotiated"*
+//! and *"rx queue initialised"* -- none of it true (`sys_mmio_map` was never called). It was made
+//! an honest stub. This is the first line that may print a device fact, and it earns each one.
+//!
+//! **The over-grant, named.** Region 3 covers all eight transports, including the block device
+//! `storaged` drives, and `sys_mmio_map` maps the page read-write: the kernel cannot enforce "reads
+//! only". What bounds it is this file -- two `read_volatile`s, each annotated for `mmio-audit` --
+//! and that `storaged` and `neg-test` hold the same reach. The per-transport region that would end
+//! it is its own line (RFC-0.45-001 §"The over-grant").
+//!
+//! The host-testable virtqueue, ring, state-machine and feature-negotiation code in `src/core/`
+//! (the `fjell_driver_virtio_net` library) is untouched and is **not linked into this image**.
 #![no_std]
 #![no_main]
 mod rt;
 
-use fjell_syscall::{sys_debug_writeln, sys_exit};
+use fjell_cap::CapHandle;
+use fjell_syscall::{sys_debug_write, sys_debug_writeln, sys_exit, sys_mmio_map};
+
+/// The `MmioRegion` capability for kernel region 3 (the virtio-mmio range): slot `31 + 3`. Declared
+/// as a `CapHandle` constant so `capability-topology` judges the declaration against `spawn.rs`'s
+/// install -- a driver that names a slot nothing installs is exactly what E-072 was.
+const CAP_MMIO_VIRTIO: CapHandle = CapHandle(34);
+
+/// `"virt"` little-endian: every virtio-mmio transport's `MagicValue`.
+const VIRTIO_MAGIC: u32 = 0x7472_6976;
+/// `DeviceID` of a network device.
+const DEVICE_ID_NET: u32 = 1;
+/// virtio-mmio transports in the region, 0x1000 bytes each.
+const TRANSPORTS: usize = 8;
+const TRANSPORT_SIZE: usize = 0x1000;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -36,9 +56,100 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
     sys_exit(1);
 }
 
+/// Read one 32-bit register of a mapped transport.
+#[inline(always)]
+// SAFETY: category=raw-pointer-deref `base` is the address `sys_mmio_map` returned for a 0x1000-byte window of this task's own `MmioRegion`; offsets 0x000 and 0x008 are inside it.
+unsafe fn rd32(base: usize, off: usize) -> u32 {
+    // SAFETY: category=raw-pointer-deref see the function's own SAFETY note above.
+    // MMIO-ORDER: status_read
+    unsafe { core::ptr::read_volatile((base + off) as *const u32) }
+}
+
+/// Print `n` in decimal (no allocator, no `fmt`).
+fn print_dec(mut n: u64) {
+    let mut buf = [0u8; 20];
+    let mut i = buf.len();
+    if n == 0 {
+        i -= 1;
+        buf[i] = b'0';
+    }
+    while n > 0 {
+        i -= 1;
+        buf[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
+    // The bytes are ASCII digits, so this is always `Ok`.
+    if let Ok(s) = core::str::from_utf8(&buf[i..]) {
+        sys_debug_write(s);
+    }
+}
+
+/// Print a 32-bit value as `0x` + eight lowercase hex digits.
+fn print_hex32(v: u32) {
+    sys_debug_write("0x");
+    let mut buf = [0u8; 8];
+    for (i, b) in buf.iter_mut().enumerate() {
+        let nib = ((v >> (28 - 4 * i)) & 0xF) as u8;
+        *b = if nib < 10 {
+            b'0' + nib
+        } else {
+            b'a' + nib - 10
+        };
+    }
+    if let Ok(s) = core::str::from_utf8(&buf) {
+        sys_debug_write(s);
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
-    // One line, and it says what this is. It must not read as device work done.
-    sys_debug_writeln("driver-virtio-net: registration stub, not wired to the device");
+    // How many transports were mapped **and read**, and the last refusal: absence may be reported
+    // only if every one of the eight was read.
+    let mut read = 0usize;
+    let mut last_err: isize = 0;
+
+    for slot in 0..TRANSPORTS {
+        let va = match sys_mmio_map(CAP_MMIO_VIRTIO, slot * TRANSPORT_SIZE, TRANSPORT_SIZE) {
+            Ok(va) if va != 0 => va,
+            Ok(_) => {
+                last_err = 0;
+                continue;
+            }
+            Err(e) => {
+                last_err = e as isize;
+                continue;
+            }
+        };
+        // SAFETY: category=raw-pointer-deref `va` is the window `sys_mmio_map` just returned for this transport.
+        let magic = unsafe { rd32(va, 0x000) };
+        // SAFETY: category=raw-pointer-deref same window, `DeviceID` register.
+        let device_id = unsafe { rd32(va, 0x008) };
+        read += 1;
+        if magic == VIRTIO_MAGIC && device_id == DEVICE_ID_NET {
+            sys_debug_write("driver-virtio-net: found virtio-mmio device id=1 at slot ");
+            print_dec(slot as u64);
+            sys_debug_write(" magic=");
+            print_hex32(magic);
+            sys_debug_writeln("");
+            sys_exit(0);
+        }
+    }
+
+    if read == TRANSPORTS {
+        // A completed scan: every transport was read and none is a network device.
+        sys_debug_writeln("driver-virtio-net: no virtio-net device found (scanned 8 transports)");
+    } else {
+        // Not a verified absence. Say what could not be done, with the refusal.
+        sys_debug_write("driver-virtio-net: cannot scan the virtio-mmio region (read ");
+        print_dec(read as u64);
+        sys_debug_write(" of 8 transports, last error code ");
+        if last_err < 0 {
+            sys_debug_write("-");
+            print_dec(last_err.unsigned_abs() as u64);
+        } else {
+            print_dec(last_err as u64);
+        }
+        sys_debug_writeln(")");
+    }
     sys_exit(0)
 }
