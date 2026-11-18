@@ -5,6 +5,89 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.45.0] — 2026-11-18 — A status that says `Implemented` now has to show it
+
+Three lines, one small item, **one erratum closed** (**E-123**) and none filed.
+`consistency-check` is **23 subchecks**. The ABI net movement is **+14 items**, 510 → 524. The test
+suite is **35 tiers**, up from 33: `net` and `net-absent` are new. The errata register stands at
+**123 entries, 9 accepted, 0 open**.
+
+**0.44 took the surfaces that had no comparer. 0.45 turned that question on the project's own
+record** — three RFCs in `rfcs/done/` said `Implemented` where the work had not shipped, and
+nothing in the tree could tell. One of the three is now true because the work was done; the other
+two are reported by name on every run, by an instrument that did not exist.
+
+**There is no security advisory.** The kernel has never been distributed as a runnable artefact and
+the product has not been placed on the market.
+
+Four statements follow, each a case where what shipped is narrower or different from the obvious
+reading:
+
+1. **`sys_cap_install` runs, and it has no target argument.** RFC 056 specified a `target_task_id`
+   and marked itself `Implemented`; the syscall had **no dispatch arm**, so every call failed with
+   `UnknownSyscall` (**E-123**). It is dispatched now — and the parameter was **deleted rather than
+   validated**. The capability goes to the caller of the installer's pending reply edge, read
+   without consuming it, so a forged or stale target is *unrepresentable* rather than rejected. The
+   kernel bounds the kind (`Endpoint` only), the rights (inside the installer's envelope, and never
+   the install right itself), the target, the lease (the installer's own, so revoking it kills the
+   capability — `BROKER-004`, until now a requirement **defined nowhere**), and the object (never
+   endpoint 0, always an allocated endpoint). **What it still does not bound is *which* allocated
+   endpoint**: the installer fabricates from an integer rather than deriving a capability it holds.
+   That is limitations row 26 and a 0.46 property, and the `audit` tier now asserts which object was
+   installed so the gap is at least visible.
+2. **An `Implemented` RFC must now cite evidence that resolves — and the gate says what it does not
+   cover.** `rfc-evidence` requires an `**Evidence:**` line on any RFC from 0.45 on, with citations
+   that resolve against committed artefacts: a syscall that is declared **and dispatched**, a marker
+   that is a line of a profile's committed rendering, a non-empty file inside the repository, a
+   named `#[test]`. `cargo xtask rfc promote` refuses the move to `done/` by calling the gate's own
+   predicate, not a second parser. **Its PASS line states its own limits in words** — the 227
+   pre-0.45 RFCs it does not cover, that it enforces nothing yet, its count broken down by kind with
+   the weakest kind named, and the two remaining known-false statuses **by name**. An instrument
+   that reports coverage it does not have is the defect this gate exists for, so it says so about
+   itself.
+3. **A test environment presents a network device for the first time, and the driver reports only
+   what it read.** No profile had ever attached one (**E-122**), so `driver-virtio-net` was a stub
+   that could not be wrong. `net` attaches a `virtio-net-device` and `net-absent` attaches none —
+   each profile's committed `qemu-command.txt` is the evidence — and the driver prints **one of
+   three** lines: found, absence **only after all eight transports were read**, or *cannot scan*.
+   "No device" and "could not look" are different answers (**E-118** from the other side), and the
+   rule is a pure host-tested predicate rather than a shape a boot has to catch. **There is still no
+   working network:** nothing sends or receives a packet, and `sys_net_recv` does not exist.
+4. **Measured against the RFC's own assumption, and the assumption was wrong.** RFC-0.45-001 said
+   the kernel never touches the device so no logical counter should move, to be *measured and
+   reported, not assumed*. Measured, it moves: **944 → 971 audit records**. Not the device — the
+   **driver's own path**, which exits early when a NIC is present and reads all eight transports
+   when it is not, and a different path is a different interleaving. So `audit` stays NIC-less, and
+   no tier combines a network device with a tick-dependent assertion.
+
+**What still does not hold, in the same breath.**
+
+- **The lease table is still never recycled** (**E-110**). A revoked lease keeps its slot for the
+  life of the boot, there are 32, and 0.45 makes the limit reachable from a production path for the
+  first time: the broker creates one lease per grant *request*. Measured, a requester that loops
+  request-then-drop is granted **26 times**, after which **every other task's** `sys_lease_create`
+  fails. Deferred to 0.46 deliberately rather than rushed: making a slot reusable means bumping the
+  generation, and the epoch model's safety argument currently rests on epochs alone, which is a
+  formal-verification surface and not cut-week work.
+- **`sys_lease_revoke` checks no ownership**, and every `LeaseAdmin` has scope `Any`. The broker now
+  holds one, so the only thing bounding it from revoking any lease in the system is the broker's own
+  `CAP_REVOKE` authorisation check. Before 0.45 it held none.
+- **RFC 056's status became true on 2026-11-18 and was false for every day before it.** It carries a
+  dated annotation naming the three ways the shipped design differs from its text — no target
+  argument, an installer-owned lease, `Endpoint` only — rather than being edited to match.
+- **Two RFCs still say `Implemented` where the work has not shipped** (`RFC-v0.7.3-001`,
+  `RFC-v0.7.3-002`). `rfc-evidence` names them on every run; their disposition is a lifecycle
+  question RFC 000 cannot answer, because it defines neither `Implemented-with-Errata` — carried by
+  12 RFCs and accepted by the checker — nor `Closed`.
+
+**Also in 0.45.0.** The build toolchain catches up, **1.98.1 → 1.100.0**, closing a gap that had
+widened to two minor versions; the pin is now **level with stable, gap 0**, the first cut since
+0.42.0 where it is. Six follow-up items landed after the three lines were reviewed, each from the
+review rather than the plan: the install's two object bounds, the driver's decision made a pure
+predicate, a citation whose marker carries whitespace now says it *cannot be cited* rather than that
+it is absent, the `audit` tier's object assertion, and a vacuous scan that can no longer report an
+absence it never verified. Seven pre-existing host-test warnings are gone.
+
 ## [0.44.0] — 2026-11-15 — What a declaration claims, something now compares
 
 One line, five small items, **five errata closed** (**E-027**, **E-028**, **E-087**, **E-120**,
