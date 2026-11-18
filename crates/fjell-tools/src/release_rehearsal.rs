@@ -56,7 +56,10 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
         let argv = crate::cargo_metadata::host_lib_test_argv();
         let args: Vec<&str> = argv.iter().map(String::as_str).collect();
         let (ok, _out) = sh_status(&args);
-        (ok, "host lib tests (cargo_metadata::host_lib_test_argv)".into())
+        (
+            ok,
+            "host lib tests (cargo_metadata::host_lib_test_argv)".into(),
+        )
     }));
 
     // Gate 2 — unsafe audit
