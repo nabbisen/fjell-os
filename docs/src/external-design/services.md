@@ -25,7 +25,7 @@ restartable (NFR-REL-002).
 | `service-manager` | Service lifecycle: start, health, fault, restart (RFC 058) | NFR-REL-002 |
 | `devmgr` | Device discovery, capability assignment, driver startup | FR-SVC-002 |
 | `driver-virtio-blk` | Block device driver (user space) | FR-SVC-001 |
-| `driver-virtio-net` | Registration stub; exits immediately and is not wired to the device | FR-SVC-001 |
+| `driver-virtio-net` | Discovery only: scans the eight virtio-mmio transports through one `MMIO_MAP` capability, reports whether a `DeviceID=1` device is present — or that it could not scan — and exits. It does **not** drive the device: no DMA, no interrupt, no virtqueue (RFC-0.45-001) | FR-SVC-001 |
 | `storaged` | virtio-blk I/O / storage service | FR-SVC-003 |
 | `bootctl` | Boot-control (A/B slot management) | FR-BOOT-003 |
 | `upgraded` | Immutable A/B upgrade staging | FR-BOOT-003 |
@@ -69,15 +69,26 @@ capability in the init CSpace, and a `wait_service_ready` call before first IPC.
 
 ## 5. As-built scope limits & gaps
 
-- **The whole v0.4 network plane is non-functional** (**E-122**), and no test
-  environment has ever presented a network device — the QEMU harness attaches
-  only `virtio-blk-device`. `driver-virtio-net` is a registration stub,
-  `netd` exits before its event loop, and `secure-transportd` reaches a failed
-  handshake. The owner has ruled the plane in view; it is a milestone, and a NIC
-  in the test environment is its first step rather than the driver.
-- **Some services are smoke-test stubs** at v1.0 (`netd`,
-  `driver-virtio-net`, and others signal ready and exit by design). This is
-  documented in `docs/src/releasing/v1-limitations.md`.
+- **The v0.4 network plane still moves no packet** (**E-122**), though its first
+  step landed in **0.45.0**. A test environment now presents a network device: the
+  `net` profile attaches `-netdev user,restrict=on -device virtio-net-device` and
+  `net-absent` attaches none, each profile's committed `qemu-command.txt` being the
+  evidence, and `driver-virtio-net` **reads the virtio-mmio range and reports what it
+  found** — never claiming an absence it did not verify. **What is still missing is
+  everything above discovery:** nothing sends or receives a packet, `sys_net_recv`
+  exists nowhere, `netd` exits before its event loop, `secure-transportd`'s release
+  handshake fails by construction, and the virtqueue logic in
+  `fjell-driver-virtio-net`'s library is **not linked into the image**. The owner has
+  ruled the plane in view; it is a milestone, and 0.45.0 did the first step — the
+  environment and honest discovery — not the driver.
+  *(Corrected 2026-11-18 at the 0.45.0 cut, by exit criterion 8: this bullet said no
+  test environment had ever presented a network device and that the harness attaches
+  only `virtio-blk-device`. RFC-0.45-001 made both false.)*
+- **Some services are smoke-test stubs** at v1.0 (`netd` and others signal ready
+  and exit by design). This is documented in
+  `docs/src/releasing/v1-limitations.md`. **`driver-virtio-net` is no longer among
+  them** since 0.45.0: it exits immediately, but it does so having mapped and read
+  eight transports and reported a measured result.
 - **Base userland commands (FR-SVC-006)** — the requirement lists list/read/
   write/etc. as a single-binary userland. At v1.0 the service plane exists but
   the full interactive command set is not the focus; the SDK reference service

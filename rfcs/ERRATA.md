@@ -9044,7 +9044,25 @@ which is history removes the disagreement instead of detecting it, and needs no 
   *"not live yet"*.
 - **Immediately, and independent of that milestone:** `services.md` stops publishing
   `secure-transportd` as a working channel. That is corrected with this entry.
-- **Status:** **ACCEPTED**, `unscheduled` — the documentation half is fixed here; the plane itself is
+- **Narrowed 2026-11-18 by RFC-0.45-001 (`629acda`), at the 0.45.0 cut — step one is done, and this
+  entry's title is now half false.** **A test environment presents a NIC.** The `net` profile
+  attaches `-netdev user,id=n0,restrict=on -device virtio-net-device,netdev=n0`, and the profile's
+  committed `qemu-command.txt` is the evidence; `net-absent` attaches none and its own
+  `qemu-command.txt` has zero occurrences of either flag. **`driver-virtio-net` is no longer a
+  44-line registration stub**: it scans the eight virtio-mmio transports through one `MMIO_MAP`-only
+  capability, reads `MagicValue` and `DeviceID`, and prints exactly one of *found* (measured at
+  transport slot 6 under QEMU 11.1.3), *no device after all eight were read*, or *cannot scan* — the
+  last being **E-118 from the other side**, and the rule is a pure host-tested predicate. So
+  *"no Fjell boot has ever faced a network device"* is no longer true, and the sentence in this
+  entry's own title is superseded rather than withdrawn: it was true when written.
+  **What is unchanged, which is why this stays ACCEPTED:** nothing sends or receives a packet,
+  `sys_net_recv` still exists nowhere, `netd` still prints `session table initialised` and exits
+  before its event loop, `secure-transportd` still fails by construction, the authority E-118 lists
+  beyond the MMIO mapping (two `DmaRegion`s, an `Interrupt`, an `Endpoint`, the ready slot) is still
+  not taken, and `src/core/`'s virtqueue logic is still **not linked into the image** — 0.45 links
+  one module from that crate, the scan predicate, and nothing else.
+- **Status:** **ACCEPTED**, `unscheduled` — the documentation half is fixed here, and its
+  *foundation* half is **narrowed by 0.45.0** (above); the plane itself is still
   a milestone awaiting the owner's direction on what networking is *for* first: packets routed by
   `netd`, or the authenticated control plane the fleet services were built against.
 
