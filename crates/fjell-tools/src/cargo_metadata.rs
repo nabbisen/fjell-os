@@ -508,9 +508,18 @@ mod tests {
         assert_eq!(argv[i + 1], "fjell-sxt-crypto/crypto-profile-development");
     }
 
-    /// Three consumers, one definition: `test-all`'s tier 1 calls the function
-    /// rather than spelling the command, and the release checklist's Gate 1 step is
-    /// the subcommand that calls it.
+    /// Four consumers, one definition: `test-all`'s tier 1 calls the function rather
+    /// than spelling the command, the release checklist's Gate 1 step is the
+    /// subcommand that calls it, and **`release-rehearsal`'s Gate 1 calls it too**.
+    ///
+    /// The rehearsal was added to this test at the 0.45.0 cut, because it was the one
+    /// consumer this test did not read and it was the one that had drifted: it held a
+    /// second hardcoded `cargo test --workspace --lib` that omitted
+    /// `--features fjell-sxt-crypto/crypto-profile-development`. The copies agreed only
+    /// while some crate enabled that feature incidentally by depending on
+    /// `fjell-sxt-crypto`; `e3fa023` removed that dependency as unused, and Gate 1
+    /// then failed to **compile** while every other runner stayed green. Checking the
+    /// checklist *document* was not enough -- the gate is code.
     #[test]
     fn test_all_and_the_release_checklist_use_the_shared_definition() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -527,6 +536,17 @@ mod tests {
         assert!(
             !checklist.contains("cargo test --workspace --lib"),
             "the checklist spells its own lib command again"
+        );
+        let rehearsal =
+            std::fs::read_to_string(root.join("crates/fjell-tools/src/release_rehearsal.rs"))
+                .unwrap();
+        assert!(
+            rehearsal.contains("host_lib_test_argv()"),
+            "release-rehearsal's Gate 1 must call the shared definition, not copy it"
+        );
+        assert!(
+            !rehearsal.contains("\"--lib\","),
+            "release-rehearsal spells its own lib command again -- the 0.45.0 drift"
         );
     }
 

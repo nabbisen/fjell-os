@@ -40,16 +40,23 @@ pub fn cmd_release_rehearsal(_args: &[String]) -> ExitCode {
     // failing to even compile prints neither "FAILED" nor "test result:
     // FAILED" — a substring check alone reported PASS on a non-compiling
     // workspace (RFC-0.24-001 Pass 1).
+    //
+    // **The command is `cargo_metadata::host_lib_test_argv()`, not a copy of it**
+    // (0.45.0 cut). That function's own doc calls itself "the one command Gate 1
+    // names", and until 2026-11-18 this gate held a *second* hardcoded copy that
+    // omitted `--features fjell-sxt-crypto/crypto-profile-development`. The copies
+    // agreed only while some workspace crate happened to enable that feature as a
+    // side effect of depending on the crate; `e3fa023` deleted that dependency --
+    // correctly, it was unused -- and Gate 1 began failing to *compile* while
+    // `test-all`, CI and `cargo xtask host-lib-tests` stayed green, because all
+    // three call the shared function. A gate whose definition is a copy of the one
+    // it claims to share is the E-014 class, and it is the shape 0.44 small item D
+    // and RFC-0.45-003 R6 each removed elsewhere: one predicate, not a second parser.
     gates.push(run_gate("1", "Host test suite (0 failures)", || {
-        let (ok, _out) = sh_status(&[
-            "cargo",
-            "test",
-            "--workspace",
-            "--lib",
-            "--exclude",
-            "fjell-proptest",
-        ]);
-        (ok, "host lib tests".into())
+        let argv = crate::cargo_metadata::host_lib_test_argv();
+        let args: Vec<&str> = argv.iter().map(String::as_str).collect();
+        let (ok, _out) = sh_status(&args);
+        (ok, "host lib tests (cargo_metadata::host_lib_test_argv)".into())
     }));
 
     // Gate 2 — unsafe audit
