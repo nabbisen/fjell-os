@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.44.0
+## Summary at 0.45.0
 
 | Status | Count |
 |--------|-------|
@@ -284,6 +284,29 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > here rather than taken. It is recorded because a gate document that quietly
 > does not require what its readers assume is the **E-014** class, and the
 > response to that is to say so.
+>
+> **Re-taken 2026-11-18, at the 0.45.0 cut.** The heading moved in the version-bump
+> commit, so `readiness-summary` was not seen red; the evidence that the subcheck
+> works is `release-rehearsal` reading it green with the heading and the workspace
+> version both at 0.45.0. `readiness-check` counts **DONE 56 / IN PROGRESS 2 /
+> DEFERRED 3 / OPEN 0**, exit 0 — **unchanged by 0.45.0**, and the reason is worth
+> stating rather than implying: 0.45's three lines are a kernel primitive made to
+> run (`sys_cap_install`, **E-123**), an instrument that compares an RFC's
+> `Implemented` claim against whether its mechanism runs (`rfc-evidence`), and a
+> test environment that presents a NIC with a driver that reports only what it
+> read (**E-122**, **E-118**). **No cell of this matrix is about runtime capability
+> delivery, about an instrument, or about a test NIC**, so none moves.
+>
+> **The one row worth checking rather than assuming** is *Verus formal proofs —
+> capability + lease … 20 obligations machine-checked; callsite-audit Gate 11
+> blocking*, because 0.45-002 adds a pure decision function to `fjell-cap`
+> (`install::check_install`). It stands: Verus here verifies **standalone model
+> specifications** under `verification/verus/{capability,lease,boot-control}`, not
+> the Rust sources, so a new Rust function adds no obligation — the count is still
+> 20, and Gate 11 judges its call sites, which the rehearsal read green.
+>
+> **No finding about the matrix itself this time.** The `mitigate` observation
+> recorded in the 0.44.0 clause above is unchanged and still the owner's to decide.
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent
