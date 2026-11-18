@@ -1,6 +1,6 @@
 # RFC-0.45-003: An RFC marked `Implemented` shows that its mechanism runs
 
-**Status:** Accepted — accepted 2026-11-17
+**Status:** Implemented (0.45.0) — accepted 2026-11-17
 **Evidence:** file:tools/fjell-consistency-check/src/rfc_evidence.rs, test:tools/fjell-consistency-check/src/rfc_evidence.rs::rfc_056s_exact_case_is_red_while_the_syscall_is_undispatched, test:crates/fjell-tools/src/rfc_promote.rs::refuses_an_rfc_from_0_45_with_no_evidence_line_and_names_it
 **Milestone:** 0.45
 **Tracks.** The finding that outranks the other 0.45 lines (`rulings-2026-11-15-three-open-questions.md`):

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.45-003
 
-**Governing RFC:** [RFC-0.45-003](../../accepted/RFC-0.45-003-an-implemented-rfc-shows-that-its-mechanism-runs.md)
+**Governing RFC:** [RFC-0.45-003](../../done/RFC-0.45-003-an-implemented-rfc-shows-that-its-mechanism-runs.md)
 **Milestone:** 0.45 · second line — after 0.45-002
-**Status:** inherited from the governing RFC (Accepted, 0.45)
+**Status:** inherited from the governing RFC (Implemented, 0.45.0)
 **Audience:** implementation model
 
 ---

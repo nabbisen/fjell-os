@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.45-001
 
-**Governing RFC:** [RFC-0.45-001](../../accepted/RFC-0.45-001-the-test-environment-presents-a-nic.md)
+**Governing RFC:** [RFC-0.45-001](../../done/RFC-0.45-001-the-test-environment-presents-a-nic.md)
 **Milestone:** 0.45 · third line — the one to drop if the milestone runs short
-**Status:** inherited from the governing RFC (Accepted, 0.45)
+**Status:** inherited from the governing RFC (Implemented, 0.45.0)
 **Audience:** implementation model
 
 ---

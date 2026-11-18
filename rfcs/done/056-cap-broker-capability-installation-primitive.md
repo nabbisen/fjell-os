@@ -7,7 +7,7 @@
 **Phase:** Service separation + release-gate close
 **Closes review item:** RB-11 (installation half)
 **Depends on:** RFC 040 (cap-broker bootstrap), RFC 055 (sender identity)
-**Superseded in part by:** [RFC-0.45-002](../accepted/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) — see the annotation below.
+**Superseded in part by:** [RFC-0.45-002](./RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) — see the annotation below.
 
 > **Annotation, 2026-11-17, by the architect (RFC-0.45-002's implementation review).**
 > **This RFC's `Implemented` status became true on 2026-11-17 and was false for every day before

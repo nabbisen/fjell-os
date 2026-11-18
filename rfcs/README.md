@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 230 files
+## Implemented (done/) — 233 files
 
-229 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+232 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -541,28 +541,16 @@ mid-milestone and blocked the cut.
 | 0.43-003 | [`driver-virtio-net` says only what it does](./done/RFC-0.43-003-driver-virtio-net-says-only-what-it-does.md) — closed **E-118**; the image was spawned every boot, called `sys_irq_bind` on a slot nothing installed and exited — and printed *"device descriptor loaded"*, *"features negotiated"* and *"rx queue initialised"* with `sys_mmio_map` **never called in the crate**. `IRQ bind failed` was in 5,075 retained artefacts going back to 2026-07-31, unread, because `netd` emits the v0.4 net marker without needing the driver. Now a 44-line stub that says what it is and exits 0; the MMIO region grant is removed from **both** stub drivers. **Not a decision against a real NIC driver** — that needs an authority design and is neither taken nor foreclosed | 0.43.0 |
 | 0.43-004 | [The milestone's RFCs move by one command](./done/RFC-0.43-004-the-milestones-rfcs-move-by-one-command.md) — no erratum closed; narrows **E-116**'s residue. The `accepted/` → `done/` move was five hand tasks, documented for the first time in 0.42 after twelve correct repetitions — and `a130ace` committed three renames with none of their `Status:` edits, because `git mv` stages the rename the moment it runs. `cargo xtask rfc promote <version>` performs all five all-or-nothing, **never touches the git index** (so no state exists in which a staged rename hides missing edits), and restores everything if a write fails mid-apply. Validated by promoting a worktree of the real 0.42.0 cut and comparing byte-for-byte with the hand result. **Still ungated: that the command was run at all** | 0.43.0 |
 | 0.44-001 | [The attestation can be asked for, and the export nobody wants goes](./done/RFC-0.44-001-the-attestation-can-be-asked-for.md) — closed **E-121**, **E-120** and **E-087**; `attestd` built a record on every boot that **no image could ask it for**, while `fjell-diag-format`'s bundle carried `last_attestation_available` documented *"permanently `false` today"* precisely because nothing queried. `diagnosticsd` now holds `CAP_ATTESTD_EP` — slot 5, **`CALL` only** — and sends `LATEST_DIGEST`, answered with a 32-byte `LATEST_DIGEST_REPLY` or `NO_RECORD`; `attestd`'s state became a single `Option<Digest32>`, which makes **E-076's zero digest unrepresentable** rather than guarded against. The two chunked exports that replied success having transferred nothing were **deleted rather than implemented** — `0x307`–`0x309` and `0x316`–`0x318` are **retired, not reassigned** — on the ground that the consumer wants 32 bytes, which one reply carries in four words, and not on the ground that nothing called them. **The architect's first ruling was the opposite and is recorded as such:** it reasoned from *nothing calls it*, which cannot distinguish unwanted from unfinished, and the owner's challenge is what turned the surface into a caller. | 0.44.0 |
+| 0.45-001 | [The test environment presents a NIC, and the driver reports only what it read](./done/RFC-0.45-001-the-test-environment-presents-a-nic.md) — narrowed **E-122** and followed through on **E-118**; no test environment had ever presented a network device, so `driver-virtio-net` was a stub that could not be wrong about anything. Two profiles now exist — `net` attaches a `virtio-net-device`, `net-absent` attaches none, and each profile's committed `qemu-command.txt` is the evidence — and the driver scans the eight virtio-mmio transports through one `MMIO_MAP`-only capability and prints **one of three** lines: found, absence **only after all eight were read**, or *cannot scan*. The distinction between "no device" and "could not look" is **E-118 from the other side**, and it is a pure host-tested predicate (`scan.rs`), not a shape a boot has to catch. A new profile key `expect_absent` asserts a line is **absent**, and the loader refuses one that could never fail. Measured and reported against the RFC's own assumption: attaching a NIC **does** move the logical clock — 944 → 971 audit records — through the driver's different path, so `audit` stays NIC-less | 0.45.0 |
+| 0.45-002 | [Capability installation is made to run — narrowly — and the broker's grant is lease-bound](./done/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) — closed **E-123** and narrowed **E-011**; `sys_cap_install` is dispatched, so RFC 056's `Implemented` became true after being false for every day before it. **There is no target argument**: the capability goes to the caller of the installer's pending reply edge, read without consuming it, so a forged target is *unrepresentable* rather than rejected — stronger than the validation RFC 056 specified, reached by deleting the parameter. `Endpoint` only, exactly the rights asked for inside the installer's envelope, never object 0, always an allocated endpoint, and always bound to a lease the installer owns, so revoking it kills the capability (`BROKER-004`, previously a requirement defined nowhere). The decision is `fjell_cap::install::check_install`, a pure function whose every refusal is shown red by its own mutation; the fail-open `_ => Endpoint` arm is gone, `init`'s never-revoked `CapInstall` is removed, and `sys_cap_install_with_rights` is deleted. **What is still not bounded** is *which* allocated endpoint the broker may name — the installer fabricates from an integer rather than deriving a capability it holds — which is limitations row 26 and a 0.46 property | 0.45.0 |
+| 0.45-003 | [An RFC marked `Implemented` shows that its mechanism runs](./done/RFC-0.45-003-an-implemented-rfc-shows-that-its-mechanism-runs.md) — closed the **structural half of E-123**: `rfc-status-folder` compares a status string against its folder, which is its job, so **nothing compared an RFC's claim to have been implemented against whether its mechanism runs**, and three RFCs asserted it falsely. `rfc-evidence` is the 23rd subcheck: an RFC from 0.45 on may not be `Implemented` without an `**Evidence:**` line whose citations **resolve** — `syscall:` (declared *and* dispatched), `marker:` (a line of a profile's committed rendering), `file:`, `test:` — and `cargo xtask rfc promote` refuses the move by calling the gate's own predicate rather than a second parser. **Its PASS line states its own limits in words**: what it does not cover, that it enforces nothing yet, and the count broken down by kind, with the two known-false statuses named rather than suppressed — the discipline it exists to impose, applied to itself | 0.45.0 |
 
 ---
 
-## Accepted (accepted/) — 3 RFCs
+## Accepted (accepted/) — none
 
-0.45's three lines, **accepted 2026-11-17; none implemented.** The milestone's subject is **the
-project's own record**: three RFCs in `done/` say `Implemented` where the work has not shipped. Each
-RFC carries a *Rulings* section settling the decisions it asked the architect to make; the reasoning
-is in `.git-exclude/reviewed/review-record-0.45.md`. **Implementation order is 0.45-002 → 0.45-003 →
-0.45-001**, because 002 makes RFC 056's status true and so removes 003's most awkward waiver; if the
-milestone runs short, **001 is the line to drop**. Scope: `.git-exclude/handoff/scope-0.45.md`.
-
-| RFC | Title | Tracks |
-|-----|-------|--------|
-| 0.45-002 | [Capability installation is made to run — narrowly — and the broker's grant is lease-bound](./accepted/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md) | E-123, E-011 |
-| 0.45-003 | [An RFC marked `Implemented` shows that its mechanism runs](./accepted/RFC-0.45-003-an-implemented-rfc-shows-that-its-mechanism-runs.md) | the `rfc-status-folder` gap (E-123's structural half) |
-| 0.45-001 | [The test environment presents a NIC, and the driver reports only what it read](./accepted/RFC-0.45-001-the-test-environment-presents-a-nic.md) | E-122 (narrows), E-118 |
-
-**0.45-002's review found what E-123's own prescription missed:** no capability in the tree carries
-`CAP_INSTALL`, so dispatching the arm with its promised validation and changing nothing else would
-refuse **every** caller. E-123 is amended accordingly. `accepted/README.md` keeps the folder in a
-fresh clone.
+Nothing is accepted and awaiting a cut. `accepted/README.md` keeps the folder in
+a fresh clone.
 
 ---
 

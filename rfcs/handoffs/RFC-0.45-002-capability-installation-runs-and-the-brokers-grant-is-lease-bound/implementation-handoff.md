@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.45-002
 
-**Governing RFC:** [RFC-0.45-002](../../accepted/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md)
+**Governing RFC:** [RFC-0.45-002](../../done/RFC-0.45-002-capability-installation-runs-and-the-brokers-grant-is-lease-bound.md)
 **Milestone:** 0.45 · first line — implement this one first
-**Status:** inherited from the governing RFC (Accepted, 0.45)
+**Status:** inherited from the governing RFC (Implemented, 0.45.0)
 **Audience:** implementation model
 
 ---
