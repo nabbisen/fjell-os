@@ -5,7 +5,7 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
-## [0.45.0] — 2026-11-18 — A status that says `Implemented` now has to show it
+## [0.45.0] — 2026-11-19 — A status that says `Implemented` now has to show it
 
 Three lines, one small item, **one erratum closed** (**E-123**) and none filed.
 `consistency-check` is **23 subchecks**. The ABI net movement is **+14 items**, 510 → 524. The test
