@@ -26,7 +26,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
 
 const MMIO_PATTERNS: &[&str] = &[
     "read_volatile(",
@@ -97,9 +97,16 @@ fn main() -> ExitCode {
         .unwrap_or(".");
 
     let mut records = Vec::new();
-    scan_dir(Path::new(workspace), &mut records).unwrap_or_else(|e| {
-        eprintln!("mmio-audit: scan error: {}", e);
-    });
+    match discover_rs_files(Path::new(workspace)) {
+        Ok(files) => {
+            for f in files {
+                if let Err(e) = scan_file(&f, &mut records) {
+                    eprintln!("mmio-audit: scan error on {}: {}", f.display(), e);
+                }
+            }
+        }
+        Err(e) => eprintln!("mmio-audit: scan error: {}", e),
+    }
 
     let total = records.len();
     let missing = records.iter().filter(|r| r.annotation.is_none()).count();
@@ -151,19 +158,60 @@ struct MmioRecord {
 
 // ── Scanner ───────────────────────────────────────────────────────────────────
 
-fn scan_dir(dir: &Path, records: &mut Vec<MmioRecord>) -> io::Result<()> {
-    if dir.ends_with("target") || dir.ends_with(".git") || dir.ends_with("fjell-mmio-audit") {
-        return Ok(());
-    } // self-exclude
-    for entry in fs::read_dir(dir)?.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            scan_dir(&path, records)?;
-        } else if path.extension().and_then(|e| e.to_str()) == Some("rs") {
-            scan_file(&path, records)?;
-        }
+/// The files this tool audits — **derived from git, not from a name list**.
+///
+/// This is `fjell-unsafe-audit`'s remedy, applied here at the 0.45.0 cut because its
+/// sibling never received it. Until then this walk skipped three literal names
+/// (`target`, `.git`, `fjell-mmio-audit`), and **`.git-exclude` is not one of them**
+/// — so every scratch checkout under `.git-exclude/tmp/` was audited as if it were
+/// the project. Measured at the cut: the working tree reported **449** MMIO sites
+/// and a pristine clone of the same commit reported **41**. The verdict was never
+/// wrong (those copies are annotated, so `missing` stayed 0), but the count was
+/// ~91% other people's trees, and it had been recorded as a project figure in
+/// release records for many milestones. E-025's family, and the same reasoning
+/// `fjell-unsafe-audit` already carries: the boundary must not be a hand-maintained
+/// name list.
+///
+/// The derived answer: everything git considers part of this working copy — tracked
+/// files, plus untracked files `.gitignore` does not exclude. Uncommitted `.rs` work
+/// is still audited, which is the point of auditing code rather than commits; a
+/// scratch checkout under `.git-exclude/` or a build under `target/` is not, because
+/// `.gitignore` excludes both.
+///
+/// One enumerated name remains and it is **not** scope: this tool's own directory is
+/// skipped because its `MMIO_PATTERNS` constants would otherwise be read as access
+/// sites. That is self-exclusion, which is what the original comment meant, and it
+/// is kept deliberately.
+fn discover_rs_files(root: &Path) -> io::Result<Vec<PathBuf>> {
+    let root_str = root.to_string_lossy().into_owned();
+    let out = Command::new("git")
+        .args([
+            "-C",
+            &root_str,
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
+        .output()?;
+    if !out.status.success() {
+        return Err(io::Error::other(format!(
+            "git ls-files failed under {} (not a git repository?): {}",
+            root.display(),
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
     }
-    Ok(())
+    let mut files: Vec<PathBuf> = out
+        .stdout
+        .split(|&b| b == 0)
+        .filter(|s| !s.is_empty())
+        .map(|rel| root.join(String::from_utf8_lossy(rel).as_ref()))
+        .filter(|p: &PathBuf| p.extension().and_then(|e| e.to_str()) == Some("rs"))
+        .filter(|p: &PathBuf| !p.components().any(|c| c.as_os_str() == "fjell-mmio-audit"))
+        .collect();
+    files.sort();
+    Ok(files)
 }
 
 fn scan_file(path: &Path, records: &mut Vec<MmioRecord>) -> io::Result<()> {
@@ -320,13 +368,66 @@ mod tests {
         }
     }
 
+    /// The scope is git-derived, and this test builds a **real git repository** to
+    /// show it: a fake world cannot demonstrate that `.gitignore` is honoured.
+    ///
+    /// Three files, one of each kind that matters:
+    ///   * `tracked.rs`      — committed, must be audited;
+    ///   * `untracked.rs`    — new and not ignored, must be audited (RFC-0.28-005 §6:
+    ///                         uncommitted work is exactly when an audit should speak);
+    ///   * `ignored/skip.rs` — under an ignored directory, must **not** be audited.
+    ///
+    /// The third is the 0.45.0 regression: before the fix the walk skipped three
+    /// literal names and audited every scratch checkout under `.git-exclude/`.
     #[test]
-    fn scan_workspace_produces_records() {
-        // Run against the workspace root; should find at least some MMIO
-        // sites in the kernel (or zero if the binary test CWD differs).
-        let mut records = Vec::new();
-        scan_dir(Path::new("crates/fjell-kernel/src"), &mut records).ok();
-        // If we're at workspace root, expect hits; otherwise 0 is fine too.
-        let _ = records.len();
+    fn scope_is_git_derived_so_ignored_trees_are_not_audited_and_new_work_still_is() {
+        let root = std::env::temp_dir().join(format!(
+            "fjell-mmio-scope-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        fs::create_dir_all(root.join("ignored")).unwrap();
+        let git = |args: &[&str]| {
+            Command::new("git")
+                .arg("-C")
+                .arg(&root)
+                .args(args)
+                .output()
+                .expect("git")
+        };
+        assert!(git(&["init", "-q"]).status.success());
+        git(&["config", "user.email", "t@example.invalid"]);
+        git(&["config", "user.name", "t"]);
+        fs::write(root.join(".gitignore"), "/ignored/\n").unwrap();
+        let body = "pub unsafe fn f(p: *const u32) -> u32 { p.read_volatile() }\n";
+        fs::write(root.join("tracked.rs"), body).unwrap();
+        fs::write(root.join("untracked.rs"), body).unwrap();
+        fs::write(root.join("ignored/skip.rs"), body).unwrap();
+        assert!(git(&["add", ".gitignore", "tracked.rs"]).status.success());
+        assert!(git(&["commit", "-qm", "t"]).status.success());
+
+        let found = discover_rs_files(&root).expect("discover");
+        let names: Vec<String> = found
+            .iter()
+            .map(|p| {
+                p.strip_prefix(&root)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert!(names.iter().any(|n| n == "tracked.rs"), "{names:?}");
+        assert!(
+            names.iter().any(|n| n == "untracked.rs"),
+            "new uncommitted work must still be audited: {names:?}"
+        );
+        assert!(
+            !names.iter().any(|n| n.contains("skip.rs")),
+            "an ignored tree must not be audited -- the 0.45.0 regression: {names:?}"
+        );
+        fs::remove_dir_all(&root).ok();
     }
 }
