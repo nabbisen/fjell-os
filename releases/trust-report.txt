@@ -1,7 +1,7 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-18 02:19:40 UTC
+Generated : 2026-11-19 01:13:46 UTC
 Version   : 0.45.0
 Mode      : full
 Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-linux-gnu / LLVM 23.1.5
@@ -88,7 +88,7 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261118-014816
+  Latest test-all run: 20261119-004204
   35    QEMU negative: user-copy                            60.1s  PASS
   ───────────────────────────────────────────────────────────────────────────
   Total: 35  |  PASS: 34  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
