@@ -1,6 +1,6 @@
 # RFC-0.46-003: The kernel bounds revocation itself — a lease is revoked by its owner
 
-**Status:** Proposed — drafted 2026-11-21 for the architect's review; nothing implemented
+**Status:** Accepted — accepted 2026-11-21
 **Milestone:** 0.46
 **Tracks.** The second of the three places 0.45 put cap-broker inside the kernel's trust boundary: *"I
 revoke lease L"* is accepted without the kernel asking whether the revoker owns L. Narrows the
@@ -129,3 +129,24 @@ R5.1, as it does for `cap.install_rejected`.
 1. R3's table — in particular **`init` gets nothing**, and `neg-test` gets the second capability.
 2. R4's code, `0x0606`, which is outside `RFC-v0.7.4-003`'s listed range.
 3. Whether `LEASE_REVOKE_ANY` is the right name and bit (32 is the next free).
+
+## Rulings — architect, 2026-11-21 (`.git-exclude/reviewed/review-record-0.46-stage-1.md`)
+
+**Accepted. The decisions this RFC asked for are settled here, and the requirements below are added to it; reasoning is in the review record.**
+
+* **`init` gets no exception: accepted** (the 0.45 ruling applied: a right grows with a consumer). Do not name
+  an exception with no caller.
+* **`neg-test` gets `LEASE_REVOKE_ANY` on a second `LeaseAdmin`: accepted — and it is not a new authority.**
+  Four images hold `LeaseAdmin` with `ObjectScope::Any` today (`sample-service`, `neg-test`, `cap-broker`,
+  `init`) and each can already revoke any lease. The exception takes **four unbounded holders to one named
+  test image and bounds the other three**: a strict reduction. Say so in the code comment at the grant.
+* **Bit 32, in neither aggregate: accepted.** **Audit `0x0606`: accepted — and a new requirement:** the
+  published decoder implements `0x0601`, `0x0602`, `0x0604`; **`0x0603` (`LEASE_BOUND`) and `0x0605`
+  (`LEASE_REVOKED`) are specified and absent.** As drafted, a revocation's *refusal* is audited and its
+  *success* is recorded nowhere. **Add `0x0605` with `0x0606`** (a pair, as `CapInstalled` /
+  `CapInstallRejected` are), or state in the RFC why a revocation needs no record.
+* **New condition — the exception is gated.** Exactly one image may hold `LEASE_REVOKE_ANY`, and a second
+  holder must not appear quietly: `capability-topology` (or a sibling assertion) counts the holders and fails
+  on any other than `neg-test`. A bound nobody checks is not a bound.
+* **R5's mutation table is kept exactly as written** — with two independent bounds neither single mutation
+  goes red and *both off* does, and it says so.

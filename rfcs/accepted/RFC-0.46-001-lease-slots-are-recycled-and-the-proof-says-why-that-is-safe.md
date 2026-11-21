@@ -1,6 +1,6 @@
 # RFC-0.46-001: Lease slots are recycled, and the proof says why that is safe
 
-**Status:** Proposed — drafted 2026-11-21 for the architect's review; nothing implemented
+**Status:** Accepted — accepted 2026-11-21
 **Milestone:** 0.46
 **Tracks.** **E-110** — `MAX_LEASES = 32` slots, never recycled; 0.45 made the limit reachable from a
 production path. Does **not** by itself close the reachable denial of service (see §"A premise this RFC
@@ -177,3 +177,22 @@ mirrored host-side").
 2. `MAX_LEASES_PER_OWNER` (16) and `MAX_GRANTS_PER_REQUESTER` (4).
 3. **Lazy** reclamation (R1) rather than reap-on-revoke, and the epoch **continuing** (R3).
 4. Whether E-110 closes on this line (it would, with R-Q and R-G) or stays open for the abandon case.
+
+## Rulings — architect, 2026-11-21 (`.git-exclude/reviewed/review-record-0.46-stage-1.md`)
+
+**Accepted. The decisions this RFC asked for are settled here, and the requirements below are added to it; reasoning is in the review record.**
+
+* **R-Q is in scope, and is now the line's point.** Recycling closes grant-use-revoke-grant; R-Q restores
+  the property wanted: *a requester the policy admits can no longer exhaust a kernel resource for every other
+  task*. R-G is accepted as service policy and defence in depth, never the only bound.
+* **The numbers, 16 and 4, are accepted, but the RFC states the property, not the number:** *no single owner
+  can deny the table to everyone else.* Any defensible number satisfies it.
+* **R7 must not refuse with `NoMemory`.** `SysError::TaskTableFull = -35` exists with the comment
+  "distinct from `NoMemory`" (RFC-0.34-002 D1); the lease table never received that treatment. This line
+  owes **two** distinct answers: the table is genuinely full (a `LeaseTableFull`-shaped error) and the owner
+  is at quota (its own error). It is an ABI addition: enumerate it where the knowledge is and regenerate the
+  snapshot **in the same line**.
+* **Lazy reclamation on allocation pressure, round-robin, and a continuing epoch: accepted** (R1–R6).
+* **E-110 closes on this line only if R-Q and R-R both land.** With recycling alone it does not. The
+  erratum's closing condition names both. If R-Q is dropped, E-110 stays ACCEPTED and the RFC says so.
+* The Verus prototype is the feasibility evidence; Gate 10 must come back green on the new obligations.

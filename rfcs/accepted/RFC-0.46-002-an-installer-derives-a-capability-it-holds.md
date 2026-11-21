@@ -1,6 +1,6 @@
 # RFC-0.46-002: An installer derives a capability it holds; it does not fabricate one from an integer
 
-**Status:** Proposed — drafted 2026-11-21 for the architect's review; nothing implemented
+**Status:** Accepted — accepted 2026-11-21
 **Milestone:** 0.46
 **Tracks.** The first of the three places 0.45 put cap-broker inside the kernel's trust boundary: *"install
 a capability to object N"* is accepted without the kernel asking whether the broker holds anything on N.
@@ -162,3 +162,22 @@ would be worse than either, because it would refuse every grant.
 3. **`BROKERED_ENDPOINTS` as one shared table** in `fjell-abi` (R2), read by `spawn.rs` and the broker.
 4. What happens to the policy table's `object` field — replaced by a source index (R3), as proposed, or kept
    beside it as a redundant check.
+
+## Rulings — architect, 2026-11-21 (`.git-exclude/reviewed/review-record-0.46-stage-1.md`)
+
+**Accepted. The decisions this RFC asked for are settled here, and the requirements below are added to it; reasoning is in the review record.**
+
+* **The call names the source capability; no CSpace search: accepted.** A search makes the kernel's decision
+  depend on CSpace layout and is ambiguous when two holdings name one object; naming it is what "no ambient
+  authority" means.
+* **`DELEGATE_ONLY` is the right idea and the wrong milestone.** Enforcing a negative right needs a single
+  funnel for rights checks, and there is none (~20 `require_cap*` sites plus at least six direct
+  `cap.rights.contains(...)` checks in `cap/syscall.rs`). **Accept the small `SEND`.** Recorded for 0.47:
+  consolidate capability-rights checks behind one funnel.
+* **New requirement: `BROKERED_ENDPOINTS` must be the *only* way a rule acquires a source**, so giving one is
+  impossible without editing the reviewed table (an `EP_RW` rule given a source would make the broker hold
+  `RECV` on a real service endpoint).
+* **The policy's `object` field stays and does not merge into `BROKERED_ENDPOINTS`.** The policy says who may
+  receive what; the table says what the broker holds. **0.46 small item C's subcheck then compares the
+  two** — the comparer that makes keeping them separate safe.
+* **002 remains the droppable line.** If dropped: say so, and the architect moves row 26's schedule.
