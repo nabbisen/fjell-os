@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.45.0
+## Summary at 0.46.0
 
 | Status | Count |
 |--------|-------|
@@ -307,6 +307,32 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 >
 > **No finding about the matrix itself this time.** The `mitigate` observation
 > recorded in the 0.44.0 clause above is unchanged and still the owner's to decide.
+>
+> **Re-taken 2026-11-21, at the 0.46.0 cut.** The heading moved in the version-bump commit, so
+> `readiness-summary` was never red; the evidence the subcheck works is `release-rehearsal` reading it
+> green with the heading and the workspace version both at 0.46.0. `readiness-check` counts
+> **DONE 56 / IN PROGRESS 2 / DEFERRED 3 / OPEN 0**, exit 0 — **unchanged by 0.46.0**, and the reason
+> is worth stating: 0.46's three lines are all **kernel authority** — a lease revoked only by its
+> owner, lease slots recycled with a per-owner quota, and an installer that derives a capability it
+> holds instead of fabricating one from an integer. **No cell of this matrix is about who may revoke a
+> lease, about lease-table capacity, or about how the broker comes by what it delegates**, so none
+> moves.
+>
+> **The row worth checking rather than assuming** is again *Verus formal proofs — capability + lease …
+> 20 obligations machine-checked; callsite-audit Gate 11 blocking*, because 0.46-001 **extended the
+> lease model** rather than leaving it alone: it added a `recycle` transition and the obligation the
+> epoch cannot carry (`LEASE-VERUS-008`/`-009`). **The row's wording survives; its number is stale,
+> and I am not replacing one guess with another.** Measured at this tree: the rehearsal reads every
+> release-required target `MACHINE-CHECKED-PASS`, `capability` at **8 verified, 0 errors** and
+> `lease` at **11 verified, 0 errors** — 11 against **5** before. **The row says 20, and that agrees
+> with neither live measure:** the prover's release-required total is **19**, and the named
+> obligation ids number **17** (12 `LEASE-VERUS-*`, 5 `BCB-VERUS-*`; `capability`'s carry no ids in
+> that form). So "20" is a hand-maintained figure matching nothing countable — the matrix's last
+> such count, and the same shape as the tier count that nearly shipped wrong on the crates.io page
+> at 0.45.0. **Recorded, not silently corrected:** which number that row should promise — prover
+> totals, named ids, or release-required only — is a judgement about what the row *means*, and it is
+> the owner's to take. I counted rather than guessed, having nearly written "more than 20" first.
+
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN
 PROGRESS items." **There is no v1.0.0 tag** — 96 tags exist, the most recent

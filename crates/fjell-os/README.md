@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nabbisen/fjell-os/0.45.0/assets/logo.png" alt="Fjell OS" width="180">
+  <img src="https://raw.githubusercontent.com/nabbisen/fjell-os/0.46.0/assets/logo.png" alt="Fjell OS" width="180">
 </p>
 
 # Fjell OS
