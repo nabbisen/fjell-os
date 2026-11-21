@@ -43,6 +43,8 @@
 //!   - `rfc-evidence` — an RFC from 0.45 on that says `Implemented` cites machine-checkable
 //!     evidence and every citation resolves; older RFCs are counted, not covered; three known-false
 //!     statuses are reported by name (RFC-0.45-003)
+//!   - `endpoint-envelope` — `ENDPOINT_ENVELOPE` equals the union of the broker's `Endpoint`-class
+//!     `Allow` rights, evaluated rather than text-matched (0.46 small item C)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -64,6 +66,7 @@ mod citation;
 mod closed_erratum_prose; // RFC-0.41-005: prose that still asserts a closed erratum
 mod doc_counts;
 mod doc_links;
+mod endpoint_envelope; // 0.46 small item C: the install envelope is the union of the broker's Endpoint grants
 mod errata_limitations;
 mod errata_tracking;
 mod evidence;
@@ -145,6 +148,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     // RFC-0.45-003: an `Implemented` RFC cites evidence that resolves -- and the line says
     // what it does NOT cover.
     ("rfc-evidence", rfc_evidence_gate::check),
+    // 0.46 small item C: the install envelope equals the union of the broker's Endpoint grants.
+    ("endpoint-envelope", endpoint_envelope::check),
 ];
 
 #[cfg(test)]

@@ -59,4 +59,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "closed-erratum-prose",
     "threat-model",
     "rfc-evidence",
+    "endpoint-envelope",
 ];
