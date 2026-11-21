@@ -1171,6 +1171,39 @@ const CLASS_SEMANTIC: usize = 7;
 /// `CAP_REVOKE` (RFC 040 §2.5), as `fjell-cap-broker` spells it.
 const CAP_REVOKE_TAG: usize = 0x023;
 
+/// What the broker's reply to an `Endpoint` request carries (RFC-0.46-001: four words, not a packed label).
+struct Grant {
+    handle: CapHandle,
+    lease: fjell_abi::lease::LeaseId,
+    requester_tid: usize,
+}
+
+enum GrantOutcome {
+    Granted(Grant),
+    Denied,
+    /// The call itself failed, or the broker said something that is neither.
+    Failed,
+}
+
+/// Ask the broker for the `SEND`-only `Endpoint` grant `NEG_TEST`'s policy rule allows.
+fn request_endpoint_grant() -> GrantOutcome {
+    match fjell_syscall::sys_ipc_call4(
+        SLOT_CAP_BROKER,
+        tags::CAP_REQUEST,
+        [CLASS_ENDPOINT, 0, RIGHT_SEND_BIT, 0],
+    ) {
+        Ok((label, w)) if (label & 0xFFFF) == (tags::CAP_GRANTED & 0xFFFF) => {
+            GrantOutcome::Granted(Grant {
+                handle: CapHandle(w[0] as u32),
+                lease: fjell_abi::lease::LeaseId(w[1] as u32),
+                requester_tid: w[2],
+            })
+        }
+        Ok((label, _)) if (label & 0xFFFF) == (tags::CAP_DENIED & 0xFFFF) => GrantOutcome::Denied,
+        _ => GrantOutcome::Failed,
+    }
+}
+
 /// CAP_INSTALL: the syscall is dispatched, and authority is checked first.
 ///
 /// Before RFC-0.45-002 every call was `UnknownSyscall`. `neg-test` is not allowed to
@@ -1222,27 +1255,17 @@ fn test_cap_install_without_authority() {
 /// lease kills it -- `BROKER-004`, which until now was a comment.
 fn test_policy_grant_installs_and_revoke_kills() {
     use fjell_abi::error::SysError;
-    let reply = match sys_ipc_call_words(
-        SLOT_CAP_BROKER,
-        tags::CAP_REQUEST,
-        CLASS_ENDPOINT, // w0 = resource class
-        0,              // w1 unused
-        RIGHT_SEND_BIT, // w2 = requested rights (the rule allows SEND only)
-    ) {
-        Ok(r) => r,
-        Err(_) => {
+    let Grant { handle, lease, .. } = match request_endpoint_grant() {
+        GrantOutcome::Granted(g) => g,
+        GrantOutcome::Denied => {
+            sys_debug_writeln("neg-test: grant was denied");
+            return;
+        }
+        GrantOutcome::Failed => {
             setup_failed("grant: broker call");
             return;
         }
     };
-    if (reply & 0xFFFF) != (tags::CAP_GRANTED & 0xFFFF) {
-        debug_policy("neg-test: grant not granted:", Ok(reply));
-        return;
-    }
-    let handle = CapHandle(((reply >> 16) & 0xFFFF_FFFF) as u32);
-    let lease = fjell_abi::lease::LeaseId(((reply >> 48) & 0xFF) as u32);
-    let requester_tid = reply >> 56;
-    let _ = requester_tid; // the audit scenario below prints it; here it is not needed
 
     // Usable: the handle resolves to an `Endpoint` capability and carries exactly what was
     // asked. `RECV` was *not* asked for, so a receive reaches the rights check and is refused
@@ -1313,6 +1336,194 @@ fn test_policy_unmapped_class_refused() {
             check(true, M::POLICY_UNMAPPED_CLASS_REFUSED);
         }
         other => debug_policy("neg-test: unmapped class unexpected:", other),
+    }
+}
+
+// ── Lease slots (RFC-0.46-001, closes E-110) ──────────────────────────────────
+//
+// Run after the audit section: each revocation is an audit record, and the audit scenarios assume a ring
+// that has not been flooded.
+
+/// A bound on how many create/revoke cycles any scenario below will attempt. Larger than the table, so a
+/// table that never recycles fails inside it; the scenarios do not know the table's size.
+const LEASE_CYCLE_BOUND: usize = 100;
+
+/// Cycles the recycling scenario runs: more than the 32 slots (`MAX_LEASES`) the table has, so a table
+/// that never recycled would fail inside it.
+const RECYCLE_CYCLES: usize = 40;
+
+/// Yield long enough for `auditd` to print what the last revocation queued. Every revoke is an audit
+/// record and the ring holds 256: a scenario that revokes in a tight loop overflows it, `auditd` then
+/// prints a second `{"gap":...}` notice, and the `audit` profile's accounting check (which expects one,
+/// for the burst) reads it as misplaced -- the first version of this block did exactly that.
+fn let_auditd_keep_up() {
+    for _ in 0..60 {
+        sys_yield();
+    }
+}
+
+/// R-R: create and revoke far more leases than there are slots. Before 0.46 the 33rd create failed
+/// `NoMemory` and so did every later one.
+fn test_lease_slots_are_recycled() {
+    let mut reused = false;
+    for _ in 0..RECYCLE_CYCLES {
+        let l = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+            Ok(l) => l,
+            Err(e) => {
+                sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
+                debug_err(e);
+                return;
+            }
+        };
+        reused |= l.generation() > 0;
+        if sys_lease_revoke(SLOT_LEASE_ADMIN, l).is_err() {
+            setup_failed("slots_recycled: revoke");
+            return;
+        }
+        let_auditd_keep_up();
+    }
+    // Every create succeeded, and a reused slot's id says so.
+    check(reused, M::LEASE_SLOTS_RECYCLED);
+}
+
+/// R5 / the ABA: a capability bound to a lease whose slot is later reclaimed and reused still answers
+/// `LeaseRevoked` -- through every create/revoke cycle, including the one that reuses its slot.
+fn test_lease_stale_binding_stays_revoked() {
+    use fjell_abi::error::SysError;
+    let copied = match sys_cap_copy(CapHandle(SLOT_OWN_EP), SLOT_SCRATCH_A) {
+        Ok(h) => h,
+        Err(_) => {
+            setup_failed("stale_binding: copy");
+            return;
+        }
+    };
+    let l = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(l) => l,
+        Err(_) => {
+            setup_failed("stale_binding: lease_create");
+            let _ = _sys_cap_drop(copied);
+            return;
+        }
+    };
+    if sys_cap_bind_lease(copied, l).is_err() || sys_lease_revoke(SLOT_LEASE_ADMIN, l).is_err() {
+        setup_failed("stale_binding: bind and revoke");
+        let _ = _sys_cap_drop(copied);
+        return;
+    }
+    let mut still_revoked = matches!(sys_cap_inspect(copied), Err(SysError::LeaseRevoked));
+    let mut slot_reused = false;
+    for _ in 0..LEASE_CYCLE_BOUND {
+        let n = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+            Ok(n) => n,
+            Err(_) => {
+                setup_failed("stale_binding: lease_create in cycle");
+                break;
+            }
+        };
+        // The slot is reused when the index repeats -- *not* when the generation advanced: that is the
+        // thing under test (and the recycling scenario above checks the bump), and keying this on it
+        // would let a table that forgot to bump the generation skip the ABA check it exists to make.
+        if n.index() == l.index() {
+            slot_reused = true;
+        }
+        // The window the generation exists for is HERE: the new incarnation is `Active`, and the old
+        // binding must not be usable against it. (The first version of this scenario looked only after
+        // revoking `n`, when the slot is inactive again and any binding is dead for that reason alone --
+        // so the mutations that break the ABA defence stayed green.)
+        still_revoked &= matches!(sys_cap_inspect(copied), Err(SysError::LeaseRevoked));
+        let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, n);
+        let_auditd_keep_up();
+        still_revoked &= matches!(sys_cap_inspect(copied), Err(SysError::LeaseRevoked));
+        if slot_reused {
+            break;
+        }
+    }
+    let _ = _sys_cap_drop(copied);
+    // The slot must really have been reused (else the test showed nothing), and the binding stayed dead.
+    check(
+        slot_reused && still_revoked,
+        M::LEASE_STALE_BINDING_STAYS_REVOKED,
+    );
+}
+
+/// R-Q: an owner is refused by its quota before it takes the table, with the quota's own error, and
+/// another owner (`cap-broker`) can still create a lease while it is at that quota.
+fn test_lease_owner_quota() {
+    use fjell_abi::error::SysError;
+    let mut held: [Option<fjell_abi::lease::LeaseId>; LEASE_CYCLE_BOUND] =
+        [None; LEASE_CYCLE_BOUND];
+    let mut n = 0usize;
+    let mut refusal = None;
+    while n < LEASE_CYCLE_BOUND {
+        match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+            Ok(l) => {
+                held[n] = Some(l);
+                n += 1;
+            }
+            Err(e) => {
+                refusal = Some(e);
+                break;
+            }
+        }
+    }
+    // Exactly the quota's error -- not `NoMemory`, not `LeaseTableFull` -- and well short of the bound.
+    check(
+        refusal == Some(SysError::LeaseQuotaExceeded) && n >= 1 && n < LEASE_CYCLE_BOUND,
+        M::LEASE_OWNER_QUOTA_ENFORCED,
+    );
+    // While this task sits at its quota another owner still gets a lease: the broker creates one per grant.
+    match request_endpoint_grant() {
+        GrantOutcome::Granted(g) => {
+            check(true, M::LEASE_QUOTA_DOES_NOT_STARVE_OTHERS);
+            let _ = sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, g.lease.0 as usize, 0, 0);
+            let _ = _sys_cap_drop(g.handle);
+        }
+        _ => sys_debug_writeln("neg-test: quota: another owner could not get a lease"),
+    }
+    for l in held.iter().flatten() {
+        let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, *l);
+        let_auditd_keep_up();
+    }
+}
+
+/// R-G: the 0.45 request-then-abandon loop (ask, never revoke) is refused after a bounded number of
+/// grants -- with the broker's own reason, which the profile requires -- and this task can still create a
+/// lease afterwards.
+fn test_policy_abandon_loop_bounded() {
+    const ASK_BOUND: usize = 8;
+    let mut held: [Option<Grant>; ASK_BOUND] = [const { None }; ASK_BOUND];
+    let mut granted = 0usize;
+    let mut denied = false;
+    while granted < ASK_BOUND {
+        match request_endpoint_grant() {
+            GrantOutcome::Granted(g) => {
+                held[granted] = Some(g);
+                granted += 1;
+            }
+            GrantOutcome::Denied => {
+                denied = true;
+                break;
+            }
+            GrantOutcome::Failed => break,
+        }
+    }
+    // Still able to create a lease of our own after the loop (the broker's share is bounded, so the
+    // table is not ours or its to lose).
+    let still_creates = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(l) => {
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, l);
+            true
+        }
+        Err(_) => false,
+    };
+    check(
+        denied && granted >= 1 && granted < ASK_BOUND && still_creates,
+        M::POLICY_ABANDON_LOOP_BOUNDED,
+    );
+    for g in held.iter().flatten() {
+        let _ = sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, g.lease.0 as usize, 0, 0);
+        let _ = _sys_cap_drop(g.handle);
+        let_auditd_keep_up();
     }
 }
 
@@ -1400,25 +1611,21 @@ fn test_audit_install_reaches_the_trail() {
         sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK");
     }
     // A granted one: `arg0` of its record is the task it was installed into -- this one.
-    let reply = match sys_ipc_call_words(
-        SLOT_CAP_BROKER,
-        tags::CAP_REQUEST,
-        CLASS_ENDPOINT,
-        0,
-        RIGHT_SEND_BIT,
-    ) {
-        Ok(r) if (r & 0xFFFF) == (tags::CAP_GRANTED & 0xFFFF) => r,
+    let Grant {
+        handle,
+        lease,
+        requester_tid,
+    } = match request_endpoint_grant() {
+        GrantOutcome::Granted(g) => g,
         _ => {
             setup_failed("audit_install: grant");
             return;
         }
     };
-    let handle = CapHandle(((reply >> 16) & 0xFFFF_FFFF) as u32);
-    let lease = (reply >> 48) & 0xFF;
     sys_debug_write("neg-test: audit: installed cap arg0=");
-    debug_dec((reply >> 56) as u64);
+    debug_dec(requester_tid as u64);
     sys_debug_writeln("");
-    let _ = sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, lease, 0, 0);
+    let _ = sys_ipc_call_words(SLOT_CAP_BROKER, CAP_REVOKE_TAG, lease.0 as usize, 0, 0);
     let _ = _sys_cap_drop(handle);
     // Let `auditd` print what this queued before the next scenario starts. The lost-wakeup
     // sweep that follows measures *when* a record is printed relative to its round, and its
@@ -1861,6 +2068,18 @@ pub extern "C" fn service_main() -> ! {
     test_audit_install_reaches_the_trail();
     test_audit_wake_is_not_lost();
     test_audit_overflow_is_reported();
+
+    // ── Lease slots (RFC-0.46-001): after the audit section (each revoke is a record), and
+    // before the scenario below that drops this task's LeaseAdmin.
+    // Let `auditd` finish printing the overflow burst (and its `{"gap":...}` notice) before this block
+    // adds a few hundred records of its own: the accounting check reads the notice against what was
+    // printed before it, and the first version of this block, run straight after the burst, made the
+    // notice look misplaced.
+    let_the_system_settle();
+    test_lease_slots_are_recycled();
+    test_lease_stale_binding_stays_revoked();
+    test_lease_owner_quota();
+    test_policy_abandon_loop_bounded();
 
     // RFC-0.38-002 R5: deliberately after every scenario that needs LeaseAdmin;
     // this one drops this task's own LeaseAdmin capability.

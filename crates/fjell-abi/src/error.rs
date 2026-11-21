@@ -54,6 +54,13 @@ pub enum SysError {
     LeaseExpired = -41,
     /// Handle generation does not match the slot's current generation.
     GenerationMismatch = -42,
+    /// The lease table has no free or reclaimable slot (RFC-0.46-001). Distinct from
+    /// [`SysError::LeaseQuotaExceeded`]: the *system* is out of lease slots, as opposed to *this owner*
+    /// holding its share (the same split `TaskTableFull` makes against `NoMemory`).
+    LeaseTableFull = -43,
+    /// The caller already owns the maximum number of `Active` leases (RFC-0.46-001 R-Q): no single owner
+    /// can deny the lease table to everyone else. Back off and revoke something of your own.
+    LeaseQuotaExceeded = -44,
 }
 
 impl SysError {
@@ -83,6 +90,8 @@ impl SysError {
             -40 => Self::LeaseRevoked,
             -41 => Self::LeaseExpired,
             -42 => Self::GenerationMismatch,
+            -43 => Self::LeaseTableFull,
+            -44 => Self::LeaseQuotaExceeded,
             _ => Self::InternalError,
         }
     }

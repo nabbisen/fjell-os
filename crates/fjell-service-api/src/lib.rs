@@ -747,6 +747,24 @@ pub mod negative_markers {
     /// RFC-0.46-003: a `LeaseAdmin` with `LEASE_REVOKE` and scope `Any` but **not** `LEASE_REVOKE_ANY` is
     /// refused `PermissionDenied` revoking a lease it does not own, and the lease's epoch is unchanged.
     pub const LEASE_REVOKE_NOT_OWNER_REFUSED: &str = "NEG:LEASE:REVOKE_NOT_OWNER_REFUSED:PASS";
+
+    // ── lease slots (RFC-0.46-001) ────────────────────────────────────────────
+    /// More leases are created and revoked than the table has slots, and every create succeeds; a reused
+    /// slot's `LeaseId` carries a generation above 0. (Before 0.46 the 33rd create failed.)
+    pub const LEASE_SLOTS_RECYCLED: &str = "NEG:LEASE:SLOTS_RECYCLED:PASS";
+    /// A capability bound to a lease keeps answering `LeaseRevoked` after that lease's slot was reclaimed
+    /// and reused -- it is never mistaken for the new incarnation (the ABA the generation exists to prevent).
+    pub const LEASE_STALE_BINDING_STAYS_REVOKED: &str =
+        "NEG:LEASE:STALE_BINDING_STAYS_REVOKED:PASS";
+    /// An owner creating leases is refused exactly `LeaseQuotaExceeded` -- not `NoMemory`, not
+    /// `LeaseTableFull` -- before it has taken the table.
+    pub const LEASE_OWNER_QUOTA_ENFORCED: &str = "NEG:LEASE:OWNER_QUOTA_ENFORCED:PASS";
+    /// While one owner sits at its quota, **another owner's** create still succeeds (the broker grants).
+    pub const LEASE_QUOTA_DOES_NOT_STARVE_OTHERS: &str =
+        "NEG:LEASE:QUOTA_DOES_NOT_STARVE_OTHERS:PASS";
+    /// The request-then-abandon loop 0.45 measured is refused after a bounded number of grants, with the
+    /// broker's own reason, and a task's own `sys_lease_create` still succeeds afterwards.
+    pub const POLICY_ABANDON_LOOP_BOUNDED: &str = "NEG:POLICY:ABANDON_LOOP_BOUNDED:PASS";
     /// A call dequeued by `sys_ipc_try_recv` can be replied to: the caller is
     /// woken with the reply (RFC-0.38-003 R4, E-089).
     pub const IPC_TRY_RECV_CALL_REPLIED: &str = "NEG:IPC:TRY_RECV_CALL_REPLIED:PASS";

@@ -63,8 +63,9 @@ capability. Bootstrap installation at spawn still goes through the in-kernel
   Other kinds (`TaskControl`, `MmioRegion`, ...) are refused until a scoped
   design and a consumer exist. The broker's `SxtSession` class names no object
   yet, so `secure-transportd`'s `CAP_SESSION` delivery still cannot happen.
-  Lease slots are never recycled (E-110), and each grant consumes one for the
-  life of the boot.
+  Lease slots are recycled (RFC-0.46-001): a revoked slot is reclaimed on allocation
+  pressure and its generation bumped, a task owns at most 16 `Active` leases, and the
+  broker grants a requester at most 4 at a time.
 
 There are no known correctness gaps in the capability/lease core at v0.21.2; the
 Verus proofs and negative tests cover the security-critical predicates.

@@ -40,10 +40,12 @@
 //!   w1 = unused
 //!   w2 = requested_rights (CapRights bits, u64 low 32)
 //!   The requester is the kernel-attested sender ImageId (RFC 055), never the payload.
-//! Reply: CAP_DENIED, or
-//!   CAP_GRANTED | handle << 16 | lease << 48 | requester_tid << 56
-//!   (the installed capability's handle in the *requester's* CSpace, the lease it is
-//!   bound to, and the requester's task index -- all of which the requester may need).
+//! Reply: CAP_DENIED, or label CAP_GRANTED with four words
+//!   w0 = the installed capability's handle in the *requester's* CSpace,
+//!   w1 = the full 32-bit `LeaseId` it is bound to (generation in the high half),
+//!   w2 = the requester's task index, w3 = 0.
+//!   (RFC-0.46-001: this was packed into the label, with the lease in 8 bits; a lease id carries a live
+//!   generation now and does not fit.)
 //!
 //! CAP_REVOKE (label=0x023): w0 = lease id. Honoured only for a lease in the broker's own
 //!   delegation table, and only at the request of that record's grantee or of `init`
@@ -62,7 +64,7 @@ use fjell_abi::lease::LeaseId;
 use fjell_cap::CapHandle;
 use fjell_service_api::tags;
 use fjell_syscall::{
-    sys_cap_install, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_reply,
+    sys_cap_install, sys_debug_writeln, sys_exit, sys_ipc_recv_msg, sys_ipc_reply, sys_ipc_reply4,
     sys_lease_create, sys_lease_revoke, sys_yield,
 };
 
@@ -549,6 +551,13 @@ pub fn evaluate(requester: u16, resource: u16, requested_rights: u64) -> PolicyR
 
 const MAX_DELEGATIONS: usize = 64;
 
+/// The most grants one requester may hold at once (RFC-0.46-001 R-G). **The property:** one requester
+/// cannot spend the broker's share of the kernel's lease table on its own. The request-then-drop loop 0.45
+/// measured never revoked its leases (dropping a capability does not touch its lease), so recycling revoked
+/// slots could not have bounded it; this does, and the kernel's per-owner quota bounds the broker's total
+/// as defence in depth. A grantee frees a slot with `CAP_REVOKE`.
+const MAX_GRANTS_PER_REQUESTER: usize = 4;
+
 /// One entry in the cap-broker delegation tree (RFC 040 §2.4).
 ///
 /// Tracks every lease-bound grant so that:
@@ -565,8 +574,10 @@ struct DelegationRecord {
     resource: u16,
     /// Actual rights granted (intersection of requested and allowed).
     rights: u64,
-    /// Lease id assigned to this grant (u16 — LeaseId low bits).
-    lease_id: u16,
+    /// The kernel `LeaseId` assigned to this grant, **in full** (generation in the high half). It was a
+    /// `u16` of the low bits while lease slots were never reused; with reuse (RFC-0.46-001) the index alone
+    /// no longer names one lease, and a record for a reclaimed slot must not match a stale revoke.
+    lease_id: u32,
     /// Whether this slot is occupied.
     active: bool,
 }
@@ -615,6 +626,14 @@ impl DelegationTree {
         false
     }
 
+    /// Grants `requester` currently holds (active records). RFC-0.46-001 R-G.
+    fn outstanding_for(&self, requester: u16) -> usize {
+        self.records
+            .iter()
+            .filter(|r| r.active && r.requester == requester)
+            .count()
+    }
+
     /// Room for one more record. Checked **before** a lease is created or a capability
     /// installed, so a full table refuses the request instead of leaving an installed
     /// capability the broker has no record of.
@@ -624,14 +643,14 @@ impl DelegationTree {
 
     /// The grantee of the active record for `lease_id`, if the broker granted one
     /// (RFC-0.45-002 R7: a lease the broker did not create is not the broker's to revoke).
-    fn grantee_of(&self, lease_id: u16) -> Option<u16> {
+    fn grantee_of(&self, lease_id: u32) -> Option<u16> {
         self.records
             .iter()
             .find(|r| r.active && r.lease_id == lease_id)
             .map(|r| r.requester)
     }
 
-    fn revoke_lease(&mut self, lease_id: u16) {
+    fn revoke_lease(&mut self, lease_id: u32) {
         for slot in self.records.iter_mut() {
             if slot.active && slot.lease_id == lease_id {
                 *slot = DelegationRecord::empty();
@@ -742,6 +761,13 @@ pub extern "C" fn service_main() -> ! {
                                 let _ = sys_ipc_reply(tags::CAP_DENIED);
                                 continue;
                             }
+                            if tree.outstanding_for(requester_id) >= MAX_GRANTS_PER_REQUESTER {
+                                sys_debug_writeln(
+                                    "cap-broker: refused: requester is at its outstanding-grant limit",
+                                );
+                                let _ = sys_ipc_reply(tags::CAP_DENIED);
+                                continue;
+                            }
 
                             // BROKER-004: the grant is lease-bound. The lease is created by,
                             // and owned by, the broker; the kernel binds the installed
@@ -751,8 +777,18 @@ pub extern "C" fn service_main() -> ! {
                             // irrelevant to this: an unbound call can be served an install.
                             let lease = match sys_lease_create(LEASE_ADMIN_CAP.0, 0) {
                                 Ok(l) => l,
-                                Err(_) => {
-                                    sys_debug_writeln("cap-broker: refused: no lease available");
+                                Err(e) => {
+                                    // Two distinct reasons, two distinct lines (RFC-0.46-001): this
+                                    // owner is at its kernel quota, or the whole table is full.
+                                    sys_debug_writeln(match e {
+                                        fjell_abi::error::SysError::LeaseQuotaExceeded => {
+                                            "cap-broker: refused: broker is at its lease quota"
+                                        }
+                                        fjell_abi::error::SysError::LeaseTableFull => {
+                                            "cap-broker: refused: lease table full"
+                                        }
+                                        _ => "cap-broker: refused: no lease available",
+                                    });
                                     let _ = sys_ipc_reply(tags::CAP_DENIED);
                                     continue;
                                 }
@@ -774,16 +810,18 @@ pub extern "C" fn service_main() -> ! {
                                         requester: requester_id,
                                         resource: resource_class,
                                         rights: granted_rights,
-                                        lease_id: lease.0 as u16,
+                                        lease_id: lease.0,
                                         active: true,
                                     });
                                     let requester_tid =
                                         fjell_syscall::ipc_sender_tid(sender_identity) as usize;
-                                    let reply = tags::CAP_GRANTED
-                                        | ((new_handle.0 as usize) << 16)
-                                        | (((lease.0 as usize) & 0xFF) << 48)
-                                        | ((requester_tid & 0xFF) << 56);
-                                    let _ = sys_ipc_reply(reply);
+                                    // Words, not a packed label (RFC-0.46-001): the lease id is a full
+                                    // 32 bits now that its generation is live, and does not fit beside
+                                    // the handle.
+                                    let _ = sys_ipc_reply4(
+                                        tags::CAP_GRANTED,
+                                        [new_handle.0 as usize, lease.0 as usize, requester_tid, 0],
+                                    );
                                 }
                                 Err(_) => {
                                     // Nothing was installed: do not leave the lease Active.
@@ -808,7 +846,7 @@ pub extern "C" fn service_main() -> ! {
                     // broker was given the authority (`R5`). So:
                     //  * the lease must be one **this broker granted** (it is in the table);
                     //  * and the sender must be that grant's grantee, or `init`.
-                    let lid = w0 as u16;
+                    let lid = w0 as u32;
                     let sender_image_id = fjell_syscall::ipc_sender_image_id(sender_identity);
                     let authorised = fjell_service_api::cap_broker::revoke_authorised(
                         tree.grantee_of(lid),
@@ -822,7 +860,7 @@ pub extern "C" fn service_main() -> ! {
                         let _ = sys_ipc_reply(usize::MAX);
                         continue;
                     }
-                    match sys_lease_revoke(LEASE_ADMIN_CAP.0, LeaseId(lid as u32)) {
+                    match sys_lease_revoke(LEASE_ADMIN_CAP.0, LeaseId(lid)) {
                         Ok(new_epoch) => {
                             // Cascade: remove delegation records for this lease.
                             tree.revoke_lease(lid);

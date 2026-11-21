@@ -22,6 +22,13 @@ use fjell_abi::task::TaskId;
 
 pub const MAX_LEASES: usize = 32;
 
+/// The most `Active` leases one task may own (RFC-0.46-001 R-Q). **The property, not the number:** no
+/// single owner can deny the lease table to everyone else. Half the table achieves it and leaves half
+/// for every other task; any defensible bound does. Before this, one task holding a `LeaseAdmin` could
+/// take every slot and then *every other task's* `sys_lease_create` failed -- reachable from a
+/// production path the moment `cap-broker` began creating one lease per grant request (E-110).
+pub const MAX_LEASES_PER_OWNER: usize = 16;
+
 /// Lifecycle state of a lease object.
 ///
 /// Matches RFC 033 §2.1 `LeaseState`.
@@ -42,18 +49,14 @@ pub enum LeaseState {
 /// Matches RFC 033 §2.1 `LeaseObject`.
 struct LeaseObject {
     pub state: LeaseState,
-    /// Slot generation, carried in the high half of a `LeaseId` and checked on
-    /// every lookup.
+    /// Slot generation, carried in the high half of a `LeaseId` and checked on every lookup.
     ///
-    /// **Never incremented today.** No lease slot is ever freed: nothing in
-    /// this module returns a slot to `Empty` (the public surface is `create`,
-    /// `current_epoch`, `revoke`, `check_active`, `revoke_owned_by`), and
-    /// `revoke` leaves the state `Revoked`. So this stays `0` for every lease
-    /// a boot ever creates, which makes `LeaseId` equal to the slot index,
-    /// `0..32`. Recorded 2026-10-21; the generation check is live and correct,
-    /// it simply has nothing to discriminate yet. Whether slots should be
-    /// recycled at all is the lifetime question the register tracks, not a
-    /// claim to make here.
+    /// **Bumped when a `Revoked` slot is reclaimed** (RFC-0.46-001): a `LeaseId` issued for an earlier
+    /// incarnation of this slot can then never name the current one. Until 0.46 no slot was ever reused
+    /// and this stayed `0`. A slot at `u16::MAX` is retired for good, never reclaimed (retire-before-wrap,
+    /// as the epoch already is). **This is the lease table's generation only: the task table's is a
+    /// different field and is untouched** -- `TaskTable::remove` has no callers, so task generations are
+    /// always `0`, and the kernel's `TaskId::new(x, 0)` idiom is correct *because* of that.
     pub generation: u16,
     /// Monotonically-increasing epoch counter; incremented on revoke.
     ///
@@ -80,12 +83,15 @@ impl LeaseObject {
 /// Fixed-capacity lease table.
 pub struct LeaseTable {
     slots: [LeaseObject; MAX_LEASES],
+    /// Where the next reclamation scan starts (RFC-0.46-001 R2): one past the last allocation.
+    cursor: u8,
 }
 
 impl LeaseTable {
     pub const fn new() -> Self {
         LeaseTable {
             slots: [const { LeaseObject::empty() }; MAX_LEASES],
+            cursor: 0,
         }
     }
 
@@ -93,17 +99,60 @@ impl LeaseTable {
 
     /// Create a new lease owned by `owner`.
     ///
-    /// RFC 033 §2.3: epoch starts at `1`.
+    /// RFC 033 §2.3: epoch starts at `1` for a never-used slot. RFC-0.46-001:
+    ///
+    /// * **R-Q** -- an owner already holding [`MAX_LEASES_PER_OWNER`] `Active` leases is refused
+    ///   `LeaseQuotaExceeded`, so no one task can take the table from everyone else;
+    /// * **R-R** -- the slot is a never-used one if any exists, otherwise a `Revoked` one is reclaimed
+    ///   (round-robin from a cursor: the longest-revoked first). Reclamation is **lazy, on allocation
+    ///   pressure, not in `revoke`**: a capability bound to a lease that has just been revoked must still
+    ///   answer `LeaseRevoked`, which an eager reclaim would turn into a race with the next `create`.
+    ///   The generation is bumped; **the epoch continues** (it is not reset), so a binding from the old
+    ///   incarnation differs in epoch *and* generation;
+    /// * neither exists -> `LeaseTableFull`, distinct from the quota (the system is out, not this owner).
     pub fn create(&mut self, owner: TaskId, _flags: u32) -> Result<LeaseId, SysError> {
-        for (i, slot) in self.slots.iter_mut().enumerate() {
-            if slot.state == LeaseState::Empty {
-                slot.state = LeaseState::Active;
-                slot.epoch = 1; // RFC 033: start at 1, not 0
-                slot.owner = owner;
-                return Ok(LeaseId::new(i as u16, slot.generation));
-            }
+        use fjell_abi::lease::{Alloc, SlotKind, SlotView, lease_alloc, lease_quota_ok};
+        let owned = self
+            .slots
+            .iter()
+            .filter(|s| s.state == LeaseState::Active && s.owner == owner)
+            .count();
+        if !lease_quota_ok(owned, MAX_LEASES_PER_OWNER) {
+            return Err(SysError::LeaseQuotaExceeded);
         }
-        Err(SysError::NoMemory)
+        let mut views = [SlotView {
+            kind: SlotKind::Empty,
+            generation: 0,
+            epoch: 0,
+        }; MAX_LEASES];
+        for (v, s) in views.iter_mut().zip(self.slots.iter()) {
+            *v = SlotView {
+                kind: match s.state {
+                    LeaseState::Empty => SlotKind::Empty,
+                    LeaseState::Active => SlotKind::Active,
+                    LeaseState::Revoked => SlotKind::Revoked,
+                },
+                generation: s.generation,
+                epoch: s.epoch,
+            };
+        }
+        let (i, recycled) = match lease_alloc(&views, self.cursor as usize) {
+            Alloc::Fresh(i) => (i, false),
+            Alloc::Recycle(i) => (i, true),
+            Alloc::Full => return Err(SysError::LeaseTableFull),
+        };
+        let slot = &mut self.slots[i];
+        if recycled {
+            // `lease_can_recycle` guaranteed headroom: no wrap.
+            slot.generation += 1;
+            // The epoch continues from its post-revocation value (>= 2), never back to 1.
+        } else {
+            slot.epoch = 1; // RFC 033: start at 1, not 0
+        }
+        slot.state = LeaseState::Active;
+        slot.owner = owner;
+        self.cursor = ((i + 1) % MAX_LEASES) as u8;
+        Ok(LeaseId::new(i as u16, slot.generation))
     }
 
     /// Return the current epoch for the given lease, whatever its state.
@@ -123,7 +172,7 @@ impl LeaseTable {
     /// against a `Revoked` lease can never pass `check_active` again, so
     /// accepting one would only hide the revocation from the binder.
     pub fn active_epoch(&self, id: LeaseId) -> Result<LeaseEpoch, SysError> {
-        let slot = self.get(id)?;
+        let slot = self.get_bound(id)?;
         if slot.state != LeaseState::Active {
             return Err(SysError::LeaseRevoked);
         }
@@ -160,12 +209,12 @@ impl LeaseTable {
         // MAX, so every epoch-bound capability keeps failing. (Unreachable in
         // practice: it requires 2^32 revocations of one slot.)
         //
-        // This note used to add "slot reuse bumps the generation, which
-        // invalidates old LeaseIds independently" as a second ground. That is
-        // false — no slot is ever reused and the generation is never
-        // incremented (see `LeaseObject::generation`) — and it was removed on
-        // 2026-10-21 rather than left propping up the argument. The first
-        // ground carries it on its own.
+        // History, kept so the claim is not quietly re-added or re-removed: this note used to add
+        // "slot reuse bumps the generation, which invalidates old LeaseIds independently" as a second
+        // ground. That was FALSE until 0.46 -- no slot was reused and the generation was never
+        // incremented -- and it was removed on 2026-10-21 rather than left propping up the argument.
+        // Since RFC-0.46-001 it is TRUE: `create` reclaims a revoked slot and bumps the generation, and
+        // the Verus model proves it independently of the epoch (LEASE-VERUS-008).
         match fjell_abi::lease::lease_revoke(slot.epoch) {
             fjell_abi::lease::RevokeOutcome::Advanced(e) => slot.epoch = e,
             fjell_abi::lease::RevokeOutcome::MustRetire => {
@@ -188,7 +237,7 @@ impl LeaseTable {
     ///
     /// Used by `check_lease` → `require_cap` step 7.
     pub fn check_active(&self, id: LeaseId, bound_epoch: LeaseEpoch) -> Result<(), SysError> {
-        let slot = self.get(id)?;
+        let slot = self.get_bound(id)?;
         if slot.state != LeaseState::Active {
             return Err(SysError::LeaseRevoked);
         }
@@ -212,6 +261,27 @@ impl LeaseTable {
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────
+
+    /// `get` for the *use* of a binding (`check_active`, `active_epoch`): a `LeaseId` that names an
+    /// **earlier incarnation** of a reclaimed slot is `LeaseRevoked` -- the lease that capability was
+    /// bound to is gone, which is exactly what it answered a moment before the slot was reclaimed
+    /// (RFC-0.46-001 R5). An id from a future incarnation, or past the table, was never issued:
+    /// `InvalidCap`, as `get` says.
+    fn get_bound(&self, id: LeaseId) -> Result<&LeaseObject, SysError> {
+        use fjell_abi::lease::{IdRelation, lease_id_relation};
+        let slot = self
+            .slots
+            .get(id.index() as usize)
+            .ok_or(SysError::InvalidCap)?;
+        if slot.state == LeaseState::Empty {
+            return Err(SysError::InvalidCap);
+        }
+        match lease_id_relation(slot.generation, id.generation()) {
+            IdRelation::Current => Ok(slot),
+            IdRelation::Stale => Err(SysError::LeaseRevoked),
+            IdRelation::Forged => Err(SysError::InvalidCap),
+        }
+    }
 
     fn get(&self, id: LeaseId) -> Result<&LeaseObject, SysError> {
         let slot = self

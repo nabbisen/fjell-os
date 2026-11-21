@@ -19,6 +19,14 @@ expected_markers = [
   "NEG:POLICY:UNMAPPED_CLASS_REFUSED:PASS",
   # ...and the broker's own words for the refusals the markers above only see as CAP_DENIED /
   # usize::MAX: a refusal by default-deny, an earlier and different path, must not pass them.
+  # RFC-0.46-001 (closes E-110): lease slots are recycled, the generation keeps a stale binding dead, no
+  # owner can take the table, and the request-then-abandon loop is bounded.
+  "NEG:LEASE:SLOTS_RECYCLED:PASS",
+  "NEG:LEASE:STALE_BINDING_STAYS_REVOKED:PASS",
+  "NEG:LEASE:OWNER_QUOTA_ENFORCED:PASS",
+  "NEG:LEASE:QUOTA_DOES_NOT_STARVE_OTHERS:PASS",
+  "NEG:POLICY:ABANDON_LOOP_BOUNDED:PASS",
+  "cap-broker: refused: requester is at its outstanding-grant limit",
   "cap-broker: refused: resource class has no installable mapping",
   "cap-broker: CAP_REVOKE refused (not the grantee, or not a granted lease)",
 ]
