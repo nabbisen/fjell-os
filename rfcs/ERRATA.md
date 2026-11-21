@@ -9172,6 +9172,77 @@ which is history removes the disagreement instead of detecting it, and needs no 
   (*"ACCEPTED pending RFC-v0.21.3-001"*): the path **fails closed**, so it is a documented
   divergence and not a live hole. Disclosed as v1.0 limitation row **26** while it stands.
 
+
+## E-125 — `mmio-audit`'s site count was never a property of this project, and E-025 closed on its instances while naming the family
+
+- **Found 2026-11-19 by the architect**, at the 0.45.0 cut. The release suite reported **490** MMIO
+  sites where the previous run reported **449**, on a tree with **no source change between them**.
+  The difference was a scratch clone made minutes earlier for the clean-clone check, sitting under
+  `.git-exclude/tmp/`. Owner authorised this filing on 2026-11-21.
+- **Claim:** `fjell-mmio-audit`'s `total MMIO sites` is the number of MMIO access sites in this
+  repository, and it has been recorded as such in release records since the gate existed — `448` at
+  0.44.0, `449` during 0.45.
+- **Measured three ways, because two numbers only disagree and three explain why:**
+
+  ```
+  working tree, clean clone present     : 490 sites
+  working tree, clone moved out of repo : 449 sites
+  pristine clone of the same commit     :  41 sites
+  ```
+
+  `490 − 449 = 41`, exactly one pristine copy's worth. **This project has 41 MMIO access sites.**
+  The recorded `449` is 41 real sites plus roughly **408 from the dozen scratch checkouts** under
+  `.git-exclude/tmp/`, so the figure was a function of the developer's machine, not of the
+  repository.
+- **The verdict was never wrong, and the distinction is the whole point.** Those scratch copies are
+  copies of an annotated tree, so `missing annotation` stayed `0` and **no safety claim ever rested
+  on the count**. What was wrong is that a gate reported a number that reads as coverage and was
+  mostly noise — **E-014**'s class, in the release evidence rather than in the product.
+- **Cause:** the walk skipped three literal names — `target`, `.git`, `fjell-mmio-audit` — and
+  **`.git-exclude` is none of them**, while `.gitignore` has carried `/.git-exclude/` throughout.
+- **This is E-025's family, and E-025 is why this entry exists.** That erratum recorded the identical
+  defect in two sibling tools, demonstrated `unsafe-audit` going **311 → 622** from one scratch
+  checkout, and **named the family in its own words**: *"the skip list is an explicit enumeration
+  that drifts from reality, the same family as E-015; adding `.git-exclude` to it fixes today's
+  instance and leaves the family intact. The scan should be bounded by what git tracks."* Its title
+  even counted the population — *"three tools carry three disagreeing exclusion lists"*. It then
+  fixed the two defective tools it had enumerated (`trust_report`, `unsafe-audit`; `evidence` was
+  already correct) and **CLOSED**.
+  **`fjell-mmio-audit` was a fourth tool with the same hand-written list, never enumerated, and it
+  survived roughly seventeen milestones inside a release gate.** The defect in E-025's closure is not
+  that it fixed the wrong things — it fixed exactly the right things — but that **a family was
+  correctly diagnosed and nothing was left behind that could find its next member.**
+- **The register already knows a CLOSED entry can go stale**, one layer down:
+  `closed-erratum-prose` exists because *"`errata-limitations` only checks that every ACCEPTED
+  erratum is referenced; a CLOSED one has no obligation, so nothing looked at prose about it"*, built
+  after 0.40.0 shipped prose asserting a defect it had fixed. This is that lesson applied to a closed
+  entry's **family** rather than its prose.
+- **Fixed, in part, at `06398b7`:** `mmio-audit` now derives its scope from
+  `git ls-files --cached --others --exclude-standard`, the same remedy `unsafe-audit` carries. One
+  enumerated name remains and is **not** scope — the tool's own directory, because its
+  `MMIO_PATTERNS` constants would otherwise read as access sites. Verified both directions: the
+  working tree reports **41, 0 missing, 0 invalid**, matching a pristine clone, and an **uncommitted**
+  unannotated site is **still caught** (`missing annotation: 1`), because auditing uncommitted work
+  is the point (RFC-0.28-005 §6). The test that should have caught the drift *asserted nothing* — it
+  called the walk and wrote `let _ = records.len();` — and is replaced by one that builds a **real git
+  repository** and proves a committed file is audited, an untracked unignored file is still audited,
+  and a file under an ignored directory is not.
+- **What is not fixed, and is why this is ACCEPTED rather than CLOSED.** **The family is still
+  ungated.** Four tools answer *"what counts as this repository"* from git today — `mmio-audit`,
+  `unsafe-audit`, `doc-links`, `trust-report` — and **nothing stops a fifth being written with a
+  literal list tomorrow.** Closing this entry on its instance is precisely the error it records
+  against E-025, so it stays open until the family has a gate. **0.46 small item B** is that gate.
+- **Unfixable, and stated rather than quietly left:** the `448`/`449` figures in the release records
+  of previous milestones are wrong by this mechanism and **cannot be corrected in place** — this
+  project does not rewrite released records, by the same rule that forbids moving a tag. This entry
+  is the pointer that makes them findable from the register, which is the only recovery path a
+  released record has.
+- **Status:** **ACCEPTED**, tracking **0.46** — the milestone, not an RFC id, because the line that
+  closes this (**small item B** of the approved 0.46 scope) is not written yet and `errata-tracking`
+  rightly refuses a tracking id with no file behind it; the **E-114/E-123 precedent**. Filed ACCEPTED
+  rather than OPEN because the instrument is fixed and the residue is a **documented, deliberate**
+  gap awaiting a scheduled line. Disclosed as v1.0 limitation row **27** while it stands.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9338,3 +9409,4 @@ E-013 is recorded per RFC-v0.23-002, found while authoring that RFC's required
 unit tests. **Classified ACCEPTED, not OPEN** (architect, 2026-08-01): deferring
 the fix to a dedicated RFC after the `0.23.0` cut is a deliberate decision, not
 live unresolved drift — the same distinction applied to E-004/E-011/E-012.
+| E-125 **`mmio-audit`'s site count was never a property of this project** — it reported `total MMIO sites` as a repository figure, and release records carried it as one (`448` at 0.44.0, `449` during 0.45). Measured three ways at the 0.45.0 cut: **490** with a scratch clone present, **449** with it moved out, **41** in a pristine clone — `490 − 449 = 41`, one pristine copy's worth, so the project has **41** sites and the recorded figure was ~408 sites of scratch checkouts under `.git-exclude/`. **The verdict was never affected** (`missing annotation: 0` throughout, because those copies are annotated); the **count** was a function of the developer's machine. Cause: a walk skipping three literal names, none of them `.git-exclude`. **E-025 recorded this defect in two sibling tools, named the family in its own words, fixed the two it had enumerated and CLOSED — `mmio-audit` was a fourth, never enumerated, and survived ~17 milestones inside a release gate.** Fixed at `06398b7` by deriving scope from `git ls-files`, verified both directions; **stays ACCEPTED because the family is still ungated** — closing on the instance is the error this entry records against E-025. The historical figures cannot be corrected in place, and this entry is what makes them findable | 0.46 | ACCEPTED |
