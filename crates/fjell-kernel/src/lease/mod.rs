@@ -262,6 +262,18 @@ impl LeaseTable {
 
     // ── Internal helpers ──────────────────────────────────────────────────
 
+    /// **Two mechanisms, one property, and they are a pair -- do not remove either.** A binding from an
+    /// earlier incarnation of a reused slot is dead for two independent reasons: its generation is older
+    /// (this function) *and* its epoch differs from the new incarnation's, because `create` continues the
+    /// epoch instead of restarting it. **While the epoch continues, the generation clause here is
+    /// runtime-redundant**: mutating it away (L3, "stale ids accepted as current") stays green on a real
+    /// boot, and that green is this redundancy, not a gap. Only removing *both* (L3b: stale accepted and
+    /// the epoch restarted at 1) is red. What makes the generation *necessary* is the Verus model
+    /// (`verification/verus/lease/lease_epoch.rs`, LEASE-VERUS-008/-009), which proves it for **any** epoch
+    /// the new incarnation starts at -- so it must survive a future change that lets an epoch collide.
+    /// Keep both; a reader who finds two mechanisms where one suffices will delete whichever looks more
+    /// incidental.
+    ///
     /// `get` for the *use* of a binding (`check_active`, `active_epoch`): a `LeaseId` that names an
     /// **earlier incarnation** of a reclaimed slot is `LeaseRevoked` -- the lease that capability was
     /// bound to is gone, which is exactly what it answered a moment before the slot was reclaimed
