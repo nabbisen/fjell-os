@@ -59,6 +59,53 @@ use crate::qemu_run;
 /// Smoke test profiles run in tier 4.
 const SMOKE_PROFILES: &[&str] = &["m8", "v0.4-net", "v0.5-platform", "v0.7-sync"];
 
+/// The ids of the tiers `cmd_test_all` always runs, before the QEMU ones (0.47 small item C).
+///
+/// **Why this list exists:** the number of tiers is a figure the project states in prose
+/// (`crates/fjell-os/README.md`) and it used to be edited by hand at a cut, with nothing checking it
+/// (E-125's family: a figure a person maintains). It is now *derived*: this list plus
+/// [`SMOKE_PROFILES`] plus the negative categories `qemu_run::discover_negative_categories` finds in
+/// `tests/qemu/profiles/` (the same derivation the run itself uses), and
+/// `readme_figures` fails the host-bins tier when the README disagrees. The ids below are **checked
+/// against this file's own source** by a test, so a tier added to `cmd_test_all` without being added
+/// here is a failure, not a silent undercount.
+pub const FIXED_TIER_IDS: [&str; 6] = [
+    "01-host-lib",
+    "01b-host-bins",
+    "02-proptest",
+    "03-unsafe-audit",
+    "03c-mmio-audit",
+    "03b-repro-check",
+];
+
+/// How many tiers a full `test-all` runs on this tree: the fixed host/audit tiers, the smoke
+/// profiles, and one per negative category. **Not** a count of what a particular run produced -- a run
+/// with QEMU absent reports the same tiers as skipped.
+///
+/// `root` is the workspace root (`.` under `cargo xtask`; tests pass one computed from
+/// `CARGO_MANIFEST_DIR`, because `cargo test` runs from the crate's own directory).
+pub fn planned_tier_count(root: &Path) -> Result<usize, String> {
+    let negatives = qemu_run::discover_negative_categories_at(root)?.len();
+    Ok(FIXED_TIER_IDS.len() + SMOKE_PROFILES.len() + negatives)
+}
+
+/// The tier count a prose document states: the integer `N` in the first `N-tier` occurrence.
+/// `None` when the text has no such phrase -- which the caller must treat as a failure, not a pass
+/// (a gate that finds nothing to compare has not compared anything).
+#[cfg(test)]
+pub fn stated_tier_count(text: &str) -> Option<usize> {
+    let i = text.find("-tier")?;
+    let digits: String = text[..i]
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    digits.parse().ok()
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 pub fn cmd_test_all(args: &[String]) -> ExitCode {
@@ -262,6 +309,19 @@ pub fn cmd_test_all(args: &[String]) -> ExitCode {
         {
             results.push(TierResult::skipped(label, note));
         }
+    }
+
+    // 0.47 small item C: the rows this run produced against the plan the README is gated on. They
+    // differ legitimately only when a build or a derivation failed above (their own failed row says
+    // so), and a difference otherwise means a tier was added or removed without the plan -- say so.
+    match planned_tier_count(Path::new(".")) {
+        Ok(planned) if planned != results.len() => println!(
+            "[test-all] note: {} tier rows this run, {} planned (crates/fjell-os/README.md is gated on the plan)",
+            results.len(),
+            planned
+        ),
+        Ok(_) => {}
+        Err(e) => println!("[test-all] note: cannot derive the planned tier count: {e}"),
     }
 
     // ── Write summary ────────────────────────────────────────────────────────
@@ -695,6 +755,71 @@ mod tests {
         assert!(j.starts_with('['));
         assert!(j.trim_end().ends_with(']'));
         assert!(j.contains("\"passed\":true"));
+    }
+
+    /// The fixed list must be the set of fixed-tier ids this file actually uses: scan our own source for
+    /// string literals shaped like a tier id (`"0N[a-z]?-name"`, N in 0..=3) and compare. A further fixed
+    /// tier (a 03d one) that is pushed but not listed makes the figure the README is checked against
+    /// too low, silently -- which is the thing this test exists to prevent.
+    #[test]
+    fn the_fixed_tier_list_is_the_set_of_fixed_ids_in_this_file() {
+        let src = include_str!("test_all.rs");
+        let mut found: Vec<String> = Vec::new();
+        // Every double-quoted literal anywhere in the file, not only a line that starts with one: a
+        // single-line push of a tier must be seen too (a first version of this scan looked only at
+        // lines beginning with a quote, and a planted 03d tier slipped past it).
+        for (i, piece) in src.split('"').enumerate() {
+            if i % 2 == 0 {
+                continue; // outside a literal
+            }
+            let b = piece.as_bytes();
+            let shaped = b.len() > 3
+                && !piece.ends_with(".log") // a log file's name, not a tier's id
+                && b[0] == b'0'
+                && (b'0'..=b'3').contains(&b[1])
+                && (b[2] == b'-' || (b[2].is_ascii_lowercase() && b[3] == b'-'));
+            if shaped && !found.iter().any(|f| f == piece) {
+                found.push(piece.to_string());
+            }
+        }
+        found.sort();
+        let mut listed: Vec<String> = FIXED_TIER_IDS.iter().map(|s| s.to_string()).collect();
+        listed.sort();
+        assert_eq!(
+            found, listed,
+            "a fixed tier id in cmd_test_all is not in FIXED_TIER_IDS (or the reverse)"
+        );
+    }
+
+    fn workspace_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// 0.47 small item C: the README's tier count is a *derived* figure, held by this test.
+    /// It fails when the README states a number other than the one `cmd_test_all` plans, and it
+    /// fails (rather than passes) when the README states none.
+    #[test]
+    fn the_readme_tier_count_is_the_derived_one() {
+        let readme = fs::read_to_string(workspace_root().join("crates/fjell-os/README.md"))
+            .expect("crates/fjell-os/README.md readable");
+        let stated = stated_tier_count(&readme)
+            .expect("crates/fjell-os/README.md must state its tier count as `N-tier`");
+        let derived = planned_tier_count(&workspace_root()).expect("derivable");
+        assert_eq!(
+            stated,
+            derived,
+            "crates/fjell-os/README.md says {stated}-tier but `cargo xtask test-all` plans {derived} \
+             (fixed {} + smoke {} + negative categories derived from tests/qemu/profiles/)",
+            FIXED_TIER_IDS.len(),
+            SMOKE_PROFILES.len()
+        );
+    }
+
+    #[test]
+    fn stated_tier_count_reads_the_number_and_refuses_absence() {
+        assert_eq!(stated_tier_count("a 35-tier test suite"), Some(35));
+        assert_eq!(stated_tier_count("no figure here"), None);
+        assert_eq!(stated_tier_count("a -tier suite"), None);
     }
 
     #[test]
