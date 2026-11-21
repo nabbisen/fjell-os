@@ -147,18 +147,17 @@ cargo xtask build
 
 ---
 
-## Step 9 — Sign all bundles
+## Step 9 — Sign the release archive (done at the end of Step 12)
 
-```bash
-# Sign with the v1.0 release key (stored offline)
-for bundle in target/release-bundles/*.bundle; do
-    cargo xtask sign-bundle \
-        --bundle "$bundle" \
-        --key    /path/to/v1.0-release.key \
-        --out    "$bundle.sig"
-done
-# Expected: sign-bundle: wrote 128 bytes to <bundle>.sig
-```
+**There are no bundles to sign here.** This step used to iterate
+`target/release-bundles/*.bundle`; nothing in the toolchain writes that
+directory or produces a `.bundle`, so the glob matched nothing and the loop
+signed nothing (E-012). The one artefact that leaves the machine is the archive
+`cargo xtask package-release` writes, `fjell-os-v{version}.tar.gz` at the
+repository root -- and it does not exist until Step 12, which runs after the tag
+because the archive must be built from the tagged commit. **So the signature is
+made at the end of Step 12** (below), and this step is only the pointer that
+keeps the numbering.
 
 ---
 
@@ -201,6 +200,31 @@ convention; see the
 cargo xtask package-release
 # Expected: "package-release: wrote fjell-os-v1.0.0.tar.gz (<size>)"
 ```
+
+### Step 12b — Sign the archive (this is Step 9's work)
+
+```bash
+# Sign the archive Step 12 just wrote, with the release key (stored offline).
+# The key is encrypted: its passphrase comes from FJELL_KEY_PASSPHRASE or --passphrase.
+cargo xtask sign-bundle \
+    --bundle fjell-os-v1.0.0.tar.gz \
+    --key    /path/to/v1.0-release.key \
+    --out    fjell-os-v1.0.0.tar.gz.sig
+# Expected: sign-bundle: wrote 128 bytes to fjell-os-v1.0.0.tar.gz.sig
+
+# Verify it against the public key (`cargo xtask key show --in <key>` prints it):
+cargo xtask verify-bundle-sig \
+    --bundle fjell-os-v1.0.0.tar.gz \
+    --sig    fjell-os-v1.0.0.tar.gz.sig \
+    --pubkey <64-hex public key>
+# Expected: verify-bundle-sig: PASS
+```
+
+*Run verbatim at 0.47 against the real archive (`fjell-os-v0.46.0.tar.gz`, 5.9 MB) with a
+throwaway key, because the release key is offline: `sign-bundle` printed exactly the line above and
+`verify-bundle-sig` printed `PASS`. Two controls: the same signature against a wrong public key gave
+`FAIL — SigVerifyFailed`, and against the archive with one byte appended gave
+`FAIL — Tampered: bundle digest mismatch`.*
 
 ---
 
