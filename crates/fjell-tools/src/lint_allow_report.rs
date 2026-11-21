@@ -19,35 +19,36 @@ use std::process::ExitCode;
 /// count — a module file deeper in the tree can carry its own inner
 /// `#![allow(...)]` for a nested `mod { ... }` block, which is a different,
 /// already-narrow thing R3 asked for, not the blanket R5 counts.
-pub fn crate_level_allow_crates(root: &Path) -> Vec<String> {
-    let mut found = Vec::new();
-    walk(&root.join("crates"), &mut found);
-    found.sort();
-    found
+pub fn crate_level_allow_crates(root: &Path) -> std::io::Result<Vec<String>> {
+    // The file set is `fjell-repo-scope`'s (0.46 small item B): this used to walk `crates/` with no
+    // exclusion at all, and would have counted an untracked, git-ignored directory placed there.
+    // A scope it cannot derive is an error, not "0 crates".
+    let files = fjell_repo_scope::files_with_extension(
+        &root.join("crates"),
+        fjell_repo_scope::Scope::Working,
+        "rs",
+    )?;
+    Ok(crate_level_allow_in(&files))
 }
 
-fn walk(dir: &Path, found: &mut Vec<String>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            walk(&path, found);
+/// The census over an explicit file list (what the tests drive with synthetic, non-git roots).
+fn crate_level_allow_in(files: &[PathBuf]) -> Vec<String> {
+    let mut found = Vec::new();
+    for path in files {
+        if !is_crate_root(path) {
             continue;
         }
-        if !is_crate_root(&path) {
-            continue;
-        }
-        let Ok(contents) = std::fs::read_to_string(&path) else {
+        let Ok(contents) = std::fs::read_to_string(path) else {
             continue;
         };
         if has_crate_level_allow(&contents) {
-            if let Some(name) = crate_name_from_src(&path) {
+            if let Some(name) = crate_name_from_src(path) {
                 found.push(name);
             }
         }
     }
+    found.sort();
+    found
 }
 
 fn is_crate_root(path: &Path) -> bool {
@@ -89,7 +90,15 @@ fn crate_name_from_src(path: &Path) -> Option<String> {
 /// standalone as `cargo xtask lint-allow-report` for the same figure
 /// without a full build.
 pub fn print_report(root: &Path) {
-    let crates = crate_level_allow_crates(root);
+    let crates = match crate_level_allow_crates(root) {
+        Ok(c) => c,
+        Err(e) => {
+            println!(
+                "[xtask] crate-level #![allow(...)]: census FAILED -- cannot derive the repository's file set: {e}"
+            );
+            return;
+        }
+    };
     if crates.is_empty() {
         println!("[xtask] crate-level #![allow(...)]: 0 crates");
     } else {
@@ -110,6 +119,21 @@ pub fn cmd_lint_allow_report() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every `.rs` under `dir` -- a TEST helper over synthetic, non-git roots. It never looks at the
+    /// repository; production asks `fjell-repo-scope`.
+    fn scratch_rs_files(dir: &Path) -> Vec<PathBuf> {
+        let mut out = Vec::new();
+        for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                out.extend(scratch_rs_files(&p));
+            } else if p.extension().is_some_and(|x| x == "rs") {
+                out.push(p);
+            }
+        }
+        out
+    }
 
     /// RFC-0.37-002 R6: a counter first seen reporting zero has tested
     /// nothing. This exercises both states against the same scratch crate —
@@ -132,7 +156,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            !crate_level_allow_crates(&root).contains(&"scratch-crate".to_string()),
+            !crate_level_allow_in(&scratch_rs_files(&root)).contains(&"scratch-crate".to_string()),
             "a crate with no crate-level allow must not be counted"
         );
 
@@ -142,7 +166,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            crate_level_allow_crates(&root).contains(&"scratch-crate".to_string()),
+            crate_level_allow_in(&scratch_rs_files(&root)).contains(&"scratch-crate".to_string()),
             "a crate-level allow must move the count — a counter that always reports \
              zero has tested nothing"
         );
@@ -153,7 +177,7 @@ mod tests {
         )
         .unwrap();
         assert!(
-            !crate_level_allow_crates(&root).contains(&"scratch-crate".to_string()),
+            !crate_level_allow_in(&scratch_rs_files(&root)).contains(&"scratch-crate".to_string()),
             "removing the allow must move the count back"
         );
 
@@ -177,7 +201,7 @@ mod tests {
         .unwrap();
 
         assert!(
-            crate_level_allow_crates(&root).is_empty(),
+            crate_level_allow_in(&scratch_rs_files(&root)).is_empty(),
             "a nested module's own inner attribute is not the crate-level blanket R5 counts"
         );
 

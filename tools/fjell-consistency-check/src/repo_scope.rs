@@ -32,9 +32,10 @@
 //! * It is textual. A walk spelled in a way the signature does not match (a recursive function over
 //!   `std::fs::metadata`, a shell-out to `find`) is invisible. Its detection of the *forbidden
 //!   dependency* (`walkdir`, `ignore`, `glob`) is by manifest, which is exact.
-//! * It says nothing about whether a classified walk is *correct*. Two of them (`callsite_audit`,
-//!   `lint_allow_report`) walk `crates/` with no exclusion at all and would count an untracked,
-//!   git-ignored directory placed there; they are recorded as such, not migrated.
+//! * It says nothing about whether a classified walk is *correct*. (Two walkers that descended `crates/`
+//!   with no exclusion at all -- `callsite_audit` and `lint_allow_report` -- were migrated to the shared
+//!   scope when the architect ruled that a classification could not excuse them; the check then
+//!   *retired* the stale `callsite_audit` entry itself, which is the stale-entry rule working.)
 //!
 //! Needles are assembled at run time so this file does not flag itself.
 
@@ -57,15 +58,10 @@ pub const CLASSIFIED: &[Classified] = &[
                  immediate sub-folders of the fixed folder `crates/formats` (`is_dir` is the per-entry filter)",
     },
     Classified {
-        path: "crates/fjell-tools/src/callsite_audit.rs",
-        reason: "walks `crates/` for Rust with NO exclusion at all: a named subtree. Would count an \
-                 untracked, git-ignored directory placed under `crates/` -- recorded, not migrated \
-                 (its tests drive it with synthetic roots that are not git checkouts)",
-    },
-    Classified {
         path: "crates/fjell-tools/src/lint_allow_report.rs",
-        reason: "walks `crates/` for crate roots with NO exclusion: a named subtree; same residual \
-                 as `callsite_audit` and the same reason it is not migrated",
+        reason: "its production census asks the shared scope (it walked `crates/` with no exclusion until \
+                 0.46 small item B); the recursive walk left in the file is a TEST helper over synthetic, \
+                 non-git roots and never looks at the repository",
     },
     Classified {
         path: "crates/fjell-tools/src/qemu_run.rs",
@@ -258,8 +254,7 @@ pub fn render_pass(r: &Report) -> String {
     format!(
         "{NAME}: PASS ({} tracked Rust source(s) examined, derived from fjell-repo-scope itself; {} use the shared scope; \
          {} walk or list a NAMED subtree or fixed folder, each with a recorded reason (hand-written, and a stale or missing entry fails). \
-         NOT covered: a walk the textual signature does not match, whether a classified reason is a good one, \
-         and `callsite_audit`/`lint_allow_report`, which walk `crates/` with no exclusion)",
+         NOT covered: a walk the textual signature does not match, and whether a classified reason is a good one)",
         r.examined,
         r.shared_users,
         r.classified.len()
@@ -459,7 +454,6 @@ mod tests {
             "4 use the shared scope",
             "2 walk or list a NAMED subtree",
             "NOT covered",
-            "no exclusion",
         ] {
             assert!(line.contains(needle), "missing `{needle}`: {line}");
         }

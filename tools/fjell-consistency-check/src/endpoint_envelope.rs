@@ -494,12 +494,17 @@ pub fn judge(s: &Sources) -> Result<String, Vec<String>> {
         return Err(why);
     }
     let (u, n) = broker_union.expect("no problems, so the broker's union was read");
+    // How much of the table the mirror covers -- stated, because agreement on the Endpoint subset says
+    // nothing about the rules the mirror does not carry (it has drifted in size already).
+    let broker_total = brules.iter().filter(|r| !r.kind.is_empty()).count();
+    let mirror_total = mrules.iter().filter(|r| !r.kind.is_empty()).count();
     Ok(format!(
         "{NAME}: PASS (the broker's {n} Endpoint-class Allow rules union to {u:#x} = ENDPOINT_ENVELOPE ({}); \
-         the host-test mirror's {mirror_n} such rules agree; {compared} broker RIGHT_* constants equal their CapRights bits; \
+         the host-test mirror's {mirror_n} such rules agree, but the mirror holds {mirror_total} of the broker's {broker_total} policy rules and the other {} are NOT compared; {compared} broker RIGHT_* constants equal their CapRights bits; \
          spawn.rs hands the broker the constant. NOT covered: objects and requesters, the mirror's other rules, \
          and any table built by code rather than a const list)",
-        names(env, &rights)
+        names(env, &rights),
+        broker_total.saturating_sub(mirror_total)
     ))
 }
 

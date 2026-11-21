@@ -801,22 +801,11 @@ fn extract_braced_body(src: &str, open_idx: usize) -> Option<String> {
     None
 }
 
+/// Every Rust source under `root`: the shared scope's answer (`fjell-repo-scope`, tracked plus
+/// untracked-not-ignored), not a directory walk. It used to descend with no exclusion at all and would have
+/// counted an untracked, git-ignored directory under `crates/` (0.46 small item B / E-125).
 fn walk_rs(root: impl AsRef<std::path::Path>) -> std::io::Result<Vec<std::path::PathBuf>> {
-    let mut out = Vec::new();
-    fn inner(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) -> std::io::Result<()> {
-        for entry in fs::read_dir(dir)? {
-            let e = entry?;
-            let p = e.path();
-            if p.is_dir() {
-                inner(&p, out)?;
-            } else if p.extension().is_some_and(|x| x == "rs") {
-                out.push(p);
-            }
-        }
-        Ok(())
-    }
-    inner(root.as_ref(), &mut out)?;
-    Ok(out)
+    fjell_repo_scope::files_with_extension(root.as_ref(), fjell_repo_scope::Scope::Working, "rs")
 }
 
 #[cfg(test)]

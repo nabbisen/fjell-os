@@ -1560,7 +1560,8 @@ fn test_svc_fault_detected() {
 /// Setup helper: mint a cap with operational rights only (no COPY/MINT/REVOKE/INSPECT).
 /// Returns Ok(()) if the narrow cap was installed into SLOT_NARROW_CAP.
 fn install_narrow_cap() -> Option<fjell_cap::CapHandle> {
-    // EP_RW = SEND | RECV — no management bits.
+    // This cap's rights are SEND | RECV (the local `ep_rw` below) -- no management bits. NOT the
+    // broker's `EP_RW` constant, which is five bits (SEND | RECV | CALL | REPLY | COPY).
     //
     // Returns the handle produced by the mint (which encodes the slot's
     // current generation). Earlier revisions used the raw slot constant as a
