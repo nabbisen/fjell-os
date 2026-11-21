@@ -536,6 +536,14 @@ pub fn judge(
             if objects.len() == 1 && objects[0] == "ep_obj" {
                 continue; // the table's own install, judged above
             }
+            if objects.len() == 1 && objects[0] == "e.object" {
+                // The cap-broker's sources, installed in a loop over `BROKERED_ENDPOINTS`
+                // (RFC-0.46-002). Judged by `endpoint-envelope`, which refuses an entry for object 0
+                // (and an entry wider than the envelope): the objects live in that one table, not here.
+                // Unlike the `ep_obj` case this is not judged above, so the sibling check is what keeps
+                // the skip honest -- a test there plants an entry for object 0 and expects red.
+                continue;
+            }
             let mut to_zero = false;
             for obj in &objects {
                 n_installs += 1;

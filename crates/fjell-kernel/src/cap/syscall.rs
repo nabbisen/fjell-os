@@ -223,32 +223,39 @@ pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
 
 /// Refuse a `sys_cap_install` with `e` and put the refusal in the audit trail
 /// (RFC-0.45-002 R4, ruling 4): kind `CapInstallRejected` (`0x0602`), `arg0` = the
-/// target task index if one had been determined, else `0xFFFF`; `arg1` = the object
-/// asked for; `result` = the error.
-fn refuse_cap_install(tf: &mut TrapFrame, e: SysError, target: Option<usize>, object_id: u32) {
+/// target task index if one had been determined, else `0xFFFF`; `arg1` = the object the
+/// **source capability** names if it resolved, else `0xFFFF`; `result` = the error.
+fn refuse_cap_install(
+    tf: &mut TrapFrame,
+    e: SysError,
+    target: Option<usize>,
+    object_id: Option<u32>,
+) {
     err(tf, e);
     AUDIT.lock_free_append(
         AuditKindInternal::CapInstallRejected,
         target.unwrap_or(0xFFFF),
-        object_id as usize,
+        object_id.map_or(0xFFFF, |o| o as usize),
         e as isize,
     );
 }
 
-/// `sys_cap_install(a0=install_cap, a1=kind, a2=object_id, a3=rights, a4=lease_id)
-/// -> a0=status, a1=handle in the target's CSpace` -- RFC 056, as made true by
-/// RFC-0.45-002.
+/// `sys_cap_install(a0=install_cap, a1=src_cap, a2=rights, a3=lease_id)
+/// -> a0=status, a1=handle in the target's CSpace` -- RFC 056, as made true by RFC-0.45-002 and
+/// made *derivation* by RFC-0.46-002.
 ///
-/// **There is no target argument.** The capability is installed into **the caller of
-/// the installer's pending IPC reply edge** -- the task the installer is serving right
-/// now. A stale or forged target is unrepresentable, and the installer can write only
-/// into a task that is blocked in a call to it.
+/// **There is no target argument and no object argument.** The capability is installed into **the
+/// caller of the installer's pending IPC reply edge** (the task the installer is serving right now),
+/// and its object, kind and rights-ceiling come from **`src_cap`, a capability the installer holds in
+/// its own CSpace**. A stale or forged target is unrepresentable; so is an object named by an integer.
+/// Authority is derived and attenuated, never minted from nothing: the installer cannot confer what it
+/// does not hold.
 ///
 /// * The edge is **read, not consumed** (`CapTable::peek_reply`): the install leaves the
 ///   edge's lifecycle untouched, so the reply is still sent afterwards by `sys_ipc_reply`.
 /// * **The call's own lease binding (`ReplyEdge.lease`) is irrelevant here.** It is `None`
 ///   for a bootstrap or unbound call, and an unbound call can still be served an install.
-///   The installed capability's lease is `lease_id` (a4): created by, and owned by, the
+///   The installed capability's lease is `lease_id` (a3): created by, and owned by, the
 ///   installer.
 ///
 /// Checks, in order -- the first needs the CSpace and the lease table, and the rest are
@@ -256,15 +263,15 @@ fn refuse_cap_install(tf: &mut TrapFrame, e: SysError, target: Option<usize>, ob
 ///
 /// a. the installer holds a `CapKind::CapInstall` capability carrying `CAP_INSTALL`;
 /// b. it has a pending reply edge whose caller is `Blocked`;
-/// c. `kind` is known and installable (`Endpoint` only);
-/// c'. `object_id` is not endpoint object 0 and names an allocated endpoint;
-/// d. `rights` is non-empty and inside the installer's envelope;
+/// c. `src_cap` resolves to a live capability of an installable kind (`Endpoint` only), naming an
+///    allocated object that is not endpoint object 0;
+/// d. `rights` is non-empty and inside **both** the source's rights and the installer's envelope;
 /// e. `lease_id` is non-zero, `Active`, and **owned by the installer**;
 /// f. the target has a free slot -- else `NoMemory`, with no existing slot touched.
 ///
-/// The installed capability has **exactly** the requested rights, `ObjectScope::Any`,
-/// `lease_id` bound at its current epoch, and no parent. Success and every refusal are
-/// audited (`CapInstalled` `0x0601` / `CapInstallRejected` `0x0602`).
+/// The installed capability has **exactly** the requested rights, the source's scope, `lease_id` bound
+/// at its current epoch, and no parent. Success and every refusal are audited
+/// (`CapInstalled` `0x0601` / `CapInstallRejected` `0x0602`).
 pub fn sys_cap_install(
     tf: &mut TrapFrame,
     tidx: usize,
@@ -273,14 +280,13 @@ pub fn sys_cap_install(
     et: &EndpointTable,
 ) {
     use fjell_abi::lease::LeaseId;
-    use fjell_cap::install::{InstallFacts, LeaseFact, ReplyEdgeFact, check_install};
-    use fjell_cap::{CapState, rights::ObjectScope, slot::Capability, slot::LeaseBinding};
+    use fjell_cap::install::{InstallFacts, LeaseFact, ReplyEdgeFact, SourceFact, check_install};
+    use fjell_cap::{CapState, slot::Capability, slot::LeaseBinding};
 
     let install_cap = CapHandle(tf.gpr[REG_A0] as u32);
-    let kind_raw = tf.gpr[REG_A1] as u8;
-    let object_id = tf.gpr[REG_A2] as u32;
-    let rights = CapRights(tf.gpr[REG_A3] as u64);
-    let lease_id = LeaseId(tf.gpr[14] as u32); // a4
+    let src_cap = CapHandle(tf.gpr[REG_A1] as u32);
+    let rights = CapRights(tf.gpr[REG_A2] as u64);
+    let lease_id = LeaseId(tf.gpr[REG_A3] as u32);
 
     // a. The installer's authority.
     if let Err(e) = crate::trap::syscall::require_cap_on_ct(
@@ -291,15 +297,39 @@ pub fn sys_cap_install(
         CapRights::CAP_INSTALL,
         None,
     ) {
-        refuse_cap_install(tf, e, None, object_id);
+        refuse_cap_install(tf, e, None, None);
         return;
     }
     let installer_rights = match ct.cspace(tidx).and_then(|cs| cs.get(install_cap).ok()) {
         Some(c) => c.rights,
         None => {
-            refuse_cap_install(tf, SysError::InternalError, None, object_id);
+            refuse_cap_install(tf, SysError::InternalError, None, None);
             return;
         }
+    };
+
+    // SAFETY: category=kernel-global-mutable  lease table single-threaded.
+    let lt = unsafe { crate::get_lease_table() };
+
+    // The source: a capability the installer HOLDS. Resolved like any other use of a capability
+    // (generation, state, and its lease if it is bound to one).
+    let source = match ct.cspace(tidx).map(|cs| cs.get(src_cap)) {
+        None => SourceFact::Unusable(SysError::InternalError),
+        Some(Err(e)) => SourceFact::Unusable(e),
+        Some(Ok(c)) => match c.check_lease(&*lt) {
+            Err(e) => SourceFact::Unusable(e.into()),
+            Ok(()) => SourceFact::Held {
+                kind: c.kind,
+                object_id: c.object_id,
+                rights: c.rights,
+                scope: c.scope,
+                object_allocated: et.is_allocated(c.object_id),
+            },
+        },
+    };
+    let src_object = match source {
+        SourceFact::Held { object_id, .. } => Some(object_id),
+        SourceFact::Unusable(_) => None,
     };
 
     // The task being served: read the pending edge without consuming it.
@@ -322,8 +352,6 @@ pub fn sys_cap_install(
     };
 
     // The lease: owner first, state second (RFC-0.42-001 R2's order).
-    // SAFETY: category=kernel-global-mutable  lease table single-threaded.
-    let lt = unsafe { crate::get_lease_table() };
     let mut epoch = None;
     let lease = if lease_id.0 == 0 {
         LeaseFact::Zero
@@ -348,34 +376,32 @@ pub fn sys_cap_install(
         .map(|cs| cs.has_free_slot())
         .unwrap_or(false);
 
-    let kind = match check_install(&InstallFacts {
+    let v = match check_install(&InstallFacts {
         edge,
-        kind_raw,
+        source,
         rights,
         installer_rights,
         lease,
-        object_id,
-        object_allocated: et.is_allocated(object_id),
         target_has_free_slot,
     }) {
-        Ok(k) => k,
+        Ok(v) => v,
         Err(e) => {
-            refuse_cap_install(tf, e, target, object_id);
+            refuse_cap_install(tf, e, target, src_object);
             return;
         }
     };
 
     // `check_install` returned Ok: `target` is Some, `epoch` is Some, a slot is free.
     let (Some(target_idx), Some(epoch)) = (target, epoch) else {
-        refuse_cap_install(tf, SysError::InternalError, target, object_id);
+        refuse_cap_install(tf, SysError::InternalError, target, src_object);
         return;
     };
     let cap = Capability {
-        kind,
-        object_id,
+        kind: v.kind,
+        object_id: v.object_id,
         rights,
         badge: 0,
-        scope: ObjectScope::Any,
+        scope: v.scope,
         state: CapState::Active,
         parent: None,
         lease: Some(LeaseBinding {
@@ -394,11 +420,11 @@ pub fn sys_cap_install(
             AUDIT.lock_free_append(
                 AuditKindInternal::CapInstalled,
                 target_idx,
-                object_id as usize,
+                v.object_id as usize,
                 0,
             );
         }
-        Err(e) => refuse_cap_install(tf, e, Some(target_idx), object_id),
+        Err(e) => refuse_cap_install(tf, e, Some(target_idx), Some(v.object_id)),
     }
 }
 

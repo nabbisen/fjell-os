@@ -9,22 +9,29 @@
 //! The checks, in order (the numbering is the RFC's):
 //!
 //! * **b** the caller has a pending reply edge whose caller is `Blocked` -- else `BadState`;
-//! * **c** `kind` is known (`InvalidArg`) and on [`INSTALLABLE_KINDS`] (`PermissionDenied`);
-//!   and **the object** is not endpoint object `0` (`PermissionDenied`: `object-zero`'s invariant
-//!   -- no task can receive on it -- is preserved by *refusal*, not by the policy table) and names
-//!   an **allocated** endpoint (`InvalidArg`: a capability naming nothing is a lie in the task's
-//!   own CSpace);
-//! * **d** `rights` is non-empty and inside the installer's envelope -- else `PermissionDenied`;
+//! * **c** the **source capability** the installer names resolves (else its own error), is of a kind
+//!   on [`INSTALLABLE_KINDS`] (`PermissionDenied`), and its **object** is not endpoint object `0`
+//!   (`PermissionDenied`: `object-zero`'s invariant -- no task can receive on it -- is preserved by
+//!   *refusal*, not by the policy table) and is **allocated** (`InvalidArg`);
+//! * **d** `rights` is non-empty and inside **both** the source capability's rights and the
+//!   installer's envelope -- else `PermissionDenied`;
 //! * **e** `lease` is non-zero, owned by the caller, and `Active` -- else `PermissionDenied`
 //!   / the lease's own error;
 //! * **f** the target CSpace has a free slot -- else `NoMemory`.
+//!
+//! **Why the object is not an argument (RFC-0.46-002).** The installer names a capability **it holds**
+//! (`src_cap`, a slot in its own CSpace); the kernel takes the object, the kind and the ceiling on the
+//! rights from it. An integer naming an object is unrepresentable -- authority is derived and
+//! attenuated, never minted from nothing. (Until 0.46 the broker passed `object_id` in a register and
+//! the kernel built a capability to it: a compromised broker could confer `SEND|RECV|CALL|REPLY|COPY|MINT`
+//! on any of the 32 endpoints, `configd`'s included.)
 //!
 //! **Why the target is not an argument.** The capability is installed into the caller of
 //! the pending reply edge -- the task the broker is serving right now. A stale or forged
 //! target is therefore unrepresentable, and a compromised broker can write only into a
 //! task that is blocked in a call to it. See RFC-0.45-002 §"The risk that shapes the design".
 
-use crate::rights::{CapKind, CapRights};
+use crate::rights::{CapKind, CapRights, ObjectScope};
 use fjell_abi::error::SysError;
 
 /// The kinds `sys_cap_install` will install. **`Endpoint` only** (RFC-0.45-002 ruling 2):
@@ -88,50 +95,83 @@ pub enum LeaseFact {
     Owned(Result<(), SysError>),
 }
 
-/// The six facts, gathered by the kernel.
+/// What the installer's `src_cap` is (check **c**).
+#[derive(Clone, Copy, Debug)]
+pub enum SourceFact {
+    /// The handle did not resolve to a usable capability in the installer's CSpace (empty slot,
+    /// stale generation, revoked lease, ...): the error the lookup gave is the answer.
+    Unusable(SysError),
+    /// A live capability the installer holds.
+    Held {
+        kind: CapKind,
+        object_id: u32,
+        rights: CapRights,
+        scope: ObjectScope,
+        /// Whether `object_id` names an **allocated** endpoint (`EndpointTable`'s own `used` flag).
+        object_allocated: bool,
+    },
+}
+
+/// The facts, gathered by the kernel.
 #[derive(Clone, Copy, Debug)]
 pub struct InstallFacts {
     pub edge: ReplyEdgeFact,
-    /// The raw `kind` discriminant from the register.
-    pub kind_raw: u8,
+    pub source: SourceFact,
     /// The rights asked for.
     pub rights: CapRights,
     /// The rights the installer's `CapInstall` capability carries.
     pub installer_rights: CapRights,
     pub lease: LeaseFact,
-    /// The object id asked for (an `Endpoint` object).
-    pub object_id: u32,
-    /// Whether `object_id` names an **allocated** endpoint (`EndpointTable`'s own `used` flag).
-    pub object_allocated: bool,
     /// Whether the target's CSpace has a free slot.
     pub target_has_free_slot: bool,
 }
 
-/// Decide checks **b** to **f**. `Ok(kind)` is the validated kind to install.
-pub fn check_install(f: &InstallFacts) -> Result<CapKind, SysError> {
+/// What may be installed once every check has passed. **Everything here comes from the source
+/// capability** -- the caller supplied none of it but the rights, and those are bounded by it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Validated {
+    pub kind: CapKind,
+    pub object_id: u32,
+    /// The source's scope: derivation never widens it.
+    pub scope: ObjectScope,
+}
+
+/// Decide checks **b** to **f**.
+pub fn check_install(f: &InstallFacts) -> Result<Validated, SysError> {
     // b. something is being served, and its caller is waiting.
     match f.edge {
         ReplyEdgeFact::Absent | ReplyEdgeFact::CallerNotBlocked => return Err(SysError::BadState),
         ReplyEdgeFact::CallerBlocked => {}
     }
 
-    // c. a known kind, on the installable list.
-    let kind = CapKind::from_u8(f.kind_raw).ok_or(SysError::InvalidArg)?;
+    // c. the source: a capability the installer holds, of an installable kind, naming a real object.
+    let (kind, object_id, src_rights, scope, allocated) = match f.source {
+        SourceFact::Unusable(e) => return Err(e),
+        SourceFact::Held {
+            kind,
+            object_id,
+            rights,
+            scope,
+            object_allocated,
+        } => (kind, object_id, rights, scope, object_allocated),
+    };
     if !INSTALLABLE_KINDS.contains(&kind) {
         return Err(SysError::PermissionDenied);
     }
-    // c (object). Never object 0: nobody may be handed `RECV` on it (`object-zero`'s invariant),
-    // and no runtime install has a use for it. Then: it must be a real, allocated endpoint.
-    if f.object_id == 0 {
+    // Never object 0: nobody may be handed `RECV` on it (`object-zero`'s invariant), and no runtime
+    // install has a use for it. Then: it must be a real, allocated endpoint.
+    if object_id == 0 {
         return Err(SysError::PermissionDenied);
     }
-    if !f.object_allocated {
+    if !allocated {
         return Err(SysError::InvalidArg);
     }
 
-    // d. rights: non-empty, inside what the installer holds (and never a meta-right).
+    // d. rights: non-empty, inside what the SOURCE holds and inside the installer's envelope (and
+    // never a meta-right). Authority is attenuated, never amplified.
     let envelope = CapRights(f.installer_rights.0 & CapRights::ALL_NON_META.0);
-    if f.rights.0 == 0 || f.rights.0 & !envelope.0 != 0 {
+    let ceiling = CapRights(envelope.0 & src_rights.0);
+    if f.rights.0 == 0 || f.rights.0 & !ceiling.0 != 0 {
         return Err(SysError::PermissionDenied);
     }
 
@@ -150,29 +190,49 @@ pub fn check_install(f: &InstallFacts) -> Result<CapKind, SysError> {
         return Err(SysError::NoMemory);
     }
 
-    Ok(kind)
+    Ok(Validated {
+        kind,
+        object_id,
+        scope,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn held(kind: CapKind, object_id: u32, rights: CapRights) -> SourceFact {
+        SourceFact::Held {
+            kind,
+            object_id,
+            rights,
+            scope: ObjectScope::Any,
+            object_allocated: true,
+        }
+    }
+
     fn good() -> InstallFacts {
         InstallFacts {
             edge: ReplyEdgeFact::CallerBlocked,
-            kind_raw: CapKind::Endpoint as u8,
+            source: held(CapKind::Endpoint, 23, CapRights::SEND),
             rights: CapRights::SEND,
             installer_rights: CapRights(CapRights::CAP_INSTALL.0 | ENDPOINT_ENVELOPE.0),
             lease: LeaseFact::Owned(Ok(())),
-            object_id: 23,
-            object_allocated: true,
             target_has_free_slot: true,
         }
     }
 
+    fn ok(object: u32) -> Result<Validated, SysError> {
+        Ok(Validated {
+            kind: CapKind::Endpoint,
+            object_id: object,
+            scope: ObjectScope::Any,
+        })
+    }
+
     #[test]
-    fn the_happy_path_is_accepted() {
-        assert_eq!(check_install(&good()), Ok(CapKind::Endpoint));
+    fn the_happy_path_is_accepted_and_everything_installed_comes_from_the_source() {
+        assert_eq!(check_install(&good()), ok(23));
     }
 
     // ── b ─────────────────────────────────────────────────────────────────────
@@ -190,16 +250,22 @@ mod tests {
         assert_eq!(check_install(&f), Err(SysError::BadState));
     }
 
-    // ── c ─────────────────────────────────────────────────────────────────────
+    // ── c: the source ─────────────────────────────────────────────────────────
     #[test]
-    fn an_unknown_kind_is_invalid_arg() {
-        let mut f = good();
-        f.kind_raw = 0xFF;
-        assert_eq!(check_install(&f), Err(SysError::InvalidArg));
+    fn a_source_that_does_not_resolve_returns_the_lookups_own_error() {
+        for e in [
+            SysError::InvalidCap,
+            SysError::SlotEmpty,
+            SysError::LeaseRevoked,
+        ] {
+            let mut f = good();
+            f.source = SourceFact::Unusable(e);
+            assert_eq!(check_install(&f), Err(e));
+        }
     }
 
     #[test]
-    fn every_kind_but_endpoint_is_permission_denied() {
+    fn every_source_kind_but_endpoint_is_permission_denied() {
         // Walk every discriminant the type knows: all but Endpoint must be refused.
         let mut checked_endpoint = false;
         let mut refused = 0usize;
@@ -208,9 +274,9 @@ mod tests {
                 continue;
             };
             let mut f = good();
-            f.kind_raw = raw;
+            f.source = held(kind, 23, CapRights::SEND);
             if kind == CapKind::Endpoint {
-                assert_eq!(check_install(&f), Ok(CapKind::Endpoint));
+                assert_eq!(check_install(&f), ok(23));
                 checked_endpoint = true;
             } else {
                 assert_eq!(
@@ -231,6 +297,47 @@ mod tests {
         );
     }
 
+    #[test]
+    fn endpoint_object_zero_is_never_installable_even_from_a_held_capability() {
+        // `object-zero`'s invariant as a preventive control: RECV is in the envelope, so the
+        // refusal -- not the policy table, and not the broker's holdings -- keeps anyone
+        // receiving on object 0.
+        let mut f = good();
+        f.source = held(CapKind::Endpoint, 0, ENDPOINT_ENVELOPE);
+        f.rights = CapRights::RECV;
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
+        // Control: the same request against a real object passes.
+        f.source = held(CapKind::Endpoint, 23, ENDPOINT_ENVELOPE);
+        assert_eq!(check_install(&f), ok(23));
+    }
+
+    #[test]
+    fn a_source_naming_an_unallocated_object_is_invalid_arg() {
+        let mut f = good();
+        f.source = SourceFact::Held {
+            kind: CapKind::Endpoint,
+            object_id: 23,
+            rights: CapRights::SEND,
+            scope: ObjectScope::Any,
+            object_allocated: false,
+        };
+        assert_eq!(check_install(&f), Err(SysError::InvalidArg));
+    }
+
+    #[test]
+    fn the_installed_scope_is_the_sources_derivation_never_widens() {
+        let mut f = good();
+        f.source = SourceFact::Held {
+            kind: CapKind::Endpoint,
+            object_id: 23,
+            rights: CapRights::SEND,
+            scope: ObjectScope::Lease(fjell_abi::lease::LeaseId(7)),
+            object_allocated: true,
+        };
+        let v = check_install(&f).unwrap();
+        assert_eq!(v.scope, ObjectScope::Lease(fjell_abi::lease::LeaseId(7)));
+    }
+
     // ── d ─────────────────────────────────────────────────────────────────────
     #[test]
     fn empty_rights_are_refused() {
@@ -240,27 +347,56 @@ mod tests {
     }
 
     #[test]
-    fn rights_outside_the_envelope_are_refused() {
+    fn rights_outside_the_envelope_are_refused_even_if_the_source_holds_them() {
         let mut f = good();
-        // INSPECT is a real right, in ALL_NON_META, but not in the envelope.
+        // INSPECT is a real right, in ALL_NON_META, but not in the envelope; the source holds it.
+        f.source = held(
+            CapKind::Endpoint,
+            23,
+            CapRights(CapRights::SEND.0 | CapRights::INSPECT.0),
+        );
         f.rights = CapRights(CapRights::SEND.0 | CapRights::INSPECT.0);
         assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
     }
 
     #[test]
-    fn the_install_right_itself_is_never_conferred() {
+    fn rights_the_source_does_not_hold_are_refused_even_inside_the_envelope() {
+        // THE 0.46 PROPERTY: the broker holds SEND on the object; RECV is inside the envelope and the
+        // policy might grant it, and still it cannot be conferred -- authority is attenuated, never
+        // amplified.
         let mut f = good();
-        // Even an installer whose own rights name it cannot pass it on.
-        f.installer_rights = CapRights(f.installer_rights.0 | CapRights::CAP_INSTALL.0);
-        f.rights = CapRights::CAP_INSTALL;
+        f.rights = CapRights(CapRights::SEND.0 | CapRights::RECV.0);
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
+        f.rights = CapRights::RECV;
         assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
     }
 
     #[test]
-    fn the_whole_envelope_is_conferrable() {
+    fn a_subset_of_the_source_is_conferrable() {
         let mut f = good();
+        f.source = held(CapKind::Endpoint, 23, ENDPOINT_ENVELOPE);
+        f.rights = CapRights(CapRights::SEND.0 | CapRights::CALL.0);
+        assert_eq!(check_install(&f), ok(23));
         f.rights = ENDPOINT_ENVELOPE;
-        assert_eq!(check_install(&f), Ok(CapKind::Endpoint));
+        assert_eq!(
+            check_install(&f),
+            ok(23),
+            "the whole of a source that holds the whole envelope"
+        );
+    }
+
+    #[test]
+    fn the_install_right_itself_is_never_conferred() {
+        let mut f = good();
+        // Even a source and an installer whose own rights name it cannot pass it on.
+        f.installer_rights = CapRights(f.installer_rights.0 | CapRights::CAP_INSTALL.0);
+        f.source = held(
+            CapKind::Endpoint,
+            23,
+            CapRights(CapRights::SEND.0 | CapRights::CAP_INSTALL.0),
+        );
+        f.rights = CapRights::CAP_INSTALL;
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
     }
 
     // ── e ─────────────────────────────────────────────────────────────────────
@@ -300,55 +436,35 @@ mod tests {
         assert_eq!(check_install(&f), Err(SysError::NoMemory));
     }
 
-    // ── c (object) ────────────────────────────────────────────────────────────
-    #[test]
-    fn endpoint_object_zero_is_never_installable() {
-        // `object-zero`'s invariant as a preventive control: RECV is in the envelope, so the
-        // refusal -- not the policy table -- is what keeps anyone receiving on object 0.
-        let mut f = good();
-        f.object_id = 0;
-        f.rights = CapRights::RECV;
-        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
-        // Even when object 0 is allocated (it is), and with every other fact in order.
-        f.object_allocated = true;
-        assert_eq!(check_install(&f), Err(SysError::PermissionDenied));
-        // Control: the same request against a real object passes.
-        f.object_id = 23;
-        assert_eq!(check_install(&f), Ok(CapKind::Endpoint));
-    }
-
-    #[test]
-    fn an_object_that_is_not_an_allocated_endpoint_is_invalid_arg() {
-        let mut f = good();
-        f.object_allocated = false;
-        assert_eq!(check_install(&f), Err(SysError::InvalidArg));
-    }
-
     // ── order ─────────────────────────────────────────────────────────────────
     #[test]
     fn the_checks_run_in_the_documented_order() {
-        // Everything wrong at once: b is what is reported. Fix b, c is reported; and so on
-        // down to f. A reordering shows here, not only in a boot.
+        // Everything wrong at once: b is what is reported. Fix b, c is reported; and so on down to f.
+        // A reordering shows here, not only in a boot.
         let mut f = InstallFacts {
             edge: ReplyEdgeFact::Absent,
-            kind_raw: 0xFF,
+            source: SourceFact::Unusable(SysError::InvalidCap),
             rights: CapRights(0),
             installer_rights: CapRights(CapRights::CAP_INSTALL.0 | ENDPOINT_ENVELOPE.0),
             lease: LeaseFact::Zero,
-            object_id: 0,
-            object_allocated: false,
             target_has_free_slot: false,
         };
         assert_eq!(check_install(&f), Err(SysError::BadState)); // b
         f.edge = ReplyEdgeFact::CallerBlocked;
-        assert_eq!(check_install(&f), Err(SysError::InvalidArg)); // c (unknown)
-        f.kind_raw = CapKind::TaskControl as u8;
-        assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // c (uninstallable)
-        f.kind_raw = CapKind::Endpoint as u8;
+        assert_eq!(check_install(&f), Err(SysError::InvalidCap)); // c (unusable source)
+        f.source = held(CapKind::TaskControl, 0, ENDPOINT_ENVELOPE);
+        assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // c (uninstallable kind)
+        f.source = held(CapKind::Endpoint, 0, CapRights::SEND);
         assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // c (object 0)
-        f.object_id = 23;
+        f.source = SourceFact::Held {
+            kind: CapKind::Endpoint,
+            object_id: 23,
+            rights: CapRights::SEND,
+            scope: ObjectScope::Any,
+            object_allocated: false,
+        };
         assert_eq!(check_install(&f), Err(SysError::InvalidArg)); // c (unallocated)
-        f.object_allocated = true;
+        f.source = held(CapKind::Endpoint, 23, CapRights::SEND);
         assert_eq!(check_install(&f), Err(SysError::PermissionDenied)); // d (empty)
         f.rights = CapRights::SEND;
         f.lease = LeaseFact::NotOwned;
@@ -356,7 +472,7 @@ mod tests {
         f.lease = LeaseFact::Owned(Ok(()));
         assert_eq!(check_install(&f), Err(SysError::NoMemory)); // f
         f.target_has_free_slot = true;
-        assert_eq!(check_install(&f), Ok(CapKind::Endpoint));
+        assert_eq!(check_install(&f), ok(23));
     }
 
     #[test]

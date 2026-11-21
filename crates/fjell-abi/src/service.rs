@@ -355,6 +355,43 @@ pub const CONFIGD_EP_OBJECT: u32 = 22;
 /// must not be able to swallow the trigger.
 pub const NEG_TEST_OWN_EP_OBJECT: u32 = 23;
 
+/// One endpoint `cap-broker` **holds a capability to**, so that it can delegate it (RFC-0.46-002).
+///
+/// `sys_cap_install` no longer takes an object id: the installer names a capability *in its own CSpace*
+/// and the kernel derives the object, the kind and the ceiling on the rights from it. For the broker to
+/// install anything it must therefore *hold* what it installs, at least with the rights it confers. This
+/// table is **the only way a policy rule acquires a source**: `spawn.rs` installs one capability per
+/// entry into the broker's CSpace at `broker_slot`, and the broker looks the entry up by the object its
+/// rule names -- a rule naming an object with no entry here is refused, so giving a rule an object
+/// requires editing this reviewed table.
+///
+/// **Holding is authority.** The broker can *use* what it holds -- for object 23 and `SEND`, send to
+/// `neg-test`'s scratch endpoint, which it could not before. A rule conferring `RECV` on a real service's
+/// endpoint would require the broker to hold `RECV` on it, i.e. to take messages out of that service;
+/// that growth is deliberately visible in a diff of this table, and `endpoint-envelope` checks that no rule
+/// confers more than its entry holds.
+#[derive(Clone, Copy, Debug)]
+pub struct BrokeredEndpoint {
+    /// The endpoint object.
+    pub object: u32,
+    /// The `CapRights` bits the broker holds on it (the ceiling for any rule naming it).
+    pub rights: u64,
+    /// The slot in the broker's CSpace the capability is installed at.
+    pub broker_slot: u32,
+}
+
+/// `CapRights::SEND` (bit 3), spelled as bits because this crate does not depend on `fjell-cap`.
+const RIGHT_SEND_BIT: u64 = 1 << 3;
+
+/// Every endpoint the broker may delegate. **One entry**: `NEG_TEST`'s own scratch endpoint with `SEND`
+/// only -- a strict subset of what `neg-test` already holds on it (slot 0), so the demonstration adds no
+/// authority to the task that receives it. Grows with a consumer, never ahead of one.
+pub const BROKERED_ENDPOINTS: &[BrokeredEndpoint] = &[BrokeredEndpoint {
+    object: NEG_TEST_OWN_EP_OBJECT,
+    rights: RIGHT_SEND_BIT,
+    broker_slot: 40,
+}];
+
 /// How many endpoint objects the kernel allocates at boot: the highest object
 /// id above, plus one. `crates/fjell-kernel/src/main.rs` asserts that each
 /// `et.alloc()` returns the object its constant names, and a host test counts

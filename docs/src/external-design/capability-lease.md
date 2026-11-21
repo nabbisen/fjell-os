@@ -46,7 +46,11 @@ primitive true; `cap_install_with_rights`, which discarded its rights parameter,
 is gone). The caller must hold a `CapInstall` capability carrying `CAP_INSTALL`
 (granted **by name**, in no aggregate: `ALL_NON_META` excludes it); the kernel
 installs `Endpoint` capabilities only, with exactly the rights asked for, inside
-the installer's envelope, **always bound to a lease the installer owns**, and
+the installer's envelope **and inside the rights of a source capability the installer
+names in its own CSpace** (RFC-0.46-002: there is no object argument -- the object, kind
+and ceiling are taken from the capability the installer *holds*, so authority is derived
+and attenuated, never minted from an integer), **always bound to a lease the installer
+owns**, and
 audits every install (`cap.installed`, `0x0601`) and every refusal
 (`cap.install_rejected`, `0x0602`). The one holder is `cap-broker`, whose grant
 is therefore lease-bound (`BROKER-004`): revoking the lease kills the

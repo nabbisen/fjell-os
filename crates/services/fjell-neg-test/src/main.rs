@@ -1213,13 +1213,10 @@ fn request_endpoint_grant() -> GrantOutcome {
 /// gates a runtime install (`capability-topology` sees only spawn-time ones).
 fn test_cap_install_without_authority() {
     use fjell_abi::error::SysError;
-    let kind = fjell_cap::CapKind::Endpoint as u8;
-    let obj = fjell_abi::service::NEG_TEST_OWN_EP_OBJECT;
     check_err(
         sys_cap_install(
             CapHandle(SLOT_OWN_EP),
-            kind,
-            obj,
+            CapHandle(SLOT_OWN_EP), // the source: a capability this task really holds
             RIGHT_SEND_BIT as u64,
             fjell_abi::lease::LeaseId(1),
         ),
@@ -1230,8 +1227,7 @@ fn test_cap_install_without_authority() {
     check_err(
         sys_cap_install(
             CapHandle(SLOT_INSTALL_NO_RIGHT),
-            kind,
-            obj,
+            CapHandle(SLOT_OWN_EP),
             RIGHT_SEND_BIT as u64,
             fjell_abi::lease::LeaseId(1),
         ),
@@ -1241,8 +1237,7 @@ fn test_cap_install_without_authority() {
     check_err(
         sys_cap_install(
             CapHandle(SLOT_NEVER_GRANTED),
-            kind,
-            obj,
+            CapHandle(SLOT_OWN_EP),
             RIGHT_SEND_BIT as u64,
             fjell_abi::lease::LeaseId(1),
         ),
@@ -1598,8 +1593,7 @@ fn test_audit_install_reaches_the_trail() {
     // target, so its record names 0xFFFF.
     let refused = sys_cap_install(
         CapHandle(SLOT_OWN_EP),
-        fjell_cap::CapKind::Endpoint as u8,
-        fjell_abi::service::NEG_TEST_OWN_EP_OBJECT,
+        CapHandle(SLOT_OWN_EP),
         RIGHT_SEND_BIT as u64,
         LeaseId(1),
     );

@@ -739,8 +739,10 @@ pub extern "C" fn service_main() -> ! {
                             // mapping silently became an Endpoint install. Class 2
                             // (`TaskControl`) stays refused: it would be `ObjectScope::Any`
                             // control over every task, and there is no scoped design for it.
-                            let cap_kind = match resource_class {
-                                1 => fjell_cap::CapKind::Endpoint as u8,
+                            // (The kind itself now comes from the source capability the kernel resolves;
+                            // this match only decides which classes are installable at all.)
+                            match resource_class {
+                                1 => {}
                                 _ => {
                                     sys_debug_writeln(
                                         "cap-broker: refused: resource class has no installable mapping",
@@ -748,7 +750,7 @@ pub extern "C" fn service_main() -> ! {
                                     let _ = sys_ipc_reply(tags::CAP_DENIED);
                                     continue;
                                 }
-                            };
+                            }
                             let Some(object_id) = object else {
                                 sys_debug_writeln(
                                     "cap-broker: refused: the matching rule confers no installable object",
@@ -756,6 +758,22 @@ pub extern "C" fn service_main() -> ! {
                                 let _ = sys_ipc_reply(tags::CAP_DENIED);
                                 continue;
                             };
+                            // RFC-0.46-002: the broker installs only what it HOLDS. The rule names an
+                            // object; `BROKERED_ENDPOINTS` -- the one table `spawn.rs` also reads to give
+                            // the broker its sources -- says which slot holds a capability to it, and with
+                            // what rights. A rule naming an object the broker holds nothing on is refused
+                            // here (and the kernel would refuse the install regardless).
+                            let Some(source) = fjell_abi::service::BROKERED_ENDPOINTS
+                                .iter()
+                                .find(|e| e.object == object_id)
+                            else {
+                                sys_debug_writeln(
+                                    "cap-broker: refused: the broker holds no capability to the object the rule names",
+                                );
+                                let _ = sys_ipc_reply(tags::CAP_DENIED);
+                                continue;
+                            };
+                            let src_cap = CapHandle::new(source.broker_slot as u16, 0);
                             if !tree.has_room() {
                                 sys_debug_writeln("cap-broker: refused: delegation table full");
                                 let _ = sys_ipc_reply(tags::CAP_DENIED);
@@ -797,13 +815,7 @@ pub extern "C" fn service_main() -> ! {
                             // RFC-0.45-002: the capability is installed into the task being
                             // served -- the caller of this very call. There is no target to
                             // name, so none can be wrong.
-                            match sys_cap_install(
-                                CAP_INSTALL_CAP,
-                                cap_kind,
-                                object_id,
-                                granted_rights,
-                                lease,
-                            ) {
+                            match sys_cap_install(CAP_INSTALL_CAP, src_cap, granted_rights, lease) {
                                 Ok(new_handle) => {
                                     tree.insert(DelegationRecord {
                                         parent_idx: 0,

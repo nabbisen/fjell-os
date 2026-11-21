@@ -1093,6 +1093,27 @@ pub fn spawn(
                         lease: None,
                     },
                 );
+                // RFC-0.46-002: the broker HOLDS what it delegates. `sys_cap_install` derives the object,
+                // kind and rights-ceiling from a capability the installer names in its own CSpace, so
+                // one `Endpoint` capability per brokered endpoint is installed here, at the slot and
+                // with the rights `BROKERED_ENDPOINTS` states -- the one table both this grant and the
+                // broker's policy read, so neither can spell the pair by hand. HOLDING IS AUTHORITY:
+                // the broker can send to object 23 (it could not before). The table says so.
+                for e in fjell_abi::service::BROKERED_ENDPOINTS {
+                    let _ = cs.install_raw(
+                        e.broker_slot as usize,
+                        Capability {
+                            kind: CapKind::Endpoint,
+                            object_id: e.object,
+                            rights: CapRights(e.rights),
+                            badge: 0,
+                            scope: ObjectScope::Any,
+                            state: CapState::Active,
+                            parent: None,
+                            lease: None,
+                        },
+                    );
+                }
             }
         }
     }

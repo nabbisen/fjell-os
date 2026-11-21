@@ -43,11 +43,12 @@ pub enum SyscallNumber {
     /// `PermissionDenied`), and the lease must be `Active` (otherwise
     /// `LeaseRevoked`).
     CapBindLease = 16,
-    /// RFC 056, made real by RFC-0.45-002: install a capability into the CSpace of
-    /// **the task the caller is serving** -- the caller of its pending IPC reply edge.
-    /// There is no target argument. `a0` install capability, `a1` kind, `a2` object id,
-    /// `a3` rights, `a4` lease id; returns the handle in the target's CSpace in `a1`.
-    /// `Endpoint` only; always lease-bound to a lease the installer owns.
+    /// RFC 056, made real by RFC-0.45-002 and a *derivation* by RFC-0.46-002: install a capability into the
+    /// CSpace of **the task the caller is serving** -- the caller of its pending IPC reply edge. There is no
+    /// target argument and no object argument: `a0` install capability, `a1` **source capability** (a slot
+    /// in the caller's own CSpace, from which the kernel takes the object, kind and rights ceiling), `a2`
+    /// rights, `a3` lease id; returns the handle in the target's CSpace in `a1`. `Endpoint` only; always
+    /// lease-bound to a lease the installer owns.
     CapInstall = 17,
     /// RFC 057 / RFC-0.33-001 D8: platform reset. Requires a `Reboot`
     /// capability with the `REBOOT` right; on success does not return.

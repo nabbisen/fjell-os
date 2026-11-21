@@ -24,8 +24,8 @@
 //! `object-zero` already carries). It also checks the broker's own `RIGHT_<N>` bit constants against
 //! `CapRights::<N>`: the union is only meaningful if the broker's bits *are* the kernel's.
 //!
-//! **What this does not cover**, stated so a reader does not assume otherwise: it compares rights,
-//! not objects or requesters; it reads the mirror's `Rule { .. }` blocks only for the `Endpoint`
+//! **What this does not cover**, stated so a reader does not assume otherwise: it compares rights and
+//! (since RFC-0.46-002) the policy's objects against `BROKERED_ENDPOINTS`, not requesters; it reads the mirror's `Rule { .. }` blocks only for the `Endpoint`
 //! class and says nothing about the mirror's other rules (it has 16 rules where the broker has 32 --
 //! drift this check does not claim to find); and it cannot see a table built by code rather than
 //! written as a `const` list.
@@ -39,6 +39,7 @@ const RIGHTS_PATH: &str = "crates/fjell-cap/src/rights.rs";
 const BROKER_PATH: &str = "crates/services/fjell-cap-broker/src/main.rs";
 const MIRROR_PATH: &str = "crates/fjell-tools/src/policy_eval.rs";
 const SPAWN_PATH: &str = "crates/fjell-kernel/src/task/spawn.rs";
+const SERVICE_PATH: &str = "crates/fjell-abi/src/service.rs";
 
 type Symbols = BTreeMap<String, u64>;
 
@@ -274,6 +275,8 @@ struct RuleText {
     resource: String,
     kind: String,
     rights: String,
+    /// The `object:` field as written (`None`, `Some(fjell_abi::service::X)`), empty where a table has none.
+    object: String,
 }
 
 /// Every `<opener> { ... }` block in `src`, with the three fields read as text. `res_key`,
@@ -319,6 +322,7 @@ fn rule_blocks(
             resource: field(res_key),
             kind: field(kind_key),
             rights: strip_comments(field(rights_key)),
+            object: strip_comments(field("object")),
         });
         rest = &after[end..];
     }
@@ -359,6 +363,8 @@ pub struct Sources<'a> {
     pub broker: &'a str,
     pub mirror: &'a str,
     pub spawn: &'a str,
+    /// `fjell-abi`'s `service.rs`, which holds `BROKERED_ENDPOINTS` (RFC-0.46-002).
+    pub service: &'a str,
 }
 
 fn names(bits: u64, rights: &Symbols) -> String {
@@ -369,6 +375,77 @@ fn names(bits: u64, rights: &Symbols) -> String {
         .collect();
     v.sort();
     v.join("|")
+}
+
+/// One `BrokeredEndpoint { object, rights, broker_slot }` of `fjell_abi::service::BROKERED_ENDPOINTS`.
+#[derive(Debug, PartialEq, Eq)]
+struct Brokered {
+    object: u32,
+    rights: u64,
+    slot: u64,
+}
+
+/// `pub const NAME: u32 = N;` lines of `service.rs`.
+fn u32_consts(src: &str) -> BTreeMap<String, u32> {
+    let mut m = BTreeMap::new();
+    for l in src.lines() {
+        let l = l.trim();
+        if let Some(rest) = l.strip_prefix("pub const ")
+            && let Some((name, rhs)) = rest.split_once(": u32 =")
+            && let Some(v) = rhs.trim().strip_suffix(';')
+            && let Ok(n) = v.trim().parse::<u32>()
+        {
+            m.insert(name.trim().to_string(), n);
+        }
+    }
+    m
+}
+
+/// Read `BROKERED_ENDPOINTS`, evaluating each entry's `rights` expression.
+fn brokered_endpoints(service_src: &str) -> Result<Vec<Brokered>, String> {
+    let at = service_src
+        .find("pub const BROKERED_ENDPOINTS")
+        .ok_or("service.rs no longer declares `BROKERED_ENDPOINTS`")?;
+    let after = &service_src[at..];
+    let end = after
+        .find("}];")
+        .ok_or("BROKERED_ENDPOINTS has no closing `}];`")?;
+    let body = &after[..end];
+    let consts = u32_consts(service_src);
+    let bits = broker_consts(service_src); // `const RIGHT_SEND_BIT: u64 = 1 << 3;`
+    let mut out = Vec::new();
+    for chunk in body.split("BrokeredEndpoint {").skip(1) {
+        let field = |key: &str| -> Option<String> {
+            chunk.lines().find_map(|l| {
+                l.trim()
+                    .strip_prefix(key)
+                    .and_then(|r| r.trim_start().strip_prefix(':'))
+                    .map(|v| v.trim().trim_end_matches(',').trim().to_string())
+            })
+        };
+        let obj = field("object").ok_or("a BROKERED_ENDPOINTS entry has no `object`")?;
+        let object = consts
+            .get(obj.rsplit("::").next().unwrap_or(&obj))
+            .copied()
+            .or_else(|| obj.parse().ok())
+            .ok_or_else(|| format!("BROKERED_ENDPOINTS: cannot read the object `{obj}`"))?;
+        let rights_expr = field("rights").ok_or("a BROKERED_ENDPOINTS entry has no `rights`")?;
+        let rights = eval(&rights_expr, &bits)
+            .map_err(|e| format!("BROKERED_ENDPOINTS: rights `{rights_expr}`: {e}"))?;
+        let slot_expr =
+            field("broker_slot").ok_or("a BROKERED_ENDPOINTS entry has no `broker_slot`")?;
+        let slot = eval(&slot_expr, &Symbols::new())
+            .map_err(|e| format!("BROKERED_ENDPOINTS: broker_slot `{slot_expr}`: {e}"))?;
+        out.push(Brokered {
+            object,
+            rights,
+            slot,
+        });
+    }
+    if out.is_empty() {
+        return Err("BROKERED_ENDPOINTS holds no entry this check could read".to_string());
+    }
+    Ok(out)
 }
 
 pub fn judge(s: &Sources) -> Result<String, Vec<String>> {
@@ -490,6 +567,79 @@ pub fn judge(s: &Sources) -> Result<String, Vec<String>> {
         ));
     }
 
+    // RFC-0.46-002: the broker installs only what it HOLDS. `BROKERED_ENDPOINTS` is the one table both
+    // `spawn.rs` (which gives the broker its sources) and the broker (which looks a rule's object up in it)
+    // read; this is the comparer that makes keeping the policy's `object` and that table SEPARATE safe.
+    let mut brokered_note = String::new();
+    match brokered_endpoints(s.service) {
+        Err(e) => why.push(format!("{SERVICE_PATH}: {e}")),
+        Ok(entries) => {
+            let consts = u32_consts(s.service);
+            for e in &entries {
+                if e.object == 0 {
+                    why.push(format!("BROKERED_ENDPOINTS entry for object 0: the broker must never hold endpoint object 0 (object-zero's invariant)"));
+                }
+                if e.rights == 0 || e.rights & !env != 0 {
+                    why.push(format!(
+                        "BROKERED_ENDPOINTS object {} holds {:#x} ({}), which is empty or outside ENDPOINT_ENVELOPE ({:#x}): the kernel would refuse every install from it",
+                        e.object, e.rights, names(e.rights, &rights), env
+                    ));
+                }
+            }
+            let mut rules_with_object = 0usize;
+            for r in &brules {
+                if !r.kind.contains("PolicyKind::Allow") || !r.object.starts_with("Some(") {
+                    continue;
+                }
+                rules_with_object += 1;
+                let inner = r.object.trim_start_matches("Some(").trim_end_matches(')');
+                let name = inner.rsplit("::").next().unwrap_or(inner);
+                let Some(obj) = consts.get(name) else {
+                    why.push(format!("a policy rule names the object `{inner}`, which this check cannot resolve in {SERVICE_PATH}"));
+                    continue;
+                };
+                let Some(entry) = entries.iter().find(|e| e.object == *obj) else {
+                    why.push(format!(
+                        "a policy rule names object {obj} (`{name}`) but BROKERED_ENDPOINTS has no entry for it: the broker would hold no capability to derive from, and the grant would be refused at runtime (and giving a rule a source must mean editing that reviewed table)"
+                    ));
+                    continue;
+                };
+                match eval(&r.rights, &bconsts) {
+                    Ok(rr) if rr & !entry.rights == 0 => {}
+                    Ok(rr) => why.push(format!(
+                        "a policy rule confers {rr:#x} ({}) on object {obj}, but the broker holds only {:#x} ({}) there: the kernel would refuse the install (authority is attenuated, never amplified)",
+                        names(rr, &rights), entry.rights, names(entry.rights, &rights)
+                    )),
+                    Err(e) => why.push(format!("a policy rule on object {obj}: rights `{}`: {e}", r.rights)),
+                }
+            }
+            if rules_with_object == 0 {
+                why.push("no policy rule names an object: the broker's sources would be authority nothing grants".to_string());
+            }
+            for e in &entries {
+                if !brules.iter().any(|r| {
+                    r.object.starts_with("Some(")
+                        && r.object.contains(
+                            consts
+                                .iter()
+                                .find(|(_, v)| **v == e.object)
+                                .map(|(k, _)| k.as_str())
+                                .unwrap_or("\u{0}"),
+                        )
+                }) {
+                    why.push(format!("BROKERED_ENDPOINTS holds object {} but no policy rule names it: the broker holds authority nothing grants", e.object));
+                }
+            }
+            if !s.spawn.contains("BROKERED_ENDPOINTS") {
+                why.push(format!("{SPAWN_PATH} no longer reads `BROKERED_ENDPOINTS`: the broker's sources must come from the one table, not be spelled by hand"));
+            }
+            brokered_note = format!(
+                "; {} brokered endpoint(s) in BROKERED_ENDPOINTS, each within the envelope, and every one of {rules_with_object} policy rule(s) that names an object resolves to an entry holding at least the rights it confers",
+                entries.len()
+            );
+        }
+    }
+
     if !why.is_empty() {
         return Err(why);
     }
@@ -501,7 +651,7 @@ pub fn judge(s: &Sources) -> Result<String, Vec<String>> {
     Ok(format!(
         "{NAME}: PASS (the broker's {n} Endpoint-class Allow rules union to {u:#x} = ENDPOINT_ENVELOPE ({}); \
          the host-test mirror's {mirror_n} such rules agree, but the mirror holds {mirror_total} of the broker's {broker_total} policy rules and the other {} are NOT compared; {compared} broker RIGHT_* constants equal their CapRights bits; \
-         spawn.rs hands the broker the constant. NOT covered: objects and requesters, the mirror's other rules, \
+         spawn.rs hands the broker the constant{brokered_note}. NOT covered: requesters, the mirror's other rules, \
          and any table built by code rather than a const list)",
         names(env, &rights),
         broker_total.saturating_sub(mirror_total)
@@ -510,12 +660,13 @@ pub fn judge(s: &Sources) -> Result<String, Vec<String>> {
 
 pub fn check() -> ExitCode {
     let read = |p: &str| crate::read_file(NAME, p);
-    let (Some(install), Some(rights), Some(broker), Some(mirror), Some(spawn)) = (
+    let (Some(install), Some(rights), Some(broker), Some(mirror), Some(spawn), Some(service)) = (
         read(INSTALL_PATH),
         read(RIGHTS_PATH),
         read(BROKER_PATH),
         read(MIRROR_PATH),
         read(SPAWN_PATH),
+        read(SERVICE_PATH),
     ) else {
         return ExitCode::FAILURE;
     };
@@ -525,6 +676,7 @@ pub fn check() -> ExitCode {
         broker: &broker,
         mirror: &mirror,
         spawn: &spawn,
+        service: &service,
     }) {
         Ok(line) => {
             println!("{line}");
@@ -558,6 +710,7 @@ mod tests {
         broker: String,
         mirror: String,
         spawn: String,
+        service: String,
     }
 
     fn load() -> Real {
@@ -567,6 +720,7 @@ mod tests {
             broker: real(BROKER_PATH),
             mirror: real(MIRROR_PATH),
             spawn: real(SPAWN_PATH),
+            service: real(SERVICE_PATH),
         }
     }
 
@@ -577,6 +731,7 @@ mod tests {
             broker: &r.broker,
             mirror: &r.mirror,
             spawn: &r.spawn,
+            service: &r.service,
         })
     }
 
@@ -703,6 +858,77 @@ mod tests {
         assert!(
             e.iter()
                 .any(|w| w.contains("spawn.rs") || w.contains("spawn")),
+            "{e:#?}"
+        );
+    }
+
+    #[test]
+    fn a_rule_naming_an_object_the_broker_holds_nothing_on_is_red() {
+        let mut r = load();
+        // Point the production rule at another object: configd's endpoint, which has no entry.
+        edit(
+            &mut r.broker,
+            "object: Some(fjell_abi::service::NEG_TEST_OWN_EP_OBJECT)",
+            "object: Some(fjell_abi::service::CONFIGD_EP_OBJECT)",
+        );
+        let e = run(&r).unwrap_err();
+        assert!(
+            e.iter().any(|w| w.contains("has no entry for it")),
+            "{e:#?}"
+        );
+    }
+
+    #[test]
+    fn a_rule_conferring_more_than_the_broker_holds_is_red() {
+        let mut r = load();
+        // The rule confers SEND|RECV; the broker holds SEND only: the RECV-on-a-service-endpoint hazard.
+        edit(
+            &mut r.broker,
+            "rights: RIGHT_SEND,\n        object: Some(",
+            "rights: RIGHT_SEND | RIGHT_RECV,\n        object: Some(",
+        );
+        let e = run(&r).unwrap_err();
+        assert!(
+            e.iter().any(|w| w.contains("but the broker holds only")),
+            "{e:#?}"
+        );
+    }
+
+    #[test]
+    fn a_brokered_entry_wider_than_the_envelope_is_red() {
+        let mut r = load();
+        edit(
+            &mut r.service,
+            "rights: RIGHT_SEND_BIT,",
+            "rights: RIGHT_SEND_BIT | (1 << 10),",
+        );
+        let e = run(&r).unwrap_err();
+        assert!(
+            e.iter().any(|w| w.contains("outside ENDPOINT_ENVELOPE")),
+            "{e:#?}"
+        );
+    }
+
+    #[test]
+    fn a_brokered_entry_for_object_zero_is_red() {
+        let mut r = load();
+        edit(
+            &mut r.service,
+            "    object: NEG_TEST_OWN_EP_OBJECT,\n    rights: RIGHT_SEND_BIT,",
+            "    object: 0,\n    rights: RIGHT_SEND_BIT,",
+        );
+        let e = run(&r).unwrap_err();
+        assert!(e.iter().any(|w| w.contains("object 0")), "{e:#?}");
+    }
+
+    #[test]
+    fn spawn_rs_spelling_the_sources_by_hand_is_red() {
+        let mut r = load();
+        r.spawn = r.spawn.replace("BROKERED_ENDPOINTS", "SOMETHING_ELSE");
+        let e = run(&r).unwrap_err();
+        assert!(
+            e.iter()
+                .any(|w| w.contains("no longer reads `BROKERED_ENDPOINTS`")),
             "{e:#?}"
         );
     }

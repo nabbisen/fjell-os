@@ -847,64 +847,29 @@ pub fn sys_cap_revoke(cap: CapHandle) -> Result<(), SysError> {
     to_result(ecall2(SyscallNumber::CapRevoke as usize, cap.0 as usize, 0, 0, 0).0).map(|_| ())
 }
 
-/// Execute a syscall with five arguments (`a0`..`a4`); returns (a0, a1).
+/// `sys_cap_install` -- RFC 056, as made true by RFC-0.45-002 and made *derivation* by RFC-0.46-002.
 ///
-/// Only `sys_cap_install` needs a fifth argument.
-#[inline]
-fn ecall5(nr: usize, a0: usize, a1: usize, a2: usize, a3: usize, a4: usize) -> (usize, usize) {
-    let r0: usize;
-    let r1: usize;
-    #[cfg(target_arch = "riscv64")]
-    // SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
-    unsafe {
-        core::arch::asm!(
-            "ecall",
-            in("a7") nr,
-            inlateout("a0") a0 => r0,
-            inlateout("a1") a1 => r1,
-            in("a2") a2,
-            in("a3") a3,
-            in("a4") a4,
-            options(nostack),
-        );
-    }
-    #[cfg(not(target_arch = "riscv64"))]
-    {
-        let _ = (nr, a0, a1, a2, a3, a4);
-        r0 = 0;
-        r1 = 0;
-    }
-    (r0, r1)
-}
-
-/// `sys_cap_install` -- RFC 056, as made true by RFC-0.45-002.
+/// Installs a capability into the CSpace of **the task the caller is serving**: the caller of the
+/// pending IPC reply edge. **There is no target argument**, so a stale or forged target cannot be
+/// expressed; call this between `sys_ipc_recv_msg` and `sys_ipc_reply`.
 ///
-/// Installs a capability of `cap_kind` naming `object_id`, with **exactly** `rights`,
-/// bound to `lease`, into the CSpace of **the task the caller is serving**: the caller of
-/// the pending IPC reply edge. **There is no target argument**, so a stale or forged
-/// target cannot be expressed; call this between `sys_ipc_recv_msg` and `sys_ipc_reply`.
+/// **There is no object argument either.** `src_cap` is a slot in the *caller's own* CSpace: the kernel
+/// takes the object, the kind and the ceiling on the rights from the capability the caller **holds** there.
+/// `rights` may be at most what `src_cap` carries (and what the caller's `CapInstall` envelope allows);
+/// the installed capability is bound to `lease`, which the caller must own. Authority is derived and
+/// attenuated, never minted from an integer.
+///
 /// Returns `Ok(handle)` -- the new slot's handle in *the target's* CSpace.
-///
-/// The kernel refuses (see `fjell_cap::install::check_install`) a caller without a
-/// `CapInstall` capability carrying `CAP_INSTALL`; with no pending reply edge or a caller
-/// that is not blocked (`BadState`); any kind but `Endpoint`; empty rights or rights
-/// outside the installer's envelope; a lease that is zero, not the caller's own, or not
-/// `Active`; and a full target CSpace (`NoMemory`).
-///
-/// There is no `rights = 0` default and no fallback to attenuate afterwards: the earlier
-/// `sys_cap_install_with_rights` discarded its rights parameter (E-011) and is gone.
 pub fn sys_cap_install(
     install_cap: CapHandle,
-    cap_kind: u8,
-    object_id: u32,
+    src_cap: CapHandle,
     rights: u64,
     lease: LeaseId,
 ) -> Result<CapHandle, SysError> {
-    let (r0, r1) = ecall5(
+    let (r0, r1) = ecall2(
         SyscallNumber::CapInstall as usize,
         install_cap.0 as usize,
-        cap_kind as usize,
-        object_id as usize,
+        src_cap.0 as usize,
         rights as usize,
         lease.0 as usize,
     );
