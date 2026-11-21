@@ -5,6 +5,88 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.46.0] — 2026-11-21 — The kernel stops taking its most privileged client's word for it
+
+Three lines, four small items, **three errata closed** (**E-011**, **E-110**, **E-125**) and one
+filed (**E-125**, filed and closed inside the milestone). `consistency-check` is **25 subchecks**
+(23 at 0.45.0). The ABI moved **+21 items**, 524 → 545. The register stands at **124 entries, 7
+accepted, 0 open** — the fewest accepted limitations this project has carried.
+
+**0.45 made `sys_cap_install` run, and in doing so put `cap-broker` inside the kernel's trust
+boundary in three places at once** — it installed a capability to an object the broker merely named,
+revoked a lease the broker merely named, and handed out a lease per grant *request* from a 32-slot
+table that never recycled. **0.46 takes those three bounds back.** Each line is the kernel asking a
+question it already had the means to ask.
+
+**There is no security advisory.** The kernel has never been distributed as a runnable artefact and
+the product has not been placed on the market.
+
+Four statements follow, each a case where what shipped is narrower or different from the obvious
+reading:
+
+1. **A lease is revoked by its owner — and the exception is *less* authority than before.**
+   `sys_lease_revoke` already validated a capability's *scope* against the lease, but **all four
+   `LeaseAdmin` grants carry `ObjectScope::Any`**, necessarily, because the leases they revoke are
+   created at runtime and cannot be named in a spawn-time grant. So the bound existed and was
+   unusable for the only case that mattered, and the broker's own predicate was all that stood
+   between a caller and any lease in the system. The kernel now asks **ownership**. One named
+   exception exists because an owner blocked on its own leased capability **cannot** revoke it — only
+   a non-owner can wake it — so `LEASE_REVOKE_ANY` (bit 32, in neither rights aggregate) is held by
+   `neg-test` alone, on a capability carrying nothing else, `init` getting none. **Four images could
+   already revoke any lease; now one can**, and `capability-topology` counts the holders.
+2. **Lease slots are recycled, and the measured denial of service needed a second bound to close.**
+   A boot could create 32 leases ever. **Recycling alone would not have fixed the reachable case:**
+   the demonstration looped *request → **drop** the capability*, and dropping a capability does not
+   touch its lease, so all 26 leases stayed `Active` and a recycler of revoked slots would have
+   reclaimed none of them. **A per-owner quota is what closes it** — 16 of 32, refused with
+   `LeaseQuotaExceeded`, **distinct from `LeaseTableFull`** because *the system is out* and *this
+   owner is out* are different answers. Reclamation is deliberately **lazy**: a capability bound to a
+   just-revoked lease must still answer `LeaseRevoked`, and an eager reclaim would race the next
+   allocation.
+3. **An installer derives what it confers, and the signature got shorter.** The installer used to
+   name an **integer** and the kernel built a capability to it — shown at 0.45's follow-ups by asking
+   for `configd`'s endpoint, which installed successfully. Now the call names a **source capability
+   the installer holds**, and `kind` and `object` are read from it: `sys_cap_install` went from
+   **five arguments to four**, the five-argument syscall wrapper was deleted, and a forged object is
+   **unrepresentable** rather than rejected. **The price is stated, not hidden:** *holding is
+   authority.* The broker can now send to the one endpoint it brokers, and a rule that ever conferred
+   `RECV` on a service endpoint would require it to hold `RECV` there — so the reviewed
+   `BROKERED_ENDPOINTS` table is **the only way a rule acquires a source**.
+4. **The scope of a scan is one function now, not a name list — and that closed an erratum the
+   project had already closed once.** `fjell-mmio-audit` reported `total MMIO sites` as a repository
+   figure while walking scratch checkouts: **41 real sites against a recorded 449**. **E-025 had
+   diagnosed exactly this family in two sibling tools, named it in its own words, fixed the two it
+   enumerated and closed** — and a fourth tool carried it for seventeen milestones. The population
+   turned out wider than the architect's own handoff claimed: two more tools held identical
+   three-name lists, and one header read *"verified equivalent to `git ls-files` against the current
+   tree"*, a one-time check stated as a property. Scope is now `tools/fjell-repo-scope`, and the
+   **`repo-scope`** subcheck derives its own population, fails on an unclassified walker **or a stale
+   classification**, and retired its own entry when a tool was migrated.
+
+**What still does not hold, in the same breath.**
+
+- **The broker now holds the authority it delegates** (limitations row 26). That is the point and the
+  price: it is no longer a policy oracle fabricating capabilities from integers, and the set it holds
+  is a hand-reviewed table. The kernel cannot express *hold for delegation only* — a `DELEGATE_ONLY`
+  right would be the clean form and is **not** taken, because enforcing a negative right needs a
+  single funnel for capability checks and there is none.
+- **The MMIO figures in release records before 0.45.0 are wrong and cannot be corrected** (row 27).
+  This project does not rewrite released records, by the rule that forbids moving a tag.
+- **There is still no working network.** A test environment presents a device and the driver reports
+  what it read, and nothing above discovery works: no packet is sent or received, `sys_net_recv`
+  exists nowhere, and the virtqueue logic is not linked into the image.
+- **Two RFCs still say `Implemented` where the work has not shipped**, named by `rfc-evidence` on
+  every run. Their disposition is blocked on a lifecycle question **RFC 000 cannot answer**: it
+  defines neither `Implemented-with-Errata`, carried by 12 RFCs, nor `Closed`.
+
+**Also in 0.46.0.** `endpoint-envelope`, the 24th subcheck, compares the install envelope against the
+broker's own policy table and the host mirror — the union was spelled out in five places across three
+crates with nothing comparing them, and **the mirror had already drifted to 16 of 31 rules**. A dead
+duplicate `EndpointTable` is deleted. **E-011 closed late and the entry says so**: 0.45-002 had
+resolved both halves of its claim and 0.45 only narrowed it, which was found by re-reading the claim
+rather than the summary of it. The Verus lease model gained a `recycle` transition and *the
+obligation the epoch cannot carry* — **11 verified against 5** — and was shown non-vacuous.
+
 ## [0.45.0] — 2026-11-19 — A status that says `Implemented` now has to show it
 
 Three lines, one small item, **one erratum closed** (**E-123**) and none filed.
