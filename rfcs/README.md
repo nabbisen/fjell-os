@@ -557,9 +557,18 @@ a fresh clone.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 2 RFCs
 
-Nothing is under review. `proposed/README.md` keeps the folder in a fresh clone.
+0.47's two lines, **drafted by the implementer for the architect's review; nothing is implemented**. Each
+states the decisions it asks the architect to make rather than makes. Handoff:
+`.git-exclude/handoff/handoff-0.47.md`; scope: `.git-exclude/handoff/scope-0.47.md`.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.47-001 | [`require_cap` becomes the sole authority path, in fact](./proposed/RFC-0.47-001-require-cap-is-the-sole-authority-path-in-fact.md) | E-126 |
+| 0.47-002 | [The lifecycle policy's kept rules are written down, and a check can find them missing](./proposed/RFC-0.47-002-the-lifecycle-policys-kept-rules-are-written-down.md) | E-128 |
+
+`proposed/README.md` keeps the folder in a fresh clone.
 
 ---
 
