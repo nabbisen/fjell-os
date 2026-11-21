@@ -6,6 +6,8 @@
 **Tracks.** The second of the three places 0.45 put cap-broker inside the kernel's trust boundary: *"I
 revoke lease L"* is accepted without the kernel asking whether the revoker owns L. Narrows the
 `CAP_REVOKE` confused-deputy filing (the owner's); closes no register entry on its own.
+**Entered in the register 2026-11-22 as E-127, filed already fixed and closed by this line** — the filing this
+paragraph names had never been made, so the defect had no entry until then.
 **Touches** *(indicative)*: `crates/fjell-kernel/src/trap/syscall.rs` (`sys_lease_revoke`),
 `crates/fjell-cap/src/rights.rs` (one right), `crates/fjell-kernel/src/task/spawn.rs` (two grants),
 `crates/fjell-kernel/src/audit/ring.rs` and `crates/formats/fjell-audit-format/src/lib.rs` (one audit

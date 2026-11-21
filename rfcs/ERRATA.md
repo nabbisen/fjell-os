@@ -9384,6 +9384,49 @@ which is history removes the disagreement instead of detecting it, and needs no 
   E-004/E-011/E-012. **Gate 7 therefore blocks a release until 0.47-001 resolves it**, which is the
   correct pressure: the statement is false in published documents today.
 
+## E-127 — `sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking: a confused deputy, bounded only by a check inside the deputy
+
+- **Filed 2026-11-22, and closed the same day**, at the architect's handoff for 0.47 (small item A). The
+  defect was found and fixed in 0.46 (RFC-0.46-003, `2839f0a`); **it was never entered in the register**,
+  because RFC-0.46-003's header recorded that it *"narrows the `CAP_REVOKE` confused-deputy filing (the
+  owner's); closes no register entry on its own"* — and the owner's filing was never made. A defect fixed
+  without an entry is invisible to the register that is meant to be the project's memory; this entry is
+  the repair of that, and nothing more.
+- **Claim:** RFC-0.42-001 made `sys_cap_bind_lease` owner-only, and RFC-0.45-002 gave `sys_cap_install` a
+  lease-owner check; the kernel's lease operations were presented as owner-bounded.
+- **Tree (as at `3f141a9`, before 0.46-003):** `sys_lease_revoke` required a `LeaseAdmin` capability with
+  `LEASE_REVOKE` and passed `Some(&ObjectScope::Lease(id))`, so a *scoped* grant would have been bounded to
+  the lease it names. **All four `LeaseAdmin` grants carried `ObjectScope::Any`** (`sample-service`,
+  `neg-test`, `cap-broker`, `init`), because the leases these holders revoke are created at runtime and
+  cannot be named in a spawn-time grant. So any holder could revoke **any lease in the system**, and the
+  only thing between the broker and a stranger's lease was `fjell_service_api::cap_broker::revoke_authorised`
+  — a predicate **inside the broker**, the most privileged client. The kernel did not ask whose lease it was.
+- **The shape is a confused deputy:** authority to revoke *one's own* leases was held as authority to revoke
+  *anyone's*, and the bound on it lived in the deputy rather than in the kernel.
+- **What was and was not exposed.** Revocation is a denial, not a disclosure: a wrongful revoke kills a
+  stranger's capability binding and wakes tasks blocked on it with `LeaseRevoked`. It does not confer
+  anything. That is why it was not a privilege escalation, and also why a compromised or mistaken broker
+  was unbounded on **availability** of every other service's leases.
+- **A finding that shaped the fix.** Two existing `ipc` scenarios revoke a lease **they do not own**
+  (`sample-service` creates it, `neg-test` revokes it to wake the blocked owner). An owner-only rule breaks
+  both, and by construction: *a task blocked on a lease-bound capability must be woken by revocation, and
+  the owner is the blocked task*. So ownership could not be the whole rule.
+- **Fixed by RFC-0.46-003, `2839f0a`:** `sys_lease_revoke` checks ownership *after* the capability check
+  (`fjell_cap::lease_revoke::revoke_permitted`); the exception is a new right, `LEASE_REVOKE_ANY`
+  (`1<<32`, in **no** aggregate), held only by `neg-test`'s second `LeaseAdmin` and counted by
+  `capability-topology` (a grant to any other service is red); a refusal is audited as
+  `LeaseRevokeRejected = 0x0606`. `revoke_authorised` stays in the broker as defence in depth, and the
+  boot matrix shows it: with the kernel check on and the broker's off, the foreign revoke is still refused.
+- **Evidence it holds:** `marker:ipc:NEG:LEASE:REVOKE_NOT_OWNER_REFUSED:PASS` (needs the kernel check — with
+  it off the profile is red by `UNEXPECTED_OK`), `NEG:POLICY:REVOKE_FOREIGN_LEASE_REFUSED:PASS`, the host
+  tests of `revoke_permitted` (four mutations red), and `capability-topology`'s count of the right's holders.
+- **Status:** **OPEN** at the defect's existence (since the first `LeaseAdmin` grant); **filed already fixed**.
+- **Resolution:** ~~**OPEN**~~ → **CLOSED** by **RFC-0.46-003** (`2839f0a`), verified at 0.46.0.
+- **Why this is not "an RFC claimed more than shipped", and why it is filed anyway.** No RFC claimed the
+  kernel bounded revocation. The register's scope (RFC-v0.16-004) is *normative text exceeds what merged*;
+  this is the adjacent and equally dangerous case — **a bound that existed only as a service's convention,
+  recorded nowhere as a defect** — and its absence from the register is what the filing corrects.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9552,3 +9595,4 @@ the fix to a dedicated RFC after the `0.23.0` cut is a deliberate decision, not
 live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-125 **`mmio-audit`'s site count was never a property of this project** — it reported `total MMIO sites` as a repository figure, and release records carried it as one (`448` at 0.44.0, `449` during 0.45). Measured three ways at the 0.45.0 cut: **490** with a scratch clone present, **449** with it moved out, **41** in a pristine clone — `490 − 449 = 41`, one pristine copy's worth, so the project has **41** sites and the recorded figure was ~408 sites of scratch checkouts under `.git-exclude/`. **The verdict was never affected** (`missing annotation: 0` throughout, because those copies are annotated); the **count** was a function of the developer's machine. Cause: a walk skipping three literal names, none of them `.git-exclude`. **E-025 recorded this defect in two sibling tools, named the family in its own words, fixed the two it had enumerated and CLOSED — `mmio-audit` was a fourth, never enumerated, and survived ~17 milestones inside a release gate.** Fixed at `06398b7` by deriving scope from `git ls-files`, verified both directions; **stays ACCEPTED because the family is still ungated** — closing on the instance is the error this entry records against E-025. The historical figures cannot be corrected in place, and this entry is what makes them findable | 0.46 | CLOSED |
 | E-126 **the 0.46 line recorded a missing capability funnel; it has existed since v0.2.0 and the real defect is that it is not sole** — four documents (`releases/0.46.0.md:278`, `CHANGELOG.md:70`, `RFC-0.46-002:174`, its handoff `:45`), all written by the architect, record `DELEGATE_ONLY`'s prerequisite as *"one funnel for capability checks and there is none"*. `fjell-cap/src/enforcement.rs:56` has defined `require_cap` since v0.2.0 (RFC 031/032), and its module doc calls it *"the sole production authority-checking path"*. The parenthetical counted the funnel's **call sites** and reported them as its absence. The real defect is worse and the opposite shape: **three authority paths and three check orders** — `require_cap` (12 callers in `trap/syscall.rs`, 1 in `cap/syscall.rs`), `check_right` (4 IPC callers, no kind or scope check), four inline copies in `cap_copy`/`mint`/`revoke`/`inspect` that check **lease before rights**, contradicting the order RFC 031 §2.6 calls normative, and `sys_cap_delete` which checks nothing. One input — lacking the right *and* lease revoked — yields `PermissionDenied` on one path and `LeaseRevoked` on another. Found while verifying the prerequisite before scoping 0.47. **Not correctable in place**: two of the four are released records | 0.47 | OPEN |
+| E-127 **`sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking** — all four `LeaseAdmin` grants carried `ObjectScope::Any`, so the only bound on revoking a stranger's lease was `revoke_authorised`, a predicate inside the broker: a confused deputy whose limit lived in the deputy. A denial rather than a disclosure, so not an escalation, but unbounded on availability. Filed already fixed: the owner's `CAP_REVOKE` filing was named by RFC-0.46-003 and never made, so a defect fixed in 0.46 had no register entry. Fixed by owner check + `LEASE_REVOKE_ANY` (in no aggregate, one holder, counted by `capability-topology`) + audit `0x0606` | RFC-0.46-003 | CLOSED |
