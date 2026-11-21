@@ -744,6 +744,9 @@ pub mod negative_markers {
     /// `ipc_reply` is rejected (silently dropped) when the call's lease
     /// was revoked while the caller was blocked.
     pub const IPC_LATE_REPLY: &str = "NEG:IPC:LATE_REPLY_REJECTED:PASS";
+    /// RFC-0.46-003: a `LeaseAdmin` with `LEASE_REVOKE` and scope `Any` but **not** `LEASE_REVOKE_ANY` is
+    /// refused `PermissionDenied` revoking a lease it does not own, and the lease's epoch is unchanged.
+    pub const LEASE_REVOKE_NOT_OWNER_REFUSED: &str = "NEG:LEASE:REVOKE_NOT_OWNER_REFUSED:PASS";
     /// A call dequeued by `sys_ipc_try_recv` can be replied to: the caller is
     /// woken with the reply (RFC-0.38-003 R4, E-089).
     pub const IPC_TRY_RECV_CALL_REPLIED: &str = "NEG:IPC:TRY_RECV_CALL_REPLIED:PASS";

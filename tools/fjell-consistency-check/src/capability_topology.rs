@@ -514,6 +514,67 @@ fn judge_slots(
     Ok(v)
 }
 
+/// Who is granted `right` **by name**, per kernel source file: every non-comment use of `right` in
+/// `spawn.rs` / `main.rs` is attributed to the nearest preceding `ImageId::<X>` in that file (the
+/// `if image_id == … ImageId::X` condition that encloses a `spawn.rs` install; `main.rs`'s `init`
+/// installs carry none and are attributed to `INIT`). `Err` lists every holder other than `allowed`, and
+/// an absent right (a gate that counts zero holders has not counted anything).
+///
+/// Added with RFC-0.46-003: `LEASE_REVOKE_ANY` is a named exception that takes four unbounded holders to
+/// one, and an exception granted by name and then never counted would be the defect inside the line that
+/// fixes it. Textual and nearest-preceding -- the same limits `judge_slots` states for its own reading.
+pub fn by_name_right_holders(
+    spawn_src: &str,
+    main_src: &str,
+    right: &str,
+    allowed: &str,
+) -> Result<Vec<String>, Vec<String>> {
+    let mut holders: Vec<String> = Vec::new();
+    for (file, src, default_image) in [
+        ("task/spawn.rs", spawn_src, None),
+        ("main.rs (init's spawn path)", main_src, Some("INIT")),
+    ] {
+        let mut last_image: Option<String> = default_image.map(str::to_string);
+        for line in src.lines() {
+            let t = line.trim_start();
+            if t.starts_with("//") {
+                continue;
+            }
+            if let Some(i) = t.find("ImageId::") {
+                let name: String = t[i + "ImageId::".len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                if !name.is_empty() {
+                    last_image = Some(name);
+                }
+            }
+            if t.contains(right) {
+                holders.push(format!(
+                    "{} ({file})",
+                    last_image.clone().unwrap_or_else(|| "?".to_string())
+                ));
+            }
+        }
+    }
+    if holders.is_empty() {
+        return Err(vec![format!(
+            "`{right}` is granted to nobody in spawn.rs or main.rs: a gate that counts zero holders counted nothing \
+             (if the right was removed, remove this assertion with it)"
+        )]);
+    }
+    let bad: Vec<String> = holders
+        .iter()
+        .filter(|h| !h.starts_with(&format!("{allowed} (")))
+        .map(|h| format!("`{right}` is granted to {h}: only {allowed} may hold it"))
+        .collect();
+    if bad.is_empty() {
+        Ok(holders)
+    } else {
+        Err(bad)
+    }
+}
+
 pub fn check() -> ExitCode {
     let Some(spawn_src) = read_file(NAME, SPAWN_PATH) else {
         return ExitCode::FAILURE;
@@ -567,6 +628,7 @@ pub fn check() -> ExitCode {
     let abi_src = read_file(NAME, "crates/fjell-abi/src/service.rs");
     let main_src = read_file(NAME, "crates/fjell-kernel/src/main.rs");
     let rights_src = read_file(NAME, "crates/fjell-cap/src/rights.rs");
+    let main_for_holders = main_src.clone();
     let object_zero = match (abi_src, main_src, rights_src) {
         (Some(abi), Some(main), Some(rights)) => {
             Some(crate::object_zero::judge(&spawn_src, &main, &abi, &rights))
@@ -592,10 +654,32 @@ pub fn check() -> ExitCode {
         }
     };
 
+    // RFC-0.46-003: the one named exception to ownership-bound revocation has exactly one holder.
+    let holders_note = match main_for_holders
+        .as_deref()
+        .map(|m| by_name_right_holders(&spawn_src, m, "LEASE_REVOKE_ANY", "NEG_TEST"))
+    {
+        Some(Ok(h)) => format!(
+            "; `LEASE_REVOKE_ANY` (the one exception to owner-only revocation) is granted at {} site(s), all to NEG_TEST",
+            h.len()
+        ),
+        Some(Err(why)) => {
+            ok = false;
+            for w in why {
+                eprintln!("{NAME}: FAIL — {w}");
+            }
+            String::new()
+        }
+        None => {
+            ok = false;
+            String::new()
+        }
+    };
+
     if ok {
         println!(
             "{NAME}: PASS ({installed} installed, {waived} waived to a named line, \
-             {} checked{zero_note})",
+             {} checked{zero_note}{holders_note})",
             discovered.len()
         );
         ExitCode::SUCCESS
@@ -608,6 +692,34 @@ pub fn check() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn by_name_right_holders_counts_the_holders_and_refuses_a_second() {
+        let spawn = "if image_id == fjell_abi::service::ImageId::NEG_TEST {\n  install_raw(27, rights: CapRights::LEASE_REVOKE_ANY)\n}\n// LEASE_REVOKE_ANY in a comment does not count\n";
+        let main = "let _ = cs.install_raw(30, rights: ALL_NON_META);\n";
+        assert_eq!(
+            by_name_right_holders(spawn, main, "LEASE_REVOKE_ANY", "NEG_TEST")
+                .unwrap()
+                .len(),
+            1
+        );
+        // A second image holding it is refused, and named.
+        let two = format!(
+            "{spawn}if image_id == fjell_abi::service::ImageId::CAP_BROKER {{\n  rights: CapRights::LEASE_REVOKE_ANY\n}}\n"
+        );
+        let e = by_name_right_holders(&two, main, "LEASE_REVOKE_ANY", "NEG_TEST").unwrap_err();
+        assert!(
+            e.len() == 1 && e[0].contains("CAP_BROKER") && e[0].contains("only NEG_TEST"),
+            "{e:#?}"
+        );
+        // init's main.rs grant is attributed to INIT, not to whatever image came last in spawn.rs.
+        let init = "let _ = cs.install_raw(30, rights: CapRights::LEASE_REVOKE_ANY);\n";
+        let e = by_name_right_holders(spawn, init, "LEASE_REVOKE_ANY", "NEG_TEST").unwrap_err();
+        assert!(e[0].contains("INIT"), "{e:#?}");
+        // Zero holders counts nothing.
+        let e = by_name_right_holders("", "", "LEASE_REVOKE_ANY", "NEG_TEST").unwrap_err();
+        assert!(e[0].contains("counted nothing"), "{e:#?}");
+    }
 
     #[test]
     fn image_name_for_matches_existing_image_id_variants() {

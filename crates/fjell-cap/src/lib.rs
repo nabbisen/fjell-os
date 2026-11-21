@@ -32,6 +32,7 @@ pub mod cspace;
 pub mod enforcement;
 pub mod handle;
 pub mod install;
+pub mod lease_revoke;
 pub mod rights;
 pub mod slot;
 

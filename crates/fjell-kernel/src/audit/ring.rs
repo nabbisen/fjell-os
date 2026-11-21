@@ -88,6 +88,14 @@ pub enum AuditKindInternal {
     /// `arg0` = the target task index, or `0xFFFF` if none had been determined;
     /// `arg1` = the object id asked for; `result` = the refusal (`SysError`).
     CapInstallRejected = 0x0602,
+    /// RFC-0.46-003: a `sys_lease_revoke` refused because the caller does not own the lease and its
+    /// capability lacks `LEASE_REVOKE_ANY`. **`0x0606`**, the next code after `RFC-v0.7.4-003`'s list.
+    /// A *successful* revocation is `LeaseRevoked = 16` (E-092 moved the published value there; the
+    /// spec's `0x0605` was superseded by it and is not a second kind for the same event).
+    ///
+    /// `arg0` = the lease id asked for, `arg1` = the owner's task index (`0xFFFF` if the lease could
+    /// not be read), `result` = the refusal (`SysError`).
+    LeaseRevokeRejected = 0x0606,
     // `CapDenied = 41` was here until RFC-0.40-002: emitted by nothing and absent
     // from the published decoder, so a kind nothing emits and nothing decodes. It
     // is gone rather than left to suggest that capability denials are audited

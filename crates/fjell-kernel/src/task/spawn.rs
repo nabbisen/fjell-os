@@ -775,6 +775,39 @@ pub fn spawn(
                     },
                 );
             }
+            // Slot 27: a SECOND LeaseAdmin for NEG_TEST, carrying `LEASE_REVOKE_ANY` (RFC-0.46-003).
+            //
+            // `sys_lease_revoke` requires the caller to own the lease it revokes; this capability is the
+            // one named exception. It exists because the `ipc` tier's two blocked-task scenarios must
+            // wake a task that is blocked on its own leased capability -- the owner cannot revoke while
+            // blocked, so only a non-owner can. That takes FOUR unbounded `LeaseAdmin` holders
+            // (sample-service, neg-test, cap-broker, init: every one `ObjectScope::Any`, so each could
+            // revoke any lease) to ONE named test image, and bounds the other three. Slot 4 above stays
+            // WITHOUT the right, so the refusal is demonstrable from the same task. A consistency
+            // subcheck (`capability-topology`) counts the holders of `LEASE_REVOKE_ANY` and fails on any
+            // image but NEG_TEST.
+            if image_id == fjell_abi::service::ImageId::NEG_TEST {
+                let _ = cs.install_raw(
+                    27,
+                    Capability {
+                        kind: CapKind::LeaseAdmin,
+                        object_id: 0,
+                        // Only what revoking needs: NOT `LEASE_CREATE`/`LEASE_BIND`. A fuller grant
+                        // here would pool authority with slot 4 and silently defeat
+                        // `test_cap_bind_lease_without_authority`, which proves binding is refused
+                        // once this task gives up its (single) full `LeaseAdmin` -- the first version
+                        // of this grant did exactly that.
+                        rights: CapRights(
+                            CapRights::LEASE_REVOKE.0 | CapRights::LEASE_REVOKE_ANY.0,
+                        ),
+                        badge: 0,
+                        scope: ObjectScope::Any,
+                        state: CapState::Active,
+                        parent: None,
+                        lease: None,
+                    },
+                );
+            }
             // Slot 29: TaskControl for SERVICE_MANAGER (RFC-0.33-001 D9).
             //
             // Never granted before this line — service-manager's own

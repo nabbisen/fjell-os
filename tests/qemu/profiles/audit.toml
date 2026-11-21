@@ -70,6 +70,9 @@ expect_echoed    = [
   # `recv`-is-denied check fires whatever object the capability names.
   "neg-test: audit: installed cap arg0= => \"kind\":\"cap.installed\",\"arg0\":{},\"arg1\":23,",
   "neg-test: audit: refused install arg0= => \"kind\":\"cap.install_rejected\",\"arg0\":{},\"arg1\":23,",
+  # RFC-0.46-003: a refused revocation reaches the trail under its own name (`0x0606`, known to the
+  # published decoder -- not `internal`).
+  "neg-test: audit: refused revoke lease arg0= => \"kind\":\"lease.revoke_rejected\",\"arg0\":{},",
   "neg-test: audit probe nr= => \"kind\":\"unknown_syscall\",\"arg0\":{}, => neg-test: audit settled",
 ]
 expect_observed  = [

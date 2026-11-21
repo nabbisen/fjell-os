@@ -635,6 +635,35 @@ pub fn sys_lease_revoke(
         tf.gpr[REG_A0] = e as isize as usize;
         return;
     }
+    // RFC-0.46-003: the kernel asks who owns the lease. The scope check above is unusable for a
+    // runtime-created lease (every `LeaseAdmin` grant is `ObjectScope::Any`), so ownership is the
+    // bound: the owner may revoke; a non-owner only with `LEASE_REVOKE_ANY` on the capability it
+    // presents. Asked *after* the capability check, so a caller without authority learns nothing
+    // about a lease -- not even who owns it (RFC-0.42-001 R2's order).
+    let owner = match lt.owner(id) {
+        Ok(o) => o,
+        Err(e) => {
+            // No such lease: the same `InvalidCap` `revoke` would have given.
+            tf.gpr[REG_A0] = e as isize as usize;
+            return;
+        }
+    };
+    let caller_owns = owner == fjell_abi::task::TaskId::new(tidx as u16, 0);
+    let rights = ct
+        .cspace(tidx)
+        .and_then(|cs| cs.get(cap_h).ok())
+        .map(|c| c.rights)
+        .unwrap_or(fjell_cap::CapRights::NONE);
+    if let Err(e) = fjell_cap::lease_revoke::revoke_permitted(caller_owns, rights) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        crate::audit::ring::AUDIT.lock_free_append(
+            crate::audit::ring::AuditKindInternal::LeaseRevokeRejected,
+            id.0 as usize,
+            owner.index as usize,
+            e as isize,
+        );
+        return;
+    }
     match lt.revoke(id) {
         Ok(ep) => {
             tf.gpr[REG_A0] = 0;

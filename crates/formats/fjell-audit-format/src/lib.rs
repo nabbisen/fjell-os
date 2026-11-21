@@ -53,6 +53,8 @@ pub enum AuditKind {
     // AUDIT_CAP_INSTALL_REJECTED).
     CapInstalled = 0x0601,
     CapInstallRejected = 0x0602,
+    // RFC-0.46-003: a refused lease revocation (the caller does not own the lease).
+    LeaseRevokeRejected = 0x0606,
     // Internal / unclassified
     Internal = 255,
 }
@@ -85,6 +87,7 @@ impl AuditKind {
             0x0604 => Self::LeaseBindRejected,
             0x0601 => Self::CapInstalled,
             0x0602 => Self::CapInstallRejected,
+            0x0606 => Self::LeaseRevokeRejected,
             _ => Self::Internal,
         }
     }
@@ -116,6 +119,7 @@ impl AuditKind {
             Self::LeaseBindRejected => "lease.bind_rejected",
             Self::CapInstalled => "cap.installed",
             Self::CapInstallRejected => "cap.install_rejected",
+            Self::LeaseRevokeRejected => "lease.revoke_rejected",
             Self::Internal => "internal",
         }
     }
@@ -393,6 +397,12 @@ mod tests {
             "cap.install_rejected"
         );
         assert_eq!(AuditKind::CapInstallRejected as u16, 0x0602);
+        assert_eq!(AuditKind::from_u16(0x0606), AuditKind::LeaseRevokeRejected);
+        assert_eq!(
+            AuditKind::LeaseRevokeRejected.label(),
+            "lease.revoke_rejected"
+        );
+        assert_eq!(AuditKind::LeaseRevokeRejected as u16, 0x0606);
     }
 
     #[test]

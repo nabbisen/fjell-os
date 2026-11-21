@@ -1,7 +1,7 @@
 # algo: sha256 (64 hex chars per entry)
 # toolchain: 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-linux-gnu / LLVM 23.1.5
 c3703db850fbde0124a84848fd2eaa42008500d6bc696b1fe011edc55a4b76a1 crates/fjell-kernel/prebuilt/fjell-attestd.bin
-61dc63ca4c80d544f349256240251d7e2624c700cd96230c344b4ebba5267448 crates/fjell-kernel/prebuilt/fjell-auditd.bin
+ba5140b2d027ea4ecab921b41aec03ce0942151a61f7e8dca499e84c97495467 crates/fjell-kernel/prebuilt/fjell-auditd.bin
 9a8b0b685d104e3c7e9e418f4a73500e9739f3d7e18e6559710390d91741c214 crates/fjell-kernel/prebuilt/fjell-bootctl.bin
 fbdc76ece7d6837942d4b9b638e0fa9146c23e8efd714d2297d99ccac2a1ef8e crates/fjell-kernel/prebuilt/fjell-cap-broker.bin
 2bcdab3de577aa12d7740e9d9fdc4979cf037658e34c26807cee362917c9905b crates/fjell-kernel/prebuilt/fjell-configd.bin
@@ -13,7 +13,7 @@ bf1f39d5832a7ed3b6aca144919693952c56b8e167462443c1fbe85596bc44dc crates/fjell-ke
 ccaabc2ac01016767220f48c32b14e491a025a4eee36a842d66088b022fe7b46 crates/fjell-kernel/prebuilt/fjell-fleetd.bin
 60c938e1997778ad23693536aa541c0aaad8f3de5b3d0129d141322983d41d4a crates/fjell-kernel/prebuilt/fjell-init.bin
 62374c87611b94a4e2b641673dfec893fc70ad7c1dc6b7ff5c60a3114a55694f crates/fjell-kernel/prebuilt/fjell-measuredd.bin
-99f5e47d9c35fb03ca999779d59954c9566961d31620f0e945ec78626992db4c crates/fjell-kernel/prebuilt/fjell-neg-test.bin
+7d86c3b9872ac2b732cf72f2efcedc82a523a7795112a7bd7276d96cf251d1c9 crates/fjell-kernel/prebuilt/fjell-neg-test.bin
 f937d6bc5c009b8b3235eb2bf13c68ef91c87a92556f8e150a0056b6a0831f02 crates/fjell-kernel/prebuilt/fjell-netd.bin
 7a3933943fbfc66aa5a307e507ed1f735f4a12bdaaf95ea970cecb7c3d00780e crates/fjell-kernel/prebuilt/fjell-powerd.bin
 09ceaf7a2d1fa1f8a6ae4c60ebe228a1357809b29ac62a55ffc35b6ff4f5850e crates/fjell-kernel/prebuilt/fjell-proxy-braille.bin

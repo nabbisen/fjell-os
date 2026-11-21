@@ -62,6 +62,11 @@ const SLOT_CLOCK_NO_RIGHT: u32 = 15;
 /// The kind is right and `CAP_INSTALL` is absent, so the only thing that can refuse an install
 /// through it is the kernel's rights check. It confers nothing: only the broker holds the right.
 const SLOT_INSTALL_NO_RIGHT: u32 = 26;
+/// A **second** `LeaseAdmin`, carrying `LEASE_REVOKE_ANY` (RFC-0.46-003; `spawn.rs` slot 27): the one
+/// capability in the tree that may revoke a lease its holder does not own. The `ipc` scenarios use it
+/// to wake `sample-service`, which is blocked on a lease it owns; slot 4 (`SLOT_LEASE_ADMIN`) has no
+/// such right, so the kernel's refusal is demonstrable from this same task.
+const SLOT_LEASE_ADMIN_ANY: u32 = 27;
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 #[allow(dead_code)]
@@ -909,7 +914,7 @@ fn test_ipc_blocked_recv() {
         }
         _ => {
             sys_debug_writeln("NEG:HARNESS:BLOCKED_RECV_IDENTITY_EXCHANGE_FAILED");
-            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN_ANY, lease_id);
             return;
         }
     };
@@ -933,7 +938,7 @@ fn test_ipc_blocked_recv() {
     }
     if !blocked {
         sys_debug_writeln("NEG:HARNESS:BLOCKED_RECV_POLL_EXHAUSTED");
-        let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+        let _ = sys_lease_revoke(SLOT_LEASE_ADMIN_ANY, lease_id);
         return;
     }
 
@@ -943,7 +948,7 @@ fn test_ipc_blocked_recv() {
 
     // 5. Revoke the lease — this triggers cancel_blocked_ipc_for_lease in
     //    the kernel which wakes sample-service with LeaseRevoked.
-    let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+    let _ = sys_lease_revoke(SLOT_LEASE_ADMIN_ANY, lease_id);
     // (marker emitted by sample-service asynchronously)
 }
 
@@ -975,6 +980,30 @@ fn test_audit_refused_bind_reaches_the_trail(foreign: fjell_abi::lease::LeaseId)
         Ok(_) => sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK"),
     }
     let _ = _sys_cap_drop(copied);
+    test_lease_revoke_not_owner_refused(foreign);
+}
+
+/// RFC-0.46-003: the **kernel** refuses to let a `LeaseAdmin` revoke a lease it does not own.
+///
+/// `foreign` is a lease `sample-service` created and still holds `Active`. Slot 4 is `neg-test`'s
+/// ordinary `LeaseAdmin` (`ObjectScope::Any`, `LEASE_REVOKE`, **no** `LEASE_REVOKE_ANY`): before this line
+/// it would have revoked the lease; now it is `PermissionDenied`, and the lease's epoch is unchanged. The
+/// marker is emitted only if both hold. The refusal is audited as `lease.revoke_rejected` (`0x0606`) and
+/// this line prints the lease id for the `audit` profile to find echoed.
+fn test_lease_revoke_not_owner_refused(foreign: fjell_abi::lease::LeaseId) {
+    let before = sys_lease_inspect(SLOT_LEASE_ADMIN, foreign);
+    let refused = sys_lease_revoke(SLOT_LEASE_ADMIN, foreign);
+    let after = sys_lease_inspect(SLOT_LEASE_ADMIN, foreign);
+    match (refused, before, after) {
+        (Err(fjell_abi::error::SysError::PermissionDenied), Ok(b), Ok(a)) if b == a => {
+            sys_debug_write("neg-test: audit: refused revoke lease arg0=");
+            debug_dec(foreign.0 as u64);
+            sys_debug_writeln("");
+            check(true, M::LEASE_REVOKE_NOT_OWNER_REFUSED);
+        }
+        (Err(_), _, _) => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+        (Ok(_), _, _) => sys_debug_writeln("NEG:HARNESS:UNEXPECTED_OK"),
+    }
 }
 
 /// IPC: trigger BLOCKED_CALL_WAKES and LATE_REPLY_REJECTED in one exchange.
@@ -1020,7 +1049,7 @@ fn test_ipc_blocked_call_and_late_reply() {
             // Got the CALL_BACK_MSG from sample-service.
             // 4. Revoke the lease — this wakes sample-service (BLOCKED_CALL marker)
             //    and cancels our reply edge.
-            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN_ANY, lease_id);
 
             // 5. Try to reply — the edge is gone (cancelled by revoke above).
             // Fail-closed (RB-01): the marker is emitted ONLY on the two
@@ -1046,7 +1075,7 @@ fn test_ipc_blocked_call_and_late_reply() {
         Err(e) => {
             sys_debug_writeln("neg-test: ipc late-reply: step3 recv failed:");
             debug_err(e);
-            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN, lease_id);
+            let _ = sys_lease_revoke(SLOT_LEASE_ADMIN_ANY, lease_id);
         }
     }
 }

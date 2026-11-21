@@ -99,6 +99,25 @@ impl CapRights {
     /// blanket grant must not silently confer a new authority.
     pub const CLOCK_READ: Self = CapRights(1 << 31);
 
+    // Lease revocation by a non-owner (RFC-0.46-003)
+    /// Authority to revoke a lease **the caller does not own** -- bit 32.
+    ///
+    /// `sys_lease_revoke` requires the caller to own the lease it revokes (the kernel asks
+    /// `lt.owner(id)`); a `LeaseAdmin` capability carrying this right is the one named exception.
+    /// Every `LeaseAdmin` grant is `ObjectScope::Any` (the leases are created at runtime, so no spawn
+    /// grant can name one), which made the scope bound unusable and left every holder able to revoke
+    /// any lease; ownership is the only workable bound for a dynamically created lease.
+    ///
+    /// **Held by exactly one image, `neg-test`**, whose `ipc`-tier scenarios must wake a task that is
+    /// blocked on its own leased capability -- an owner that is blocked cannot revoke, so only a
+    /// non-owner can. That takes four unbounded `LeaseAdmin` holders (`sample-service`, `neg-test`,
+    /// `cap-broker`, `init`) to one named test image and bounds the other three. A consistency
+    /// subcheck counts the holders.
+    ///
+    /// **Deliberately in neither [`Self::ALL_NON_META`] nor [`Self::ALL_DEFINED`]**, as
+    /// [`Self::LEASE_BIND`] and [`Self::CLOCK_READ`] are: a blanket grant must not confer it.
+    pub const LEASE_REVOKE_ANY: Self = CapRights(1 << 32);
+
     /// Bits 0..=25: every right below [`Self::CAP_INSTALL`]. Use for ordinary service grants.
     /// Formerly named `ALL`.
     ///
@@ -434,6 +453,22 @@ mod rfc_v074_003_tests {
     use super::{CapKind, CapRights};
 
     // CapRights naming
+    // RFC-0.46-003: `LEASE_REVOKE_ANY` is bit 32 and in no aggregate.
+    #[test]
+    fn lease_revoke_any_is_bit_32_and_in_no_aggregate() {
+        assert_eq!(CapRights::LEASE_REVOKE_ANY.0, 1 << 32);
+        assert!(!CapRights::ALL_NON_META.contains(CapRights::LEASE_REVOKE_ANY));
+        assert!(!CapRights::ALL_DEFINED.contains(CapRights::LEASE_REVOKE_ANY));
+        for other in [
+            CapRights::LEASE_BIND,
+            CapRights::CLOCK_READ,
+            CapRights::CAP_INSTALL,
+            CapRights::LEASE_REVOKE,
+        ] {
+            assert_eq!(other.0 & CapRights::LEASE_REVOKE_ANY.0, 0);
+        }
+    }
+
     #[test]
     fn all_non_meta_excludes_cap_install() {
         assert!(!CapRights::ALL_NON_META.contains(CapRights::CAP_INSTALL));
