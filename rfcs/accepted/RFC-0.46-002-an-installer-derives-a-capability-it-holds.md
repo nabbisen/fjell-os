@@ -1,6 +1,7 @@
 # RFC-0.46-002: An installer derives a capability it holds; it does not fabricate one from an integer
 
 **Status:** Accepted — accepted 2026-11-21
+**Evidence:** marker:policy:NEG:POLICY:GRANT_INSTALLS_USABLE_CAP:PASS, marker:policy:NEG:POLICY:GRANT_REVOKE_KILLS_CAP:PASS, syscall:CapInstall, test:crates/fjell-cap/src/install.rs::rights_the_source_does_not_hold_are_refused_even_inside_the_envelope
 **Milestone:** 0.46
 **Tracks.** The first of the three places 0.45 put cap-broker inside the kernel's trust boundary: *"install
 a capability to object N"* is accepted without the kernel asking whether the broker holds anything on N.

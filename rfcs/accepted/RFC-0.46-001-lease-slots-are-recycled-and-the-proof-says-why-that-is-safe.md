@@ -1,6 +1,7 @@
 # RFC-0.46-001: Lease slots are recycled, and the proof says why that is safe
 
 **Status:** Accepted — accepted 2026-11-21
+**Evidence:** marker:policy:NEG:LEASE:SLOTS_RECYCLED:PASS, marker:policy:NEG:LEASE:STALE_BINDING_STAYS_REVOKED:PASS, marker:policy:NEG:LEASE:OWNER_QUOTA_ENFORCED:PASS, marker:policy:NEG:POLICY:ABANDON_LOOP_BOUNDED:PASS, test:crates/fjell-cap/tests/lease_conformance.rs::recycled_slot_is_not_its_predecessor_for_any_new_epoch, file:verification/verus/lease/lease_epoch.rs
 **Milestone:** 0.46
 **Tracks.** **E-110** — `MAX_LEASES = 32` slots, never recycled; 0.45 made the limit reachable from a
 production path. Does **not** by itself close the reachable denial of service (see §"A premise this RFC
