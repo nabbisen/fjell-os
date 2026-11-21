@@ -11,9 +11,6 @@ publish = false
 name = "fjell_bootctl_model"
 path = "src/lib.rs"
 
-[dependencies]
-proptest = "1.6"
-
 [dev-dependencies]
 proptest = "1.6"
 # RFC-0.33-001 D1: the model's first dependent. `tests/refines.rs` runs the

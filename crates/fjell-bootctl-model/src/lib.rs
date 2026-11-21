@@ -1,8 +1,6 @@
 //! Boot-control state-machine model (RFC v0.6-002 §7.2).
 //! Six bootctl properties + one combined property.
 
-use proptest::prelude::*;
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 pub const BOOT_COUNT_MAX: u8 = 3;
@@ -268,83 +266,79 @@ pub fn b6_active_is_valid_slot(m: &BootModel, ops: &[BootOp]) -> Result<(), Stri
     Ok(())
 }
 
-// ── Proptest generators ───────────────────────────────────────────────────────
+// ── Proptest generators and properties ────────────────────────────────────────
 //
-// Test-only: `#[cfg(test)]` so the library build does not carry them. The
-// `proptest!` block below expands to `#[test]` functions, which are themselves
-// test-only, so without this gate these three and `mod props` are dead in the
-// lib build and the compiler says so (fixed 2026-11-17).
+// Test-only, and now **module-level test-only**: everything that needs `proptest` sits inside
+// this `#[cfg(test)]` module, so the library build does not link it and `proptest` is a
+// `[dev-dependencies]` entry only (0.46 small item D). It used to be a `[dependencies]` entry
+// too, because the `proptest!` block and the `use` sat at module level and the lib target needed
+// the macro; 0.45 item A's `unused_dependencies` lint is what showed the pair.
 
 #[cfg(test)]
-fn arb_slot() -> impl Strategy<Value = Slot> {
-    prop_oneof![Just(Slot::A), Just(Slot::B)]
-}
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
 
-#[cfg(test)]
-fn arb_boot_op() -> impl Strategy<Value = BootOp> {
-    prop_oneof![
-        arb_slot().prop_map(BootOp::SetPending),
-        arb_slot().prop_map(BootOp::MarkBooted),
-        arb_slot().prop_map(BootOp::ConfirmSlot),
-        arb_slot().prop_map(BootOp::HealthFail),
-        Just(BootOp::Reboot),
-    ]
-}
-
-#[cfg(test)]
-fn arb_boot_sequence() -> impl Strategy<Value = Vec<BootOp>> {
-    prop::collection::vec(arb_boot_op(), 0..=32)
-}
-
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 1_000, ..ProptestConfig::default() })]
-
-    #[test]
-    fn test_b1_never_confirm_unbooted(ops in arb_boot_sequence(), slot in arb_slot()) {
-        let mut m = BootModel::new();
-        for op in &ops { execute(&mut m, op); }
-        props::b1_never_confirm_unbooted(&m, slot).map_err(|e| TestCaseError::fail(e))?;
+    fn arb_slot() -> impl Strategy<Value = Slot> {
+        prop_oneof![Just(Slot::A), Just(Slot::B)]
     }
 
-    #[test]
-    fn test_b2_pending_not_confirmed(ops in arb_boot_sequence()) {
-        let mut m = BootModel::new();
-        for op in &ops { execute(&mut m, op); }
-        props::b2_pending_not_confirmed(&m).map_err(|e| TestCaseError::fail(e))?;
+    fn arb_boot_op() -> impl Strategy<Value = BootOp> {
+        prop_oneof![
+            arb_slot().prop_map(BootOp::SetPending),
+            arb_slot().prop_map(BootOp::MarkBooted),
+            arb_slot().prop_map(BootOp::ConfirmSlot),
+            arb_slot().prop_map(BootOp::HealthFail),
+            Just(BootOp::Reboot),
+        ]
     }
 
-    #[test]
-    fn test_b3_health_fail_rolls_back(ops in arb_boot_sequence()) {
-        let mut m = BootModel::new();
-        for op in &ops { execute(&mut m, op); }
-        props::b3_health_fail_rolls_back(&m).map_err(|e| TestCaseError::fail(e))?;
+    fn arb_boot_sequence() -> impl Strategy<Value = Vec<BootOp>> {
+        prop::collection::vec(arb_boot_op(), 0..=32)
     }
 
-    #[test]
-    fn test_b4_boot_count_bounded(ops in arb_boot_sequence()) {
-        let mut m = BootModel::new();
-        for op in &ops { execute(&mut m, op); }
-        props::b4_boot_count_bounded(&m).map_err(|e| TestCaseError::fail(e))?;
-    }
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 1_000, ..ProptestConfig::default() })]
 
-    #[test]
-    fn test_b5_lkg_advances_on_confirm(ops in arb_boot_sequence()) {
-        let mut m = BootModel::new();
-        for op in &ops { execute(&mut m, op); }
-        props::b5_lkg_advances_on_confirm(&m).map_err(|e| TestCaseError::fail(e))?;
-    }
+        #[test]
+        fn test_b1_never_confirm_unbooted(ops in arb_boot_sequence(), slot in arb_slot()) {
+            let mut m = BootModel::new();
+            for op in &ops { execute(&mut m, op); }
+            b1_never_confirm_unbooted(&m, slot).map_err(|e| TestCaseError::fail(e))?;
+        }
 
-    #[test]
-    fn test_b6_active_is_valid_slot(ops in arb_boot_sequence()) {
-        let m = BootModel::new();
-        props::b6_active_is_valid_slot(&m, &ops).map_err(|e| TestCaseError::fail(e))?;
-    }
-}
+        #[test]
+        fn test_b2_pending_not_confirmed(ops in arb_boot_sequence()) {
+            let mut m = BootModel::new();
+            for op in &ops { execute(&mut m, op); }
+            b2_pending_not_confirmed(&m).map_err(|e| TestCaseError::fail(e))?;
+        }
 
-#[cfg(test)]
-mod props {
-    pub use super::{
-        b1_never_confirm_unbooted, b2_pending_not_confirmed, b3_health_fail_rolls_back,
-        b4_boot_count_bounded, b5_lkg_advances_on_confirm, b6_active_is_valid_slot,
-    };
+        #[test]
+        fn test_b3_health_fail_rolls_back(ops in arb_boot_sequence()) {
+            let mut m = BootModel::new();
+            for op in &ops { execute(&mut m, op); }
+            b3_health_fail_rolls_back(&m).map_err(|e| TestCaseError::fail(e))?;
+        }
+
+        #[test]
+        fn test_b4_boot_count_bounded(ops in arb_boot_sequence()) {
+            let mut m = BootModel::new();
+            for op in &ops { execute(&mut m, op); }
+            b4_boot_count_bounded(&m).map_err(|e| TestCaseError::fail(e))?;
+        }
+
+        #[test]
+        fn test_b5_lkg_advances_on_confirm(ops in arb_boot_sequence()) {
+            let mut m = BootModel::new();
+            for op in &ops { execute(&mut m, op); }
+            b5_lkg_advances_on_confirm(&m).map_err(|e| TestCaseError::fail(e))?;
+        }
+
+        #[test]
+        fn test_b6_active_is_valid_slot(ops in arb_boot_sequence()) {
+            let m = BootModel::new();
+            b6_active_is_valid_slot(&m, &ops).map_err(|e| TestCaseError::fail(e))?;
+        }
+    }
 }
