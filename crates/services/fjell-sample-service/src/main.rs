@@ -8,10 +8,17 @@
 //!    leases it created, so the binder is the creator), copies its endpoint cap
 //!    to a scratch slot, binds the lease, replies with the lease id (label
 //!    `LEASE_REPLY | id`), then calls `sys_ipc_recv` on the leased copy.
-//! 3. neg-test revokes the lease -- `sys_lease_revoke` is checked by the
-//!    `LeaseAdmin` capability's scope, not by who created the lease -- and the
-//!    kernel wakes sample-service with `LeaseRevoked` → sample-service prints
-//!    `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS`.
+//! 3. neg-test revokes the lease and the kernel wakes sample-service with `LeaseRevoked`
+//!    → sample-service prints `NEG:IPC:BLOCKED_RECV_WAKES_ON_REVOKE:PASS`.
+//!
+//!    **Why a non-owner may revoke it, which changed in 0.46.0.** This comment used to say
+//!    `sys_lease_revoke` is *"checked by the `LeaseAdmin` capability's scope, not by who created
+//!    the lease"*. **That is no longer true:** RFC-0.46-003 made the kernel check **ownership**,
+//!    because every `LeaseAdmin` carries `ObjectScope::Any` and the scope bound was therefore
+//!    unusable for a lease created at runtime. The scenario works because `neg-test` holds the one
+//!    named exception, `LEASE_REVOKE_ANY`, on a second `LeaseAdmin` — and the exception exists
+//!    *for this scenario's shape*: **an owner blocked on its own leased capability cannot revoke
+//!    it, so only a non-owner can wake it.** `capability-topology` asserts exactly one holder.
 
 #![no_std]
 #![no_main]

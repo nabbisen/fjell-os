@@ -67,9 +67,25 @@ capability. Bootstrap installation at spawn still goes through the in-kernel
   Other kinds (`TaskControl`, `MmioRegion`, ...) are refused until a scoped
   design and a consumer exist. The broker's `SxtSession` class names no object
   yet, so `secure-transportd`'s `CAP_SESSION` delivery still cannot happen.
+  Since RFC-0.46-002 an install **derives** from a capability the installer holds: the call
+  names a source and `kind` and `object` are read from it, so a forged object is
+  unrepresentable rather than rejected — at the price that the broker now *holds* what it
+  delegates, bounded by the reviewed `BROKERED_ENDPOINTS` table.
   Lease slots are recycled (RFC-0.46-001): a revoked slot is reclaimed on allocation
   pressure and its generation bumped, a task owns at most 16 `Active` leases, and the
   broker grants a requester at most 4 at a time.
+- **A lease is revoked by its owner** (RFC-0.46-003). Every `LeaseAdmin` carries
+  `ObjectScope::Any` — necessarily, since the leases they revoke are created at runtime — so
+  the kernel checks ownership rather than scope. One named exception, `LEASE_REVOKE_ANY`, is
+  held by `neg-test` alone, because an owner blocked on its own leased capability cannot
+  revoke it and only a non-owner can wake it; `capability-topology` counts the holders.
 
-There are no known correctness gaps in the capability/lease core at v0.21.2; the
-Verus proofs and negative tests cover the security-critical predicates.
+**Correctness gaps: as of 0.46.0, none known in the capability/lease core**, and the Verus
+proofs and negative tests cover the security-critical predicates — the lease model now
+machine-checks slot reuse as well, at 11 obligations against 5.
+
+*Re-dated 2026-11-21 at the 0.46.0 cut, by exit criterion 8. This read "no known correctness
+gaps … **at v0.21.2**" — a claim twenty-five milestones old, sitting in an as-built section where
+it reads as current. It was also not true for the whole of that period: **E-110** recorded a
+reachable denial of the lease table, closed by RFC-0.46-001 two commits before this edit. A
+statement of this kind must carry the version it was last taken at, or it is the E-014 class.*
