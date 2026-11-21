@@ -11,23 +11,13 @@ fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+/// Every file of the repository under `dir`. The file set is `fjell-repo-scope`'s answer (tracked files
+/// plus untracked ones git does not ignore); this used to be a directory walk that skipped four literal
+/// names (`target`, `.git`, `.git-exclude`, `runs`) -- the E-025 shape, retired by 0.46 small item B.
 fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(rd) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for e in rd.flatten() {
-        let p = e.path();
-        let name = e.file_name();
-        let name = name.to_string_lossy();
-        if p.is_dir() {
-            if name == "target" || name == ".git" || name == ".git-exclude" || name == "runs" {
-                continue;
-            }
-            walk(&p, out);
-        } else {
-            out.push(p);
-        }
-    }
+    let all = fjell_repo_scope::files(&root(), fjell_repo_scope::Scope::Working)
+        .expect("the repository's file set (is this a git checkout?)");
+    out.extend(all.into_iter().filter(|p| p.starts_with(dir)));
 }
 
 // ── The comparison ───────────────────────────────────────────────────────────

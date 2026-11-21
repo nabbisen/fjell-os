@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-repo-scope"
+description = "The one answer to 'which files count as this repository' (0.46 small item B, E-125): everything git considers part of the working copy -- never a hand-written list of directory names."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "fjell_repo_scope"
+path = "src/lib.rs"

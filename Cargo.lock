@@ -584,6 +584,9 @@ dependencies = [
 [[package]]
 name = "fjell-consistency-check"
 version = "0.45.0"
+dependencies = [
+ "fjell-repo-scope",
+]
 
 [[package]]
 name = "fjell-dev-harness"
@@ -775,6 +778,9 @@ dependencies = [
 [[package]]
 name = "fjell-mmio-audit"
 version = "0.45.0"
+dependencies = [
+ "fjell-repo-scope",
+]
 
 [[package]]
 name = "fjell-neg-test"
@@ -899,6 +905,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-repo-scope"
+version = "0.45.0"
+
+[[package]]
 name = "fjell-repro-check"
 version = "0.45.0"
 dependencies = [
@@ -942,6 +952,7 @@ dependencies = [
  "fjell-keyring",
  "fjell-measure-format",
  "fjell-platform-format",
+ "fjell-repo-scope",
  "fjell-semantic-format",
  "fjell-semantic-v1",
  "fjell-snapshot-format",
@@ -1177,6 +1188,7 @@ dependencies = [
  "fjell-consistency-check",
  "fjell-dev-harness",
  "fjell-measure-format",
+ "fjell-repo-scope",
  "fjell-schema",
  "fjell-sig-ed25519",
  "getrandom 0.2.17",
@@ -1193,6 +1205,9 @@ dependencies = [
 [[package]]
 name = "fjell-unsafe-audit"
 version = "0.45.0"
+dependencies = [
+ "fjell-repo-scope",
+]
 
 [[package]]
 name = "fjell-upgrade-format"

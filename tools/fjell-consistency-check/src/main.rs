@@ -45,6 +45,8 @@
 //!     statuses are reported by name (RFC-0.45-003)
 //!   - `endpoint-envelope` — `ENDPOINT_ENVELOPE` equals the union of the broker's `Endpoint`-class
 //!     `Allow` rights, evaluated rather than text-matched (0.46 small item C)
+//!   - `repo-scope` — every Rust source that walks the tree asks `fjell-repo-scope` or is classified
+//!     with a reason; an unclassifiable walker fails (0.46 small item B, E-125)
 //!
 //! `ALL_SUBCHECKS` is the authoritative list; the by-name dispatch and the
 //! usage string are both derived from it. **This comment is not** — it is
@@ -73,6 +75,7 @@ mod evidence;
 mod handoff_status;
 mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
+mod repo_scope; // 0.46 small item B (E-125): no tool answers 'what counts as this repository' from a name list
 mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is in the lib)
 mod rfc_status_folder;
 mod security_advisories;
@@ -150,6 +153,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("rfc-evidence", rfc_evidence_gate::check),
     // 0.46 small item C: the install envelope equals the union of the broker's Endpoint grants.
     ("endpoint-envelope", endpoint_envelope::check),
+    // 0.46 small item B (E-125): the scope of a scan is `fjell-repo-scope`'s, or classified.
+    ("repo-scope", repo_scope::check),
 ];
 
 #[cfg(test)]

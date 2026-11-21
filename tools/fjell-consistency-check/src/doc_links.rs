@@ -10,15 +10,13 @@
 //! `tests/doc-links/known-broken.txt` with the reason, per the handoff's
 //! "fix what is mechanical, record what is not."
 //!
-//! ## Scope: a filesystem walk, not `git ls-files`
+//! ## Scope: git's answer, not a walk with a skip list
 //!
-//! Consistent with every other subcheck in this tool (none shells out to
-//! git — see `errata_tracking`'s design note on the same question), this
-//! walks the directory tree directly, excluding `target/`, `.git/`, and
-//! `.git-exclude/` (the last is this project's private, gitignored review
-//! workflow directory — not part of the tracked documentation set at all).
-//! Verified equivalent to `git ls-files '*.md'` against the current tree
-//! (380 files, both ways) before relying on it.
+//! This used to walk the directory tree directly, excluding three literal names (`target/`, `.git/`,
+//! `.git-exclude/`), on the grounds that it was "verified equivalent to `git ls-files '*.md'`". That
+//! was true on the day and is the E-025 shape: a name list is true until the next directory. Scope
+//! now comes from `fjell-repo-scope` (tracked files plus untracked ones git does not ignore), the
+//! same function the unsafe and MMIO audits use (0.46 small item B, E-125).
 //!
 //! ## What counts as a link: code is not markup
 //!
@@ -45,13 +43,12 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 const KNOWN_BROKEN_PATH: &str = "tests/doc-links/known-broken.txt";
-const EXCLUDE_DIRS: &[&str] = &["target", ".git", ".git-exclude"];
 
 const NAME: &str = "doc-links";
 
 pub fn check() -> ExitCode {
     let mut files: Vec<(PathBuf, String)> = Vec::new();
-    if let Err(e) = walk_markdown(Path::new("."), &mut files) {
+    if let Err(e) = repo_markdown(&mut files) {
         eprintln!("{NAME}: FAIL — cannot walk repository tree: {e}");
         return ExitCode::FAILURE;
     }
@@ -68,21 +65,21 @@ pub fn check() -> ExitCode {
     run_check(&refs, &known_broken)
 }
 
-fn walk_markdown(dir: &Path, out: &mut Vec<(PathBuf, String)>) -> std::io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if path.is_dir() {
-            if EXCLUDE_DIRS.contains(&name.as_ref()) {
-                continue;
-            }
-            walk_markdown(&path, out)?;
-        } else if path.extension().is_some_and(|e| e == "md") {
-            if let Ok(content) = fs::read_to_string(&path) {
-                out.push((path, content));
-            }
+/// Every `.md` file of the repository, with its text: the shared scope's answer
+/// (`fjell-repo-scope`, `Scope::Working` -- tracked files plus untracked ones git does not ignore).
+///
+/// This was a directory walk with a literal skip list (`target`, `.git`, `.git-exclude`), and
+/// `evidence` carried an identical twin of it: the E-025 shape (a hand-maintained name list deciding
+/// what counts as the repository), which `fjell-mmio-audit` had carried for seventeen milestones
+/// (E-125). Both now ask the one question in one place (0.46 small item B).
+pub(crate) fn repo_markdown(out: &mut Vec<(PathBuf, String)>) -> std::io::Result<()> {
+    for path in fjell_repo_scope::files_with_extension(
+        Path::new("."),
+        fjell_repo_scope::Scope::Working,
+        "md",
+    )? {
+        if let Ok(content) = fs::read_to_string(&path) {
+            out.push((path, content));
         }
     }
     Ok(())

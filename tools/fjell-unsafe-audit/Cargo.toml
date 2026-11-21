@@ -12,3 +12,4 @@ name = "fjell-unsafe-audit"
 path = "src/main.rs"
 
 [dependencies]
+fjell-repo-scope = { path = "../fjell-repo-scope" }

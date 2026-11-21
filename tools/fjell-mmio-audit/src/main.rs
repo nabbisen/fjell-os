@@ -26,7 +26,7 @@
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::ExitCode;
 
 const MMIO_PATTERNS: &[&str] = &[
     "read_volatile(",
@@ -183,34 +183,11 @@ struct MmioRecord {
 /// sites. That is self-exclusion, which is what the original comment meant, and it
 /// is kept deliberately.
 fn discover_rs_files(root: &Path) -> io::Result<Vec<PathBuf>> {
-    let root_str = root.to_string_lossy().into_owned();
-    let out = Command::new("git")
-        .args([
-            "-C",
-            &root_str,
-            "ls-files",
-            "-z",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-        ])
-        .output()?;
-    if !out.status.success() {
-        return Err(io::Error::other(format!(
-            "git ls-files failed under {} (not a git repository?): {}",
-            root.display(),
-            String::from_utf8_lossy(&out.stderr).trim()
-        )));
-    }
-    let mut files: Vec<PathBuf> = out
-        .stdout
-        .split(|&b| b == 0)
-        .filter(|s| !s.is_empty())
-        .map(|rel| root.join(String::from_utf8_lossy(rel).as_ref()))
-        .filter(|p: &PathBuf| p.extension().and_then(|e| e.to_str()) == Some("rs"))
-        .filter(|p: &PathBuf| !p.components().any(|c| c.as_os_str() == "fjell-mmio-audit"))
-        .collect();
-    files.sort();
+    // Scope is `fjell-repo-scope`'s (0.46 small item B / E-125); the only thing this tool adds
+    // is its own self-exclusion, in view, below.
+    let mut files =
+        fjell_repo_scope::files_with_extension(root, fjell_repo_scope::Scope::Working, "rs")?;
+    files.retain(|p| !p.components().any(|c| c.as_os_str() == "fjell-mmio-audit"));
     Ok(files)
 }
 
@@ -290,6 +267,7 @@ fn strip_string_literals_and_comments(line: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::process::Command;
 
     fn strs(args: &[&str]) -> Vec<String> {
         args.iter().map(|s| s.to_string()).collect()

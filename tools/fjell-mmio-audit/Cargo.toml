@@ -10,3 +10,6 @@ publish = false
 [[bin]]
 name = "fjell-mmio-audit"
 path = "src/main.rs"
+
+[dependencies]
+fjell-repo-scope = { path = "../fjell-repo-scope" }

@@ -60,4 +60,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "threat-model",
     "rfc-evidence",
     "endpoint-envelope",
+    "repo-scope",
 ];

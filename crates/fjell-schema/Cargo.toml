@@ -28,3 +28,6 @@ fjell-keyring             = { path = "../fjell-keyring" }
 fjell-semantic-format    = { path = "../formats/fjell-semantic-format" }
 fjell-semantic-v1         = { path = "../fjell-semantic-v1" }
 fjell-trust-provider      = { path = "../fjell-trust-provider" }
+
+[dev-dependencies]
+fjell-repo-scope          = { path = "../../tools/fjell-repo-scope" }

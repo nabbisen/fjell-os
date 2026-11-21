@@ -19,7 +19,6 @@ use std::{
     env, fs, io,
     path::{Path, PathBuf},
     process,
-    process::Command,
 };
 
 /// Known unsafe site categories (RFC-v0.7.5-001 / W-H-05).
@@ -304,34 +303,9 @@ fn extract_category(safety_text: &str) -> UnsafeCategory {
 /// `target/` (ignored via the same file) is not — with zero enumerated
 /// name anywhere in this tool.
 fn discover_rs_files(root: &Path) -> io::Result<Vec<PathBuf>> {
-    let root_str = root.to_string_lossy().into_owned();
-    let out = Command::new("git")
-        .args([
-            "-C",
-            &root_str,
-            "ls-files",
-            "-z",
-            "--cached",
-            "--others",
-            "--exclude-standard",
-        ])
-        .output()?;
-    if !out.status.success() {
-        return Err(io::Error::other(format!(
-            "git ls-files failed under {} (not a git repository?): {}",
-            root.display(),
-            String::from_utf8_lossy(&out.stderr).trim()
-        )));
-    }
-    let mut files: Vec<PathBuf> = out
-        .stdout
-        .split(|&b| b == 0)
-        .filter(|s| !s.is_empty())
-        .map(|rel| root.join(String::from_utf8_lossy(rel).as_ref()))
-        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("rs"))
-        .collect();
-    files.sort();
-    Ok(files)
+    // The question "which files count as this repository" is answered in one place
+    // (`fjell-repo-scope`, 0.46 small item B / E-125), not re-derived per tool.
+    fjell_repo_scope::files_with_extension(root, fjell_repo_scope::Scope::Working, "rs")
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────

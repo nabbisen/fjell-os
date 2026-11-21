@@ -79,6 +79,7 @@ members = [
     "tools/fjell-abi-snapshot",
     "tools/fjell-repro-check",
     "tools/fjell-mmio-audit",
+    "tools/fjell-repo-scope",
     "tools/fjell-summary-check",
     "tools/fjell-readiness-check",
     "tools/fjell-consistency-check",
@@ -157,6 +158,7 @@ default-members = [
     "crates/formats/fjell-verify-format",
     "crates/services/fjell-fleetd",
     "tools/fjell-unsafe-audit",
+    "tools/fjell-repo-scope",
 ]
 
 [workspace.package]

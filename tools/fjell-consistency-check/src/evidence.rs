@@ -53,7 +53,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 const EVIDENCE_DIR: &str = "tests/evidence";
-const EXCLUDE_DIRS: &[&str] = &["target", ".git", ".git-exclude"];
 // RFC-0.30-003 R2: `toolchain` added. All seven files that existed before
 // this field were backfilled with an honest `unknown (predates this
 // field; not recoverable)` value (D2 — a guessed real version would be a
@@ -73,7 +72,7 @@ const NAME: &str = "evidence";
 
 pub fn check() -> ExitCode {
     let mut files: Vec<(PathBuf, String)> = Vec::new();
-    if let Err(e) = walk_markdown(Path::new("."), &mut files) {
+    if let Err(e) = crate::doc_links::repo_markdown(&mut files) {
         eprintln!("{NAME}: FAIL — cannot walk repository tree: {e}");
         return ExitCode::FAILURE;
     }
@@ -102,26 +101,6 @@ pub fn check() -> ExitCode {
         &repository_url,
         check_ancestor_real,
     )
-}
-
-fn walk_markdown(dir: &Path, out: &mut Vec<(PathBuf, String)>) -> std::io::Result<()> {
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if path.is_dir() {
-            if EXCLUDE_DIRS.contains(&name.as_ref()) {
-                continue;
-            }
-            walk_markdown(&path, out)?;
-        } else if path.extension().is_some_and(|e| e == "md") {
-            if let Ok(content) = fs::read_to_string(&path) {
-                out.push((path, content));
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Every `.log` file under `tests/evidence/`, repo-root-relative, forward

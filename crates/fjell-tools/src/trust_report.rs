@@ -134,21 +134,11 @@ fn section_1_capability_inventory() -> String {
 /// *shipped*, so a scratch checkout is out of scope regardless of whether
 /// anything ignores it.
 fn find_cap_manifests(root: &Path) -> Vec<PathBuf> {
-    let root_str = root.to_string_lossy().into_owned();
-    let out = Command::new("git")
-        .args(["-C", &root_str, "ls-files", "-z"])
-        .output();
-    let Ok(out) = out else {
-        return Vec::new();
-    };
-    if !out.status.success() {
-        return Vec::new();
-    }
-    let mut found: Vec<PathBuf> = out
-        .stdout
-        .split(|&b| b == 0)
-        .filter(|s| !s.is_empty())
-        .map(|rel| root.join(String::from_utf8_lossy(rel).as_ref()))
+    // `Scope::Tracked`: this report is a claim about what is *shipped*. The scope is
+    // `fjell-repo-scope`'s (0.46 small item B); the choice of the tracked half is the caller's, above.
+    let mut found: Vec<PathBuf> = fjell_repo_scope::files(root, fjell_repo_scope::Scope::Tracked)
+        .unwrap_or_default()
+        .into_iter()
         .filter(|p| p.file_name().and_then(|n| n.to_str()) == Some("cap-manifest.toml"))
         .collect();
     found.sort();
@@ -400,14 +390,23 @@ fn latest_run(dir: &Path) -> Option<PathBuf> {
 }
 
 fn count_pattern_in_workspace(pattern: &str) -> usize {
-    let out = Command::new("grep")
-        .args(["-rn", "--include=*.rs", pattern, "crates/"])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .output()
-        .ok();
-    out.map(|o| String::from_utf8_lossy(&o.stdout).lines().count())
-        .unwrap_or(0)
+    // Lines containing `pattern` in the repository's Rust sources under `crates/`. It used to shell
+    // out to `grep -rn crates/`, which also read whatever untracked or ignored files sat there; the
+    // file set now comes from `fjell-repo-scope` (0.46 small item B). The `crates/` prefix is this
+    // survey's subject (the code the lease types live in), kept in view rather than hidden in a flag.
+    let Ok(files) = fjell_repo_scope::files_with_extension(
+        Path::new("."),
+        fjell_repo_scope::Scope::Working,
+        "rs",
+    ) else {
+        return 0;
+    };
+    files
+        .iter()
+        .filter(|p| p.starts_with("./crates"))
+        .filter_map(|p| fs::read_to_string(p).ok())
+        .map(|src| src.lines().filter(|l| l.contains(pattern)).count())
+        .sum()
 }
 
 fn parse_count(line: &str, word: &str) -> Option<usize> {
