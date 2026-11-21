@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.46-003
 
-**Governing RFC:** [RFC-0.46-003](../../accepted/RFC-0.46-003-the-kernel-bounds-revocation-itself.md)
+**Governing RFC:** [RFC-0.46-003](../../done/RFC-0.46-003-the-kernel-bounds-revocation-itself.md)
 **Milestone:** 0.46 · first line — before 0.46-001
-**Status:** inherited from the governing RFC (Accepted, 0.46)
+**Status:** inherited from the governing RFC (Implemented, 0.46.0)
 **Audience:** implementation model
 
 ---

@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.46-002
 
-**Governing RFC:** [RFC-0.46-002](../../accepted/RFC-0.46-002-an-installer-derives-a-capability-it-holds.md)
+**Governing RFC:** [RFC-0.46-002](../../done/RFC-0.46-002-an-installer-derives-a-capability-it-holds.md)
 **Milestone:** 0.46 · third line — after 0.46-001. **The droppable one.**
-**Status:** inherited from the governing RFC (Accepted, 0.46)
+**Status:** inherited from the governing RFC (Implemented, 0.46.0)
 **Audience:** implementation model
 
 ---

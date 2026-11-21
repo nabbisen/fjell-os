@@ -1,8 +1,8 @@
 # Developer Handoff — RFC-0.46-001
 
-**Governing RFC:** [RFC-0.46-001](../../accepted/RFC-0.46-001-lease-slots-are-recycled-and-the-proof-says-why-that-is-safe.md)
+**Governing RFC:** [RFC-0.46-001](../../done/RFC-0.46-001-lease-slots-are-recycled-and-the-proof-says-why-that-is-safe.md)
 **Milestone:** 0.46 · second line — after 0.46-003
-**Status:** inherited from the governing RFC (Accepted, 0.46)
+**Status:** inherited from the governing RFC (Implemented, 0.46.0)
 **Audience:** implementation model
 
 ---

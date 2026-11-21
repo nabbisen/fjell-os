@@ -1,6 +1,6 @@
 # RFC-0.46-003: The kernel bounds revocation itself — a lease is revoked by its owner
 
-**Status:** Accepted — accepted 2026-11-21
+**Status:** Implemented (0.46.0) — accepted 2026-11-21
 **Evidence:** marker:ipc:NEG:LEASE:REVOKE_NOT_OWNER_REFUSED:PASS, test:crates/fjell-cap/src/lease_revoke.rs::a_non_owner_without_the_named_right_is_refused, test:tools/fjell-consistency-check/src/capability_topology.rs::by_name_right_holders_counts_the_holders_and_refuses_a_second
 **Milestone:** 0.46
 **Tracks.** The second of the three places 0.45 put cap-broker inside the kernel's trust boundary: *"I
