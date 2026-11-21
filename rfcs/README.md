@@ -554,12 +554,19 @@ a fresh clone.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 3 RFCs
 
-Nothing is under review. 0.45's three lines were accepted on 2026-11-17 and are below.
-`proposed/README.md` keeps the folder in a fresh clone. 0.34's two deferred candidates — descriptions
-for E-065's four remaining formats, and a check that the readiness matrix's summary matches its own
-rows — are recorded in the register, not here.
+0.46's three lines, **drafted by the implementer for the architect's review; nothing is implemented**.
+Each states the decisions it asks the architect to make rather than makes. Scope:
+`.git-exclude/handoff/scope-0.46.md`. Order: 003 → 001 → 002 (002 is the line to drop).
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.46-001 | [Lease slots are recycled, and the proof says why that is safe](./proposed/RFC-0.46-001-lease-slots-are-recycled-and-the-proof-says-why-that-is-safe.md) | E-110 |
+| 0.46-002 | [An installer derives a capability it holds; it does not fabricate one from an integer](./proposed/RFC-0.46-002-an-installer-derives-a-capability-it-holds.md) | row 26, E-123 (carried-forward) |
+| 0.46-003 | [The kernel bounds revocation itself — a lease is revoked by its owner](./proposed/RFC-0.46-003-the-kernel-bounds-revocation-itself.md) | the `CAP_REVOKE` confused deputy |
+
+`proposed/README.md` keeps the folder in a fresh clone.
 
 ## Archive (archive/) — 2 RFCs
 
