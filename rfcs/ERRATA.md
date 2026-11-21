@@ -9333,6 +9333,57 @@ which is history removes the disagreement instead of detecting it, and needs no 
   instrument was already fixed and only the family's gate was outstanding). v1.0 limitation row **27**
   is retired with it.
 
+## E-126 — the 0.46 line recorded a missing capability funnel; the funnel has existed since v0.2.0, and the real defect is that it is not sole
+
+- **Found 2026-11-22 by the architect**, while scoping 0.47 — by verifying the prerequisite before
+  building a milestone on it, which is the only reason it was found at all.
+- **Claim:** four documents record the prerequisite for `CapRights::DELEGATE_ONLY` as the absence of a
+  single capability-rights funnel:
+
+  > *"`DELEGATE_ONLY` would be the clean form and is **not** taken, because enforcing a negative right
+  > needs one funnel for capability checks **and there is none** (~20 `require_cap*` sites plus direct
+  > `rights.contains` checks)."*
+
+  `releases/0.46.0.md:278`, `CHANGELOG.md:70`–`:72`,
+  `rfcs/done/RFC-0.46-002-an-installer-derives-a-capability-it-holds.md:174`–`:177`, and that RFC's
+  companion handoff at `:45`–`:49`. **All four were written by the architect.**
+- **Tree:** `crates/fjell-cap/src/enforcement.rs:56` defines `pub fn require_cap(...)`, and its module
+  doc (`:1`–`:24`) calls it *"the **sole** production authority-checking path for all kernel
+  operations that require a capability"*, with a check order it attributes to RFC 031 §2.6.
+  **It has existed since v0.2.0** (RFC 031/032, "Capability Enforcement Core"). The parenthetical was
+  counting *call sites of the funnel* and reported them as the funnel's absence.
+- **The true defect is the opposite shape, and worse.** The funnel exists, declares itself sole, and
+  is not sole. Measured at `fb0a22d`:
+
+  ```
+  require_cap via require_cap_on_ct : 12 call sites in trap/syscall.rs,
+                                      exactly 1 in cap/syscall.rs (sys_cap_install)
+  check_right (cap/syscall.rs:491)  : a second local funnel, 4 IPC callers,
+                                      rights -> lease, no kind check, no scope check
+  inline hand-rolled copies         : sys_cap_copy, _mint, _revoke, _inspect
+                                      lease -> rights, i.e. NOT the normative order
+  no check at all                   : sys_cap_delete (CSpace::delete checks
+                                      resolution and Active, nothing else)
+  ```
+
+  So a capability that both lacks the required right *and* carries a revoked lease is refused with
+  `PermissionDenied` by `require_cap` and with `LeaseRevoked` by the inline four: **one input, two
+  ABI answers, depending on which path happens to serve the syscall.** A reader who predicts an error
+  code from the order RFC 031 §2.6 calls normative gets it wrong for four syscalls.
+- **Why the claim was not caught for a milestone.** Nothing compares a module doc's assertion of
+  sole-ness against the call graph, and the figure in the parenthetical looked like a measurement
+  because it contained numbers. It was a grep count read as a conclusion — the same error this
+  register records against instruments in the **E-014** family, made by hand in prose.
+- **Not correctable in place.** `releases/0.46.0.md` and the `CHANGELOG.md` entry for 0.46.0 are
+  **released records, and this project does not rewrite released records** — the rule applied to the
+  historical MMIO figures at E-125 and v1.0 limitations row 27. `rfcs/done/RFC-0.46-002` and its
+  companion handoff are records of a shipped decision. **This entry is the correction, and it is what
+  makes the four false statements findable from the register.**
+- **Status:** **OPEN**, tracking **0.47**. Filed OPEN and not ACCEPTED because it is live, unresolved
+  drift rather than a documented deliberate limitation — the distinction this register draws at
+  E-004/E-011/E-012. **Gate 7 therefore blocks a release until 0.47-001 resolves it**, which is the
+  correct pressure: the statement is false in published documents today.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9500,3 +9551,4 @@ unit tests. **Classified ACCEPTED, not OPEN** (architect, 2026-08-01): deferring
 the fix to a dedicated RFC after the `0.23.0` cut is a deliberate decision, not
 live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-125 **`mmio-audit`'s site count was never a property of this project** — it reported `total MMIO sites` as a repository figure, and release records carried it as one (`448` at 0.44.0, `449` during 0.45). Measured three ways at the 0.45.0 cut: **490** with a scratch clone present, **449** with it moved out, **41** in a pristine clone — `490 − 449 = 41`, one pristine copy's worth, so the project has **41** sites and the recorded figure was ~408 sites of scratch checkouts under `.git-exclude/`. **The verdict was never affected** (`missing annotation: 0` throughout, because those copies are annotated); the **count** was a function of the developer's machine. Cause: a walk skipping three literal names, none of them `.git-exclude`. **E-025 recorded this defect in two sibling tools, named the family in its own words, fixed the two it had enumerated and CLOSED — `mmio-audit` was a fourth, never enumerated, and survived ~17 milestones inside a release gate.** Fixed at `06398b7` by deriving scope from `git ls-files`, verified both directions; **stays ACCEPTED because the family is still ungated** — closing on the instance is the error this entry records against E-025. The historical figures cannot be corrected in place, and this entry is what makes them findable | 0.46 | CLOSED |
+| E-126 **the 0.46 line recorded a missing capability funnel; it has existed since v0.2.0 and the real defect is that it is not sole** — four documents (`releases/0.46.0.md:278`, `CHANGELOG.md:70`, `RFC-0.46-002:174`, its handoff `:45`), all written by the architect, record `DELEGATE_ONLY`'s prerequisite as *"one funnel for capability checks and there is none"*. `fjell-cap/src/enforcement.rs:56` has defined `require_cap` since v0.2.0 (RFC 031/032), and its module doc calls it *"the sole production authority-checking path"*. The parenthetical counted the funnel's **call sites** and reported them as its absence. The real defect is worse and the opposite shape: **three authority paths and three check orders** — `require_cap` (12 callers in `trap/syscall.rs`, 1 in `cap/syscall.rs`), `check_right` (4 IPC callers, no kind or scope check), four inline copies in `cap_copy`/`mint`/`revoke`/`inspect` that check **lease before rights**, contradicting the order RFC 031 §2.6 calls normative, and `sys_cap_delete` which checks nothing. One input — lacking the right *and* lease revoked — yields `PermissionDenied` on one path and `LeaseRevoked` on another. Found while verifying the prerequisite before scoping 0.47. **Not correctable in place**: two of the four are released records | 0.47 | OPEN |
