@@ -141,13 +141,30 @@ which is history removes the disagreement instead of detecting it, and needs no 
   wrappers issue a syscall number the kernel rejects with `UnknownSyscall`.
   No rights check of any kind currently executes for this path, because the
   path itself is unreachable.
-- **Resolution:** **ACCEPTED** pending RFC-v0.21.3-001. Deferred to v0.22: the
-  durable disposition of `CapInstall` and the other 8 declared-but-undispatched
-  syscalls (implement, remove from the ABI, or keep permanently reserved) is
-  an open roadmap item, not decided by RFC-v0.21.3-001 itself. Not a live
-  security hole — the syscall fails closed (`UnknownSyscall`) rather than
-  installing with excess rights — but the doc-comments must not be read as
-  describing shipped behaviour until v0.22 resolves it.
+- **Resolution:** **CLOSED 2026-11-21 by RFC-0.45-002** (`8d5742e`, shipped in **0.45.0**), which
+  resolved **both halves of the claim**:
+  - *"the kernel validates that `rights` ⊆ installer authority"* **now executes** — it is check **d**
+    of `fjell_cap::install::check_install`: `rights` must be non-empty and inside the installer's own
+    rights masked to `ALL_NON_META`, so a meta-right can never be conferred. It is a pure function
+    with host tests and each refusal is shown red by its own mutation;
+  - *"[a]llows cap-broker to install caps with a narrower right set than `ALL_NON_META`"* — the
+    wrapper that carried this doc-comment, `sys_cap_install_with_rights`, **is deleted**. A claim
+    whose subject no longer exists cannot be false.
+  Every particular of the "Shipped" paragraph above is now obsolete: the discarded `rights_bits` is
+  gone with the wrapper, and `CapInstall` (17) has a dispatch arm — `syscall-surface` reports **36
+  declared / 33 dispatched / 3 undispatched**.
+- **Closed late, and the reason is recorded rather than tidied away.** **0.45 narrowed this entry
+  where it should have closed it.** The 0.45.0 CHANGELOG says "narrows **E-011**" and the architect's
+  review record said the same, neither having re-read the claim against what had shipped — the claim
+  was two doc-comments, and 0.45-002 had made one true and deleted the other. Found on 2026-11-21
+  while scoping 0.46, by reading the entry instead of the summary of it. The lesson is the one this
+  register exists for: **a narrowed erratum is a claim about what remains, and it must be checked
+  against the tree like any other.**
+- **What this entry was never about, so its closure is not read too widely.** The *durable
+  disposition* of the remaining declared-but-undispatched syscalls — now **three**: `TaskKill`,
+  `MmioUnmap`, `DmaShare`, where the old Resolution said *"the other 8"* — is a roadmap item and
+  lives in `v1-limitations.md` row **7**, not here. Closing E-011 closes the doc-comment divergence
+  and nothing else.
 
 ## E-012 — RFC-v0.15-003: v1.0 release checklist Step 9 bundle path
 
@@ -9257,7 +9274,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-008 recovery follow-test | RFC-v0.16-003 | CLOSED |
 | E-009 non-goals review | RFC-v0.16-005 | CLOSED |
 | E-010 IPC words delivery | 0.20 | CLOSED |
-| E-011 cap_install rights validation | RFC-v0.21.3-001 | ACCEPTED |
+| E-011 cap_install rights validation | RFC-v0.21.3-001 | CLOSED |
 | E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
 | E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | CLOSED |
 | E-014 instruments deciding by fixed-string match | RFC-0.29-002 | ACCEPTED |
