@@ -684,6 +684,176 @@ pub fn cmd_verus_check(args: &[String]) -> ExitCode {
     }
 }
 
+// ── `verus-count` (0.47 small item D) ────────────────────────────────────────────────────────
+//
+// The readiness matrix says "20 obligations machine-checked". Nothing in the toolchain could say
+// what that number counts, so three different numbers coexisted (19, 17, 20) and none was derivable.
+// This command derives the candidates, **each under a definition it prints next to the figure**, and
+// gates nothing: which of them the matrix should promise is the owner's ruling, not this tool's.
+
+/// `(verified, errors)` from the prover's own summary line, `verification results:: N verified, M errors`.
+/// `None` when no such line is present -- a count the prover did not state is not a count.
+pub(crate) fn parse_verification_results(output: &str) -> Option<(usize, usize)> {
+    let line = output
+        .lines()
+        .rev()
+        .find(|l| l.contains("verification results::"))?;
+    let rest = line.split("verification results::").nth(1)?;
+    let mut nums = rest
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| !w.is_empty())
+        .map(|w| w.parse::<usize>());
+    let verified = nums.next()?.ok()?;
+    let errors = nums.next()?.ok()?;
+    Some((verified, errors))
+}
+
+/// The distinct named obligation ids in a proof source: tokens shaped `<UPPER>-VERUS-<3 digits>`
+/// (`LEASE-VERUS-008`, `BCB-VERUS-001`). A model that carries no ids in that form counts 0 -- which is
+/// a fact about the model, not about how many things it proves.
+pub(crate) fn named_obligation_ids(src: &str) -> Vec<String> {
+    let b = src.as_bytes();
+    let mut found: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i].is_ascii_uppercase() && (i == 0 || !b[i - 1].is_ascii_alphanumeric()) {
+            let mut j = i;
+            while j < b.len() && b[j].is_ascii_uppercase() {
+                j += 1;
+            }
+            let tail = b"-VERUS-";
+            if b[j..].starts_with(tail) {
+                let d = j + tail.len();
+                if d + 3 <= b.len()
+                    && b[d..d + 3].iter().all(u8::is_ascii_digit)
+                    && !b.get(d + 3).is_some_and(u8::is_ascii_digit)
+                {
+                    let id = src[i..d + 3].to_string();
+                    if !found.contains(&id) {
+                        found.push(id);
+                    }
+                }
+            }
+            i = j.max(i + 1);
+        } else {
+            i += 1;
+        }
+    }
+    found
+}
+
+pub fn cmd_verus_count(_args: &[String]) -> ExitCode {
+    let targets = match load_targets("verification/verus/verus-targets.toml") {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("verus-count: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let version = Command::new("verus")
+        .arg("--version")
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string());
+    let Some(version) = version else {
+        eprintln!(
+            "verus-count: `verus` is not on PATH; the prover's figures cannot be derived without it"
+        );
+        return ExitCode::FAILURE;
+    };
+    let version = version
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("Version:"))
+        .map(|v| v.trim().to_string())
+        .unwrap_or_else(|| "unknown".into());
+    println!(
+        "verus-count: prover {version} (this command certifies nothing; the gate is `verus-check`)"
+    );
+    println!();
+    println!(
+        "{:<14} {:<17} {:>8} {:>7} {:>10}",
+        "target", "release_required", "verified", "errors", "named ids"
+    );
+
+    let (mut rr_verified, mut all_verified, mut rr_ids, mut all_ids) =
+        (0usize, 0usize, 0usize, 0usize);
+    let mut ok = true;
+    for t in &targets {
+        let out = Command::new("verus")
+            .arg("--crate-type=lib")
+            .arg(&t.proof)
+            .output();
+        let text = match out {
+            Ok(o) => format!(
+                "{}{}",
+                String::from_utf8_lossy(&o.stdout),
+                String::from_utf8_lossy(&o.stderr)
+            ),
+            Err(e) => {
+                eprintln!("verus-count: cannot run verus on {}: {e}", t.proof);
+                return ExitCode::FAILURE;
+            }
+        };
+        let Some((verified, errors)) = parse_verification_results(&text) else {
+            eprintln!(
+                "verus-count: no `verification results::` line for target `{}` -- not counted",
+                t.name
+            );
+            return ExitCode::FAILURE;
+        };
+        let src = std::fs::read_to_string(&t.proof).unwrap_or_default();
+        let ids = named_obligation_ids(&src).len();
+        println!(
+            "{:<14} {:<17} {:>8} {:>7} {:>10}",
+            t.name, t.release_required, verified, errors, ids
+        );
+        if errors != 0 {
+            ok = false;
+        }
+        all_verified += verified;
+        all_ids += ids;
+        if t.release_required {
+            rr_verified += verified;
+            rr_ids += ids;
+        }
+    }
+    println!();
+    println!("release-required targets, prover-verified items : {rr_verified}");
+    println!("all targets,              prover-verified items : {all_verified}");
+    println!("release-required targets, named ids             : {rr_ids}");
+    println!("all targets,              named ids             : {all_ids}");
+    println!();
+    println!("definitions:");
+    println!(
+        "  prover-verified item = one unit in the prover's own `verification results:: N verified` line --"
+    );
+    println!(
+        "                         a verified function or proof function; it is what Verus counts, not what the"
+    );
+    println!(
+        "                         project named, and a model with no named ids still has them."
+    );
+    println!(
+        "  named id             = a distinct `<UPPER>-VERUS-<nnn>` token in the proof source. It counts what the"
+    );
+    println!(
+        "                         project chose to label; boot-control's are included only in the `all targets` row."
+    );
+    println!(
+        "  release-required     = `release_required = true` in verification/verus/verus-targets.toml."
+    );
+    println!(
+        "This command states these figures and their definitions. Which of them a document should"
+    );
+    println!("promise is a ruling, not a measurement.");
+    if ok {
+        ExitCode::SUCCESS
+    } else {
+        println!("verus-count: a target reports errors -- the figures above are not a clean proof");
+        ExitCode::FAILURE
+    }
+}
+
 fn run_verus(t: &Target) -> bool {
     // Proof modules are library files (no `main`); Verus needs --crate-type=lib.
     Command::new("verus")
@@ -1166,5 +1336,49 @@ mod test_support {
             }
         }
         panic!("{} still `Text file busy` after 5s", path.display());
+    }
+}
+
+#[cfg(test)]
+mod count_tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_provers_summary_line() {
+        let out = "noise\nverification results:: 11 verified, 0 errors\n";
+        assert_eq!(parse_verification_results(out), Some((11, 0)));
+        assert_eq!(
+            parse_verification_results("verification results:: 3 verified, 2 errors"),
+            Some((3, 2))
+        );
+    }
+
+    #[test]
+    fn a_count_the_prover_did_not_state_is_not_a_count() {
+        assert_eq!(parse_verification_results("error: could not compile"), None);
+        assert_eq!(parse_verification_results("verification results::"), None);
+        assert_eq!(parse_verification_results(""), None);
+    }
+
+    #[test]
+    fn named_ids_are_distinct_and_exactly_shaped() {
+        let src = "// LEASE-VERUS-001 and again LEASE-VERUS-001\n// BCB-VERUS-004, xLEASE-VERUS-009 no, LEASE-VERUS-0100 no, \
+                   lease-verus-002 no, LEASE-VERUS-12 no";
+        let mut ids = named_obligation_ids(src);
+        ids.sort();
+        assert_eq!(ids, vec!["BCB-VERUS-004", "LEASE-VERUS-001"]);
+        assert!(named_obligation_ids("fn f() {}").is_empty());
+    }
+
+    /// On the real sources: the model without ids counts none, and the others count what the files carry.
+    #[test]
+    fn counts_on_the_real_proof_sources() {
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../verification/verus");
+        let n =
+            |p: &str| named_obligation_ids(&std::fs::read_to_string(root.join(p)).unwrap()).len();
+        assert_eq!(n("capability/rights_lattice.rs"), 0);
+        assert_eq!(n("lease/lease_epoch.rs"), 12);
+        assert_eq!(n("boot-control/mirror_selection.rs"), 5);
     }
 }

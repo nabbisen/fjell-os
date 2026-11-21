@@ -242,6 +242,7 @@ fn main() -> ExitCode {
         Some("package-release") => package_release::cmd_package_release(),
         Some("provision-dev") => provision::cmd_provision_dev(&args[1..]),
         Some("verus-check") => verus_check::cmd_verus_check(&args[1..]),
+        Some("verus-count") => verus_check::cmd_verus_count(&args[1..]),
         Some("rfc") => rfc_promote::cmd_rfc(&args[1..]),
         Some("release-rehearsal") => release_rehearsal::cmd_release_rehearsal(&args[1..]),
         Some("schema") => schema::cmd_schema(&args[1..]),
@@ -277,6 +278,7 @@ Subcommands:
   dev lint <manifest.toml>
   rfc promote <version> [--dry-run]  (RFC-0.43-004: step 7 of the cut -- move the milestone's RFCs accepted/ -> done/; never touches the git index)
   verus-check [--candidate] [<target>|--all-pilot|--release-required]  (RFC-v0.17-005; --candidate: RFC-0.43-001 A1, run proofs under a mismatched pin, certifies nothing)
+  verus-count                    state the prover's verified counts and the named ids, each with its definition; gates nothing (0.47 item D)
   release-rehearsal              run v1.0 tag gates (RFC-v0.16-008)
   consistency-check [<subcheck>|--all]  declared vs. actual state (RFC-v0.22-001)
   test-all [--no-qemu]           run every tier, save logs to tests/runs/
