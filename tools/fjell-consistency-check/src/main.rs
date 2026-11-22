@@ -61,6 +61,7 @@
 use std::fs;
 use std::process::ExitCode;
 
+mod authority_funnel_gate; // RFC-0.47-001: the subcheck's file-reading half (logic is in the lib)
 mod book_structure;
 mod capability_topology;
 mod ci_test_jobs;
@@ -158,6 +159,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("repo-scope", repo_scope::check),
     // RFC-0.47-002: the drift/errata rule is written down, the vocabulary is the policy's, and a marked RFC is in the register.
     ("rfc-policy", rfc_policy_gate::check),
+    // RFC-0.47-001: no production authority check outside the funnel; no false SAFETY claim about it.
+    ("authority-funnel", authority_funnel_gate::check),
 ];
 
 #[cfg(test)]

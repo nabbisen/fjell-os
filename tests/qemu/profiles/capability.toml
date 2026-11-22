@@ -23,6 +23,13 @@
 # requires `PermissionDenied` on it -- the right kind without `CLOCK_READ`, so only the rights
 # check can be what refuses. Before that, weakening the required right to `NONE` left this green.
 #
+# RFC-0.47-001 adds eleven: **one funnel, one order, one error map**. A capability that lacks the right AND
+# carries a revoked lease is `PermissionDenied`, not `LeaseRevoked`, through seven syscalls
+# (`RIGHT_BEFORE_LEASE:*`) -- four of which used to check the lease first; `ipc_recv`/`ipc_try_recv` refuse a
+# capability that is not an Endpoint (`RECV_REFUSES_NON_ENDPOINT`, E-129); `cap_delete` releases a
+# revoked-lease capability; a stale handle is `GenerationMismatch`; and the two releases differ only as
+# documented on an empty slot.
+#
 # (History: the profile reader used to fold a `#` comment placed inside the array
 # into the last marker; a comment between entries is now ignored -- E-057, closed
 # by RFC-0.33-004 D6. See semantic.toml.)
@@ -49,5 +56,16 @@ expected_markers = [
   "NEG:CAP:SECOND_BIND_REFUSED:PASS",
   "NEG:CAP:SAME_LEASE_REBIND_REFUSED:PASS",
   "NEG:CAP:ORIGINAL_LEASE_STILL_KILLS:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:COPY:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:MINT:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:REVOKE:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:INSPECT:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:SEND:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:CALL:PASS",
+  "NEG:CAP:RIGHT_BEFORE_LEASE:TRY_RECV:PASS",
+  "NEG:CAP:RECV_REFUSES_NON_ENDPOINT:PASS",
+  "NEG:CAP:DELETE_RELEASES_REVOKED_LEASE:PASS",
+  "NEG:CAP:STALE_HANDLE_GENERATION_MISMATCH:PASS",
+  "NEG:CAP:RELEASE_EMPTY_SLOT_ERRORS:PASS",
 ]
 extra_args       = []

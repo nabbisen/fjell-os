@@ -27,11 +27,12 @@ use fjell_abi::service::{ImageId, TaskLifecycle};
 use fjell_cap::CapHandle;
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    ipc_sender_tid, sys_cap_bind_lease, sys_cap_copy, sys_cap_drop as _sys_cap_drop,
-    sys_cap_inspect, sys_cap_install, sys_cap_mint, sys_cap_revoke, sys_debug_write,
-    sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call_words, sys_ipc_recv,
-    sys_ipc_recv_msg, sys_ipc_send, sys_lease_create, sys_lease_inspect, sys_lease_revoke,
-    sys_mmio_map, sys_reboot, sys_task_spawn, sys_task_start, sys_task_status, sys_yield,
+    ipc_sender_tid, sys_cap_bind_lease, sys_cap_copy, sys_cap_delete,
+    sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_install, sys_cap_mint, sys_cap_revoke,
+    sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call,
+    sys_ipc_call_words, sys_ipc_recv, sys_ipc_recv_msg, sys_ipc_send, sys_ipc_try_recv,
+    sys_lease_create, sys_lease_inspect, sys_lease_revoke, sys_mmio_map, sys_reboot,
+    sys_task_spawn, sys_task_start, sys_task_status, sys_yield,
 };
 
 // ── CSpace slot constants for this service ────────────────────────────────────
@@ -67,6 +68,10 @@ const SLOT_INSTALL_NO_RIGHT: u32 = 26;
 /// to wake `sample-service`, which is blocked on a lease it owns; slot 4 (`SLOT_LEASE_ADMIN`) has no
 /// such right, so the kernel's refusal is demonstrable from this same task.
 const SLOT_LEASE_ADMIN_ANY: u32 = 27;
+/// Two slots nothing grants (RFC-0.47-001 R11): the subject capability and a destination for copy/mint.
+/// `test_right_is_checked_before_the_lease` confirms both are empty before it relies on them.
+const SLOT_RIGHTS_SUBJECT: u32 = 60;
+const SLOT_RIGHTS_DST: u32 = 61;
 // Fixed in v0.2.9 (RB-06): scratch slots moved from 6-9 to 10-13 to avoid
 // collision with TaskControl (slot 6) and audit-overflow scratch (slot 8).
 #[allow(dead_code)]
@@ -193,7 +198,8 @@ fn test_irq_bind_without_right() {
 ///
 /// `neg-test` holds **no Clock capability that can read** (its one `Clock` cap has no rights);
 /// the absence of authority is the point. Three refusals:
-///   * a slot holding nothing -> `InvalidCap`;
+///   * a slot holding nothing -> `SlotEmpty` (RFC-0.47-001: **one** error map; this used to be
+///     `InvalidCap` here while `sys_cap_inspect` said `SlotEmpty` for the same slot);
 ///   * `SLOT_OWN_EP`, an `Endpoint` granted `ALL_NON_META` -- every ordinary right and still
 ///     not the clock -> `WrongType`. A blanket grant does not confer it.
 ///   * `SLOT_CLOCK_NO_RIGHT`, a `Clock` capability holding **no rights** -> `PermissionDenied`:
@@ -211,8 +217,9 @@ fn test_clock_read_without_right() {
     // capability lacks `INSPECT` (a Clock capability would) -- means something is granted
     // there. (A first version treated every error as empty, and a mutation that granted the
     // clock at this slot walked straight through it; the second compared to `InvalidCap`,
-    // which is what the clock path says for an empty slot but not what inspect says, and
-    // refused the clean tree. Both caught by running the clean tree and the mutation.)
+    // which the clock path then said for an empty slot but inspect did not, and refused the
+    // clean tree. Both caught by running the clean tree and the mutation. Since
+    // RFC-0.47-001 the two paths share one error map and agree: `SlotEmpty`.)
     if fjell_syscall::sys_cap_inspect(CapHandle(SLOT_NEVER_GRANTED))
         != Err(fjell_abi::error::SysError::SlotEmpty)
     {
@@ -221,13 +228,13 @@ fn test_clock_read_without_right() {
     }
     let none_at_all = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_NEVER_GRANTED));
     let blanket_grant = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_OWN_EP));
-    // The right, specifically: right KIND, no `CLOCK_READ`. Empty slot would be `InvalidCap`,
+    // The right, specifically: right KIND, no `CLOCK_READ`. Empty slot would be `SlotEmpty`,
     // another kind `WrongType`, and the right present would succeed -- so `PermissionDenied`
     // can only mean the rights check refused it.
     let kind_without_right = fjell_syscall::sys_clock_now_ns(CapHandle(SLOT_CLOCK_NO_RIGHT));
     use fjell_abi::error::SysError;
     match (none_at_all, blanket_grant, kind_without_right) {
-        (Err(SysError::InvalidCap), Err(SysError::WrongType), Err(SysError::PermissionDenied)) => {
+        (Err(SysError::SlotEmpty), Err(SysError::WrongType), Err(SysError::PermissionDenied)) => {
             sys_debug_writeln(M::CLOCK_READ_WITHOUT_RIGHT)
         }
         (Ok(_), _, _) | (_, Ok(_), _) | (_, _, Ok(_)) => {
@@ -1209,7 +1216,7 @@ fn request_endpoint_grant() -> GrantOutcome {
 /// Before RFC-0.45-002 every call was `UnknownSyscall`. `neg-test` is not allowed to
 /// install anything, so the refusal it can reach is the first one: through a capability
 /// that is not a `CapInstall` (`WrongType`) and through a slot with nothing in it
-/// (`InvalidCap`). Each refusal is audited as `cap.install_rejected`; the trail is what
+/// (`SlotEmpty` since RFC-0.47-001 -- one error map; it was `InvalidCap` while the funnel's wrapper had its own). Each refusal is audited as `cap.install_rejected`; the trail is what
 /// gates a runtime install (`capability-topology` sees only spawn-time ones).
 fn test_cap_install_without_authority() {
     use fjell_abi::error::SysError;
@@ -1241,7 +1248,7 @@ fn test_cap_install_without_authority() {
             RIGHT_SEND_BIT as u64,
             fjell_abi::lease::LeaseId(1),
         ),
-        SysError::InvalidCap,
+        SysError::SlotEmpty,
         M::CAP_INSTALL_EMPTY_SLOT,
     );
 }
@@ -1866,6 +1873,179 @@ fn test_cap_inspect_without_right() {
     let _ = _sys_cap_drop(h);
 }
 
+// ── RFC-0.47-001 R11: one input, one answer -- whichever syscall serves it ────────────────────
+
+/// A capability minted from `SLOT_OWN_EP` into `SLOT_RIGHTS_SUBJECT` carrying exactly `rights`, bound to a
+/// fresh lease that is then **revoked**. `None` (after a `setup_failed`) if any step cannot be done.
+fn revoked_cap_with(rights: fjell_cap::CapRights, what: &str) -> Option<CapHandle> {
+    let Ok(h) = sys_cap_mint(CapHandle(SLOT_OWN_EP), SLOT_RIGHTS_SUBJECT, rights.0) else {
+        setup_failed(what);
+        return None;
+    };
+    let Ok(lease) = sys_lease_create(SLOT_LEASE_ADMIN, 0) else {
+        setup_failed(what);
+        return None;
+    };
+    if sys_cap_bind_lease(h, lease).is_err() || sys_lease_revoke(SLOT_LEASE_ADMIN, lease).is_err() {
+        setup_failed(what);
+        return None;
+    }
+    Some(h)
+}
+
+/// CAP: **the right is checked before the lease, through every syscall that takes a capability handle.**
+///
+/// A capability that lacks the right the syscall needs *and* carries a revoked lease must be refused with
+/// `PermissionDenied` -- never `LeaseRevoked`, which would tell a caller with no authority the state of an
+/// object it has no authority over. Before RFC-0.47-001 four syscalls (`cap_copy`, `_mint`, `_revoke`,
+/// `_inspect`) checked the lease first and answered `LeaseRevoked`: one input, two answers, by path.
+///
+/// Each case mints a capability with **every ordinary right except the one under test**, so the missing
+/// right is the only defect besides the lease. `ipc_recv` (which blocks if wrongly accepted) is covered by
+/// its funnel call being the same as `try_recv`'s and by `test_recv_refuses_a_non_endpoint_capability`.
+fn test_right_is_checked_before_the_lease() {
+    use fjell_abi::error::SysError;
+    use fjell_cap::CapRights as R;
+    for slot in [SLOT_RIGHTS_SUBJECT, SLOT_RIGHTS_DST] {
+        if sys_cap_inspect(CapHandle(slot)) != Err(SysError::SlotEmpty) {
+            setup_failed("right_before_lease: a slot this scenario needs is not empty");
+            return;
+        }
+    }
+    type Op = fn(CapHandle) -> Result<(), SysError>;
+    let cases: [(R, Op, &str); 7] = [
+        (
+            R::COPY,
+            |h| sys_cap_copy(h, SLOT_RIGHTS_DST).map(|_| ()),
+            M::CAP_RIGHT_BEFORE_LEASE_COPY,
+        ),
+        (
+            R::MINT,
+            |h| sys_cap_mint(h, SLOT_RIGHTS_DST, R::SEND.0).map(|_| ()),
+            M::CAP_RIGHT_BEFORE_LEASE_MINT,
+        ),
+        (
+            R::REVOKE,
+            |h| sys_cap_revoke(h),
+            M::CAP_RIGHT_BEFORE_LEASE_REVOKE,
+        ),
+        (
+            R::INSPECT,
+            |h| sys_cap_inspect(h).map(|_| ()),
+            M::CAP_RIGHT_BEFORE_LEASE_INSPECT,
+        ),
+        (
+            R::SEND,
+            |h| sys_ipc_send(h.0, 0),
+            M::CAP_RIGHT_BEFORE_LEASE_SEND,
+        ),
+        (
+            R::CALL,
+            |h| sys_ipc_call(h.0, 0).map(|_| ()),
+            M::CAP_RIGHT_BEFORE_LEASE_CALL,
+        ),
+        (
+            R::RECV,
+            |h| sys_ipc_try_recv(h).map(|_| ()),
+            M::CAP_RIGHT_BEFORE_LEASE_TRY_RECV,
+        ),
+    ];
+    for (missing, op, marker) in cases {
+        let rights = R(R::ALL_NON_META.0 & !missing.0);
+        let Some(h) = revoked_cap_with(rights, marker) else {
+            return;
+        };
+        check_err(op(h), SysError::PermissionDenied, marker);
+        let _ = _sys_cap_drop(h);
+    }
+}
+
+/// CAP: **`ipc_recv` and `ipc_try_recv` refuse a capability that is not an `Endpoint`** (E-129).
+///
+/// `neg-test` holds a `LeaseAdmin` (slot 4), a `TaskCreate` (5), a `TaskControl` (6) and a `Reboot` (16), all
+/// granted `ALL_NON_META` -- which includes `RECV` -- with `object_id` 0. Before RFC-0.47-001 the receive
+/// paths read the capability's `object_id` without looking at its kind, so each of these polled **endpoint 0**
+/// (`WouldBlock` on a real boot, four of four). The marker is emitted only if every one of the eight calls
+/// (`try_recv` and `recv`, four capabilities) is exactly `WrongType`; `recv` is only attempted once `try_recv`
+/// has refused, because with the kind check absent it would *block* on endpoint 0.
+fn test_recv_refuses_a_non_endpoint_capability() {
+    use fjell_abi::error::SysError;
+    let mut all = true;
+    for slot in [
+        SLOT_LEASE_ADMIN,
+        SLOT_TASK_CREATE,
+        SLOT_TASK_CONTROL,
+        SLOT_REBOOT,
+    ] {
+        // `try_recv` first, and the blocking `recv` only once `try_recv` has refused: a kernel that accepts a
+        // non-endpoint capability makes `recv` block on endpoint 0, and that must fail as a missing marker
+        // with this diagnostic, not as a hang.
+        if sys_ipc_try_recv(CapHandle(slot)) != Err(SysError::WrongType) {
+            all = false;
+            continue;
+        }
+        all &= sys_ipc_recv(slot) == Err(SysError::WrongType);
+    }
+    if all {
+        sys_debug_writeln(M::CAP_RECV_REFUSES_NON_ENDPOINT);
+    } else {
+        sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
+    }
+}
+
+/// CAP: releasing a capability checks no authority, and one error map answers a stale handle.
+///
+/// * `cap_delete` releases a capability **whose lease is revoked** (`cap_drop` always could; the doc comment
+///   that said `cap_delete` could not described a difference that did not exist);
+/// * the handle is then stale, and a funnel syscall says `GenerationMismatch` -- not `InvalidCap`, which an
+///   earlier local error table collapsed it into;
+/// * on an empty slot `cap_delete` says `SlotEmpty` and `cap_drop` says `InvalidCap`: their true difference.
+fn test_release_checks_no_authority_and_the_map_is_one() {
+    use fjell_abi::error::SysError;
+    // Free, *not* necessarily never-used: the scenario before this one used and dropped these slots, so a raw
+    // generation-0 handle to one is now stale (`GenerationMismatch`) rather than empty-at-generation-0
+    // (`SlotEmpty`). Either way nothing is held there; an occupied slot would answer `Ok` or `PermissionDenied`.
+    for slot in [SLOT_RIGHTS_SUBJECT, SLOT_RIGHTS_DST] {
+        if !matches!(
+            sys_cap_inspect(CapHandle(slot)),
+            Err(SysError::SlotEmpty | SysError::GenerationMismatch)
+        ) {
+            setup_failed("release: a slot this scenario needs is not free");
+            return;
+        }
+    }
+    let Some(h) = revoked_cap_with(
+        fjell_cap::CapRights::SEND | fjell_cap::CapRights::INSPECT,
+        "release: setup",
+    ) else {
+        return;
+    };
+    check(
+        sys_cap_delete(h).is_ok(),
+        M::CAP_DELETE_RELEASES_REVOKED_LEASE,
+    );
+    let stale = (
+        sys_cap_inspect(h).map(|_| ()),
+        sys_ipc_try_recv(h).map(|_| ()),
+    );
+    if stale
+        == (
+            Err(SysError::GenerationMismatch),
+            Err(SysError::GenerationMismatch),
+        )
+    {
+        sys_debug_writeln(M::CAP_STALE_HANDLE_GENERATION_MISMATCH);
+    } else {
+        sys_debug_writeln("NEG:HARNESS:WRONG_ERROR");
+    }
+    let empty = CapHandle(SLOT_NEVER_GRANTED);
+    check(
+        sys_cap_delete(empty) == Err(SysError::SlotEmpty)
+            && _sys_cap_drop(empty) == Err(SysError::InvalidCap),
+        M::CAP_RELEASE_EMPTY_SLOT_ERRORS,
+    );
+}
+
 // ── Service entry point ───────────────────────────────────────────────────────
 
 // ── RFC-0.33-001 D15: the reset mechanism, exercised on its own ──────────────
@@ -2074,6 +2254,9 @@ pub extern "C" fn service_main() -> ! {
     test_lease_stale_binding_stays_revoked();
     test_lease_owner_quota();
     test_policy_abandon_loop_bounded();
+    test_right_is_checked_before_the_lease();
+    test_release_checks_no_authority_and_the_map_is_one();
+    test_recv_refuses_a_non_endpoint_capability();
 
     // RFC-0.38-002 R5: deliberately after every scenario that needs LeaseAdmin;
     // this one drops this task's own LeaseAdmin capability.

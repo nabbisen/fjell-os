@@ -587,8 +587,8 @@ pub fn sys_platform_info_get() -> Result<usize, SysError> {
 
 /// `sys_dma_alloc(dma_cap, size_bytes) -> (user_va, phys_addr)`
 ///
-/// The caller must pass `dma_cap`, a `CapKind::DmaAlloc` handle (slot 2
-/// for storaged / driver-virtio-blk).  RFC 017.
+/// The caller must pass `dma_cap`, a `CapKind::DmaRegion` handle with `DMA_ALLOC`
+/// (slot 2 for storaged / driver-virtio-blk).  RFC 017; the `DmaAlloc` kind is never granted.
 pub fn sys_dma_alloc(dma_cap: u32, size_bytes: usize) -> Result<(usize, usize), SysError> {
     #[allow(unused_variables)]
     let nr = SyscallNumber::DmaAlloc as usize;
@@ -645,8 +645,9 @@ pub fn sys_mmio_map(mmio_cap: CapHandle, offset: usize, size: usize) -> Result<u
 ///
 /// RFC 032 (v0.2.0): Explicitly drop a capability slot so it can be reused.
 ///
-/// Unlike `sys_cap_delete`, this syscall succeeds even when the capability's
-/// lease has been revoked — a task must always be able to release a dead slot.
+/// Succeeds even when the capability's lease has been revoked — a task must always be
+/// able to release a dead slot. So does `sys_cap_delete`: the two share one kernel
+/// implementation (RFC-0.47-001 D5); see [`sys_cap_delete`] for the two differences.
 ///
 /// # ABI
 /// ```text
@@ -656,6 +657,25 @@ pub fn sys_mmio_map(mmio_cap: CapHandle, offset: usize, size: usize) -> Result<u
 /// ```
 pub fn sys_cap_drop(cap: CapHandle) -> Result<(), SysError> {
     let r0 = ecall1(SyscallNumber::CapDrop as usize, cap.0 as usize);
+    to_result(r0).map(|_| ())
+}
+
+/// `sys_cap_delete(cap_handle) -> Ok(()) | Err`
+///
+/// Releases the capability in `cap`'s slot, **by the same kernel implementation as `sys_cap_drop`**
+/// (RFC-0.47-001 D5): no authority is checked and a revoked lease does not stop it, because releasing what you
+/// hold can only reduce authority. It differs in exactly two ways: an **empty slot** answers `SlotEmpty`
+/// (`sys_cap_drop`: `InvalidCap`), and the kernel **audits every attempt**, failures included (`sys_cap_drop`
+/// audits successes). Until 0.47 this had no wrapper, so no service could reach the syscall.
+///
+/// # ABI
+/// ```text
+/// a7 = SyscallNumber::CapDelete (12)
+/// a0 = cap_handle (u32)
+/// → a0 = SysError (0 = Ok)
+/// ```
+pub fn sys_cap_delete(cap: CapHandle) -> Result<(), SysError> {
+    let r0 = ecall1(SyscallNumber::CapDelete as usize, cap.0 as usize);
     to_result(r0).map(|_| ())
 }
 

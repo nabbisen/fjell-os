@@ -41,6 +41,9 @@ impl CapRights {
     pub const MINT: Self = CapRights(1 << 8);
     pub const REVOKE: Self = CapRights(1 << 9);
     pub const INSPECT: Self = CapRights(1 << 10);
+    /// **Reserved (RFC-0.47-001 D5/F9).** Releasing a capability you hold needs no right -- it can only reduce
+    /// authority -- so nothing in the kernel requires this bit and it confers nothing. It is retained, not
+    /// removed, because removing a bit is an ABI change and the capability manifest and the broker name it.
     pub const DROP: Self = CapRights(1 << 11);
 
     // Task management rights

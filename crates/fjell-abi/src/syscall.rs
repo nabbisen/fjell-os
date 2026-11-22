@@ -32,8 +32,9 @@ pub enum SyscallNumber {
     CapInspect = 14,
     /// Explicitly drop a capability slot, freeing it for reuse (RFC 032 / v0.2).
     ///
-    /// Unlike `CapDelete`, this succeeds even when the capability's lease has
-    /// been revoked.  Existence check (ownership + generation) still applies.
+    /// Succeeds even when the capability's lease has been revoked -- and so does
+    /// `CapDelete`: they share one implementation (RFC-0.47-001 D5) and differ only in
+    /// the error for an empty slot and in auditing failures.  Existence check applies.
     CapDrop = 15,
     /// Bind a lease to an existing capability (RFC 006 `LeaseBinding`).
     ///

@@ -681,6 +681,35 @@ pub mod negative_markers {
     pub const CAP_LEASE_REVOKED: &str = "NEG:CAP:LEASE_REVOKED:PASS";
     /// `sys_cap_drop` succeeds even on a revoked capability.
     pub const CAP_DROP_ON_REVOKED: &str = "NEG:CAP:DROP_ON_REVOKED:PASS";
+    // ── RFC-0.47-001: one funnel, one order, one error map ────────────────────
+    /// A capability that lacks the right **and** carries a revoked lease is refused with
+    /// `PermissionDenied`, not `LeaseRevoked`, by `cap_copy`: the right is checked before the lease.
+    pub const CAP_RIGHT_BEFORE_LEASE_COPY: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:COPY:PASS";
+    /// The same, for `cap_mint`.
+    pub const CAP_RIGHT_BEFORE_LEASE_MINT: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:MINT:PASS";
+    /// The same, for `cap_revoke`.
+    pub const CAP_RIGHT_BEFORE_LEASE_REVOKE: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:REVOKE:PASS";
+    /// The same, for `cap_inspect`.
+    pub const CAP_RIGHT_BEFORE_LEASE_INSPECT: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:INSPECT:PASS";
+    /// The same, for `ipc_send`.
+    pub const CAP_RIGHT_BEFORE_LEASE_SEND: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:SEND:PASS";
+    /// The same, for `ipc_call`.
+    pub const CAP_RIGHT_BEFORE_LEASE_CALL: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:CALL:PASS";
+    /// The same, for `ipc_try_recv`.
+    pub const CAP_RIGHT_BEFORE_LEASE_TRY_RECV: &str = "NEG:CAP:RIGHT_BEFORE_LEASE:TRY_RECV:PASS";
+    /// `ipc_recv` and `ipc_try_recv` refuse a capability that is not an `Endpoint` (a `LeaseAdmin`, a
+    /// `TaskCreate`, a `TaskControl`, a `Reboot` -- all `object_id` 0 with the `RECV` bit) with `WrongType`
+    /// instead of treating its `object_id` as an endpoint (E-129).
+    pub const CAP_RECV_REFUSES_NON_ENDPOINT: &str = "NEG:CAP:RECV_REFUSES_NON_ENDPOINT:PASS";
+    /// `cap_delete` releases a capability whose lease is revoked (it checks no authority, like `cap_drop`).
+    pub const CAP_DELETE_RELEASES_REVOKED_LEASE: &str =
+        "NEG:CAP:DELETE_RELEASES_REVOKED_LEASE:PASS";
+    /// A stale handle is `GenerationMismatch` through the funnel (the one canonical error map).
+    pub const CAP_STALE_HANDLE_GENERATION_MISMATCH: &str =
+        "NEG:CAP:STALE_HANDLE_GENERATION_MISMATCH:PASS";
+    /// Releasing an empty slot: `cap_delete` says `SlotEmpty`, `cap_drop` says `InvalidCap` -- the true
+    /// difference between them, asserted.
+    pub const CAP_RELEASE_EMPTY_SLOT_ERRORS: &str = "NEG:CAP:RELEASE_EMPTY_SLOT_ERRORS:PASS";
     // ── RFC 050: harness self-check ───────────────────────────────────────────
     pub const HARNESS_CSPACE_LAYOUT_VALID: &str = "NEG:HARNESS:CSpace_LAYOUT_VALID:PASS";
 

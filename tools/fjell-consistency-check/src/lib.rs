@@ -18,6 +18,7 @@
 /// reading this, so a change moves both or a test fails (RFC-0.33-004 D11).
 pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 
+pub mod authority_funnel; // RFC-0.47-001: no authority check outside the funnel, and no false SAFETY claim about it
 pub mod errata;
 pub mod readme_counts;
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
@@ -63,4 +64,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "endpoint-envelope",
     "repo-scope",
     "rfc-policy",
+    "authority-funnel",
 ];

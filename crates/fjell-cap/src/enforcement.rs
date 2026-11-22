@@ -1,11 +1,21 @@
-//! Unified capability enforcement functions (RFC 031 §2.5, RFC 032 §2.4).
+//! Unified capability enforcement functions (RFC 031 §2.5, RFC 032 §2.4; RFC-0.47-001).
 //!
-//! # require_cap
+//! # The funnel
 //!
-//! `require_cap` is the **sole production authority-checking path** for all
-//! kernel operations that require a capability.  It replaces the scattered
-//! `caller_has_cap(kind)` / task-id allowlist / debug-only bypasses present
-//! in v0.1.x.
+//! **Every kernel operation that is authorised by a capability reaches [`check`] through one of three named
+//! entries**, and a check that exists anywhere else in the kernel is a defect that the `authority-funnel`
+//! subcheck of `consistency-check` fails on:
+//!
+//! * [`require_cap`] -- a handle, and the **kind** the operation is about. Kind is mandatory, so a caller of a
+//!   kind-bound operation cannot forget it.
+//! * [`require_cap_any_kind`] -- a handle, for the operations that act on a capability *as a slot-object*
+//!   whatever it names (`cap_copy`, `cap_mint`, `cap_revoke`, `cap_inspect`). Being a separate name, a
+//!   kind-agnostic call is greppable at the call site. It is not a sentinel `CapKind::Any` inside one entry:
+//!   "no kind requirement" is the absence of a requirement, exactly as `required_scope: Option<_>` says for
+//!   scope.
+//! * [`require_held`] -- no handle: the caller must *hold* some `Active` capability of a kind with the rights
+//!   and a live lease (`sys_cap_bind_lease` authorises by possession of a `LeaseAdmin`, and the syscall passes
+//!   no handle for it).
 //!
 //! ## Check order (normative, RFC 031 §2.6)
 //!
@@ -13,50 +23,38 @@
 //! 1. CSpace lookup     — handle out of range or null
 //! 2. Generation check  — slot.generation != handle.generation
 //! 3. Slot-state check  — slot not Active
-//! 4. Kind check        — cap.kind != expected_kind
+//! 4. Kind check        — cap.kind != expected_kind      (skipped by `require_cap_any_kind`)
 //! 5. Rights check      — cap.rights does not contain required_rights
 //! 6. Scope check       — cap.scope incompatible with required_scope
 //! 7. Lease check       — lease epoch mismatch or revoked state
 //! ```
 //!
-//! The order is normative: cheap, data-independent checks precede expensive,
-//! object-specific checks; lease check is last because it requires a table
-//! lookup.
+//! The order is normative: cheap, data-independent checks precede expensive, object-specific checks; the
+//! lease check is last because it requires a table lookup. **It is also the right order for a reason that is
+//! not about cost**: rights precede the lease, so a caller that lacks the right is never told that a lease was
+//! revoked -- the state of an object it has no authority over. An earlier revision checked the lease first in
+//! four syscalls, so one input (no right *and* a revoked lease) got `PermissionDenied` from one path and
+//! `LeaseRevoked` from another (E-126).
 //!
-//! # cap_drop
+//! ## What is outside the funnel, and why (each is a reasoned exemption, not an omission)
 //!
-//! `cap_drop` is the RFC 032 explicit slot-release mechanism.  Unlike
-//! `cap_delete`, it succeeds even when the capability's lease has been revoked
-//! — a task must always be able to release a dead slot.
+//! * **Releasing a capability** (`cap_drop`, `cap_delete`): releasing authority you hold can only *reduce* it,
+//!   so a task must always be able to release a dead slot -- steps 1-3 only. `CapRights::DROP` is therefore
+//!   **reserved**: the bit is retained for the ABI, nothing may require it, and it confers nothing.
+//! * **`sys_ipc_reply`**: its authority is a pending reply edge (the call being served), not a capability.
+//! * **`fjell_cap::lease_revoke::revoke_permitted`**: an *ownership* predicate applied **after** the funnel has
+//!   authorised the `LeaseAdmin`; it narrows, it does not authorise.
 
 use super::cspace::CSpace;
 use super::handle::CapHandle;
-use super::rights::{CapError, CapKind, CapRights, ObjectScope};
+use super::rights::{CapError, CapKind, CapRights, CapState, ObjectScope};
 use super::slot::{CapSlotState, Capability, LeaseChecker};
 
-/// Unified capability enforcement (RFC 031 §2.5).
-///
-/// Validates a `CapHandle` from the given `CSpace` through all seven checks
-/// listed above.
-///
-/// Returns a shared reference to the `Capability` on success.  The
-/// reference is valid for the lifetime of the `CSpace` borrow.
-///
-/// # Errors
-///
-/// | `CapError` variant       | Condition                                       |
-/// |--------------------------|--------------------------------------------------|
-/// | `InvalidHandle`          | handle is null or slot index out of range         |
-/// | `GenerationMismatch`     | handle.generation != slot.generation             |
-/// | `EmptySlot`              | slot is Empty or Dropped                         |
-/// | `WrongKind`              | cap.kind != expected_kind                        |
-/// | `MissingRight`           | cap.rights does not contain required_rights      |
-/// | `ScopeMismatch`          | cap.scope does not satisfy required_scope        |
-/// | `LeaseRevoked`           | lease epoch mismatch or lease state Revoked      |
-pub fn require_cap<'cs>(
+/// The one implementation of the seven checks. `expected_kind: None` skips step 4 and nothing else.
+fn check<'cs>(
     cspace: &'cs CSpace,
     handle: CapHandle,
-    expected_kind: CapKind,
+    expected_kind: Option<CapKind>,
     required_rights: CapRights,
     required_scope: Option<&ObjectScope>,
     checker: &dyn LeaseChecker,
@@ -76,8 +74,10 @@ pub fn require_cap<'cs>(
     let cap = slot.cap.as_ref().ok_or(CapError::EmptySlot)?;
 
     // Step 4: kind check
-    if cap.kind != expected_kind {
-        return Err(CapError::WrongKind);
+    if let Some(kind) = expected_kind {
+        if cap.kind != kind {
+            return Err(CapError::WrongKind);
+        }
     }
 
     // Step 5: rights check
@@ -98,15 +98,106 @@ pub fn require_cap<'cs>(
     Ok(cap)
 }
 
-/// Explicit capability slot drop (RFC 032 §2.4).
+/// Unified capability enforcement (RFC 031 §2.5) for an operation **about a kind of object**.
+///
+/// Validates a `CapHandle` from the given `CSpace` through all seven checks listed above.
+///
+/// Returns a shared reference to the `Capability` on success.  The reference is valid for the lifetime of
+/// the `CSpace` borrow.
+///
+/// # Errors
+///
+/// | `CapError` variant       | Condition                                       |
+/// |--------------------------|--------------------------------------------------|
+/// | `InvalidHandle`          | handle is null or slot index out of range         |
+/// | `GenerationMismatch`     | handle.generation != slot.generation             |
+/// | `EmptySlot`              | slot is Empty or Dropped                         |
+/// | `WrongKind`              | cap.kind != expected_kind                        |
+/// | `MissingRight`           | cap.rights does not contain required_rights      |
+/// | `ScopeMismatch`          | cap.scope does not satisfy required_scope        |
+/// | `LeaseRevoked`           | lease epoch mismatch or lease state Revoked      |
+pub fn require_cap<'cs>(
+    cspace: &'cs CSpace,
+    handle: CapHandle,
+    expected_kind: CapKind,
+    required_rights: CapRights,
+    required_scope: Option<&ObjectScope>,
+    checker: &dyn LeaseChecker,
+) -> Result<&'cs Capability, CapError> {
+    check(
+        cspace,
+        handle,
+        Some(expected_kind),
+        required_rights,
+        required_scope,
+        checker,
+    )
+}
+
+/// [`require_cap`] for an operation that acts on a capability **whatever kind it is** (`cap_copy`, `cap_mint`,
+/// `cap_revoke`, `cap_inspect`): the same steps, minus step 4. Everything else -- the order, the errors --
+/// is the one implementation's, so the two entries agree on every input that has the same kind.
+pub fn require_cap_any_kind<'cs>(
+    cspace: &'cs CSpace,
+    handle: CapHandle,
+    required_rights: CapRights,
+    required_scope: Option<&ObjectScope>,
+    checker: &dyn LeaseChecker,
+) -> Result<&'cs Capability, CapError> {
+    check(
+        cspace,
+        handle,
+        None,
+        required_rights,
+        required_scope,
+        checker,
+    )
+}
+
+/// Authority **by possession**: the caller holds some `Active` capability of `kind` carrying
+/// `required_rights` whose lease is live. No handle is named, because the syscall that needs this
+/// (`sys_cap_bind_lease`) is not told which capability authorises it.
+///
+/// Each candidate is judged in the funnel's order -- slot state, kind, rights, lease -- and the first that
+/// passes is returned. When none does the answer is [`CapError::MissingRight`] whatever the reason (no such
+/// kind, too few rights, or a revoked lease): *which* capability fell short is not the caller's to learn.
+pub fn require_held<'cs>(
+    cspace: &'cs CSpace,
+    kind: CapKind,
+    required_rights: CapRights,
+    checker: &dyn LeaseChecker,
+) -> Result<&'cs Capability, CapError> {
+    cspace
+        .iter_occupied()
+        .find(|c| {
+            c.state == CapState::Active
+                && c.kind == kind
+                && c.rights.contains(required_rights)
+                && c.check_lease(checker).is_ok()
+        })
+        .ok_or(CapError::MissingRight)
+}
+
+/// Explicit capability slot drop (RFC 032 §2.4) -- **and the one implementation of releasing a capability**:
+/// `sys_cap_delete` calls this too (RFC-0.47-001 D5).
 ///
 /// Releases the capability in `handle`'s slot so the slot can be reused.
 ///
-/// # Differences from `cap_delete`
-/// - **Succeeds on revoked leases**: a task must be able to drop a dead
-///   capability.  The lease is deliberately **not** checked.
-/// - Emits the `CapabilityDropped` audit event (kernel responsibility; this
-///   function only performs the slot manipulation).
+/// # No authority is checked, and why
+///
+/// Steps 1-3 only (the handle resolves to an `Active` slot). Releasing a capability you hold can only
+/// *reduce* authority, so a task must always be able to release a dead slot, **including one whose lease was
+/// revoked**. `CapRights::DROP` is reserved and is not required.
+///
+/// # Where `cap_drop` and `cap_delete` differ (the two true differences)
+/// - the error for an **empty slot**: `cap_drop` answers `Dropped` (`InvalidCap`), `cap_delete` answers
+///   `SlotEmpty`;
+/// - **audit**: `cap_delete` records `CapDelete` on every attempt including failures, `cap_drop` records
+///   `CapDrop` on success only.
+///
+/// They do **not** differ in authority or in what happens to a revoked-lease capability: both succeed. An
+/// earlier doc comment here said otherwise -- *"unlike `cap_delete`, succeeds even when the lease is
+/// revoked"* -- which described a difference that did not exist.
 ///
 /// # Errors
 ///
@@ -396,5 +487,220 @@ mod tests {
         let cap = cs.get(child).unwrap();
         assert!(cap.rights.contains(CapRights::SEND));
         assert!(!cap.rights.contains(CapRights::RECV));
+    }
+
+    // ── RFC-0.47-001: the three entries, and the order, exhaustively ─────────────────────────
+
+    use crate::slot::LeaseBinding;
+    use fjell_abi::lease::{LeaseEpoch, LeaseId};
+
+    /// A one-slot CSpace holding an `Endpoint` capability with `rights`, lease-bound iff `bound`.
+    fn one_cap(rights: CapRights, bound: bool) -> (CSpace, CapHandle) {
+        let mut cs = CSpace::new();
+        let cap = Capability {
+            kind: CapKind::Endpoint,
+            state: CapState::Active,
+            object_id: 5,
+            rights,
+            badge: 0,
+            scope: ObjectScope::Any,
+            parent: None,
+            lease: bound.then_some(LeaseBinding {
+                lease_id: LeaseId::new(0, 1),
+                epoch_at_issue: LeaseEpoch(1),
+            }),
+        };
+        cs.install_raw(0, cap).unwrap();
+        (cs, CapHandle::new(0, 0))
+    }
+
+    /// For **every** combination of {kind wrong, right missing, lease revoked}, `require_cap` answers the
+    /// *first* failure in the normative order kind -> rights -> lease, and `require_cap_any_kind` the first
+    /// of rights -> lease. This is the property that one input has one answer, whichever path serves it.
+    #[test]
+    fn the_first_failure_in_the_normative_order_is_the_answer_for_every_combination() {
+        for kind_wrong in [false, true] {
+            for right_missing in [false, true] {
+                for lease_revoked in [false, true] {
+                    let rights = if right_missing {
+                        CapRights::RECV
+                    } else {
+                        CapRights::SEND | CapRights::RECV
+                    };
+                    let (cs, h) = one_cap(rights, lease_revoked);
+                    let checker: &dyn LeaseChecker = if lease_revoked {
+                        &AlwaysRevoked
+                    } else {
+                        &NoLease
+                    };
+                    let want_kind = if kind_wrong {
+                        CapKind::TaskControl
+                    } else {
+                        CapKind::Endpoint
+                    };
+
+                    let expect_full = if kind_wrong {
+                        Err(CapError::WrongKind)
+                    } else if right_missing {
+                        Err(CapError::MissingRight)
+                    } else if lease_revoked {
+                        Err(CapError::LeaseRevoked)
+                    } else {
+                        Ok(())
+                    };
+                    let got_full =
+                        require_cap(&cs, h, want_kind, CapRights::SEND, None, checker).map(|_| ());
+                    assert_eq!(
+                        got_full, expect_full,
+                        "require_cap: kind_wrong={kind_wrong} right_missing={right_missing} lease_revoked={lease_revoked}"
+                    );
+
+                    let expect_any = if right_missing {
+                        Err(CapError::MissingRight)
+                    } else if lease_revoked {
+                        Err(CapError::LeaseRevoked)
+                    } else {
+                        Ok(())
+                    };
+                    let got_any =
+                        require_cap_any_kind(&cs, h, CapRights::SEND, None, checker).map(|_| ());
+                    assert_eq!(
+                        got_any, expect_any,
+                        "require_cap_any_kind: right_missing={right_missing} lease_revoked={lease_revoked}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The case the inline paths got wrong: no right **and** a revoked lease is `MissingRight`, never
+    /// `LeaseRevoked` -- a caller without the right is not told the state of a lease it has no authority over.
+    #[test]
+    fn no_right_and_a_revoked_lease_is_missing_right_through_both_entries() {
+        let (cs, h) = one_cap(CapRights::RECV, true);
+        assert_eq!(
+            require_cap(
+                &cs,
+                h,
+                CapKind::Endpoint,
+                CapRights::SEND,
+                None,
+                &AlwaysRevoked
+            )
+            .unwrap_err(),
+            CapError::MissingRight
+        );
+        assert_eq!(
+            require_cap_any_kind(&cs, h, CapRights::SEND, None, &AlwaysRevoked).unwrap_err(),
+            CapError::MissingRight
+        );
+    }
+
+    /// `require_cap_any_kind` accepts a capability of any kind; `require_cap` does not.
+    #[test]
+    fn the_any_kind_entry_accepts_every_kind_the_kind_entry_refuses() {
+        let mut cs = CSpace::new();
+        let h = cs
+            .install_root(CapKind::LeaseAdmin, 0, CapRights::INSPECT)
+            .unwrap();
+        assert!(require_cap_any_kind(&cs, h, CapRights::INSPECT, None, &NoLease).is_ok());
+        assert_eq!(
+            require_cap(
+                &cs,
+                h,
+                CapKind::Endpoint,
+                CapRights::INSPECT,
+                None,
+                &NoLease
+            )
+            .unwrap_err(),
+            CapError::WrongKind
+        );
+    }
+
+    /// The structural steps are the same through both entries.
+    #[test]
+    fn both_entries_refuse_a_null_stale_and_empty_handle_identically() {
+        let (mut cs, h) = one_cap(CapRights::SEND, false);
+        let null = CapHandle::NULL;
+        let empty = CapHandle::new(7, 0);
+        for handle in [null, empty] {
+            assert_eq!(
+                require_cap(
+                    &cs,
+                    handle,
+                    CapKind::Endpoint,
+                    CapRights::SEND,
+                    None,
+                    &NoLease
+                )
+                .map(|_| ()),
+                require_cap_any_kind(&cs, handle, CapRights::SEND, None, &NoLease).map(|_| ())
+            );
+        }
+        cs.delete(h).unwrap(); // generation bumps: h is now stale
+        let a = require_cap(&cs, h, CapKind::Endpoint, CapRights::SEND, None, &NoLease).map(|_| ());
+        let b = require_cap_any_kind(&cs, h, CapRights::SEND, None, &NoLease).map(|_| ());
+        assert_eq!(a, b);
+        assert!(a.is_err());
+    }
+
+    // ── require_held ─────────────────────────────────────────────────────────────────────────
+
+    fn held_cspace(caps: &[(CapKind, CapRights, bool)]) -> CSpace {
+        let mut cs = CSpace::new();
+        for (i, (kind, rights, bound)) in caps.iter().enumerate() {
+            let cap = Capability {
+                kind: *kind,
+                state: CapState::Active,
+                object_id: 0,
+                rights: *rights,
+                badge: 0,
+                scope: ObjectScope::Any,
+                parent: None,
+                lease: bound.then_some(LeaseBinding {
+                    lease_id: LeaseId::new(i as u16, 1),
+                    epoch_at_issue: LeaseEpoch(1),
+                }),
+            };
+            cs.install_raw(i, cap).unwrap();
+        }
+        cs
+    }
+
+    #[test]
+    fn require_held_finds_a_holder_and_refuses_every_way_of_not_holding() {
+        let need = CapRights::LEASE_CREATE | CapRights::LEASE_BIND;
+        let ok = held_cspace(&[(CapKind::LeaseAdmin, need, false)]);
+        assert!(require_held(&ok, CapKind::LeaseAdmin, need, &NoLease).is_ok());
+        // nothing held
+        assert_eq!(
+            require_held(&CSpace::new(), CapKind::LeaseAdmin, need, &NoLease).unwrap_err(),
+            CapError::MissingRight
+        );
+        // right kind, too few rights
+        let few = held_cspace(&[(CapKind::LeaseAdmin, CapRights::LEASE_CREATE, false)]);
+        assert!(require_held(&few, CapKind::LeaseAdmin, need, &NoLease).is_err());
+        // right rights, wrong kind
+        let wrong = held_cspace(&[(CapKind::Endpoint, need, false)]);
+        assert!(require_held(&wrong, CapKind::LeaseAdmin, need, &NoLease).is_err());
+        // right kind and rights, but the lease is revoked
+        let revoked = held_cspace(&[(CapKind::LeaseAdmin, need, true)]);
+        assert!(require_held(&revoked, CapKind::LeaseAdmin, need, &AlwaysRevoked).is_err());
+    }
+
+    #[test]
+    fn require_held_skips_a_dead_candidate_and_finds_a_live_one() {
+        let need = CapRights::LEASE_CREATE | CapRights::LEASE_BIND;
+        // slot 0: right kind, rights, revoked lease; slot 1: right kind, rights, no lease.
+        let cs = held_cspace(&[
+            (CapKind::LeaseAdmin, need, true),
+            (CapKind::LeaseAdmin, need, false),
+        ]);
+        let found = require_held(&cs, CapKind::LeaseAdmin, need, &AlwaysRevoked).unwrap();
+        assert!(
+            found.lease.is_none(),
+            "the live candidate, not the revoked one"
+        );
     }
 }

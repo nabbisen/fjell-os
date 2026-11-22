@@ -30,32 +30,12 @@ fn err(tf: &mut TrapFrame, e: SysError) {
 pub fn sys_cap_copy(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src = CapHandle(tf.gpr[10] as u32);
     let dst = tf.gpr[11];
-    // RFC 049: require COPY right + lease check on source cap.
+    // RFC 049 / RFC-0.47-001: COPY, through the one funnel (kind-agnostic: a copy is of a slot-object).
+    if let Err(e) =
+        crate::trap::syscall::require_cap_any_kind_on_ct(&*ct, tidx, src, CapRights::COPY)
     {
-        // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
-        let lt = unsafe { crate::get_lease_table() };
-        let cs = match ct.cspace(tidx) {
-            Some(c) => c,
-            None => {
-                err(tf, SysError::InternalError);
-                return;
-            }
-        };
-        let cap = match cs.get(src) {
-            Ok(c) => c,
-            Err(e) => {
-                err(tf, e);
-                return;
-            }
-        };
-        if let Err(e) = cap.check_lease(lt) {
-            err(tf, e.into());
-            return;
-        }
-        if !cap.rights.contains(CapRights::COPY) {
-            err(tf, SysError::PermissionDenied);
-            return;
-        }
+        err(tf, e);
+        return;
     }
     let cs = match ct.cspace_mut(tidx) {
         Some(c) => c,
@@ -78,32 +58,12 @@ pub fn sys_cap_mint(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let src = CapHandle(tf.gpr[10] as u32);
     let dst = tf.gpr[11];
     let rights = CapRights(tf.gpr[12] as u64); // v0.2: CapRights is u64
-    // RFC 049: require MINT right + lease check on source cap.
+    // RFC 049 / RFC-0.47-001: MINT, through the one funnel.
+    if let Err(e) =
+        crate::trap::syscall::require_cap_any_kind_on_ct(&*ct, tidx, src, CapRights::MINT)
     {
-        // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
-        let lt = unsafe { crate::get_lease_table() };
-        let cs = match ct.cspace(tidx) {
-            Some(c) => c,
-            None => {
-                err(tf, SysError::InternalError);
-                return;
-            }
-        };
-        let cap = match cs.get(src) {
-            Ok(c) => c,
-            Err(e) => {
-                err(tf, e);
-                return;
-            }
-        };
-        if let Err(e) = cap.check_lease(lt) {
-            err(tf, e.into());
-            return;
-        }
-        if !cap.rights.contains(CapRights::MINT) {
-            err(tf, SysError::PermissionDenied);
-            return;
-        }
+        err(tf, e);
+        return;
     }
     let badge = tf.gpr[13] as u64;
     let cs = match ct.cspace_mut(tidx) {
@@ -123,6 +83,13 @@ pub fn sys_cap_mint(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     AUDIT.lock_free_append(AuditKindInternal::CapMint, src.0 as usize, dst, 0);
 }
 
+/// `sys_cap_delete(a0=cap_handle) -> a0=status` -- releases the capability, **by the same implementation as
+/// `sys_cap_drop`** (`fjell_cap::enforcement::cap_drop`; RFC-0.47-001 D5).
+///
+/// No authority is checked, and a revoked lease does not stop it: releasing what you hold can only reduce
+/// authority. It differs from `cap_drop` in exactly two ways, both true: an **empty slot** answers
+/// `SlotEmpty` (`cap_drop`: `InvalidCap`), and it **audits every attempt** including failures (`cap_drop`
+/// audits successes).
 pub fn sys_cap_delete(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let h = CapHandle(tf.gpr[10] as u32);
     let cs = match ct.cspace_mut(tidx) {
@@ -132,41 +99,22 @@ pub fn sys_cap_delete(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
             return;
         }
     };
-    match cs.delete(h) {
+    match fjell_cap::enforcement::cap_drop(cs, h) {
         Ok(()) => ok(tf),
-        Err(e) => err(tf, e),
+        Err(fjell_cap::rights::CapError::Dropped) => err(tf, SysError::SlotEmpty),
+        Err(e) => err(tf, e.into()),
     }
     AUDIT.lock_free_append(AuditKindInternal::CapDelete, h.0 as usize, 0, 0);
 }
 
 pub fn sys_cap_revoke(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let h = CapHandle(tf.gpr[10] as u32);
-    // RFC 049: require REVOKE right + lease check on source cap.
+    // RFC 049 / RFC-0.47-001: REVOKE, through the one funnel.
+    if let Err(e) =
+        crate::trap::syscall::require_cap_any_kind_on_ct(&*ct, tidx, h, CapRights::REVOKE)
     {
-        // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
-        let lt = unsafe { crate::get_lease_table() };
-        let cs = match ct.cspace(tidx) {
-            Some(c) => c,
-            None => {
-                err(tf, SysError::InternalError);
-                return;
-            }
-        };
-        let cap = match cs.get(h) {
-            Ok(c) => c,
-            Err(e) => {
-                err(tf, e);
-                return;
-            }
-        };
-        if let Err(e) = cap.check_lease(lt) {
-            err(tf, e.into());
-            return;
-        }
-        if !cap.rights.contains(CapRights::REVOKE) {
-            err(tf, SysError::PermissionDenied);
-            return;
-        }
+        err(tf, e);
+        return;
     }
     let cs = match ct.cspace_mut(tidx) {
         Some(c) => c,
@@ -184,8 +132,14 @@ pub fn sys_cap_revoke(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
 
 pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
     let h = CapHandle(tf.gpr[10] as u32);
-    // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
-    let lt = unsafe { crate::get_lease_table() };
+    // RFC 049 / RFC-0.47-001: INSPECT, through the one funnel, *before* any metadata is exposed -- so a caller
+    // without the right is told nothing about the capability, not even that its lease was revoked.
+    if let Err(e) =
+        crate::trap::syscall::require_cap_any_kind_on_ct(ct, tidx, h, CapRights::INSPECT)
+    {
+        err(tf, e);
+        return;
+    }
     let cs = match ct.cspace(tidx) {
         Some(c) => c,
         None => {
@@ -193,23 +147,6 @@ pub fn sys_cap_inspect(tf: &mut TrapFrame, tidx: usize, ct: &CapTable) {
             return;
         }
     };
-    // RFC 049: require INSPECT right + lease check before exposing cap metadata.
-    match cs.get(h) {
-        Ok(cap) => {
-            if let Err(e) = cap.check_lease(lt) {
-                err(tf, e.into());
-                return;
-            }
-            if !cap.rights.contains(CapRights::INSPECT) {
-                err(tf, SysError::PermissionDenied);
-                return;
-            }
-        }
-        Err(e) => {
-            err(tf, e);
-            return;
-        }
-    }
     match cs.inspect(h) {
         Ok((kind, rights, badge)) => {
             ok(tf);
@@ -311,14 +248,22 @@ pub fn sys_cap_install(
     // SAFETY: category=kernel-global-mutable  lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
 
-    // The source: a capability the installer HOLDS. Resolved like any other use of a capability
-    // (generation, state, and its lease if it is bound to one).
-    let source = match ct.cspace(tidx).map(|cs| cs.get(src_cap)) {
+    // The source: a capability the installer HOLDS. Resolved **through the funnel** like any other use of a
+    // capability -- generation, slot state and its lease if it is bound to one -- with no rights demanded
+    // here: *which rights the source holds* is exactly what `check_install` judges against what is asked
+    // (RFC-0.46-002), so the funnel's rights step is asked for nothing. (This was a hand-rolled copy of the
+    // funnel's steps 1-3 and 7, found by `authority-funnel` the first time it ran on the tree, RFC-0.47-001.)
+    let source = match ct.cspace(tidx) {
         None => SourceFact::Unusable(SysError::InternalError),
-        Some(Err(e)) => SourceFact::Unusable(e),
-        Some(Ok(c)) => match c.check_lease(&*lt) {
-            Err(e) => SourceFact::Unusable(e.into()),
-            Ok(()) => SourceFact::Held {
+        Some(cs) => match fjell_cap::enforcement::require_cap_any_kind(
+            cs,
+            src_cap,
+            CapRights::NONE,
+            None,
+            &*lt,
+        ) {
+            Err(e) => SourceFact::Unusable(e.to_sys_error()),
+            Ok(c) => SourceFact::Held {
                 kind: c.kind,
                 object_id: c.object_id,
                 rights: c.rights,
@@ -436,6 +381,7 @@ fn build_msg(
     tf: &TrapFrame,
     tidx: usize,
     ct: &CapTable,
+    tasks: &TaskTable,
     is_call: bool,
 ) -> Result<(u32, PendingMessage), SysError> {
     let ep_h = CapHandle(tf.gpr[10] as u32);
@@ -452,22 +398,22 @@ fn build_msg(
     }
 
     let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
+    // The caller (`sys_ipc_send` / `sys_ipc_call`) has already put `ep_h` through the funnel as an `Endpoint`
+    // with the right; this reads the object it names and the badge.
     let cap = cs.get(ep_h)?;
-    if cap.kind != CapKind::Endpoint {
-        return Err(SysError::WrongType);
-    }
 
     let mut words = [0u64; IPC_WORDS];
     for i in 0..(tag.words as usize).min(4) {
         words[i] = tf.gpr[12 + i] as u64;
     }
 
-    // RFC 055: look up sender's image_id for kernel-attested identity.
+    // RFC 055: look up sender's image_id for kernel-attested identity. From the task table the caller
+    // already holds -- this used to reach for `get_kernel_state()` a second time, taking a second `&mut` to
+    // the table its caller was holding, under a comment that claimed `require_cap` had validated something
+    // (RFC-0.47-001 R8).
     let sender_image_id = {
-        // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
-        let (table, _, _, _) = unsafe { crate::get_kernel_state() };
         let sender_id = crate::task::TaskId::new(tidx as u16, 0);
-        table.get(sender_id).map(|t| t.image_id.0).unwrap_or(0xFFFF)
+        tasks.get(sender_id).map(|t| t.image_id.0).unwrap_or(0xFFFF)
     };
 
     Ok((
@@ -488,29 +434,35 @@ fn build_msg(
     ))
 }
 
-fn check_right(
+/// The IPC syscalls' authority (RFC-0.47-001 R3): the capability named in `a0` must be an **`Endpoint`**
+/// carrying `right`, with a live lease -- all seven funnel checks, through the one funnel.
+///
+/// This replaced `check_right`, a second local funnel that tested one right and the lease and **never the
+/// kind**, so `sys_ipc_recv` and `sys_ipc_try_recv` took `object_id` from any capability holding the `RECV`
+/// bit and used it as an endpoint id (E-129).
+fn require_endpoint(
     tf: &TrapFrame,
     tidx: usize,
     ct: &CapTable,
     right: CapRights,
 ) -> Result<(), SysError> {
-    let ep_h = CapHandle(tf.gpr[10] as u32);
-    let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
-    let cap = cs.get(ep_h)?;
-    if !cap.rights.contains(right) {
-        return Err(SysError::PermissionDenied);
-    }
-    // RFC 015: validate lease binding — revoked caps must not be used for IPC.
-    // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
-    let lt = unsafe { crate::get_lease_table() };
-    cap.check_lease(lt).map_err(SysError::from)?;
-    Ok(())
+    crate::trap::syscall::require_cap_on_ct(
+        ct,
+        tidx,
+        CapHandle(tf.gpr[10] as u32),
+        CapKind::Endpoint,
+        right,
+        None,
+    )
 }
 
 /// `sys_cap_drop(a0=cap_handle) -> a0=status`
 ///
-/// RFC 032 (v0.2.0): Explicitly drop a capability slot so it can be reused.
-/// Unlike `cap_delete`, succeeds even when the capability's lease is revoked.
+/// RFC 032 (v0.2.0): Explicitly drop a capability slot so it can be reused. No authority is checked and a
+/// revoked lease does not stop it -- **and the same is true of `cap_delete`**: the two share one implementation
+/// (`fjell_cap::enforcement::cap_drop`) and differ only in the error for an empty slot and in auditing
+/// failures (RFC-0.47-001 D5). An earlier comment here said `cap_delete` could not release a revoked-lease
+/// capability; it could.
 pub fn sys_cap_drop(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     let h = CapHandle(tf.gpr[10] as u32);
     let cs = match ct.cspace_mut(tidx) {
@@ -587,7 +539,6 @@ fn refuse_bind_lease(tf: &mut TrapFrame, e: SysError, lease_id: u32, slot: usize
 pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     use fjell_abi::lease::LeaseId;
     use fjell_abi::task::TaskId;
-    use fjell_cap::CapState;
 
     let cap_h = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
@@ -596,26 +547,27 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     // SAFETY: category=kernel-global-mutable  lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
 
-    // 1. Authority. `ct.cspace(tidx)` is a shared reborrow of the `ct` this
-    // function already holds; it ends with the `match`, before `cspace_mut`
-    // below. No second `get_kernel_state()`, so no second `&mut` to the table
-    // (the aliasing that sank the earlier attempt at this check).
-    let authorised = match ct.cspace(tidx) {
-        Some(cs) => cs.iter_occupied().any(|c| {
-            c.kind == CapKind::LeaseAdmin
-                && c.state == CapState::Active
-                && c.rights.contains(CapRights::LEASE_CREATE)
-                && c.rights.contains(CapRights::LEASE_BIND)
-                && c.check_lease(&*lt).is_ok()
-        }),
-        None => {
+    // 1. Authority -- **by possession**, through the one funnel (RFC-0.47-001 R4): the caller holds an
+    // `Active` `LeaseAdmin` with `LEASE_CREATE` and `LEASE_BIND` whose own lease is live. The syscall names
+    // no authorising handle, which is why this is `require_held` and not a handle check. It used to be a
+    // hand-rolled scan of the CSpace repeating steps 3, 4, 5 and 7 of the funnel by hand.
+    match crate::trap::syscall::require_held_on_ct(
+        &*ct,
+        tidx,
+        CapKind::LeaseAdmin,
+        CapRights::LEASE_CREATE | CapRights::LEASE_BIND,
+    ) {
+        Ok(()) => {}
+        Err(SysError::InternalError) => {
             err(tf, SysError::InternalError);
             return;
         }
-    };
-    if !authorised {
-        refuse_bind_lease(tf, SysError::PermissionDenied, lease_id.0, slot);
-        return;
+        Err(_) => {
+            // Whatever fell short, the refusal is `PermissionDenied`: which capability was not enough is not
+            // the caller's to learn.
+            refuse_bind_lease(tf, SysError::PermissionDenied, lease_id.0, slot);
+            return;
+        }
     }
 
     // 2. The target: an occupied slot (generation-validated lookup), not yet
@@ -710,11 +662,11 @@ pub fn sys_ipc_send(
 ) {
     // RFC-v0.7.4-003 / C-M-07: debug UART writes removed from production IPC path.
     // IPC events are recorded in the audit ring via AuditKindInternal::IpcSend.
-    if let Err(e) = check_right(tf, tidx, ct, CapRights::SEND) {
+    if let Err(e) = require_endpoint(tf, tidx, ct, CapRights::SEND) {
         err(tf, e);
         return;
     }
-    let (ep_id, msg) = match build_msg(tf, tidx, ct, false) {
+    let (ep_id, msg) = match build_msg(tf, tidx, ct, tasks, false) {
         Ok(x) => x,
         Err(e) => {
             err(tf, e);
@@ -794,7 +746,7 @@ pub fn sys_ipc_recv(
     sched: &mut Scheduler,
     cur_id: TaskId,
 ) {
-    if let Err(e) = check_right(tf, tidx, ct, CapRights::RECV) {
+    if let Err(e) = require_endpoint(tf, tidx, ct, CapRights::RECV) {
         err(tf, e);
         return;
     }
@@ -847,12 +799,12 @@ pub fn sys_ipc_call(
     sched: &mut Scheduler,
     cur_id: TaskId,
 ) {
-    if let Err(e) = check_right(tf, tidx, ct, CapRights::CALL) {
+    if let Err(e) = require_endpoint(tf, tidx, ct, CapRights::CALL) {
         err(tf, e);
         AUDIT.lock_free_append(AuditKindInternal::IpcDenied, tidx, 0, 0);
         return;
     }
-    let (ep_id, msg) = match build_msg(tf, tidx, ct, true) {
+    let (ep_id, msg) = match build_msg(tf, tidx, ct, tasks, true) {
         Ok(x) => x,
         Err(e) => {
             err(tf, e);
@@ -920,7 +872,10 @@ pub fn sys_ipc_reply(
     // would have returned None (BadState).  This check is defense-in-depth for
     // the case where revoke arrived after take_reply but before delivery.
     if let Some(lb) = edge.lease {
-        // SAFETY: category=kernel-global-mutable capability handle is validated by require_cap before this call.
+        // SAFETY: category=kernel-global-mutable single hart, and this handler is handed no reference to the
+        // lease table; the table is only read here (`check_active(&self, ..)`), and the reference is not kept.
+        // (This is *not* a capability check: `sys_ipc_reply`'s authority is the pending reply edge, not a
+        // capability, which is why it is outside the funnel -- see `fjell_cap::enforcement`'s module doc.)
         let lt = unsafe { crate::get_lease_table() };
         if lt.check_active(lb.lease_id, lb.epoch_at_issue).is_err() {
             // Lease revoked: drop the reply silently.  The caller is already
@@ -1020,7 +975,7 @@ pub fn sys_ipc_try_recv(
     sched: &mut Scheduler,
 ) {
     // Validate endpoint cap (including lease).
-    if let Err(e) = check_right(tf, tidx, ct, CapRights::RECV) {
+    if let Err(e) = require_endpoint(tf, tidx, ct, CapRights::RECV) {
         err(tf, e);
         return;
     }

@@ -79,16 +79,31 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
 
 // ── Individual syscall implementations ───────────────────────────────────────
 
-// ── RFC 048: handle-based capability gating helper ───────────────────────────
+// ── The kernel's three entries to the funnel (RFC-0.47-001) ──────────────────────────────────
 
-/// Handle-based capability enforcement (RFC 048).
+/// The lease table, as the checker the funnel consults.
 ///
-/// Replaces the v0.1/v0.2.8 scan-based `require_cap`.  The caller explicitly
-/// names the cap handle, which is validated through all 7 RFC 031 steps:
-/// CSpace lookup, generation, slot-state, kind, rights, scope, lease epoch.
+/// The one place the three `*_on_ct` wrappers below reach the table, so the justification is written once.
+fn lease_checker() -> &'static dyn fjell_cap::slot::LeaseChecker {
+    // SAFETY: category=kernel-global-mutable the kernel is single-hart and a syscall runs to completion with
+    // the trap handler's interrupts masked, so no other path holds `&mut LeaseTable` while this runs; the
+    // funnel only calls `check_active(&self, ..)` on it, so the reference is used shared and not retained
+    // past the call that receives it.
+    let lt = unsafe { crate::get_lease_table() };
+    lt
+}
+
+/// Map the funnel's error to the ABI. **There is one map**: `CapError::to_sys_error` (RFC 031 §2.7). An
+/// earlier revision of this file carried a second table that collapsed invalid, stale and empty handles
+/// to `InvalidCap` and sent every error it did not name to `PermissionDenied`; it is deleted (E-126, F6).
+fn abi(e: fjell_cap::rights::CapError) -> SysError {
+    e.to_sys_error()
+}
+
+/// Handle-based capability enforcement for an operation **about a kind of object** (RFC 048, RFC 031 §2.6):
+/// all seven checks through [`fjell_cap::enforcement::require_cap`].
 ///
-/// `required_scope = None` skips the scope check (used for creation ops
-/// where no target object exists yet).
+/// `required_scope = None` skips the scope check (used for creation ops where no target object exists yet).
 pub(crate) fn require_cap_on_ct(
     ct: &crate::cap::table::CapTable,
     tidx: usize,
@@ -97,9 +112,6 @@ pub(crate) fn require_cap_on_ct(
     required_rights: fjell_cap::CapRights,
     required_scope: Option<&fjell_cap::rights::ObjectScope>,
 ) -> Result<(), SysError> {
-    use fjell_cap::rights::CapError;
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
-    let lt = unsafe { crate::get_lease_table() };
     let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
     fjell_cap::enforcement::require_cap(
         cs,
@@ -107,23 +119,38 @@ pub(crate) fn require_cap_on_ct(
         expected_kind,
         required_rights,
         required_scope,
-        lt,
+        lease_checker(),
     )
     .map(|_| ())
-    .map_err(|e| match e {
-        CapError::InvalidHandle | CapError::GenerationMismatch | CapError::EmptySlot => {
-            SysError::InvalidCap
-        }
-        // H-02 (architect review v0.20.0): aligned to canonical
-        // `to_sys_error()` mapping. Earlier revisions mapped WrongKind
-        // to InvalidCap here, diverging from `rights.rs::to_sys_error`
-        // which maps it to WrongType. No deliberate ABI reason existed
-        // for the divergence.
-        CapError::WrongKind => SysError::WrongType,
-        CapError::MissingRight | CapError::ScopeMismatch => SysError::PermissionDenied,
-        CapError::LeaseRevoked => SysError::LeaseRevoked,
-        _ => SysError::PermissionDenied,
-    })
+    .map_err(abi)
+}
+
+/// [`require_cap_on_ct`] for an operation that acts on a capability **whatever kind it is**
+/// (`cap_copy`, `cap_mint`, `cap_revoke`, `cap_inspect`): step 4 is skipped, nothing else.
+pub(crate) fn require_cap_any_kind_on_ct(
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+    handle: fjell_cap::handle::CapHandle,
+    required_rights: fjell_cap::CapRights,
+) -> Result<(), SysError> {
+    let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
+    fjell_cap::enforcement::require_cap_any_kind(cs, handle, required_rights, None, lease_checker())
+        .map(|_| ())
+        .map_err(abi)
+}
+
+/// Authority **by possession** (`sys_cap_bind_lease`): the caller holds an `Active` capability of `kind`
+/// with `required_rights` and a live lease. See [`fjell_cap::enforcement::require_held`].
+pub(crate) fn require_held_on_ct(
+    ct: &crate::cap::table::CapTable,
+    tidx: usize,
+    kind: fjell_cap::CapKind,
+    required_rights: fjell_cap::CapRights,
+) -> Result<(), SysError> {
+    let cs = ct.cspace(tidx).ok_or(SysError::InternalError)?;
+    fjell_cap::enforcement::require_held(cs, kind, required_rights, lease_checker())
+        .map(|_| ())
+        .map_err(abi)
 }
 
 /// `sys_yield` — voluntarily relinquish the CPU.
@@ -1466,52 +1493,25 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     let size_bytes = (tf.gpr[REG_A1] + 0xFFF) & !0xFFF;
     let cap_handle = fjell_cap::CapHandle(cap_raw);
 
-    // RFC 036 + RFC 031: unified require_cap — kind=DmaRegion | DmaAlloc, right=DMA_ALLOC.
+    // RFC 036 + RFC 031 + RFC-0.47-001 R5: one funnel call -- kind `DmaRegion`, right `DMA_ALLOC`. This used
+    // to be a sixth hand-rolled path that also accepted a legacy `DmaAlloc` kind, which nothing in the tree
+    // has granted since the grant was modernised (`spawn.rs`), so the branch accepted a kind no one could hold.
     let tidx = crate::trap::dispatch::current_task_idx();
     {
-        // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+        // SAFETY: category=kernel-global-mutable single hart; this handler is handed only the trap frame, so
+        // this is its first access to kernel state, and the view of the capability table ends with this
+        // block, before the later `get_kernel_state()` below.
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
-        // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
-        let lt = unsafe { crate::get_lease_table() };
-        let cs = match ct.cspace(tidx) {
-            Some(c) => c,
-            None => {
-                tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
-                return;
-            }
-        };
-        // Accept both the new DmaRegion kind and the legacy DmaAlloc alias.
-        let kind_ok = {
-            let c = cs.get(cap_handle).ok();
-            c.map_or(false, |cap| {
-                cap.kind == CapKind::DmaRegion || cap.kind == CapKind::DmaAlloc
-            })
-        };
-        if !kind_ok {
-            // Run require_cap for the proper error path.
-            if let Err(e) = fjell_cap::enforcement::require_cap(
-                cs,
-                cap_handle,
-                CapKind::DmaRegion,
-                CapRights::DMA_ALLOC,
-                None,
-                lt,
-            ) {
-                tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
-                return;
-            }
-        } else {
-            // Kind matched — still check DMA_ALLOC right and lease.
-            if let Ok(cap) = cs.get(cap_handle) {
-                if !cap.rights.contains(CapRights::DMA_ALLOC) {
-                    tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
-                    return;
-                }
-                if let Err(e) = cap.check_lease(lt) {
-                    tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
-                    return;
-                }
-            }
+        if let Err(e) = require_cap_on_ct(
+            ct,
+            tidx,
+            cap_handle,
+            CapKind::DmaRegion,
+            CapRights::DMA_ALLOC,
+            None,
+        ) {
+            tf.gpr[REG_A0] = e as isize as usize;
+            return;
         }
     }
 

@@ -94,7 +94,7 @@ const READ_ERR: usize = 0x20D;
 
 // ── Cap slots in storaged's CSpace ───────────────────────────────────────────
 // Slot 0: IPC endpoint (object ID 1, private to init+storaged)
-// Slot 2: DmaAlloc cap
+// Slot 2: DmaRegion cap
 // Slot 34: MmioRegion cap for virtio-mmio region (base 0x1000_1000)
 const EP_SLOT: u32 = 0;
 const DMA_SLOT: u32 = 2;
