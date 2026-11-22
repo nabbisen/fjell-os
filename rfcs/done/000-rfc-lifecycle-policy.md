@@ -80,25 +80,56 @@ they remain findable without becoming a second lifecycle.
 
 ## Lifecycle states
 
-An RFC is in exactly one of the following states at any time:
+An RFC is in exactly one of the following states at any time. **This table is the project's vocabulary:**
+`rfc-status-folder`, `handoff-status`, `rfc-evidence` and `rfc-policy` read the state names and each state's
+folder **from this table** (RFC-0.47-002), so a word is a legal status because it is defined here and for no
+other reason.
 
-| State | Meaning |
-|---|---|
-| **Draft** | The author is still writing. Not ready for review by anyone but the author and immediate collaborators. |
-| **Proposed** | Open for review and discussion. Implementer should *not* yet start work — the design may change. |
-| **Implemented** | The work has shipped (in a release, on `main`, or wherever the project's stability marker lives). The RFC is now a historical record. |
-| **Withdrawn** | The author or maintainer decided not to pursue this RFC. The work will not happen. |
-| **Superseded** | A later RFC replaces this one. The replacement RFC's identifier is recorded in this RFC's Status field. |
+| State | Folder | Meaning |
+|---|---|---|
+| **Proposed** | `proposed/` | Filed; open for review and discussion. The implementer should *not* yet start work — the design may change. |
+| **Accepted** | `accepted/` | Approved by the architect or owner; the implementer may begin. The design is settled but the work has not shipped. |
+| **Implemented** | `done/` | The work has shipped **and the RFC's normative text is satisfied by what shipped** — see [§ The drift and errata rule](#the-drift-and-errata-rule). The RFC is now a historical record. |
+| **Implemented-with-Errata** | `done/` | The work has shipped, but the RFC's normative text claims more than what shipped. The divergence is recorded in `rfcs/ERRATA.md`. **Permanent once marked:** it is a fact about the RFC *when it shipped*, not a summary of the register — the register's own Summary table is the one place a disposition lives (E-114), and an RFC's status does not return to `Implemented` when its errata close. |
+| **Superseded** | `done/` | A later RFC replaces this one. The replacement RFC's identifier is recorded in this RFC's Status field. |
+| **Withdrawn** | `done/` | The author or maintainer decided not to pursue this RFC. The work will not happen. |
 
-The states are deliberately few. Some projects add **Accepted**
-between Proposed and Implemented (meaning "design is settled,
-implementer may start, but work has not yet shipped"). For most
-projects this state is formalisation overhead — proposed and
-accepted collapse in practice because the same person both
-proposes and implements. Larger organisations with separated
-roles may want it; the variant is described in
-[§ Folder layout: 5-folder variant](#folder-layout-5-folder-variant)
-below.
+**There is no `Draft` state in the repository:** an RFC enters it as `Proposed`, so a draft is not a state
+anything can be in. **There is no `Closed` state:** no RFC has ever carried it, and an RFC-level closure
+vocabulary would be a second source for what the register's per-erratum `CLOSED` already says.
+
+`Accepted` is used, not optional, in this project: `accepted/` exists, every milestone since 0.25 moves its
+RFCs through it, and `rfc-status-folder` requires the word there. (The general discussion of whether small
+projects should adopt it is in [§ Formalising `accepted/` in small projects](#formalising-accepted-in-small-projects);
+this project made the other choice and says so there.)
+
+### The drift and errata rule
+
+> **An RFC may not be marked Implemented if its normative text makes a claim the merged code does not
+> satisfy.** It is marked **Implemented-with-Errata** instead, and an entry is added to `rfcs/ERRATA.md`
+> naming the RFC, the claim, what actually shipped, and the tracking RFC (if any) for closure. An RFC found
+> to over-claim *after* it was marked Implemented is re-marked **Implemented-with-Errata** in the same change
+> that files the entry. No RFC may silently carry drift into a release.
+
+This is this project's most distinctive governance rule: `rfcs/ERRATA.md` exists because of it, and
+`release-rehearsal` Gate 7 (the errata register, zero `OPEN`) and Gate 12's `errata-limitations` and
+`errata-tracking` subchecks all rest on it. **It was written here, verified by name, at RFC-0.25-002 (`be8cf6f`),
+and deleted by an untitled rewrite of this file two months later (`4d8044a`) — E-128.** `rfc-policy` now fails
+if the rule's sentence is not in this section, so that the next rewrite cannot remove it unnoticed.
+
+What a check can and cannot do about it: it can hold that the rule is written down, that the vocabulary is
+one source, that every `Implemented-with-Errata` RFC is named in the register, and (for register entries that
+carry an `- **RFC:**` field) that no live erratum's subject RFC is plain `Implemented`. It **cannot** judge
+whether an RFC's text is satisfied by the code; that is a reviewer's question, and a green `rfc-policy` does
+not answer it.
+
+### Required header items (advisory)
+
+An RFC numbered **0.47-001 or later** carries the `Status`, `Milestone` and `Tracks` header lines and a
+`Requirements` section — the four items every RFC since 0.40 already carries (measured at RFC-0.47-002: 23 of
+23). **This is advisory: no check enforces it.** The nine-section list the pre-merge policy required is not
+restored; as literal headings it is carried by 5 and 3 of 173 RFCs, and a list nearly every document violates
+is a permanent exception, not a rule. Earlier RFCs are not retro-applied; released records are not rewritten.
 
 ## Folder layout
 
@@ -537,6 +568,10 @@ go straight from `proposed/` to `done/`) or perpetually full
 Adopt the 5-folder variant only if the design and
 implementation roles are genuinely separate. Otherwise the
 4-folder variant is right-sized.
+
+*This project's choice:* the roles are separate (the architect accepts, the implementer ships), `accepted/` is
+populated at every milestone, and the 5-folder variant is used. The anti-pattern describes the small-project
+case; it is retained as guidance for a project that is not this one.
 
 ### Letting cross-references rot
 

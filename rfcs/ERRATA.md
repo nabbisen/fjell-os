@@ -10,6 +10,20 @@ resolution status, and the tracking RFC that closes it.
 Status legend: **OPEN** (drift live) · **CLOSED** (reconciled) ·
 **ACCEPTED** (drift is a documented, deliberate v1.0 limitation).
 
+**What files an entry, and what it does to the RFC it names** — the procedure for
+[the drift and errata rule](./done/000-rfc-lifecycle-policy.md#the-drift-and-errata-rule),
+which RFC 000 states normatively (and `rfc-policy` holds there): an RFC whose normative text claims more than
+the merged code satisfies is marked **Implemented-with-Errata** instead of Implemented, and an entry is filed
+here naming the RFC, the claim, what shipped, and the tracking RFC. **An RFC found to over-claim after it was
+marked Implemented is re-marked in the same change that files the entry.** The mark is permanent: it records
+the RFC when it shipped, and this file's Summary table — not the RFC's status — is where a disposition lives.
+
+**The `- **RFC:**` field.** An entry says which RFC's normative text over-claims with a line
+`- **RFC:** <RFC id>`, or `- **RFC:** none` when the drift is not an RFC's text (an instrument, a document, a
+count). It is **required of entries from E-130 on** and is being backfilled on the live entries; the closed
+entries are not rewritten. `rfc-policy` fails an `OPEN` or `ACCEPTED` entry whose field names an RFC still
+marked plain Implemented.
+
 **Where an erratum's status lives — one place, stated here because it was ambiguous and four
 entries disagreed with themselves (E-114).** The **Summary table at the foot of this file is the
 single live status**, and it is what every instrument reads: `errata-tracking`,

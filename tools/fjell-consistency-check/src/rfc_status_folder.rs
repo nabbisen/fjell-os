@@ -22,7 +22,6 @@
 //! design (the lifecycle policy document itself, and the v0.7.x patch-set
 //! index page) — those are skipped, not failed.
 
-use crate::status::extract_status_keyword;
 use std::fs;
 use std::process::ExitCode;
 
@@ -30,26 +29,27 @@ const PROPOSED_DIR: &str = "rfcs/proposed";
 const ACCEPTED_DIR: &str = "rfcs/accepted";
 const DONE_DIR: &str = "rfcs/done";
 
-// RFC-0.25-002 R1/R3: the 5-folder variant. Before `accepted/` existed,
-// `proposed/` had to tolerate `Accepted` because there was nowhere else to
-// put a signed-off RFC. Now there is, and that tolerance would be a hole —
-// an Accepted RFC left in `proposed/` would pass.
-const PROPOSED_STATUSES: &[&str] = &["Proposed"];
-const ACCEPTED_STATUSES: &[&str] = &["Accepted"];
-const DONE_STATUSES: &[&str] = &[
-    "Implemented-with-Errata",
-    "Implemented",
-    "Superseded",
-    "Withdrawn",
-    "Closed",
-];
+// RFC-0.25-002 R1/R3: the 5-folder variant. `proposed/` must not tolerate `Accepted` -- there is a
+// folder for it now, and that tolerance would be a hole. **RFC-0.47-002: which states a folder allows is
+// not listed here.** It is the `Folder` column of RFC 000's state table (`status::vocabulary`), so the
+// words are legal because the policy defines them, not because a constant in this file says so.
 
 pub fn check() -> ExitCode {
+    let vocab = match crate::status::vocabulary() {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("rfc-status-folder: FAIL — {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let proposed = vocab.names_in("proposed");
+    let accepted = vocab.names_in("accepted");
+    let done = vocab.names_in("done");
     let mut files: Vec<(String, String, &[&str])> = Vec::new();
     for (dir, allowed) in [
-        (PROPOSED_DIR, PROPOSED_STATUSES),
-        (ACCEPTED_DIR, ACCEPTED_STATUSES),
-        (DONE_DIR, DONE_STATUSES),
+        (PROPOSED_DIR, proposed.as_slice()),
+        (ACCEPTED_DIR, accepted.as_slice()),
+        (DONE_DIR, done.as_slice()),
     ] {
         let Some(entries) = crate::read_dir_named("rfc-status-folder", dir) else {
             return ExitCode::FAILURE;
@@ -69,17 +69,43 @@ pub fn check() -> ExitCode {
         .iter()
         .map(|(p, c, a)| (p.as_str(), c.as_str(), *a))
         .collect();
-    run_check(&refs)
+    run_check_in(vocab, &refs)
+}
+
+/// [`run_check_in`] against the project's own vocabulary.
+#[cfg(test)]
+pub fn run_check(files: &[(&str, &str, &[&str])]) -> ExitCode {
+    match crate::status::vocabulary() {
+        Ok(v) => run_check_in(v, files),
+        Err(e) => {
+            eprintln!("rfc-status-folder: FAIL — {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// Core comparison, pure in its inputs for testing with synthetic fixtures.
 /// Each tuple is `(path label, file content, statuses allowed in that folder)`.
-pub fn run_check(files: &[(&str, &str, &[&str])]) -> ExitCode {
+///
+/// **A Status field that names no state the policy defines is a failure.** It used to be skipped as if the
+/// file had no Status field (the documented exception), so a status word the policy did not define -- or a
+/// defined one misspelled -- passed unseen.
+pub fn run_check_in(
+    vocab: &crate::status::Vocabulary,
+    files: &[(&str, &str, &[&str])],
+) -> ExitCode {
     let mut problems = Vec::new();
     let mut checked = 0usize;
     for (path, content, allowed) in files {
-        let Some(found) = extract_status_keyword(content) else {
+        let Some(line) = crate::status::status_field_line(content) else {
             continue; // documented exception: no Status field at all
+        };
+        let Some(found) = vocab.keyword_in(line) else {
+            problems.push(format!(
+                "{path}: Status field `{}` names no state RFC 000 defines",
+                line.trim()
+            ));
+            continue;
         };
         checked += 1;
         if !allowed.contains(&found) {
@@ -104,12 +130,18 @@ pub fn run_check(files: &[(&str, &str, &[&str])]) -> ExitCode {
 mod tests {
     use super::*;
 
+    /// The folders' allowed sets, from the real policy (the same table the check reads).
+    fn allowed(folder: &str) -> &'static [&'static str] {
+        let v = crate::status::vocabulary().expect("policy parses");
+        Box::leak(v.names_in(folder).into_boxed_slice())
+    }
+
     #[test]
     fn proposed_rfc_with_proposed_status_passes() {
         let files = [(
             "rfcs/proposed/X.md",
             "**Status:** Proposed\n",
-            PROPOSED_STATUSES,
+            allowed("proposed"),
         )];
         assert_eq!(run_check(&files), ExitCode::SUCCESS);
     }
@@ -119,7 +151,7 @@ mod tests {
         let files = [(
             "rfcs/done/X.md",
             "**Status:** Implemented (v0.5.0)\n",
-            DONE_STATUSES,
+            allowed("done"),
         )];
         assert_eq!(run_check(&files), ExitCode::SUCCESS);
     }
@@ -131,7 +163,7 @@ mod tests {
         let files = [(
             "rfcs/proposed/X.md",
             "**Status:** Accepted — by the owner, 2026-08-03\n",
-            PROPOSED_STATUSES,
+            allowed("proposed"),
         )];
         assert_eq!(run_check(&files), ExitCode::FAILURE);
     }
@@ -143,7 +175,7 @@ mod tests {
         let files = [(
             "rfcs/accepted/X.md",
             "**Status:** Proposed — awaiting owner acceptance\n",
-            ACCEPTED_STATUSES,
+            allowed("accepted"),
         )];
         assert_eq!(run_check(&files), ExitCode::FAILURE);
     }
@@ -153,7 +185,7 @@ mod tests {
         let files = [(
             "rfcs/accepted/X.md",
             "**Status:** Accepted — by the owner, 2026-08-03\n",
-            ACCEPTED_STATUSES,
+            allowed("accepted"),
         )];
         assert_eq!(run_check(&files), ExitCode::SUCCESS);
     }
@@ -166,7 +198,7 @@ mod tests {
         let files = [(
             "rfcs/done/RFC-v0.17-001-trust-anchor-provisioning.md",
             "**Status:** Accepted (design options — requires architect decision)\n",
-            DONE_STATUSES,
+            allowed("done"),
         )];
         assert_eq!(
             run_check(&files),
@@ -180,9 +212,19 @@ mod tests {
         let files = [(
             "rfcs/proposed/X.md",
             "**Status:** Implemented (v0.5.0)\n",
-            PROPOSED_STATUSES,
+            allowed("proposed"),
         )];
         assert_eq!(run_check(&files), ExitCode::FAILURE);
+    }
+
+    /// RFC-0.47-002: a status word the policy does not define used to be skipped like a missing field.
+    #[test]
+    fn a_status_word_the_policy_does_not_define_fails() {
+        for word in ["Closed (all done)", "Draft", "Impemented"] {
+            let content = format!("**Status:** {word}\n");
+            let files = [("rfcs/done/X.md", content.as_str(), allowed("done"))];
+            assert_eq!(run_check(&files), ExitCode::FAILURE, "{word}");
+        }
     }
 
     #[test]
@@ -190,7 +232,7 @@ mod tests {
         let files = [(
             "rfcs/done/000-rfc-lifecycle-policy.md",
             "# no status field here\n",
-            DONE_STATUSES,
+            allowed("done"),
         )];
         assert_eq!(run_check(&files), ExitCode::SUCCESS);
     }

@@ -37,6 +37,10 @@ const HANDOFFS_DIR: &str = "rfcs/handoffs";
 const NAME: &str = "handoff-status";
 
 pub fn check() -> ExitCode {
+    if let Err(e) = crate::status::vocabulary() {
+        eprintln!("{NAME}: FAIL — {e}");
+        return ExitCode::FAILURE;
+    }
     // A Governing RFC link can resolve into any of the three lifecycle
     // folders depending on where that RFC currently lives. Verify all
     // three are readable unconditionally, the same way the other three

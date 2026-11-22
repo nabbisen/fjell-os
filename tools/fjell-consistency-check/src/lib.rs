@@ -21,6 +21,7 @@ pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 pub mod errata;
 pub mod readme_counts;
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
+pub mod rfc_policy; // RFC-0.47-002: the lifecycle policy's kept rules are written down, and a check can find them missing
 pub mod status; // shared status-keyword parsing (was a bin module)
 pub mod syscall_table; // `syscall-surface`'s two parsers, shared with `rfc-evidence`
 pub mod toolchain;
@@ -61,4 +62,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "rfc-evidence",
     "endpoint-envelope",
     "repo-scope",
+    "rfc-policy",
 ];

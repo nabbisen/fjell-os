@@ -77,6 +77,7 @@ mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
 mod repo_scope; // 0.46 small item B (E-125): no tool answers 'what counts as this repository' from a name list
 mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is in the lib)
+mod rfc_policy_gate; // RFC-0.47-002: the subcheck's file-reading half (logic is in the lib)
 mod rfc_status_folder;
 mod security_advisories;
 mod standards_mapping;
@@ -155,6 +156,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("endpoint-envelope", endpoint_envelope::check),
     // 0.46 small item B (E-125): the scope of a scan is `fjell-repo-scope`'s, or classified.
     ("repo-scope", repo_scope::check),
+    // RFC-0.47-002: the drift/errata rule is written down, the vocabulary is the policy's, and a marked RFC is in the register.
+    ("rfc-policy", rfc_policy_gate::check),
 ];
 
 #[cfg(test)]

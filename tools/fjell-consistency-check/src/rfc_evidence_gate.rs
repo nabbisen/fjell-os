@@ -15,6 +15,10 @@ const DIRS: &[(&str, Folder)] = &[
 ];
 
 pub fn check() -> ExitCode {
+    if let Err(e) = crate::status::vocabulary() {
+        eprintln!("{NAME}: FAIL — {e}");
+        return ExitCode::FAILURE;
+    }
     let mut loaded: Vec<(Folder, String, String)> = Vec::new();
     for (dir, folder) in DIRS {
         let Some(entries) = crate::read_dir_named(NAME, dir) else {
