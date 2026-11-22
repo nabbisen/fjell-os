@@ -20,9 +20,11 @@ the RFC when it shipped, and this file's Summary table — not the RFC's status 
 
 **The `- **RFC:**` field.** An entry says which RFC's normative text over-claims with a line
 `- **RFC:** <RFC id>`, or `- **RFC:** none` when the drift is not an RFC's text (an instrument, a document, a
-count); **either value may be followed by a reason** (`none -- an instrument`). It is **required of entries
-from E-130 on**, the live entries carry it (backfilled 2026-11-23), and the closed entries are not rewritten. `rfc-policy` fails an `OPEN` or `ACCEPTED` entry whose field names an RFC still
-marked plain Implemented.
+count); **either value may be followed by a reason** — `none — an instrument` reads as well as
+`RFC-0.41-002 — its R5 is the claim`, and the check takes the first token of both. It is **required of
+entries from E-130 on**, the live entries carry it (backfilled 2026-11-23), and the closed entries are
+not rewritten. `rfc-policy` fails an `OPEN` or `ACCEPTED` entry whose field names an RFC still marked
+plain Implemented.
 
 **Where an erratum's status lives — one place, stated here because it was ambiguous and four
 entries disagreed with themselves (E-114).** The **Summary table at the foot of this file is the
@@ -340,8 +342,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
     that works; nothing enforces it.
   - **The shared TOML array parser** closes an array at a `]` inside a string
     literal, loading 2 of 4 markers silently.
-- **RFC:** none
-  The claim belongs to several instruments, not to one RFC's normative text.
+- **RFC:** none — the claim belongs to several instruments, not to one RFC's normative text.
 - **Resolution:** **ACCEPTED**, tracked **RFC-0.29-002** — not `CLOSED`.
   ~~ACCEPTED (architect, 2026-08-03), 0.25 candidate~~ → six of the seven
   instances above are fixed by RFC-0.29-002 (2026-09-09), each demonstrated
@@ -6314,9 +6315,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
   claim; this is an honest placeholder. They have the same root — no verification
   exists — and different remedies: E-094 must stop asserting `true`, while this needs
   the verification itself.
-- **RFC:** none
-  The claim is the measurement chain's own; RFC-0.38-001's non-goals exclude release, rootfs
-  and policy attestation explicitly, and that scoping was the owner's.
+- **RFC:** none — the claim is the measurement chain's own. RFC-0.38-001's non-goals exclude
+  release, rootfs and policy attestation explicitly, and that scoping was the owner's.
 - **Status:** **ACCEPTED**, `unscheduled`. A documented v1.0 limitation, recorded in
   `docs/src/releasing/v1-limitations.md` row 14. What closing it needs is real release,
   rootfs and policy-bundle verification — a milestone, not a line, and one that should
@@ -9149,8 +9149,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
   beyond the MMIO mapping (two `DmaRegion`s, an `Interrupt`, an `Endpoint`, the ready slot) is still
   not taken, and `src/core/`'s virtqueue logic is still **not linked into the image** — 0.45 links
   one module from that crate, the scan predicate, and nothing else.
-- **RFC:** none
-  The claim is in `docs/src/external-design/services.md`, not in an RFC's normative text.
+- **RFC:** none — the claim is in `docs/src/external-design/services.md`, not in an RFC's
+  normative text.
 - **Status:** **ACCEPTED**, `unscheduled` — the documentation half is fixed here, and its
   *foundation* half is **narrowed by 0.45.0** (above); the plane itself is still
   a milestone awaiting the owner's direction on what networking is *for* first: packets routed by
@@ -9426,9 +9426,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
   funnel cannot serve as it stands. **So the entry that records a miscounted claim was itself miscounted** —
   which is the argument for the gate in RFC-0.47-001 R9 rather than for more careful reading.
 
-- **RFC:** none
-  The four false statements sit in a release record, a CHANGELOG entry, an RFC's *decisions*
-  discussion and a handoff — not in any RFC's normative requirements.
+- **RFC:** none — the four false statements sit in a release record, a CHANGELOG entry, an RFC's
+  *decisions* discussion and a handoff, not in any RFC's normative requirements.
 - **Status:** **CLOSED** (architect, 2026-11-23, at RFC-0.47-001's stage-2 review). Was OPEN rather than
   ACCEPTED because it was live, unresolved drift rather than a documented deliberate limitation — the
   distinction this register draws at E-004/E-011/E-012 — and Gate 7 blocked a release throughout.
@@ -9555,9 +9554,9 @@ which is history removes the disagreement instead of detecting it, and needs no 
   lie"*.
 - **Not a drift in a shipped binary.** Nothing in the kernel is wrong. This is the project's governance
   recording a rule it does not state.
-- **RFC:** none
-  The deletion is a commit's effect on a policy document, not an RFC over-claiming. RFC-0.25-002's
-  own text was satisfied when it shipped, which is why it keeps `Implemented`.
+- **RFC:** none — the deletion is a commit's effect on a policy document, not an RFC
+  over-claiming. RFC-0.25-002's own text was satisfied when it shipped, which is why it keeps
+  `Implemented`.
 - **Status:** **CLOSED** (architect, 2026-11-23, at RFC-0.47-002's stage-2 review). Was OPEN because it was
   live, unresolved drift, and Gate 7 blocked a release throughout.
 - **What closes it.** RFC 000 carries a `State | Folder | Meaning` table defining six states -- `Proposed`,
