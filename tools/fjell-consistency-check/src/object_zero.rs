@@ -22,6 +22,18 @@
 //!    that resolves to object 0 must not carry `RECV` (`proxy-text`'s demonstration
 //!    capability points at object 0 with `SEND | REPLY | INSPECT` and passes, by name).
 //!
+//! **What this check's guarantee rested on, and what it did not establish (E-129).** The argument above
+//! -- *"the kernel will not let a task receive on an endpoint unless it holds a capability to it that
+//! carries `RECV`"* -- was **false of the kernel for as long as this check existed**: `sys_ipc_recv` and
+//! `sys_ipc_try_recv` took `object_id` from *any* capability holding the `RECV` bit and never looked at its
+//! kind, and `ALL_NON_META` (which includes `RECV`) is granted to non-`Endpoint` capabilities with
+//! `object_id: 0` (`LeaseAdmin`, `TaskCreate`, `TaskControl`, `Reboot`). This check reads **`Endpoint`
+//! installs only**, so it was **green while four other kinds could receive on object 0** -- measured on a
+//! real boot, `WouldBlock` four times of four. It is sound now because RFC-0.47-001 R3 makes the receive
+//! path refuse a capability that is not an `Endpoint` (`WrongType`), pinned by the `capability` profile's
+//! `NEG:CAP:RECV_REFUSES_NON_ENDPOINT:PASS`; **this check is the install half of the property, that marker is the
+//! kernel half, and neither is sufficient alone.**
+//!
 //! **What this does not say, so a reader does not assume otherwise.**
 //! - It does **not** say "no two tasks receive on one object". That is not true of this
 //!   tree and is not meant to be: the update path's metadata channel
