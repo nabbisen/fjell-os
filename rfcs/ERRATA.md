@@ -79,6 +79,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
   real-world deployment target.
 - **Shipped:** board profile, DTB validator, MMIO audit, deployment
   guide — but no hardware was booted.
+- **RFC:** RFC-v0.12-002 -- re-marked `Implemented-with-Errata` 2026-11-23 by the architect, per the restored rule.
 - **Resolution:** **ACCEPTED** as a v1.0 limitation per RFC-v0.16-005.
   v1.0 scope is narrowed to "QEMU `virt` supported profile; VisionFive 2
   profile is provisional and unvalidated on silicon." Hardware bring-up
@@ -339,6 +340,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
     that works; nothing enforces it.
   - **The shared TOML array parser** closes an array at a `]` inside a string
     literal, loading 2 of 4 markers silently.
+- **RFC:** none
+  The claim belongs to several instruments, not to one RFC's normative text.
 - **Resolution:** **ACCEPTED**, tracked **RFC-0.29-002** — not `CLOSED`.
   ~~ACCEPTED (architect, 2026-08-03), 0.25 candidate~~ → six of the seven
   instances above are fixed by RFC-0.29-002 (2026-09-09), each demonstrated
@@ -5286,6 +5289,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
   record**, on the path that every audit entry in the system takes. A description
   that describes a serialiser the kernel does not use would be the E-014 class: a
   file asserting coverage of bytes nobody writes that way.
+- **RFC:** RFC-0.33-003 -- its **D6** is the claim; re-marked `Implemented-with-Errata` 2026-11-23.
 - **Resolution:** **ACCEPTED** (architect, 2026-10-14), **unscheduled**, in
   `v1-limitations.md`. What closing it needs, so it is not re-derived: named-field
   serialisers producing **byte-identical** output against goldens captured from the
@@ -6310,6 +6314,9 @@ which is history removes the disagreement instead of detecting it, and needs no 
   claim; this is an honest placeholder. They have the same root — no verification
   exists — and different remedies: E-094 must stop asserting `true`, while this needs
   the verification itself.
+- **RFC:** none
+  The claim is the measurement chain's own; RFC-0.38-001's non-goals exclude release, rootfs
+  and policy attestation explicitly, and that scoping was the owner's.
 - **Status:** **ACCEPTED**, `unscheduled`. A documented v1.0 limitation, recorded in
   `docs/src/releasing/v1-limitations.md` row 14. What closing it needs is real release,
   rootfs and policy-bundle verification — a milestone, not a line, and one that should
@@ -6865,6 +6872,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
   capabilities and do not delegate, and the two services that bind leases are test
   fixtures. So nothing fails open today. It is a real limit on the design and is
   recorded as one, in `docs/src/releasing/v1-limitations.md` row 12.
+- **RFC:** RFC-v0.7.4-003 -- its text at `:243`-`:246` is the claim; re-marked `Implemented-with-Errata` 2026-11-23.
 - **Status:** **ACCEPTED**, `unscheduled`. What closing it would need is a decision, not
   an implementation: either enforce the premise (every capability that may be delegated
   is bound at creation, which needs E-091's scope work first), or withdraw it and state
@@ -9141,6 +9149,8 @@ which is history removes the disagreement instead of detecting it, and needs no 
   beyond the MMIO mapping (two `DmaRegion`s, an `Interrupt`, an `Endpoint`, the ready slot) is still
   not taken, and `src/core/`'s virtqueue logic is still **not linked into the image** — 0.45 links
   one module from that crate, the scan predicate, and nothing else.
+- **RFC:** none
+  The claim is in `docs/src/external-design/services.md`, not in an RFC's normative text.
 - **Status:** **ACCEPTED**, `unscheduled` — the documentation half is fixed here, and its
   *foundation* half is **narrowed by 0.45.0** (above); the plane itself is still
   a milestone awaiting the owner's direction on what networking is *for* first: packets routed by
@@ -9416,10 +9426,29 @@ which is history removes the disagreement instead of detecting it, and needs no 
   funnel cannot serve as it stands. **So the entry that records a miscounted claim was itself miscounted** —
   which is the argument for the gate in RFC-0.47-001 R9 rather than for more careful reading.
 
-- **Status:** **OPEN**, tracking **0.47**. Filed OPEN and not ACCEPTED because it is live, unresolved
-  drift rather than a documented deliberate limitation — the distinction this register draws at
-  E-004/E-011/E-012. **Gate 7 therefore blocks a release until 0.47-001 resolves it**, which is the
-  correct pressure: the statement is false in published documents today.
+- **RFC:** none
+  The four false statements sit in a release record, a CHANGELOG entry, an RFC's *decisions*
+  discussion and a handoff — not in any RFC's normative requirements.
+- **Status:** **CLOSED** (architect, 2026-11-23, at RFC-0.47-001's stage-2 review). Was OPEN rather than
+  ACCEPTED because it was live, unresolved drift rather than a documented deliberate limitation — the
+  distinction this register draws at E-004/E-011/E-012 — and Gate 7 blocked a release throughout.
+- **What closes it.** `require_cap` is sole in fact: `cap_copy`/`mint`/`revoke`/`inspect`, the four IPC
+  syscalls, `sys_dma_alloc`, `sys_cap_bind_lease` and `sys_cap_install`'s source resolution all reach one
+  body through `require_cap`, `require_cap_any_kind` or `require_held`; `check_right`, the four inline
+  copies, the CSpace scan, `build_msg`'s duplicate kind check and the wrapper's second error table are
+  **deleted**. `cap/syscall.rs` now contains **0** `rights.contains` and **0** `check_lease` sites.
+  `authority-funnel`, the 27th `consistency-check` subcheck, is green at the tip (44 kernel files, 316
+  functions, 2 classified tokens each with a reason) and was shown red five ways.
+- **The gate was then run against the kernel as it stood before the fix, and reported 26 findings** --
+  every inline path, `check_right`, `sys_dma_alloc`, the `bind_lease` scan, and **exactly the seven false
+  SAFETY claims at lines 35, 83, 146, 187, 467, 504 and 923**, the same set the architect had derived by
+  hand at stage 1. **Two independent methods agreeing on the same seven lines is the evidence the check
+  works on the real defect rather than on fixtures** (re-verified by the architect in a scratch worktree at
+  stage-2 review).
+- **What it caught that nobody had:** `sys_cap_install` -- written in 0.46, by the author of the false claim
+  this entry records -- hand-rolled the funnel's steps 1-3 and 7 to resolve its source capability. **The
+  line that claimed to be the one place authority is decided had missed one in the line written just before
+  it.**
 
 ## E-127 — `sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking: a confused deputy, bounded only by a check inside the deputy
 
@@ -9526,9 +9555,36 @@ which is history removes the disagreement instead of detecting it, and needs no 
   lie"*.
 - **Not a drift in a shipped binary.** Nothing in the kernel is wrong. This is the project's governance
   recording a rule it does not state.
-- **Status:** **OPEN**, tracking **RFC-0.47-002**. Filed OPEN because it is live, unresolved drift, and
-  **Gate 7 therefore blocks a release until 0.47-002 resolves it** - the correct pressure: the rule is the
-  register's own premise.
+- **RFC:** none
+  The deletion is a commit's effect on a policy document, not an RFC over-claiming. RFC-0.25-002's
+  own text was satisfied when it shipped, which is why it keeps `Implemented`.
+- **Status:** **CLOSED** (architect, 2026-11-23, at RFC-0.47-002's stage-2 review). Was OPEN because it was
+  live, unresolved drift, and Gate 7 blocked a release throughout.
+- **What closes it.** RFC 000 carries a `State | Folder | Meaning` table defining six states -- `Proposed`,
+  `Accepted`, `Implemented`, `Implemented-with-Errata` (**permanent once marked**), `Superseded`,
+  `Withdrawn` -- with `Draft` and `Closed` stated absent and why. **The drift/errata rule is normative in
+  the definition of `Implemented`**, with the discovery clause the original lacked: an RFC found to
+  over-claim *after* it was marked is **re-marked in the same change that files the entry**.
+  `ERRATA.md`'s header states the procedure, links the rule, and defines the `- **RFC:**` field.
+- **The dependency is reversed, not monitored.** `status.rs` no longer holds a vocabulary: it **parses RFC
+  000's table**, and `rfc-status-folder` takes each folder's allowed set from the `Folder` column. An
+  instrument can no longer make a word legal that the policy does not define.
+- **Two defects in the instruments themselves, found while reversing it:** `rfc-status-folder` treated a
+  Status field naming **no defined state** as *"no Status field"* and skipped it, so `Closed` or a typo
+  passed unseen; and `Implemented-with-Errata` **matched its own prefix `Implemented`**, so deleting the
+  state from the vocabulary would have silently re-read every such RFC as plain `Implemented`. A state word
+  must now stand alone. **Verified by the architect at stage-2 review:** deleting the
+  `Implemented-with-Errata` row from RFC 000 turns both `rfc-policy` and `rfc-status-folder` red, naming
+  every affected RFC, where the prefix match would have hidden it.
+- **`rfc-policy`, the 26th subcheck**, checks the vocabulary three ways, the rule's presence at both ends by
+  name -- *the half RFC-0.25-002's own checklist asked for and never got* -- that every
+  `Implemented-with-Errata` RFC is named in this register, and the forward field. Shown red six ways on the
+  real files.
+- **The rule's first harvest, at this review:** four RFCs re-marked `Implemented-with-Errata` because a live
+  erratum records their normative text over-claiming -- **RFC-v0.12-002** (E-004, a *"validated"* board
+  target with no hardware booted), **RFC-0.41-002** (E-129), **RFC-0.33-003** (E-073) and
+  **RFC-v0.7.4-003** (E-093). Three of the four predate the deletion, so **the rule was not being applied
+  while it was still written down** -- which is why a written rule needed a check.
 
 ## E-129 — `sys_ipc_recv` and `sys_ipc_try_recv` never check a capability's kind: a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability polls endpoint 0, and the gate that says nobody can receive there is green
 
@@ -9557,10 +9613,20 @@ which is history removes the disagreement instead of detecting it, and needs no 
 - **Not a leak today.** Nothing sends to endpoint 0 — which `object_zero.rs` itself records as *"the only
   reason two receivers on one object never took each other's messages"*. The invariant is held by that
   accident and not by the kernel.
-- **Status:** **OPEN** as filed, tracking **RFC-0.47-001** (R3: `recv`/`try_recv` go through the funnel
-  with `CapKind::Endpoint`, so a non-endpoint capability is refused with `WrongType` before its `object_id`
-  is read). Filed OPEN because it is live drift in a kernel path, and **Gate 7 therefore blocks a release
-  until the line lands.**
+- **RFC:** RFC-0.41-002 -- its **R5** is the claim the kernel did not satisfy. **Re-marked
+  `Implemented-with-Errata` by the architect on 2026-11-23**, in the change that records this field, which
+  is the procedure the restored rule prescribes.
+- **Status:** **CLOSED** (architect, 2026-11-23, at RFC-0.47-001's stage-2 review). Was OPEN because it was
+  live drift in a kernel path, and Gate 7 blocked a release throughout.
+- **What closes it.** `sys_ipc_recv` and `sys_ipc_try_recv` reach the funnel through `require_endpoint`
+  with `CapKind::Endpoint`, so a non-endpoint capability is refused **`WrongType` before its `object_id` is
+  read**. Demonstrated by marker `NEG:CAP:RECV_REFUSES_NON_ENDPOINT` on a real boot, and shown red by
+  mutation B2 -- which reddened **only** that marker, the rights markers staying green because `try_recv`
+  still refuses by right first. That is a mutation discriminating the kind check from the rights check
+  rather than reporting one failure for two causes.
+- **`object-zero`'s scope statement is corrected too**, which was the half of the defect that let this
+  stand: it read `Endpoint` installs only while claiming *"no task can receive on endpoint object 0"*. The
+  doc now says what it establishes and names the kernel half that establishes the rest.
 
 ## Summary
 
@@ -9729,7 +9795,7 @@ unit tests. **Classified ACCEPTED, not OPEN** (architect, 2026-08-01): deferring
 the fix to a dedicated RFC after the `0.23.0` cut is a deliberate decision, not
 live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-125 **`mmio-audit`'s site count was never a property of this project** — it reported `total MMIO sites` as a repository figure, and release records carried it as one (`448` at 0.44.0, `449` during 0.45). Measured three ways at the 0.45.0 cut: **490** with a scratch clone present, **449** with it moved out, **41** in a pristine clone — `490 − 449 = 41`, one pristine copy's worth, so the project has **41** sites and the recorded figure was ~408 sites of scratch checkouts under `.git-exclude/`. **The verdict was never affected** (`missing annotation: 0` throughout, because those copies are annotated); the **count** was a function of the developer's machine. Cause: a walk skipping three literal names, none of them `.git-exclude`. **E-025 recorded this defect in two sibling tools, named the family in its own words, fixed the two it had enumerated and CLOSED — `mmio-audit` was a fourth, never enumerated, and survived ~17 milestones inside a release gate.** Fixed at `06398b7` by deriving scope from `git ls-files`, verified both directions; **stays ACCEPTED because the family is still ungated** — closing on the instance is the error this entry records against E-025. The historical figures cannot be corrected in place, and this entry is what makes them findable | 0.46 | CLOSED |
-| E-126 **the 0.46 line recorded a missing capability funnel; it has existed since v0.2.0 and the real defect is that it is not sole** — four documents (`releases/0.46.0.md:278`, `CHANGELOG.md:70`, `RFC-0.46-002:174`, its handoff `:45`), all written by the architect, record `DELEGATE_ONLY`'s prerequisite as *"one funnel for capability checks and there is none"*. `fjell-cap/src/enforcement.rs:56` has defined `require_cap` since v0.2.0 (RFC 031/032), and its module doc calls it *"the sole production authority-checking path"*. The parenthetical counted the funnel's **call sites** and reported them as its absence. The real defect is worse and the opposite shape: **three authority paths and three check orders** — `require_cap` (11 wrapper call sites plus 5 direct in `trap/syscall.rs`, 1 in `cap/syscall.rs` — 17 callers; this entry first said 12, corrected at stage-1 review), `check_right` (4 IPC callers, no kind or scope check), four inline copies in `cap_copy`/`mint`/`revoke`/`inspect` that check **lease before rights**, contradicting the order RFC 031 §2.6 calls normative, and `sys_cap_delete` which checks nothing. One input — lacking the right *and* lease revoked — yields `PermissionDenied` on one path and `LeaseRevoked` on another. Found while verifying the prerequisite before scoping 0.47. **Not correctable in place**: two of the four are released records | 0.47 | OPEN |
+| E-126 **the 0.46 line recorded a missing capability funnel; it has existed since v0.2.0 and the real defect is that it is not sole** — four documents (`releases/0.46.0.md:278`, `CHANGELOG.md:70`, `RFC-0.46-002:174`, its handoff `:45`), all written by the architect, record `DELEGATE_ONLY`'s prerequisite as *"one funnel for capability checks and there is none"*. `fjell-cap/src/enforcement.rs:56` has defined `require_cap` since v0.2.0 (RFC 031/032), and its module doc calls it *"the sole production authority-checking path"*. The parenthetical counted the funnel's **call sites** and reported them as its absence. The real defect is worse and the opposite shape: **three authority paths and three check orders** — `require_cap` (11 wrapper call sites plus 5 direct in `trap/syscall.rs`, 1 in `cap/syscall.rs` — 17 callers; this entry first said 12, corrected at stage-1 review), `check_right` (4 IPC callers, no kind or scope check), four inline copies in `cap_copy`/`mint`/`revoke`/`inspect` that check **lease before rights**, contradicting the order RFC 031 §2.6 calls normative, and `sys_cap_delete` which checks nothing. One input — lacking the right *and* lease revoked — yields `PermissionDenied` on one path and `LeaseRevoked` on another. Found while verifying the prerequisite before scoping 0.47. **Not correctable in place**: two of the four are released records | 0.47 | CLOSED |
 | E-127 **`sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking** — all four `LeaseAdmin` grants carried `ObjectScope::Any`, so the only bound on revoking a stranger's lease was `revoke_authorised`, a predicate inside the broker: a confused deputy whose limit lived in the deputy. A denial rather than a disclosure, so not an escalation, but unbounded on availability. Filed already fixed: the owner's `CAP_REVOKE` filing was named by RFC-0.46-003 and never made, so a defect fixed in 0.46 had no register entry. Fixed by owner check + `LEASE_REVOKE_ANY` (in no aggregate, one holder, counted by `capability-topology`) + audit `0x0606` | RFC-0.46-003 | CLOSED |
-| E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | OPEN |
-| E-129 **`sys_ipc_recv`/`sys_ipc_try_recv` never check a capability's kind** — a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability (all `ALL_NON_META`, all `object_id: 0`, so all carry `RECV`) polls endpoint 0 (`WouldBlock` on a real boot, four of four; a fifth unclaimed). `object-zero` reads `Endpoint` installs only, so the gate for *"no task can receive on endpoint 0"* is green while four other kinds can. Not a leak today (nothing sends to endpoint 0); the invariant held by accident, not by the kernel | RFC-0.47-001 | OPEN |
+| E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | CLOSED |
+| E-129 **`sys_ipc_recv`/`sys_ipc_try_recv` never check a capability's kind** — a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability (all `ALL_NON_META`, all `object_id: 0`, so all carry `RECV`) polls endpoint 0 (`WouldBlock` on a real boot, four of four; a fifth unclaimed). `object-zero` reads `Endpoint` installs only, so the gate for *"no task can receive on endpoint 0"* is green while four other kinds can. Not a leak today (nothing sends to endpoint 0); the invariant held by accident, not by the kernel | RFC-0.47-001 | CLOSED |

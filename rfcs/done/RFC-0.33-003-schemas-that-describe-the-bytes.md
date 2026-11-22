@@ -1,6 +1,6 @@
 # RFC-0.33-003: Schemas that describe the bytes
 
-**Status:** Implemented (0.33.0) — accepted 2026-09-24
+**Status:** Implemented-with-Errata (0.33.0) — accepted 2026-09-24; re-marked 2026-11-23 by the architect under the drift/errata rule restored by RFC-0.47-002. **E-073** records that this RFC's **D6** claims *"every format written to disk or sent over IPC has a file or a recorded reason; 'nobody wrote one' is not a reason"*, while two `#[repr(C)]` wire layouts — `fjell-audit-format`'s and `fjell-net-format`'s — are described by nothing a gate compares, and `AuditRecordBin` is written raw by the kernel's `sys_audit_drain`. E-073 remains ACCEPTED and unscheduled. **This status records what was true when this RFC shipped and is permanent**, per RFC 000's definition of the state.
 **Milestone:** 0.33
 **Tracks.** **E-045** — the frozen wire-format schemas were never enforced and
 have drifted — and **E-055**, struct padding written to disk through four raw

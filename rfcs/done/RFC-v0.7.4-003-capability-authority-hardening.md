@@ -1,6 +1,6 @@
 # RFC-v0.7.4-003: Capability Authority Hardening
 
-**Status.** Implemented (v0.7.2)
+**Status:** Implemented-with-Errata (v0.7.2) — re-marked 2026-11-23 by the architect under the drift/errata rule restored by RFC-0.47-002. **E-093** records that this RFC's text at `:243`–`:246` removes kernel-local recursive revocation on the stated premise that *"every meaningful cap MUST have a lease"*, and nothing enforces that premise: `CSpace::install` sets `lease: None`, bootstrap capabilities carry none, and `CSpace::copy` inherits a source's binding *or its absence*, so an unbound capability's copies have no recursive revocation at all. E-093 remains ACCEPTED and unscheduled, deferred past 0.47 on sequencing. **This status records what was true when this RFC shipped and is permanent**, per RFC 000's definition of the state. (The `**Status.**` spelling this line used until now is one of the two that made an earlier count read 10 where the tree had 12.)
 
 ## Status
 

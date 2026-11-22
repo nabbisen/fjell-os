@@ -1,6 +1,6 @@
 # RFC-0.47-001: `require_cap` becomes the sole authority path, in fact
 
-**Status:** Proposed
+**Status:** Accepted — accepted 2026-11-23
 **Milestone:** 0.47
 **Tracks.** **E-126** — the funnel exists, declares itself sole, and is not. **E-129** — the receive path takes
 no kind (§F5), filed as its own entry at the stage-1 review. Also carries, as findings the

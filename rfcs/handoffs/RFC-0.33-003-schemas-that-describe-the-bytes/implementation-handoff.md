@@ -2,7 +2,7 @@
 
 **Governing RFC:** [RFC-0.33-003](../../done/RFC-0.33-003-schemas-that-describe-the-bytes.md)
 **Milestone:** 0.33
-**Status:** inherited from the governing RFC (Implemented, 0.33.0)
+**Status:** inherited from the governing RFC (Implemented-with-Errata, 0.33.0 — see E-073)
 **Audience:** implementation model
 
 This handoff directs execution. It does not redefine the RFC. If you find a

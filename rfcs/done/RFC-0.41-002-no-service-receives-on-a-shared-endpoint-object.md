@@ -1,6 +1,6 @@
 # RFC-0.41-002: No service receives on a shared endpoint object
 
-**Status:** Implemented (0.41.0) — accepted 2026-10-30
+**Status:** Implemented-with-Errata (0.41.0) — accepted 2026-10-30; re-marked 2026-11-23 by the architect under the drift/errata rule restored by RFC-0.47-002. **E-129** records that this RFC's **R5** claims *"no task can receive on endpoint object 0"*, while the kernel as shipped checked only the `RECV` **bit** and never the capability's **kind**: a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability — each granted `ALL_NON_META` with `object_id: 0` — polled endpoint 0, demonstrated on a real boot. The `object-zero` subcheck this RFC introduced reads `Endpoint` installs only, so it was green throughout. RFC-0.47-001 R3 gives the receive path the kind check. **This status records what was true when this RFC shipped and is permanent**, per RFC 000's definition of the state.
 **Milestone:** 0.41
 **Tracks.** **E-102**, its latent half — twenty images hold slot 0 against endpoint object 0, each
 with `SEND`; two tasks run a receive loop on it; nothing sends to it today, which is the only

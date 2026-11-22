@@ -287,6 +287,35 @@ mod tests {
         > the merged code does not satisfy.** More words may follow.\n\n## Folder layout\n";
     const ERRATA: &str = "# R\n\nSee [the rule](./done/000-rfc-lifecycle-policy.md#x).\n\n## E-001 — a thing\n\n- **Status:** x\n\n## Summary\n\n| Errata | Tracking RFC | Status |\n|---|---|---|\n| E-001 a | RFC-0.1-001 | CLOSED |\n";
 
+    /// The three RFC folders, read exactly as `rfc_policy_gate::check` reads them.
+    ///
+    /// The real-tree test below used to pass `&[]` here. That made it assert only the halves that do
+    /// not need the RFC population, and it passed **because no entry carried a `- **RFC:**` field
+    /// yet** — the forward half this subcheck exists for was never exercised against the real tree.
+    /// The first backfilled field (E-004 naming `RFC-v0.12-002`, architect, 2026-11-23) turned it red
+    /// with "names no RFC in proposed/, accepted/ or done/", which is the checker being right about an
+    /// empty population rather than a defect in the register.
+    fn real_rfcs() -> Vec<(String, String, String)> {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut out = Vec::new();
+        for folder in ["proposed", "accepted", "done"] {
+            let dir = root.join("rfcs").join(folder);
+            let mut paths: Vec<_> = std::fs::read_dir(&dir)
+                .expect("rfcs folder")
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|e| e == "md"))
+                .collect();
+            paths.sort();
+            for abs in paths {
+                let name = abs.file_name().unwrap().to_string_lossy().to_string();
+                let text = std::fs::read_to_string(&abs).unwrap_or_default();
+                out.push((format!("rfcs/{folder}/{name}"), folder.to_string(), text));
+            }
+        }
+        out
+    }
+
     fn rfc(path: &str, folder: &str, status: &str) -> (String, String, String) {
         (
             path.to_string(),
@@ -494,7 +523,30 @@ mod tests {
     fn the_real_policy_defines_the_rule_and_the_register_links_it() {
         let policy = real(crate::status::POLICY_PATH);
         let errata = real("rfcs/ERRATA.md");
-        let e = run(&policy, &errata, &[]);
+        let rfcs = real_rfcs();
+        // The population must be the real one, or every `- **RFC:**` field that names a real RFC is
+        // reported as naming none. See `real_rfcs`.
+        assert!(
+            rfcs.len() > 100,
+            "expected the real RFC population, got {}",
+            rfcs.len()
+        );
+        let e = run(&policy, &errata, &rfcs);
         assert!(e.is_ok(), "{e:?}");
+    }
+
+    /// The forward half, exercised against the real tree rather than a fixture: every live entry's
+    /// `- **RFC:**` field names an RFC that exists and is not plain `Implemented`. This is what the
+    /// test above silently skipped while it passed `&[]`.
+    #[test]
+    fn the_real_registers_live_fields_name_rfcs_that_exist() {
+        let policy = real(crate::status::POLICY_PATH);
+        let errata = real("rfcs/ERRATA.md");
+        let rfcs = real_rfcs();
+        let r = run(&policy, &errata, &rfcs).expect("the real tree must satisfy the forward half");
+        assert!(
+            r.fielded_entries > 0,
+            "no entry carries a `- **RFC:**` field, so the forward half proves nothing"
+        );
     }
 }
