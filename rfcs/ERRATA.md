@@ -176,8 +176,20 @@ which is history removes the disagreement instead of detecting it, and needs no 
   `crates/` or `tools/` writes to `target/release-bundles/`, and no
   `.bundle` file is produced anywhere in the toolchain — Step 9's glob would
   match nothing.
-- **Resolution:** **ACCEPTED** (architect, 2026-07-31; reclassified from the
-  initial recording as OPEN). Recorded per RFC-v0.22-001 §Scope item 5.
+- **Resolution:** **CLOSED** (architect, 2026-11-22, at RFC-0.47-002's stage-1 review). Was ACCEPTED
+  (architect, 2026-07-31; reclassified from the initial recording as OPEN), recorded per RFC-v0.22-001
+  §Scope item 5, on the grounds that not investigating it was a deliberate owner decision rather than live
+  drift.
+- **Fixed in 0.47 (small item B).** Step 9 is now a pointer and the signing work is **Step 12b**, which
+  carries the real `sign-bundle` and `verify-bundle-sig` invocations with their expected output, because the
+  archive does not exist until Step 12. **The commands were run verbatim on the real 5.9 MB archive** with a
+  throwaway key, and with two controls: the signature against a wrong public key gave
+  `FAIL — SigVerifyFailed`, and one appended byte gave `FAIL — Tampered: bundle digest mismatch`.
+- **What closes it is that the step was run, not that it was reworded.** This project's standing rule is
+  that a command written into a procedure document is executed, verbatim, on real output, before it is
+  committed — and this entry existed for four months because nobody had run Step 9's loop even once. It is
+  the second release-procedure defect closed by running the step rather than reading it, after 0.45.0's
+  Gate 1 command.
   Declining to investigate E-012 was a deliberate owner decision
   (2026-07-30 — cutting the v1.0 checklist audit because v1.0 is not in
   view), which is ACCEPTED semantics under this register's own legend
@@ -9427,46 +9439,71 @@ which is history removes the disagreement instead of detecting it, and needs no 
   this is the adjacent and equally dangerous case — **a bound that existed only as a service's convention,
   recorded nowhere as a defect** — and its absence from the register is what the filing corrects.
 
-## E-128 — RFC-0.25-002 is marked `Implemented`, its own decision D1 never landed, and the drift/errata rule that governs this whole register is written in no normative document
+## E-128 — the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them
 
-- **Found 2026-11-22 by the architect**, while scoping 0.47, and **re-measured at `8d90f44` by the
-  implementer** (figures below are the re-measurement; where it differs from the handoff, it says so).
+- **Found 2026-11-22 by the architect** while scoping 0.47; **re-measured and extended by the implementer**
+  at `8d90f44`; **diagnosis corrected by the architect at stage-1 review**, which is why this entry's title
+  changed. **Its first version said RFC-0.25-002's decision D1 "never landed". That was wrong, and the
+  correction matters more than the original claim.**
 - **Claim.** `rfcs/done/RFC-0.25-002-rfc-lifecycle-policy-adoption.md` is `Implemented (0.25.0) — R1–R5
-  complete`. Its decision **D1** (`:102`–`:103`) reads *"Keep from the in-repo policy: `Accepted`,
-  `Implemented-with-Errata`, `Closed`, the drift/errata rule, and the required-sections list"*, and its own
-  acceptance checklist (`:257`–`:261`) requires *"All five kept rules present and checked **by name**."*
-- **Tree.** **None of the five is in `rfcs/done/000-rfc-lifecycle-policy.md`.** Its state table defines five
-  states (`Draft`, `Proposed`, `Implemented`, `Withdrawn`, `Superseded`); `Accepted` appears once, as what
-  *"some projects add"* — in a project that has `rfcs/accepted/` and uses the status at every cut.
-  `Implemented-with-Errata` is defined nowhere and **12 RFCs carry it** (the handoff said 10).
-  `Closed` is defined nowhere and **no RFC carries it**. The required-sections list is absent.
-- **The serious one is the drift/errata rule.** RFC-0.25-002 itself called it *"this project's most
-  distinctive governance rule, it is why the errata register exists."* Its text — *"An RFC may not be marked
-  **Implemented** if its normative text makes a claim the merged code does not satisfy"* — exists in
-  exactly **two** tracked files, `RFC-0.25-002:80` and that RFC's implementation handoff `:28`–`:29`, and
-  **both are records of a decision to write it down**. Re-run at this tip with no output filter:
-  `git ls-files -z | xargs -0 /usr/bin/grep -ailn 'may not be marked [I]mplemented'` prints those two. **The rule
-  exists nowhere as a rule.** The text that did carry it — a 64-line in-repo policy — is recoverable at
-  `694f13c:rfcs/done/000-rfc-lifecycle-policy.md`; `be8cf6f` replaced it.
-- **By its own rule, RFC-0.25-002 should not carry `Implemented`:** its normative text claims the five rules
-  are present and checked, and the merged tree satisfies none of them. That is the rule D1 was meant to
-  land, applied to the RFC that failed to land it, and it is the clearest example this register will hold of
-  why the rule matters.
-- **Why it outranks tidiness, and why nothing noticed.** All **126** entries in this register (118 `CLOSED`,
-  7 `ACCEPTED`, 1 `OPEN` before this one) apply a rule that cannot be cited from a normative document.
-  **The failure is self-concealing: the instrument that would have caught RFC-0.25-002 shipping with D1
-  unlanded is the rule that went missing.** RFC 000 itself names the anti-pattern at `:552`,
-  *"Status fields that lie"*.
+  complete`. Its decision **D1** (`:102`–`:103`): *"Keep from the in-repo policy: `Accepted`,
+  `Implemented-with-Errata`, `Closed`, the drift/errata rule, and the required-sections list"*, with an
+  acceptance checklist (`:257`–`:261`) requiring *"All five kept rules present and checked **by name**."*
+- **Tree today.** **None of the five is in `rfcs/done/000-rfc-lifecycle-policy.md`.** The state table defines
+  `Draft`, `Proposed`, `Implemented`, `Withdrawn`, `Superseded`; `Accepted` appears once, as what *"some
+  projects add"* — in a project that has `rfcs/accepted/` and uses the status at every cut.
+  `Implemented-with-Errata` is defined nowhere and **12 RFCs carry it**. `Closed` is defined nowhere and
+  **no RFC carries it**. The required-sections list is absent. The drift/errata rule — *"An RFC may not be
+  marked **Implemented** if its normative text makes a claim the merged code does not satisfy"* — exists in
+  exactly **two** tracked files, `RFC-0.25-002:80` and that RFC's handoff `:28`-`:29`, **both records of a
+  decision to write it down**. Reproduce with
+  `git ls-files -z | xargs -0 /usr/bin/grep -ailn 'may not be marked [I]mplemented'`; the bracket stops the
+  command matching this entry. **The rule exists nowhere as a rule.**
+- **But it did exist, and it was verified by name.** `be8cf6f` (2026-08-15) landed the merged RFC 000 at
+  **430 lines containing the rule**, and its own commit message states: *"All five kept rules verified
+  independently by name rather than by reading for sense: Accepted, Implemented-with-Errata, Closed, the
+  drift/errata rule **verbatim as a normative blockquote**, and all nine required sections."* **RFC-0.25-002
+  did what it said.**
+- **The defect is a regression, and this is it:** `4d8044a` (2026-10-21), whose entire commit message is
+  **"RFC 000 life cycle policy: revised"** with no body - 537 insertions, 421 deletions, 501 to 617 lines:
+
+  ```
+  in RFC 000                                 before 4d8044a   after
+  the drift rule ("may not be marked")                    1       0
+  Implemented-with-Errata                                13       0
+  the **Accepted** table row                              1       0
+  Closed                                                  7       0
+  Test plan (the required-sections list)                   1       0
+  NNN-slug (the portable document's shape)                2      16
+  ```
+
+  The rewrite **reinstated the general-purpose shape and removed the five project-specific rules - the exact
+  straight replacement RFC-0.25-002 had analysed and rejected with a table of consequences.** No erratum was
+  filed, and it stood two months.
+- **Therefore RFC-0.25-002 keeps `Implemented`** (architect, stage-1 review). Its normative text *was*
+  satisfied by the merged code when it shipped; `Implemented-with-Errata` records that an RFC claimed more
+  than the tree delivered, so applying it here would record a false fact about that RFC and misuse the very
+  rule. **A status is a fact about an RFC at the time it shipped, not a moving summary of the register.**
+- **A second live instance, and it predates the deletion.** **E-004** records `RFC-v0.12-002`'s *"validated
+  Path A real-world deployment target"* against *"no hardware was booted"*, and that RFC was
+  `Implemented (v0.12.0)`. By the rule it should have been `Implemented-with-Errata` from the start - so the
+  rule was **not being applied while it was still written down**. Re-marked by the architect at stage-1
+  review.
 - **The instruments invert the dependency.** `rfc-status-folder` accepts `Implemented-with-Errata` and
-  `Closed` (`DONE_STATUSES`, in code) and `status.rs`'s module doc says *"RFC 000 … names the fixed set of
-  lifecycle states"* — it does not name those. **The gate enforces a vocabulary the policy it cites does not
-  define**, so the words are legal because a Rust constant says so, which is the wrong direction.
+  `Closed` from `DONE_STATUSES`, in code, and `status.rs`'s module doc says *"RFC 000 ... names the fixed set
+  of lifecycle states"* - it does not name those. **The gate enforces a vocabulary the policy it cites does
+  not define**, so the words are legal because a Rust constant says so. RFC-0.47-002 R5.1 reverses the
+  direction rather than monitoring it.
+- **Why nothing noticed.** Every disposition in this register applies the deleted rule - at the time of
+  filing, **125 entries** (117 `CLOSED`, 7 `ACCEPTED`, 1 `OPEN`). **The failure is self-concealing: the check
+  that would have caught a 958-line rewrite dropping the rule is the rule's own presence check, which did
+  not exist because the rule did not.** RFC 000 names the anti-pattern itself at `:552`, *"Status fields that
+  lie"*.
 - **Not a drift in a shipped binary.** Nothing in the kernel is wrong. This is the project's governance
-  recording a rule it does not state, and it is filed because the register is the place that notices
-  exactly this.
-- **Status:** **OPEN**, tracking **RFC-0.47-002**. Filed OPEN and not ACCEPTED because it is live,
-  unresolved drift, and **Gate 7 therefore blocks a release until 0.47-002 resolves it** — the correct
-  pressure: the rule is the register's own premise.
+  recording a rule it does not state.
+- **Status:** **OPEN**, tracking **RFC-0.47-002**. Filed OPEN because it is live, unresolved drift, and
+  **Gate 7 therefore blocks a release until 0.47-002 resolves it** - the correct pressure: the rule is the
+  register's own premise.
 
 ## Summary
 
@@ -9483,7 +9520,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-009 non-goals review | RFC-v0.16-005 | CLOSED |
 | E-010 IPC words delivery | 0.20 | CLOSED |
 | E-011 cap_install rights validation | RFC-v0.21.3-001 | CLOSED |
-| E-012 release checklist Step 9 bundle path | RFC-v0.22-001 | ACCEPTED |
+| E-012 **the v1.0 release checklist's Step 9 signed a glob that matched nothing** - it iterated `target/release-bundles/*.bundle`; nothing in the toolchain writes that path or produces a `.bundle`, and the signable artefact is `fjell-os-v{version}.tar.gz`, which exists only after Step 12. ACCEPTED 2026-07-31 as a deliberate deferral (the v1.0 checklist audit was cut from v0.22 scope). **Fixed in 0.47:** Step 9 is a pointer and the signature is **Step 12b**, carrying the real `sign-bundle` / `verify-bundle-sig` commands. **Run verbatim on the real 5.9 MB archive with a throwaway key, with two controls** - wrong public key gave `FAIL - SigVerifyFailed`, one appended byte gave `FAIL - Tampered: bundle digest mismatch` - which is the standing rule that a command written into a procedure document is run before it is committed. The second release-procedure defect this project has closed by running the step rather than reading it | RFC-v0.22-001 | CLOSED |
 | E-013 gate tools' own tests run under no mechanism (tier 1 `--lib`, and never named in CI) | RFC-0.29-001 | CLOSED |
 | E-014 instruments deciding by fixed-string match | RFC-0.29-002 | ACCEPTED |
 | E-015 hand-enumerated instrument scopes drifted from reality | RFC-0.29-002 | CLOSED |
@@ -9637,4 +9674,4 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-125 **`mmio-audit`'s site count was never a property of this project** — it reported `total MMIO sites` as a repository figure, and release records carried it as one (`448` at 0.44.0, `449` during 0.45). Measured three ways at the 0.45.0 cut: **490** with a scratch clone present, **449** with it moved out, **41** in a pristine clone — `490 − 449 = 41`, one pristine copy's worth, so the project has **41** sites and the recorded figure was ~408 sites of scratch checkouts under `.git-exclude/`. **The verdict was never affected** (`missing annotation: 0` throughout, because those copies are annotated); the **count** was a function of the developer's machine. Cause: a walk skipping three literal names, none of them `.git-exclude`. **E-025 recorded this defect in two sibling tools, named the family in its own words, fixed the two it had enumerated and CLOSED — `mmio-audit` was a fourth, never enumerated, and survived ~17 milestones inside a release gate.** Fixed at `06398b7` by deriving scope from `git ls-files`, verified both directions; **stays ACCEPTED because the family is still ungated** — closing on the instance is the error this entry records against E-025. The historical figures cannot be corrected in place, and this entry is what makes them findable | 0.46 | CLOSED |
 | E-126 **the 0.46 line recorded a missing capability funnel; it has existed since v0.2.0 and the real defect is that it is not sole** — four documents (`releases/0.46.0.md:278`, `CHANGELOG.md:70`, `RFC-0.46-002:174`, its handoff `:45`), all written by the architect, record `DELEGATE_ONLY`'s prerequisite as *"one funnel for capability checks and there is none"*. `fjell-cap/src/enforcement.rs:56` has defined `require_cap` since v0.2.0 (RFC 031/032), and its module doc calls it *"the sole production authority-checking path"*. The parenthetical counted the funnel's **call sites** and reported them as its absence. The real defect is worse and the opposite shape: **three authority paths and three check orders** — `require_cap` (12 callers in `trap/syscall.rs`, 1 in `cap/syscall.rs`), `check_right` (4 IPC callers, no kind or scope check), four inline copies in `cap_copy`/`mint`/`revoke`/`inspect` that check **lease before rights**, contradicting the order RFC 031 §2.6 calls normative, and `sys_cap_delete` which checks nothing. One input — lacking the right *and* lease revoked — yields `PermissionDenied` on one path and `LeaseRevoked` on another. Found while verifying the prerequisite before scoping 0.47. **Not correctable in place**: two of the four are released records | 0.47 | OPEN |
 | E-127 **`sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking** — all four `LeaseAdmin` grants carried `ObjectScope::Any`, so the only bound on revoking a stranger's lease was `revoke_authorised`, a predicate inside the broker: a confused deputy whose limit lived in the deputy. A denial rather than a disclosure, so not an escalation, but unbounded on availability. Filed already fixed: the owner's `CAP_REVOKE` filing was named by RFC-0.46-003 and never made, so a defect fixed in 0.46 had no register entry. Fixed by owner check + `LEASE_REVOKE_ANY` (in no aggregate, one holder, counted by `capability-topology`) + audit `0x0606` | RFC-0.46-003 | CLOSED |
-| E-128 **RFC-0.25-002 is `Implemented` and its decision D1 never landed: the drift/errata rule that governs this register is written in no normative document** — `Accepted`, `Implemented-with-Errata` (12 RFCs), `Closed` (none), the drift/errata rule and the required-sections list are all absent from `rfcs/done/000-rfc-lifecycle-policy.md`, though the RFC's own checklist requires all five *"present and checked by name"*. The rule's text survives in exactly two files, both records of the decision to write it. By its own rule RFC-0.25-002 should not carry `Implemented`. `rfc-status-folder` enforces the vocabulary from a Rust constant the policy does not define | RFC-0.47-002 | OPEN |
+| E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | OPEN |

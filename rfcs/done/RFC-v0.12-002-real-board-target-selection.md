@@ -1,6 +1,6 @@
 # RFC-v0.12-002 — Real-Board Target Selection (or Hardened QEMU Fallback)
 
-**Status:** Implemented (v0.12.0)
+**Status:** Implemented-with-Errata (v0.12.0) — re-marked 2026-11-22 by the architect, per the drift/errata rule restored by RFC-0.47-002. **E-004** records that this RFC's normative text selects the StarFive VisionFive 2 as a *validated* "Path A" real-world deployment target, while what shipped was a board profile, a DTB validator, an MMIO audit and a deployment guide — **no hardware was booted**. This status records what was true when this RFC shipped and is permanent. **E-004** itself remains ACCEPTED, tracked under RFC-v0.16-005, with hardware bring-up for v1.1.
 **Target version:** v0.12.0
 **Parent:** v0.12-001.
 **Cross-refs:** RFC v0.5-001 (PlatformProfile), v0.5-002 (DTB discovery).

@@ -449,14 +449,21 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   prebuilt-artefact digest manifest remain unbuilt — out of this line's
   scope, and not what caused the incident this erratum records.
 
-- **v1.0 release-checklist Step 9 references a build output that does not
-  exist** (Errata **E-012**, ACCEPTED). Step 9 signs
+- **v1.0 release-checklist Step 9 referenced a build output that does not
+  exist** (Errata **E-012**, CLOSED) — *closed 2026-11-22 by 0.47 small item B;
+  this row records what the procedure now is.* Step 9 **used to sign**
   `target/release-bundles/*.bundle`; nothing in `crates/` or `tools/` writes
-  that path, and `package-release` produces a single tarball. Steps 9–10 are
-  the signing steps, so the v1.0 checklist cannot currently be executed to
-  completion. Deliberately not investigated in v0.22 (owner decision,
-  2026-07-30 — v1.0 is not in view); must be resolved before v1.0 preparation
-  begins.
+  that path, and `package-release` produces a single tarball, so the glob
+  matched nothing and Step 9 could not be executed at all. Deliberately not
+  investigated in v0.22 (owner decision, 2026-07-30 — v1.0 is not in view),
+  and resolved in 0.47 rather than left for v1.0 preparation. **Now:** Step 9
+  is a pointer to **Step 12b**, which signs the one artefact that exists —
+  `fjell-os-v{version}.tar.gz`, produced by `package-release` and available
+  only after the tag — with `sign-bundle` and `verify-bundle-sig` and their
+  expected output. The commands were run verbatim on the real archive with a
+  throwaway key and two controls (a wrong public key gave
+  `FAIL — SigVerifyFailed`; one appended byte gave `FAIL — Tampered`), which
+  is what closes the row: the step was executed, not reworded.
 
 - **`init` no longer receives on any service's own endpoint** (Errata
   **E-024**, **CLOSED** by RFC-0.28-001). `storaged`, `measuredd`, `attestd`
