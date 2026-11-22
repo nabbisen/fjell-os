@@ -226,13 +226,17 @@ pub fn evaluate(i: &Inputs<'_>) -> Result<Report, Vec<String>> {
         };
         fielded += 1;
         let value = field.trim_matches(|c: char| c == '`' || c == '*' || c.is_whitespace());
-        if value == "none" {
-            continue;
-        }
+        // The first token, for `none` and for a named RFC alike: either may be followed by a reason
+        // (`none -- an instrument`, `RFC-0.41-002 -- its R5 is the claim`). They used to differ: a named RFC
+        // tolerated trailing prose and `none` did not, so the same shape was accepted or refused by which
+        // word it started with. `none-of-the-above` or `nonexistent` is a different token, and fails below.
         let token: String = value
             .chars()
             .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
             .collect();
+        if token == "none" {
+            continue;
+        }
         let status = status_of
             .iter()
             .find(|(rid, _)| *rid == token)
@@ -510,6 +514,46 @@ mod tests {
                 .any(|p| p.contains("E-130") && p.contains("no `- **RFC:**` field")),
             "{e:?}"
         );
+    }
+
+    #[test]
+    fn none_and_a_named_rfc_both_tolerate_a_trailing_reason_and_neither_tolerates_a_lookalike() {
+        let plain = [rfc(
+            "rfcs/done/RFC-0.1-001-a.md",
+            "done",
+            "Implemented (0.1.0)",
+        )];
+        // `none` with a reason: accepted, as a named RFC with one always was
+        assert!(
+            run(
+                POLICY,
+                &with_entry("none -- an instrument, not an RFC's text", "OPEN"),
+                &plain
+            )
+            .is_ok()
+        );
+        assert!(
+            run(
+                POLICY,
+                &with_entry("none \u{2014} a document", "OPEN"),
+                &plain
+            )
+            .is_ok()
+        );
+        // a named RFC with a reason is still judged (and here is plain Implemented while OPEN: red)
+        assert!(
+            run(
+                POLICY,
+                &with_entry("RFC-0.1-001 -- its R5 is the claim", "OPEN"),
+                &plain
+            )
+            .is_err()
+        );
+        // lookalikes are different tokens and name no RFC
+        for bad in ["nonexistent", "none-of-the-above", "None"] {
+            let e = run(POLICY, &with_entry(bad, "OPEN"), &plain).unwrap_err();
+            assert!(e.iter().any(|p| p.contains("names no RFC")), "{bad}: {e:?}");
+        }
     }
 
     #[test]

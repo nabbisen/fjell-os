@@ -20,8 +20,8 @@ the RFC when it shipped, and this file's Summary table — not the RFC's status 
 
 **The `- **RFC:**` field.** An entry says which RFC's normative text over-claims with a line
 `- **RFC:** <RFC id>`, or `- **RFC:** none` when the drift is not an RFC's text (an instrument, a document, a
-count). It is **required of entries from E-130 on** and is being backfilled on the live entries; the closed
-entries are not rewritten. `rfc-policy` fails an `OPEN` or `ACCEPTED` entry whose field names an RFC still
+count); **either value may be followed by a reason** (`none -- an instrument`). It is **required of entries
+from E-130 on**, the live entries carry it (backfilled 2026-11-23), and the closed entries are not rewritten. `rfc-policy` fails an `OPEN` or `ACCEPTED` entry whose field names an RFC still
 marked plain Implemented.
 
 **Where an erratum's status lives — one place, stated here because it was ambiguous and four
