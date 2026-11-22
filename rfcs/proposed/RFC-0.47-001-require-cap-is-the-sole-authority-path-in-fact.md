@@ -2,7 +2,8 @@
 
 **Status:** Proposed
 **Milestone:** 0.47
-**Tracks.** **E-126** — the funnel exists, declares itself sole, and is not. Also carries, as findings the
+**Tracks.** **E-126** — the funnel exists, declares itself sole, and is not. **E-129** — the receive path takes
+no kind (§F5), filed as its own entry at the stage-1 review. Also carries, as findings the
 handoff did not have, a latent hole in the receive path (§F5), a second `CapError`→`SysError` table (§F6) and
 a dead capability kind (§F7). **E-126's disposition is the architect's:** this RFC's evidence for it is the gate in R9, green and shown red.
 **Touches** *(indicative)*: `crates/fjell-cap/src/enforcement.rs`, `crates/fjell-kernel/src/cap/syscall.rs`,
@@ -193,6 +194,14 @@ The wider set is the architect's proposed line 3 and is not started here.
 **R10 — one error table.** The local table in `require_cap_on_ct` is deleted and the wrapper uses the one
 map (D2).
 
+**R12 — an instruction to use a capability that cannot be obtained, corrected where it is published
+(architect, stage-1 review).** `fjell-syscall/src/lib.rs:590` tells every caller of `sys_dma_alloc` that it
+*"must pass … a `CapKind::DmaAlloc` handle"*, and `fjell-storaged/src/main.rs:97` says *"Slot 2: DmaAlloc
+cap"*, while **nothing in the tree grants that kind** (R5/F7). R5 corrects the SDK doc; R12 adds the service
+comment. The SDK sentence was **a published instruction to use an unobtainable capability** — a caller that
+obeyed it could never have succeeded — which is the "an API must not mislead" half of the design bar, not
+hygiene. (The service comment is edited **within its line**, so the prebuilt's bytes do not move for it.)
+
 ---
 
 ## The decisions this RFC asks for
@@ -202,7 +211,8 @@ map (D2).
 one entry with `Option<CapKind>` public (kind-bound callers could omit it silently).
 
 **D2 — the error-code changes, taken deliberately, and which map is the map.** Three classes of change are
-observable and **none of them is visible to `abi-snapshot`** — measured: the snapshot hashes the *declarations*
+observable and **none of them is visible to `abi-snapshot`; that gate covers declarations, not behaviour, and a reader should
+not assume otherwise** — measured: the snapshot hashes the *declarations*
 of public items (`SysError`'s definition, `CapError`'s), not which code a path returns, so it will not move for
 any of these and **cannot gate them**; boot scenarios must (R11). (R1's two new public functions *do* move the
 snapshot, once, and it is regenerated.)
@@ -236,7 +246,8 @@ document change. **Your ruling.** If you pick the alternative, R10 becomes "move
 **D3 — F5 is a hole, not a convention.** Recorded as such, with the experiment. It is fixed by R3. I am not
 asking whether to fix it; I am asking you to confirm the classification, because it changes how RFC-0.41-002's
 text should be read (its invariant held by accident for `Endpoint` installs and was never a kernel property).
-It is also **E-126's most important consequence**, and I would file it as its own erratum if you agree.
+**Filed as its own erratum, E-129** (the architect's ruling), carrying that `object-zero` is green while four
+other kinds can receive on object 0.
 
 **D4 — `sys_cap_bind_lease`'s scan (R4).** Recommended: `require_held`. The alternative — leave it as a
 classified exemption with a recorded reason ("authority by possession; no handle is passed") — is honest but
@@ -265,6 +276,19 @@ reason, and **a stale entry is a failure** (the way `repo-scope` retires its own
 reason travels with the check that judges it.
 
 ---
+
+## Rulings (architect, stage-1 review, 2026-11-22)
+
+**All six decisions accepted; one addition (R12).** D1 as proposed. **D2: both halves, and the architect records
+that my reason supersedes theirs — the governing argument for `PermissionDenied` is the *disclosure* one**
+(telling a caller that lacks the right at all that a lease was revoked discloses the state of an object it has no
+authority over; "the normative order says so" is only a consistency reason). **On the map: take the canonical
+`to_sys_error` and pay the churn** — the minimal-churn alternative would amend RFC 031 §2.7's documented table
+to fit the code, *"changing a normative document to fit an implementation is the inversion this whole
+milestone exists to end"*. R10 is "delete the wrapper's table". D3 confirmed and **verified independently,
+statically** (`cap/syscall.rs:811 :1039`; `ALL_NON_META` includes `RECV`; the grants) — filed as **E-129**.
+D4 `require_held`. **D5 option (a)**; F9 as proposed — `DROP` recorded as reserved, retained for ABI, nothing
+may require it, and the classified list carries no entry for it. D6 accepted, a stale entry a failure.
 
 ## Negative cases (R11) — and what I will show red
 

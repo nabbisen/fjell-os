@@ -9516,6 +9516,38 @@ which is history removes the disagreement instead of detecting it, and needs no 
   **Gate 7 therefore blocks a release until 0.47-002 resolves it** - the correct pressure: the rule is the
   register's own premise.
 
+## E-129 — `sys_ipc_recv` and `sys_ipc_try_recv` never check a capability's kind: a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability polls endpoint 0, and the gate that says nobody can receive there is green
+
+- **Found 2026-11-22 by the implementer**, answering the 0.47 handoff's open question *"can a non-`Endpoint`
+  capability carry `SEND`?"*, and **confirmed independently and statically by the architect** at the
+  0.47 stage-1 review (`cap/syscall.rs:811`, `:1039`; `ALL_NON_META` includes `RECV`; the grants below).
+- **Claim:** RFC-0.41-002 R5 states, and `object-zero` (`tools/fjell-consistency-check/src/object_zero.rs`)
+  gates, that **no task can receive on endpoint object 0**: *"the kernel will not let a task receive on an
+  endpoint unless it holds a capability to it that carries `RECV`"*, so the property reduces to *no install
+  gives anyone a `RECV`-carrying capability to object 0*.
+- **Tree:** the kernel does not require that capability to be an **endpoint** one. `sys_ipc_recv` and
+  `sys_ipc_try_recv` take `c.object_id` from `cs.get(handle)` and use it as an endpoint id; `check_right`
+  tests the `RECV` **bit** only. `RECV` is bit 4, inside `ALL_NON_META`, and the tree grants
+  `ALL_NON_META` to non-endpoint capabilities whose `object_id` is **0**: `LeaseAdmin`
+  (`spawn.rs:735 :769`, `main.rs:1408`), `TaskControl` (`spawn.rs:830 :902`, `main.rs:1394`), `Reboot`
+  (`spawn.rs:872`), `TaskCreate` (`spawn.rs:889`, `main.rs:1380`). `send` and `call` are not affected —
+  `build_msg` checks `kind == Endpoint`, after the rights and lease checks.
+- **Demonstrated, not argued.** On a real boot (scratch worktree, one scenario added to `neg-test`, never
+  committed), `sys_ipc_try_recv` on `neg-test`'s own `LeaseAdmin`, `TaskCreate`, `TaskControl` and `Reboot`
+  slots returned **`WouldBlock` (−20)** for all four — not `WrongType`, not `InvalidCap`: the kernel polled
+  the allocated, empty endpoint 0 through a capability that is not an endpoint. **A fifth, `DmaRegion`, was in
+  the run; its number was lost in the serial interleave with the audit stream and is not claimed.**
+- **The gate's scope is part of the defect.** `object-zero` reads **`Endpoint` installs only**, so it is
+  **green while four other kinds can receive on object 0.** Its own header says *"no task can receive on
+  endpoint object 0"*; what it establishes is *"no `Endpoint` capability carrying `RECV` names object 0"*.
+- **Not a leak today.** Nothing sends to endpoint 0 — which `object_zero.rs` itself records as *"the only
+  reason two receivers on one object never took each other's messages"*. The invariant is held by that
+  accident and not by the kernel.
+- **Status:** **OPEN** as filed, tracking **RFC-0.47-001** (R3: `recv`/`try_recv` go through the funnel
+  with `CapKind::Endpoint`, so a non-endpoint capability is refused with `WrongType` before its `object_id`
+  is read). Filed OPEN because it is live drift in a kernel path, and **Gate 7 therefore blocks a release
+  until the line lands.**
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9686,3 +9718,4 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-126 **the 0.46 line recorded a missing capability funnel; it has existed since v0.2.0 and the real defect is that it is not sole** — four documents (`releases/0.46.0.md:278`, `CHANGELOG.md:70`, `RFC-0.46-002:174`, its handoff `:45`), all written by the architect, record `DELEGATE_ONLY`'s prerequisite as *"one funnel for capability checks and there is none"*. `fjell-cap/src/enforcement.rs:56` has defined `require_cap` since v0.2.0 (RFC 031/032), and its module doc calls it *"the sole production authority-checking path"*. The parenthetical counted the funnel's **call sites** and reported them as its absence. The real defect is worse and the opposite shape: **three authority paths and three check orders** — `require_cap` (11 wrapper call sites plus 5 direct in `trap/syscall.rs`, 1 in `cap/syscall.rs` — 17 callers; this entry first said 12, corrected at stage-1 review), `check_right` (4 IPC callers, no kind or scope check), four inline copies in `cap_copy`/`mint`/`revoke`/`inspect` that check **lease before rights**, contradicting the order RFC 031 §2.6 calls normative, and `sys_cap_delete` which checks nothing. One input — lacking the right *and* lease revoked — yields `PermissionDenied` on one path and `LeaseRevoked` on another. Found while verifying the prerequisite before scoping 0.47. **Not correctable in place**: two of the four are released records | 0.47 | OPEN |
 | E-127 **`sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking** — all four `LeaseAdmin` grants carried `ObjectScope::Any`, so the only bound on revoking a stranger's lease was `revoke_authorised`, a predicate inside the broker: a confused deputy whose limit lived in the deputy. A denial rather than a disclosure, so not an escalation, but unbounded on availability. Filed already fixed: the owner's `CAP_REVOKE` filing was named by RFC-0.46-003 and never made, so a defect fixed in 0.46 had no register entry. Fixed by owner check + `LEASE_REVOKE_ANY` (in no aggregate, one holder, counted by `capability-topology`) + audit `0x0606` | RFC-0.46-003 | CLOSED |
 | E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | OPEN |
+| E-129 **`sys_ipc_recv`/`sys_ipc_try_recv` never check a capability's kind** — a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability (all `ALL_NON_META`, all `object_id: 0`, so all carry `RECV`) polls endpoint 0 (`WouldBlock` on a real boot, four of four; a fifth unclaimed). `object-zero` reads `Endpoint` installs only, so the gate for *"no task can receive on endpoint 0"* is green while four other kinds can. Not a leak today (nothing sends to endpoint 0); the invariant held by accident, not by the kernel | RFC-0.47-001 | OPEN |
