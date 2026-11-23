@@ -34,10 +34,21 @@ A 25+-bit rights lattice: `READ`, `WRITE`, `EXECUTE`, `SEND`, `RECV`, `CALL`,
 `cap_copy` (equal-rights copy), `cap_mint` (strict subset), `cap_delete`,
 `cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease`.
 
-`cap_bind_lease` binds a capability the caller owns to a lease. The caller must hold
-an `Active` `LeaseAdmin` capability carrying `LEASE_CREATE` (otherwise
-`PermissionDenied`) and the lease must be `Active` (otherwise `LeaseRevoked`) —
-RFC-0.38-002. It replaces any earlier binding of that capability.
+`cap_bind_lease` binds a capability the caller owns to a lease. **Authority is by
+possession, and the call names no authorising handle** (RFC-0.47-001 R4): the caller must
+hold an `Active` `LeaseAdmin` capability carrying **both `LEASE_CREATE` and `LEASE_BIND`**,
+whose own lease is live (otherwise `PermissionDenied`), and the lease being bound must be
+`Active` (otherwise `LeaseRevoked`) — RFC-0.38-002. Since 0.47 this is `require_held`, one
+entry of the single authority funnel, where it used to be a hand-rolled scan of the CSpace
+repeating four of the funnel's steps by hand.
+
+**A binding is set once, and `cap_bind_lease` refuses a capability that already carries one**
+— even to the same lease (RFC-0.38-004, `crates/fjell-cap/src/cspace.rs:181`). *Corrected
+2026-11-23 at the 0.47.0 cut, by exit criterion 8: this paragraph said it "replaces any
+earlier binding of that capability", which is **the opposite** of what the kernel does and
+had been since 0.38 — nine milestones in a published page, stating that an authority could be
+moved off its lease when the kernel exists to refuse exactly that. It also named only
+`LEASE_CREATE`. The claim's inverse is what E-090 was filed and closed for.*
 
 `cap_install` installs a capability into the CSpace of **the task the caller is
 serving** -- the caller of its pending IPC reply edge. It has no target argument,
