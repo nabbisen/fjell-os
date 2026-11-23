@@ -143,6 +143,188 @@ pub fn judge(page: &str, errata: &str) -> Result<String, Vec<String>> {
     }
 }
 
+// ── the extension (0.48 stage-1 review): the root README's figures, and no gate count on the page ───────────
+
+pub const ROOT_README: &str = "README.md";
+pub const READINESS_PATH: &str = "docs/src/releasing/v1-readiness.md";
+
+/// The four counts after the readiness link: `... v1-readiness.md](...) — N DONE, M IN PROGRESS, K DEFERRED, J OPEN`.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub struct Readiness {
+    pub done: usize,
+    pub in_progress: usize,
+    pub deferred: usize,
+    pub open: usize,
+}
+
+fn leading_number(s: &str) -> Option<(usize, &str)> {
+    let t = s.trim_start();
+    let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    Some((digits.parse().ok()?, &t[digits.len()..]))
+}
+
+/// The readiness figures the root README states, from the line that links the matrix.
+pub fn parse_root_readiness(readme: &str) -> Option<Readiness> {
+    let line = readme.lines().find(|l| l.contains("v1-readiness.md"))?;
+    let after = &line[line.find("v1-readiness.md")?..];
+    let after = &after[after.find(" — ")? + " — ".len()..];
+    let mut rest = after;
+    let mut out = [0usize; 4];
+    for (i, label) in ["DONE", "IN PROGRESS", "DEFERRED", "OPEN"]
+        .iter()
+        .enumerate()
+    {
+        let (n, r) = leading_number(rest)?;
+        let r = r.trim_start();
+        let r = r.strip_prefix(label)?;
+        out[i] = n;
+        rest = r.trim_start_matches([',', ' ']);
+    }
+    Some(Readiness {
+        done: out[0],
+        in_progress: out[1],
+        deferred: out[2],
+        open: out[3],
+    })
+}
+
+/// The matrix's own `## Summary at <v>` table (`readiness-summary` holds it equal to the rows).
+pub fn parse_matrix_summary(matrix: &str) -> Option<Readiness> {
+    let mut in_summary = false;
+    let mut got = [None::<usize>; 4];
+    for line in matrix.lines() {
+        let t = line.trim();
+        if t.starts_with("## Summary at") {
+            in_summary = true;
+            continue;
+        }
+        if in_summary && t.starts_with("## ") {
+            break;
+        }
+        if !in_summary || !t.starts_with('|') {
+            continue;
+        }
+        let cells: Vec<&str> = t.trim_matches('|').split('|').map(str::trim).collect();
+        if cells.len() < 2 {
+            continue;
+        }
+        let idx = match cells[0] {
+            "DONE" => 0,
+            "IN PROGRESS" => 1,
+            "DEFERRED" => 2,
+            "OPEN" => 3,
+            _ => continue,
+        };
+        got[idx] = cells[1].parse().ok();
+    }
+    Some(Readiness {
+        done: got[0]?,
+        in_progress: got[1]?,
+        deferred: got[2]?,
+        open: got[3]?,
+    })
+}
+
+/// `N files in \`done/\`` as the root README states it.
+pub fn parse_root_done_files(readme: &str) -> Option<usize> {
+    let i = readme.find(" files in `done/`")?;
+    let digits: String = readme[..i]
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    digits.parse().ok()
+}
+
+const NUMBER_WORDS: &[&str] = &[
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+];
+
+/// A count of gates on a published page (*"eleven mechanical gates"*): a third hand-maintained figure that went stale
+/// with the others. The page states **no** such number; the gates are in the rehearsal table.
+pub fn gate_count_claims(page: &str) -> Vec<String> {
+    let flat = page.split_whitespace().collect::<Vec<_>>().join(" ");
+    let lower = flat.to_lowercase();
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(i) = lower[from..].find(" mechanical gates") {
+        let at = from + i;
+        let word = lower[..at].rsplit(' ').next().unwrap_or("");
+        if word.chars().all(|c| c.is_ascii_digit()) && !word.is_empty()
+            || NUMBER_WORDS.contains(&word)
+        {
+            out.push(format!("`{word} mechanical gates`"));
+        }
+        from = at + 1;
+    }
+    out
+}
+
+/// The root README's figures against their sources. `done_files` is the folder's real count.
+pub fn judge_root(
+    root_readme: &str,
+    matrix: &str,
+    done_files: usize,
+) -> Result<String, Vec<String>> {
+    let mut problems = Vec::new();
+    let stated = parse_root_readiness(root_readme);
+    let held = parse_matrix_summary(matrix);
+    match (stated, held) {
+        (None, _) => problems.push(format!(
+            "{ROOT_README} states no `N DONE, M IN PROGRESS, K DEFERRED, J OPEN` after its readiness-matrix link the check can read"
+        )),
+        (_, None) => problems.push(format!("{READINESS_PATH} has no readable `## Summary at` table")),
+        (Some(a), Some(b)) if a != b => problems.push(format!(
+            "{ROOT_README} says {} DONE / {} IN PROGRESS / {} DEFERRED / {} OPEN, but {READINESS_PATH}'s summary table says \
+             {} / {} / {} / {}",
+            a.done, a.in_progress, a.deferred, a.open, b.done, b.in_progress, b.deferred, b.open
+        )),
+        _ => {}
+    }
+    match parse_root_done_files(root_readme) {
+        None => problems.push(format!(
+            "{ROOT_README} states no `N files in `done/`` the check can read"
+        )),
+        Some(n) if n != done_files => problems.push(format!(
+            "{ROOT_README} says {n} files in `done/`, but the folder holds {done_files}"
+        )),
+        _ => {}
+    }
+    if problems.is_empty() {
+        Ok(format!(
+            "{ROOT_README}: readiness {:?} equals the matrix's summary; {done_files} files in done/ equals the folder",
+            stated.unwrap()
+        ))
+    } else {
+        Err(problems)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,6 +446,80 @@ mod tests {
     #[test]
     fn an_unreadable_register_is_an_error() {
         assert!(judge(&page(0, 0), "# R\n\nno table\n").is_err());
+    }
+
+    // ── the extension ─────────────────────────────────────────────────────────────────────────────
+    const ROOT: &str = "- [v1.0 Readiness Matrix](docs/src/releasing/v1-readiness.md) — 56 DONE, 2 IN PROGRESS, 3 DEFERRED, 0 OPEN\n- [RFC Process](rfcs/README.md) — 238 files in `done/`\n";
+    const MATRIX: &str = "## Summary at 0.48.0\n\n| Status | Count |\n|--------|-------|\n| DONE | 56 |\n| IN PROGRESS | 2 |\n| DEFERRED | 3 |\n| OPEN | 0 |\n\n## Next\n";
+
+    #[test]
+    fn the_root_readmes_figures_parse_and_the_control_is_green() {
+        assert_eq!(
+            parse_root_readiness(ROOT),
+            Some(Readiness {
+                done: 56,
+                in_progress: 2,
+                deferred: 3,
+                open: 0
+            })
+        );
+        assert_eq!(parse_matrix_summary(MATRIX), parse_root_readiness(ROOT));
+        assert_eq!(parse_root_done_files(ROOT), Some(238));
+        assert!(judge_root(ROOT, MATRIX, 238).is_ok());
+    }
+
+    #[test]
+    fn each_root_figure_is_red_when_it_drifts_and_names_both_sides() {
+        let e = judge_root(&ROOT.replace("56 DONE", "55 DONE"), MATRIX, 238).unwrap_err();
+        assert!(
+            e.iter()
+                .any(|p| p.contains("says 55 DONE") && p.contains("table says 56")),
+            "{e:?}"
+        );
+        let e =
+            judge_root(&ROOT.replace("2 IN PROGRESS", "0 IN PROGRESS"), MATRIX, 238).unwrap_err();
+        assert!(e.iter().any(|p| p.contains("IN PROGRESS")), "{e:?}");
+        let e = judge_root(ROOT, MATRIX, 241).unwrap_err();
+        assert!(
+            e.iter()
+                .any(|p| p.contains("says 238 files in `done/`") && p.contains("holds 241")),
+            "{e:?}"
+        );
+    }
+
+    #[test]
+    fn an_absent_root_claim_is_a_failure_not_a_pass() {
+        assert!(judge_root("nothing", MATRIX, 238).unwrap_err().len() >= 2);
+        assert!(judge_root(ROOT, "no table", 238).is_err());
+    }
+
+    #[test]
+    fn a_gate_count_on_a_published_page_is_found_and_prose_without_one_is_not() {
+        assert_eq!(
+            gate_count_claims("Releases are gated on eleven mechanical gates, and more").len(),
+            1
+        );
+        assert_eq!(gate_count_claims("gated on 11 mechanical gates").len(), 1);
+        assert!(
+            gate_count_claims("Releases are gated on mechanical gates and a manual review")
+                .is_empty()
+        );
+        assert!(gate_count_claims("the mechanical gates are listed in the rehearsal").is_empty());
+    }
+
+    #[test]
+    fn the_real_root_readme_and_the_crates_page_state_what_the_register_and_matrix_hold() {
+        let counts = crate::readme_counts::count_folders(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        )
+        .expect("folders");
+        let r = judge_root(&real(ROOT_README), &real(READINESS_PATH), counts.done_total);
+        assert!(r.is_ok(), "{r:?}");
+        let g = gate_count_claims(&real(LANDING_PAGE));
+        assert!(
+            g.is_empty(),
+            "the crates.io page must state no gate count: {g:?}"
+        );
     }
 
     fn real(path: &str) -> String {

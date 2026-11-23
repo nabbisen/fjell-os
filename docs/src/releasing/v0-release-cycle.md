@@ -551,11 +551,13 @@ logo-URL checks need the tag to exist** (they fetch `raw.githubusercontent.com/<
 nothing from it. The two used to be ordered together, so a correction found by the second landed after the
 first.
 
-**What is gated and what is not.** Gate 12's `landing-page` subcheck compares the page's one errata figure —
-*N accepted limitations and M open* — with the register's Summary table, so that figure can no longer be
-stale at a cut. **Nothing else on the page is checked**: its prose, its claim about what has booted on
-hardware, and *"eleven mechanical gates, one manual check"* are the re-read's job, by hand. The page's
-tier count is derived and gated separately (`the_readme_tier_count_is_the_derived_one`).
+**What is gated and what is not.** Gate 12's `landing-page` subcheck compares the crates.io page's one errata figure —
+*N accepted limitations and M open* — with the register's Summary table, **fails if that page states a count of gates**
+(*"eleven mechanical gates"* was a third hand-maintained figure; the page now states none), and compares the repository's
+root `README.md` — its readiness counts and its *N files in `done/`* — with the matrix's own summary table and the
+folder. **Nothing else on either page is checked**: prose, the claim about what has booted on hardware, and what is and is
+not a stable dependency are the re-read's job, by hand. The tier count is derived and gated separately
+(`the_readme_tier_count_is_the_derived_one`).
 
 *Reordered at 0.48 (E-130). The paragraph used to sit under "After the tag" as "Before publishing, re-read".*
 
