@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.46.0
+## Summary at 0.47.0
 
 | Status | Count |
 |--------|-------|
@@ -317,6 +317,25 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > holds instead of fabricating one from an integer. **No cell of this matrix is about who may revoke a
 > lease, about lease-table capacity, or about how the broker comes by what it delegates**, so none
 > moves.
+>
+> **Re-taken 2026-11-23, at the 0.47.0 cut.** The heading moved in the version-bump commit, so
+> `readiness-summary` was never red. `readiness-check` counts **DONE 56 / IN PROGRESS 2 / DEFERRED 3 /
+> OPEN 0**, exit 0 — **unchanged by 0.47.0**, and the reason is the same shape as 0.46's: both of 0.47's
+> lines are about **what the project's own statements are worth**, not about a capability the matrix
+> tracks. 0.47-001 routes every authority decision through one funnel that already existed and had
+> stopped being sole; 0.47-002 writes down the governance rule the register's every disposition applies.
+> **No cell of this matrix asserts that `require_cap` is the only authority path, or that the lifecycle
+> policy defines its own vocabulary** — which is itself the observation worth recording, because both
+> were true of the project and neither was visible here.
+>
+> **The obligation row, measured rather than assumed, for the third cut running.** `cargo xtask
+> verus-count` (0.47 small item D) now states the candidates with their definitions:
+> **release-required prover-verified items 19** (capability 8 + lease 11), **all targets 26**
+> (+ boot-control 7), **release-required named ids 12**, **all targets named ids 17**. The row promises
+> **20**, which matches none of the four. The figure is **unchanged by this cut** and is **left as the
+> owner's** — which number that row should promise, and under which definition, is a judgement about
+> what the row means, not a measurement. `verus-count` gates nothing by design, so nothing is red while
+> it stands.
 >
 > **The row worth checking rather than assuming** is again *Verus formal proofs — capability + lease …
 > 20 obligations machine-checked; callsite-audit Gate 11 blocking*, because 0.46-001 **extended the
