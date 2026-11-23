@@ -10,8 +10,10 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 Two lines, four small items, **four errata closed** (**E-126**, **E-127**, **E-128**, **E-129**, all
 filed inside the milestone) and **E-012 closed** after four months as an accepted limitation.
 `consistency-check` is **27 subchecks** (25 at 0.46.0). The ABI moved **+14 items**, 545 → 559, with
-**0 removed and 0 changed**. `unsafe` sites **298 → 291**. The register stands at **128 entries, 6
-accepted, 0 open**, the fewest accepted limitations this project has carried.
+**0 removed and 0 changed**. `unsafe` sites **298 → 291**. The register stands at **129 entries, 7
+accepted, 0 open** — E-012's closure took it to 6, the fewest this project has carried, and **E-130**
+was then filed during the cut itself: the cycle's step order can put a publish one commit ahead of its
+tag, which it did here.
 
 **0.47 is the milestone where the project's own statements become true.** Every item began as a
 document, a module doc or a comment asserting a rule that nothing enforced — and the first of them was

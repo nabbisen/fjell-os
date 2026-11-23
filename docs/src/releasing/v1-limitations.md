@@ -1779,3 +1779,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   page-faulted the moment it ran — a service's image is mapped `R | X | U`, never
   `W` — a second, previously-latent defect this deletion removes rather than needing
   to fix.
+
+- **The release cycle's own step order can put a publish one commit ahead of its
+  tag** (Errata **E-130**, ACCEPTED, tracking 0.48). The cycle mandates a re-read
+  of the crates.io landing page (`crates/fjell-os/README.md`) before publishing,
+  and orders it *after* the tag, beside the logo-URL checks. But `cargo publish`
+  packages the **working tree**, not the tag — so when that re-read finds a stale
+  figure, which is its entire purpose, the correction lands after the tag and the
+  published crate no longer corresponds to it. It has happened twice in three
+  cuts: at 0.45.0, argued there as a one-off bound, and at 0.47.0, where the page
+  claimed *"7 accepted limitations and 0 open"* against a register carrying 6.
+  **Only the logo-URL checks need the tag to exist**; the page re-read needs
+  nothing from it, so the remedy is a reorder rather than a new gate. The affected
+  publishes are sound — the 0.47.0 bound is one corrected integer in README prose,
+  and `.cargo_vcs_info.json` records the publishing commit — so this is a
+  limitation of the **procedure**, not of the system. The stale figure is itself a
+  hand-maintained count on the page whose *tier* count 0.47 made derived and
+  gated, so a gate for it belongs with the reorder.

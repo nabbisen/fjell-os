@@ -9627,6 +9627,43 @@ which is history removes the disagreement instead of detecting it, and needs no 
   stand: it read `Endpoint` installs only while claiming *"no task can receive on endpoint object 0"*. The
   doc now says what it establishes and names the kernel half that establishes the rest.
 
+## E-130 — the cycle orders the pre-publish landing-page re-read after the tag, so any correction it finds puts the publish ahead of the tag
+
+- **Found 2026-11-23 by the architect**, at the 0.47.0 cut, **for the second time**: the same
+  divergence happened at 0.45.0 and was argued as a one-off bound there rather than recognised as a
+  defect in the step order.
+- **RFC:** none
+  The defect is in a procedure document's ordering, not in an RFC's normative text.
+- **Claim.** `docs/src/releasing/v0-release-cycle.md` and `release-handoff.md` order the cut so that
+  the **mandated re-read of `crates/fjell-os/README.md`** — the crates.io landing page — happens
+  **after** the tag is applied and pushed, alongside the logo-URL checks.
+- **Tree / what happens.** `cargo publish` packages the **working tree**, not the tag. So when the
+  re-read finds a stale figure — which is its purpose, and it has found one in two of the last three
+  cuts — the correction necessarily lands *after* the tag, and the published crate is one commit ahead
+  of the tag it is supposed to correspond to. **At 0.47.0:** the page claimed *"7 accepted limitations
+  and 0 open"* where the register carried 6, because E-012 closed in that same milestone; corrected at
+  `da7061f` while the tag names `0fcf537`.
+- **Why the order is wrong rather than merely unlucky.** Only the **logo-URL checks** need the tag to
+  exist, because they fetch `raw.githubusercontent.com/<tag>/…`. The landing-page re-read needs
+  nothing from the tag. Ordering the two together forces a correction found by the second to land after
+  the first.
+- **The remedy is a step reorder, not a new check:** re-read and correct the landing page **before**
+  the tag step; keep the logo-URL checks after it. Then the tree, `HEAD`, the tag and the published
+  tarball are one commit, as they were at 0.46.0.
+- **Not a defect in the published artefact.** The 0.47.0 bound is one corrected integer in README
+  prose — no `.rs`, no `Cargo.toml` — and `.cargo_vcs_info.json` records the publishing commit, so the
+  tarball self-documents the difference. **Publishing the corrected page was right**; this entry is
+  about the procedure that made the choice necessary.
+- **Related, and the reason this is filed rather than noted:** the figure that was stale is a
+  **hand-maintained count on the same page** whose tier count 0.47 small item C had just made derived
+  and gated. The accepted-limitations count is the same family (E-015/E-025/E-125) and is **still
+  hand-maintained**, which is why it was wrong. A gate for it belongs with the reorder.
+- **Status:** **ACCEPTED** (architect, 2026-11-23), tracking **0.48**. Filed ACCEPTED and not OPEN
+  because deferring the reorder past a cut in progress is a deliberate decision rather than live
+  unresolved drift — the distinction this register draws at E-004/E-012 — and because the 0.47.0
+  publish is correct on its merits. **A documented v1.0-preparation limitation of the release
+  procedure, not of the system.**
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9798,3 +9835,4 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-127 **`sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking** — all four `LeaseAdmin` grants carried `ObjectScope::Any`, so the only bound on revoking a stranger's lease was `revoke_authorised`, a predicate inside the broker: a confused deputy whose limit lived in the deputy. A denial rather than a disclosure, so not an escalation, but unbounded on availability. Filed already fixed: the owner's `CAP_REVOKE` filing was named by RFC-0.46-003 and never made, so a defect fixed in 0.46 had no register entry. Fixed by owner check + `LEASE_REVOKE_ANY` (in no aggregate, one holder, counted by `capability-topology`) + audit `0x0606` | RFC-0.46-003 | CLOSED |
 | E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | CLOSED |
 | E-129 **`sys_ipc_recv`/`sys_ipc_try_recv` never check a capability's kind** — a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability (all `ALL_NON_META`, all `object_id: 0`, so all carry `RECV`) polls endpoint 0 (`WouldBlock` on a real boot, four of four; a fifth unclaimed). `object-zero` reads `Endpoint` installs only, so the gate for *"no task can receive on endpoint 0"* is green while four other kinds can. Not a leak today (nothing sends to endpoint 0); the invariant held by accident, not by the kernel | RFC-0.47-001 | CLOSED |
+| E-130 **the cycle orders the pre-publish landing-page re-read after the tag, so any correction it finds puts the publish ahead of the tag** — `cargo publish` packages the working tree, not the tag, and the mandated re-read of `crates/fjell-os/README.md` is ordered with the logo-URL checks *after* tagging. Only the logo checks need the tag to exist. At 0.47.0 the page claimed *"7 accepted limitations and 0 open"* where the register carried 6 (E-012 closed in that milestone); corrected at `da7061f` while the tag names `0fcf537`. **Second occurrence** — 0.45.0 argued the same divergence as a one-off bound instead of a step-order defect. Remedy is a reorder, not a new check: re-read before the tag, keep the logo checks after. The stale figure is itself a hand-maintained count on the page whose tier count 0.47 item C had just made derived and gated, so a gate for it belongs with the reorder | 0.48 | ACCEPTED |
