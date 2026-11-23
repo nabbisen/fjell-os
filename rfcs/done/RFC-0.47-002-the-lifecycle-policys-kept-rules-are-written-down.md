@@ -1,6 +1,7 @@
 # RFC-0.47-002: The lifecycle policy's kept rules are written down, and a check can find them missing
 
-**Status:** Accepted — accepted 2026-11-23
+**Status:** Implemented (0.47.0) — accepted 2026-11-23
+**Evidence:** file:rfcs/done/000-rfc-lifecycle-policy.md, file:tools/fjell-consistency-check/src/rfc_policy.rs, test:tools/fjell-consistency-check/src/rfc_policy.rs::a_status_word_the_policy_does_not_define_is_red_and_named, test:tools/fjell-consistency-check/src/rfc_policy.rs::deleting_a_defined_and_used_state_from_the_table_is_red, test:tools/fjell-consistency-check/src/rfc_policy.rs::deleting_accepted_is_red_even_when_no_rfc_is_in_that_folder
 **Milestone:** 0.47
 **Tracks.** **E-128** — the five kept rules landed (RFC-0.25-002, `be8cf6f`) and an untitled rewrite of
 RFC 000 deleted them two months later (`4d8044a`). **This RFC's first draft diagnosed it as D1 never having

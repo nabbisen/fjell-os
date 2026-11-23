@@ -1,6 +1,7 @@
 # RFC-0.47-001: `require_cap` becomes the sole authority path, in fact
 
-**Status:** Accepted — accepted 2026-11-23
+**Status:** Implemented (0.47.0) — accepted 2026-11-23
+**Evidence:** syscall:CapDelete, marker:capability:NEG:CAP:RECV_REFUSES_NON_ENDPOINT:PASS, marker:capability:NEG:CAP:RIGHT_BEFORE_LEASE:COPY:PASS, marker:capability:NEG:CAP:DELETE_RELEASES_REVOKED_LEASE:PASS, marker:capability:NEG:CAP:BIND_LEASE_WITHOUT_AUTHORITY_REJECTED:PASS, marker:capability:NEG:CAP:STALE_HANDLE_GENERATION_MISMATCH:PASS, file:tools/fjell-consistency-check/src/authority_funnel.rs, test:tools/fjell-consistency-check/src/authority_funnel.rs::an_inline_rights_check_is_red_and_named
 **Milestone:** 0.47
 **Tracks.** **E-126** — the funnel exists, declares itself sole, and is not. **E-129** — the receive path takes
 no kind (§F5), filed as its own entry at the stage-1 review. Also carries, as findings the
