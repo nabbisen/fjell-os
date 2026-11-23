@@ -9664,6 +9664,49 @@ which is history removes the disagreement instead of detecting it, and needs no 
   publish is correct on its merits. **A documented v1.0-preparation limitation of the release
   procedure, not of the system.**
 
+## E-131 — `unsafe-audit` cannot see 48 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches
+
+- **Found 2026-11-23 by the implementer**, while prototyping RFC-0.48-002's category rule, and
+  **re-measured by the architect at the stage-1 review**, which is where the count changed from 49 to
+  48 and the mechanism was identified.
+- **RFC:** none — the defect is in an instrument, not in an RFC's normative text.
+- **Claim.** `cargo xtask unsafe-audit` reports **291 sites, 291 with a SAFETY comment, 0 missing**,
+  Gate 2 passes on it, and *"full unsafe audit with SAFETY comments"* is a v0.1.0 deliverable cited on
+  the crates.io landing page as how this project verifies itself.
+- **Tree.** The scanner classifies a line by substring (`tools/fjell-unsafe-audit/src/main.rs:185`–
+  `:193`): `unsafe {`, `unsafe fn `, `unsafe impl `, `unsafe trait `. **Forty-eight `unsafe`
+  declarations match none of them:**
+
+  ```
+  #[unsafe(no_mangle)]                    41   no pattern contains `unsafe(`
+  unsafe extern "C" fn ...                 6   `extern "C"` sits between `unsafe` and `fn`
+  unsafe impl<T> Sync for KS<T> {}         1   `impl<` has no space, and the pattern is `unsafe impl `
+  ```
+
+  Each was checked against all four patterns: none matches. **The invisible set is 48** — the first
+  filing said 49, counting `#[unsafe(no_mangle)]` as 42 where the tree has **41** (identical counting
+  `crates/` only, so it is not a scoping difference).
+- **The single `unsafe impl` is the one that matters, and the cause is a space.** There are **nine**
+  `unsafe impl` declarations under `crates/`. **Eight match `"unsafe impl "` and exactly one does
+  not:** `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}`. `KS<T>` is the
+  kernel-state wrapper that every `get_kernel_state()` call in the kernel goes through, so **a `Sync`
+  soundness claim about the most widely shared static in the system is invisible to the audit because
+  of one character in a substring match** — and it carries a `SAFETY` comment directly above it that
+  no recorded site is attached to.
+- **Why this is the E-014 class and not a missing feature.** The instrument does not report that its
+  population is partial; it reports **`0 missing`**, which reads as *every unsafe site is justified*.
+  The number is honest about what the scanner matched and silent about what it cannot match, and a
+  release gate consumes it as coverage. E-014 is *"instruments deciding by fixed-string match"*; this
+  is that family, in the instrument behind the project's central safety claim.
+- **What closing it changes, and it must be said out loud.** Fixing the population **raises the
+  reported site count**, and a reader who sees 291 become a larger number will read it as new `unsafe`
+  being written unless the release record, the CHANGELOG and the trust report say why. The count rises
+  because the scanner's eyes open, not because the kernel changed.
+- **Status:** **OPEN**, tracking **0.48** (RFC-0.48-002 D4). Filed OPEN and not ACCEPTED because it is
+  live, unresolved drift rather than a documented deliberate limitation — the distinction this register
+  draws at E-004/E-012 — so **Gate 7 blocks a release until the population is fixed**, which is the
+  same disposition E-126, E-128 and E-129 carried through 0.47.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9836,3 +9879,4 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | CLOSED |
 | E-129 **`sys_ipc_recv`/`sys_ipc_try_recv` never check a capability's kind** — a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability (all `ALL_NON_META`, all `object_id: 0`, so all carry `RECV`) polls endpoint 0 (`WouldBlock` on a real boot, four of four; a fifth unclaimed). `object-zero` reads `Endpoint` installs only, so the gate for *"no task can receive on endpoint 0"* is green while four other kinds can. Not a leak today (nothing sends to endpoint 0); the invariant held by accident, not by the kernel | RFC-0.47-001 | CLOSED |
 | E-130 **the cycle orders the pre-publish landing-page re-read after the tag, so any correction it finds puts the publish ahead of the tag** — `cargo publish` packages the working tree, not the tag, and the mandated re-read of `crates/fjell-os/README.md` is ordered with the logo-URL checks *after* tagging. Only the logo checks need the tag to exist. At 0.47.0 the page claimed *"7 accepted limitations and 0 open"* where the register carried 6 (E-012 closed in that milestone); corrected at `da7061f` while the tag names `0fcf537`. **Second occurrence** — 0.45.0 argued the same divergence as a one-off bound instead of a step-order defect. Remedy is a reorder, not a new check: re-read before the tag, keep the logo checks after. The stale figure is itself a hand-maintained count on the page whose tier count 0.47 item C had just made derived and gated, so a gate for it belongs with the reorder | 0.48 | ACCEPTED |
+| E-131 **`unsafe-audit` cannot see 48 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches** — it classifies by substring (`unsafe {`, `unsafe fn `, `unsafe impl `, `unsafe trait `), and **41 `#[unsafe(no_mangle)]`, 6 `unsafe extern "C" fn` and 1 `unsafe impl<T>` match none of them**. The one `unsafe impl` is `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}` — **eight of the nine `unsafe impl` declarations match and this one does not, because `impl<` has no space** — and `KS<T>` is the kernel-state wrapper every `get_kernel_state()` call goes through, so a `Sync` soundness claim about the most widely shared static in the system is invisible to the audit, with a SAFETY comment above it attached to no recorded site. The instrument reports `0 missing` rather than that its population is partial, and a release gate consumes that as coverage: the E-014 family, in the instrument behind this project's central safety claim. Found by the implementer; count corrected 49 → 48 and the mechanism identified at the architect's stage-1 review. **Closing it raises the reported count**, which the record must explain, because the scanner's eyes open and the kernel does not change | 0.48 | OPEN |
