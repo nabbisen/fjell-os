@@ -20,6 +20,7 @@ pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 
 pub mod authority_funnel; // RFC-0.47-001: no authority check outside the funnel, and no false SAFETY claim about it
 pub mod errata;
+pub mod landing_page; // 0.48 small item A (E-130): the crates.io landing page's errata figures are derived from the register
 pub mod readme_counts;
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
 pub mod rfc_policy; // RFC-0.47-002: the lifecycle policy's kept rules are written down, and a check can find them missing
@@ -65,4 +66,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "repo-scope",
     "rfc-policy",
     "authority-funnel",
+    "landing-page",
 ];

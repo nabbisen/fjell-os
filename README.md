@@ -87,11 +87,11 @@ into the repository; the site renders the same pages.
 
 - [Full documentation](docs/src/SUMMARY.md)
 - [v1.0 Identity and Direction](docs/src/identity/v1-direction.md)
-- [v1.0 Readiness Matrix](docs/src/releasing/v1-readiness.md) — 55 DONE, 3 DEFERRED, 0 OPEN
+- [v1.0 Readiness Matrix](docs/src/releasing/v1-readiness.md) — 56 DONE, 2 IN PROGRESS, 3 DEFERRED, 0 OPEN
 - [v1.0 Non-Goals](docs/src/releasing/v1-non-goals.md) — 23 explicitly scoped items
 - [Threat Model](docs/src/security/threat-model-v1.md) — 20 in-scope threats
 - [Trust Report](releases/trust-report.txt)
-- [RFC Process](rfcs/README.md) — 154 files in `done/`
+- [RFC Process](rfcs/README.md) — 238 files in `done/`
 - [Deployment: StarFive VisionFive 2](docs/src/deployment/starfive-visionfive2.md)
 - [Fleet Demo Tutorial](docs/src/tutorials/three-node-fleet.md)
 - [Performance Baseline](docs/src/perf/baseline.md)

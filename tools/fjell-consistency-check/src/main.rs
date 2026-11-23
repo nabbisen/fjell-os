@@ -74,6 +74,7 @@ mod errata_limitations;
 mod errata_tracking;
 mod evidence;
 mod handoff_status;
+mod landing_page_gate; // 0.48 small item A (E-130): the subcheck's file-reading half (logic is in the lib)
 mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
 mod repo_scope; // 0.46 small item B (E-125): no tool answers 'what counts as this repository' from a name list
@@ -161,6 +162,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("rfc-policy", rfc_policy_gate::check),
     // RFC-0.47-001: no production authority check outside the funnel; no false SAFETY claim about it.
     ("authority-funnel", authority_funnel_gate::check),
+    // 0.48 small item A (E-130): the landing page's accepted/open figures equal the register's.
+    ("landing-page", landing_page_gate::check),
 ];
 
 #[cfg(test)]

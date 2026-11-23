@@ -297,11 +297,21 @@ chase it, and do not take it as a reason to loosen the dependency to a range.
 Package `fjell-abi` first to confirm the manifest and the file list, publish it,
 then package and publish `fjell-os`.
 
-**Before publishing, re-read `crates/fjell-os/README.md`.** It carries counts
-and status claims — errata totals, what has and has not booted on hardware,
-what is and is not a stable dependency. Those are the same kind of claims that
-went stale in `README.md`, `ROADMAP.md` and the errata register, and this copy
-is the one outsiders see first.
+**The landing page was re-read and corrected before the tag**
+([*Before the tag — re-read the crates.io landing page*](#before-the-tag--re-read-the-cratesio-landing-page)),
+so nothing remains to change here, and **this step now checks that rather than assuming it**:
+
+```
+test "$(git rev-parse HEAD)" = "$(git rev-list -n1 <version>)" && test -z "$(git status --porcelain)" && echo "publishing the tag's tree"
+```
+
+It prints nothing and exits 1 unless `HEAD` **is** the tagged commit and the working tree is clean —
+`cargo publish` packages the **working tree**, not the tag, so this is the one comparison that makes
+*the tag, `HEAD`, and the published tarball are one commit* a fact rather than a hope. *(Run at 0.48 against
+the real 0.47.0 situation, where `HEAD` was three commits ahead of the tag: it refuses. At the tag, clean: it
+prints the line. At the tag with one byte appended to a tracked file: it refuses.)*
+**If it refuses, stop: do not publish a tree the tag does not name.** The tag is the owner's; a correction that
+cannot wait is a new commit and a new tag, not a quiet divergence (E-130).
 
 **Publishing is irreversible.** A version can be yanked but never deleted, and
 the name cannot be released. This step is the owner's, like the tag.
@@ -524,6 +534,31 @@ verify. They had already observed the final tree's run (`34703982615`) and
 declined to invent the requirement, which is why it is written here rather
 than assumed.*
 
+### Before the tag — re-read the crates.io landing page
+
+**`crates/fjell-os/README.md` is the page outsiders see first**, and it carries counts and status claims —
+errata totals, what has and has not booted on hardware, what is and is not a stable dependency. Those are the
+same kind of claims that went stale in `README.md`, `ROADMAP.md` and the errata register. **Re-read it against
+this release's actual changes, and correct it, *before the tag is applied*.**
+
+**Why before, and not after as this document used to order it (E-130).** `cargo publish` packages the
+**working tree**, not the tag. A correction the re-read finds *after* the tag therefore lands in a commit the
+tag does not name, and the published crate is one commit ahead of the tag it is supposed to correspond to.
+That happened at 0.45.0 (argued there as a one-off) and again at 0.47.0, where the page said *"7 accepted
+limitations"* against a register carrying 6 — **twice in three cuts**, and the second time the re-read had
+been correctly done and was correctly acted on; it was the *order* that made acting on it divergent. **Only the
+logo-URL checks need the tag to exist** (they fetch `raw.githubusercontent.com/<tag>/…`); the re-read needs
+nothing from it. The two used to be ordered together, so a correction found by the second landed after the
+first.
+
+**What is gated and what is not.** Gate 12's `landing-page` subcheck compares the page's one errata figure —
+*N accepted limitations and M open* — with the register's Summary table, so that figure can no longer be
+stale at a cut. **Nothing else on the page is checked**: its prose, its claim about what has booted on
+hardware, and *"eleven mechanical gates, one manual check"* are the re-read's job, by hand. The page's
+tier count is derived and gated separately (`the_readme_tier_count_is_the_derived_one`).
+
+*Reordered at 0.48 (E-130). The paragraph used to sit under "After the tag" as "Before publishing, re-read".*
+
 ### Before the tag — pin the crates.io logo URLs to this release's tag
 
 `assets/` sits at the repository root and is therefore **not in either crate's
@@ -568,7 +603,8 @@ would 404 — the same broken-reference class the `Shipped` column carried for
 
 The URL is deliberately committed pointing at a tag that does not exist yet;
 it starts resolving the moment the owner applies it. **After tagging, verify
-rather than assume:**
+rather than assume** — this is the one landing-page check that needs the tag, and the only one that stays
+after it:
 
 ```
 curl -s -o /dev/null -w "%{http_code}

@@ -183,7 +183,13 @@ order once.
    deliberately: see the note at step 12 on why this document does not
    renumber.)*
 3. **Pin the three crates.io logo URLs** to this release's tag, in the
-   version-bump commit (§3).
+   version-bump commit (§3). **And re-read `crates/fjell-os/README.md` against this
+   release's changes, and correct it, in the cut commits — before the tag, never
+   after it** (§3, and E-130): `cargo publish` packages the working tree, so a
+   correction found after the tag puts the published crate one commit ahead of the
+   tag. The page's accepted-limitations figure is gated (`landing-page`); its prose
+   is not. *(Added at 0.48. The re-read used to follow the tag, and found a stale
+   figure at two of three cuts.)*
 4. **`cargo xtask build`.**
 5. **Delete and re-record the repro baseline**, then verify the diff names only
    the binaries the version bump actually moved (trap 2).
@@ -349,7 +355,9 @@ but re-fetches the image every time, so a `main`-pinned URL lets an old
 release's page change appearance — or 404 — whenever the logo moves.
 
 **Nothing mechanical checks these three.** They are a live instance of the
-E-014 literal-predicate family, disclosed rather than fixed.
+E-014 literal-predicate family, disclosed rather than fixed. *(The logo **fetch**
+is the only landing-page check that needs the tag, and it stays after it. The
+landing page's **re-read** does not, and is a pre-tag step: step 3.)*
 
 ## 4. Required evidence
 
