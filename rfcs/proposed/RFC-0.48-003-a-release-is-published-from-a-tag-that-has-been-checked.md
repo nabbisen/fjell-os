@@ -107,7 +107,7 @@ satisfy a tag that its own commit does not.
 `draft: true` "for safety" and so a reviewer sees it was a choice. **The compensating control is that every
 precondition refuses**, because deleting a Release leaves the tag behind and a Release is outward-facing.
 
-**D2 — the trust anchor for precondition 5. Recommended: commit the owner's *public* key and pin its fingerprint.**
+**D2 — the trust anchor for precondition 5. RULED: (a), as the owner's act — commit the owner's *public* key and pin its fingerprint.**
 Three options:
 
 * **(a) a committed public key + a pinned fingerprint file** *(recommended)* — verified on a clean runner with
@@ -121,7 +121,7 @@ Three options:
 * (c) no verification — the preconditions minus #5. Rejected: an unsigned tag pushed by anyone with write access
   would publish. **The owner's authorization signal is only a signal if it is checked.**
 
-**D3 — assets. Recommended: none.** The handoff's rule — *"if it attaches `fjell-os-v{version}.tar.gz`, attach the
+**D3 — assets. RULED: none — notes only.** The handoff's rule — *"if it attaches `fjell-os-v{version}.tar.gz`, attach the
 signature and digest and **verify them**"* — has a consequence I measured the cost of: **Step 12b signs the archive
 *after* the tag, with the offline release key.** At the moment a tag push triggers this workflow **the signature does
 not exist and cannot**: the workflow could attach an unsigned archive (an unverifiable artefact beside a trust
@@ -130,16 +130,16 @@ The archive and signature attach as a **cut step** (`gh release upload <tag> fje
 after Step 12b), **verified by the same `verify-bundle-sig` run the checklist already prescribes**, and *that* step
 gets a verbatim run with controls when it is written into the checklist. If the owner wants assets automated, the
 signature must be producible in CI, which is a different trust model (a CI-held signing key) and a different RFC.
+**Written here so nobody tries it later as an obvious improvement:** *automating the assets requires a signing key that CI can use, which means the release key is no longer offline; that trades the property Step 12b exists to keep for a convenience, and it is not an improvement.*
 
-**D4 — precondition 7 (CI green on the commit).** Recommended: **require it.** The cut already reads CI before tagging
+**D4 — precondition 7 (CI green on the commit). RULED: required, with a bounded wait that fails on timeout; default 30 minutes, a tunable the owner may change** (0.47.0's queue sat about ten minutes, so 30 is slack without being an eternity). **A timeout fails; it never publishes.** The cut already reads CI before tagging
 (step 13); this makes the *Release* refuse a tag whose commit CI did not pass, so an owner who tags early cannot
 publish a red build by accident. **Cost:** a tag pushed *seconds* after the commit has no finished CI run, so the job
-must **wait with a bounded timeout and then fail**, not pass on absence; the timeout is a number the architect should
-set (a push run's duration is recorded at every cut, release record §4.10; I have not measured it here and will not
-guess one). **Alternative: omit it** and rely on step 13. The failure
+must **wait with a bounded timeout and then fail**, not pass on absence; the timeout is `RELEASE_CI_WAIT_MINUTES`, default **30**, a named constant in the subcommand and a workflow `env:` the
+owner may change. **Alternative: omit it** and rely on step 13. The failure
 mode of omitting it is one human slip, which is the kind this milestone's theme is about.
 
-**D5 — the correspondence gate, split by what a gate may depend on.** `consistency-check` is *a pure function of the
+**D5 — the correspondence gate, split by what a gate may depend on. RULED on the project's own written rule** (`release-handoff.md`: *"`consistency-check` stays a pure function of the committed tree, so that re-running it on an old tree still answers the same question"*). `consistency-check` is *a pure function of the
 committed tree* (so re-running on an old tree answers what it answered then). **Tags are not in the tree**, and at the
 moment Gate 12 runs in the cut **the new tag does not exist yet.** So:
 
@@ -153,13 +153,13 @@ moment Gate 12 runs in the cut **the new tag does not exist yet.** So:
   cannot be a tree check**, and the RFC says so rather than adding a subcheck that reads `.git/refs` and is
   red or green depending on the clone.
 
-**D6 — pin actions by commit SHA in this workflow.** The existing `ci.yml` pins by major (`actions/checkout@v7`, `upload-artifact@v7`, `deploy-pages@v5` …), and
+**D6 — pin actions by commit SHA in this workflow. RULED: accepted.** The existing `ci.yml` pins by major (`actions/checkout@v7`, `upload-artifact@v7`, `deploy-pages@v5` …), and
 criterion 12 *reads* those pins against upstream at each cut. A workflow whose token has `contents: write` is
 where a moved tag matters most. **Recommended: SHA pins with a trailing `# v7.x.y` comment**, and the criterion-12
 read extended to this file (it already greps `uses:` across `.github/`). Alternative: match `ci.yml` and accept the
 weaker pin.
 
-**D7 — what happens when it fails.** A red `verify` job leaves **no Release and no half-state** (nothing in `verify`
+**D7 — what happens when it fails. RULED: refuse, never publish.** A red `verify` job leaves **no Release and no half-state** (nothing in `verify`
 writes). The owner's remedy is stated in the cycle document: fix the cause, **delete and re-push the tag only if the
 tag itself was wrong** (a moved tag is the owner's act, in the open), and a re-run of the job is safe by precondition
 6. **A failed workflow is not a failed release** — the tag, the crates and the cut stand — and the document says so,

@@ -80,34 +80,38 @@ Measured on the `m8` boot, by counting each task's occupied slots when `spawn()`
   itself is **`neg-test`'s recycling scenario** — which cycles *"more than the 32 slots"* — and would stop
   exercising reclamation at 128 (D5).
 
-### What revoking a lease takes back — **the finding that changes the statement the line exists for (boot / source)**
+### What revoking a lease takes back — **the axis is MMIO versus DMA, not per-call versus resource** *(corrected at the stage-1 review)*
 
 The handoff's example is *"an operator who decides a service must lose its MMIO window"*. **Lease-binding the
-`MmioRegion` capability does not deliver that**, and the RFC says so before anyone builds toward it:
+`MmioRegion` capability does not deliver that**, and the mechanism is sharper than *"nothing ever unmaps it"*:
 
-* The funnel is consulted **at each use**. `sys_irq_wait`, `sys_irq_ack`, `sys_platform_reboot`, `sys_clock_now`,
-  `sys_task_*`, `sys_lease_*`, `sys_cap_*` and every IPC syscall call it per invocation, so for **authority
-  exercised per call** a revocation is immediate — and blocked IPC is woken with `LeaseRevoked`
-  (`wake_or_cancel_blocked_ipc_for_lease`, RFC 034/050).
-* **`sys_mmio_map` consults it once, to create a page mapping, and nothing ever removes the mapping.** The only
-  `unmap_page` calls in the syscall layer are the failed-map rollback. A task that has mapped its window **keeps
-  it after the lease is revoked**; revocation takes away only the right to map again. (`sys_dma_revoke` does
-  reclaim a DMA frame — RFC-0.39-004 — but only when *the holder* calls it.)
-* **Three classes, then:** (1) authority exercised **per call** — revocable by a lease today: endpoints,
-  `LeaseAdmin`, `TaskControl`, `TaskCreate`, `Reboot`, `Interrupt`, `Clock`, `AuditDrain`, `CapInstall`;
-  (2) authority that **becomes a resource** — `MmioRegion` (a mapping) and `DmaRegion` (a frame): a lease
-  revocation stops *new* acquisition and leaves the resource; (3) the task itself, which the existing
-  `TaskControl` kill takes back whole.
+* **`MmioUnmap = 91` is declared in the ABI (`fjell-abi/src/syscall.rs`) and has no dispatch arm at all** — one of the
+  three syscalls `v1-limitations.md` row 7 records as declared and never dispatched. **The unmap primitive does not
+  exist as a reachable call.** The only `unmap_page` in the syscall layer is the failed-map rollback
+  (`trap/syscall.rs`, *"Rollback: unmap all pages that were successfully mapped"*). A task that has mapped its window
+  **keeps it after the lease is revoked**; revocation takes away only the right to map again.
+* **DMA is different, and my first draft over-generalised.** `DmaRevoke = 112` **is** dispatched, requires
+  `CapKind::DmaRegion` + `CapRights::DMA_REVOKE` through the funnel, and unmaps the owner's page **verified**
+  (`unmap_dma_region_verified`, RFC-0.39-004: the frame is zeroed and read back before it is returned, and a read
+  through the revoked address faults — the `dma` profile's `NEG:DMA:REVOKED_VA_READ_ATTEMPTED` plus the kernel's own
+  `fault(LoadPageFault)` line is the standing positive case). **The project already knows how to reclaim a resource
+  through a capability-checked primitive, and has done it for DMA and not for MMIO.** (Revoking the *lease* does not
+  invoke it either way — `sys_dma_revoke` is called by the holder — but the primitive and its checks exist.)
+* Per-call authority is unaffected by any of this: `sys_irq_*`, `sys_platform_reboot`, `sys_clock_now`, `sys_task_*`,
+  `sys_lease_*`, `sys_cap_*`, `sys_audit_*` and every IPC syscall consult the funnel **on every invocation**, so a
+  revocation is immediate for them, and blocked IPC is woken with `LeaseRevoked` (RFC 034/050).
 
 **So the honest statement for any of (a)–(c) is:** *a boot-time capability's authority can be taken back for every
-future use; an MMIO mapping or DMA frame already obtained is not reclaimed by revocation*. Reclaiming a mapping
-is a separate mechanism (track the mapping to its capability, unmap on revoke) and a larger line than this one.
+future use; an MMIO mapping already obtained is not reclaimed, because the unmap call does not exist.* Closing that is
+a **separate line** — dispatch `MmioUnmap` and track a mapping to the capability that created it — and the RFC does not
+scope it in.
 
 ### Where the handoff and the tree differ
 
 * The handoff's **55** counts **source literals**; the number of capabilities installed on a boot is **101 (+ init's)**,
   and the number that matters for leases is **31 tasks**.
-* The handoff's *"lose its MMIO window"* is not delivered by lease revocation (above).
+* The handoff's *"lose its MMIO window"* is not delivered by lease revocation (above) — because the unmap syscall is
+  declared and never dispatched, not because revocation is shallow in general: DMA has the primitive.
 * The handoff's **"one lease per task needs up to `MAX_TASKS` = 40"** overstates: the tree has 31 holders. The
   conclusion stands for a different reason — the broker's runtime draw.
 
@@ -115,7 +119,15 @@ is a separate mechanism (track the mapping to its capability, unmap on revoke) a
 
 ## The decisions this RFC asks for
 
-**D1 — which remedy.** The handoff's four, assessed against the measurements. **My recommendation is (a), with
+**D1 — which remedy. RULED: (a), one lease per task, `MAX_LEASES` 128.** *The measurement decided it (31 holders; the
+broker's draw; `MAX_LEASES_PER_OWNER` = 16 against 31), not a preference.* **Two conditions, both taken:**
+(i) **`neg-test`'s recycling scenario must still drive the table to exhaustion** — it names 32, and raising the table must
+not silently retire the only negative test that exercises reclamation; its bound is **derived from the capacity, not a
+second literal**, and I will show it red against a table it can no longer fill. (ii) **What 1.5 KiB buys, said plainly:**
+it buys **coverage** — lease revocation reaches what boot granted — and **does not** buy recursive revocation for copies
+(option (b), rejected) **or** reclamation of an MMIO mapping (above).
+
+The handoff's four, assessed against the measurements. **My recommendation is (a), with
 one lease per task, a larger table, and a stated scope (D2)** — not because the handoff recommended it but
 because it is the only option that makes the *existing* primitive total, and because the capacity objection that
 made me doubt it is a number, not a proof obligation.
@@ -135,31 +147,46 @@ second model rather than an extension of the first.
 **D2 — scope of the lease binding.** *All* 31 tasks, or only the tasks holding non-endpoint (privileged) kinds?
 Measured: **22 of the 55 literal sites are non-endpoint**; a lease per *privileged-holding* task would be fewer
 leases (fewer than 31) but leaves an operator unable to revoke an endpoint — to cut a service off from storaged.
-**Recommendation: every task that receives a boot grant gets one lease, `init` excepted** (D4). Uniformity is the
+**Recommendation: every task that receives a boot grant gets one lease, `init` excepted** (D4). *Ruled: accepted.* Uniformity is the
 point; a privileged-only rule is a second, hand-curated list (the E-125 family) deciding which kinds count.
 
-**D3 — who owns a boot lease, and how it relates to the quota.** Three candidates, with what each breaks:
+**D3 — who owns a boot lease, and whether a second `LEASE_REVOKE_ANY` holder is needed. RULED on ownership; the
+architect asked me to check whether owner-based revocation suffices, and it does — on three conditions that are the real
+content of the answer.**
 
-* **The task itself.** Its lease dies with it (`revoke_owned_by` on exit/fault, `dispatch.rs:305 :330`), so the
-  table recycles as tasks exit — **capacity tracks live tasks, not boot history**. The quota is 1 per task: fine.
-  But **the task can revoke its own authority** (voluntary, harmless: `cap_delete` already does) and **no one else
-  can**, because 0.46-003 bounds revocation to the owner or `LEASE_REVOKE_ANY`. Involuntary revocation then needs
-  a `LEASE_REVOKE_ANY` holder — and `capability-topology` currently permits **exactly one**, `neg-test`.
-* **`init`.** The natural supervisor, and it already holds a `LeaseAdmin` (`main.rs`, slot 30). **31 > 16
-  (`MAX_LEASES_PER_OWNER`)**, so it needs the quota lifted for boot leases — a second class of lease, which
-  I do not recommend.
-* **A kernel pseudo-owner.** Exempt from the quota by construction, outlives every task (so the table does *not*
-  recycle with exits), and needs a `TaskId` value that names no task.
+*What I found when I traced who creates a task.* **Every one of the 30 spawned tasks is created by the `sys_task_spawn`
+syscall** — `init` spawns the services (`fjell-init/src/main.rs`), `neg-test` spawns two fixtures; `init` itself is the
+only task built directly in `main.rs`. So a boot task always has a **spawner**, and the spawner is the natural owner:
+0.46-003 made revocation ownership-based, so **the spawner may revoke its child's boot lease with no exception right**,
+and `capability-topology`'s rule for `LEASE_REVOKE_ANY` stays at **exactly one holder (`neg-test`)**. My first draft
+proposed widening it to `init`; **that was unnecessary and is withdrawn.**
 
-**Recommendation: the task itself, plus one `LEASE_REVOKE_ANY` holder that is not a test service** (`init`; it is the
-supervisor, it already holds `LeaseAdmin`, and it is the only task whose revocation of another is *the point*).
-That changes `capability-topology`'s allowed-holder rule from *only `NEG_TEST`* to *only `NEG_TEST` and `INIT`*,
-which is the architect's to rule — it is the one place this line widens a deliberately narrow right.
+The three conditions that make owner = spawner work, each found by tracing rather than assumed:
 
-**D4 — `init`.** It is the root of authority. A lease on `init`'s own capabilities that `init` could revoke is
-harmless and one that nothing else can revoke is meaningless; revoking `init`'s authority from outside would
-leave the system supervisor-less. **Recommendation: `init` is not bound**, and the RFC says so rather than leaving
-it an unexplained exception. (The corresponding statement in the demonstration: *every task except `init`*.)
+1. **The per-owner quota must not govern boot leases.** `init` would own **30** leases against `MAX_LEASES_PER_OWNER` =
+   **16**. The quota bounds *what a task asks for* (`sys_lease_create`; R-Q, the abandon-loop defence); a lease the
+   **kernel** creates on a spawn is not a request. The kernel creates them through a separate `create_boot`, **bounded by
+   table capacity (128) and `MAX_TASKS` (40), not by the quota** — a second path into the table, stated and tested, not
+   a loosened quota.
+2. **The lease must die with its subject, or the table leaks.** A boot lease owned by `init` is *not* revoked when the
+   *child* exits (`revoke_owned_by(child)` finds nothing: the child owns no lease). Without more, **every service restart
+   would consume a slot for ever** — the exhaustion 0.46-001 closed. So the TCB carries `boot_lease: Option<LeaseId>`, and
+   the two places that already call `revoke_owned_by` on exit and on fault (`trap/dispatch.rs`) also revoke it.
+   **Capacity then tracks live tasks (≤ 31), not boot history.**
+3. **The owner must be able to *name* the lease.** `sys_task_spawn` returns the handle in `a1`; it additionally returns
+   the **lease id in `a2`** (additive; the existing wrapper is unchanged, and a new `sys_task_spawn_leased` returns
+   both). `init` holds, from the moment it spawns a service, the one thing it needs to take that service's authority back.
+
+**What owner = the task itself would have needed instead** (my first recommendation): a `LEASE_REVOKE_ANY` holder that is
+not a test service, because no one but the task could revoke. **Spawner-owner makes that unnecessary** and keeps the
+narrowest grant in the system narrow in the milestone that makes leases universal. *Do not widen it to save an argument.*
+If a case appears where the party that must revoke is not the spawner (a supervisor distinct from `init`), **that** case
+justifies widening, and I will name it then.
+
+**D4 — `init`. RULED: excepted.** `init` is the root that creates the leases, and **a lease whose owner is also its
+subject revokes nothing** — `init` could revoke only its own authority, and revoking `init`'s authority from outside would
+leave the system supervisor-less. It is excepted by name, with that reason, in the gate's classified list, not as an
+unexplained exception. (The demonstration says *every task except `init`*.)
 
 **D5 — capacity and what it does to existing tests.** `MAX_LEASES` = **128**. `neg-test`'s recycling scenario
 (`RECYCLE_CYCLES` = 40, tuned against the audit ring) must exceed the capacity to exercise reclamation; at 128 that
@@ -175,42 +202,48 @@ which; I am noting that the choice is the owner's and that D1–D5 are void if t
 
 ---
 
-## Requirements (if D1 is (a))
+## Requirements (D1 = (a), as ruled)
 
-**R1 — a lease per boot task.** In `spawn()`, after the capabilities are installed, create one lease owned by the
-new task and bind every capability the task was granted to it (all `lease: None` literals in the per-image arms
-become one bind step, so no literal needs editing and a new grant cannot forget it). `init` excepted (D4).
-**R2 — `MAX_LEASES` 128**, with `lease_alloc`/`create` unchanged and the Verus model and `lease_conformance.rs`
-re-run to show **0 changed obligations**.
-**R3 — the revoker.** One `LEASE_REVOKE_ANY` holder besides `neg-test` (D3), and `capability-topology`'s count
-updated to say which.
-**R4 — the gate: `bootstrap-leases`.** A subcheck that **derives its population** — every `Capability { … }`
-literal under `crates/fjell-kernel/src` outside `#[cfg(test)]` — and fails on one that is `lease: None` and is not
-inside the spawn path that binds it, or is not on a **classified list with a reason** (`init`'s grants; the
-`Capability` literals in the host-side tests). Evaluator, not a name match; a function it cannot delimit is a
-failure.
-**R5 — the statement, written down.** `slot.rs`'s *"Bootstrap capabilities carry `lease: None`"* becomes true or
-is removed; `v1-limitations.md` row 12 is the architect's.
+**R1 — a lease per spawned task, owned by its spawner.** `spawn()` takes the spawner's `TaskId`; after the capabilities
+are installed it calls `LeaseTable::create_boot(spawner)` and **binds every capability the new task holds** (one pass
+over the CSpace, so no `lease: None` literal is edited and **a grant added tomorrow cannot forget the bind**). The lease
+id is stored in the TCB as `boot_lease`. `init` (built directly in `main.rs`) is excepted (D4).
+**R2 — `create_boot`**: bounded by table capacity, **not** by `MAX_LEASES_PER_OWNER`; a full table returns `LeaseTableFull`
+and **the spawn fails cleanly** (the task is not left half-granted).
+**R3 — `MAX_LEASES` 128**, with a compile-time assert that the table holds every live task's lease plus one delegator's
+per-owner quota; Verus and `lease_conformance.rs` re-run to show **0 changed obligations**.
+**R4 — the lease dies with its subject:** exit and fault revoke `boot_lease`.
+**R5 — `sys_task_spawn` returns the lease id in `a2`**; `fjell-syscall::sys_task_spawn_leased` added (the ABI snapshot
+moves by additive items).
+**R6 — the gate: `bootstrap-leases`.** Derives its population — every `Capability { … }` literal under
+`crates/fjell-kernel/src` outside `#[cfg(test)]` — and fails on a `lease: None` literal unless it is in `main.rs`'s
+`init` bootstrap (classified, with the D4 reason) or in the spawn path that binds it. Evaluator, not a name match; a
+function it cannot delimit is a failure; a stale classified entry fails.
+**R7 — the recycling scenario:** its cycle bound derives from the table's capacity.
+**R8 — the statement, written down.** `slot.rs`'s *"Bootstrap capabilities carry `lease: None`"* becomes true;
+`v1-limitations.md` rows 12 and 21 and E-093's entry are the architect's.
 
 ## Negative cases — what I will show
 
-1. **The statement, demonstrated on a real boot:** `neg-test` holds a capability of a *peer*'s kind (it cannot hold a
-   peer's capability — CSpaces are local), so the demonstration is the other direction: **a task's boot capability
-   stops working when the `LEASE_REVOKE_ANY` holder revokes that task's boot lease, through every funnel route** —
-   `ipc_send`/`ipc_call`/`ipc_try_recv`/`cap_inspect`/`cap_copy` each refused `LeaseRevoked`, with a marker naming
-   the route. **And** the same revocation attempted by a task that is *not* the owner and lacks the right: refused,
-   `PermissionDenied`, audited `0x0606` (already in the tree).
-2. **A mint chain cascading while a copy survives**, side by side (the handoff's asymmetry, pinned): minted
-   child dies with `cap_revoke` of its parent; the copy does not.
-3. **`cap_revoke` on a capability with no descendants deletes nothing** — the documented, surprising behaviour.
-4. **What revocation does not take back:** a task that has mapped its MMIO window keeps the mapping after its boot
-   lease is revoked, and a *second* `sys_mmio_map` through the revoked capability is refused. **This is a test of
-   the stated limit, so the limit cannot silently become a claim.**
-5. **Capacity:** with every boot lease live, the broker can still grant up to its quota (the 31-and-16 interaction
-   that kills the 32-slot version), and a revoked boot lease is reclaimed when its task exits.
-6. **Mutations, each a named failure** (a compile error is INVALID): spawn skips the bind for one image → the
-   `bootstrap-leases` gate red naming the literal; `MAX_LEASES` back to 32 → capacity case red; the bind covers all
-   but one capability → case 1 red for that route.
+1. **The statement, demonstrated on a real boot — and the case that shows owner-based revocation suffices.** `neg-test`
+   spawns `svc-timeout` (a fixture) and so **owns its boot lease**; `svc-timeout` `try_recv`s its endpoint each iteration
+   and prints a marker when it first sees `LeaseRevoked`. `neg-test` revokes the lease it was handed **through slot 4, the
+   `LeaseAdmin` that has `LEASE_REVOKE` and no `LEASE_REVOKE_ANY`**, and the marker appears. The fixture stays alive and
+   runnable (the existing start-timeout test is unaffected).
+2. **A non-owner cannot.** `neg-test` attempts the same on a boot lease **`init` owns**, through slot 4: refused
+   `PermissionDenied`, audited `lease.revoke_rejected`, and the lease stays Active.
+3. **A mint chain cascading while a copy survives**, side by side.
+4. **`cap_revoke` on a capability with no descendants deletes nothing.**
+5. **What revocation does not take back — MMIO.** A copy of `neg-test`'s `MmioRegion` capability bound to a fresh lease:
+   map through it, revoke the lease, **map again → `LeaseRevoked`, and read through the first mapping → still readable.**
+   The marker names the limit so it cannot silently become a claim. **The positive case beside it is DMA:** the existing
+   `dma` profile's revoked-address read faulting.
+6. **Capacity and lifetime.** With every boot lease live the broker can still grant to its quota; a service that exits
+   frees its lease slot (spawn → exit → spawn again leaves the live-lease count flat).
+7. **Mutations, each a named failure** (a compile error is INVALID): spawn skips the bind for one image →
+   `bootstrap-leases` red naming the literal; `MAX_LEASES` back to 32 → capacity case red; exit does not revoke
+   `boot_lease` → lifetime case red; `create_boot` charged to the per-owner quota → the spawn of the 17th service fails;
+   the recycling scenario's bound left at a literal → red against the larger table.
 
 ## What this RFC does not do, and why
 
