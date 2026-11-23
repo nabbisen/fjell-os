@@ -5,6 +5,117 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.47.0] — 2026-11-23 — The project stops claiming authority it does not enforce
+
+Two lines, four small items, **four errata closed** (**E-126**, **E-127**, **E-128**, **E-129**, all
+filed inside the milestone) and **E-012 closed** after four months as an accepted limitation.
+`consistency-check` is **27 subchecks** (25 at 0.46.0). The ABI moved **+14 items**, 545 → 559, with
+**0 removed and 0 changed**. `unsafe` sites **298 → 291**. The register stands at **128 entries, 6
+accepted, 0 open**, the fewest accepted limitations this project has carried.
+
+**0.47 is the milestone where the project's own statements become true.** Every item began as a
+document, a module doc or a comment asserting a rule that nothing enforced — and the first of them was
+the architect's, published in four places at 0.46.
+
+### Two lines
+
+- **`require_cap` becomes the sole authority path, in fact** (RFC-0.47-001, closes **E-126** and
+  **E-129**). The 0.46 record said `DELEGATE_ONLY` was blocked because a single capability funnel
+  *"and there is none"*. **The funnel had existed since v0.2.0**, and its own module doc called it
+  *"the sole production authority-checking path"*. The real defect was the opposite shape: **three
+  paths and three check orders**, with `cap_copy`/`mint`/`revoke`/`inspect` testing the lease
+  **before** the right — so one input, a capability lacking the right **and** carrying a revoked
+  lease, produced two different ABI answers depending on which path served the syscall. One body now
+  sits behind `require_cap`, `require_cap_any_kind` and `require_held`; `check_right`, the four inline
+  copies, the CSpace scan, `build_msg`'s duplicate kind check and a second `CapError`→`SysError` table
+  are deleted.
+- **The lifecycle policy's kept rules are written down** (RFC-0.47-002, closes **E-128**).
+  RFC-0.25-002 decided to keep five things from the in-repo policy — `Accepted`,
+  `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list — and
+  **they landed** (`be8cf6f`, whose message records them *"verified independently by name"*). Then
+  `4d8044a`, an untitled **"RFC 000 life cycle policy: revised"** with no commit body, deleted every
+  one of them and reinstated the general-purpose shape RFC-0.25-002 had analysed and rejected. For two
+  months **the rule that every disposition in the errata register applies was citable from no
+  normative document.** RFC 000 now defines six states with the drift rule inside the definition of
+  `Implemented`; `status.rs` **parses** that table rather than holding a vocabulary of its own.
+
+### The ABI-visible changes, and the gate that cannot see them
+
+**Three classes of behaviour changed, deliberately** (RFC-0.47-001 D2):
+
+| Class | Before | After | Syscalls |
+|---|---|---|---|
+| **order** — lacks the right **and** lease revoked | `LeaseRevoked` | `PermissionDenied` | `cap_copy`, `cap_mint`, `cap_revoke`, `cap_inspect` |
+| **kind vs right** — non-endpoint capability lacking the IPC right | `PermissionDenied` | `WrongType` | `ipc_send`, `ipc_call` |
+| **kind** — non-endpoint capability **holding** the IPC right | *accepted as an endpoint `object_id`* | `WrongType` | `ipc_recv`, `ipc_try_recv` (**E-129**) |
+
+`PermissionDenied` is the right answer for the first class on a **disclosure** argument, not merely a
+consistency one: telling a caller that lacks the right at all that a lease was revoked discloses the
+state of an object it has no authority over. A stale handle now answers `GenerationMismatch` and an
+empty slot `SlotEmpty` through **every** path, because the canonical `to_sys_error` is the only map.
+
+**`abi-snapshot` cannot see any of these three classes**, and a reader should not assume otherwise: it
+hashes the *declarations* of public items, not what a path returns. The snapshot moved **+14** for the
+new functions and markers and would not have moved for any of the behaviour above. **Boot scenarios
+are what gate them** — seven `NEG:CAP:RIGHT_BEFORE_LEASE:*` markers and
+`NEG:CAP:RECV_REFUSES_NON_ENDPOINT`.
+
+### E-129 — the receive path never checked a capability's kind
+
+Found by the implementer while answering an open question in the handoff, and **demonstrated on a real
+boot** rather than argued: `sys_ipc_recv` and `sys_ipc_try_recv` took `object_id` from whatever
+capability carried the `RECV` bit. `RECV` is inside `ALL_NON_META`, and the tree grants `ALL_NON_META`
+to `LeaseAdmin`, `TaskCreate`, `TaskControl` and `Reboot` capabilities **whose `object_id` is 0** — so
+all four polled endpoint 0 through a capability that is not an endpoint. **It was not a leak**, because
+nothing sends to endpoint 0, and that accident is what held the invariant. `object-zero`, the subcheck
+that gates *"no task can receive on endpoint object 0"*, reads **`Endpoint` installs only** and was
+green throughout; its scope statement is corrected too.
+
+### The two new gates
+
+- **`authority-funnel`** (27th subcheck) fails an authority check outside the funnel, and — the half
+  `unsafe-audit` cannot make — a `SAFETY` comment claiming `require_cap` validated a handle in a
+  function that reaches no funnel entry. Against the kernel as it stood before the fix it reports
+  **26 findings**, including **exactly the seven false SAFETY claims** the architect had derived by
+  hand, by a different method. It also caught what nobody had: **`sys_cap_install`, written in 0.46 by
+  the author of E-126's false claim, had itself hand-rolled the funnel.**
+- **`rfc-policy`** (26th subcheck) checks the state vocabulary three ways, the drift rule's presence
+  **by name** at both ends — the half RFC-0.25-002's own checklist asked for and never got — and that
+  every `Implemented-with-Errata` RFC is named in the register.
+
+**The restored rule's first harvest: four RFCs re-marked `Implemented-with-Errata`** — `RFC-v0.12-002`
+(E-004), `RFC-0.41-002` (E-129), `RFC-0.33-003` (E-073), `RFC-v0.7.4-003` (E-093). **Three predate the
+deletion, so the rule was not being applied while it was still written down.** The count rises 12 → 16,
+and `rfc-evidence` now binds on **8** RFCs where 0.46.0 had six.
+
+### Four small items
+
+- **E-012 closed after four months.** The v1.0 checklist's Step 9 signed
+  `target/release-bundles/*.bundle`; nothing writes that path. Step 9 is now a pointer and the work is
+  **Step 12b**, and what closes the entry is that the commands were **run verbatim** on the real 5.9 MB
+  archive with two controls — a wrong public key gave `FAIL — SigVerifyFailed`, one appended byte gave
+  `FAIL — Tampered`. The loop had never been run once.
+- **The README's tier count is derived and gated**, not hand-edited as it was at the 0.46 cut.
+- **`cargo xtask verus-count`** states the readiness row's candidate figures *with their definitions*
+  and gates nothing: release-required prover-verified items **19**, all targets **26**,
+  release-required named ids **12**, all targets **17**. The row promises **20**, which matches none of
+  them, and remains the owner's to decide.
+- **E-127 filed and closed:** the `CAP_REVOKE` confused deputy that RFC-0.46-003 had already fixed
+  without any register entry.
+
+### What still does not hold
+
+- **`DELEGATE_ONLY` is still not taken**, and now for a stated reason rather than a false one: a
+  negative right is a design smell that deserves its own RFC against a `Delegable` kind or an
+  install-source table.
+- **E-093 — an unbound capability's copies have no recursive revocation at all**, deferred to 0.48 on
+  sequencing; its subject RFC now says so in its status.
+- **The 37 mismatched `SAFETY` justifications** of the architect's proposed third line are unstarted:
+  of the 50 `unsafe` sites taking a static-mut reference, 37 carry a justification that does not
+  describe that operation. `unsafe-audit` checks that a comment *exists*.
+
+---
+
 ## [0.46.0] — 2026-11-21 — The kernel stops taking its most privileged client's word for it
 
 Three lines, four small items, **three errata closed** (**E-011**, **E-110**, **E-125**) and one
