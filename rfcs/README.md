@@ -559,9 +559,17 @@ a fresh clone.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 3 RFCs
 
-0.47's two lines were here while the architect reviewed them; both are now in `accepted/`.
+0.48's three lines, **drafted by the implementer for the architect's review; nothing in them is implemented**. Each
+states the decisions it asks the architect to make rather than makes. Handoff: `.git-exclude/handoff/handoff-0.48.md`;
+scope: `.git-exclude/handoff/scope-0.48.md`. Line 2's sweep follows line 1, as the handoff requires.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.48-001 | [A bootstrap capability can be taken back — measured first, designed second](./proposed/RFC-0.48-001-a-bootstrap-capability-can-be-taken-back.md) | E-093 |
+| 0.48-002 | [A safety annotation describes the operation it is attached to — and the audit says what it cannot know](./proposed/RFC-0.48-002-a-safety-annotation-describes-the-operation-it-annotates.md) | the unsafe-audit coverage finding (E-014 class) |
+| 0.48-003 | [A GitHub Release is published from a tag that has been checked](./proposed/RFC-0.48-003-a-release-is-published-from-a-tag-that-has-been-checked.md) | the owner's request, 2026-11-23 |
 
 `proposed/README.md` keeps the folder in a fresh clone.
 
