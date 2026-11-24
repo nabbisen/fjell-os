@@ -62,6 +62,7 @@ mod qemu_log_check;
 mod qemu_run;
 mod qemu_shutdown; // RFC-0.33-001: telling a machine reset from a hang
 mod registry;
+mod release_preflight; // RFC-0.48-003: what judges a release tag before a Release is created from it
 mod release_rehearsal; // RFC-v0.16-008 release gate runner
 mod rfc_promote; // RFC-0.43-004 rfc promote (step 7 of the cut)
 mod schema; // RFC-0.33-003: generated .frozen files
@@ -245,6 +246,8 @@ fn main() -> ExitCode {
         Some("verus-count") => verus_check::cmd_verus_count(&args[1..]),
         Some("rfc") => rfc_promote::cmd_rfc(&args[1..]),
         Some("release-rehearsal") => release_rehearsal::cmd_release_rehearsal(&args[1..]),
+        Some("release-preflight") => release_preflight::cmd_release_preflight(&args[1..]),
+        Some("release-notes") => release_preflight::cmd_release_notes(&args[1..]),
         Some("schema") => schema::cmd_schema(&args[1..]),
         Some("test-all") => test_all::cmd_test_all(&args[1..]),
         Some("evidence") => evidence::cmd_evidence(&args[1..]),
@@ -280,6 +283,8 @@ Subcommands:
   verus-check [--candidate] [<target>|--all-pilot|--release-required]  (RFC-v0.17-005; --candidate: RFC-0.43-001 A1, run proofs under a mismatched pin, certifies nothing)
   verus-count                    state the prover's verified counts and the named ids, each with its definition; gates nothing (0.47 item D)
   release-rehearsal              run v1.0 tag gates (RFC-v0.16-008)
+  release-preflight <tag> [--dry-run] [--main <ref>]  judge a release tag before a GitHub Release is created from it (RFC-0.48-003)
+  release-notes <version>        the Release body: that version's CHANGELOG section + a link to its release record (RFC-0.48-003)
   consistency-check [<subcheck>|--all]  declared vs. actual state (RFC-v0.22-001)
   test-all [--no-qemu]           run every tier, save logs to tests/runs/
   trust-report [--dry-run]       RFC 061 §6 six-section trust report

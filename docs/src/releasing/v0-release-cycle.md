@@ -264,6 +264,67 @@ no build can even run to tell you whether it would otherwise have passed.
 an abstention (RFC-v0.18-001). This is the criterion most likely to be
 softened under time pressure — it must not be.
 
+## After the tag — the GitHub Release is created by `release.yml`
+
+**Pushing the tag publishes a GitHub Release** (RFC-0.48-003; the owner's rule: the tag *is* the authorization signal, so
+publishing from it bypasses nothing). The workflow `.github/workflows/release.yml` is **two jobs, and `contents: write` exists
+in exactly one of them** — the last, which runs only if the first passed. `verify` runs `cargo xtask release-preflight`, whose
+preconditions each **refuse**: the tag is a bare `MAJOR.MINOR.PATCH`; it equals the workspace version **at the tagged commit**;
+that commit is an ancestor of `main`; `CHANGELOG.md` has a non-empty `## [<v>] — ` section and `releases/<v>.md` exists
+(both read from the **tag's** tree, not the checkout of `main`); the tag is an **annotated object whose signature verifies
+against the committed public key**; no Release exists yet; CI on that commit concluded `success` (it waits up to
+`RELEASE_CI_WAIT_MINUTES`, default 30, and **a timeout fails — it never publishes**); and no `v`-prefixed tag exists.
+
+**Run it first.** Before pushing the tag, on the machine that signed it:
+
+```
+cargo xtask release-preflight <version> --dry-run
+```
+
+It judges everything it can read offline and says plainly which two it did not (no Release exists; CI succeeded). *(Run at 0.48
+against the real `0.47.0` tag: it fails on exactly one precondition — **5: no release signing key is committed on `main`** —
+which is the owner's act below, and passes everything else. Against a tag that does not exist, and a `v`-prefixed name, it
+fails by precondition number.)*
+
+**The Release's body is the CHANGELOG section for that exact version** plus one line linking `releases/<v>.md` **at the tag**.
+GitHub's generated commit list is never used, and the record is **linked, never copied** — two drifting copies of one fact is
+the E-114 family. `cargo xtask release-notes <version>` prints it.
+
+**What the workflow does not do, on purpose.** It attaches **no archive**. `fjell-os-v{version}.tar.gz` is signed with the offline
+release key at Step 12b, *after* the tag; at the moment the push fires, the signature does not exist and cannot be verified
+there, and an unsigned archive beside a trust report is the claim-without-enforcement this project spent a milestone deleting.
+**Attaching it with a CI-held signing key would trade the property Step 12b exists to keep — the release key offline — for a
+convenience, and is not an improvement.** The archive and its signature are attached as a cut step, after Step 12b, and verified
+by the `verify-bundle-sig` run the checklist already prescribes. *(That step — `gh release upload` — has not been run: no
+Release exists to attach to until the first real tag fires. It is exercised for the first time at the 0.48.0 cut, and the
+release record says what happened rather than claiming it was rehearsed.)*
+
+**The trust anchor is the owner's act.** The workflow verifies the tag against a **public** key committed on `main`, with the
+fingerprint pinned beside it — read from `main`, **not from the tag's own tree** (a tag that carried its own key and its own pin
+would verify against itself). Neither this procedure nor any tool generates, stores or touches key material. To commit it, on
+the machine that signs tags (`<fpr>` is the signing key's 40-hex fingerprint):
+
+```
+gpg --armor --export <fpr> > docs/src/releasing/release-signing-key.asc
+gpg --batch --with-colons --fingerprint <fpr> | awk -F: '/^fpr:/{print $10; exit}' > docs/src/releasing/release-signing-key.fingerprint
+```
+
+*(Both run on a throwaway key before being written here: the export is public-only — no `PRIVATE KEY` block — and the second
+file equals the primary key's fingerprint.)* Rotating the key is a reviewed commit to those two files, like every other trust
+root in the tree (`TOOLCHAIN.lock`, `baseline-digests.txt`). **Until they exist no tag can be verified and the workflow fails —
+which is the point.**
+
+**A failed run is not a failed release.** The tag, the crates and the cut stand. A red `verify` job leaves **no Release and no
+half-state** (it writes nothing). Fix the cause and re-run the job — a re-run is safe, because precondition 6 refuses to
+duplicate. Delete and re-push the tag **only if the tag itself was wrong**; moving a tag is the owner's act, in the open. The
+first time this goes red it will look like a failed release to whoever sees the email; it is not.
+
+**The first real fire is the owner's, and it is the only part not demonstrated in advance.** Everything else is: each
+precondition is a tested pure function shown failing; the signature check was run against an unsigned tag, a lightweight tag, a
+tag signed by the wrong key, a tampered tag, and a tag whose own tree carried a key; `release-records` (Gate 12) judges this
+file. The live GitHub run is the one thing that cannot be, so the release record for the first tag says so rather than claiming
+the mechanism is proven end to end.
+
 ## After the tag — republish the crates.io front page
 
 Two crates are published: **`fjell-abi`** (the stable ABI surface) and

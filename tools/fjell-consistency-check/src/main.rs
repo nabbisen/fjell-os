@@ -78,6 +78,7 @@ mod handoff_status;
 mod landing_page_gate; // 0.48 small item A (E-130): the subcheck's file-reading half (logic is in the lib)
 mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
+mod release_records_gate; // RFC-0.48-003: the subcheck's file-reading half (logic is in the lib)
 mod repo_scope; // 0.46 small item B (E-125): no tool answers 'what counts as this repository' from a name list
 mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is in the lib)
 mod rfc_policy_gate; // RFC-0.47-002: the subcheck's file-reading half (logic is in the lib)
@@ -167,6 +168,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("landing-page", landing_page_gate::check),
     // RFC-0.48-001: every boot capability is bound to a lease, or classified with a reason.
     ("bootstrap-leases", bootstrap_leases_gate::check),
+    // RFC-0.48-003: every release record has a CHANGELOG section; the release workflow is the one the RFC describes.
+    ("release-records", release_records_gate::check),
 ];
 
 #[cfg(test)]

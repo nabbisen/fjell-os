@@ -1,0 +1,71 @@
+# GitHub Release, created from a release tag that has been CHECKED (RFC-0.48-003).
+#
+# The owner's rule: the tag is the authorization signal, so pushing it publishes -- and "the trigger should be designed and
+# managed carefully". This workflow therefore does **nothing that is not first refused by `release-preflight`**, a tested
+# subcommand (not shell in this file) that the owner can run on the tag *before* pushing it:
+#
+#     cargo xtask release-preflight 0.48.0 --dry-run
+#
+# Shape: two jobs, and `contents: write` exists in exactly one of them -- the last, which runs only if the first passed.
+# `release-records` (Gate 12) judges this file: the filter, the single `contents: write`, `needs: verify`, and that every
+# action is pinned to a commit SHA, because this is the first workflow in the repository whose token can write.
+#
+# What it does NOT do: attach the source archive (it is signed after the tag, offline, by Step 12b -- a signature that does not
+# exist when the tag is pushed cannot be verified here; automating it would need a CI-held signing key, which is not an
+# improvement), publish to crates.io, or run on `workflow_dispatch` (a manual path to publication would bypass the tag).
+# A failed run here is NOT a failed release: the tag, the crates and the cut stand; fix the cause and re-run the job.
+
+name: release
+
+on:
+  push:
+    # Bare MAJOR.MINOR.PATCH only. `v0.48.0` does not match -- by design, and silently, which is why the gate fails on a `v*`
+    # tag existing and `release-records` judges this very line.
+    tags: ['[0-9]+.[0-9]+.[0-9]+']
+
+permissions: {}
+
+# Two pushes of one tag must not race into two Releases (the loser fails precondition 6 either way).
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  # How long precondition 7 waits for CI on the tagged commit to finish. A timeout FAILS; it never publishes.
+  RELEASE_CI_WAIT_MINUTES: 30
+
+jobs:
+  verify:
+    name: verify the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # ancestry of main needs the history, and `git verify-tag` needs the tag object
+      - uses: ./.github/actions/toolchain
+      - name: Judge the tag (every precondition refuses)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: cargo run -q -p fjell-tools -- release-preflight "$GITHUB_REF_NAME" --main origin/main
+
+  publish:
+    name: create the Release
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/toolchain
+      - name: Create the Release from the CHANGELOG section for exactly this version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cargo run -q -p fjell-tools -- release-notes "$GITHUB_REF_NAME" > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"

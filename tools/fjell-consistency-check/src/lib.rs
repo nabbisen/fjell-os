@@ -23,6 +23,7 @@ pub mod bootstrap_leases; // RFC-0.48-001: every boot grant is bound to a lease,
 pub mod errata;
 pub mod landing_page; // 0.48 small item A (E-130): the crates.io landing page's errata figures are derived from the register
 pub mod readme_counts;
+pub mod release_records; // RFC-0.48-003: a release has a CHANGELOG section and a record; the workflow is the one described
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
 pub mod rfc_policy; // RFC-0.47-002: the lifecycle policy's kept rules are written down, and a check can find them missing
 pub mod status; // shared status-keyword parsing (was a bin module)
@@ -69,4 +70,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "authority-funnel",
     "landing-page",
     "bootstrap-leases",
+    "release-records",
 ];

@@ -315,7 +315,12 @@ order once.
 16. **Clean-clone check** — clone the committed tree into a scratch directory
     and run `consistency-check --all` there. This is what caught E-038, and no
     procedure required it at the time. It is required now.
-17. **Stop.** Hand over for review; do not tag. **An advisory disclosed with
+17. **Stop.** Hand over for review; do not tag. *(0.48: **pushing the tag creates the GitHub Release** —
+    `release.yml`, described in [the cycle document](./v0-release-cycle.md#after-the-tag--the-github-release-is-created-by-releaseyml).
+    It refuses unless the tag is signed with the committed key and CI on the commit succeeded. **Not yours:** committing the
+    public signing key it verifies against, and the first real fire. What is yours: `cargo xtask release-preflight
+    <version> --dry-run` on the tag, if the architect has applied it locally, names exactly what the workflow will refuse.)*
+    **An advisory disclosed with
     this release is committed after the tag, not in the release commit** — its
     `Fixed in` must name a tag that exists, and the process publishes nothing
     before the fix ships.

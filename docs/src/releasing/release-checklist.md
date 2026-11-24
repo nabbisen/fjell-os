@@ -185,6 +185,14 @@ git tag -s 1.0.0 -m "Fjell OS 1.0.0"
 git push origin 1.0.0
 ```
 
+**Pushing the tag creates the GitHub Release** (`release.yml`, RFC-0.48-003): a Release whose body is `CHANGELOG.md`'s section
+for exactly this version plus a link to `releases/<version>.md`. It **refuses** unless the tag is annotated and its signature
+verifies against the public key committed on `main`, the tagged commit is an ancestor of `main`, the section and the record
+exist, no Release exists yet, and CI on the commit succeeded. **Run `cargo xtask release-preflight <version> --dry-run` before
+pushing**; the whole mechanism, including the owner's one-time act of committing the public key, is in
+[the cycle document](./v0-release-cycle.md#after-the-tag--the-github-release-is-created-by-releaseyml). A red run is *not* a failed
+release.
+
 ---
 
 ## Step 12 — Package
@@ -219,6 +227,11 @@ cargo xtask verify-bundle-sig \
     --pubkey <64-hex public key>
 # Expected: verify-bundle-sig: PASS
 ```
+
+**Then attach the archive and its signature to the Release the tag created** — the one thing the workflow cannot do, because
+the signature did not exist when the tag was pushed: `gh release upload <version> fjell-os-v<version>.tar.gz
+fjell-os-v<version>.tar.gz.sig`. *(Not run: there is no Release to attach to until the first real tag fires, so this line is
+exercised for the first time at the 0.48.0 cut and the release record says what happened. The verification above **is** run.)*
 
 *Run verbatim at 0.47 against the real archive (`fjell-os-v0.46.0.tar.gz`, 5.9 MB) with a
 throwaway key, because the release key is offline: `sign-bundle` printed exactly the line above and
