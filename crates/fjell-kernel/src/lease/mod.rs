@@ -73,6 +73,13 @@ struct LeaseObject {
     /// spawner so the spawner may revoke it. **Not ended by its owner's death** -- `revoke_owned_by` skips it -- because
     /// a supervisor exiting must not strip every service it started of its authority (that would be a new failure mode,
     /// and not the one this line adds); it ends when its *subject* exits, which the TCB's `boot_lease` records.
+    ///
+    /// **Once the owner is dead, only a `LEASE_REVOKE_ANY` holder can revoke it** (`sys_lease_revoke` admits the owner or
+    /// that right); otherwise it lasts until the subject exits or faults. That is safe only because **task slots are never
+    /// reused** -- `owner` is a slot index, and nothing calls `TaskTable::remove`; a change that reuses slots must give a
+    /// lease owner a generation first, or a new occupant would inherit its predecessor's children's leases.
+    /// **No boot scenario demonstrates this skip** (nothing kills a supervisor whose children are watched, and the kernel
+    /// crate has no host tests): removing it turns nothing red. RFC-0.48-001 records it as not demonstrated.
     pub boot: bool,
 }
 

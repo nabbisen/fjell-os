@@ -183,6 +183,23 @@ narrowest grant in the system narrow in the milestone that makes leases universa
 If a case appears where the party that must revoke is not the spawner (a supervisor distinct from `init`), **that** case
 justifies widening, and I will name it then.
 
+**Who can revoke a boot lease once its owner is dead** *(asked at the stage-2 review; the answer is read from the code).*
+A boot lease is **not** ended by its owner's death (`revoke_owned_by` skips it): `init` or a supervisor exiting must not
+strip every service it started, which would be a new failure mode. The consequence, stated plainly:
+
+* **The authority to revoke it is then the `LEASE_REVOKE_ANY` holder's — `neg-test` — and no one else's.** The owner is
+  gone, and `sys_lease_revoke` admits only the owner or a `LEASE_REVOKE_ANY` holder (RFC-0.46-003).
+* **Otherwise the lease ends when its *subject* exits or faults** (`Task.boot_lease`, revoked on both paths). For an
+  orphaned boot lease no `LEASE_REVOKE_ANY` holder chooses to revoke, the answer is "nobody, until the subject dies". It
+  is defensible: the authority was granted by a supervisor that no longer exists, and nothing in the system has been
+  *given* the right to take it back.
+* **That answer rests on a fact this line does not own: a task slot is never reused.** Lease ownership is the slot
+  *index* (`sys_lease_revoke` compares the owner with `TaskId::new(tidx, 0)` — generation 0), and nothing in the kernel
+  calls `TaskTable::remove`: an exited or faulted task stays in its slot as `Exited`/`Faulted`, so an orphaned lease's
+  owner index names a dead task for ever. **If a future change reuses task slots, the new occupant of that index would
+  become the "owner" of every boot lease its predecessor spawned**; that change must give a lease owner a generation
+  first. Recorded here so it is not discovered by someone who needs it.
+
 **D4 — `init`. RULED: excepted.** `init` is the root that creates the leases, and **a lease whose owner is also its
 subject revokes nothing** — `init` could revoke only its own authority, and revoking `init`'s authority from outside would
 leave the system supervisor-less. It is excepted by name, with that reason, in the gate's classified list, not as an
@@ -234,16 +251,27 @@ function it cannot delimit is a failure; a stale classified entry fails.
    `PermissionDenied`, audited `lease.revoke_rejected`, and the lease stays Active.
 3. **A mint chain cascading while a copy survives**, side by side.
 4. **`cap_revoke` on a capability with no descendants deletes nothing.**
-5. **What revocation does not take back — MMIO.** A copy of `neg-test`'s `MmioRegion` capability bound to a fresh lease:
-   map through it, revoke the lease, **map again → `LeaseRevoked`, and read through the first mapping → still readable.**
-   The marker names the limit so it cannot silently become a claim. **The positive case beside it is DMA:** the existing
-   `dma` profile's revoked-address read faulting.
+5. **What revocation does not take back — MMIO. *(Changed at the stage-2 review: guarded, not scenario-tested.)***
+   A boot scenario needs an *unbound* `MmioRegion` capability, i.e. a third fixture exemption, and the exemption list is
+   the honesty metric of this line. Instead **`bootstrap-leases` fails if `MmioUnmap` ever becomes dispatched**, which says
+   *restate the claim* on the day its premise changes (a scenario only fails when someone re-runs it). **The positive case
+   beside it is DMA:** the existing `dma` profile's revoked-address read faulting.
 6. **Capacity and lifetime.** With every boot lease live the broker can still grant to its quota; a service that exits
    frees its lease slot (spawn → exit → spawn again leaves the live-lease count flat).
 7. **Mutations, each a named failure** (a compile error is INVALID): spawn skips the bind for one image →
    `bootstrap-leases` red naming the literal; `MAX_LEASES` back to 32 → capacity case red; exit does not revoke
    `boot_lease` → lifetime case red; `create_boot` charged to the per-owner quota → the spawn of the 17th service fails;
    the recycling scenario's bound left at a literal → red against the larger table.
+
+## Not demonstrated by any boot scenario — said here so it is not also unmentioned
+
+* **A boot lease ending on the subject's normal exit.** The fault path has a scenario (`NEG:BOOTLEASE:ENDS_WITH_SUBJECT_FAULT`);
+  nothing in the suite exits normally. The exit path is the same `take()` + `revoke` as the fault path.
+* **A boot lease surviving its owner's death** — the `boot` flag in `revoke_owned_by`, the design choice above. No boot
+  test kills a supervisor whose children are watched, and the kernel crate has no host tests, so removing the skip turns
+  nothing red. It is held by the flag's comment (`lease/mod.rs`) and by this paragraph.
+* **`create_boot` failing mid-spawn** (the lease is revoked, no slot leaks). Evidenced by mutation M4 only.
+* **MMIO is not reclaimed** — held by the `bootstrap-leases` guard, not by a boot scenario.
 
 ## What this RFC does not do, and why
 

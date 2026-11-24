@@ -61,9 +61,15 @@ on:
     tags: ['[0-9]+.[0-9]+.[0-9]+']     # bare, three components: 0.48.0. Not v0.48.0. Not 0.2.0-alpha.1.
 
 jobs:
-  verify:   # permissions: contents: read      -- every precondition; publishes nothing
+  verify:   # permissions: contents: read, actions: read  -- every precondition; publishes nothing
   publish:  # permissions: contents: write     -- needs: verify; creates the Release
 ```
+
+* **Deviation from the handoff, accepted at the stage-2 review: `verify` also holds `actions: read`.** The handoff's
+  grant for `verify` was `contents: read`. Precondition 7 (the `ci.yml` push run for the tagged commit is green) asks the
+  API for that run (`gh run list`), and listing workflow runs needs `actions: read`; without it the call is refused and
+  the precondition could only fail closed. The scope is read-only, so `verify` still cannot write anything, and
+  `contents: write` remains in exactly one job.
 
 * **`contents: write` exists in exactly one job**, the last, which runs only if the first passed. The first job can
   fail without there being anything to clean up.
