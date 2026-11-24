@@ -6873,12 +6873,32 @@ which is history removes the disagreement instead of detecting it, and needs no 
   fixtures. So nothing fails open today. It is a real limit on the design and is
   recorded as one, in `docs/src/releasing/v1-limitations.md` row 12.
 - **RFC:** RFC-v0.7.4-003 -- its text at `:243`-`:246` is the claim; re-marked `Implemented-with-Errata` 2026-11-23.
-- **Status:** **ACCEPTED**, `unscheduled`. What closing it would need is a decision, not
-  an implementation: either enforce the premise (every capability that may be delegated
-  is bound at creation, which needs E-091's scope work first), or withdraw it and state
-  plainly that recursive revocation covers only lease-bound capabilities. The second is
-  the honest short path and is what row 12 says today. **Not the architect's to choose
-  alone** — it changes what the capability model promises.
+- **Status:** **CLOSED** (architect, 2026-11-24, at RFC-0.48-001's stage-2 review). Was ACCEPTED and
+  `unscheduled`, on the view that closing it needed a decision rather than an implementation: enforce
+  the premise, or withdraw it and say that recursive revocation covers only lease-bound capabilities.
+  **0.48 took the first path**, which is the one that changes nothing the capability model promises.
+- **What closes it.** `spawn()` creates a **boot lease** before any frame is allocated — so a full
+  table fails the spawn with nothing to undo — and **one pass binds every capability the task holds**,
+  so no `lease: None` literal was edited and a new grant cannot forget to be bound. The lease is owned
+  by the **spawner** and recorded in the subject's TCB, revoked when the subject exits or faults; it is
+  deliberately **not** ended by its owner's death, because `init` exiting must not strip every service
+  it started. `MAX_LEASES` is **128** with a compile-time assert that the table holds one lease per
+  task plus a delegator's whole quota, and **0 Verus obligations changed** — the model has no capacity
+  token.
+- **Two named exceptions remain, and they are the honest residue:** `neg-test`'s and
+  `sample-service`'s slot 0 stay unbound, because those two fixtures exist to bind capabilities to
+  leases *they* create and a capability binds **once** (E-090) — a source already bound at boot could
+  never be bound again, and their lease scenarios would have nothing to copy. **2 of the ~101
+  capabilities a boot installs**, each named with its reason in the `bootstrap-leases` subcheck, which
+  fails if the list grows without a reason or if an entry outlives its need.
+- **What this does not buy, said plainly so the claim cannot drift.** Lease revocation withdraws
+  authority exercised **per call**. It does not reclaim authority that has become a **mapping**: an
+  `MmioRegion` capability bound to a revoked lease stops a task mapping *again*, and the pages it
+  already mapped stay, because **`MmioUnmap` is declared in the ABI and dispatched nowhere** (v1.0
+  limitations row 7). DMA is the counter-example and the proof the project can do this when it
+  chooses: `sys_dma_revoke` is dispatched, requires `DmaRegion` + `DMA_REVOKE` through the funnel, and
+  unmaps the owner's page **verified**. `bootstrap-leases` fails if `MmioUnmap` is ever dispatched, so
+  the day the premise changes the check says *restate the claim* rather than letting it rot.
 
 ## E-094 — the signed attestation record is built from constants, including three `*_verified: true` flags, and is independent of the measurement chain
 
@@ -9658,11 +9678,24 @@ which is history removes the disagreement instead of detecting it, and needs no 
   **hand-maintained count on the same page** whose tier count 0.47 small item C had just made derived
   and gated. The accepted-limitations count is the same family (E-015/E-025/E-125) and is **still
   hand-maintained**, which is why it was wrong. A gate for it belongs with the reorder.
-- **Status:** **ACCEPTED** (architect, 2026-11-23), tracking **0.48**. Filed ACCEPTED and not OPEN
-  because deferring the reorder past a cut in progress is a deliberate decision rather than live
-  unresolved drift — the distinction this register draws at E-004/E-012 — and because the 0.47.0
-  publish is correct on its merits. **A documented v1.0-preparation limitation of the release
-  procedure, not of the system.**
+- **Status:** **CLOSED** (architect, 2026-11-24, at 0.48's stage-2 review). Was ACCEPTED, tracking
+  0.48, because deferring the reorder past a cut in progress was a deliberate decision rather than live
+  drift.
+- **What closes it.** The landing-page re-read is now a **pre-tag** step in the cycle document and the
+  handoff; only the logo-URL **fetch**, the one check that needs the tag to exist, stays after it. A
+  **publish precondition** is written into the cycle and **was run against the real failure**:
+  `test "$(git rev-parse HEAD)" = "$(git rev-list -n1 <v>)" && test -z "$(git status --porcelain)"`
+  **refuses the actual 0.47.0 situation** (HEAD three commits ahead of the tag), accepts the tag's
+  clean tree, and refuses it dirty. A procedure command executed before being committed, which is this
+  project's standing rule, and tested against the case that produced the entry rather than a
+  hypothetical.
+- **And the figure it existed for is gated now.** `landing-page`, the 28th subcheck, counts the
+  crates.io page's *"N accepted limitations and M open"* from this register's Summary table through the
+  shared parser, gates the root `README.md`'s readiness counts and `done/` file count the same way, and
+  **fails if either page states a count of gates** — so *"eleven mechanical gates, one manual check"*
+  was reworded to carry no number. **Closing this entry reddens that subcheck until the page moves with
+  it, which is the point:** the figure went 7 → 6 → 7 inside one hour at the 0.47.0 cut precisely
+  because nothing held them together.
 
 ## E-131 — `unsafe-audit` cannot see 48 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches
 
@@ -9679,13 +9712,26 @@ which is history removes the disagreement instead of detecting it, and needs no 
 
   ```
   #[unsafe(no_mangle)]                    41   no pattern contains `unsafe(`
+  #[unsafe(naked)]                         1   same, and on the trap entry stub
   unsafe extern "C" fn ...                 6   `extern "C"` sits between `unsafe` and `fn`
   unsafe impl<T> Sync for KS<T> {}         1   `impl<` has no space, and the pattern is `unsafe impl `
   ```
 
-  Each was checked against all four patterns: none matches. **The invisible set is 48** — the first
-  filing said 49, counting `#[unsafe(no_mangle)]` as 42 where the tree has **41** (identical counting
-  `crates/` only, so it is not a scoping difference).
+  Each was checked against all four patterns: none matches. **The invisible set is 49.**
+
+- **The architect's count of 48 was wrong, and the error is this entry's own subject.** The first
+  filing said 49; the architect "corrected" it to 48 at the stage-1 review, having grepped
+  `#[unsafe(no_mangle)]` — the attribute already known — and never asked what *other* `#[unsafe(...)]`
+  forms the tree held. One `grep -oh '#\[unsafe([a-z_]*)\]'` returns both: **41 `no_mangle` and 1
+  `naked`**, measured at `50d45f8` and at the filing commit, so it is not a scoping difference.
+  **A narrow search produced a confident wrong number inside an entry about an instrument that matches
+  too narrowly** — the error `feedback-text-match-is-a-hypothesis` and E-125's own body describe.
+  Restored to 49 by the implementer at stage 2.
+- **The missed one is the worse of the two.** `#[unsafe(naked)]` sits at
+  `crates/fjell-kernel/src/trap/entry.rs:51`, one line above
+  `unsafe extern "C" fn supervisor_trap_entry` — the trap entry stub, which runs with the interrupted
+  task's registers live. **Two invisible declarations on that one function**, and it is the function
+  every trap in the system enters through.
 - **The single `unsafe impl` is the one that matters, and the cause is a space.** There are **nine**
   `unsafe impl` declarations under `crates/`. **Eight match `"unsafe impl "` and exactly one does
   not:** `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}`. `KS<T>` is the
@@ -9702,10 +9748,67 @@ which is history removes the disagreement instead of detecting it, and needs no 
   reported site count**, and a reader who sees 291 become a larger number will read it as new `unsafe`
   being written unless the release record, the CHANGELOG and the trust report say why. The count rises
   because the scanner's eyes open, not because the kernel changed.
-- **Status:** **OPEN**, tracking **0.48** (RFC-0.48-002 D4). Filed OPEN and not ACCEPTED because it is
-  live, unresolved drift rather than a documented deliberate limitation — the distinction this register
-  draws at E-004/E-012 — so **Gate 7 blocks a release until the population is fixed**, which is the
-  same disposition E-126, E-128 and E-129 carried through 0.47.
+- **Status:** **CLOSED** (architect, 2026-11-24, at RFC-0.48-002's stage-2 review). Was OPEN because
+  the audit under-reported, so Gate 7 blocked a release until the population was fixed — the same
+  disposition E-126, E-128 and E-129 carried through 0.47.
+- **What closes it.** The scanner finds every `unsafe` declaration in the tree, and the audit now
+  refuses a `category=` its operation does not support: **344 sites, 344 commented, 0 missing, 4
+  permanent exemptions, 0 seeded**, with 292 judged against an operation shape and 52 — the `impl`s,
+  the attributes and one `extern` block, which have no body to judge — judged on a comment and a tag.
+  The sweep re-tagged or re-worded **66 flagged sites** and wrote **49 new comments** for the
+  declarations the audit could not previously see; two new categories, `linker-symbol` and
+  `symbol-export`, replace the taxonomy gap that had six sites claiming `phys-id-map-assumption` for
+  the address of a linker symbol.
+- **The headline figure rises 291 → 344, and the reason must travel with it.** The kernel wrote no new
+  `unsafe`: **the scanner's eyes opened.** A reader who meets 344 without that sentence will conclude
+  fifty-three unsafe blocks were added in one milestone.
+- **What a green now means, and what it does not** — pinned by a test in the check's own PASS line:
+  *a tag is not contradicted by the operation beneath it*. It is **not** a claim that any comment's
+  prose is true. **161 distinct comment texts of 311** remain the measure of how much prose review is
+  still owed, and where only the tag was wrong the sentence was left alone and said so.
+
+## E-132 — `sys_lease_inspect` returned the lease id as the epoch, so half of two revocation claims could not fail
+
+- **Found 2026-11-24 by the implementer**, while testing RFC-0.48-001's boot-lease revocation, and
+  **confirmed by the architect at the stage-2 review** by diffing the arm itself.
+- **RFC:** none
+  The defect is a register-convention mistake in a syscall, not an RFC over-claiming.
+- **Claim.** `sys_lease_inspect(a0=cap, a1=lease_id) -> epoch` is the instrument RFC-0.46-003 added so
+  a scenario could show that a refused revocation **left the lease untouched**. Every syscall in this
+  project returns its status in `a0` and its value in `a1`, which is what
+  `docs/src/abi/v0.1-inventory.md` documents and what every user wrapper reads.
+- **Tree, at `50d45f8` (`crates/fjell-kernel/src/trap/syscall.rs`):**
+
+  ```rust
+  Ok(ep) => { tf.gpr[REG_A0] = ep.0 as usize; }   // the EPOCH, into the status register
+  ```
+
+  and `a1` was never written — so it still held **the lease id the caller had passed in** a few lines
+  earlier. The wrapper read status from `a0` and the value from `a1`. **`lease_inspect(id)` therefore
+  returned `id`, as the epoch, for every lease, always.**
+- **What it cost, stated precisely, because overstating it would be as wrong as missing it.** Two
+  scenarios compare a lease's epoch before and after an attempted *foreign* revocation —
+  `NEG:CAP:REVOKE_NOT_OWNER_REFUSED` (RFC-0.46-003) and the broker's
+  `REVOKE_FOREIGN_LEASE_REFUSED`. **That half of each claim compared `id` with `id` and could not
+  fail.** The other half — that the attempt is refused (`PermissionDenied`; the broker's reply) — was
+  always real, which is why RFC-0.46-003's mutation table showed those pairs red and the defect
+  survived its own review. **A vacuous half, not a vacuous test.**
+- **How it was found, which is the part worth keeping.** A new check for *"the boot lease ended with
+  its subject"* read `before=27 after=27` against a kernel line that had just printed
+  `revoke -> Ok(2)`. The implementer chased the disagreement instead of adjusting the expectation.
+- **`abi-snapshot` cannot see it.** The snapshot hashes the *declarations* of public items, not which
+  register a path writes, so a syscall returning its value in the wrong register moves nothing. This
+  is the second milestone in which that limit has mattered (RFC-0.47-001 D2 recorded the first), and
+  it is why boot scenarios and not the snapshot are the gate for register-level behaviour.
+- **Fixed in 0.48** (RFC-0.48-001): status in `a0`, epoch in `a1`. Pinned by a new scenario,
+  `NEG:CAP:INSPECT_REPORTS_EPOCH` — a fresh lease reads *e*, and after a revoke *e*+1 — and shown red
+  against the old kernel by mutation **M9**. **ABI-visible, so it carries a CHANGELOG line of its
+  own**; a caller that had compensated for the old behaviour would break, and none existed outside the
+  two scenarios.
+- **Status:** **CLOSED** (architect, 2026-11-24). Filed already fixed, as E-127 was: the defect, the
+  two scenarios it weakened and the register convention are recorded because **the register is where a
+  defect in an instrument this project relies on belongs**, and a fix without an entry is invisible to
+  it.
 
 ## Summary
 
@@ -9802,7 +9905,7 @@ which is history removes the disagreement instead of detecting it, and needs no 
 | E-090 `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and an audit code for `sys_cap_bind_lease`; none of the three exists, and `1 << 25` is unallocated. RFC-0.38-002 therefore gated the syscall on `LEASE_CREATE`, as its doc comment and RFC 049 name — so it fails closed, but the right that gates creating a lease also gates binding one, and with no scope check a `LeaseAdmin` holder may bind any capability it owns to any `Active` lease. Third instance of an RFC marked Implemented with an unbuilt named deliverable (E-023, E-028). **Narrowed 2026-10-22 to the rebind half**; the first-bind half is E-091 | RFC-0.38-004 | CLOSED |
 | E-091 nothing limits *which* lease a holder may bind to: `RFC-v0.7.4-003` (Implemented) specified a `LEASE_BIND` right at `1 << 25`, a lease-scope check and audit code `0x0604`, and none exists. Split from E-090 when RFC-0.38-004 took that entry's rebind half; RFC-0.38-004 makes a binding immutable but does not constrain the first bind, so a `LeaseAdmin` + `LEASE_CREATE` holder may still bind an unbound capability to any `Active` lease, including one it does not own. **CLOSED 2026-11-10 by RFC-0.42-001.** `CapRights::LEASE_BIND = 1 << 30` exists and is granted explicitly at exactly the three `LeaseAdmin` sites, with **neither aggregate carrying it** — `ALL_NON_META` and `ALL_DEFINED` both stop below bit 30, so a blanket grant does not confer the new authority. `sys_cap_bind_lease` now requires `LEASE_CREATE` **and** `LEASE_BIND` on the **same** capability and refuses a lease whose recorded owner is not the caller. **The done RFC's own clause was the hole, not the fix:** it refused only when the caller was neither owner *nor* a `LeaseAdmin` with scope over the lease, and every `LeaseAdmin` here is `ObjectScope::Any`, so implementing it faithfully would have permitted everything; the implemented rule is *a task binds only a lease it created*, and `rfcs/done/RFC-v0.7.4-003` is annotated with both deviations. Audit `0x0604` is a **published** `AuditKind::LeaseBindRejected` rather than a kernel-private code that the decoder would render as `Internal` — which is E-092, closed by RFC-0.40-002. **Verified on a real boot:** `{"kind":"lease.bind_rejected","arg0":4,"arg1":10,"result":-3,...}` (`-3` is `PermissionDenied`), asserted by a new `expect_echoed` line in `audit.toml`, with both `NEG:IPC:*` revoke markers still emitted after the two test protocols were reversed; and with a **failure-case control** — removing the owner check turned the `audit` tier FAIL. *(E-093 left this line by Amendment 2.)* | RFC-0.42-001 | CLOSED |
 | E-092 the kernel appends `AuditKindInternal::LeaseRevoked = 40` on every lease revocation while the published decoder has `LeaseRevoked = 16` and `_ => Internal` with no arm for 40 — so every revocation record reads as `Internal` and the ABI's own `LeaseRevoked` is unreachable, nothing emitting 16. `CapDenied = 41` has no emitter and no decoder arm. Unlike the `CapMint`-for-a-bind mislabel beside which it was found, fixing this needs no ABI addition | RFC-0.40-002 | CLOSED |
-| E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage. **Correction, architect 2026-11-09, from 0.42-001's investigation: this entry said the capability has "neither parent links, which were deleted, nor a lease", and the first half is wrong.** `Capability::derive()` (`fjell-cap/src/slot.rs:65`) sets **`parent: Some(self_slot)`** and inherits `lease: self.lease`, so the derivation tree *does* form; `cspace.rs:208-210` clears `parent` **on copy only**, deliberately. **Second correction, 2026-11-10, and it supersedes the first: "unanchored roots" was also not the defect.** RFC-0.42-001 Amendment 1 ruled that the anchor belonged at *propagation*; the implementer then measured and **there is no propagation**. `cap_present` is constructed `false` at all four of its construction sites, so **a message never carries a capability**, and every `cspace_mut` in `cap/syscall.rs` targets the caller's own CSpace except `sys_cap_install`'s, **which has no dispatch arm**. No live path puts a capability into another task's CSpace, so "the copy that outlives the copier" does not exist — a copy lives in its copier's CSpace and dies with it. **The true gap is the absence of *external* revocation:** an unbound kernel grant can be removed from a task only by killing the task or by the holder dropping it, and nothing can say *"revoke authority X from task T"* without ending T. That is smaller and more precise than "recursive revocation covers nothing", and its remedy is a **mechanism that does not exist** — a revoke-by-slot syscall for a privileged holder, or kernel-minted per-task leases once **E-110**'s slot recycling lands. **Removed from 0.42-001 by Amendment 2** rather than pretend-fixed there: that line is E-091 only. *Three framings of this entry have now been wrong — "parent links deleted", then "unanchored roots", then "propagation" — each time because the architect reasoned from this register and from `cspace.rs`'s doc comment instead of measuring the code, and each time the implementer's measurement settled it.* **Unscheduled** | unscheduled | ACCEPTED |
+| E-093 `RFC-v0.7.4-003` removed kernel-local recursive revocation (`parent = None`) on the stated premise that "every meaningful cap MUST have a lease"; nothing enforces it and bootstrap capabilities carry `lease: None`, which a copy inherits. So a capability that was never lease-bound has no recursive revocation at all. Distinct from E-090 (a binding could be replaced) and E-091 (which lease a bind may target): this is the mechanism's coverage. **Correction, architect 2026-11-09, from 0.42-001's investigation: this entry said the capability has "neither parent links, which were deleted, nor a lease", and the first half is wrong.** `Capability::derive()` (`fjell-cap/src/slot.rs:65`) sets **`parent: Some(self_slot)`** and inherits `lease: self.lease`, so the derivation tree *does* form; `cspace.rs:208-210` clears `parent` **on copy only**, deliberately. **Second correction, 2026-11-10, and it supersedes the first: "unanchored roots" was also not the defect.** RFC-0.42-001 Amendment 1 ruled that the anchor belonged at *propagation*; the implementer then measured and **there is no propagation**. `cap_present` is constructed `false` at all four of its construction sites, so **a message never carries a capability**, and every `cspace_mut` in `cap/syscall.rs` targets the caller's own CSpace except `sys_cap_install`'s, **which has no dispatch arm**. No live path puts a capability into another task's CSpace, so "the copy that outlives the copier" does not exist — a copy lives in its copier's CSpace and dies with it. **The true gap is the absence of *external* revocation:** an unbound kernel grant can be removed from a task only by killing the task or by the holder dropping it, and nothing can say *"revoke authority X from task T"* without ending T. That is smaller and more precise than "recursive revocation covers nothing", and its remedy is a **mechanism that does not exist** — a revoke-by-slot syscall for a privileged holder, or kernel-minted per-task leases once **E-110**'s slot recycling lands. **Removed from 0.42-001 by Amendment 2** rather than pretend-fixed there: that line is E-091 only. *Three framings of this entry have now been wrong — "parent links deleted", then "unanchored roots", then "propagation" — each time because the architect reasoned from this register and from `cspace.rs`'s doc comment instead of measuring the code, and each time the implementer's measurement settled it.* **Unscheduled** | unscheduled | CLOSED |
 | E-094 `attestd`'s signed record is built by `AttestationRecordV2::dev` from constants — `kernel_digest` `0x11`, release/rootfs/policy `0x22`/`0x33`/`0x44`, `chain_digest` `0x55`, `head_seq: 1` — and asserts `release_verified`/`rootfs_verified`/`policy_verified: **true**` with nothing verifying; `sign_v2` takes the sequence number as `_meas_seq` and never reads it, and `attestd` holds no endpoint to `measuredd`. So repairing the measurement chain cannot change what any attestation record says, and E-086's "compounds through the whole attestation path" is wrong in its middle link — both corrected | RFC-0.40-001 | CLOSED |
 | E-095 three of the measurement chain's four recorded events still record the literal `0xAB` — release, rootfs and policy "verified" — because nothing in the tree verifies a release, a rootfs or a policy bundle; RFC-0.38-001 made the fourth real. Split from E-086 at its closure by the E-074-from-E-072 test, a residual with its own remedy rather than a statement of the closing line's scope. Distinct from E-094, which asserts those same three verifications succeeded | unscheduled | ACCEPTED |
 | E-096 the measurement chain's `source` — "which service produced the event" — is decoded from the caller's own word by `measuredd`'s `APPEND_EVENT`, while the kernel-attested sender is received and discarded ("unused here"). Three events per boot declare `MeasurementSource::Verifyd` although `init` sends them and never consults `verifyd`. RFC-0.38-001 fixed the classification inside `measuredd` for `APPEND_IMAGE_SET` — "so a caller cannot relabel it" — and left `APPEND_EVENT` trusting the caller. Also: `APPEND_EVENT` carries 16 of a digest's 32 bytes, E-085's defect on the append side, a dependency for E-095 | RFC-0.39-001 | CLOSED |
@@ -9878,5 +9981,6 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-127 **`sys_lease_revoke` asked whether a caller held a revoke capability and never whose lease it was revoking** — all four `LeaseAdmin` grants carried `ObjectScope::Any`, so the only bound on revoking a stranger's lease was `revoke_authorised`, a predicate inside the broker: a confused deputy whose limit lived in the deputy. A denial rather than a disclosure, so not an escalation, but unbounded on availability. Filed already fixed: the owner's `CAP_REVOKE` filing was named by RFC-0.46-003 and never made, so a defect fixed in 0.46 had no register entry. Fixed by owner check + `LEASE_REVOKE_ANY` (in no aggregate, one holder, counted by `capability-topology`) + audit `0x0606` | RFC-0.46-003 | CLOSED |
 | E-128 **the lifecycle policy's five kept rules landed, and a rewrite two months later deleted them** - RFC-0.25-002's D1 kept `Accepted`, `Implemented-with-Errata`, `Closed`, the drift/errata rule and the required-sections list; `be8cf6f` landed all five and its message records them *verified independently by name*. **`4d8044a` (2026-10-21), message "RFC 000 life cycle policy: revised" with no body, deleted every one** (drift rule 1->0, `Implemented-with-Errata` 13->0, `Closed` 7->0, the `Accepted` row, the required-sections list; `NNN-slug` 2->16), reinstating the general-purpose shape RFC-0.25-002 had analysed and rejected. No erratum; it stood two months. The rule *"An RFC may not be marked Implemented if its normative text makes a claim the merged code does not satisfy"* now exists in two tracked files, **both records of a decision to write it down** - so every disposition in this register applies a rule citable from no normative document. **RFC-0.25-002 keeps `Implemented`** (its text was satisfied when it shipped); **`RFC-v0.12-002` re-marked `Implemented-with-Errata`** per E-004, a live instance that predates the deletion. The instruments invert the dependency: the vocabulary is legal because a Rust constant says so | RFC-0.47-002 | CLOSED |
 | E-129 **`sys_ipc_recv`/`sys_ipc_try_recv` never check a capability's kind** — a `LeaseAdmin`, `TaskCreate`, `TaskControl` or `Reboot` capability (all `ALL_NON_META`, all `object_id: 0`, so all carry `RECV`) polls endpoint 0 (`WouldBlock` on a real boot, four of four; a fifth unclaimed). `object-zero` reads `Endpoint` installs only, so the gate for *"no task can receive on endpoint 0"* is green while four other kinds can. Not a leak today (nothing sends to endpoint 0); the invariant held by accident, not by the kernel | RFC-0.47-001 | CLOSED |
-| E-130 **the cycle orders the pre-publish landing-page re-read after the tag, so any correction it finds puts the publish ahead of the tag** — `cargo publish` packages the working tree, not the tag, and the mandated re-read of `crates/fjell-os/README.md` is ordered with the logo-URL checks *after* tagging. Only the logo checks need the tag to exist. At 0.47.0 the page claimed *"7 accepted limitations and 0 open"* where the register carried 6 (E-012 closed in that milestone); corrected at `da7061f` while the tag names `0fcf537`. **Second occurrence** — 0.45.0 argued the same divergence as a one-off bound instead of a step-order defect. Remedy is a reorder, not a new check: re-read before the tag, keep the logo checks after. The stale figure is itself a hand-maintained count on the page whose tier count 0.47 item C had just made derived and gated, so a gate for it belongs with the reorder | 0.48 | ACCEPTED |
-| E-131 **`unsafe-audit` cannot see 48 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches** — it classifies by substring (`unsafe {`, `unsafe fn `, `unsafe impl `, `unsafe trait `), and **41 `#[unsafe(no_mangle)]`, 6 `unsafe extern "C" fn` and 1 `unsafe impl<T>` match none of them**. The one `unsafe impl` is `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}` — **eight of the nine `unsafe impl` declarations match and this one does not, because `impl<` has no space** — and `KS<T>` is the kernel-state wrapper every `get_kernel_state()` call goes through, so a `Sync` soundness claim about the most widely shared static in the system is invisible to the audit, with a SAFETY comment above it attached to no recorded site. The instrument reports `0 missing` rather than that its population is partial, and a release gate consumes that as coverage: the E-014 family, in the instrument behind this project's central safety claim. Found by the implementer; count corrected 49 → 48 and the mechanism identified at the architect's stage-1 review. **Closing it raises the reported count**, which the record must explain, because the scanner's eyes open and the kernel does not change | 0.48 | OPEN |
+| E-130 **the cycle orders the pre-publish landing-page re-read after the tag, so any correction it finds puts the publish ahead of the tag** — `cargo publish` packages the working tree, not the tag, and the mandated re-read of `crates/fjell-os/README.md` is ordered with the logo-URL checks *after* tagging. Only the logo checks need the tag to exist. At 0.47.0 the page claimed *"7 accepted limitations and 0 open"* where the register carried 6 (E-012 closed in that milestone); corrected at `da7061f` while the tag names `0fcf537`. **Second occurrence** — 0.45.0 argued the same divergence as a one-off bound instead of a step-order defect. Remedy is a reorder, not a new check: re-read before the tag, keep the logo checks after. The stale figure is itself a hand-maintained count on the page whose tier count 0.47 item C had just made derived and gated, so a gate for it belongs with the reorder | 0.48 | CLOSED |
+| E-131 **`unsafe-audit` cannot see 48 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches** — it classifies by substring (`unsafe {`, `unsafe fn `, `unsafe impl `, `unsafe trait `), and **41 `#[unsafe(no_mangle)]`, 1 `#[unsafe(naked)]`, 6 `unsafe extern "C" fn` and 1 `unsafe impl<T>` match none of them — 49 in all**. The one `unsafe impl` is `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}` — **eight of the nine `unsafe impl` declarations match and this one does not, because `impl<` has no space** — and `KS<T>` is the kernel-state wrapper every `get_kernel_state()` call goes through, so a `Sync` soundness claim about the most widely shared static in the system is invisible to the audit, with a SAFETY comment above it attached to no recorded site. The instrument reports `0 missing` rather than that its population is partial, and a release gate consumes that as coverage: the E-014 family, in the instrument behind this project's central safety claim. Found by the implementer; the mechanism was identified at the architect's stage-1 review, where the architect also "corrected" 49 to 48 by grepping the attribute already known instead of the attribute shape, and the implementer restored it at stage 2 — a narrow search producing a wrong number inside an entry about narrow matching. **Closing it raises the reported count**, which the record must explain, because the scanner's eyes open and the kernel does not change | 0.48 | CLOSED |
+| E-132 **`sys_lease_inspect` returned the lease id as the epoch, so half of two revocation claims could not fail** — it wrote the epoch into `a0`, the **status** register, and never wrote `a1`, which still held the lease id the caller passed in; every wrapper reads status from `a0` and the value from `a1`, so `lease_inspect(id)` returned `id` for every lease, always. `NEG:CAP:REVOKE_NOT_OWNER_REFUSED` (RFC-0.46-003) and the broker's `REVOKE_FOREIGN_LEASE_REFUSED` compare an epoch before and after a refused foreign revocation: **that half compared `id` with `id`**. The refusal half was always real, which is why 0.46-003's mutation table showed the pairs red and the defect survived its own review — a vacuous half, not a vacuous test. **`abi-snapshot` cannot see it** (it hashes declarations, not which register a path writes), the second milestone where that limit has mattered. Found when a new check read `before=27 after=27` against a kernel line printing `revoke -> Ok(2)` and the implementer chased the disagreement. Fixed in 0.48: status `a0`, epoch `a1`, pinned by `INSPECT_REPORTS_EPOCH` and shown red by mutation M9 | 0.48 | CLOSED |
