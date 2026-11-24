@@ -22,6 +22,17 @@
 //!    is dispatched this fails**, and the claim in RFC-0.48-001 and `spawn.rs` has to be rewritten, not left standing
 //!    after it stopped being the reason.
 //!
+//! 6. **Task slots are never reused.** *A lease's owner is a task-table **index** (`TaskId::new(tidx, 0)`, generation pinned
+//!    to 0 on both sides of `sys_lease_revoke`'s comparison), and a boot lease outlives its owner's death.* That is safe
+//!    only while a dead task's index is never handed to a new task -- and `TaskTable::remove`, the one function that
+//!    returns a slot, has **no caller**. Nothing fails when a property true *by a function being dead* stops being true,
+//!    so this fails instead: any `.remove(` / `::remove(` call in the kernel, or any assignment that clears a `.task`
+//!    slot outside `TaskTable::remove` itself, is red, naming the orphan answer it protects. **It is a stopgap and says
+//!    so:** the remedy, whenever slot reuse is actually wanted, is a generation-aware owner (store and compare the full
+//!    `TaskId`) -- RFC-0.48-001, "Who can revoke a boot lease once its owner is dead". The guard is deliberately broad
+//!    (an unrelated `.remove(` is red too): the kernel has none today, and a guard that tried to tell which `remove` it is
+//!    would be the narrow search this project keeps correcting.
+//!
 //! **What it does not do:** it does not show a capability is *revoked* (the `svc` boot profile does, through the funnel),
 //! only that no grant escapes the bind. A function it cannot delimit is a **failure**, never a skip.
 
@@ -83,6 +94,8 @@ pub struct Report {
     pub unbound_literals: usize,
     pub classified_used: usize,
     pub fixture_images: usize,
+    /// Slot-releasing sites found outside `TaskTable::remove` (always 0 in an `Ok` report).
+    pub slot_release_sites: usize,
 }
 
 /// Byte spans of `Capability { ... }` literals in code-only text: the brace-matched block after the type name.
@@ -140,6 +153,75 @@ fn fixture_images(code: &str) -> Option<Vec<String>> {
         }
     }
     Some(out)
+}
+
+/// Sites in non-test kernel code that return a task slot to reuse, other than `TaskTable::remove` itself:
+/// `(path, line, what)`. Text over code-only source (comments and strings blanked), so a mention in prose is not a site.
+fn slot_release_sites(sources: &[Source]) -> Vec<(String, usize, String)> {
+    let mut out = Vec::new();
+    for s in sources {
+        let code = code_only(&s.text);
+        let tests = test_module_ranges(&code);
+        // A function that cannot be delimited is reported by the main loop; here it only means no exemption applies.
+        let funcs = functions(&code).unwrap_or_default();
+        let in_table_remove = |line: usize| {
+            s.path.ends_with("task/tcb.rs")
+                && funcs
+                    .iter()
+                    .any(|f| f.name == "remove" && f.start_line <= line && line <= f.end_line)
+        };
+        let mut hit = |pos: usize, what: String| {
+            let line = line_of(&code, pos);
+            if tests.iter().any(|(x, y)| *x <= line && line <= *y) || in_table_remove(line) {
+                return;
+            }
+            out.push((s.path.clone(), line, what));
+        };
+        for needle in [".remove(", "::remove("] {
+            let mut from = 0;
+            while let Some(i) = code[from..].find(needle) {
+                let at = from + i;
+                from = at + 1;
+                hit(at, format!("`{needle}` is called"));
+            }
+        }
+        // Clearing a slot's task by hand: `.task.take(`, `.task.replace(`, `.task = <anything but Some(..)>`, or a
+        // `mem::{take,replace,swap}` whose arguments name a `.task`.
+        let mut from = 0;
+        while let Some(i) = code[from..].find(".task") {
+            let at = from + i;
+            from = at + 1;
+            let rest = &code[at + ".task".len()..];
+            if rest.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_') {
+                continue; // `.task_foo`, `.tasks`
+            }
+            let rest = rest.trim_start();
+            if rest.starts_with(".take(") || rest.starts_with(".replace(") {
+                hit(at, "a slot's `.task` is taken out by hand".into());
+            } else if rest.starts_with('=')
+                && !rest.starts_with("==")
+                && !rest[1..].trim_start().starts_with("Some(")
+            {
+                hit(
+                    at,
+                    "a slot's `.task` is assigned something other than `Some(..)`".into(),
+                );
+            }
+        }
+        let mut from = 0;
+        while let Some(i) = code[from..].find("mem::") {
+            let at = from + i;
+            from = at + 1;
+            let window = &code[at..code.len().min(at + 80)];
+            let call = ["take(", "replace(", "swap("]
+                .iter()
+                .any(|c| window["mem::".len()..].starts_with(c));
+            if call && window.contains(".task") {
+                hit(at, "a slot's `.task` is moved out with `mem::`".into());
+            }
+        }
+    }
+    out
 }
 
 /// Pure core. `undispatched` is the syscall expectations' explicit list.
@@ -260,6 +342,18 @@ pub fn evaluate(sources: &[Source], undispatched: &[String]) -> Result<Report, V
         );
     }
 
+    // 6. task slots are never reused
+    let slot_sites = slot_release_sites(sources);
+    for (path, line, what) in &slot_sites {
+        problems.push(format!(
+            "{path}:{line}: {what}. RFC-0.48-001: a boot lease outlives its owner's death, and a lease's owner is a task-table \
+             *index* (`TaskId::new(tidx, 0)`, generation ignored), so an orphaned boot lease is safe **only because a dead \
+             task's slot is never reused**. This returns a task slot to reuse: a new occupant of that index would become the \
+             owner of every boot lease its predecessor spawned. Make lease ownership generation-aware (store and compare the \
+             full `TaskId`) first, then retire this guard -- or, if this is not the task table, say so by renaming it"
+        ));
+    }
+
     if problems.is_empty() {
         Ok(Report {
             files: sources.len(),
@@ -267,6 +361,7 @@ pub fn evaluate(sources: &[Source], undispatched: &[String]) -> Result<Report, V
             unbound_literals,
             classified_used: used.len(),
             fixture_images: named.len(),
+            slot_release_sites: slot_sites.len(),
         })
     } else {
         Err(problems)
@@ -424,6 +519,73 @@ mod tests {
                 .any(|p| p.contains("MmioUnmap") && p.contains("Restate the claim")),
             "{e:?}"
         );
+    }
+
+    const TCB_OK: &str = "impl TaskTable {\n    pub fn insert(&mut self, t: Task) { slot.task = Some(t); }\n    pub fn remove(&mut self, id: TaskId) -> Option<Task> {\n        let task = slot.task.take()?;\n        Some(task)\n    }\n}\n";
+
+    fn with(extra: &str) -> Vec<Source> {
+        let mut v = base();
+        v.push(src("crates/fjell-kernel/src/task/tcb.rs", TCB_OK));
+        if !extra.is_empty() {
+            v.push(src("crates/fjell-kernel/src/task/other.rs", extra));
+        }
+        v
+    }
+
+    #[test]
+    fn the_slot_guard_control_is_green_with_remove_defined_and_uncalled() {
+        let r = evaluate(&with(""), &undisp()).unwrap();
+        assert_eq!(r.slot_release_sites, 0);
+    }
+
+    #[test]
+    fn a_caller_of_remove_is_red_and_names_the_orphan_answer_it_protects() {
+        for call in [
+            "fn reap(t: &mut TaskTable, id: TaskId) { let _ = t.remove(id); }\n",
+            "fn reap(id: TaskId) { let _ = TaskTable::remove(&mut T, id); }\n",
+        ] {
+            let e = evaluate(&with(call), &undisp()).unwrap_err();
+            assert!(
+                e.iter().any(|p| p.contains("other.rs:1")
+                    && p.contains("never reused")
+                    && p.contains("generation-aware")),
+                "{e:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn clearing_a_slot_by_hand_is_red_too_not_only_the_named_function() {
+        for body in [
+            "fn f(s: &mut Slot) { let _ = s.task.take(); }\n",
+            "fn f(s: &mut Slot) { s.task = None; }\n",
+            "fn f(s: &mut Slot) { let _ = core::mem::take(&mut s.task); }\n",
+            "fn f(s: &mut Slot) { let _ = core::mem::replace(&mut s.task, None); }\n",
+        ] {
+            let e = evaluate(&with(body), &undisp()).unwrap_err();
+            assert!(e.iter().any(|p| p.contains("other.rs:1")), "{body}: {e:?}");
+        }
+    }
+
+    #[test]
+    fn what_the_slot_guard_must_not_flag() {
+        // insert's `= Some(..)`, a comparison, a longer field name, a comment, a string, and a test module.
+        let ok = "fn f(s: &mut Slot) { s.task = Some(t); let _ = s.task == None; let _ = s.tasks.len(); s.task_id = 3; }\n\
+                  // t.remove(id) in prose\n\
+                  fn g() { let _ = \"x.remove(y)\"; }\n\
+                  #[cfg(test)]\nmod tests {\n    fn t(x: &mut V) { x.remove(0); }\n}\n";
+        assert!(evaluate(&with(ok), &undisp()).is_ok());
+    }
+
+    #[test]
+    fn a_clear_inside_remove_in_the_wrong_file_is_not_exempt() {
+        // The exemption is `TaskTable::remove` in task/tcb.rs, not any function named `remove`.
+        let e = evaluate(
+            &with("fn remove(s: &mut Slot) { let _ = s.task.take(); }\n"),
+            &undisp(),
+        )
+        .unwrap_err();
+        assert!(e.iter().any(|p| p.contains("other.rs:1")), "{e:?}");
     }
 
     #[test]

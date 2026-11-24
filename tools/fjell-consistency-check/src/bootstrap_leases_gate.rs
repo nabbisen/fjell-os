@@ -43,7 +43,8 @@ pub fn check() -> ExitCode {
                 "{NAME}: PASS ({} kernel source files; {} Capability literals, {} `lease: None`, every one in a classified \
                  function ({} entries, each with a reason) -- the per-image grants are bound to a boot lease in one pass; \
                  {} fixture images exempt from that pass, each with a reason; `MmioUnmap` is still undispatched, so lease \
-                 revocation still does not reclaim an MMIO mapping)",
+                 revocation still does not reclaim an MMIO mapping; no task slot is ever returned to reuse, so a boot lease's \
+                 index-only owner still names exactly one task)",
                 r.files, r.literals, r.unbound_literals, r.classified_used, r.fixture_images
             );
             ExitCode::SUCCESS

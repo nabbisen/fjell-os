@@ -199,6 +199,13 @@ strip every service it started, which would be a new failure mode. The consequen
   owner index names a dead task for ever. **If a future change reuses task slots, the new occupant of that index would
   become the "owner" of every boot lease its predecessor spawned**; that change must give a lease owner a generation
   first. Recorded here so it is not discovered by someone who needs it.
+* **Guarded, because a property true by a function being dead fails silently** (ruled at the stage-2 follow-up review).
+  `bootstrap-leases` (premise 6) is red on any `.remove(` / `::remove(` call in the kernel, or any hand-written clearing of
+  a slot's `.task` outside `TaskTable::remove`, and its message names this paragraph. It was shown red on a real tree by
+  adding a caller. **It is a stopgap, and the named successor is a generation-aware owner:** store and compare the full
+  `TaskId` (index *and* generation) in `LeaseObject.owner`, `sys_lease_revoke`, and the lifecycle revoke, so a new
+  occupant of slot *n* does not inherit the previous occupant's leases. **Not built here.** Whoever wants slot reuse
+  finds that design question, not a hazard; when it is built the guard is retired in the same change.
 
 **D4 — `init`. RULED: excepted.** `init` is the root that creates the leases, and **a lease whose owner is also its
 subject revokes nothing** — `init` could revoke only its own authority, and revoking `init`'s authority from outside would

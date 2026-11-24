@@ -77,7 +77,8 @@ struct LeaseObject {
     /// **Once the owner is dead, only a `LEASE_REVOKE_ANY` holder can revoke it** (`sys_lease_revoke` admits the owner or
     /// that right); otherwise it lasts until the subject exits or faults. That is safe only because **task slots are never
     /// reused** -- `owner` is a slot index, and nothing calls `TaskTable::remove`; a change that reuses slots must give a
-    /// lease owner a generation first, or a new occupant would inherit its predecessor's children's leases.
+    /// lease owner a generation first, or a new occupant would inherit its predecessor's children's leases
+    /// (`bootstrap-leases` is red on any caller of `remove`).
     /// **No boot scenario demonstrates this skip** (nothing kills a supervisor whose children are watched, and the kernel
     /// crate has no host tests): removing it turns nothing red. RFC-0.48-001 records it as not demonstrated.
     pub boot: bool,
