@@ -24,6 +24,7 @@ const EP_SLOT: u32 = 0;
 /// A CALL capability to `semantic-stream` (object 7).
 const STREAM_EP: u32 = 1;
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     loop {

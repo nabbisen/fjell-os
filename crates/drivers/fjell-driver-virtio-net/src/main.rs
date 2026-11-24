@@ -98,6 +98,7 @@ fn print_hex32(v: u32) {
     }
 }
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // What the scan may *say* is `fjell_driver_virtio_net::scan` (pure, host-tested and mutated

@@ -89,7 +89,7 @@ fn recv_call() -> Request {
 /// register held, could not return one. Whatever a caller does not need it
 /// passes as zero: nothing is left to chance in a register the kernel reads.
 fn reply(tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) {
-    // SAFETY: category=kernel-global-mutable measurement chain ring is exclusively owned by this service via the MeasurementDrain cap.
+    // SAFETY: category=csr-asm IPC reply ecall; register constraints match the Fjell syscall ABI, and no memory is touched.
     unsafe {
         core::arch::asm!(
             "li a7, 23", "ecall",
@@ -217,6 +217,7 @@ fn dev_descriptor() -> TrustProviderDescriptor {
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     let mut chain = Chain::new();

@@ -10,7 +10,7 @@
 /// # Safety
 /// Must be called from M-mode.
 #[inline]
-// SAFETY: category=kernel-global-mutable CSR access is valid in S-mode; register name is correct for riscv64gc.
+// SAFETY: category=csr-asm `mhartid` is an M-mode CSR: this read is made only from M-mode boot code, where the register name is correct for riscv64gc.
 pub unsafe fn read_mhartid() -> usize {
     let v: usize;
     // SAFETY: category=csr-asm read-only CSR, no side effects.
@@ -52,7 +52,7 @@ pub unsafe fn read_scause() -> usize {
 
 /// Read `stval`.
 #[inline]
-// SAFETY: category=kernel-global-mutable CSR access is valid in S-mode; register name is correct for riscv64gc.
+// SAFETY: category=csr-asm CSR access is valid in S-mode; register name is correct for riscv64gc.
 pub unsafe fn read_stval() -> usize {
     let v: usize;
     // SAFETY: category=csr-asm read-only CSR access.

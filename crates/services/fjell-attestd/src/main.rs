@@ -348,6 +348,7 @@ fn sign_v1(seq: u32, meas_seq: u64) -> (Digest32, bool) {
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     let provider = DevelopmentTrustProvider::with_default_key(ATTESTD_PROVIDER_ID, 1);

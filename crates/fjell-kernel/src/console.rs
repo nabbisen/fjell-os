@@ -67,7 +67,7 @@ pub fn _print(args: fmt::Arguments) {
     // (v1.0 single-hart design decision, see v1-non-goals). The previous
     // SIE state is restored, so calls from trap context (interrupts already
     // off) are unaffected.
-    // SAFETY: category=kernel-global-mutable single hart; SIE masked for the
+    // SAFETY: category=csr-asm single hart; SIE masked for the
     // critical section so no preemption interleaves the UART write.
     let saved = unsafe {
         let s = crate::arch::riscv64::csr::read_sstatus();
@@ -79,11 +79,11 @@ pub fn _print(args: fmt::Arguments) {
     // sound because:
     //   - `UART.0.get()` always returns a valid, aligned pointer.
     //   - No other reference to `*UART.0.get()` exists concurrently.
-    // SAFETY: category=mmio-access UART MMIO address is set once during init; single-writer access guaranteed by the console lock.
+    // SAFETY: category=kernel-global-mutable single hart with SIE masked around this access (above), so nothing else touches the UART static; the console state is set once during init.
     unsafe {
         (*UART.0.get()).write_fmt(args).unwrap();
     }
-    // SAFETY: category=kernel-global-mutable restore the caller's SIE state.
+    // SAFETY: category=csr-asm restore the caller's SIE state.
     unsafe {
         if saved & (1 << 1) != 0 {
             let s = crate::arch::riscv64::csr::read_sstatus();

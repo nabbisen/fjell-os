@@ -77,7 +77,7 @@ fn dispatch_action(correlation_id: u64, action_id: ActionId) {
 fn ipc_call_action(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize) -> usize {
     let reply_tag: usize;
     let result_word: usize;
-    // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, RFC-v0.23-001).
+    // SAFETY: category=csr-asm IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, RFC-v0.23-001).
     //
     // `sys_ipc_reply` (crates/fjell-kernel/src/cap/syscall.rs) copies all
     // four reply words (a2..a5) into the caller's trap frame unconditionally
@@ -101,6 +101,7 @@ fn ipc_call_action(ep_slot: u32, tag: usize, w0: usize, w1: usize, w2: usize) ->
     result_word
 }
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // RFC-0.26-004 (closes E-020/E-021): this used to announce readiness by

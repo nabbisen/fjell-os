@@ -298,7 +298,7 @@ fn spawn_with_lease(
         use fjell_cap::slot::Capability;
         use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
 
-        // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+        // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             // Slot 0: IPC endpoint.
@@ -1107,7 +1107,7 @@ fn spawn_with_lease(
         use fjell_cap::slot::Capability;
         use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
         if image_id == fjell_abi::service::ImageId::CAP_BROKER {
-            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(
@@ -1178,7 +1178,7 @@ fn spawn_with_lease(
         const DIAGNOSTICSD_TOOLS_RIGHTS: CapRights =
             CapRights(CapRights::SEND.0 | CapRights::RECV.0);
         if image_id == fjell_abi::service::ImageId::FLEETD {
-            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(
@@ -1215,7 +1215,7 @@ fn spawn_with_lease(
             }
         }
         if image_id == fjell_abi::service::ImageId::DIAGNOSTICSD {
-            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(
@@ -1300,7 +1300,7 @@ fn spawn_with_lease(
     if image_id == fjell_abi::service::ImageId::ATTESTD {
         use fjell_cap::slot::Capability;
         use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
-        // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+        // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             let _ = cs.install_raw(
@@ -1334,7 +1334,7 @@ fn spawn_with_lease(
         use fjell_cap::{CapKind, CapRights, CapState, ObjectScope};
         const UPDATE_CHANNEL_RIGHTS: CapRights = CapRights(CapRights::SEND.0 | CapRights::RECV.0);
         if image_id == fjell_abi::service::ImageId::SECURE_TRANSPORTD {
-            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(
@@ -1353,7 +1353,7 @@ fn spawn_with_lease(
             }
         }
         if image_id == fjell_abi::service::ImageId::UPGRADED {
-            // SAFETY: category=kernel-global-mutable task stack and entry point are validated during service manifest parsing.
+            // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
                 let _ = cs.install_raw(

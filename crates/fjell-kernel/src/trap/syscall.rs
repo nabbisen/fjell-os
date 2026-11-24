@@ -259,7 +259,7 @@ fn debug_flush(slot: usize, tail: &[u8]) {
     };
     // Mask SSTATUS.SIE so the byte loop cannot be preempted mid-line
     // (mirrors console::_print; single hart, so masking suffices).
-    // SAFETY: category=kernel-global-mutable single hart; SIE masked for the
+    // SAFETY: category=csr-asm single hart; SIE masked for the
     // critical section so no preemption interleaves the UART write.
     let saved = unsafe {
         let s = crate::arch::riscv64::csr::read_sstatus();
@@ -275,7 +275,7 @@ fn debug_flush(slot: usize, tail: &[u8]) {
             (0x1000_0000usize as *mut u8).write_volatile(b);
         }
     }
-    // SAFETY: category=kernel-global-mutable restore the caller's SIE state.
+    // SAFETY: category=csr-asm restore the caller's SIE state.
     unsafe {
         if saved & (1 << 1) != 0 {
             let s = crate::arch::riscv64::csr::read_sstatus();
@@ -407,7 +407,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
     use fjell_abi::syscall::SyscallNumber;
 
     // Get kernel state — SAFETY: single-hart, initialised before first trap.
-    // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
 
     // Determine the calling task's index from sscratch → TrapFrame ptr.
@@ -462,7 +462,7 @@ pub fn sys_task_spawn(
         return;
     }
     let image_id = ImageId(tf.gpr[REG_A1] as u16);
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=raw-pointer-deref `fa` is the kernel frame allocator's static pointer, passed down by `dispatch_task_spawn`; single hart; no concurrent access.
     let fa_ref = unsafe { &mut *fa };
     // RFC-0.48-001: the new task's boot lease is owned by the caller -- the spawner -- who is told its id.
     let spawner = crate::task::TaskId::new(tidx as u16, 0);
@@ -770,7 +770,7 @@ pub fn sys_audit_drain(tf: &mut TrapFrame) {
     let buf_len = tf.gpr[REG_A2];
 
     // ── 1. RFC 054: handle-based AuditDrain require_cap with lease check ─────
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, sched, ct, _) = unsafe { crate::get_kernel_state() };
     let cur_id = match sched.current() {
         Some(id) => id,
@@ -944,34 +944,34 @@ pub fn sys_audit_wait(tf: &mut TrapFrame) {
 
 fn dispatch_task_spawn(tf: &mut TrapFrame) {
     use crate::mm::frame_alloc::PhysFrame;
-    // SAFETY: category=page-table-mutation all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, sched, ct, _et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     let pfn = crate::KERNEL_ROOT_PFN.load(core::sync::atomic::Ordering::Relaxed);
     let kernel_root = PhysFrame::from_pfn(pfn as u64).unwrap();
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let fa_ptr = unsafe { crate::fa_static_ptr() };
     sys_task_spawn(tf, table, sched, kernel_root, fa_ptr, ct, tidx);
 }
 
 fn dispatch_task_start(tf: &mut TrapFrame) {
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, sched, ct, _et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_task_start(tf, table, sched, ct, tidx);
 }
 
 fn dispatch_task_status(tf: &mut TrapFrame) {
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, _, ct, _et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_task_status(tf, table, ct, tidx);
 }
 
 fn dispatch_lease_create(tf: &mut TrapFrame) {
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_lease_create(tf, lt, ct, tidx);
@@ -979,9 +979,9 @@ fn dispatch_lease_create(tf: &mut TrapFrame) {
 
 fn dispatch_lease_revoke(tf: &mut TrapFrame) {
     use crate::cap::syscall::cancel_blocked_ipc_for_lease;
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     use fjell_abi::lease::LeaseId;
@@ -997,9 +997,9 @@ fn dispatch_lease_revoke(tf: &mut TrapFrame) {
 }
 
 fn dispatch_lease_inspect(tf: &mut TrapFrame) {
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
     let tidx = crate::trap::dispatch::current_task_idx();
     sys_lease_inspect(tf, lt, ct, tidx);
@@ -1071,9 +1071,9 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     }
 
     let tidx = crate::trap::dispatch::current_task_idx();
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, _, cap_table, _) = unsafe { crate::get_kernel_state() };
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable lease table single-threaded.
     let lt = unsafe { crate::get_lease_table() };
 
     let cs = match cap_table.cspace(tidx) {
@@ -1535,7 +1535,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
     }
     let _ = REG_A2;
 
-    // SAFETY: category=csr-asm all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
     let task_id = crate::task::TaskId::new(tidx as u16, 0);
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
@@ -1543,7 +1543,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
         return;
     }
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let fa = unsafe { &mut *crate::fa_static_ptr() };
 
     let user_va_start =
@@ -1630,7 +1630,7 @@ pub fn sys_dma_revoke(tf: &mut TrapFrame) {
     let device_pa = tf.gpr[REG_A1];
     let tidx = crate::trap::dispatch::current_task_idx();
     let cap_h = fjell_cap::handle::CapHandle(cap_raw);
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
 
     // RFC 052: require DmaRegion + DMA_REVOKE right, lease check.
@@ -1661,7 +1661,7 @@ pub fn sys_dma_revoke(tf: &mut TrapFrame) {
 fn dispatch_ipc_try_recv(tf: &mut TrapFrame) {
     use crate::cap::syscall::sys_ipc_try_recv;
     let tidx = crate::trap::dispatch::current_task_idx();
-    // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, sched, ct, et) = unsafe { crate::get_kernel_state() };
     sys_ipc_try_recv(tf, tidx, ct, et, table, sched);
 }

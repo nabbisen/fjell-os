@@ -169,7 +169,7 @@ pub unsafe fn translate(root_pa: usize, va: VirtAddr) -> Result<(PhysFrame, VmPe
 ///
 /// # Safety
 /// Both physical addresses must point to valid, zeroed root page tables.
-// SAFETY: category=phys-id-map-assumption physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
+// SAFETY: category=page-table-mutation physical address is within the kernel heap; alignment is guaranteed by the frame allocator.
 pub unsafe fn clone_kernel_half(target_root_pa: usize, kernel_root_pa: usize) {
     // This kernel uses an identity map with the kernel image sitting at
     // physical 0x80000000 = VA 0x80000000 (VPN[2] = 2, Sv39).
@@ -207,7 +207,7 @@ unsafe fn ensure_next_level(pte: &mut Pte, fa: &mut FrameAllocator<'_>) -> Resul
         let frame = fa.alloc_frame(FrameOwner::KernelPageTable)?;
         let pa = frame.pa();
         // Zero the new page-table page.
-        // SAFETY: category=phys-id-map-assumption `pa` is freshly allocated, 4-KiB aligned, and owned.
+        // SAFETY: category=raw-pointer-deref `pa` is freshly allocated, 4-KiB aligned, and owned.
         unsafe {
             core::ptr::write_bytes(pa as *mut u8, 0, 4096);
         }

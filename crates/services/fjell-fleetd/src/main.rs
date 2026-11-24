@@ -58,6 +58,7 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 // (`NEG_TEST_TRIGGER_RECV_SLOT` sets the precedent).
 const CAP_DIAGNOSTICSD_EP: CapHandle = CapHandle(1);
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("fleetd: started (v0.8 fleet operations plane)");

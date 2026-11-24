@@ -1,0 +1,12 @@
+[package]
+name        = "fjell-rust-scan"
+description = "Tokenising and extraction for the repository's Rust sources -- comments and strings blanked, functions and test modules delimited. Deliberately NO verdicts: each tool that uses it keeps its own rules and its own output (RFC-0.48-002 D5)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "fjell_rust_scan"
+path = "src/lib.rs"

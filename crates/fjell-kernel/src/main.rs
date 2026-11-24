@@ -48,6 +48,7 @@ use trap::entry::init_trap;
 
 // ── Linker symbols ────────────────────────────────────────────────────────────
 
+// SAFETY: category=linker-symbol the linker script defines these symbols; declaring them as `static u8` is sound because only their addresses are ever taken (`&__x as *const u8 as usize`), never their values.
 unsafe extern "C" {
     static __bss_end: u8;
     /// Lowest address of the kernel stack (RFC-0.39-003).
@@ -69,7 +70,7 @@ unsafe extern "C" {
 /// through whichever task's text, stack or page-table frame sat under
 /// `__stack_top`.
 fn kernel_stack_pa() -> (usize, usize) {
-    // SAFETY: category=phys-id-map-assumption linker symbols; only their addresses are taken.
+    // SAFETY: category=linker-symbol a linker-provided symbol; only its address is taken, it is never read or written.
     unsafe {
         (
             &__stack_bottom as *const u8 as usize,
@@ -96,7 +97,7 @@ fn kernel_stack_pa() -> (usize, usize) {
 /// console, rather than risk zeroing or double-freeing memory that is someone
 /// else's. Returns whether the frame was released.
 pub(crate) fn free_dma_frame(frame_pa: usize, owner: crate::task::TaskId) -> bool {
-    // SAFETY: category=phys-id-map-assumption fa_static_ptr is the physical frame allocator; PA == kernel VA.
+    // SAFETY: category=kernel-global-mutable fa_static_ptr() is the frame allocator's static; single-hart; no concurrent access.
     let fa = unsafe { &mut *crate::fa_static_ptr() };
     let frame = match crate::mm::frame_alloc::PhysFrame::from_pa(frame_pa) {
         Ok(f) => f,
@@ -307,7 +308,7 @@ pub(crate) fn unmap_dma_region_verified(
 }
 
 fn kernel_end_pa() -> usize {
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=linker-symbol a linker-provided symbol; only its address is taken, it is never read or written.
     let bss_end = unsafe { &__bss_end as *const u8 as usize };
     (bss_end + 0xFFF) & !0xFFF
 }
@@ -570,7 +571,7 @@ unsafe impl Sync for DmaRegionTableStatic {}
 static DMA_REGION_TABLE: DmaRegionTableStatic =
     DmaRegionTableStatic(core::cell::UnsafeCell::new(DmaRegionTable::new()));
 pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     unsafe { &mut *DMA_REGION_TABLE.0.get() }
 }
 
@@ -597,13 +598,13 @@ pub(crate) static TRAP_SCRATCH: KS<[usize; 5]> = KS(UnsafeCell::new([0usize; 5])
 
 macro_rules! ks_init {
     ($ks:expr, $val:expr) => {
-        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+        // SAFETY: category=kernel-global-mutable single-hart; the one initialisation of this slot, made in kmain before the first trap.
         unsafe { (*$ks.0.get()).write($val) }
     };
 }
 macro_rules! ks_get {
     ($ks:expr) => {
-        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+        // SAFETY: category=kernel-global-mutable single-hart; initialised in kmain before the first trap.
         unsafe { (*$ks.0.get()).assume_init_mut() }
     };
 }
@@ -648,9 +649,11 @@ macro_rules! kprintln {
 // ── M-mode shim ───────────────────────────────────────────────────────────────
 
 #[cfg(target_arch = "riscv64")]
+// SAFETY: category=symbol-export `m_mode_setup` is the M-mode entry the boot assembly jumps to by name; on riscv64 this is its only definition (the host stub below is cfg'd out).
 #[unsafe(no_mangle)]
+// SAFETY: category=csr-asm called exactly once, in M-mode, from the boot assembly with the hart id and DTB address; the CSR writes below carry their own comment.
 pub unsafe extern "C" fn m_mode_setup(hart_id: usize, dtb_pa: usize) -> ! {
-    // SAFETY: category=kernel-global-mutable M-mode CSR writes; called exactly once from boot assembly.
+    // SAFETY: category=csr-asm M-mode CSR writes; called exactly once from boot assembly.
     unsafe {
         csr::write_medeleg(0xFFFF);
         csr::write_mideleg(0x0222);
@@ -682,6 +685,7 @@ pub unsafe extern "C" fn m_mode_setup(hart_id: usize, dtb_pa: usize) -> ! {
 }
 
 #[cfg(not(target_arch = "riscv64"))]
+// SAFETY: category=symbol-export the host-build stub of `m_mode_setup`; cfg'd out on riscv64, so exactly one definition of the symbol exists in any build.
 #[unsafe(no_mangle)]
 pub extern "C" fn m_mode_setup(_: usize, _: usize) -> ! {
     loop {}
@@ -690,9 +694,11 @@ pub extern "C" fn m_mode_setup(_: usize, _: usize) -> ! {
 // ── S-mode entry ──────────────────────────────────────────────────────────────
 
 #[cfg(target_arch = "riscv64")]
+// SAFETY: category=symbol-export `s_mode_entry` is the S-mode entry reached by `mret` from `m_mode_setup`, by name; on riscv64 this is its only definition.
 #[unsafe(no_mangle)]
+// SAFETY: category=mmio-access entered once via `mret` in S-mode; `console::init()` below programs the UART and carries its own comment.
 pub unsafe extern "C" fn s_mode_entry(hart_id: usize, dtb_pa: usize) -> ! {
-    // SAFETY: category=kernel-global-mutable called once via mret; first use of console.
+    // SAFETY: category=mmio-access called once via mret; first use of console.
     unsafe { console::init() };
     kprintln!("Fjell OS kernel started.");
     kprintln!("mode: S");
@@ -700,6 +706,7 @@ pub unsafe extern "C" fn s_mode_entry(hart_id: usize, dtb_pa: usize) -> ! {
 }
 
 #[cfg(not(target_arch = "riscv64"))]
+// SAFETY: category=symbol-export the host-build stub of `s_mode_entry`; cfg'd out on riscv64, so exactly one definition of the symbol exists in any build.
 #[unsafe(no_mangle)]
 pub extern "C" fn s_mode_entry(_: usize, _: usize) -> ! {
     loop {}
@@ -707,6 +714,7 @@ pub extern "C" fn s_mode_entry(_: usize, _: usize) -> ! {
 
 /// Host-build stub: binary needs a no-arg kmain for `#[no_main]`.
 #[cfg(not(target_arch = "riscv64"))]
+// SAFETY: category=symbol-export the host-build stub of `kmain` (a no-argument entry for `#[no_main]` on the host); cfg'd out on riscv64.
 #[unsafe(no_mangle)]
 pub extern "C" fn kmain() -> ! {
     loop {}
@@ -724,7 +732,7 @@ fn firmware_dtb(dtb_pa: usize) -> Result<(usize, usize), DtbRefusal> {
     if dtb_pa < RAM_BASE || dtb_pa.saturating_add(probe) > RAM_END {
         return Err(DtbRefusal::OutsideRam);
     }
-    // SAFETY: category=phys-id-map-assumption dtb_pa..dtb_pa+8 was just checked
+    // SAFETY: category=raw-pointer-deref dtb_pa..dtb_pa+8 was just checked
     // to lie inside RAM, which is identity-mapped by the boot environment
     // (satp = 0); only 8 bytes are read, as plain bytes.
     let head = unsafe { core::slice::from_raw_parts(dtb_pa as *const u8, probe) };
@@ -777,11 +785,11 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
 
     // FrameAllocator — stored in a STATIC so the trap handler (which resets
     // sp to __stack_top on every entry) cannot overwrite it.
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let bitmap = unsafe { &mut *FRAME_BITMAP.0.get() };
     // SAFETY: category=kernel-global-mutable single-hart boot; the owner array is borrowed once, here.
     let owners = unsafe { &mut *FRAME_OWNERS.0.get() };
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     unsafe {
         FRAME_ALLOC
             .0
@@ -799,7 +807,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     } }
     // Expose raw pointer to trap-time task-spawn handler.
     FA_RAW_PTR.store(
-        // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+        // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
         unsafe { (*FRAME_ALLOC.0.get()).as_mut_ptr() } as usize,
         core::sync::atomic::Ordering::Relaxed,
     );
@@ -869,14 +877,14 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     //
     // boot_end (BSS + 2 MiB) is kept as the bump-allocator ceiling; the
     // stack pages are additionally mapped here.
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=linker-symbol a linker-provided symbol; only its address is taken, it is never read or written.
     // stack_top computed for reference; map_end uses RAM_END instead
     // (mapping only up to stack_top caused StorePageFault in spawn when
     // the frame allocator advanced past __stack_top with many services).
     let _stack_top = unsafe { &__stack_top as *const u8 as usize };
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=linker-symbol a linker-provided symbol; only its address is taken, it is never read or written.
     let text_end = unsafe { &__text_end as *const u8 as usize };
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=linker-symbol a linker-provided symbol; only its address is taken, it is never read or written.
     let rodata_end = unsafe { &__rodata_end as *const u8 as usize };
     // Extend the kernel identity map to cover all of physical RAM.
     // The kernel must write-initialise every physical frame it allocates
@@ -902,7 +910,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
         } else {
             VmPerms::R | VmPerms::W // .data / .bss / stack: read-write, not executable
         };
-        // SAFETY: category=csr-asm kernel_root valid; sfence inside enable_sv39.
+        // SAFETY: category=page-table-mutation kernel_root valid; sfence inside enable_sv39.
         unsafe {
             mm::page_table::map_page(kernel_root.pa(), VirtAddr(va), f, perms, fa!())
                 .expect("kernel map");
@@ -1149,7 +1157,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
     );
 
     // Idle task — no capabilities needed.
-    // SAFETY: category=phys-id-map-assumption address and size validated against the physical memory map before this call.
+    // SAFETY: category=linker-symbol a linker-provided symbol; only its address is taken, it is never read or written.
     let idle_ksp = unsafe { &__stack_top as *const u8 as usize };
     let mut idle = Task::new(
         TaskId::new(0, 0),

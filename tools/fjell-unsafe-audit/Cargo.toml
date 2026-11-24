@@ -13,3 +13,4 @@ path = "src/main.rs"
 
 [dependencies]
 fjell-repo-scope = { path = "../fjell-repo-scope" }
+fjell-rust-scan = { path = "../fjell-rust-scan" }

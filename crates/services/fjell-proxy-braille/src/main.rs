@@ -41,6 +41,7 @@ const STREAM_EP: u32 = 1;
 /// the same sizing `proxy-text` and the stream use.
 const ENV_BUF_SIZE: usize = wire::MAX_WIRE_BYTES.div_ceil(32) * 32;
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     let mut frames = fjell_service_api::chunked::Reassembler::<ENV_BUF_SIZE>::new();

@@ -36,6 +36,7 @@ const FORGED_RIGHTS: usize = 0xFFFF_FFFF;
 /// capability beyond the stream endpoint.
 const ACTION_REQUIRING_MMIO_MAP: usize = 1;
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("svc-presentation-liar: claiming rights it does not hold");
@@ -60,7 +61,7 @@ pub extern "C" fn service_main() -> ! {
 fn ipc_call_action(ep_slot: u32, w0: usize, w1: usize, w2: usize) -> usize {
     let reply_tag: usize;
     let result_word: usize;
-    // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, identical to fjell-proxy-text's ipc_call_action).
+    // SAFETY: category=csr-asm IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, identical to fjell-proxy-text's ipc_call_action).
     unsafe {
         core::arch::asm!(
             "li a7, 22", "ecall",

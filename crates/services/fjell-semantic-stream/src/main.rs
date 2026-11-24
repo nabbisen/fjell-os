@@ -232,7 +232,7 @@ fn recv_call() -> (usize, usize, usize, usize, usize, usize) {
 /// `fjell-measuredd::reply`'s identical note — 3-word `IpcReply` has no
 /// `fjell-syscall` wrapper.
 fn reply(tag: usize, w0: usize, w1: usize, w2: usize) {
-    // SAFETY: category=raw-pointer-deref IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
+    // SAFETY: category=csr-asm IPC call slot is valid; response buffer length is bounded by MAX_IPC_MSG.
     unsafe {
         core::arch::asm!("li a7, 23","ecall", inlateout("a0") 0usize => _, in("a1") tag, in("a2") w0, in("a3") w1, in("a4") w2, lateout("a7") _, options(nostack));
     }
@@ -306,6 +306,7 @@ fn presentation_of(sender: usize) -> Option<usize> {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // RFC-0.26-004 (closes E-020/E-021): this used to announce readiness by

@@ -1181,7 +1181,7 @@ pub mod presentation {
     pub fn ask(stream_ep_slot: u32) -> Ask {
         let (status, tag, w0, w1, w2, w3): (usize, usize, usize, usize, usize, usize);
         #[cfg(target_arch = "riscv64")]
-        // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (zero-word ipc_call whose reply carries a label and four words, as chunked::ipc_call4 documents).
+        // SAFETY: category=csr-asm IPC call slot is valid; register constraints match the Fjell syscall ABI (zero-word ipc_call whose reply carries a label and four words, as chunked::ipc_call4 documents).
         unsafe {
             core::arch::asm!(
                 "li a7, 22", "ecall",
@@ -1212,7 +1212,7 @@ pub mod presentation {
     /// reply wrappers carry fewer, and a chunk is four.
     pub fn reply4(tag: usize, w0: usize, w1: usize, w2: usize, w3: usize) {
         #[cfg(target_arch = "riscv64")]
-        // SAFETY: category=raw-pointer-deref IPC reply; the kernel copies the four reply words a2..a5 to the caller unconditionally (sys_ipc_reply), and no memory is touched.
+        // SAFETY: category=csr-asm IPC reply; the kernel copies the four reply words a2..a5 to the caller unconditionally (sys_ipc_reply), and no memory is touched.
         unsafe {
             core::arch::asm!(
                 "li a7, 23", "ecall",
@@ -1266,7 +1266,7 @@ pub mod chunked {
     ) -> usize {
         let reply: usize;
         #[cfg(target_arch = "riscv64")]
-        // SAFETY: category=raw-pointer-deref IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, RFC-v0.23-001).
+        // SAFETY: category=csr-asm IPC call slot is valid; register constraints match the Fjell syscall ABI (4-word ipc_call, RFC-v0.23-001).
         unsafe {
             core::arch::asm!(
                 "li a7, 22", "ecall",

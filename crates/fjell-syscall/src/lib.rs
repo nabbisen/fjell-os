@@ -525,7 +525,7 @@ pub fn sys_audit_wait(cap: u32) -> Result<bool, SysError> {
 /// Raw-pointer variant for negative testing (RFC 050).
 ///
 /// RFC 054: `cap` is first argument; `buf_va`/`buf_len` follow.
-// SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+// SAFETY: category=raw-pointer-deref forwards a caller-supplied address to the kernel unchecked by this wrapper; the kernel's UserPtr check is the guard, and the negative tests pass deliberately invalid addresses to prove it.
 pub unsafe fn sys_audit_drain_ptr(
     buf_va: usize,
     buf_len: usize,
@@ -730,7 +730,7 @@ pub fn sys_dma_revoke(cap_handle: CapHandle, device_pa: usize) -> Result<(), Sys
 /// Must only be called from the negative-test service for error-path testing.
 /// The pointed-to memory is NOT read on error; the caller must not use
 /// results from a non-Ok status.
-// SAFETY: category=csr-asm called only on riscv64gc target; register constraints match the Fjell syscall ABI.
+// SAFETY: category=raw-pointer-deref forwards a caller-supplied address to the kernel unchecked by this wrapper; the kernel's UserPtr check is the guard, and the negative tests pass deliberately invalid addresses to prove it.
 pub unsafe fn sys_audit_drain_raw(ptr: usize, cap: u32) -> usize {
     let (r0, _, _) = ecall3(SyscallNumber::AuditDrain as usize, ptr, 4096, cap as usize);
     r0

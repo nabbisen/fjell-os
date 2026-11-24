@@ -55,7 +55,7 @@ fn ipc_call(ep: usize, label: usize, w0: usize, w1: usize, w2: usize, w3: usize)
     // Pack word count into label bits 16-23 so the kernel can copy them.
     let packed_label = (label & 0xFFFF) | (4usize << 16); // always 4 data words
     let reply: usize;
-    // SAFETY: category=raw-pointer-deref capability handle is valid at this point; address is within the kernel-mapped segment.
+    // SAFETY: category=csr-asm capability handle is valid at this point; address is within the kernel-mapped segment.
     unsafe {
         core::arch::asm!(
             "li a7, 22", "ecall",
@@ -633,6 +633,7 @@ fn fact_text(k: &str, v: &str) -> StateFact {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
     // `a0`/`a1` are the registers the kernel sets at init's entry (`_start` is

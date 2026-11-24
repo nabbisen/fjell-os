@@ -80,6 +80,7 @@ members = [
     "tools/fjell-repro-check",
     "tools/fjell-mmio-audit",
     "tools/fjell-repo-scope",
+    "tools/fjell-rust-scan",
     "tools/fjell-summary-check",
     "tools/fjell-readiness-check",
     "tools/fjell-consistency-check",
@@ -159,6 +160,7 @@ default-members = [
     "crates/services/fjell-fleetd",
     "tools/fjell-unsafe-audit",
     "tools/fjell-repo-scope",
+    "tools/fjell-rust-scan",
 ]
 
 [workspace.package]

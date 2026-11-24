@@ -73,6 +73,7 @@ fn register_devices(bp: &BoardProfile) {
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("devmgr: starting (v0.5 profile-driven)");

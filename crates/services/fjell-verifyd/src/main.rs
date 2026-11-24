@@ -151,6 +151,7 @@ fn verify_dev(keyring: &Keyring, digest_lo: u64, sig_lo: u64) -> bool {
 
 // ── Entry point ──────────────────────────────────────────────────────────────
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     let _provider = DevelopmentTrustProvider::with_default_key(VERIFYD_PROVIDER_ID, 1);

@@ -17,6 +17,7 @@ use fjell_syscall::{sys_debug_writeln, sys_exit};
 const STORE_RECORD_KIND_MEASUREMENT_SUMMARY: u16 = 0x0030;
 const STORE_RECORD_KIND_RELEASE_SUMMARY: u16 = 0x0031;
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("summaryd: started (v0.7 summary exporter)");

@@ -18,7 +18,7 @@ use super::tcb::KernelContext;
 /// - Must be called with a valid kernel stack; must not be called from an
 ///   interrupt handler.
 #[cfg(target_arch = "riscv64")]
-// SAFETY: category=raw-pointer-deref task stack and entry point are validated during service manifest parsing.
+// SAFETY: category=csr-asm saves and restores the callee-saved registers and the stack pointer through `current` and `next`, which the caller guarantees are valid, distinct KernelContexts; it switches stacks and returns on the next task's.
 pub unsafe fn context_switch(current: *mut KernelContext, next: *const KernelContext) {
     // SAFETY: category=csr-asm assembly saves/restores exactly the callee-saved registers
     // listed in KernelContext.  Both pointers are valid per the caller's
@@ -66,7 +66,7 @@ pub unsafe fn context_switch(current: *mut KernelContext, next: *const KernelCon
 
 /// No-op stub so the crate compiles on the host for testing.
 #[cfg(not(target_arch = "riscv64"))]
-// SAFETY: category=raw-pointer-deref task stack and entry point are validated during service manifest parsing.
+// SAFETY: category=raw-pointer-deref host-build stub: the body is `unimplemented!`, so it dereferences nothing; it is `unsafe` only to match the riscv64 signature.
 pub unsafe fn context_switch(_current: *mut KernelContext, _next: *const KernelContext) {
     unimplemented!("context_switch is only available on riscv64");
 }

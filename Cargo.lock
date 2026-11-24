@@ -586,6 +586,7 @@ name = "fjell-consistency-check"
 version = "0.47.0"
 dependencies = [
  "fjell-repo-scope",
+ "fjell-rust-scan",
 ]
 
 [[package]]
@@ -929,6 +930,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-rust-scan"
+version = "0.47.0"
+
+[[package]]
 name = "fjell-sample-service"
 version = "0.47.0"
 dependencies = [
@@ -1208,6 +1213,7 @@ name = "fjell-unsafe-audit"
 version = "0.47.0"
 dependencies = [
  "fjell-repo-scope",
+ "fjell-rust-scan",
 ]
 
 [[package]]

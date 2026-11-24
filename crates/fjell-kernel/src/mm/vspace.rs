@@ -115,7 +115,7 @@ impl AddressSpace {
             "user text must not have W"
         );
 
-        // SAFETY: category=csr-asm root.pa() is a valid Sv39 root page table.
+        // SAFETY: category=page-table-mutation root.pa() is a valid Sv39 root page table.
         // sfence.vma is called by the caller after all maps are done.
         unsafe {
             page_table::map_page(self.root.pa(), va, frame, perms, fa)?;

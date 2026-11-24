@@ -19,6 +19,7 @@ use fjell_snapshot_format::{
 };
 use fjell_syscall::{sys_debug_writeln, sys_exit};
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("syncd: started (v0.7 snapshot sync)");

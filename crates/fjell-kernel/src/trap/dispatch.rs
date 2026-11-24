@@ -39,7 +39,7 @@ use fjell_abi::service::ImageId;
 /// - `tf.sstatus.SPP` = 0 (U-mode), `SPIE` = 1.
 /// - `sscratch` must point to the static `TRAP_SCRATCH`.
 #[cfg(target_arch = "riscv64")]
-// SAFETY: category=raw-pointer-deref trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+// SAFETY: category=csr-asm first entry into user mode: `tf` is the first task's trap frame, with sepc in user VA and sstatus.SPP=0; it is restored and `sret` taken, so this never returns.
 pub unsafe fn first_entry(tf: &TrapFrame) -> ! {
     // Pin tf to a0 (x10).  The load sequence restores every register in order;
     // if the compiler chose s3 (x19) as the base, `ld x19, 19*8(s3)` would
@@ -105,9 +105,11 @@ pub unsafe fn first_entry(tf: &TrapFrame) -> ! {
 /// # Safety
 /// - `tf` must point to the current task's valid, fully-saved `TrapFrame`.
 /// - Must be called from the assembly trap entry with a valid kernel stack.
+// SAFETY: category=symbol-export `trap_dispatch` is called by name from the assembly trap entry; it is the only definition of the symbol.
 #[unsafe(no_mangle)]
+// SAFETY: category=raw-pointer-deref `tf` must point to the current task's valid, fully-saved TrapFrame, and this is called only from the assembly trap entry on a valid kernel stack (the function's `# Safety` contract).
 pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
-    // SAFETY: category=csr-asm tf is provided by the assembly trap entry stub.
+    // SAFETY: category=raw-pointer-deref tf is provided by the assembly trap entry stub.
     let tf_ref = unsafe { &mut *tf };
     let scause = tf_ref.scause;
     // RFC-0.41-006 R1: the audit clock is the trap count.
@@ -134,7 +136,7 @@ pub unsafe extern "C" fn trap_dispatch(tf: *mut TrapFrame) -> *mut TrapFrame {
 
 fn handle_timer() {
     #[cfg(target_arch = "riscv64")]
-    // SAFETY: category=page-table-mutation CLINT MMIO; single hart; no concurrent access.
+    // SAFETY: category=mmio-access CLINT MMIO; single hart; no concurrent access.
     unsafe {
         crate::arch::riscv64::timer::schedule_next_tick()
     };
@@ -300,7 +302,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task exit.
-                // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+                // SAFETY: category=kernel-global-mutable lease table single-threaded.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
                 // RFC-0.48-001 R4: and the lease this task's own capabilities are bound to -- owned by its spawner,
@@ -330,7 +332,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
                 // RFC 033: lifecycle revoke on task fault.
-                // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+                // SAFETY: category=kernel-global-mutable lease table single-threaded.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
                 // RFC-0.48-001 R4: see the exit path.
@@ -387,7 +389,7 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
         .map(|t| t.priority == PRIORITY_IDLE)
         .unwrap_or(false);
     if is_idle {
-        // SAFETY: category=kernel-global-mutable interrupts enabled after trap init.
+        // SAFETY: category=csr-asm interrupts enabled after trap init.
         #[cfg(target_arch = "riscv64")]
         unsafe {
             crate::arch::riscv64::asm::wfi()
@@ -709,13 +711,13 @@ mod milestone_marker_tests {
 /// The running task's table index, or `None` when there is no current task.
 /// Unlike [`current_task_idx`] this does not report 0 for "none" (RFC-0.34-002 D4).
 pub fn current_task_index() -> Option<usize> {
-    // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
     sched.current().map(|id| id.index as usize)
 }
 
 pub fn current_task_idx() -> usize {
-    // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
     sched.current().map(|id| id.index as usize).unwrap_or(0)
 }

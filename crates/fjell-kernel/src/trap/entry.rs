@@ -45,8 +45,11 @@ pub unsafe fn init_trap() {
 ///  11. Retrieve user_t5  from scratch[4]; save as gpr[30]  ✓  (fixed)
 ///  12. Retrieve user_t6  from scratch[3]; save as gpr[31]  ✓
 #[cfg(target_arch = "riscv64")]
+// SAFETY: category=symbol-export `supervisor_trap_entry` is the `stvec` target the trap-init code installs by name; on riscv64 this is its only definition (the host stub below is cfg'd out).
 #[unsafe(no_mangle)]
+// SAFETY: category=symbol-export a naked function has no compiler-generated prologue or epilogue: the `naked_asm!` body is the whole function and itself saves and restores every register it uses and ends in `sret`.
 #[unsafe(naked)]
+// SAFETY: category=csr-asm the trap entry stub: it runs with the interrupted task's registers live, saves them to the trap frame through `sscratch`, calls `trap_dispatch`, restores and returns with `sret`.
 unsafe extern "C" fn supervisor_trap_entry() {
     core::arch::naked_asm!(
         // ── Save phase ───────────────────────────────────────────────────
@@ -163,6 +166,7 @@ unsafe extern "C" fn supervisor_trap_entry() {
 
 /// Host stub.
 #[cfg(not(target_arch = "riscv64"))]
+// SAFETY: category=raw-pointer-deref the host-build stub: its body is `unimplemented!`, so it dereferences nothing; `unsafe` only to match the riscv64 signature.
 unsafe extern "C" fn supervisor_trap_entry() {
     unimplemented!()
 }

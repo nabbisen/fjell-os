@@ -43,6 +43,7 @@ const UART_RBR: usize = 0;
 const UART_LSR: usize = 5;
 const LSR_DATA_READY: u8 = 0b0000_0001;
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     sys_debug_writeln("driver-uart: starting");

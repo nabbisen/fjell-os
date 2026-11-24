@@ -22,6 +22,7 @@ use fjell_syscall::{sys_debug_writeln, sys_ipc_send, sys_yield};
 /// A tag whose word count (bits 16..23) is 255: the kernel refuses it as `MsgTooLong` once the capability is accepted.
 const INVALID_TAG: usize = 0xFF << 16;
 
+// SAFETY: category=symbol-export `service_main` is this service's entry symbol, tail-called by `_start` in rt.rs; no other item in the image exports the name.
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     let mut reported = false;

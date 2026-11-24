@@ -15,275 +15,15 @@
 //! unrecognised argument now exits 2 with the usage; `--help`/`-h` prints
 //! it and exits 0.
 
+mod audit;
+mod exempt;
+
+use audit::{Analysis, Category, Exemption, analyse};
 use std::{
     env, fs, io,
     path::{Path, PathBuf},
     process,
 };
-
-/// Known unsafe site categories (RFC-v0.7.5-001 / W-H-05).
-///
-/// Every unsafe block MUST name its category in the SAFETY comment:
-///   `// SAFETY: category=<known-name>`
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum UnsafeCategory {
-    RawPointerDeref,
-    PageTableMutation,
-    CsrAsm,
-    MmioAccess,
-    PhysIdMapAssumption,
-    KernelGlobalMutable,
-    UserCopy,
-    Unknown, // category= present but not a recognised name
-    Missing, // no category= tag at all
-}
-
-impl UnsafeCategory {
-    fn from_str(s: &str) -> Self {
-        match s.trim() {
-            "raw-pointer-deref" => Self::RawPointerDeref,
-            "page-table-mutation" => Self::PageTableMutation,
-            "csr-asm" => Self::CsrAsm,
-            "mmio-access" => Self::MmioAccess,
-            "phys-id-map-assumption" => Self::PhysIdMapAssumption,
-            "kernel-global-mutable" => Self::KernelGlobalMutable,
-            "user-copy" => Self::UserCopy,
-            _ => Self::Unknown,
-        }
-    }
-
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::RawPointerDeref => "raw-pointer-deref",
-            Self::PageTableMutation => "page-table-mutation",
-            Self::CsrAsm => "csr-asm",
-            Self::MmioAccess => "mmio-access",
-            Self::PhysIdMapAssumption => "phys-id-map-assumption",
-            Self::KernelGlobalMutable => "kernel-global-mutable",
-            Self::UserCopy => "user-copy",
-            Self::Unknown => "unknown",
-            Self::Missing => "missing",
-        }
-    }
-
-    fn is_valid(self) -> bool {
-        !matches!(self, Self::Unknown | Self::Missing)
-    }
-}
-
-#[derive(Debug)]
-struct UnsafeRecord {
-    file: String,
-    line: u32,
-    kind: UnsafeKind,
-    has_safety: bool,
-    safety_text: String,
-    category: UnsafeCategory,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum UnsafeKind {
-    Block,
-    Fn,
-    Impl,
-    Trait,
-}
-
-impl UnsafeKind {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Block => "block",
-            Self::Fn => "fn",
-            Self::Impl => "impl",
-            Self::Trait => "trait",
-        }
-    }
-}
-
-// ── Scanner ───────────────────────────────────────────────────────────────────
-
-/// RFC 060 — strip string-literal regions and line comments from a single
-/// source line so the substring scanner does not flag `"unsafe {"` inside a
-/// Rust string or a `// comment about unsafe {` as a real unsafe site.
-/// Line-local; multi-line strings and `/* … */` block comments are out of
-/// scope.
-fn strip_string_literals(line: &str) -> String {
-    let mut out = String::with_capacity(line.len());
-    let bytes = line.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i] as char;
-        // Line comment: `// …` — drop the rest of the line.
-        if c == '/' && i + 1 < bytes.len() && bytes[i + 1] == b'/' {
-            break;
-        }
-        // Raw string: r"…" or r#"…"# (any number of #)
-        if c == 'r' && i + 1 < bytes.len() && (bytes[i + 1] == b'"' || bytes[i + 1] == b'#') {
-            let mut j = i + 1;
-            let mut hashes = 0;
-            while j < bytes.len() && bytes[j] == b'#' {
-                hashes += 1;
-                j += 1;
-            }
-            if j < bytes.len() && bytes[j] == b'"' {
-                // skip body until closing `"` followed by `hashes` `#`s
-                j += 1;
-                while j < bytes.len() {
-                    if bytes[j] == b'"' {
-                        let mut k = j + 1;
-                        let mut matched = 0;
-                        while matched < hashes && k < bytes.len() && bytes[k] == b'#' {
-                            matched += 1;
-                            k += 1;
-                        }
-                        if matched == hashes {
-                            j = k;
-                            break;
-                        }
-                    }
-                    j += 1;
-                }
-                i = j;
-                continue;
-            }
-            // not a real raw string, fall through
-        }
-        // Normal string: "…"
-        if c == '"' {
-            let mut j = i + 1;
-            while j < bytes.len() {
-                if bytes[j] == b'\\' && j + 1 < bytes.len() {
-                    j += 2;
-                    continue;
-                }
-                if bytes[j] == b'"' {
-                    j += 1;
-                    break;
-                }
-                j += 1;
-            }
-            i = j;
-            continue;
-        }
-        out.push(c);
-        i += 1;
-    }
-    out
-}
-
-fn scan_file(path: &Path, records: &mut Vec<UnsafeRecord>) -> io::Result<()> {
-    let content = fs::read_to_string(path)?;
-    let lines: Vec<&str> = content.lines().collect();
-
-    for (idx, line) in lines.iter().enumerate() {
-        // RFC 060: classify on a copy with string literals stripped so the
-        // scanner's own pattern strings and test-fixture strings do not
-        // register as unsafe sites.
-        let stripped = strip_string_literals(line);
-        let trimmed = stripped.trim();
-
-        let kind = if trimmed.contains("unsafe {") || trimmed.starts_with("unsafe {") {
-            Some(UnsafeKind::Block)
-        } else if trimmed.contains("unsafe fn ") {
-            Some(UnsafeKind::Fn)
-        } else if trimmed.contains("unsafe impl ") {
-            Some(UnsafeKind::Impl)
-        } else if trimmed.contains("unsafe trait ") {
-            Some(UnsafeKind::Trait)
-        } else {
-            None
-        };
-
-        if let Some(kind) = kind {
-            // Search preceding 12 lines for `// SAFETY:` and `category=`.
-            let search_from = idx.saturating_sub(12);
-            let (has_safety, safety_text) = find_safety_comment(&lines[search_from..idx]);
-            let category = if has_safety {
-                extract_category(&safety_text)
-            } else {
-                UnsafeCategory::Missing
-            };
-
-            records.push(UnsafeRecord {
-                file: path.display().to_string(),
-                line: (idx + 1) as u32,
-                kind,
-                has_safety,
-                safety_text,
-                category,
-            });
-        }
-    }
-    Ok(())
-}
-
-fn find_safety_comment(preceding: &[&str]) -> (bool, String) {
-    // Scan backwards looking for // SAFETY:
-    let mut in_safety = false;
-    let mut safety_lines: Vec<&str> = Vec::new();
-
-    for line in preceding.iter().rev() {
-        let t = line.trim();
-        if t.starts_with("// SAFETY:") {
-            safety_lines.push(t);
-            in_safety = true;
-            break;
-        }
-        // Continuation comment lines before the SAFETY tag
-        if in_safety && t.starts_with("//") {
-            safety_lines.push(t);
-            continue;
-        }
-        if t.is_empty() || (!t.starts_with("//") && !t.starts_with('#')) {
-            break;
-        }
-    }
-
-    if !in_safety && safety_lines.is_empty() {
-        // Try simpler scan
-        for line in preceding.iter().rev() {
-            let t = line.trim();
-            if t.contains("// SAFETY:") || t.starts_with("// SAFETY:") {
-                let text = t.to_string();
-                return (true, text);
-            }
-            if t.is_empty() {
-                break;
-            }
-            if !t.starts_with("//") && !t.starts_with('#') {
-                break;
-            }
-        }
-        return (false, String::new());
-    }
-
-    safety_lines.reverse();
-    let text = safety_lines.join(" ");
-    (true, text)
-}
-
-/// Extract category from a SAFETY comment (RFC-v0.7.5-001).
-///
-/// RFC-0.29-002 R3/D1: the delimiter set used to be whitespace/comma only,
-/// so `category=csr-asm; <explanation>` split at the space *after* the
-/// semicolon, yielding `"csr-asm;"` (semicolon attached) — not a name
-/// `UnsafeCategory::from_str` recognises, so a validly-tagged site silently
-/// read as `Unknown`. Semicolon is a legitimate clause separator in prose
-/// following the tag (see the many real `// SAFETY: category=X; ...`
-/// comments in this workspace); it belongs in the delimiter set with
-/// whitespace and comma, not excluded from it.
-fn extract_category(safety_text: &str) -> UnsafeCategory {
-    // Look for "category=<name>" anywhere in the text
-    if let Some(pos) = safety_text.find("category=") {
-        let rest = &safety_text[pos + "category=".len()..];
-        let name = rest
-            .split(|c: char| c.is_whitespace() || c == ',' || c == ';')
-            .next()
-            .unwrap_or("");
-        return UnsafeCategory::from_str(name);
-    }
-    UnsafeCategory::Missing
-}
 
 // ── Scope discovery (RFC-0.28-005 D1) ──────────────────────────────────────────
 
@@ -297,20 +37,54 @@ fn extract_category(safety_text: &str) -> UnsafeCategory {
 ///
 /// The derived answer: everything git considers part of this working
 /// copy — tracked files, plus untracked files `.gitignore` does not
-/// exclude (`git ls-files --cached --others --exclude-standard`). A new,
-/// uncommitted `.rs` file is still audited; a scratch checkout under
-/// `.git-exclude/` (ignored via `.gitignore`'s `/.git-exclude/` entry) or
-/// `target/` (ignored via the same file) is not — with zero enumerated
-/// name anywhere in this tool.
+/// exclude. A new, uncommitted `.rs` file is still audited; a scratch
+/// checkout under `.git-exclude/` or `target/` is not — with zero enumerated
+/// name anywhere in this tool. The question "which files count as this
+/// repository" is answered in one place (`fjell-repo-scope`, 0.46 small item B / E-125).
 fn discover_rs_files(root: &Path) -> io::Result<Vec<PathBuf>> {
-    // The question "which files count as this repository" is answered in one place
-    // (`fjell-repo-scope`, 0.46 small item B / E-125), not re-derived per tool.
     fjell_repo_scope::files_with_extension(root, fjell_repo_scope::Scope::Working, "rs")
+}
+
+/// `[workspace.package] version` from the root `Cargo.toml`; a seeded exemption is refused once the workspace is past its milestone.
+fn workspace_version(root: &Path) -> String {
+    let text = fs::read_to_string(root.join("Cargo.toml")).unwrap_or_default();
+    let mut in_table = false;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_table = t == "[workspace.package]";
+            continue;
+        }
+        if in_table && let Some(rest) = t.strip_prefix("version") {
+            return rest
+                .trim_start()
+                .trim_start_matches('=')
+                .trim()
+                .trim_matches('"')
+                .to_string();
+        }
+    }
+    String::new()
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-const USAGE: &str = "Usage: fjell-unsafe-audit [--root <path>] [--json] [--check]\n       fjell-unsafe-audit --help | -h";
+const USAGE: &str = "Usage: fjell-unsafe-audit [--root <path>] [--json] [--check] [--print-exemptions]\n       fjell-unsafe-audit --help | -h";
+
+/// What a green means, and does not. **Pinned by a test**: the overstatement this line exists to remove must not be editable back in.
+pub fn pass_line(a: &Analysis) -> String {
+    let permanent = a.exemptions_total - a.seeded;
+    format!(
+        "unsafe-audit: PASS ({} sites; every one has its own SAFETY comment and a category its body or its callees support -- {} judged against a shape, {} with no body to judge (impl, trait, extern block, attribute) judged only on having a comment and a valid tag; \
+         {} exempted, of which {} are seeded awaiting a sweep and {} permanent -- an exempted site is UNJUDGED. This does NOT check that any comment's prose is true: a green means a tag is not contradicted, not that a justification is correct)",
+        a.sites.len(),
+        a.judged,
+        a.bodyless,
+        a.exemptions_total,
+        a.seeded,
+        permanent
+    )
+}
 
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
@@ -323,6 +97,7 @@ fn main() {
     let mut root = PathBuf::from(".");
     let mut json = false;
     let mut check = false;
+    let mut print_ex = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -335,6 +110,7 @@ fn main() {
             }
             "--json" => json = true,
             "--check" => check = true,
+            "--print-exemptions" => print_ex = true,
             other => {
                 eprintln!("fjell-unsafe-audit: unrecognised argument: {other}");
                 eprintln!("{USAGE}");
@@ -344,44 +120,82 @@ fn main() {
         i += 1;
     }
 
-    let files = match discover_rs_files(&root) {
+    let paths = match discover_rs_files(&root) {
         Ok(f) => f,
         Err(e) => {
             eprintln!("fjell-unsafe-audit: {e}");
             process::exit(2);
         }
     };
-    let mut records = Vec::new();
-    for f in &files {
-        if let Err(e) = scan_file(f, &mut records) {
-            eprintln!("fjell-unsafe-audit: scan error on {}: {e}", f.display());
-            process::exit(2);
+    let mut files: Vec<(String, String)> = Vec::new();
+    for f in &paths {
+        match fs::read_to_string(f) {
+            Ok(t) => files.push((f.display().to_string().replace('\\', "/"), t)),
+            Err(e) => {
+                eprintln!("fjell-unsafe-audit: scan error on {}: {e}", f.display());
+                process::exit(2);
+            }
         }
     }
+    let exemptions: Vec<Exemption> = exempt::exemptions();
+    let a = analyse(&files, &exemptions, &workspace_version(&root));
 
-    let total = records.len();
-    let missing = records.iter().filter(|r| !r.has_safety).count();
+    let total = a.sites.len();
+    let missing = a.sites.iter().filter(|s| s.comment.is_none()).count();
     let covered = total - missing;
-    let valid_cats = records
+    let valid_cats = a
+        .sites
         .iter()
-        .filter(|r| r.has_safety && r.category.is_valid())
+        .filter(|s| s.comment.is_some() && s.has_category && s.unknown_tags.is_empty())
         .count();
-    let missing_cats = records
+    let missing_cats = a
+        .sites
         .iter()
-        .filter(|r| r.has_safety && !r.category.is_valid())
+        .filter(|s| s.comment.is_some() && (!s.has_category || !s.unknown_tags.is_empty()))
         .count();
+
+    if print_ex {
+        // The unsupported, un-exempted sites as `Exemption` literals, to seed the list. A seeded entry is a debt, not a finding settled.
+        for s in a
+            .sites
+            .iter()
+            .filter(|s| !s.unsupported.is_empty() && s.exempt.is_none())
+        {
+            println!(
+                "    Exemption {{ file: \"{}\", scope: \"{}\", n: {}, kind: SEEDED, reason: \"awaiting RFC-0.48-001's sweep: tagged {} on a body showing {}\" }},",
+                s.file,
+                s.scope,
+                s.n,
+                s.unsupported
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>()
+                    .join(","),
+                s.kind.as_str()
+            );
+        }
+        return;
+    }
 
     if json {
-        for r in &records {
+        for s in &a.sites {
+            let text = s.comment.clone().unwrap_or_default();
             println!(
-                r#"{{"file":"{f}","line":{l},"kind":"{k}","has_safety":{s},"category":"{cat}","category_valid":{cv},"safety_text":"{t}"}}"#,
-                f = r.file.replace('\\', "/"),
-                l = r.line,
-                k = r.kind.as_str(),
-                s = r.has_safety,
-                cat = r.category.as_str(),
-                cv = r.has_safety && r.category.is_valid(),
-                t = r.safety_text.replace('"', "\\\""),
+                r#"{{"file":"{f}","line":{l},"kind":"{k}","has_safety":{h},"category":"{cat}","category_valid":{cv},"supported":{sup},"exempt":{ex},"safety_text":"{t}"}}"#,
+                f = s.file.replace('\\', "/"),
+                l = s.line,
+                k = s.kind.as_str(),
+                h = s.comment.is_some(),
+                cat = s
+                    .tags
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect::<Vec<_>>()
+                    .join(","),
+                cv = s.comment.is_some() && s.has_category && s.unknown_tags.is_empty(),
+                sup = s.unsupported.is_empty(),
+                ex = s.exempt.is_some(),
+                t = text.replace('"', "\\\""),
             );
         }
     } else {
@@ -393,186 +207,59 @@ fn main() {
             println!("  MISSING/UNKNOWN category: {missing_cats}");
         }
         println!("  missing comment    : {missing}");
-        if missing > 0 {
+        println!(
+            "  exempted           : {} (seeded {}, permanent {})",
+            a.exemptions_total,
+            a.seeded,
+            a.exemptions_total - a.seeded
+        );
+        if !a.problems.is_empty() {
             println!();
-            println!("MISSING SAFETY comments:");
-            for r in records.iter().filter(|r| !r.has_safety) {
-                println!("  {}:{} [{}]", r.file, r.line, r.kind.as_str());
+            println!("PROBLEMS ({}):", a.problems.len());
+            for p in &a.problems {
+                println!("  {p}");
             }
+        } else {
+            println!();
+            println!("{}", pass_line(&a));
         }
     }
 
-    if check && (missing > 0 || missing_cats > 0) {
+    if check && !a.problems.is_empty() {
         process::exit(1);
     }
+    let _ = Category::CsrAsm; // keep the public enum referenced from main for the JSON writer's sake
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile_helper::TmpFile;
 
-    // Minimal file-write helper (no external dep).
-    mod tempfile_helper {
-        use std::{fs, path::PathBuf};
-        pub struct TmpFile(pub PathBuf);
-        impl TmpFile {
-            pub fn write(name: &str, content: &str) -> Self {
-                let p = std::env::temp_dir().join(name);
-                fs::write(&p, content).unwrap();
-                Self(p)
-            }
-        }
-        impl Drop for TmpFile {
-            fn drop(&mut self) {
-                let _ = fs::remove_file(&self.0);
-            }
-        }
-    }
-
+    /// The sentence that says what a green is not. **Pinned**: the overstatement RFC-0.48-002 exists to remove -- "N sites, all
+    /// annotated" read as "every justification is true" -- must not be editable back in.
     #[test]
-    fn detects_unsafe_block_with_safety() {
-        let f = TmpFile::write(
-            "audit_test_1.rs",
-            "// SAFETY: category=raw-pointer-deref pointer is valid for the lifetime of the borrow.\nunsafe { *ptr }\n",
-        );
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 1);
-        assert!(recs[0].has_safety, "should detect SAFETY comment");
-    }
-
-    #[test]
-    fn detects_unsafe_block_missing_safety() {
-        let f = TmpFile::write("audit_test_2.rs", "unsafe { *ptr }\n");
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 1);
-        assert!(!recs[0].has_safety, "no SAFETY comment → missing");
-    }
-
-    #[test]
-    fn detects_unsafe_fn() {
-        let f = TmpFile::write(
-            "audit_test_3.rs",
-            "// SAFETY: category=raw-pointer-deref caller ensures alignment.\npub unsafe fn raw_write(ptr: *mut u8) {}\n",
-        );
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 1);
-        assert_eq!(recs[0].kind, UnsafeKind::Fn);
-        assert!(recs[0].has_safety);
-    }
-
-    #[test]
-    fn skips_non_rust_files() {
-        let p = std::env::temp_dir().join("audit_test_4.txt");
-        std::fs::write(&p, "unsafe { }").unwrap();
-        let mut recs = vec![];
-        scan_file(&p, &mut recs).unwrap();
-        // scan_file itself doesn't filter extension — it's called after walk filter.
-        // Walk skips non-.rs files; test that scanning a .txt still "works" (finds
-        // the pattern but the walk would never call it).
-        let _ = recs;
-        std::fs::remove_file(&p).ok();
-    }
-
-    #[test]
-    fn empty_file_produces_no_records() {
-        let f = TmpFile::write("audit_test_5.rs", "// pure safe Rust\nfn main() {}\n");
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 0);
-    }
-
-    #[test]
-    fn safety_comment_up_to_four_lines_above() {
-        let src = "// SAFETY: category=raw-pointer-deref invariant holds.\n// other comment\n// another\n// and another\nunsafe { }\n";
-        let f = TmpFile::write("audit_test_6.rs", src);
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 1);
-        assert!(recs[0].has_safety, "SAFETY 4 lines above should be found");
-    }
-
-    #[test]
-    fn safety_far_above_within_window_found() {
-        // Production lookback window is 12 lines; SAFETY 5 lines above
-        // is within the window and must be found.
-        let src = "// SAFETY: category=raw-pointer-deref within window.\n// a\n// b\n// c\n// d\nunsafe { }\n";
-        let f = TmpFile::write("audit_test_7.rs", src);
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 1);
+    fn the_pass_line_says_it_does_not_check_the_prose_and_counts_exemptions_apart() {
+        let a = Analysis {
+            exemptions_total: 5,
+            seeded: 2,
+            judged: 10,
+            bodyless: 3,
+            ..Default::default()
+        };
+        let l = pass_line(&a);
         assert!(
-            recs[0].has_safety,
-            "SAFETY 5 lines above should be found (12-line window)"
+            l.contains("does NOT check that any comment's prose is true"),
+            "{l}"
         );
-    }
-
-    /// RFC-0.29-002 R3 required demonstration: the input the old
-    /// whitespace/comma-only delimiter set missed. `rest.split(|c|
-    /// c.is_whitespace() || c == ',')` on `"csr-asm; the AES
-    /// implementation..."` split at the space *after* the semicolon,
-    /// yielding `"csr-asm;"` (semicolon attached) — not a name
-    /// `UnsafeCategory::from_str` recognises, so this silently read as
-    /// `Unknown`. Confirmed against the real category text this project
-    /// already carries (`fjell-sxt-crypto`'s AES implementation).
-    #[test]
-    fn category_with_semicolon_clause_is_recognised() {
-        assert_eq!(
-            extract_category("category=csr-asm; the AES implementation uses a lookup table"),
-            UnsafeCategory::CsrAsm
+        assert!(l.contains("an exempted site is UNJUDGED"), "{l}");
+        assert!(
+            l.contains("of which 2 are seeded awaiting a sweep and 3 permanent"),
+            "{l}"
         );
-    }
-
-    #[test]
-    fn category_extraction_still_splits_on_comma_and_whitespace() {
-        assert_eq!(
-            extract_category("category=mmio-access, ordering verified"),
-            UnsafeCategory::MmioAccess
+        assert!(
+            l.contains("not a justification is correct")
+                || l.contains("not that a justification is correct"),
+            "{l}"
         );
-        assert_eq!(
-            extract_category("category=user-copy checked at the boundary"),
-            UnsafeCategory::UserCopy
-        );
-    }
-
-    #[test]
-    fn multiple_unsafe_sites_per_file() {
-        let src =
-            "// SAFETY: category=raw-pointer-deref ok\nunsafe { a() }\nfn x() {}\nunsafe { b() }\n";
-        let f = TmpFile::write("audit_test_8.rs", src);
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 2);
-        assert!(recs[0].has_safety);
-        assert!(!recs[1].has_safety, "second site has no SAFETY comment");
-    }
-
-    // RFC 060: `unsafe {` inside a string literal must not be classified.
-    #[test]
-    fn unsafe_inside_string_literal_not_counted() {
-        let src = "let s = \"unsafe { foo }\";\n// SAFETY: category=raw-pointer-deref real one\nunsafe { real() }\n";
-        let f = TmpFile::write("audit_test_9.rs", src);
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(
-            recs.len(),
-            1,
-            "only the real unsafe is counted, not the string"
-        );
-        assert!(recs[0].has_safety);
-        assert_eq!(recs[0].line, 3);
-    }
-
-    // RFC 060: `unsafe fn` inside string also ignored; raw strings handled.
-    #[test]
-    fn unsafe_inside_raw_string_not_counted() {
-        let src = "let s = r#\"unsafe fn x() {}\"#;\nfn ordinary() {}\n";
-        let f = TmpFile::write("audit_test_10.rs", src);
-        let mut recs = vec![];
-        scan_file(&f.0, &mut recs).unwrap();
-        assert_eq!(recs.len(), 0);
     }
 }
