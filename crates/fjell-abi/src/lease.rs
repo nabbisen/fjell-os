@@ -152,6 +152,25 @@ pub fn lease_alloc(slots: &[SlotView], cursor: usize) -> Alloc {
     Alloc::Full
 }
 
+/// The lease table's capacity (RFC-0.48-001 R3: **128**, was 32).
+///
+/// **Why 128, in numbers.** Every task a boot or a restart creates holds one *boot lease* (R1), so the table must hold
+/// every live task's lease **and** leave a delegator its full per-owner quota: at 40 tasks and a 16-lease quota that is
+/// 56, and 128 is the next power of two with headroom for the broker's per-requester grants. At 32 the table is
+/// exhausted by boot before the first delegation (measured: 31 holders at boot, peak 17 live leases from runtime use).
+/// **What a larger table costs:** a `LeaseObject` is 12 bytes, so 128 slots is 1.5 KiB, and **no proof obligation** --
+/// `verification/verus/lease/lease_epoch.rs` contains no capacity reasoning (no table length, no slot count), and
+/// `fjell_abi::lease::lease_alloc` takes a slice. **What it buys:** *coverage* -- lease revocation reaches what boot
+/// granted. It does **not** buy recursive revocation for copies, and it does not reclaim an MMIO mapping.
+pub const MAX_LEASES: usize = 128;
+
+/// The most `Active` leases one task may own (RFC-0.46-001 R-Q). **The property, not the number:** no
+/// single owner can deny the lease table to everyone else. Half the table achieves it and leaves half
+/// for every other task; any defensible bound does. Before this, one task holding a `LeaseAdmin` could
+/// take every slot and then *every other task's* `sys_lease_create` failed -- reachable from a
+/// production path the moment `cap-broker` began creating one lease per grant request (E-110).
+pub const MAX_LEASES_PER_OWNER: usize = 16;
+
 /// Per-owner bound (RFC-0.46-001 R-Q): an owner holding `owned_active` `Active` leases may create
 /// another only while that is below `limit`.
 #[inline]

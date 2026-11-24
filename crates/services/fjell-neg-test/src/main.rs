@@ -32,7 +32,7 @@ use fjell_syscall::{
     sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call,
     sys_ipc_call_words, sys_ipc_recv, sys_ipc_recv_msg, sys_ipc_send, sys_ipc_try_recv,
     sys_lease_create, sys_lease_inspect, sys_lease_revoke, sys_mmio_map, sys_reboot,
-    sys_task_spawn, sys_task_start, sys_task_status, sys_yield,
+    sys_task_spawn_leased, sys_task_start, sys_task_status, sys_yield,
 };
 
 // ── CSpace slot constants for this service ────────────────────────────────────
@@ -1346,20 +1346,33 @@ fn test_policy_unmapped_class_refused() {
 // Run after the audit section: each revocation is an audit record, and the audit scenarios assume a ring
 // that has not been flooded.
 
-/// A bound on how many create/revoke cycles any scenario below will attempt. Larger than the table, so a
-/// table that never recycles fails inside it; the scenarios do not know the table's size.
-const LEASE_CYCLE_BOUND: usize = 100;
+/// A bound on how many create/revoke cycles any scenario below will attempt: **the table's capacity plus a margin**,
+/// derived from `fjell_abi::lease::MAX_LEASES` and not a second literal (RFC-0.48-001 D1 condition i). Allocation
+/// takes a never-used slot while any exists and reclaims a revoked one only when none is left, so a scenario that
+/// cycles *fewer* times than the table has slots never reaches reclamation at all and **passes having tested
+/// nothing**: the literals this replaced (100 and 40) were chosen against a 32-slot table, and the day the table grew to
+/// 128 they would have kept every marker green while exercising none of it. A table that never recycles fails inside
+/// this bound; one that does is observed doing so.
+const LEASE_CYCLE_BOUND: usize = fjell_abi::lease::MAX_LEASES + 8;
 
-/// Cycles the recycling scenario runs: more than the 32 slots (`MAX_LEASES`) the table has, so a table
-/// that never recycled would fail inside it.
-const RECYCLE_CYCLES: usize = 40;
+/// Cycles the recycling scenario runs: past the capacity, so reclamation must have happened for every create to succeed.
+const RECYCLE_CYCLES: usize = fjell_abi::lease::MAX_LEASES + 8;
 
 /// Yield long enough for `auditd` to print what the last revocation queued. Every revoke is an audit
 /// record and the ring holds 256: a scenario that revokes in a tight loop overflows it, `auditd` then
 /// prints a second `{"gap":...}` notice, and the `audit` profile's accounting check (which expects one,
 /// for the burst) reads it as misplaced -- the first version of this block did exactly that.
+///
+/// **Sized by what a cycle costs, not by a round number (RFC-0.48-001).** A revocation queues *two* records
+/// (`lease.revoked` and the `ipc.denied` the cancellation of blocked callers appends), and `auditd` prints them a byte at
+/// a time through the debug syscall, so draining one cycle takes on the order of a hundred yields. 60 was enough for the
+/// 72 cycles a 32-slot table needed to reach reclamation (144 records -- *less than the ring*, so it never overflowed
+/// whatever the pace); the 128-slot table needs ~270 cycles (540 records), and at 60 the ring overflowed *inside* the
+/// scenario and the audit profile's accounting check correctly refused the extra gap notices.
+const AUDITD_KEEP_UP_YIELDS: u32 = 160;
+
 fn let_auditd_keep_up() {
-    for _ in 0..60 {
+    for _ in 0..AUDITD_KEEP_UP_YIELDS {
         sys_yield();
     }
 }
@@ -1446,6 +1459,31 @@ fn test_lease_stale_binding_stays_revoked() {
         slot_reused && still_revoked,
         M::LEASE_STALE_BINDING_STAYS_REVOKED,
     );
+}
+
+/// `sys_lease_inspect` returns the epoch -- and an id is not an epoch. A fresh lease reads some epoch `e` (not its own id
+/// unless that is a coincidence the second half rules out), and after `sys_lease_revoke` it reads exactly `e + 1`. This
+/// is what makes the other scenarios' *"the epoch is exactly as it was"* able to fail (0.48: they compared the lease id
+/// with itself, because the kernel never wrote the register the wrapper reads).
+fn test_lease_inspect_reports_the_epoch() {
+    let l = match sys_lease_create(SLOT_LEASE_ADMIN, 0) {
+        Ok(l) => l,
+        Err(_) => {
+            setup_failed("inspect_epoch: lease_create");
+            return;
+        }
+    };
+    let before = sys_lease_inspect(SLOT_LEASE_ADMIN, l);
+    let revoked = sys_lease_revoke(SLOT_LEASE_ADMIN, l);
+    let after = sys_lease_inspect(SLOT_LEASE_ADMIN, l);
+    match (before, revoked, after) {
+        (Ok(b), Ok(_), Ok(a)) if a.0 == b.0 + 1 => {
+            sys_debug_writeln(M::LEASE_INSPECT_REPORTS_EPOCH)
+        }
+        (Ok(_), Ok(_), Ok(_)) => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+        _ => setup_failed("inspect_epoch: inspect or revoke"),
+    }
+    let_auditd_keep_up();
 }
 
 /// R-Q: an owner is refused by its quota before it takes the table, with the quota's own error, and
@@ -1719,9 +1757,10 @@ fn test_audit_overflow_is_reported() {
 fn test_svc_start_timeout() {
     const READY_WAIT_YIELDS: u32 = 20;
 
-    // Spawn the timeout-test service.
-    let handle = match sys_task_spawn(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
-        Ok(h) => h,
+    // Spawn the timeout-test service. RFC-0.48-001: the kernel also hands back the new task's **boot lease**, which this
+    // task now owns (it asked for the spawn), and which every capability the child was granted is bound to.
+    let (handle, boot_lease) = match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
+        Ok(r) => r,
         Err(_) => {
             setup_failed("svc_timeout: spawn");
             return;
@@ -1750,19 +1789,42 @@ fn test_svc_start_timeout() {
         }
         _ => {} // already exited/faulted before timeout window — skip
     }
+
+    // RFC-0.48-001 -- **the boot lease, taken back by its owner with no exception right.** `SLOT_LEASE_ADMIN` (slot 4)
+    // holds `LEASE_REVOKE` and *not* `LEASE_REVOKE_ANY` (that is slot 27, which this call does not use), so this succeeds
+    // only because `neg-test` owns the lease it was handed -- 0.46-003's ownership rule, applied to a boot lease. The
+    // child, which has been probing its one boot capability through the funnel all along, then sees `LeaseRevoked` and
+    // says so; that line is the evidence the capability stopped working, and this one that the revoke was permitted.
+    match sys_lease_revoke(SLOT_LEASE_ADMIN, boot_lease) {
+        Ok(_) => sys_debug_writeln(M::BOOTLEASE_OWNER_REVOKE_OK),
+        Err(_) => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+    }
+    for _ in 0..BOOT_REVOKE_WAIT_YIELDS {
+        sys_yield();
+    }
 }
+
+/// How long the spawner waits for the child to notice its revoked boot capability (cooperative yields).
+const BOOT_REVOKE_WAIT_YIELDS: u32 = 200;
 
 /// SVC: spawn svc-fault; wait for it to fault; detect via task status.
 ///
 /// svc-fault yields once then dereferences NULL → page fault →
 /// `TaskState::Faulted`.  neg-test detects this and emits the marker.
 fn test_svc_fault_detected() {
-    let handle = match sys_task_spawn(SLOT_TASK_CREATE, ImageId::SVC_FAULT) {
-        Ok(h) => h,
+    let (handle, boot_lease) = match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_FAULT) {
+        Ok(r) => r,
         Err(_) => {
             setup_failed("svc_fault: spawn");
             return;
         }
+    };
+    // The lease's epoch **now**, before the child runs: a slot reclaimed from an earlier lease continues that lease's
+    // epoch, so its value is not 1 and "has moved past 1" would prove nothing (the first version of the check below said
+    // exactly that and stayed green with the kernel's revoke removed). What is proved is that it *moved*.
+    let Ok(epoch_before) = sys_lease_inspect(SLOT_LEASE_ADMIN, boot_lease) else {
+        setup_failed("svc_fault: inspect the boot lease before the child runs");
+        return;
     };
     if sys_task_start(SLOT_TASK_CONTROL, handle, 0, 0).is_err() {
         setup_failed("svc_fault: start");
@@ -1789,6 +1851,18 @@ fn test_svc_fault_detected() {
     // Check: task is Faulted.
     if faulted {
         check(true, M::SVC_FAULT);
+
+        // RFC-0.48-001 R4 -- **a boot lease ends with its subject.** The lease is owned by *this* task (the spawner), so
+        // `revoke_owned_by` would never find it when the child dies; the kernel records it in the child's TCB and revokes it
+        // on fault. This task did **not** revoke it, so a lease epoch that has moved past its value at spawn is the
+        // kernel's doing -- and without it every service restart would leak a slot for ever (the exhaustion 0.46-001 closed).
+        match sys_lease_inspect(SLOT_LEASE_ADMIN, boot_lease) {
+            Ok(epoch) if epoch.0 > epoch_before.0 => {
+                sys_debug_writeln(M::BOOTLEASE_ENDS_WITH_SUBJECT)
+            }
+            Ok(_) => sys_debug_writeln("NEG:HARNESS:WRONG_ERROR"),
+            Err(_) => setup_failed("svc_fault: inspect the boot lease"),
+        }
     }
 }
 
@@ -2253,6 +2327,7 @@ pub extern "C" fn service_main() -> ! {
     test_lease_slots_are_recycled();
     test_lease_stale_binding_stays_revoked();
     test_lease_owner_quota();
+    test_lease_inspect_reports_the_epoch();
     test_policy_abandon_loop_bounded();
     test_right_is_checked_before_the_lease();
     test_release_checks_no_authority_and_the_map_is_one();

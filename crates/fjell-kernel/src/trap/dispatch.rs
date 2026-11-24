@@ -303,6 +303,11 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
+                // RFC-0.48-001 R4: and the lease this task's own capabilities are bound to -- owned by its spawner,
+                // so `revoke_owned_by` cannot find it; without this every restart would leak a slot.
+                if let Some(bl) = task.boot_lease.take() {
+                    let _ = lt.revoke(bl);
+                }
                 task.state = TaskState::Exited(code);
                 task.accounting.quantum_violations = 0;
                 AUDIT.lock_free_append(AuditKindInternal::TaskExit, code as usize, 0, 0);
@@ -328,6 +333,10 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 // SAFETY: category=kernel-global-mutable trap frame pointer is valid for the duration of the handler; no aliasing with task state.
                 let lt = unsafe { crate::get_lease_table() };
                 lt.revoke_owned_by(id);
+                // RFC-0.48-001 R4: see the exit path.
+                if let Some(bl) = task.boot_lease.take() {
+                    let _ = lt.revoke(bl);
+                }
                 task.state = TaskState::Faulted(fault);
                 task.accounting.quantum_violations = 0;
                 sched.on_fault();

@@ -61,8 +61,9 @@
 use std::fs;
 use std::process::ExitCode;
 
-mod authority_funnel_gate; // RFC-0.47-001: the subcheck's file-reading half (logic is in the lib)
+mod authority_funnel_gate;
 mod book_structure;
+mod bootstrap_leases_gate; // RFC-0.48-001: the subcheck's file-reading half (logic is in the lib) // RFC-0.47-001: the subcheck's file-reading half (logic is in the lib)
 mod capability_topology;
 mod ci_test_jobs;
 mod citation;
@@ -164,6 +165,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("authority-funnel", authority_funnel_gate::check),
     // 0.48 small item A (E-130): the landing page's accepted/open figures equal the register's.
     ("landing-page", landing_page_gate::check),
+    // RFC-0.48-001: every boot capability is bound to a lease, or classified with a reason.
+    ("bootstrap-leases", bootstrap_leases_gate::check),
 ];
 
 #[cfg(test)]

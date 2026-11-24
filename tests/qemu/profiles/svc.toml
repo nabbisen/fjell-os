@@ -24,5 +24,11 @@ expected_markers = [
   "NEG:SVC:READY_ACCEPTED:PASS",
   "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS",
   "NEG:SVC:FORMERLY_SILENT_READY_OBSERVED:PASS",
+  # RFC-0.48-001: a task's boot lease is revoked by its spawner (no LEASE_REVOKE_ANY), and the child -- probing its one
+  # boot capability through the funnel without delivering anything -- sees LeaseRevoked.
+  "NEG:BOOTLEASE:OWNER_REVOKE_OK:PASS",
+  "NEG:BOOTLEASE:CHILD_SEND_REFUSED_LEASE_REVOKED:PASS",
+  # ... and a boot lease the spawner never revoked ends when its subject faults (the kernel does it).
+  "NEG:BOOTLEASE:ENDS_WITH_SUBJECT_FAULT:PASS",
 ]
 extra_args       = []

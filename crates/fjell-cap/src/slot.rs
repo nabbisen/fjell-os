@@ -11,7 +11,13 @@ use fjell_abi::lease::{LeaseEpoch, LeaseId};
 /// When the owning lease is revoked, `check_lease()` returns `Err(LeaseRevoked)`
 /// because the lease table's current epoch no longer matches `epoch_at_issue`.
 ///
-/// Bootstrap capabilities carry `lease: None`.
+/// **A boot-time capability is bound too (RFC-0.48-001).** The grant *literals* still say `lease: None` -- they are
+/// written before the task exists -- but `spawn()` creates a *boot lease* for each task it creates and binds **every**
+/// capability the task holds to it in one pass, so revoking that lease (the spawner may; the lease also ends with its
+/// subject) makes every funnel-checked use answer `LeaseRevoked`. Until 0.48 this line read *"Bootstrap capabilities carry
+/// `lease: None`"* and was true: a boot grant passed the funnel's lease step for ever and nothing could take it back
+/// (E-093). The exceptions are named, with reasons, and held by the `bootstrap-leases` subcheck: `init`, which creates the
+/// leases, and slot 0 of two fixtures whose job is to bind capabilities themselves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LeaseBinding {
     pub lease_id: LeaseId,

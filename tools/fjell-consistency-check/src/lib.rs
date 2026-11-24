@@ -18,7 +18,8 @@
 /// reading this, so a change moves both or a test fails (RFC-0.33-004 D11).
 pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 
-pub mod authority_funnel; // RFC-0.47-001: no authority check outside the funnel, and no false SAFETY claim about it
+pub mod authority_funnel;
+pub mod bootstrap_leases; // RFC-0.48-001: every boot grant is bound to a lease, or classified with a reason // RFC-0.47-001: no authority check outside the funnel, and no false SAFETY claim about it
 pub mod errata;
 pub mod landing_page; // 0.48 small item A (E-130): the crates.io landing page's errata figures are derived from the register
 pub mod readme_counts;
@@ -67,4 +68,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "rfc-policy",
     "authority-funnel",
     "landing-page",
+    "bootstrap-leases",
 ];

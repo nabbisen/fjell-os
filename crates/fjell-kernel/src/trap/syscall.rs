@@ -464,13 +464,16 @@ pub fn sys_task_spawn(
     let image_id = ImageId(tf.gpr[REG_A1] as u16);
     // SAFETY: category=user-copy all user-supplied pointers are checked against the task address space before dereferencing.
     let fa_ref = unsafe { &mut *fa };
-    match spawn(image_id, table, sched, kernel_root, fa_ref) {
-        Ok(tid) => {
+    // RFC-0.48-001: the new task's boot lease is owned by the caller -- the spawner -- who is told its id.
+    let spawner = crate::task::TaskId::new(tidx as u16, 0);
+    match spawn(image_id, table, sched, kernel_root, fa_ref, spawner) {
+        Ok((tid, boot_lease)) => {
             // RFC 010: encode (index, generation) into a single u32 handle.
             // handle = index | (generation << 16)
             let handle = (tid.index as u32) | ((tid.generation as u32) << 16);
             tf.gpr[REG_A0] = 0; // SysError::Ok
             tf.gpr[REG_A1] = handle as usize; // task handle
+            tf.gpr[REG_A2] = boot_lease.0 as usize; // RFC-0.48-001: the boot lease, which the spawner owns
         }
         Err(e) => {
             tf.gpr[REG_A0] = e as isize as usize;
@@ -702,7 +705,15 @@ pub fn sys_lease_revoke(
     }
 }
 
-/// `sys_lease_inspect(a0=cap_handle, a1=lease_id) -> a0=epoch` — RFC 048.
+/// `sys_lease_inspect(a0=cap_handle, a1=lease_id) -> a0=status, a1=epoch` — RFC 048.
+///
+/// **Corrected at 0.48.** This used to return the epoch in `a0` *as the status*, while the user wrapper
+/// (`fjell_syscall::sys_lease_inspect`) -- like every other syscall -- reads the status from `a0` and the value from
+/// `a1`. `a1` was never written, so the wrapper returned **the lease id it had passed in** as the "epoch", for every
+/// lease, always. Two scenarios compared a lease's epoch before and after an attempted foreign revocation
+/// (`REVOKE_NOT_OWNER_REFUSED`, RFC-0.46-003, and the broker's `REVOKE_FOREIGN_LEASE_REFUSED`) and could not fail on that
+/// half: *before* and *after* were both the id. They passed because the refusal itself (`PermissionDenied`, the broker's
+/// reply) is checked as well; the claim *"the epoch is exactly as it was"* was not.
 pub fn sys_lease_inspect(
     tf: &mut TrapFrame,
     lt: &crate::lease::LeaseTable,
@@ -728,7 +739,8 @@ pub fn sys_lease_inspect(
     }
     match lt.current_epoch(id) {
         Ok(ep) => {
-            tf.gpr[REG_A0] = ep.0 as usize;
+            tf.gpr[REG_A0] = SysError::Ok as isize as usize;
+            tf.gpr[REG_A1] = ep.0 as usize;
         }
         Err(e) => {
             tf.gpr[REG_A0] = e as isize as usize;

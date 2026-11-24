@@ -22,6 +22,9 @@ expected_markers = [
   # RFC-0.46-001 (closes E-110): lease slots are recycled, the generation keeps a stale binding dead, no
   # owner can take the table, and the request-then-abandon loop is bounded.
   "NEG:LEASE:SLOTS_RECYCLED:PASS",
+  # 0.48: lease_inspect reports the EPOCH (a1), and revoke moves it -- the two "epoch exactly as it was" assertions
+  # elsewhere compared an id with itself until the kernel wrote the register the wrapper reads.
+  "NEG:LEASE:INSPECT_REPORTS_EPOCH:PASS",
   "NEG:LEASE:STALE_BINDING_STAYS_REVOKED:PASS",
   "NEG:LEASE:OWNER_QUOTA_ENFORCED:PASS",
   "NEG:LEASE:QUOTA_DOES_NOT_STARVE_OTHERS:PASS",

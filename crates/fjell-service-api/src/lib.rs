@@ -779,6 +779,10 @@ pub mod negative_markers {
 
     // ── lease slots (RFC-0.46-001) ────────────────────────────────────────────
     /// More leases are created and revoked than the table has slots, and every create succeeds; a reused
+    /// `sys_lease_inspect` reports the lease's **epoch** in `a1` (status in `a0`), and revoking a lease moves it. Until 0.48 the kernel
+    /// wrote the epoch to `a0` and left `a1` alone, so the wrapper returned *the lease id it had passed in* as the epoch, and every
+    /// scenario that compared a lease's epoch before and after something compared an id with itself.
+    pub const LEASE_INSPECT_REPORTS_EPOCH: &str = "NEG:LEASE:INSPECT_REPORTS_EPOCH:PASS";
     /// slot's `LeaseId` carries a generation above 0. (Before 0.46 the 33rd create failed.)
     pub const LEASE_SLOTS_RECYCLED: &str = "NEG:LEASE:SLOTS_RECYCLED:PASS";
     /// A capability bound to a lease keeps answering `LeaseRevoked` after that lease's slot was reclaimed
@@ -873,6 +877,15 @@ pub mod negative_markers {
     // ── service separation (RFC 038) ──────────────────────────────────────────
     /// Service-manager detects a service that failed to send READY in time.
     pub const SVC_START_TIMEOUT: &str = "NEG:SVC:START_TIMEOUT_DETECTED:PASS";
+    /// RFC-0.48-001: a task's **boot lease**, owned by its spawner, is revoked by that spawner through a `LeaseAdmin` that has
+    /// `LEASE_REVOKE` and no `LEASE_REVOKE_ANY` -- ownership suffices, no exception right is needed. (The child's own
+    /// line, `NEG:BOOTLEASE:CHILD_SEND_REFUSED_LEASE_REVOKED:PASS`, is printed by `svc-timeout`, which depends on no
+    /// service-api constants, and is the evidence its boot capability stopped working.)
+    pub const BOOTLEASE_OWNER_REVOKE_OK: &str = "NEG:BOOTLEASE:OWNER_REVOKE_OK:PASS";
+    /// RFC-0.48-001 R4: a task's boot lease is revoked **by the kernel when the task ends** (here: faults), though its owner
+    /// -- the spawner -- never revoked it. Without it a lease owned by the spawner outlives its subject and every restart
+    /// consumes a slot.
+    pub const BOOTLEASE_ENDS_WITH_SUBJECT: &str = "NEG:BOOTLEASE:ENDS_WITH_SUBJECT_FAULT:PASS";
     /// Service-manager detects a service fault after READY.
     pub const SVC_READY_ACCEPTED: &str = "NEG:SVC:READY_ACCEPTED:PASS";
     pub const SVC_UNAUTHORIZED_READY: &str = "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS";

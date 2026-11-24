@@ -1150,6 +1150,7 @@ dependencies = [
 name = "fjell-svc-timeout"
 version = "0.47.0"
 dependencies = [
+ "fjell-abi",
  "fjell-syscall",
 ]
 

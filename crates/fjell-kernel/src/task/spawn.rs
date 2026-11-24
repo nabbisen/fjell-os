@@ -52,12 +52,57 @@ fn map_page_err(e: MmError) -> SysError {
 /// private on purpose: a `fjell-abi` constant would be an ABI addition.
 const MEASUREDD_EP_OBJECT: u32 = 2;
 
+/// **The one classified exception to "every boot capability is lease-bound"** (RFC-0.48-001; `bootstrap-leases` names
+/// this function and fails if the list grows without a reason or an entry outlives its need).
+///
+/// Slot 0 of the two services whose **job is to bind capabilities to leases they create** -- `neg-test` (the
+/// negative-test fixture) and `sample-service` (the blocked-IPC fixture). A capability binds **once**
+/// (RFC-0.38-004, E-090: a second bind is refused even to the same lease), so a source that boot had already bound could
+/// never be bound again, and the dozen lease scenarios (copy a capability, bind the copy, revoke, observe `LeaseRevoked`)
+/// would have nothing to copy. Slot 0 names only the fixture's own endpoint; it carries no authority the fixture does not
+/// hold in its bound slots. **Two capabilities of the 101 a boot installs**, both in fixtures that production does not
+/// depend on; every other grant, including every capability of every service that does real work, is bound.
+fn unbound_fixture_slots(image_id: ImageId) -> &'static [usize] {
+    match image_id {
+        ImageId::NEG_TEST | ImageId::SAMPLE_SERVICE => &[0],
+        _ => &[],
+    }
+}
+
+/// Spawn a task **and give it a boot lease** (RFC-0.48-001).
+///
+/// The lease is created **first**, before any frame is taken, so a full lease table fails the spawn with
+/// `LeaseTableFull` and nothing to undo; if any later step fails the lease is revoked again, so a failed spawn does not
+/// leak a slot. It is owned by `spawner` -- the task that asked for this one -- which is what lets the spawner revoke it
+/// under 0.46-003's ownership rule with no `LEASE_REVOKE_ANY`. Returns the new task and the lease the caller may revoke.
 pub fn spawn(
+    image_id: ImageId,
+    table: &mut crate::task::tcb::TaskTable,
+    sched: &mut crate::task::scheduler::Scheduler,
+    kernel_root: crate::mm::frame_alloc::PhysFrame,
+    fa: &mut FrameAllocator<'_>,
+    spawner: TaskId,
+) -> Result<(TaskId, fjell_abi::lease::LeaseId), SysError> {
+    // SAFETY: category=kernel-global-mutable single hart; the syscall handler that called us holds no reference to the
+    // lease table, and this reference is dropped before `spawn_with_lease` takes its own.
+    let boot_lease = unsafe { crate::get_lease_table() }.create_boot(spawner)?;
+    match spawn_with_lease(image_id, table, sched, kernel_root, fa, boot_lease) {
+        Ok(tid) => Ok((tid, boot_lease)),
+        Err(e) => {
+            // SAFETY: category=kernel-global-mutable as above; the failed spawn took no reference.
+            let _ = unsafe { crate::get_lease_table() }.revoke(boot_lease);
+            Err(e)
+        }
+    }
+}
+
+fn spawn_with_lease(
     image_id: ImageId,
     table: &mut crate::task::tcb::TaskTable,
     _sched: &mut crate::task::scheduler::Scheduler, // reserved for M5 enqueue-on-spawn
     kernel_root: crate::mm::frame_alloc::PhysFrame,
     fa: &mut FrameAllocator<'_>,
+    boot_lease: fjell_abi::lease::LeaseId,
 ) -> Result<TaskId, SysError> {
     let bytes = image_bytes(image_id).ok_or(SysError::InvalidCap)?;
 
@@ -1328,9 +1373,42 @@ pub fn spawn(
         }
     }
 
+    // RFC-0.48-001 R1: **every capability this task was granted is bound to its boot lease**, in one pass over the CSpace
+    // after the grants above. No `lease: None` literal is edited and a grant added tomorrow cannot forget the bind -- the
+    // `bootstrap-leases` subcheck fails on a bootstrap literal that is not in this path or classified. The binding is
+    // stamped with the lease's current epoch, so revoking the lease kills them all at once, for every use that goes through
+    // the funnel (an MMIO mapping already obtained is not reclaimed: `MmioUnmap` is declared and never dispatched).
+    {
+        // SAFETY: category=kernel-global-mutable single hart; the capability table and the lease table are distinct
+        // statics, each borrowed once in this block and neither retained past it.
+        let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
+        // SAFETY: category=kernel-global-mutable as above.
+        let lt = unsafe { crate::get_lease_table() };
+        let epoch = lt.active_epoch(boot_lease)?;
+        if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+            let unbound = unbound_fixture_slots(image_id);
+            for (i, slot) in cs.slots_mut().iter_mut().enumerate() {
+                if unbound.contains(&i) {
+                    continue;
+                }
+                if slot.state == fjell_cap::slot::CapSlotState::Active {
+                    if let Some(cap) = slot.cap.as_mut() {
+                        if cap.lease.is_none() {
+                            cap.lease = Some(fjell_cap::slot::LeaseBinding {
+                                lease_id: boot_lease,
+                                epoch_at_issue: epoch,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // RFC 055: store the image_id in the TCB for kernel-attested IPC identity.
     if let Some(task) = table.get_mut(ins_id) {
         task.image_id = image_id;
+        task.boot_lease = Some(boot_lease);
     }
 
     Ok(ins_id)

@@ -163,6 +163,11 @@ pub struct Task {
     pub dev_vma_next: usize,
     /// RFC 055: kernel-attested image id (set by spawn.rs; used in IPC identity).
     pub image_id: fjell_abi::service::ImageId,
+    /// RFC-0.48-001 R1/R4: the lease every capability this task was granted at boot is bound to. Created by `spawn()` on
+    /// the **spawner's** behalf (so the spawner may revoke it, with no exception right), and **revoked when this task
+    /// exits or faults** -- without that, a lease owned by the spawner would outlive its subject and every service restart
+    /// would consume a slot for ever. `None` only for `init`, which is built directly in `main.rs` and is excepted by name.
+    pub boot_lease: Option<fjell_abi::lease::LeaseId>,
 }
 
 impl Task {
@@ -187,6 +192,7 @@ impl Task {
             accounting: TaskAccounting::default(),
             dev_vma_next: DEVICE_VMA_BASE,
             image_id: fjell_abi::service::ImageId(0xFFFF), // set by spawn
+            boot_lease: None,                              // set by spawn
         }
     }
 }

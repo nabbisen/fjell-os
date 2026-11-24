@@ -295,16 +295,39 @@ pub fn sys_ipc_reply4(reply_tag: usize, words: [usize; 4]) -> Result<(), SysErro
 
 /// RFC 048: first arg is the `TaskCreate` cap handle; second is the image id.
 /// Returns the packed task handle `(index | generation<<16)` on success.
+///
+/// **RFC-0.48-001:** the kernel now also returns the new task's *boot lease* in `a2`, so this wrapper declares `a2`
+/// as an output (`ecall3`) -- under the previous `ecall2` the compiler was told `a2` survives the call, which would
+/// have been false. The lease id is discarded here; use [`sys_task_spawn_leased`] to keep it.
 #[inline]
 pub fn sys_task_spawn(cap_handle: u32, image_id: ImageId) -> Result<usize, SysError> {
-    let (r0, r1) = ecall2(
+    sys_task_spawn_leased(cap_handle, image_id).map(|(handle, _lease)| handle)
+}
+
+/// [`sys_task_spawn`], also returning the new task's **boot lease** (RFC-0.48-001).
+///
+/// Every capability the new task was granted at boot is bound to this lease, which **the caller owns** -- so the caller
+/// may revoke it, with `sys_lease_revoke` and a `LeaseAdmin` holding `LEASE_REVOKE` and *no* `LEASE_REVOKE_ANY`, and
+/// every funnel-checked use of those capabilities then answers `LeaseRevoked`. (An MMIO mapping the task already holds
+/// is not reclaimed: `MmioUnmap` is declared in the ABI and never dispatched.) The lease also ends when the task does.
+///
+/// # ABI
+/// ```text
+/// a7 = SyscallNumber::TaskSpawn, a0 = TaskCreate cap handle, a1 = image id
+/// → a0 = SysError (0 = Ok), a1 = task handle, a2 = boot lease id (u32)
+/// ```
+#[inline]
+pub fn sys_task_spawn_leased(
+    cap_handle: u32,
+    image_id: ImageId,
+) -> Result<(usize, fjell_abi::lease::LeaseId), SysError> {
+    let (r0, r1, r2) = ecall3(
         SyscallNumber::TaskSpawn as usize,
         cap_handle as usize,
         image_id.0 as usize,
         0,
-        0,
     );
-    to_result(r0).map(|_| r1)
+    to_result(r0).map(|_| (r1, fjell_abi::lease::LeaseId(r2 as u32)))
 }
 
 /// Start a spawned task (transition to Runnable).

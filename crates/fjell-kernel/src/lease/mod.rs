@@ -20,14 +20,19 @@ use fjell_abi::error::SysError;
 use fjell_abi::lease::{LeaseEpoch, LeaseId};
 use fjell_abi::task::TaskId;
 
-pub const MAX_LEASES: usize = 32;
+// `MAX_LEASES` and `MAX_LEASES_PER_OWNER` live in `fjell_abi::lease` (RFC-0.48-001 D1 condition i): services
+// derive their own bounds from them -- `neg-test`'s recycling scenario fills the table by the *capacity*, not by a
+// second literal that would silently stop exercising reclamation the day the table grew.
+pub use fjell_abi::lease::{MAX_LEASES, MAX_LEASES_PER_OWNER};
 
-/// The most `Active` leases one task may own (RFC-0.46-001 R-Q). **The property, not the number:** no
-/// single owner can deny the lease table to everyone else. Half the table achieves it and leaves half
-/// for every other task; any defensible bound does. Before this, one task holding a `LeaseAdmin` could
-/// take every slot and then *every other task's* `sys_lease_create` failed -- reachable from a
-/// production path the moment `cap-broker` began creating one lease per grant request (E-110).
-pub const MAX_LEASES_PER_OWNER: usize = 16;
+// The capacity must hold one boot lease for every task the kernel can have, plus one delegator's whole quota (so the
+// broker can still grant when the system is as full of tasks as it can be), and `cursor` is a `u8`. Compile-time, so the
+// next person to lower either constant is told here and not by an exhausted table at 03:00.
+const _: () = assert!(
+    MAX_LEASES >= crate::task::tcb::MAX_TASKS + MAX_LEASES_PER_OWNER,
+    "MAX_LEASES must hold a boot lease per task plus one delegator's quota"
+);
+const _: () = assert!(MAX_LEASES <= 256, "the reclamation cursor is a u8");
 
 /// Lifecycle state of a lease object.
 ///
@@ -64,6 +69,11 @@ struct LeaseObject {
     pub epoch: u32,
     /// The task that owns this lease (for lifecycle revoke).
     pub owner: TaskId,
+    /// A **boot lease** (RFC-0.48-001): created by the kernel at spawn for the *subject's* capabilities, owned by its
+    /// spawner so the spawner may revoke it. **Not ended by its owner's death** -- `revoke_owned_by` skips it -- because
+    /// a supervisor exiting must not strip every service it started of its authority (that would be a new failure mode,
+    /// and not the one this line adds); it ends when its *subject* exits, which the TCB's `boot_lease` records.
+    pub boot: bool,
 }
 
 impl LeaseObject {
@@ -76,6 +86,7 @@ impl LeaseObject {
                 index: 0,
                 generation: 0,
             },
+            boot: false,
         }
     }
 }
@@ -111,7 +122,7 @@ impl LeaseTable {
     ///   incarnation differs in epoch *and* generation;
     /// * neither exists -> `LeaseTableFull`, distinct from the quota (the system is out, not this owner).
     pub fn create(&mut self, owner: TaskId, _flags: u32) -> Result<LeaseId, SysError> {
-        use fjell_abi::lease::{Alloc, SlotKind, SlotView, lease_alloc, lease_quota_ok};
+        use fjell_abi::lease::lease_quota_ok;
         let owned = self
             .slots
             .iter()
@@ -120,6 +131,24 @@ impl LeaseTable {
         if !lease_quota_ok(owned, MAX_LEASES_PER_OWNER) {
             return Err(SysError::LeaseQuotaExceeded);
         }
+        self.allocate(owner, false)
+    }
+
+    /// Create the **boot lease** of a task the kernel is spawning on `owner`'s behalf (RFC-0.48-001 R2).
+    ///
+    /// **Not governed by [`MAX_LEASES_PER_OWNER`], deliberately and only here.** The quota bounds what a task *asks
+    /// for* (`sys_lease_create`; the abandon-loop defence): one owner may not take the table from everyone else. A boot
+    /// lease is not a request -- `init` would own thirty of them against a quota of sixteen, and charging them would make
+    /// the seventeenth service unspawnable. What bounds boot leases instead is **`MAX_TASKS`** (a task has one) and the
+    /// table's capacity (a compile-time assert holds one per task plus a delegator's whole quota). A full table is
+    /// `LeaseTableFull`, and the spawn fails before it has taken any frame.
+    pub fn create_boot(&mut self, owner: TaskId) -> Result<LeaseId, SysError> {
+        self.allocate(owner, true)
+    }
+
+    /// The allocation both entries share: a never-used slot, else the longest-revoked reclaimable one.
+    fn allocate(&mut self, owner: TaskId, boot: bool) -> Result<LeaseId, SysError> {
+        use fjell_abi::lease::{Alloc, SlotKind, SlotView, lease_alloc};
         let mut views = [SlotView {
             kind: SlotKind::Empty,
             generation: 0,
@@ -151,6 +180,7 @@ impl LeaseTable {
         }
         slot.state = LeaseState::Active;
         slot.owner = owner;
+        slot.boot = boot;
         self.cursor = ((i + 1) % MAX_LEASES) as u8;
         Ok(LeaseId::new(i as u16, slot.generation))
     }
@@ -253,7 +283,11 @@ impl LeaseTable {
     /// lease is revoked independently so blocked IPC is woken per lease.
     pub fn revoke_owned_by(&mut self, task: TaskId) {
         for i in 0..MAX_LEASES {
-            if self.slots[i].state == LeaseState::Active && self.slots[i].owner == task {
+            // A boot lease belongs to its subject's lifetime, not its owner's (see `LeaseObject::boot`).
+            if self.slots[i].state == LeaseState::Active
+                && self.slots[i].owner == task
+                && !self.slots[i].boot
+            {
                 let id = LeaseId::new(i as u16, self.slots[i].generation);
                 let _ = self.revoke(id); // ignore error from already-revoked
             }
