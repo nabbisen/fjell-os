@@ -385,7 +385,7 @@ pub fn evaluate(i: &Inputs<'_>) -> Result<Report, Vec<String>> {
             .strip_prefix("- uses:")
             .or_else(|| l.trim().strip_prefix("uses:"))
         {
-            let spec = rest.trim().split_whitespace().next().unwrap_or("");
+            let spec = rest.split_whitespace().next().unwrap_or("");
             if spec.starts_with("./") {
                 continue; // a local action
             }
@@ -671,10 +671,10 @@ mod tests {
         let mut records = Vec::new();
         for e in std::fs::read_dir(root.join("releases")).unwrap().flatten() {
             let n = e.file_name().to_string_lossy().to_string();
-            if let Some(v) = n.strip_suffix(".md") {
-                if is_bare_tag(v) {
-                    records.push((v.to_string(), std::fs::read_to_string(e.path()).unwrap()));
-                }
+            if let Some(v) = n.strip_suffix(".md")
+                && is_bare_tag(v)
+            {
+                records.push((v.to_string(), std::fs::read_to_string(e.path()).unwrap()));
             }
         }
         // the workflow does not exist until the line lands; this test judges it from then on.

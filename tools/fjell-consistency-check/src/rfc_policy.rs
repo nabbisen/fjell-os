@@ -71,7 +71,7 @@ fn section<'a>(src: &'a str, heading: &str) -> Option<&'a str> {
         .map(|i| i + 1)
         .or_else(|| src.starts_with(&format!("{heading}\n")).then_some(0))?;
     let rest = &src[start + heading.len()..];
-    let end = rest.find("\n## ").map_or(rest.len(), |i| i);
+    let end = rest.find("\n## ").unwrap_or(rest.len());
     Some(&rest[..end])
 }
 
@@ -130,12 +130,11 @@ fn entries(errata: &str) -> Vec<Entry<'_>> {
                 continue;
             }
         }
-        if let Some(rest) = line.trim_start().strip_prefix("- **RFC:**") {
-            if let Some(e) = out.last_mut() {
-                if e.field.is_none() {
-                    e.field = Some(rest.trim());
-                }
-            }
+        if let Some(rest) = line.trim_start().strip_prefix("- **RFC:**")
+            && let Some(e) = out.last_mut()
+            && e.field.is_none()
+        {
+            e.field = Some(rest.trim());
         }
     }
     out

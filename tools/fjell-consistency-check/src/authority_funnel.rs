@@ -92,7 +92,7 @@ pub struct Report {
 pub use fjell_rust_scan::{Func, code_only, functions, test_module_ranges};
 
 /// The innermost function whose body contains `line`.
-fn enclosing<'a>(funcs: &'a [Func], line: usize) -> Option<&'a Func> {
+fn enclosing(funcs: &[Func], line: usize) -> Option<&Func> {
     funcs
         .iter()
         .filter(|f| f.start_line <= line && line <= f.end_line)
