@@ -7,11 +7,11 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ## [0.48.0] — 2026-11-25 — Authority that can be taken back, and an audit that can see
 
-Three lines, one small item, **four errata closed** — **E-093**, **E-130**, **E-131**, **E-132**, the
-last three filed inside the milestone. The register stands at **131 entries, 5 accepted, 0 open**: the
+Three lines, one small item, **five errata closed** — **E-093**, **E-130**, **E-131**, **E-132**, **E-133**,
+the last four filed inside the milestone. The register stands at **132 entries, 5 accepted, 0 open**: the
 fewest accepted limitations this project has carried. `consistency-check` is **30 subchecks** (27 at
-0.47.0). The ABI moved **+6 items**, 559 → 565, with 0 removed and 0 changed. Host tests: lib **965**,
-bins **1674** (919 / 1608 at 0.47.0).
+0.47.0). The ABI moved **+6 items**, 559 → 565, with 0 removed and 0 changed. Host tests: lib **970**,
+bins **1679** (919 / 1608 at 0.47.0).
 
 **0.47 made the kernel's authority decisions happen in one place. 0.48 asked what that place can
 undo** — and the answer was *nothing granted at boot*. Fixing that exposed two instruments that had
@@ -124,6 +124,25 @@ the cycle requires `HEAD` to be the tag's commit with a clean tree, and **was ru
 accepted/open figures from the register, gates the root `README.md`'s readiness and `done/` counts the
 same way, and **fails if either page states a count of gates**. It caught this very cut: the root
 README still said 238 files in `done/` where the folder holds 241.
+
+### The cut's own CI could not deploy its documentation twice, and 0.46.0 called that transient
+
+**E-133.** `ci-pages` ran on every `main` event but `pull_request`, so **criterion 9's dispatch of the
+release commit re-deployed a tree the push run had already deployed.** Both runs upload an artifact
+named `github-pages`, and in the queued (dispatch) run `deploy-pages` reports **`Found 0 artifact(s)`**
+for an artifact its own run finalised seconds earlier.
+
+**At this cut the re-dispatch failed identically, which is what disproved "transient."** The 0.46.0
+record had diagnosed the same failure as an artifact-store race and resolved it by re-dispatching; that
+re-dispatch happened to pass, and **a single success was generalised into a mechanism.** `ci.yml`'s
+concurrency note had said since the 0.32.0 cut that both deploys serve the same commit and the second
+is redundant — the redundancy was known, that it *cannot succeed* was not.
+
+`ci-pages` no longer runs on `workflow_dispatch`: the push run deploys the release commit's
+documentation, and the dispatch exists to exercise `miri` and `fuzz-run`, which it still does. **A job
+removed from an event where it could not pass, rather than an accepted-risk statement written for a
+misconfigured trigger.** `releases/0.46.0.md` keeps its false claim — released records are not
+rewritten — and E-133 is what makes it findable.
 
 ### What still does not hold
 
