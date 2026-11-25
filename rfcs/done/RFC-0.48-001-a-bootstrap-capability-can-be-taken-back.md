@@ -1,6 +1,7 @@
 # RFC-0.48-001: A bootstrap capability can be taken back — measured first, designed second
 
-**Status:** Proposed
+**Status:** Implemented (0.48.0) — accepted 2026-11-25
+**Evidence:** marker:svc:NEG:BOOTLEASE:OWNER_REVOKE_OK:PASS, marker:svc:NEG:BOOTLEASE:ENDS_WITH_SUBJECT_FAULT:PASS, marker:svc:NEG:BOOTLEASE:CHILD_SEND_REFUSED_LEASE_REVOKED:PASS, marker:policy:NEG:LEASE:INSPECT_REPORTS_EPOCH:PASS, marker:policy:NEG:LEASE:SLOTS_RECYCLED:PASS, file:tools/fjell-consistency-check/src/bootstrap_leases.rs, test:tools/fjell-consistency-check/src/bootstrap_leases.rs::an_unbound_literal_in_a_new_function_is_red_and_named
 **Milestone:** 0.48
 **Tracks.** **E-093** — `RFC-v0.7.4-003` removed kernel-local recursive revocation on the premise that *"every
 meaningful cap MUST have a lease"*. The premise is false for **boot-time grants**, and this RFC measures how

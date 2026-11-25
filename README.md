@@ -91,7 +91,7 @@ into the repository; the site renders the same pages.
 - [v1.0 Non-Goals](docs/src/releasing/v1-non-goals.md) — 23 explicitly scoped items
 - [Threat Model](docs/src/security/threat-model-v1.md) — 20 in-scope threats
 - [Trust Report](releases/trust-report.txt)
-- [RFC Process](rfcs/README.md) — 238 files in `done/`
+- [RFC Process](rfcs/README.md) — 241 files in `done/`
 - [Deployment: StarFive VisionFive 2](docs/src/deployment/starfive-visionfive2.md)
 - [Fleet Demo Tutorial](docs/src/tutorials/three-node-fleet.md)
 - [Performance Baseline](docs/src/perf/baseline.md)

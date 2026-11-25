@@ -1,6 +1,7 @@
 # RFC-0.48-002: A safety annotation describes the operation it is attached to — and the audit says what it cannot know
 
-**Status:** Proposed
+**Status:** Implemented (0.48.0) — accepted 2026-11-25
+**Evidence:** file:tools/fjell-unsafe-audit/src/main.rs, file:tools/fjell-unsafe-audit/src/exempt.rs, file:tools/fjell-unsafe-audit/src/audit.rs, test:tools/fjell-unsafe-audit/src/main.rs::the_pass_line_says_it_does_not_check_the_prose_and_counts_exemptions_apart
 **Milestone:** 0.48
 **Tracks.** The finding the 0.47 handoff named *proposed line 3*, now the owner's line: **`unsafe-audit` reports
 291 sites, 291 annotated, 0 missing, and Gate 2 passes, because it checks that a comment *exists*.** No erratum is

@@ -1,6 +1,7 @@
 # RFC-0.48-003: A GitHub Release is published from a tag that has been checked
 
-**Status:** Proposed
+**Status:** Implemented (0.48.0) — accepted 2026-11-25
+**Evidence:** file:.github/workflows/release.yml, file:tools/fjell-consistency-check/src/release_records.rs, test:tools/fjell-consistency-check/src/release_records.rs::the_matcher_agrees_with_the_documented_examples, test:tools/fjell-consistency-check/src/release_records.rs::the_trigger_pattern_matches_what_it_must_and_nothing_else
 **Milestone:** 0.48
 **Tracks.** The owner's request of 2026-11-23: *a GitHub Release is created automatically when a release tag is
 pushed.* **Authorized by the owner, who overruled the architect's recommendation of a draft: the tag is already the
