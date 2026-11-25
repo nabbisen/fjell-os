@@ -10,7 +10,8 @@
 # `release-records` (Gate 12) judges this file: the filter, the single `contents: write`, `needs: verify`, and that every
 # action is pinned to a commit SHA, because this is the first workflow in the repository whose token can write.
 #
-# What it does NOT do: attach the source archive (it is signed after the tag, offline, by Step 12b -- a signature that does not
+# What it does NOT do: verify the tag's signature (the cut does, with `git tag -v`, before the tag is pushed -- RFC-0.48-003, precondition 5
+# withdrawn); attach the source archive (it is signed after the tag, offline, by Step 12b -- a signature that does not
 # exist when the tag is pushed cannot be verified here; automating it would need a CI-held signing key, which is not an
 # improvement), publish to crates.io, or run on `workflow_dispatch` (a manual path to publication would bypass the tag).
 # A failed run here is NOT a failed release: the tag, the crates and the cut stand; fix the cause and re-run the job.
@@ -45,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # ancestry of main needs the history, and `git verify-tag` needs the tag object
+          fetch-depth: 0 # ancestry of main needs the history, and the preconditions read the tag's own tree
       - uses: ./.github/actions/toolchain
       - name: Judge the tag (every precondition refuses)
         env:

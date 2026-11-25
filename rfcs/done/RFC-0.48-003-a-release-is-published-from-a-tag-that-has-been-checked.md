@@ -9,15 +9,49 @@ owner's authorization signal, so publishing from it bypasses nothing — on one 
 designed and managed carefully."** **The trigger is the deliverable.** No erratum; this adds a mechanism.
 **Touches** *(indicative)*: `.github/workflows/release.yml` (new — the repository's **second** workflow),
 `crates/fjell-tools/src/` (one tested subcommand), `tools/fjell-consistency-check/src/` (one subcheck),
-`docs/src/releasing/v0-release-cycle.md`, `release-handoff.md`, `release-checklist.md`, and one committed public key
-(D2). **No kernel, ABI or prebuilt change.**
+`docs/src/releasing/v0-release-cycle.md`, `release-handoff.md`, `release-checklist.md`. *(A committed public key was in
+the first draft of this list; see the withdrawal below.)* **No kernel, ABI or prebuilt change.**
 **Relates to:** **E-130 / small item A** (the order the cut now has: re-read, tag, **then** this runs), the cut
 procedure's Step 12b (the archive's signature), **E-114** (two drifting copies of one fact).
 **Not in this line:** attaching the source archive (D3 — recommended against), publishing to crates.io (irreversible
 and the owner's), signing anything in CI.
 
-*Re-measured at `587778d`. The mechanism the trigger depends on — verifying a tag signature on a clean machine from
-a committed public key — was run with controls (§"Measured") before this RFC claimed it.*
+*Re-measured at `587778d`. The signature mechanism that D2 and precondition 5 depended on was run with controls
+(§"Measured") before this RFC claimed it — **and was then withdrawn; see the next section.***
+
+---
+
+## Withdrawn at the 0.48.0 cut: precondition 5 (the tag-signature check) and D2 (the trust anchor)
+
+**Authorized by the owner, 2026-11-25. 0.48.0 is not released, so this is the milestone in progress and this text is
+changed in place, not by erratum.** The accepted design is recorded below as measured and ruled, with the parts the withdrawal
+removes marked **WITHDRAWN**; they are kept so the reasoning is not lost, not because they hold.
+
+**Where precondition 5 came from.** The owner asked for one thing: *"introducing CI to make GitHub Release with release
+notes."* **They never asked for signature verification.** The architect invented precondition 5 — *"the tag is annotated and
+signed, and the signature verifies"* — in the 0.48 scope; the in-tree public key existed only to anchor it; and committing that
+key was then presented to the owner as a step the release required, as though it followed from their request. **It followed
+from a design choice.** The RFC the implementer wrote carried it faithfully, and the withdrawal is the architect's, not a
+correction of the implementation.
+
+**Examined properly, it does not earn its cost:**
+
+* It catches an **accidentally unsigned or lightweight tag**, and nothing else.
+* It does **not** stop anyone with push access: whoever can push a tag can push to `main` and change the committed key.
+* **It duplicates a step the cut already performs.** Every cut runs `git tag -v` and records the result in the release record
+  before the tag is pushed (`releases/0.47.0.md`: `Signature | GPG, good — RSA key …`).
+
+**What the workflow no longer does, said plainly: it does not verify the tag's signature.** The signature is verified by the
+architect at the cut, with `git tag -v`, **before the tag is pushed**, and the result is recorded in the release record. That is
+where the assurance lives. **Do not read `gh release create --verify-tag` or GitHub's "Verified" badge as covering it:**
+the badge is visible and not enforced, and `--verify-tag` means *"abort in case the git tag doesn't already exist in the remote
+repository"* — it guards against a Release for a tag the remote does not have, and stays.
+
+**What changed:** the precondition table below drops row 5 (six rows remain: 1, 2, 3, 4, 6, 7 — the numbers are **kept**, 5 is a
+withdrawn gap, because the cycle document and the workflow's output use them); `release-preflight` loses the signature and
+annotated-object checks and the facts that fed them; **no key or fingerprint is committed and none is asked of the owner** (D2,
+R4); the cycle document loses the `gpg --export` instructions. `release-preflight` additionally refuses a non-bare tag name
+(**0**) and a `v`-prefixed tag that exists (**8**) — those were never rows of this table and are unchanged.
 
 ---
 
@@ -35,10 +69,10 @@ a committed public key — was run with controls (§"Measured") before this RFC 
   absent before — the record convention did not exist. A rule that fails 70 historical tags is not a rule; the
   floor must be **derived** (D5), not written.
 * There is **no committed public key** and no allowed-signers file: nothing in the tree lets a machine other than the
-  owner's verify a tag.
+  owner's verify a tag. *(Still true after the withdrawal, and no longer a problem: nothing in the workflow verifies a tag.)*
 * The tag is signed by an RSA key whose public half is 2,273 bytes; the keyring that signed it is the owner's.
 
-### Measured — the mechanism, with controls
+### Measured — the signature mechanism, with controls *(for the precondition that was then withdrawn; the figures stand, the use does not)*
 
 On a throwaway keyring (`GNUPGHOME` pointing at an empty directory), with the owner's **public** key exported and
 imported — no private material touched:
@@ -91,7 +125,7 @@ jobs:
 | 2 | the tagged commit is an **ancestor of `main`** | `git merge-base --is-ancestor <tag> origin/main` (full-depth fetch) | `git` |
 | 3 | `CHANGELOG.md` **at the tagged commit** has `## [<version>] — ` | read from the tag's tree | pure function over text |
 | 4 | `releases/<version>.md` **at the tagged commit** exists and is non-empty | read from the tag's tree | pure function |
-| 5 | the tag is an **annotated object**, carries a signature, and **`git verify-tag` passes against the committed key, whose fingerprint equals the pinned one** | throwaway `GNUPGHOME`; import `docs/src/releasing/release-signing-key.asc`; compare fingerprint to `release-signing-key.fingerprint`; `git verify-tag` | `git`/`gpg`, exit status |
+| 5 | **WITHDRAWN** (see above). Was: annotated, signed, `git verify-tag` against a committed key | — | — |
 | 6 | **no Release already exists for the tag** | `gh release view <tag>` must fail "not found" | `gh` — a re-run neither duplicates nor overwrites |
 | 7 | **CI on the tagged commit concluded `success`** | `gh api repos/…/commits/<sha>/check-runs`; every run `success` or `skipped`, none missing the required jobs | `gh` (D4) |
 
@@ -114,8 +148,9 @@ satisfy a tag that its own commit does not.
 `draft: true` "for safety" and so a reviewer sees it was a choice. **The compensating control is that every
 precondition refuses**, because deleting a Release leaves the tag behind and a Release is outward-facing.
 
-**D2 — the trust anchor for precondition 5. RULED: (a), as the owner's act — commit the owner's *public* key and pin its fingerprint.**
-Three options:
+**D2 — the trust anchor for precondition 5. WITHDRAWN** (see the section at the top: there is no precondition 5, so there is
+no anchor, and the owner commits no key). *What follows is the ruling as it stood, kept for the reasoning.*
+~~RULED: (a), as the owner's act — commit the owner's *public* key and pin its fingerprint.~~ Three options:
 
 * **(a) a committed public key + a pinned fingerprint file** *(recommended)* — verified on a clean runner with
   nothing but `git` and `gpg`, as measured above. The anchor is **reviewed in a commit and visible in the tree**;
@@ -156,7 +191,7 @@ moment Gate 12 runs in the cut **the new tag does not exist yet.** So:
   directory, not written** (today `0.21.3`); (iii) `release.yml`'s `tags:` filter is exactly the bare three-component
   pattern. *(Fixtures; and the real tree: 27 records, 27 sections, floor `0.21.3`, no exception.)*
 * **`release-preflight` (the subcommand, run by the workflow and by the owner beforehand):** the tag-dependent facts —
-  annotated, signed and verifying, no `v*` tag exists, tag = version at that commit, ancestor of `main`. **These
+  no `v*` tag exists, tag = version at that commit, ancestor of `main`. **These
   cannot be a tree check**, and the RFC says so rather than adding a subcheck that reads `.git/refs` and is
   red or green depending on the clone.
 
@@ -177,12 +212,13 @@ because the first time this fires red it will look like a failed release to whoe
 **R1 — `release.yml`**: the trigger and two jobs above; `permissions: {}` at the workflow level and **`contents:
 read` / `contents: write` per job**; `concurrency: { group: release-${{ github.ref }}, cancel-in-progress: false }`
 (two pushes of one tag must not race into two Releases; the loser fails precondition 6 either way).
-**R2 — `cargo xtask release-preflight <tag> [--dry-run]`**: preconditions 1–7 as pure functions over a `Facts` struct
-(tag name, tree-at-tag versions and files, tag-object kind, signature verdict, ancestor verdict, release-exists,
-check-runs), **with its own tests**, exiting non-zero with every failed precondition named.
+**R2 — `cargo xtask release-preflight <tag> [--dry-run]`**: preconditions 1–4, 6 and 7 (and the name checks 0 and 8) as pure
+functions over a `Facts` struct (tag name, tree-at-tag versions and files, ancestor verdict, release-exists, check-runs),
+**with its own tests**, exiting non-zero with every failed precondition named. *(Was 1–7 with a tag-object kind and a signature
+verdict in `Facts`; both removed with precondition 5.)*
 **R3 — notes extraction** (`release-notes <version>`): the section-and-link text, failing on a missing or empty
 section. Tested on the real CHANGELOG for every version from the floor.
-**R4 — the committed key and fingerprint** (D2a) — **by the owner**; I will not generate or commit key material.
+**R4 — WITHDRAWN.** *(Was: the committed key and fingerprint, by the owner. Nothing is committed.)*
 **R5 — the procedure**: the cut document gains *"after the tag, the Release is created by `release.yml`; check it
 exists, and attach the archive (Step 12b) with `gh release upload`"*; the handoff's order and the checklist agree.
 **R6 — `release-records`** (D5), shown red.
@@ -193,9 +229,9 @@ convention already is.
 
 1. **Each precondition, alone, against a scratch clone** (never the real repository's refs): a tag whose name differs
    from the version at its commit; a tag on a commit not reachable from `main`; a tag whose commit has no CHANGELOG
-   section; one with an **empty** section; no record; a **lightweight** tag; an annotated **unsigned** tag; a signed tag
-   with **the wrong key**; a **tampered** tag (the measured case); a tag for which a Release already exists; a commit
-   whose CI is red. **Eleven named failures, each quoted.**
+   section; one with an **empty** section; no record; a tag for which a Release already exists; a commit whose CI is red.
+   **Seven named failures**, each shown alone by its own number. *(Was eleven: the lightweight, unsigned, wrong-key and
+   tampered tags went with precondition 5.)*
 2. **The trigger itself:** the `tags:` pattern evaluated against `0.48.0` (matches), `v0.48.0`, `0.2.0-alpha.1` and
    `0.48` (do not) — with a small matcher that implements GitHub's documented filter grammar, **and a test that the
    matcher agrees with the documented examples**, because a trigger that silently never fires is the failure mode
@@ -204,8 +240,9 @@ convention already is.
    workspace version with no record; the filter changed to `v*`.
 4. **Permissions:** a test (a parse of the YAML) that `contents: write` appears **exactly once**, in a job that
    `needs:` the verify job; adding it to the workflow level or the verify job turns the gate red.
-5. **Mutations, each a named failure** (compile error is INVALID): precondition 5 accepts an unsigned tag;
-   precondition 6 removed; the notes extractor reading the checkout instead of the tag's tree; the pin check removed.
+5. **Mutations, each a named failure** (compile error is INVALID): precondition 6 removed; the notes extractor reading the
+   checkout instead of the tag's tree; the pin check removed. *(And, at the withdrawal: each of 1, 2, 3, 4, 6, 7, 8 disabled in
+   turn turns `each_precondition_fails_alone_and_by_its_own_number` red naming that number.)*
 6. **A real first fire is the owner's.** I cannot push a tag. The RFC's honest limit: **everything except the live
    GitHub run is demonstrated**; the first real tag (0.48.0) is the live exercise, and the release record should say
    so. A `workflow_dispatch` is **not** offered to rehearse it, because a manual-trigger path to publication would
@@ -214,7 +251,8 @@ convention already is.
 ## What this RFC does not do, and why
 
 * **It does not create a draft** (D1) **or attach assets** (D3).
-* **It does not generate, store or touch a signing key.** Verification uses a *public* key the owner commits.
+* **It does not generate, store or touch a signing key, and it does not verify the tag's signature** (withdrawn, above): that
+  is the cut's `git tag -v`, before the push.
 * **It does not make a failed Release a failed cut** (D7).
 * **It does not publish to crates.io**, and nothing here can: no registry token is introduced.
 * **It does not claim a Release proves anything about the artefact.** A Release is a *pointer* to a verified tag and a
@@ -229,5 +267,5 @@ for t in $(git tag -l | /usr/bin/grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'); do git cat
 ```
 
 The CHANGELOG/record correspondence figures (35 sections, 27 records, floor `0.21.3`) and the three `git verify-tag`
-controls come from throwaway scripts; the implementation commits them as `release-records`'s and `release-preflight`'s
-own tests over the real tree and a scratch clone.
+controls (measured for the now-withdrawn precondition 5) come from throwaway scripts; the implementation commits them as `release-records`'s and `release-preflight`'s
+own tests over the real tree and a scratch clone. *(The `git verify-tag` controls are no longer among them.)*

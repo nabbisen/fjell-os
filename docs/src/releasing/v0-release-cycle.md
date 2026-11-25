@@ -271,20 +271,22 @@ publishing from it bypasses nothing). The workflow `.github/workflows/release.ym
 in exactly one of them** — the last, which runs only if the first passed. `verify` runs `cargo xtask release-preflight`, whose
 preconditions each **refuse**: the tag is a bare `MAJOR.MINOR.PATCH`; it equals the workspace version **at the tagged commit**;
 that commit is an ancestor of `main`; `CHANGELOG.md` has a non-empty `## [<v>] — ` section and `releases/<v>.md` exists
-(both read from the **tag's** tree, not the checkout of `main`); the tag is an **annotated object whose signature verifies
-against the committed public key**; no Release exists yet; CI on that commit concluded `success` (it waits up to
+(both read from the **tag's** tree, not the checkout of `main`); no Release exists yet; CI on that commit concluded `success` (it waits up to
 `RELEASE_CI_WAIT_MINUTES`, default 30, and **a timeout fails — it never publishes**); and no `v`-prefixed tag exists.
 
-**Run it first.** Before pushing the tag, on the machine that signed it:
+**It does not verify the tag's signature** (see *The signature is verified at the cut, not by the workflow*, below). The number
+**5** is deliberately absent from the list: it was a precondition, withdrawn before the first release, and the others keep their
+numbers because the workflow's output and this document already use them.
+
+**Run it first.** Before pushing the tag:
 
 ```
 cargo xtask release-preflight <version> --dry-run
 ```
 
-It judges everything it can read offline and says plainly which two it did not (no Release exists; CI succeeded). *(Run at 0.48
-against the real `0.47.0` tag: it fails on exactly one precondition — **5: no release signing key is committed on `main`** —
-which is the owner's act below, and passes everything else. Against a tag that does not exist, and a `v`-prefixed name, it
-fails by precondition number.)*
+It judges everything it can read offline and says plainly which two it did not (no Release exists; CI succeeded). *(Run at 0.48:
+against the real `0.47.0` tag it passes; against `0.48.0` before that tag exists it fails on exactly preconditions **1, 2, 3
+and 4**, the ones that read the tag's tree or commit, and on nothing else. A `v`-prefixed name fails by precondition number.)*
 
 **The Release's body is the CHANGELOG section for that exact version** plus one line linking `releases/<v>.md` **at the tag**.
 GitHub's generated commit list is never used, and the record is **linked, never copied** — two drifting copies of one fact is
@@ -299,20 +301,14 @@ by the `verify-bundle-sig` run the checklist already prescribes. *(That step —
 Release exists to attach to until the first real tag fires. It is exercised for the first time at the 0.48.0 cut, and the
 release record says what happened rather than claiming it was rehearsed.)*
 
-**The trust anchor is the owner's act.** The workflow verifies the tag against a **public** key committed on `main`, with the
-fingerprint pinned beside it — read from `main`, **not from the tag's own tree** (a tag that carried its own key and its own pin
-would verify against itself). Neither this procedure nor any tool generates, stores or touches key material. To commit it, on
-the machine that signs tags (`<fpr>` is the signing key's 40-hex fingerprint):
-
-```
-gpg --armor --export <fpr> > docs/src/releasing/release-signing-key.asc
-gpg --batch --with-colons --fingerprint <fpr> | awk -F: '/^fpr:/{print $10; exit}' > docs/src/releasing/release-signing-key.fingerprint
-```
-
-*(Both run on a throwaway key before being written here: the export is public-only — no `PRIVATE KEY` block — and the second
-file equals the primary key's fingerprint.)* Rotating the key is a reviewed commit to those two files, like every other trust
-root in the tree (`TOOLCHAIN.lock`, `baseline-digests.txt`). **Until they exist no tag can be verified and the workflow fails —
-which is the point.**
+**The signature is verified at the cut, not by the workflow.** The workflow does **not** check that the tag is signed, annotated or
+verifies against any key, and there is **no key in the repository** for it to check against. The signature is verified by the
+architect at the cut, with `git tag -v <version>`, **before the tag is pushed**, and the result is recorded in the release record
+(its `Signature` row). That is where the assurance lives. **Neither GitHub's "Verified" badge nor `gh release create --verify-tag`
+covers it:** the badge is visible and not enforced, and `--verify-tag` only aborts when the tag does not exist in the remote.
+*(A workflow check would have caught an accidentally unsigned or lightweight tag and nothing else — whoever can push a tag can
+push to `main` and change a committed key — and it would have repeated a step every cut already performs. RFC-0.48-003 records
+the withdrawal.)*
 
 **A failed run is not a failed release.** The tag, the crates and the cut stand. A red `verify` job leaves **no Release and no
 half-state** (it writes nothing). Fix the cause and re-run the job — a re-run is safe, because precondition 6 refuses to
@@ -320,9 +316,7 @@ duplicate. Delete and re-push the tag **only if the tag itself was wrong**; movi
 first time this goes red it will look like a failed release to whoever sees the email; it is not.
 
 **The first real fire is the owner's, and it is the only part not demonstrated in advance.** Everything else is: each
-precondition is a tested pure function shown failing; the signature check was run against an unsigned tag, a lightweight tag, a
-tag signed by the wrong key, a tampered tag, and a tag whose own tree carried a key; `release-records` (Gate 12) judges this
-file. The live GitHub run is the one thing that cannot be, so the release record for the first tag says so rather than claiming
+precondition is a tested pure function shown failing by its own number; `release-records` (Gate 12) judges this file. The live GitHub run is the one thing that cannot be, so the release record for the first tag says so rather than claiming
 the mechanism is proven end to end.
 
 ## After the tag — republish the crates.io front page

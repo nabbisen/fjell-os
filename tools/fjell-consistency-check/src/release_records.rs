@@ -6,7 +6,7 @@
 //! **Why this is not a check of tags.** `consistency-check` is *a pure function of the committed tree* -- the project's own
 //! written rule (`release-handoff.md`: *"so that re-running it on an old tree still answers the same question"*), and at the
 //! moment Gate 12 runs in a cut **the new tag does not exist yet**. Tags are refs, not tree. The facts that need a tag
-//! (annotated, signed, verifies, no `v*` tag exists, ancestor of `main`) are judged by `release-preflight`, which the workflow
+//! (tag = version at that commit, no `v*` tag exists, ancestor of `main`) are judged by `release-preflight`, which the workflow
 //! runs and the owner can run first. This check judges what the *tree* can say.
 //!
 //! 1. **Every `releases/<v>.md` has a `## [<v>] — ` CHANGELOG section.**
@@ -19,7 +19,7 @@
 //! 4. **`contents: write` appears exactly once, in a job that `needs:` the verifying job; the workflow-level permissions are
 //!    empty; and every `uses:` is pinned to a 40-hex commit SHA** (the first workflow whose token can write).
 //!
-//! **What it does not do:** it does not show the workflow *runs*, or that a tag is signed. The first real fire is the owner's.
+//! **What it does not do:** it does not show the workflow *runs*. The first real fire is the owner's.
 
 use std::collections::BTreeSet;
 

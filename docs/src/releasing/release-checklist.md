@@ -182,14 +182,18 @@ a separate, intentional convention in a different namespace and must not be
 
 ```bash
 git tag -s 1.0.0 -m "Fjell OS 1.0.0"
+git tag -v 1.0.0          # must say "Good signature" and exit 0 — record it in the release record, then push
 git push origin 1.0.0
 ```
 
+**The signature is verified here, before the push; the workflow below does not verify it.** `git tag -v` exits non-zero
+on an unsigned or absent tag, and the release record's `Signature` row says what it printed.
+
 **Pushing the tag creates the GitHub Release** (`release.yml`, RFC-0.48-003): a Release whose body is `CHANGELOG.md`'s section
-for exactly this version plus a link to `releases/<version>.md`. It **refuses** unless the tag is annotated and its signature
-verifies against the public key committed on `main`, the tagged commit is an ancestor of `main`, the section and the record
-exist, no Release exists yet, and CI on the commit succeeded. **Run `cargo xtask release-preflight <version> --dry-run` before
-pushing**; the whole mechanism, including the owner's one-time act of committing the public key, is in
+for exactly this version plus a link to `releases/<version>.md`. It **refuses** unless the tag equals the workspace version at
+that commit, the tagged commit is an ancestor of `main`, the section and the record exist, no Release exists yet, and CI on the
+commit succeeded. It does **not** verify the signature (that is the `git tag -v` above). **Run
+`cargo xtask release-preflight <version> --dry-run` before pushing**; the whole mechanism is in
 [the cycle document](./v0-release-cycle.md#after-the-tag--the-github-release-is-created-by-releaseyml). A red run is *not* a failed
 release.
 
