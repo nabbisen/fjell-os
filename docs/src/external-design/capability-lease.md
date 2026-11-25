@@ -85,6 +85,22 @@ capability. Bootstrap installation at spawn still goes through the in-kernel
   Lease slots are recycled (RFC-0.46-001): a revoked slot is reclaimed on allocation
   pressure and its generation bumped, a task owns at most 16 `Active` leases, and the
   broker grants a requester at most 4 at a time.
+- **Every task's boot capabilities are bound to a boot lease its spawner owns** (RFC-0.48-001).
+  `spawn()` creates the lease before any frame is allocated, and one pass binds every capability
+  the task holds, so authority granted at boot **can be withdrawn without ending the task** —
+  which was not true before 0.48, when the kernel's own grants carried no lease and
+  `RFC-v0.7.4-003`'s premise that every meaningful capability has one was unenforced. The lease
+  is revoked when the subject exits or faults, and **not** when its owner dies: `init` exiting
+  must not strip every service it started. `MAX_LEASES` is **128**, holding one lease per task
+  plus a delegator's whole quota. Two fixtures keep slot 0 unbound by design — `neg-test` and
+  `sample-service` bind capabilities to leases *they* create, and a capability binds once — each
+  named with its reason in the `bootstrap-leases` subcheck.
+  **What revocation does not reach:** authority exercised **per call** is withdrawn; authority
+  that became a **mapping** is not. A revoked `MmioRegion` stops further mapping and leaves the
+  pages already mapped, because `MmioUnmap` is declared in the ABI and dispatched nowhere. DMA is
+  the counter-example — `sys_dma_revoke` unmaps the owner's page, verified — and
+  `bootstrap-leases` fails the day `MmioUnmap` is dispatched, so this paragraph must be rewritten
+  rather than quietly outlive its truth.
 - **A lease is revoked by its owner** (RFC-0.46-003). Every `LeaseAdmin` carries
   `ObjectScope::Any` — necessarily, since the leases they revoke are created at runtime — so
   the kernel checks ownership rather than scope. One named exception, `LEASE_REVOKE_ANY`, is
