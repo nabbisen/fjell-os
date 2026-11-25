@@ -231,7 +231,15 @@ jobs:
     name: pages
     runs-on: ubuntu-24.04
     needs: [ci-docs]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # Not on `workflow_dispatch`. Criterion 9 dispatches the release commit, whose push run has
+    # already deployed the same tree, so the dispatch's deploy is redundant -- as the concurrency
+    # note below has said since 0.32.0. Worse than redundant: it cannot succeed. Both runs upload
+    # an artifact named `github-pages`, and in the queued (dispatch) run `deploy-pages` reports
+    # `Found 0 artifact(s)` for an artifact its own run finalised seconds earlier. Reproduced twice
+    # in a row at the 0.48.0 cut (runs 45635983360, 45639520772) while the push run on that exact
+    # commit succeeded; the 0.46.0 record called the same failure transient after one re-dispatch
+    # happened to pass, which is E-133.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && github.event_name != 'workflow_dispatch'
     permissions:
       pages: write
       id-token: write

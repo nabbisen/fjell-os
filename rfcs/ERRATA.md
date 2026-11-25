@@ -9810,6 +9810,47 @@ which is history removes the disagreement instead of detecting it, and needs no 
   defect in an instrument this project relies on belongs**, and a fix without an entry is invisible to
   it.
 
+## E-133 — the release cycle's own CI dispatch deploys GitHub Pages a second time for the same commit, cannot succeed at it, and the 0.46.0 record called that transient
+
+- **Found 2026-11-26 by the architect**, at the 0.48.0 cut, **by a re-dispatch failing identically**.
+  The same failure was seen at 0.44.0 and 0.46.0 and misdiagnosed both times.
+- **RFC:** none
+  The defect is a CI job's trigger condition, not an RFC over-claiming.
+- **Claim.** `releases/0.46.0.md` records the `pages` job's failure in that cut's dispatched CI run as
+  *"an artifact-store read-after-write failure"*, *"transient infrastructure"*, and resolves it by
+  re-dispatching — *"the cycle's own precedent is to re-dispatch (0.43.0 did exactly this)"*. The
+  record states that **no accepted-risk statement was needed** because the failure was transient.
+- **Tree / what actually happens.** `ci.yml`'s `ci-pages` job ran on **every** `main` event except
+  `pull_request`, so **criterion 9's own dispatch of the release commit deploys Pages a second time
+  for a tree the push run has already deployed.** `ci.yml`'s concurrency note has said since the
+  0.32.0 cut that *"Both deploys serve the same commit, so queueing costs a redundant deploy"* — the
+  redundancy was known; that it **cannot succeed** was not. Both runs upload an artifact named
+  `github-pages`; in the queued (dispatch) run `deploy-pages` reports **`Found 0 artifact(s)`** for an
+  artifact **its own run finalised seconds earlier**:
+
+  ```
+  run 45635983360  upload: Artifact github-pages ... ID 15032877851, 2880817 bytes   deploy: Found 0 artifact(s)
+  run 45639520772  upload: Artifact github-pages ... ID 15034772762, 2900003 bytes   deploy: Found 0 artifact(s)
+  push 45635982956 (same commit 59231b1)                                             pages: success
+  ```
+
+- **Two consecutive identical failures are what disprove "transient".** At 0.46.0 one re-dispatch
+  happened to pass and the architect read that as confirmation of the diagnosis. **It was a single
+  success generalised into a mechanism** — the error this register records against instruments, made
+  in a release record about a release gate. The 0.46.0 record's reasoning (*"an artifact finalised
+  with an id and unreadable a tenth of a second later is an artifact-store read-after-write
+  failure"*) described the symptom correctly and the cause wrongly.
+- **Not correctable in place.** `releases/0.46.0.md` is a **released record and this project does not
+  rewrite released records** — the rule applied at E-125 and E-130. This entry is the correction, and
+  it is what makes that record's claim findable.
+- **Fixed in 0.48** by the condition the concurrency note implied: `ci-pages` no longer runs on
+  `workflow_dispatch`. The push run deploys the release commit's documentation; criterion 9's dispatch
+  exists to exercise `miri` and `fuzz-run`, which it still does. **The redundant deploy is gone and
+  the failure with it** — a job removed from an event where it could not succeed, rather than an
+  accepted-risk statement written for a configuration defect.
+- **Status:** **CLOSED** (architect, 2026-11-26). Filed already fixed, as E-127 and E-132 were,
+  because the misdiagnosis in a released record is the part worth keeping.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -9984,3 +10025,4 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-130 **the cycle orders the pre-publish landing-page re-read after the tag, so any correction it finds puts the publish ahead of the tag** — `cargo publish` packages the working tree, not the tag, and the mandated re-read of `crates/fjell-os/README.md` is ordered with the logo-URL checks *after* tagging. Only the logo checks need the tag to exist. At 0.47.0 the page claimed *"7 accepted limitations and 0 open"* where the register carried 6 (E-012 closed in that milestone); corrected at `da7061f` while the tag names `0fcf537`. **Second occurrence** — 0.45.0 argued the same divergence as a one-off bound instead of a step-order defect. Remedy is a reorder, not a new check: re-read before the tag, keep the logo checks after. The stale figure is itself a hand-maintained count on the page whose tier count 0.47 item C had just made derived and gated, so a gate for it belongs with the reorder | 0.48 | CLOSED |
 | E-131 **`unsafe-audit` cannot see 49 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches** — it classifies by substring (`unsafe {`, `unsafe fn `, `unsafe impl `, `unsafe trait `), and **41 `#[unsafe(no_mangle)]`, 1 `#[unsafe(naked)]`, 6 `unsafe extern "C" fn` and 1 `unsafe impl<T>` match none of them — 49 in all**. The one `unsafe impl` is `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}` — **eight of the nine `unsafe impl` declarations match and this one does not, because `impl<` has no space** — and `KS<T>` is the kernel-state wrapper every `get_kernel_state()` call goes through, so a `Sync` soundness claim about the most widely shared static in the system is invisible to the audit, with a SAFETY comment above it attached to no recorded site. The instrument reports `0 missing` rather than that its population is partial, and a release gate consumes that as coverage: the E-014 family, in the instrument behind this project's central safety claim. Found by the implementer; the mechanism was identified at the architect's stage-1 review, where the architect also "corrected" 49 to 48 by grepping the attribute already known instead of the attribute shape, and the implementer restored it at stage 2 — a narrow search producing a wrong number inside an entry about narrow matching. **Closing it raises the reported count**, which the record must explain, because the scanner's eyes open and the kernel does not change | 0.48 | CLOSED |
 | E-132 **`sys_lease_inspect` returned the lease id as the epoch, so half of two revocation claims could not fail** — it wrote the epoch into `a0`, the **status** register, and never wrote `a1`, which still held the lease id the caller passed in; every wrapper reads status from `a0` and the value from `a1`, so `lease_inspect(id)` returned `id` for every lease, always. `NEG:CAP:REVOKE_NOT_OWNER_REFUSED` (RFC-0.46-003) and the broker's `REVOKE_FOREIGN_LEASE_REFUSED` compare an epoch before and after a refused foreign revocation: **that half compared `id` with `id`**. The refusal half was always real, which is why 0.46-003's mutation table showed the pairs red and the defect survived its own review — a vacuous half, not a vacuous test. **`abi-snapshot` cannot see it** (it hashes declarations, not which register a path writes), the second milestone where that limit has mattered. Found when a new check read `before=27 after=27` against a kernel line printing `revoke -> Ok(2)` and the implementer chased the disagreement. Fixed in 0.48: status `a0`, epoch `a1`, pinned by `INSPECT_REPORTS_EPOCH` and shown red by mutation M9 | 0.48 | CLOSED |
+| E-133 **the release cycle's CI dispatch deploys Pages a second time for the same commit, cannot succeed at it, and the 0.46.0 record called that transient** — `ci-pages` ran on every `main` event but `pull_request`, so criterion 9's dispatch of the release commit re-deployed a tree the push run had already deployed. Both runs upload an artifact named `github-pages`; in the queued run `deploy-pages` reports **`Found 0 artifact(s)`** for an artifact its own run finalised seconds earlier. **Two consecutive identical failures at the 0.48.0 cut (45635983360, 45639520772) disprove "transient"**, while the push run on the same commit succeeded; at 0.46.0 one lucky re-dispatch was generalised into a mechanism, which is a single success read as a cause — in a release record, about a release gate. `ci.yml`'s concurrency note had said since 0.32.0 that both deploys serve the same commit and the second is redundant; that it could not succeed was not known. **Not correctable in place**: `releases/0.46.0.md` is a released record. Fixed in 0.48 by removing `ci-pages` from `workflow_dispatch` — the job is gone from the event where it could not pass, rather than an accepted-risk statement written for a configuration defect | 0.48 | CLOSED |
