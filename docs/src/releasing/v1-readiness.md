@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.47.0
+## Summary at 0.48.0
 
 | Status | Count |
 |--------|-------|
@@ -336,6 +336,29 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > owner's** — which number that row should promise, and under which definition, is a judgement about
 > what the row means, not a measurement. `verus-count` gates nothing by design, so nothing is red while
 > it stands.
+>
+> **Re-taken 2026-11-25, at the 0.48.0 cut.** The heading moved in the version-bump commit, so
+> `readiness-summary` was never red. `readiness-check` counts **DONE 56 / IN PROGRESS 2 / DEFERRED 3 /
+> OPEN 0**, exit 0 — **unchanged by 0.48.0**, and for once the reason is not that the milestone missed
+> the matrix: 0.48 **closed the defect row 12 recorded**, and row 12 is a limitation, not a readiness
+> cell. Boot capabilities are now bound to a lease their spawner owns, so authority can be withdrawn
+> from a task without ending it; no cell of this matrix asserted that it could not.
+>
+> **The obligation row, for the fourth cut running, and this time it is the only thing in the matrix
+> that is false.** `cargo xtask verus-count` states the candidates with their definitions:
+> **release-required prover-verified items 19** (capability 8 + lease 11), **all targets 26**
+> (+ boot-control 7), **release-required named ids 12**, **all targets named ids 17**. The row promises
+> **20**, which matches none of the four, and `verus-count` gates nothing by design so nothing is red
+> while it stands.
+>
+> **The architect's recommendation, recorded because it was asked for and is not a ruling: 19**, read
+> as *"prover-verified items in release-required targets"*, derived rather than written. The other
+> three mislead — **26** counts `boot-control`, which is `release_required = false`, so it flatters;
+> and **12** and **17** count labels the project chose to write, not what the prover verified, which is
+> why `capability` would report **0 named ids against 8 verified items**. **The number remains the
+> owner's**, because which of the four the row should promise is a judgement about what the row means.
+> **Noted plainly: a cell asserting a figure nothing can produce is what exit criterion 8 exists to
+> catch**, and it has now survived four cuts because the fix is a ruling and not an edit.
 >
 > **The row worth checking rather than assuming** is again *Verus formal proofs — capability + lease …
 > 20 obligations machine-checked; callsite-audit Gate 11 blocking*, because 0.46-001 **extended the

@@ -188,7 +188,7 @@ default-members = [
 # are inherited only by crates that opt in with `rust-version.workspace =
 # true`, and none did.
 rust-version = "1.91"
-version = "0.47.0"
+version = "0.48.0"
 edition         = "2024"
 authors         = ["nabbisen"]
 license         = "Apache-2.0"
