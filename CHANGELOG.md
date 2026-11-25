@@ -5,6 +5,137 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.48.0] — 2026-11-25 — Authority that can be taken back, and an audit that can see
+
+Three lines, one small item, **four errata closed** — **E-093**, **E-130**, **E-131**, **E-132**, the
+last three filed inside the milestone. The register stands at **131 entries, 5 accepted, 0 open**: the
+fewest accepted limitations this project has carried. `consistency-check` is **30 subchecks** (27 at
+0.47.0). The ABI moved **+6 items**, 559 → 565, with 0 removed and 0 changed. Host tests: lib **965**,
+bins **1674** (919 / 1608 at 0.47.0).
+
+**0.47 made the kernel's authority decisions happen in one place. 0.48 asked what that place can
+undo** — and the answer was *nothing granted at boot*. Fixing that exposed two instruments that had
+been reporting on work they could not see.
+
+### Authority granted at boot can now be withdrawn (RFC-0.48-001, closes **E-093**)
+
+`RFC-v0.7.4-003` removed kernel-local recursive revocation on the premise that **every meaningful
+capability has a lease**. Nothing enforced that premise, so for the whole life of the project **no
+authority granted at boot could be withdrawn by anyone**: not the holder's own `cap_revoke`, which
+deletes descendants and not the capability it names; not another task's, because capability revocation
+never crosses a CSpace; not lease revocation, the only cross-task primitive, because those grants had
+no lease. The capabilities affected were the most privileged in the system — `LeaseAdmin`,
+`TaskControl`, `TaskCreate`, `Reboot`, `MmioRegion`, `DmaRegion`.
+
+`spawn()` now creates a **boot lease owned by the spawner** before any frame is allocated, and **one
+pass binds every capability the task holds**, so no `lease: None` literal had to be edited and a new
+grant cannot forget. The lease lives in the subject's TCB, is revoked when the subject exits or
+faults, and is deliberately **not** ended by its owner's death — `init` exiting must not strip every
+service it started.
+
+**Two named exceptions remain**, each with its reason in the `bootstrap-leases` subcheck:
+`neg-test`'s and `sample-service`'s slot 0 stay unbound, because those fixtures bind capabilities to
+leases *they* create and a capability binds **once** (E-090).
+
+**What this does not buy, so the claim cannot drift.** Revocation withdraws authority exercised **per
+call**; it does not reclaim authority that has become a **mapping**. A revoked `MmioRegion` stops a
+task mapping *again*, and pages already mapped stay, because **`MmioUnmap` is declared in the ABI and
+dispatched nowhere**. DMA is the counter-example and the proof the project can do this when it
+chooses: `sys_dma_revoke` is dispatched, capability-checked, and unmaps the owner's page verified.
+`bootstrap-leases` **fails the day `MmioUnmap` is dispatched**, so the claim must be restated rather
+than left to rot.
+
+### `MAX_LEASES` 32 → 128
+
+Required by the boot leases: a measured boot has **31 lease holders**, and 32 slots could not also
+carry the broker's runtime grants (peak live 17), while `MAX_LEASES_PER_OWNER` = 16 rules out any
+single-owner design. The constant moved into `fjell-abi` so `neg-test` derives its bounds from it
+rather than from a second literal, with a compile-time assert that the table holds **one lease per
+task plus one delegator's whole quota**. **0 Verus obligations changed** — the lease model has no
+capacity token.
+
+### Two ABI-visible changes that `abi-snapshot` cannot see
+
+The snapshot hashes the **declarations** of public items, not which register a path writes, so it
+moved for neither of these. Boot scenarios are the gate.
+
+- **`sys_lease_inspect` returned the lease id as the epoch** (**E-132**). It wrote the epoch into
+  `a0`, the *status* register, and never wrote `a1`, which still held the lease id the caller had
+  passed in — so `lease_inspect(id)` returned `id`, as the epoch, for every lease, always. Two
+  scenarios compare an epoch before and after a refused foreign revocation, and **that half of each
+  claim compared `id` with `id` and could not fail.** The refusal half was always real, which is why
+  RFC-0.46-003's mutation table showed those pairs red and the defect survived its own review. Now
+  status in `a0`, epoch in `a1` — the project's convention — pinned by
+  `NEG:LEASE:INSPECT_REPORTS_EPOCH`.
+- **`sys_task_spawn` returns the boot lease in `a2`.** Its wrapper had used `ecall2`, which declares
+  `a2` as an input that survives the call — false the moment the kernel writes it. `ecall3` now, and
+  `sys_task_spawn_leased` returns both.
+
+### The unsafe audit's headline rises **291 → 344**, and the kernel wrote no new `unsafe`
+
+**The scanner's eyes opened** (**E-131**). `unsafe-audit` classified a line by substring — `unsafe {`,
+`unsafe fn `, `unsafe impl `, `unsafe trait ` — and **49 declarations matched none of them**: 41
+`#[unsafe(no_mangle)]`, 1 `#[unsafe(naked)]`, 6 `unsafe extern "C" fn` where `extern "C"` sits between
+`unsafe` and `fn`, and **one `unsafe impl<T>`**. That last one is the finding: the pattern was
+`"unsafe impl "` **with a trailing space**, so eight of nine declarations matched and the ninth was
+`unsafe impl<T> Sync for KS<T>` — **a `Sync` soundness claim about the kernel-state wrapper that every
+`get_kernel_state()` call in the kernel goes through**, invisible because `impl<` has no space. And
+`#[unsafe(naked)]` sits one line above the trap entry stub, so two invisible declarations shared the
+function every trap enters through.
+
+The audit now finds every declaration and **refuses a `category=` its operation does not support**:
+**344 sites, 344 commented, 0 missing, 4 permanent exemptions, 0 seeded.** New categories
+`linker-symbol` and `symbol-export` close a taxonomy gap where six sites claimed
+`phys-id-map-assumption` for the address of a linker symbol. **A green means a tag is not contradicted
+by the operation beneath it — not that any comment's prose is true**, which the PASS line says and a
+test pins; **161 distinct comment texts of 311** remain the measure of the prose review still owed.
+
+### A GitHub Release is published from a tag that has been checked (RFC-0.48-003)
+
+On the owner's request, and on the owner's ruling that it publish rather than draft: **the tag is
+already the authorization, so publishing from it bypasses nothing**, and the care belongs in the
+trigger. Notes are extracted from the CHANGELOG section for that exact version and the release record
+is **linked, never copied**. The bare-tag convention is enforced, so a `v`-prefixed tag cannot fire
+it; `permissions: {}` at the top with `contents: write` in exactly one job; every action pinned by a
+commit SHA resolved from the API.
+
+**The precondition table has seven rows, one withdrawn, six live, and `release-preflight` went from
+nine numbered checks to eight.** Withdrawn is **5**, the tag-signature check, and the reason is worth
+recording: **the architect invented it** — the owner asked only for Releases — it caught nothing but
+an accidentally unsigned tag, it stopped nobody with push access, and it **duplicated a step the cut
+already performs**. The signature is verified at the cut with `git tag -v` before the tag is pushed,
+which the checklist now states rather than leaving to habit. Neither `gh release create --verify-tag`
+nor GitHub's "Verified" badge is a signature gate: the flag aborts if the tag is absent from the
+remote, and the badge is visible, not enforced.
+
+**The correspondence the gate enforces does not hold for history:** of 105 bare tags only 35 have a
+CHANGELOG section and 27 a release record; it is total **from `0.21.3` on**, so the floor is
+**derived** rather than written. And the tag checks **cannot** live in `consistency-check`, which is a
+pure function of the committed tree — tags are not in the tree, and when Gate 12 runs the new tag does
+not exist yet.
+
+### The small item
+
+**E-130 closed.** The pre-publish landing-page re-read moved **before** the tag, because
+`cargo publish` packages the working tree and a correction found after the tag put the publish ahead
+of it — twice in three cuts. Only the logo-URL fetch still needs the tag. A publish precondition in
+the cycle requires `HEAD` to be the tag's commit with a clean tree, and **was run against the real
+0.47.0 failure, which it refuses**. The 28th subcheck `landing-page` derives the crates.io page's
+accepted/open figures from the register, gates the root `README.md`'s readiness and `done/` counts the
+same way, and **fails if either page states a count of gates**. It caught this very cut: the root
+README still said 238 files in `done/` where the folder holds 241.
+
+### What still does not hold
+
+- **MMIO mappings cannot be reclaimed** — `MmioUnmap` is declared and dispatched nowhere (row 7).
+- **The readiness matrix's "20 obligations" matches none of the four figures `verus-count` states**
+  (19 / 26 / 12 / 17), for a fourth cut. It is the owner's ruling, not an edit.
+- **`DELEGATE_ONLY` is still not taken** — a negative right deserves its own RFC against a
+  `Delegable` kind and an install-source table.
+- **E-073, E-095, E-122, E-004** unchanged; **E-014** is the standing class these milestones chip at.
+
+---
+
 ## [0.47.0] — 2026-11-23 — The project stops claiming authority it does not enforce
 
 Two lines, four small items, **four errata closed** (**E-126**, **E-127**, **E-128**, **E-129**, all
