@@ -1804,3 +1804,20 @@ Additional operational notes (not Gate 9 items, listed for completeness):
   figures from this register, gates the root `README.md`'s readiness and `done/`
   counts the same way, and **fails if either page states a count of gates** — so
   *"eleven mechanical gates, one manual check"* was reworded to carry no number.
+
+- **Documentation deployment fails intermittently, on GitHub's side, and a cut
+  may need a job re-run** (Errata **E-133**, CLOSED — recorded there as two
+  misdiagnoses, not a solved problem). `ci-pages` builds the book and deploys it
+  to GitHub Pages. `upload-pages-artifact` succeeds and finalises an artifact
+  with an id and a byte count; `deploy-pages` then reports **`Found 0
+  artifact(s)`** for that same artifact, in that same run. Observed five times
+  (0.44.0; 0.46.0; two dispatched runs and one push run at the 0.48.0 cut)
+  against push runs the same day that succeeded, in **both** event types, so it
+  is intermittent rather than structural. **Two explanations have been offered
+  and both were refuted by the next run** — a transient artifact-store race, and
+  the theory that only a *second*, queued deploy could fail — so no mechanism is
+  claimed here either; the action's own error text names `githubstatus.com` and
+  says to re-run the deployment, which is the remedy. **What it costs a release:**
+  criterion 9 reads the release commit's CI, so a cut that hits this must re-run
+  the job and record that it did. The site itself is never left half-deployed — a
+  failed `deploy-pages` writes nothing.
