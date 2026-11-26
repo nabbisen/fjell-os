@@ -562,9 +562,17 @@ a fresh clone.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 3 RFCs
 
-0.48's three lines were here while the architect reviewed them; all three are now in `accepted/`.
+0.49's two lines and its small items, **drafted by the implementer for the architect's review; nothing in the lines is implemented**
+(small item A's instrumentation is, and is described in -003). Each states the decisions it asks the architect to make rather than
+makes them. Handoff: `.git-exclude/handoff/handoff-0.49.md`; scope: `.git-exclude/handoff/scope-0.49.md`.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.49-001 | [A task the system can stop, and a slot it can take back — measured first, designed second](./proposed/RFC-0.49-001-a-task-the-system-can-stop-and-a-slot-it-can-take-back.md) | `TaskKill` (row 7), the task-table slot, the recovery promise |
+| 0.49-002 | [The ABI declares only syscalls the kernel dispatches — `MmioUnmap` built, `DmaShare` decided, the gate made a rule](./proposed/RFC-0.49-002-the-abi-declares-only-syscalls-the-kernel-dispatches.md) | row 7 (`MmioUnmap`, `DmaShare`), row 12's bound |
+| 0.49-003 | [The next Pages failure yields evidence — and what I did and did not do of the small items](./proposed/RFC-0.49-003-a-pages-failure-yields-evidence-and-the-small-items-said-plainly.md) | E-133 (instrumentation only), small items B and C |
 
 `proposed/README.md` keeps the folder in a fresh clone.
 
