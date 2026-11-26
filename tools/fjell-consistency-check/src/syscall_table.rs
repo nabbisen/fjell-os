@@ -11,7 +11,15 @@
 pub struct Expected {
     pub declared_count: usize,
     pub dispatched_count: usize,
+    /// The declared-and-undispatched syscalls that are **held**, by name (the `held` key). Since RFC-0.49-002 this is not a
+    /// record of the surface but a **dated exception to a rule**: `syscall-surface` fails on any declared variant with no
+    /// dispatch arm unless it is named here *with a reason and an expiry*. Empty is the goal and the state the rule exists to
+    /// reach. (`rfc-evidence` reads it to resolve a `syscall:<Name>` citation: held means undispatched.)
     pub undispatched: Vec<String>,
+    /// `held_until = "0.49.0"`: the last workspace version at which the hold may stand. A hold past it is a failure.
+    pub held_until: Option<String>,
+    /// `held_reason = "..."`: why the syscall is held, in one sentence. A hold without one is a failure.
+    pub held_reason: Option<String>,
 }
 
 /// Parse `Name = number,` variant lines inside `pub enum SyscallNumber { ... }`.
@@ -59,6 +67,8 @@ pub fn parse_expected(src: &str) -> Result<Expected, String> {
     let mut declared_count = None;
     let mut dispatched_count = None;
     let mut undispatched = Vec::new();
+    let mut held_until = None;
+    let mut held_reason = None;
     let mut in_array = false;
 
     for raw_line in src.lines() {
@@ -101,6 +111,16 @@ pub fn parse_expected(src: &str) -> Result<Expected, String> {
                 );
             }
             "undispatched" => {
+                return Err(
+                    "the `undispatched` list is retired (RFC-0.49-002): it recorded the undispatched syscalls, which let a new one \
+                     pass by being added to it. Use `held = [..]` with `held_until` and `held_reason` -- a dated exception to the rule \
+                     that every declared syscall is dispatched or retired"
+                        .to_string(),
+                );
+            }
+            "held_until" => held_until = Some(value.trim_matches('"').to_string()),
+            "held_reason" => held_reason = Some(value.trim_matches('"').to_string()),
+            "held" => {
                 if let Some(after) = value.strip_prefix('[') {
                     if let Some(end) = after.find(']') {
                         for item in after[..end].split(',') {
@@ -122,5 +142,7 @@ pub fn parse_expected(src: &str) -> Result<Expected, String> {
         declared_count: declared_count.ok_or("missing declared_count")?,
         dispatched_count: dispatched_count.ok_or("missing dispatched_count")?,
         undispatched,
+        held_until,
+        held_reason,
     })
 }

@@ -86,8 +86,14 @@ pub fn spawn(
     // SAFETY: category=kernel-global-mutable single hart; the syscall handler that called us holds no reference to the
     // lease table, and this reference is dropped before `spawn_with_lease` takes its own.
     let boot_lease = unsafe { crate::get_lease_table() }.create_boot(spawner)?;
+    let free_before = fa.free_count();
     match spawn_with_lease(image_id, table, sched, kernel_root, fa, boot_lease) {
-        Ok(tid) => Ok((tid, boot_lease)),
+        Ok(tid) => {
+            if let Some(t) = table.get_mut(tid) {
+                t.frames_taken = free_before.saturating_sub(fa.free_count()) as u32;
+            }
+            Ok((tid, boot_lease))
+        }
         Err(e) => {
             // SAFETY: category=kernel-global-mutable as above; the failed spawn took no reference.
             let _ = unsafe { crate::get_lease_table() }.revoke(boot_lease);
@@ -107,8 +113,10 @@ fn spawn_with_lease(
     let bytes = image_bytes(image_id).ok_or(SysError::InvalidCap)?;
 
     // Find a fresh task slot index.
-    let tid_index = table.next_free_index().ok_or(SysError::TaskTableFull)?;
-    let tid = TaskId::new(tid_index, 0);
+    let (tid_index, tid_generation) = table.next_free().ok_or(SysError::TaskTableFull)?;
+    // RFC-0.49-001 R3: the slot's REAL generation, so the TCB, the frame-owner tags and the inserted id agree even when the
+    // slot has been used before.
+    let tid = TaskId::new(tid_index, tid_generation);
     let asp_id = AddressSpaceId(tid_index);
 
     // Allocate root page table. `alloc_frame`'s only error is `OutOfMemory`
@@ -375,7 +383,7 @@ fn spawn_with_lease(
                 _ => None,
             };
             if let Some(ep_obj) = ep_obj {
-                let _ = cs.install_raw(
+                cs.grant(
                     0,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -397,7 +405,7 @@ fn spawn_with_lease(
             // installed the same way for every image, not a per-image
             // table entry, so a future dedicated endpoint for an unrelated
             // reason cannot silently redirect it again (D2).
-            let _ = cs.install_raw(
+            cs.grant(
                 fjell_abi::service::SERVICE_READY_SEND_SLOT as usize,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -416,7 +424,7 @@ fn spawn_with_lease(
             // `init` over. Nothing else ever sends or receives on this
             // object.
             if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
-                let _ = cs.install_raw(
+                cs.grant(
                     fjell_abi::service::INIT_RELAY_SEND_SLOT as usize,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -435,7 +443,7 @@ fn spawn_with_lease(
             // `bootctl`'s dedicated endpoint, to deliver
             // `tags::BOOT_HEALTH_OK` / `tags::BOOT_HEALTH_FAILED`.
             if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
-                let _ = cs.install_raw(
+                cs.grant(
                     fjell_abi::service::BOOTCTL_HEALTH_SEND_SLOT as usize,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -523,7 +531,7 @@ fn spawn_with_lease(
                 for &region_idx in regions {
                     if region_idx < MMIO_REGION_COUNT {
                         if let Some(_r) = mmio_table.get(region_idx) {
-                            let _ = cs.install_raw(
+                            cs.grant(
                                 31 + region_idx,
                                 Capability {
                                     kind: CapKind::MmioRegion,
@@ -543,7 +551,7 @@ fn spawn_with_lease(
             // Slot 1: Interrupt cap — granted to driver-uart only (RFC-0.25-001).
             // object_id = 10 = UART0's IRQ line on QEMU virt (handoff §2, R6).
             if image_id == fjell_abi::service::ImageId::DRIVER_UART {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::Interrupt,
@@ -564,7 +572,7 @@ fn spawn_with_lease(
             if image_id == fjell_abi::service::ImageId::AUDITD
                 || image_id == fjell_abi::service::ImageId::NEG_TEST
             {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::AuditDrain,
@@ -583,7 +591,7 @@ fn spawn_with_lease(
             // anywhere: `bootctl`'s rollback arm called `sys_reboot` and was
             // refused every time by an empty slot, not by a real decision.
             if image_id == fjell_abi::service::ImageId::BOOTCTL {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::Reboot,
@@ -603,7 +611,7 @@ fn spawn_with_lease(
             // right is named, not drawn from `ALL_NON_META`/`ALL_DEFINED`: a monotone
             // counter is a timing side channel, and a blanket grant must not confer it.
             if image_id == fjell_abi::service::ImageId::STORAGED {
-                let _ = cs.install_raw(
+                cs.grant(
                     3,
                     Capability {
                         kind: CapKind::Clock,
@@ -634,7 +642,7 @@ fn spawn_with_lease(
                 fjell_abi::service::ImageId::STORAGED | fjell_abi::service::ImageId::NEG_TEST
             );
             if needs_dma {
-                let _ = cs.install_raw(
+                cs.grant(
                     2,
                     Capability {
                         kind: CapKind::DmaRegion,
@@ -658,7 +666,7 @@ fn spawn_with_lease(
             // right (RFC-0.24-001: an instrument claimed sound carries a demonstration of it
             // failing). The kind is correct, so the only thing that can refuse is the right.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     15,
                     Capability {
                         kind: CapKind::Clock,
@@ -684,7 +692,7 @@ fn spawn_with_lease(
             // would leave every tier green. It is **not** an install capability and does not
             // reopen who may install: only the broker's slot 10 carries `CAP_INSTALL`.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     26,
                     Capability {
                         kind: CapKind::CapInstall,
@@ -704,7 +712,7 @@ fn spawn_with_lease(
             // IRQ_ACK is granted so the rejection is specifically a
             // MissingRight, not a WrongKind or EmptySlot).
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     9,
                     Capability {
                         kind: CapKind::Interrupt,
@@ -721,7 +729,7 @@ fn spawn_with_lease(
             // Slot 7: endpoint cap to sample-service (object 6) for NEG_TEST —
             // both legs of the RFC 042 IPC protocol run on this endpoint.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     7,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -746,7 +754,7 @@ fn spawn_with_lease(
                     (18, fjell_abi::service::BOOTCTL_EP_OBJECT),
                     (19, fjell_abi::service::VERIFYD_EP_OBJECT),
                 ] {
-                    let _ = cs.install_raw(
+                    cs.grant(
                         slot,
                         Capability {
                             kind: CapKind::Endpoint,
@@ -772,7 +780,7 @@ fn spawn_with_lease(
             // sample-service binds a lease to a copied endpoint cap and blocks
             // in ipc_recv to allow the lease-revoked wakeup scenario to be tested.
             if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::LeaseAdmin,
@@ -789,7 +797,7 @@ fn spawn_with_lease(
             // Slot 3: cap-broker endpoint cap for NEG_TEST (RFC 042 policy tests).
             // object_id=5 is cap-broker's dedicated endpoint.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     3,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -806,7 +814,7 @@ fn spawn_with_lease(
             // Slot 4: LeaseAdmin cap for NEG_TEST — required by sys_cap_bind_lease
             // so the neg-test service can create and revoke lease-bound caps (RFC 042).
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     4,
                     Capability {
                         kind: CapKind::LeaseAdmin,
@@ -832,7 +840,7 @@ fn spawn_with_lease(
             // subcheck (`capability-topology`) counts the holders of `LEASE_REVOKE_ANY` and fails on any
             // image but NEG_TEST.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     27,
                     Capability {
                         kind: CapKind::LeaseAdmin,
@@ -866,8 +874,11 @@ fn spawn_with_lease(
             // log, which is what surfaced this. Same shape as NEG_TEST's
             // grant below — unscoped, because service-manager watches
             // tasks it did not spawn itself.
+            // **`TASK_KILL` is held here on purpose** (RFC-0.49-001 D1/D2): `ALL_NON_META` contains it, and `service-manager`
+            // is the destroyer -- it reads a task's verdict with `sys_task_status`, reports it, then destroys the task.
+            // `capability-topology` counts this site as a holder; the allowed set is {SERVICE_MANAGER, NEG_TEST}.
             if image_id == fjell_abi::service::ImageId::SERVICE_MANAGER {
-                let _ = cs.install_raw(
+                cs.grant(
                     29,
                     Capability {
                         kind: CapKind::TaskControl,
@@ -885,7 +896,7 @@ fn spawn_with_lease(
             // (RFC-0.33-001 D17, the sixth kernel touch). `init` sends the
             // console-byte trigger for the reset scenario here. RECV only.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     fjell_abi::service::NEG_TEST_TRIGGER_RECV_SLOT as usize,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -909,7 +920,7 @@ fn spawn_with_lease(
             // precedent is the disclosure in v1-limitations.md, not the
             // capability. Granted the same way its TaskControl grant below is.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     16,
                     Capability {
                         kind: CapKind::Reboot,
@@ -926,7 +937,7 @@ fn spawn_with_lease(
             // Slots 5-6: TaskCreate + TaskControl for NEG_TEST (RFC 042 SVC tests).
             // Allows neg-test to spawn and monitor the svc-timeout/svc-fault services.
             if image_id == fjell_abi::service::ImageId::NEG_TEST {
-                let _ = cs.install_raw(
+                cs.grant(
                     5,
                     Capability {
                         kind: CapKind::TaskCreate,
@@ -939,7 +950,9 @@ fn spawn_with_lease(
                         lease: None,
                     },
                 );
-                let _ = cs.install_raw(
+                // `TASK_KILL` is in `ALL_NON_META` and is held here by name, so the suite can show the kill right at work
+                // (RFC-0.49-001 D2): the second of the two allowed holders, a fixture, counted by `capability-topology`.
+                cs.grant(
                     6,
                     Capability {
                         kind: CapKind::TaskControl,
@@ -957,7 +970,7 @@ fn spawn_with_lease(
             // (RFC-v0.23-001) — lets the SDK reference service emit an intent
             // node over IPC, demonstrating the authoring pattern.
             if image_id == fjell_abi::service::ImageId::SAMPLE_SERVICE {
-                let _ = cs.install_raw(
+                cs.grant(
                     3,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -988,7 +1001,7 @@ fn spawn_with_lease(
                     (2, fjell_abi::service::PROXY_BRAILLE_EP_OBJECT),
                     (3, fjell_abi::service::SVC_PRESENTATION_FAULT_EP_OBJECT),
                 ] {
-                    let _ = cs.install_raw(
+                    cs.grant(
                         slot,
                         Capability {
                             kind: CapKind::Endpoint,
@@ -1014,7 +1027,7 @@ fn spawn_with_lease(
                 || image_id == fjell_abi::service::ImageId::SVC_PRESENTATION_FAULT
                 || image_id == fjell_abi::service::ImageId::SVC_PRESENTATION_LIAR
             {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1056,7 +1069,7 @@ fn spawn_with_lease(
             //       construction, not by two people remembering to keep two
             //       numbers in sync.
             if image_id == fjell_abi::service::ImageId::PROXY_TEXT {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1069,7 +1082,7 @@ fn spawn_with_lease(
                         lease: None,
                     },
                 );
-                let _ = cs.install_raw(
+                cs.grant(
                     2,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1110,7 +1123,7 @@ fn spawn_with_lease(
             // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
-                let _ = cs.install_raw(
+                cs.grant(
                     10,
                     Capability {
                         kind: CapKind::CapInstall,
@@ -1125,7 +1138,7 @@ fn spawn_with_lease(
                         lease: None,
                     },
                 );
-                let _ = cs.install_raw(
+                cs.grant(
                     11,
                     Capability {
                         kind: CapKind::LeaseAdmin,
@@ -1145,7 +1158,7 @@ fn spawn_with_lease(
                 // broker's policy read, so neither can spell the pair by hand. HOLDING IS AUTHORITY:
                 // the broker can send to object 23 (it could not before). The table says so.
                 for e in fjell_abi::service::BROKERED_ENDPOINTS {
-                    let _ = cs.install_raw(
+                    cs.grant(
                         e.broker_slot as usize,
                         Capability {
                             kind: CapKind::Endpoint,
@@ -1181,7 +1194,7 @@ fn spawn_with_lease(
             // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1199,7 +1212,7 @@ fn spawn_with_lease(
                 // mirrors `NEG_TEST_TRIGGER_RECV_SLOT`. Not declared as a
                 // named `CapHandle` constant in `fleetd`'s own source (see
                 // `fjell_abi::service::FLEETD_TRIGGER_RECV_SLOT`'s own doc).
-                let _ = cs.install_raw(
+                cs.grant(
                     fjell_abi::service::FLEETD_TRIGGER_RECV_SLOT as usize,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1218,7 +1231,7 @@ fn spawn_with_lease(
             // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
-                let _ = cs.install_raw(
+                cs.grant(
                     1,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1242,7 +1255,7 @@ fn spawn_with_lease(
                 // cannot attest (RFC-0.39-001: `DIAGNOSTICSD` has no
                 // `MeasurementSource`, and `APPEND_IMAGE_SET` is `init`-only). That
                 // is why 0.39-001 had to land before this line.
-                let _ = cs.install_raw(
+                cs.grant(
                     4,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1270,7 +1283,7 @@ fn spawn_with_lease(
                 // nothing installs it for this image (0 and 3 are retired, 1/2/4 are
                 // in use; `capability-topology` reads the install against the
                 // declaration).
-                let _ = cs.install_raw(
+                cs.grant(
                     5,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1303,7 +1316,7 @@ fn spawn_with_lease(
         // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
-            let _ = cs.install_raw(
+            cs.grant(
                 4,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1337,7 +1350,7 @@ fn spawn_with_lease(
             // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
-                let _ = cs.install_raw(
+                cs.grant(
                     2,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1356,7 +1369,7 @@ fn spawn_with_lease(
             // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
             let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
             if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
-                let _ = cs.install_raw(
+                cs.grant(
                     6,
                     Capability {
                         kind: CapKind::Endpoint,
@@ -1384,7 +1397,27 @@ fn spawn_with_lease(
         let (_, _, ct, _) = unsafe { crate::get_kernel_state() };
         // SAFETY: category=kernel-global-mutable as above.
         let lt = unsafe { crate::get_lease_table() };
-        let epoch = lt.active_epoch(boot_lease)?;
+        // RFC-0.49-001 R2: **a grant that was refused fails the spawn.** The 55 grant sites used to discard `install_raw`'s
+        // `Err`; on a reused CSpace that refusal is the whole story (the slot still holds the previous occupant's
+        // capability), so it is checked here, once, after the last grant, and the half-built task is rolled back.
+        if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
+            if let Err(e) = cs.finish_grants() {
+                crate::kprintln!(
+                    "spawn: image {} -- boot grants not clean: {:?}; the spawn is rolled back",
+                    image_id.0,
+                    e
+                );
+                crate::task::destroy::rollback_spawn(ins_id);
+                return Err(SysError::InternalError);
+            }
+        }
+        let epoch = match lt.active_epoch(boot_lease) {
+            Ok(e) => e,
+            Err(e) => {
+                crate::task::destroy::rollback_spawn(ins_id);
+                return Err(e);
+            }
+        };
         if let Some(cs) = ct.cspace_mut(ins_id.index as usize) {
             let unbound = unbound_fixture_slots(image_id);
             for (i, slot) in cs.slots_mut().iter_mut().enumerate() {

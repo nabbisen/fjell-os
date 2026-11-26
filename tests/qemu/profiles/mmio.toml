@@ -7,5 +7,19 @@ expected_markers = [
   "NEG:MMIO:RIGHTS_CHECK:PASS",
   "NEG:MMIO:BOUNDS_REJECTED:PASS",
   "NEG:MMIO:RAM_GUARD_REJECTS:PASS",
+  # RFC-0.49-002: `MmioUnmap` is dispatched and verified. Every line below is printed by `neg-test`'s default sequence.
+  "NEG:MMIO:UNMAP_INTERIOR_ADDRESS_REFUSED:PASS",
+  "NEG:MMIO:UNMAP_WITH_ANOTHER_REGIONS_CAPABILITY_REFUSED:PASS",
+  "NEG:MMIO:UNMAP_WITH_AN_ENDPOINT_CAPABILITY_REFUSED:PASS",
+  "NEG:MMIO:UNMAP_OK:PASS",
+  "NEG:MMIO:UNMAP_TWICE_REFUSED:PASS",
+  "NEG:MMIO:UNMAP_NEVER_MAPPED_REFUSED:PASS",
+  "NEG:MMIO:MAP_REFUSED_WHEN_TABLE_FULL:PASS",
+  "NEG:MMIO:MAP_SUCCEEDS_AGAIN_AFTER_UNMAP:PASS",
+  # and the kernel's own account: a device page never reaches the frame allocator
+  "(unchanged)",
 ]
+# RFC-0.49-002: NO unmap may have moved the allocator's free count -- a device page reaching the frame allocator is the
+# defect the "(unchanged)" line exists to catch, and one "(unchanged)" line is not evidence about the others.
+expect_absent    = ["a device page reached the allocator"]
 extra_args       = []

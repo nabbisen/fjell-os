@@ -168,6 +168,9 @@ pub struct Task {
     /// exits or faults** -- without that, a lease owned by the spawner would outlive its subject and every service restart
     /// would consume a slot for ever. `None` only for `init`, which is built directly in `main.rs` and is excepted by name.
     pub boot_lease: Option<fjell_abi::lease::LeaseId>,
+    /// RFC-0.49-001 D4: frames `spawn()` took for this task (user pages, kernel stack, **page tables**). Destroy frees all
+    /// but the page tables, and prints the difference, so the deferred leak is a number in the log and not a claim.
+    pub frames_taken: u32,
 }
 
 impl Task {
@@ -193,6 +196,7 @@ impl Task {
             dev_vma_next: DEVICE_VMA_BASE,
             image_id: fjell_abi::service::ImageId(0xFFFF), // set by spawn
             boot_lease: None,                              // set by spawn
+            frames_taken: 0,                               // set by spawn
         }
     }
 }
@@ -225,15 +229,44 @@ impl TaskTable {
     }
 
     /// Insert a task and return its `TaskId`.
-    pub fn insert(&mut self, task: Task) -> Result<TaskId, TaskError> {
+    ///
+    /// **The task's own `id` is set to the slot's real `(index, generation)`** (RFC-0.49-001 R3): a TCB whose `id` disagrees
+    /// with the slot it sits in names a task that does not exist, which is the failure reuse makes reachable.
+    pub fn insert(&mut self, mut task: Task) -> Result<TaskId, TaskError> {
         for (i, slot) in self.slots.iter_mut().enumerate() {
             if slot.task.is_none() {
                 let id = TaskId::new(i as u16, slot.generation);
+                task.id = id;
                 slot.task = Some(task);
                 return Ok(id);
             }
         }
         Err(TaskError::TableFull)
+    }
+
+    /// The real id of the task occupying slot `index` -- the slot's *current* generation -- or `None` if it is empty.
+    ///
+    /// **This is the replacement for `TaskId::new(index, 0)`** (RFC-0.49-001 D3). A syscall handler knows its caller as an
+    /// index; an owner comparison needs the whole id, so that a new occupant of the slot cannot equal an owner stored for its
+    /// predecessor.
+    pub fn id_at(&self, index: u16) -> Option<TaskId> {
+        let slot = self.slots.get(index as usize)?;
+        slot.task
+            .as_ref()
+            .map(|_| TaskId::new(index, slot.generation))
+    }
+
+    /// The task in slot `index`, whatever its generation. **For references the kernel itself owns and purges when the
+    /// task is destroyed** (endpoint queue entries, reply edges, ...): those carry an index, and destroying a slot removes
+    /// every one of them, so an index in a live queue always names the current occupant. Anything that came from outside
+    /// the kernel carries a full `TaskId` and goes through [`TaskTable::get`].
+    pub fn get_by_index(&self, index: u16) -> Option<&Task> {
+        self.slots.get(index as usize)?.task.as_ref()
+    }
+
+    /// Mutable form of [`TaskTable::get_by_index`].
+    pub fn get_by_index_mut(&mut self, index: u16) -> Option<&mut Task> {
+        self.slots.get_mut(index as usize)?.task.as_mut()
     }
 
     /// Get an immutable reference to a task by `TaskId`.
@@ -283,12 +316,14 @@ pub enum TaskError {
 }
 
 impl TaskTable {
-    /// Return the index of the next free slot (for pre-allocation checks).
-    pub fn next_free_index(&self) -> Option<u16> {
+    /// The `(index, generation)` the next [`TaskTable::insert`] will assign -- the first empty slot and **its current
+    /// generation**, which `remove` has already bumped if the slot was used before. A spawner must build the TCB's id, the
+    /// address-space id and every frame-owner tag from this, not from a literal generation (RFC-0.49-001 R3).
+    pub fn next_free(&self) -> Option<(u16, u16)> {
         self.slots
             .iter()
             .enumerate()
             .find(|(_, s)| s.task.is_none())
-            .map(|(i, _)| i as u16)
+            .map(|(i, s)| (i as u16, s.generation))
     }
 }

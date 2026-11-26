@@ -31,6 +31,7 @@
 pub mod address;
 pub mod error;
 pub mod frame_alloc;
+pub mod mmio_mappings;
 
 pub use address::{PhysAddr, PhysFrame, VirtAddr};
 pub use error::MmError;

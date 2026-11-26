@@ -221,6 +221,34 @@ impl<'a> FrameAllocator<'a> {
             .map(|(pfn, _)| (pfn << 12) as usize)
     }
 
+    /// Free every frame tagged as one of `task`'s **user** frames -- `UserText`, `UserData` or `UserStack` -- and return how
+    /// many were freed (RFC-0.49-001 D4). The match is on the **whole `TaskId`**, index *and generation*, so the frames of a
+    /// slot's previous occupant are never confused with the current one's.
+    ///
+    /// Deliberately **not** freed: `Dma` (released through the DMA table, which zeroizes and verifies), `KernelStack` and
+    /// `KernelPageTable` (they carry no task; the caller frees the stack by address and the page tables are deferred --
+    /// RFC-0.49-001 D4). Returns 0 if the allocator has no owner array.
+    pub fn free_user_frames_of(&mut self, task: TaskId) -> u64 {
+        let mut freed = 0u64;
+        let count = self.frame_count;
+        for off in 0..count {
+            let mine = match self.owner.as_deref().map(|o| o[off as usize]) {
+                Some(FrameOwner::UserText { task: t })
+                | Some(FrameOwner::UserData { task: t })
+                | Some(FrameOwner::UserStack { task: t }) => t == task,
+                _ => false,
+            };
+            if mine && self.is_used(off) {
+                self.set_free(off);
+                if let Some(ref mut owners) = self.owner {
+                    owners[off as usize] = FrameOwner::Free;
+                }
+                freed += 1;
+            }
+        }
+        freed
+    }
+
     /// Number of free frames remaining.
     pub fn free_count(&self) -> u64 {
         let used: u64 = self.bitmap.iter().map(|w| w.count_ones() as u64).sum();
@@ -624,5 +652,69 @@ mod tests {
             fa.owner_of(PhysFrame::from_pfn(5).unwrap()),
             Some(FrameOwner::Free)
         );
+    }
+
+    fn owned_alloc(frames: u64) -> FrameAllocator<'static> {
+        let bitmap: &'static mut [u64] =
+            Box::leak(vec![0u64; ((frames + 63) / 64) as usize].into_boxed_slice());
+        let owners: &'static mut [FrameOwner] =
+            Box::leak(vec![FrameOwner::Free; frames as usize].into_boxed_slice());
+        FrameAllocator::new(0, frames, bitmap, Some(owners))
+    }
+
+    #[test]
+    fn free_user_frames_of_frees_exactly_one_incarnations_user_frames() {
+        let mut fa = owned_alloc(64);
+        let old = TaskId::new(5, 0);
+        let new = TaskId::new(5, 1);
+        for _ in 0..3 {
+            fa.alloc_frame(FrameOwner::UserStack { task: old }).unwrap();
+        }
+        fa.alloc_frame(FrameOwner::UserText { task: old }).unwrap();
+        fa.alloc_frame(FrameOwner::UserData { task: old }).unwrap();
+        for _ in 0..2 {
+            fa.alloc_frame(FrameOwner::UserStack { task: new }).unwrap();
+        }
+        let kstack = fa.alloc_frame(FrameOwner::KernelStack).unwrap();
+        let pt = fa.alloc_frame(FrameOwner::KernelPageTable).unwrap();
+        let dma = fa.alloc_frame(FrameOwner::Dma { task: old }).unwrap();
+        let other = fa
+            .alloc_frame(FrameOwner::UserStack {
+                task: TaskId::new(6, 0),
+            })
+            .unwrap();
+        let used_before = 64 - fa.free_count();
+        assert_eq!(fa.free_user_frames_of(old), 5, "3 stack + 1 text + 1 data");
+        assert_eq!(64 - fa.free_count(), used_before - 5);
+        // not freed: the next occupant's frames (same index, newer generation), another task's, kernel stack, page table, DMA
+        assert_eq!(fa.owner_of(kstack), Some(FrameOwner::KernelStack));
+        assert_eq!(fa.owner_of(pt), Some(FrameOwner::KernelPageTable));
+        assert_eq!(fa.owner_of(dma), Some(FrameOwner::Dma { task: old }));
+        assert_eq!(
+            fa.owner_of(other),
+            Some(FrameOwner::UserStack {
+                task: TaskId::new(6, 0)
+            })
+        );
+        assert_eq!(
+            fa.free_user_frames_of(new),
+            2,
+            "the generation is part of the match"
+        );
+        assert_eq!(
+            fa.free_user_frames_of(old),
+            0,
+            "a second call finds nothing: no double free"
+        );
+    }
+
+    #[test]
+    fn free_user_frames_of_without_an_owner_array_frees_nothing() {
+        let mut fa = FrameAllocator::new(0, 64, Box::leak(vec![0u64; 1].into_boxed_slice()), None);
+        fa.alloc_frame(FrameOwner::UserStack {
+            task: TaskId::new(1, 0),
+        })
+        .unwrap();
+        assert_eq!(fa.free_user_frames_of(TaskId::new(1, 0)), 0);
     }
 }

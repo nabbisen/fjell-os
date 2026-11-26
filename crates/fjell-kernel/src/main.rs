@@ -575,6 +575,20 @@ pub(crate) fn dma_table() -> &'static mut DmaRegionTable {
     unsafe { &mut *DMA_REGION_TABLE.0.get() }
 }
 
+/// RFC-0.49-002 R1: what `sys_mmio_map` has mapped into each task. Reserve-then-map, release on failure, released on death.
+struct MmioMappingTableStatic(
+    core::cell::UnsafeCell<fjell_frame_alloc::mmio_mappings::MmioMappingTable>,
+);
+// SAFETY: category=kernel-global-mutable single-hart; accessed only from trap-handling context, never concurrently.
+unsafe impl Sync for MmioMappingTableStatic {}
+static MMIO_MAPPING_TABLE: MmioMappingTableStatic = MmioMappingTableStatic(
+    core::cell::UnsafeCell::new(fjell_frame_alloc::mmio_mappings::MmioMappingTable::new()),
+);
+pub(crate) fn mmio_mappings() -> &'static mut fjell_frame_alloc::mmio_mappings::MmioMappingTable {
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    unsafe { &mut *MMIO_MAPPING_TABLE.0.get() }
+}
+
 /// RFC-0.25-001: IRQ bind table (task ↔ PLIC source, plus a pending flag).
 struct IrqTableStatic(core::cell::UnsafeCell<irq::IrqTable>);
 // SAFETY: category=kernel-global-mutable single-hart; accessed only from
@@ -1380,7 +1394,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // A capability whose comment promises a revocation that does not occur is
             // removed, not kept.
             // Slot 28: TaskCreate — init can spawn service tasks.
-            let _ = cs.install_raw(
+            cs.grant(
                 28,
                 Capability {
                     kind: CapKind::TaskCreate,
@@ -1394,12 +1408,16 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 },
             );
             // Slot 29: TaskControl — init can start spawned tasks.
-            let _ = cs.install_raw(
+            // **Not `TASK_KILL`** (RFC-0.49-001 D2): `ALL_NON_META` contains bit 15, so this grant used to carry a right
+            // for an operation nobody could perform -- and would have armed `init` to destroy any task the day `TaskKill`
+            // was dispatched. `init` exits in every boot; the kill right is granted by name, to `service-manager` and
+            // `neg-test`, and `capability-topology` counts every holder, through the blanket as well.
+            cs.grant(
                 29,
                 Capability {
                     kind: CapKind::TaskControl,
                     object_id: 0,
-                    rights: CapRights::ALL_NON_META,
+                    rights: CapRights(CapRights::ALL_NON_META.0 & !CapRights::TASK_KILL.0),
                     badge: 0,
                     scope: ObjectScope::Any,
                     state: CapState::Active,
@@ -1408,7 +1426,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                 },
             );
             // Slot 30: LeaseAdmin — init can create/revoke leases.
-            let _ = cs.install_raw(
+            cs.grant(
                 30,
                 Capability {
                     kind: CapKind::LeaseAdmin,
@@ -1430,7 +1448,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // capability to receive on it.
             // Slot 1: cap-broker private endpoint (endpoint id=5, RFC 040).
             // Init uses this to send BOOTSTRAP_COMPLETE.
-            let _ = cs.install_raw(
+            cs.grant(
                 1,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1455,7 +1473,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // endpoint now has exactly one receiver — `storaged` itself —
             // as a structural fact: even a future `sys_ipc_recv` added
             // here would fail the rights check.
-            let _ = cs.install_raw(
+            cs.grant(
                 2,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1470,7 +1488,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             );
             // Slots 3-5: M8 service private endpoints — narrowed to `CALL`
             // for the same reason and by the same RFC as slot 2 above.
-            let _ = cs.install_raw(
+            cs.grant(
                 3,
                 Capability {
                     // measuredd (ep id=2)
@@ -1484,7 +1502,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     lease: None,
                 },
             );
-            let _ = cs.install_raw(
+            cs.grant(
                 4,
                 Capability {
                     // attestd (RFC-0.44-001 R1: named, not the literal 3)
@@ -1498,7 +1516,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                     lease: None,
                 },
             );
-            let _ = cs.install_raw(
+            cs.grant(
                 5,
                 Capability {
                     // recoveryd (ep id=4)
@@ -1531,7 +1549,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // narrowed: `init` never sent to proxy-text directly (only
             // `wait_ready_exact` used it), so no residual capability was
             // needed once that call was gone.
-            let _ = cs.install_raw(
+            cs.grant(
                 6,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1554,7 +1572,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // which auditd and bootctl also default to and race
             // service-manager for — see
             // rfcs/answers/RFC-0.28-001-readiness-topology-answer.md §3).
-            let _ = cs.install_raw(
+            cs.grant(
                 fjell_abi::service::INIT_RELAY_RECV_SLOT as usize,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1569,7 +1587,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             );
             // Slot 8: uart-rx endpoint (ep id=9, RFC-0.25-001). driver-uart
             // sends received bytes here; init receives them.
-            let _ = cs.install_raw(
+            cs.grant(
                 8,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1587,7 +1605,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // console byte and sends one message; that byte's only power is to ask
             // `neg-test` to run its reboot scenario, and `neg-test` still holds
             // the capability check.
-            let _ = cs.install_raw(
+            cs.grant(
                 fjell_abi::service::INIT_NEG_TEST_SEND_SLOT as usize,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1606,7 +1624,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // message; that byte's only power is to ask `fleetd` to run its
             // one scenario (ask `diagnosticsd` for a bundle), and `fleetd`
             // still does the asking itself.
-            let _ = cs.install_raw(
+            cs.grant(
                 fjell_abi::service::INIT_FLEETD_SEND_SLOT as usize,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1627,7 +1645,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             // slot to send `tags::SM_REGISTER_REQUIRED` instead, the same
             // destination object, a different tag, same as `bootctl`'s own
             // endpoint carries three different tags on one capability.
-            let _ = cs.install_raw(
+            cs.grant(
                 fjell_abi::service::SERVICE_READY_SEND_SLOT as usize,
                 Capability {
                     kind: CapKind::Endpoint,
@@ -1644,7 +1662,7 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
             let mmio_table = mmio_region_table();
             for (i, _region) in mmio_table.iter().enumerate().take(MMIO_REGION_COUNT) {
                 let slot = 31 + i;
-                let _ = cs.install_raw(
+                cs.grant(
                     slot,
                     Capability {
                         kind: CapKind::MmioRegion,
@@ -1657,6 +1675,10 @@ fn kmain(_hart_id: usize, dtb_pa: usize) -> ! {
                         lease: None,
                     },
                 );
+            }
+            // RFC-0.49-001 R2: a refused boot grant is a boot failure, not a silent omission.
+            if let Err(e) = cs.finish_grants() {
+                panic!("init bootstrap: boot grants not clean: {:?}", e);
             }
         }
         kprintln!("M4: init task ready");

@@ -1,6 +1,7 @@
 //! Task management subsystem.
 
 pub mod context;
+pub mod destroy;
 pub mod id;
 pub mod scheduler;
 pub mod tcb;

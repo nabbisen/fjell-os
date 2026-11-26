@@ -7,3 +7,5 @@ bootctl: health FAILED on the last confirmed slot; no fallback, not resetting
 a[cont]
 [cont]TAIL-END
 svc-fault: last words before the fault[cut]
+NEG:SVC:FAULTED_TASK_DESTROYED:PASS
+NEG:SVC:DESTROYED_HANDLE_NAMES_NOTHING:PASS

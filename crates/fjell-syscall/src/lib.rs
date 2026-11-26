@@ -369,6 +369,49 @@ pub fn sys_task_status(cap_handle: u32, task_handle: usize) -> Result<u8, SysErr
     .map(|v| v as u8)
 }
 
+/// RFC-0.49-002: take back a device mapping `sys_mmio_map` made, by the virtual address it returned. `cap_handle` is the
+/// `MmioRegion` capability (with `MMIO_MAP`) for the mapping's **own region**; `user_va` is the **base** address.
+///
+/// Whole-mapping only: an interior address, an address never mapped, a second unmap of the same address, and another task's
+/// address are all `InvalidArg`; a capability for a different region is `PermissionDenied`; a capability whose lease has been
+/// revoked is `LeaseRevoked` -- **a task whose lease is revoked cannot unmap its own mapping**, which is the bound
+/// `v1-limitations.md` row 12 records. The device page is never returned to the frame allocator.
+#[inline]
+pub fn sys_mmio_unmap(cap_handle: CapHandle, user_va: usize) -> Result<(), SysError> {
+    to_result(
+        ecall2(
+            SyscallNumber::MmioUnmap as usize,
+            cap_handle.0 as usize,
+            user_va,
+            0,
+            0,
+        )
+        .0,
+    )
+    .map(|_| ())
+}
+
+/// RFC-0.49-001: **destroy** a task -- afterwards its handle names nothing. `cap_handle` is a `TaskControl` capability
+/// carrying `TASK_KILL`; `task_handle` is the `index | generation << 16` handle `sys_task_spawn` returned.
+///
+/// A live task is stopped and everything the kernel held for it is taken back; a task that already exited or faulted
+/// has its slot released (**read its verdict with [`sys_task_status`] first**: after this call the status read is
+/// `InvalidCap`). `PermissionDenied` for the caller itself and for the idle task; `InvalidCap` for a stale handle.
+#[inline]
+pub fn sys_task_kill(cap_handle: u32, task_handle: usize) -> Result<(), SysError> {
+    to_result(
+        ecall2(
+            SyscallNumber::TaskKill as usize,
+            cap_handle as usize,
+            task_handle,
+            0,
+            0,
+        )
+        .0,
+    )
+    .map(|_| ())
+}
+
 // ── M4 lease syscalls ─────────────────────────────────────────────────────────
 
 /// RFC 048: first arg is `LeaseAdmin` cap handle; second is flags.

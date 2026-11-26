@@ -56,7 +56,7 @@ the [v1.0 non-goals](https://github.com/nabbisen/fjell-os/blob/main/docs/src/rel
 ## How the project verifies itself
 
 Every release must pass a set of mechanical gates, a manual review and a
-35-tier test suite, and every divergence between what a document claims and
+37-tier test suite, and every divergence between what a document claims and
 what shipped is recorded in the errata register rather than fixed silently.
 
 That register currently carries **5 accepted limitations and 0 open** — including

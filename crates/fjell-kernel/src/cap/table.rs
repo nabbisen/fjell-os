@@ -146,6 +146,33 @@ impl CapTable {
         (cancelled, n)
     }
 
+    /// Forget every reply edge that names slot `task_idx` (RFC-0.49-001 D5), as **server** (the edge stored at its own index)
+    /// and as **caller** (any edge in any server's slot whose `caller_tid` is `task_idx`). Returns the callers that were
+    /// **blocked waiting on this task as server**: the kernel must wake each of them with an error, or they wait for a reply
+    /// that will never come.
+    ///
+    /// The caller-side edges matter most: left in place, the server's later `reply` would deliver to
+    /// `get_by_index(caller_tid)` -- by then the **next occupant** of the slot, if it is `Blocked` -- which is a reply
+    /// delivered to a task that never asked.
+    pub fn purge_replies_for_task(&mut self, task_idx: u16) -> ([u16; MAX_TASKS], usize) {
+        let mut waiting = [0u16; MAX_TASKS];
+        let mut n = 0usize;
+        if let Some(r) = self.replies.get_mut(task_idx as usize) {
+            if let Some(edge) = r.edge.take() {
+                if n < MAX_TASKS {
+                    waiting[n] = edge.caller_tid;
+                    n += 1;
+                }
+            }
+        }
+        for r in self.replies.iter_mut() {
+            if r.edge.as_ref().is_some_and(|e| e.caller_tid == task_idx) {
+                r.edge = None;
+            }
+        }
+        (waiting, n)
+    }
+
     /// Read the reply edge for task `server_idx` **without consuming it**
     /// (RFC-0.45-002, ruling 1).
     ///

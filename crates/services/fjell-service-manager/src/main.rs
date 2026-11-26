@@ -48,8 +48,8 @@ mod rt;
 use fjell_abi::service::{BOOTCTL_HEALTH_SEND_SLOT, ImageId, TaskLifecycle};
 use fjell_service_api::{negative_markers as M, tags};
 use fjell_syscall::{
-    ipc_sender_image_id, sys_debug_writeln, sys_ipc_recv_msg, sys_ipc_send, sys_task_status,
-    sys_yield,
+    ipc_sender_image_id, sys_debug_writeln, sys_ipc_recv_msg, sys_ipc_send, sys_task_kill,
+    sys_task_status, sys_yield,
 };
 
 // Slot 0 is service-manager's own identity endpoint — RFC-0.28-001 gives
@@ -135,6 +135,19 @@ fn check_fault_and_report(e: &mut ServiceEntry, health_failed_sent: &mut bool) -
     if e.required && !*health_failed_sent {
         *health_failed_sent = true;
         let _ = sys_ipc_send(BOOTCTL_HEALTH_SEND_SLOT, tags::BOOT_HEALTH_FAILED);
+    }
+    // RFC-0.49-001 D1: **read, report, destroy** -- in that order. The verdict was read above (`sys_task_status`) and reported
+    // above, so destroying the task loses nothing; and a faulted task that is never destroyed holds its slot for the rest of
+    // the boot. `service-manager` is the one `TASK_KILL` holder that is also the one component watching every required service.
+    // (Destroying is not restarting: `service-manager` holds no `TaskCreate`, and nothing here spawns anything.)
+    if sys_task_kill(SLOT_TASK_CONTROL, e.task_handle).is_ok() {
+        sys_debug_writeln(M::SVC_FAULTED_TASK_DESTROYED);
+        if sys_task_status(SLOT_TASK_CONTROL, e.task_handle)
+            == Err(fjell_abi::error::SysError::InvalidCap)
+        {
+            sys_debug_writeln(M::SVC_DESTROYED_HANDLE_NAMES_NOTHING);
+        }
+        e.task_handle = 0; // never poll a destroyed task's handle again
     }
     true
 }

@@ -366,10 +366,14 @@ pub fn mmio_slots_by_image(spawn: &str) -> Result<Vec<(String, Vec<u32>)>, Strin
         .find("if let Some(regions) = mmio_regions_for_service")
         .ok_or("the `mmio_regions_for_service` table has no `if let Some(regions)` consumer")?;
     let consumer = &tail[uses..];
-    let install = consumer
-        .find("install_raw(")
-        .ok_or("the MMIO consumer has no `install_raw(` call")?;
-    let arg = consumer[install + "install_raw(".len()..].trim_start();
+    // A boot grant is `cs.grant(` since RFC-0.49-001 (it was `let _ = cs.install_raw(`; `grant` records a refusal instead of
+    // discarding it). Both spellings are the call this reads, whichever the kernel uses.
+    let (install, call_len) = ["install_raw(", ".grant("]
+        .iter()
+        .filter_map(|p| consumer.find(p).map(|i| (i, p.len())))
+        .min_by_key(|(i, _)| *i)
+        .ok_or("the MMIO consumer has no `install_raw(` / `.grant(` call")?;
+    let arg = consumer[install + call_len..].trim_start();
     let base: u32 = arg
         .split_once("+ region_idx")
         .and_then(|(b, _)| b.trim().parse().ok())
@@ -746,5 +750,18 @@ mod tests {
             &read("crates/fjell-cap/src/rights.rs"),
         );
         assert!(r.is_ok(), "{r:?}");
+    }
+
+    #[test]
+    fn the_mmio_slot_formula_is_read_from_either_spelling_of_the_grant() {
+        // RFC-0.49-001: `cs.grant(` replaced `let _ = cs.install_raw(`. Both are the call this reads.
+        for call in ["let _ = cs.install_raw(", "cs.grant("] {
+            let spawn = format!(
+                "let mmio_regions_for_service: Option<&[usize]> = match image_id {{ ImageId::NEG_TEST => {{ static A: &[usize] = &[0]; Some(A) }} _ => None }};\n\
+                 if let Some(regions) = mmio_regions_for_service {{ for &region_idx in regions {{ {call}31 + region_idx, Capability {{ kind: CapKind::MmioRegion, object_id: region_idx as u32 }}); }} }}\n"
+            );
+            let r = mmio_slots_by_image(&spawn);
+            assert!(r.is_ok(), "{call}: {r:?}");
+        }
     }
 }

@@ -301,6 +301,8 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 super::syscall::debug_leave(id.index as usize);
                 // RFC 017: zeroize and release DMA regions before marking exited.
                 crate::dma_table().release_task(id);
+                // RFC-0.49-002 D4: and give back the device-mapping records, or a restart loop fills the table.
+                crate::mmio_mappings().release_task(id);
                 // RFC 033: lifecycle revoke on task exit.
                 // SAFETY: category=kernel-global-mutable lease table single-threaded.
                 let lt = unsafe { crate::get_lease_table() };
@@ -311,6 +313,9 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                     let _ = lt.revoke(bl);
                 }
                 task.state = TaskState::Exited(code);
+                if code == 0 {
+                    latch_clean_exit(task.image_id);
+                }
                 task.accounting.quantum_violations = 0;
                 AUDIT.lock_free_append(AuditKindInternal::TaskExit, code as usize, 0, 0);
                 sched.on_exit();
@@ -331,6 +336,8 @@ fn schedule_next(current_tf: *mut TrapFrame) -> *mut TrapFrame {
                 );
                 // RFC 017: also zeroize DMA on fault.
                 crate::dma_table().release_task(id);
+                // RFC-0.49-002 D4: and the device-mapping records.
+                crate::mmio_mappings().release_task(id);
                 // RFC 033: lifecycle revoke on task fault.
                 // SAFETY: category=kernel-global-mutable lease table single-threaded.
                 let lt = unsafe { crate::get_lease_table() };
@@ -519,10 +526,32 @@ fn image_label(image_id: ImageId) -> &'static str {
 /// `Exited(0)`"), per the handoff's settled design decision: if more than
 /// one live task ever carries the same `ImageId` (e.g. a respawn), that is
 /// a finding to report, not something for this function to disambiguate.
-fn exited_ok_by_image(table: &crate::task::tcb::TaskTable, image_id: ImageId) -> bool {
-    table
-        .iter()
-        .any(|t| t.image_id == image_id && matches!(t.state, TaskState::Exited(0)))
+pub(crate) fn exited_ok_by_image(table: &crate::task::tcb::TaskTable, image_id: ImageId) -> bool {
+    // RFC-0.49-001 D1: the kernel's own milestone markers must not depend on a *corpse*. A task is destroyed by `TaskKill`
+    // and its slot freed, so "has an image exited cleanly" is a latch set on the exit path, not a scan for a task that
+    // may no longer exist. The scan is kept as well: it is the old definition and costs nothing.
+    exit_latched(image_id)
+        || table
+            .iter()
+            .any(|t| t.image_id == image_id && matches!(t.state, TaskState::Exited(0)))
+}
+
+/// Images that have **exited cleanly at least once this boot** (RFC-0.49-001 D1) -- one flag per image id, no tunable.
+/// Set on the exit path, never cleared; an id outside the array is simply never latched (the table scan still answers).
+static EXITED_CLEAN: [core::sync::atomic::AtomicBool; EXIT_LATCH_IMAGES] =
+    [const { core::sync::atomic::AtomicBool::new(false) }; EXIT_LATCH_IMAGES];
+const EXIT_LATCH_IMAGES: usize = 64;
+
+fn latch_clean_exit(image_id: ImageId) {
+    if let Some(f) = EXITED_CLEAN.get(image_id.0 as usize) {
+        f.store(true, core::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+fn exit_latched(image_id: ImageId) -> bool {
+    EXITED_CLEAN
+        .get(image_id.0 as usize)
+        .is_some_and(|f| f.load(core::sync::atomic::Ordering::Relaxed))
 }
 
 /// Is every task carrying `image_id` no longer runnable (exited or
@@ -714,6 +743,16 @@ pub fn current_task_index() -> Option<usize> {
     // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
     sched.current().map(|id| id.index as usize)
+}
+
+/// The running task's **real** `TaskId` (index and generation) -- what an owner comparison needs (RFC-0.49-001 D3).
+pub fn current_task_id() -> crate::task::TaskId {
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (_, sched, _, _) = unsafe { crate::get_kernel_state() };
+    // RFC-0.49-001 D3: the running task's **real** id (index *and* generation), as the scheduler holds it. Every syscall
+    // handler runs on behalf of `sched.current()`, so the fallback -- the idle task, which is never destroyed and whose
+    // generation is 0 -- is unreachable from a syscall; it exists so this is not an `Option` at forty call sites.
+    sched.current().unwrap_or(crate::task::TaskId::new(0, 0))
 }
 
 pub fn current_task_idx() -> usize {

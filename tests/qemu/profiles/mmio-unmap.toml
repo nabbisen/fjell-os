@@ -1,0 +1,22 @@
+# RFC-0.49-002: `MmioUnmap` -- a device mapping taken back, shown on a real boot.
+#
+# 'M' injected right after "driver-uart: ready": `init` asks `neg-test` to map the first page of the virtio-mmio window, read
+# its magic (a harmless register read: the control that the mapping works), UNMAP it, and read through the old address.
+# The read must fault -- the same shape as the `dma` profile's revoked-address read, for MMIO. `neg-test` is the task that
+# takes the fault; nothing after it in this run executes, so this is a profile of its own and not part of the default sequence.
+#
+# The refusals, the table's bound and the "no device page reaches the allocator" line are printed on EVERY boot by `neg-test`'s
+# default sequence (`test_mmio_unmap`) and asserted by the `mmio` profile; this profile asserts what only a faulting read can.
+
+name                 = "mmio-unmap"
+timeout_secs         = 60
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "M"
+expected_markers = [
+  "init: mmio-unmapped-read trigger received; asking neg-test to run its scenario",
+  "NEG:MMIO:UNMAPPED_VA_READ_ATTEMPTED",
+]
+once_markers = [
+  "neg-test]: fault(LoadPageFault)",
+]
+extra_args = []

@@ -72,6 +72,21 @@ impl TaskQueue {
         }
         false
     }
+
+    /// Remove every occurrence of `id`, keeping the order of the rest. Returns how many were removed.
+    fn remove(&mut self, id: TaskId) -> usize {
+        let mut kept = TaskQueue::new();
+        let mut removed = 0;
+        while let Some(v) = self.pop() {
+            if v == id {
+                removed += 1;
+            } else {
+                kept.push(v);
+            }
+        }
+        *self = kept;
+        removed
+    }
 }
 
 // ── ReadyQueue ────────────────────────────────────────────────────────────────
@@ -89,6 +104,22 @@ impl ReadyQueue {
             queues: [EMPTY_Q; MAX_PRIORITY_LEVELS],
             non_empty_mask: 0,
         }
+    }
+
+    /// Take `id` out of every bucket (RFC-0.49-001 D5). A destroyed `Runnable` task is in the ready queue; leaving it there
+    /// would hand the CPU to a slot whose occupant is gone or, after a reuse, to a different task. Returns how many entries
+    /// were removed (0 or 1 by SCHED-001).
+    pub fn remove(&mut self, id: TaskId) -> usize {
+        let mut removed = 0;
+        for (bucket, q) in self.queues.iter_mut().enumerate() {
+            removed += q.remove(id);
+            // `dequeue_next` finds its bucket through this mask, so a bucket this empties must leave it -- otherwise the
+            // next dequeue pops nothing from it and hands the CPU to idle while a lower bucket still has runnable tasks.
+            if q.len == 0 {
+                self.non_empty_mask &= !(1 << bucket);
+            }
+        }
+        removed
     }
 
     pub fn enqueue(&mut self, id: TaskId, priority: u8) -> bool {
@@ -148,6 +179,14 @@ impl Scheduler {
 
     pub fn set_idle(&mut self, id: TaskId) {
         self.idle_task_id = Some(id);
+    }
+
+    /// Forget `id` entirely: it is not in the ready queue afterwards, and it is not the current task (RFC-0.49-001 D5).
+    pub fn forget(&mut self, id: TaskId) {
+        self.ready.remove(id);
+        if self.current == Some(id) {
+            self.current = None;
+        }
     }
 
     /// Enqueue a runnable task.

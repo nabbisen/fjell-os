@@ -890,6 +890,68 @@ pub mod negative_markers {
     pub const SVC_READY_ACCEPTED: &str = "NEG:SVC:READY_ACCEPTED:PASS";
     pub const SVC_UNAUTHORIZED_READY: &str = "NEG:SVC:UNAUTHORIZED_READY_REJECTED:PASS";
     pub const SVC_FAULT: &str = "NEG:SVC:FAULT_DETECTED:PASS";
+    /// RFC-0.49-001 D1: after reading a faulted service's verdict and reporting it, `service-manager` **destroyed** the
+    /// task (`sys_task_kill`): the kernel took back everything it held and freed the slot.
+    pub const SVC_FAULTED_TASK_DESTROYED: &str = "NEG:SVC:FAULTED_TASK_DESTROYED:PASS";
+    /// RFC-0.49-001: and the handle it held for that task now names nothing -- `sys_task_status` is `InvalidCap`.
+    pub const SVC_DESTROYED_HANDLE_NAMES_NOTHING: &str =
+        "NEG:SVC:DESTROYED_HANDLE_NAMES_NOTHING:PASS";
+    // ── RFC-0.49-002: `MmioUnmap` (neg-test) ─────────────────────────────────────────────────────────────────────────────
+    /// A device page mapped with `sys_mmio_map` was unmapped with `sys_mmio_unmap` (`Ok`).
+    pub const MMIO_UNMAP_OK: &str = "NEG:MMIO:UNMAP_OK:PASS";
+    /// An address inside a mapping, not its base, is not unmappable (`InvalidArg`): whole mapping only.
+    pub const MMIO_UNMAP_INTERIOR_REFUSED: &str = "NEG:MMIO:UNMAP_INTERIOR_ADDRESS_REFUSED:PASS";
+    /// A second unmap of the same address finds no record (`InvalidArg`).
+    pub const MMIO_UNMAP_TWICE_REFUSED: &str = "NEG:MMIO:UNMAP_TWICE_REFUSED:PASS";
+    /// An address that was never mapped finds no record (`InvalidArg`).
+    pub const MMIO_UNMAP_NEVER_MAPPED_REFUSED: &str = "NEG:MMIO:UNMAP_NEVER_MAPPED_REFUSED:PASS";
+    /// A capability for a **different region** than the mapping's cannot unmap it (`PermissionDenied`).
+    pub const MMIO_UNMAP_WRONG_REGION_REFUSED: &str =
+        "NEG:MMIO:UNMAP_WITH_ANOTHER_REGIONS_CAPABILITY_REFUSED:PASS";
+    /// A capability of the **wrong kind** (an endpoint) cannot unmap (`WrongType`): the funnel, before the record is read.
+    pub const MMIO_UNMAP_WRONG_KIND_REFUSED: &str =
+        "NEG:MMIO:UNMAP_WITH_AN_ENDPOINT_CAPABILITY_REFUSED:PASS";
+    /// With the mapping table full, the next `sys_mmio_map` is refused `NoMemory` -- before any PTE is written...
+    pub const MMIO_MAP_TABLE_FULL_REFUSED: &str = "NEG:MMIO:MAP_REFUSED_WHEN_TABLE_FULL:PASS";
+    /// ... and after unmapping what filled it, the same map succeeds again: records are given back.
+    pub const MMIO_MAP_TABLE_REUSED: &str = "NEG:MMIO:MAP_SUCCEEDS_AGAIN_AFTER_UNMAP:PASS";
+    /// The scenario that unmapped a page and then read through the old address (the `mmio-unmap` profile's last line before the
+    /// kernel's own `fault(LoadPageFault)`).
+    pub const MMIO_UNMAPPED_VA_READ_ATTEMPTED: &str = "NEG:MMIO:UNMAPPED_VA_READ_ATTEMPTED";
+    // ── RFC-0.49-001: the task lifecycle (neg-test, `task-lifecycle` profile) ───────────────────────────────────────────
+    /// A task that neither exits nor faults (`svc-timeout`, started and running) was destroyed by a `TASK_KILL` holder, and
+    /// its handle then named nothing.
+    pub const TASK_HUNG_KILLED: &str = "NEG:TASK:HUNG_TASK_KILLED:PASS";
+    /// The next spawn took the **same slot** with the **generation advanced by one**.
+    pub const TASK_SLOT_REUSED: &str = "NEG:TASK:SLOT_REUSED_GENERATION_ADVANCED:PASS";
+    /// The destroyed task's old handle, used after the slot was reused, reached nothing: `sys_task_status` -> `InvalidCap`.
+    pub const TASK_STALE_STATUS_REFUSED: &str = "NEG:TASK:STALE_STATUS_REFUSED_AFTER_REUSE:PASS";
+    /// ... and so did `sys_task_kill`: the new occupant cannot be destroyed through its predecessor's handle.
+    pub const TASK_STALE_KILL_REFUSED: &str = "NEG:TASK:STALE_KILL_REFUSED_AFTER_REUSE:PASS";
+    /// The new occupant is intact: it still answers `sys_task_status` as `Created`.
+    pub const TASK_NEW_OCCUPANT_INTACT: &str = "NEG:TASK:NEW_OCCUPANT_INTACT_AFTER_STALE_KILL:PASS";
+    /// A task that **died on its own** (`svc-fault`), after its verdict was read, was destroyed -- its handle then names nothing.
+    pub const TASK_FAULTED_DESTROYED: &str = "NEG:TASK:FAULTED_TASK_DESTROYED_AFTER_VERDICT:PASS";
+    /// A boot task that had **exited cleanly** was destroyed (its corpse removed); its handle names nothing.
+    pub const TASK_EXITED_CORPSE_DESTROYED: &str = "NEG:TASK:EXITED_CORPSE_DESTROYED:PASS";
+    /// ... and the next spawn took its slot, one generation later.
+    pub const TASK_FAULTED_SLOT_REUSED: &str = "NEG:TASK:FAULTED_TASKS_SLOT_REUSED:PASS";
+    /// The idle task cannot be destroyed (`PermissionDenied`).
+    pub const TASK_KILL_IDLE_REFUSED: &str = "NEG:TASK:KILL_IDLE_REFUSED:PASS";
+    /// Control: a `TASK_KILL` capability aimed at an **empty** slot reaches the target lookup and is told `InvalidCap` -- so the
+    /// refusal below can only have come from the funnel, which runs first.
+    pub const TASK_KILL_CONTROL_REACHES_THE_TARGET: &str =
+        "NEG:TASK:KILL_OF_ABSENT_TASK_IS_INVALID_CAP:PASS";
+    /// A `TaskControl` capability **without** `TASK_KILL` cannot destroy anything (`PermissionDenied`).
+    pub const TASK_KILL_NEEDS_THE_RIGHT: &str =
+        "NEG:TASK:KILL_WITHOUT_TASK_KILL_RIGHT_REFUSED:PASS";
+    /// A **blocked** task was destroyed and its handle then named nothing; the kernel's own log line for it says no endpoint
+    /// queue or reply edge still names the slot.
+    pub const TASK_BLOCKED_KILLED: &str = "NEG:TASK:BLOCKED_TASK_KILLED:PASS";
+    /// With the table full, the next spawn is refused `TaskTableFull`...
+    pub const TASK_TABLE_FULL_REFUSED: &str = "NEG:TASK:TABLE_FULL_REFUSED:PASS";
+    /// ... and after destroying every task that filled it, **the same fill succeeds again, three times over**: slots return.
+    pub const TASK_EXHAUSTION_SURVIVED: &str = "NEG:TASK:EXHAUSTION_SURVIVED_REUSE:PASS";
     /// RFC-0.36-001 (closes E-075): `service-manager` observed `SERVICE_READY`
     /// from *both* `diagnosticsd` and `secure-transportd` — the two services
     /// whose readiness sends previously went nowhere `service-manager` could
@@ -1045,6 +1107,15 @@ pub mod neg_test {
     /// injects, so no other profile ever runs it -- and the scenario ends with
     /// `neg-test` taking the fault it is demonstrating.
     pub const RUN_DMA_REVOKED_READ: usize = 0x5F1;
+    /// `init` → `neg-test`, one-way, no words (RFC-0.49-001): run the **task lifecycle** scenario -- kill a hung task, reuse
+    /// its slot, refuse the stale handle, fill the task table and survive refilling it. It spawns and destroys tasks until the
+    /// table is full, so it runs only on the console byte the `task-lifecycle` profile injects, once `init` has spawned
+    /// everything it will spawn; no other profile ever runs it.
+    pub const RUN_TASK_LIFECYCLE: usize = 0x5F2;
+    /// `init` → `neg-test`, one-way, no words (RFC-0.49-002): map a device page, unmap it, and **read through the old address**,
+    /// which must fault. Sent only on the console byte the `mmio-unmap` profile injects, and the scenario ends with `neg-test`
+    /// taking the fault it is demonstrating -- the shape of `RUN_DMA_REVOKED_READ`.
+    pub const RUN_MMIO_UNMAPPED_READ: usize = 0x5F3;
 }
 
 // RFC-0.37-001 R2 (closes E-083): `secure-transportd`'s own `SxtTag` enum

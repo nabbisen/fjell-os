@@ -1253,6 +1253,10 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
         // is `neg-test`'s alone. `neg-test` takes the fault itself. Injected once,
         // by the `dma` profile only.
         const DMA_REVOKED_READ_TRIGGER: u8 = b'V';
+        // RFC-0.49-001: asks `neg-test` to run the task-lifecycle scenario (destroy, reuse, exhaust-and-refill).
+        const TASK_LIFECYCLE_TRIGGER: u8 = b'K';
+        // RFC-0.49-002: asks `neg-test` to map a device page, unmap it, and read through the old address (which faults).
+        const MMIO_UNMAPPED_READ_TRIGGER: u8 = b'M';
         let mut received = false;
         // RFC-0.38-003 R3: bytes delivered so far, printed as an ordinal so a
         // profile can assert the bytes AND their order. The line keeps its old
@@ -1309,6 +1313,24 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
                             fjell_service_api::neg_test::RUN_DMA_REVOKED_READ,
                         );
                     }
+                    if byte as u8 == TASK_LIFECYCLE_TRIGGER {
+                        sys_debug_writeln(
+                            "init: task-lifecycle trigger received; asking neg-test to run its scenario",
+                        );
+                        let _ = fjell_syscall::sys_ipc_send(
+                            fjell_abi::service::INIT_NEG_TEST_SEND_SLOT,
+                            fjell_service_api::neg_test::RUN_TASK_LIFECYCLE,
+                        );
+                    }
+                    if byte as u8 == MMIO_UNMAPPED_READ_TRIGGER {
+                        sys_debug_writeln(
+                            "init: mmio-unmapped-read trigger received; asking neg-test to run its scenario",
+                        );
+                        let _ = fjell_syscall::sys_ipc_send(
+                            fjell_abi::service::INIT_NEG_TEST_SEND_SLOT,
+                            fjell_service_api::neg_test::RUN_MMIO_UNMAPPED_READ,
+                        );
+                    }
                     if byte as u8 == REMOTE_DIAG_TRIGGER {
                         sys_debug_writeln(
                             "init: remote-diag trigger received; asking fleetd to run its scenario",
@@ -1331,6 +1353,8 @@ pub extern "C" fn service_main(_a0: usize, boot_info_va: usize) -> ! {
                             | HEALTH_FAIL_TRIGGER
                             | REMOTE_DIAG_TRIGGER
                             | DMA_REVOKED_READ_TRIGGER
+                            | TASK_LIFECYCLE_TRIGGER
+                            | MMIO_UNMAPPED_READ_TRIGGER
                     ) {
                         break;
                     }

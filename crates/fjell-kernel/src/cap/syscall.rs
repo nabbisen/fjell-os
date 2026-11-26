@@ -282,7 +282,7 @@ pub fn sys_cap_install(
         None => (None, ReplyEdgeFact::Absent),
         Some(e) => {
             let blocked = matches!(
-                tasks.get(TaskId::new(e.caller_tid, 0)).map(|t| &t.state),
+                tasks.get_by_index(e.caller_tid).map(|t| &t.state),
                 Some(TaskState::Blocked(_))
             );
             (
@@ -303,9 +303,7 @@ pub fn sys_cap_install(
     } else {
         match lt.owner(lease_id) {
             Err(e) => LeaseFact::Unreadable(e),
-            Ok(owner) if owner != fjell_abi::task::TaskId::new(tidx as u16, 0) => {
-                LeaseFact::NotOwned
-            }
+            Ok(owner) if Some(owner) != tasks.id_at(tidx as u16) => LeaseFact::NotOwned,
             Ok(_) => match lt.active_epoch(lease_id) {
                 Ok(ep) => {
                     epoch = Some(ep);
@@ -412,8 +410,10 @@ fn build_msg(
     // the table its caller was holding, under a comment that claimed `require_cap` had validated something
     // (RFC-0.47-001 R8).
     let sender_image_id = {
-        let sender_id = crate::task::TaskId::new(tidx as u16, 0);
-        tasks.get(sender_id).map(|t| t.image_id.0).unwrap_or(0xFFFF)
+        tasks
+            .get_by_index(tidx as u16)
+            .map(|t| t.image_id.0)
+            .unwrap_or(0xFFFF)
     };
 
     Ok((
@@ -538,7 +538,6 @@ fn refuse_bind_lease(tf: &mut TrapFrame, e: SysError, lease_id: u32, slot: usize
 /// error returned.
 pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     use fjell_abi::lease::LeaseId;
-    use fjell_abi::task::TaskId;
 
     let cap_h = CapHandle(tf.gpr[REG_A0] as u32);
     let lease_id = LeaseId(tf.gpr[REG_A1] as u32);
@@ -602,7 +601,7 @@ pub fn sys_cap_bind_lease(tf: &mut TrapFrame, tidx: usize, ct: &mut CapTable) {
     // lease's state, so a non-owner learns nothing about a lease that is not
     // theirs -- not even whether it is still `Active`.
     match lt.owner(lease_id) {
-        Ok(owner) if owner == TaskId::new(tidx as u16, 0) => {}
+        Ok(owner) if owner == crate::trap::dispatch::current_task_id() => {}
         Ok(_) => {
             refuse_bind_lease(tf, SysError::PermissionDenied, lease_id.0, slot);
             return;
@@ -683,8 +682,7 @@ pub fn sys_ipc_send(
 
     match ep.send(msg.clone()) {
         Ok(SendResult::Delivered { receiver_tid }) => {
-            let recv_id = fjell_abi::task::TaskId::new(receiver_tid, 0);
-            if let Some(recv_task) = tasks.get_mut(recv_id) {
+            if let Some(recv_task) = tasks.get_by_index_mut(receiver_tid) {
                 deliver(&mut recv_task.trap_frame, &msg);
             }
             wake(tasks, sched, receiver_tid);
@@ -821,8 +819,7 @@ pub fn sys_ipc_call(
 
     match ep.send(msg.clone()) {
         Ok(SendResult::Delivered { receiver_tid }) => {
-            let recv_id = fjell_abi::task::TaskId::new(receiver_tid, 0);
-            if let Some(recv_task) = tasks.get_mut(recv_id) {
+            if let Some(recv_task) = tasks.get_by_index_mut(receiver_tid) {
                 deliver(&mut recv_task.trap_frame, &msg);
             } else {
             }
@@ -885,8 +882,8 @@ pub fn sys_ipc_reply(
         }
     }
 
-    let caller_id = TaskId::new(edge.caller_tid, 0);
-    if let Some(caller) = tasks.get_mut(caller_id) {
+    if let Some(caller) = tasks.get_by_index_mut(edge.caller_tid) {
+        let caller_id = caller.id;
         // Guard: only deliver reply to a task that is still blocked waiting for it.
         // If the caller already exited or faulted, silently drop the reply.
         if matches!(caller.state, crate::task::tcb::TaskState::Blocked(_)) {
@@ -1017,23 +1014,21 @@ pub fn sys_ipc_try_recv(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn wake(tasks: &mut TaskTable, sched: &mut Scheduler, tid: u16) {
-    let id = TaskId::new(tid, 0);
-    if let Some(t) = tasks.get_mut(id) {
+    if let Some(t) = tasks.get_by_index_mut(tid) {
         if matches!(t.state, TaskState::Blocked(_)) {
             t.state = TaskState::Runnable;
-            sched.enqueue_runnable(id, PRIORITY_USER);
+            sched.enqueue_runnable(t.id, PRIORITY_USER);
         }
     }
 }
 
 /// Wake a task with a specific error code in `a0` (RFC 034: LeaseRevoked wake).
-fn wake_with_error(tasks: &mut TaskTable, sched: &mut Scheduler, tid: u16, e: SysError) {
-    let id = TaskId::new(tid, 0);
-    if let Some(t) = tasks.get_mut(id) {
+pub(crate) fn wake_with_error(tasks: &mut TaskTable, sched: &mut Scheduler, tid: u16, e: SysError) {
+    if let Some(t) = tasks.get_by_index_mut(tid) {
         if matches!(t.state, TaskState::Blocked(_)) {
             t.trap_frame.gpr[crate::task::tcb::REG_A0] = e as isize as usize;
             t.state = TaskState::Runnable;
-            sched.enqueue_runnable(id, PRIORITY_USER);
+            sched.enqueue_runnable(t.id, PRIORITY_USER);
         }
     }
 }

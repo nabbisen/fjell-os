@@ -31,8 +31,8 @@ use fjell_syscall::{
     sys_cap_drop as _sys_cap_drop, sys_cap_inspect, sys_cap_install, sys_cap_mint, sys_cap_revoke,
     sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_dma_revoke, sys_exit, sys_ipc_call,
     sys_ipc_call_words, sys_ipc_recv, sys_ipc_recv_msg, sys_ipc_send, sys_ipc_try_recv,
-    sys_lease_create, sys_lease_inspect, sys_lease_revoke, sys_mmio_map, sys_reboot,
-    sys_task_spawn_leased, sys_task_start, sys_task_status, sys_yield,
+    sys_lease_create, sys_lease_inspect, sys_lease_revoke, sys_mmio_map, sys_mmio_unmap,
+    sys_reboot, sys_task_kill, sys_task_spawn_leased, sys_task_start, sys_task_status, sys_yield,
 };
 
 // ── CSpace slot constants for this service ────────────────────────────────────
@@ -1804,6 +1804,359 @@ fn test_svc_start_timeout() {
     }
 }
 
+/// RFC-0.49-001 R1: **`TaskKill` goes through the funnel** -- the right is checked *before* the kernel looks at the target.
+/// It destroys nothing: the target is a slot that is empty.
+///
+/// The control is the point: a `TASK_KILL` capability aimed at an empty slot reaches the target lookup and gets `InvalidCap`.
+/// So the `PermissionDenied` (no right) below can only have come from the funnel, which ran first -- a kill that looked at
+/// the target before the capability would answer `InvalidCap` to both.
+fn test_task_kill_is_funnelled() {
+    use fjell_abi::error::SysError;
+    const ABSENT: usize = 39; // MAX_TASKS - 1: empty this early in the boot (generation 0)
+    check_err(
+        sys_task_kill(SLOT_TASK_CONTROL, ABSENT),
+        SysError::InvalidCap,
+        M::TASK_KILL_CONTROL_REACHES_THE_TARGET,
+    );
+    let status_only = fjell_cap::CapRights::TASK_STATUS.0;
+    match sys_cap_mint(CapHandle(SLOT_TASK_CONTROL), SLOT_NARROW_CAP, status_only) {
+        Ok(narrow) => {
+            check_err(
+                sys_task_kill(narrow.0, ABSENT),
+                SysError::PermissionDenied,
+                M::TASK_KILL_NEEDS_THE_RIGHT,
+            );
+            let _ = _sys_cap_drop(narrow);
+        }
+        Err(_) => setup_failed("task_kill_funnel: mint a TaskControl without TASK_KILL"),
+    }
+    // NOT shown here: a revoked-lease `TaskControl`. Every capability this task holds is bound to its boot lease (a copy
+    // inherits the binding, and a capability binds once), so a revoked `TaskControl` would need one of its own that is NOT
+    // bound -- a third fixture exemption in `bootstrap-leases`, which 0.48 refused to grant for a test. The funnel is one
+    // function for every kind; `fjell_cap::task_kill`'s host tests run it on exactly the capability and rights `TaskKill`
+    // requires, with a revoked lease, and see `LeaseRevoked`.
+}
+
+/// MMIO: `sys_mmio_unmap` (RFC-0.49-002) -- the unmap itself, every refusal, and the mapping table's bound.
+///
+/// `neg-test` holds an `MmioRegion` capability for each of the five regions (slots 31-35, `MMIO_MAP` only). Region 3 is the
+/// virtio-mmio window: mapping and unmapping its first pages touches no register. Nothing here reads through a mapping.
+fn test_mmio_unmap() {
+    use fjell_abi::error::SysError;
+    const SLOT_MMIO_VIRTIO: u32 = 34; // region 3
+    const SLOT_MMIO_PLIC: u32 = 33; // region 2: a capability for a DIFFERENT region
+    let virtio = CapHandle(SLOT_MMIO_VIRTIO);
+    let plic = CapHandle(SLOT_MMIO_PLIC);
+
+    // a two-page mapping, so an interior address exists
+    let va = match sys_mmio_map(virtio, 0, 0x2000) {
+        Ok(v) => v,
+        Err(_) => return setup_failed("mmio_unmap: map two pages of region 3"),
+    };
+    check_err(
+        sys_mmio_unmap(virtio, va + 0x1000),
+        SysError::InvalidArg,
+        M::MMIO_UNMAP_INTERIOR_REFUSED,
+    );
+    check_err(
+        sys_mmio_unmap(plic, va),
+        SysError::PermissionDenied,
+        M::MMIO_UNMAP_WRONG_REGION_REFUSED,
+    );
+    // a capability of the WRONG KIND: the funnel refuses before any record is read. (Not shown: an `MmioRegion` capability
+    // WITHOUT `MMIO_MAP` -- every one this task holds carries it and none can be minted narrower, `MINT` not being granted.)
+    check_err(
+        sys_mmio_unmap(CapHandle(SLOT_OWN_EP), va),
+        SysError::WrongType,
+        M::MMIO_UNMAP_WRONG_KIND_REFUSED,
+    );
+    // the unmap itself, then the same address again, then one never mapped
+    check(sys_mmio_unmap(virtio, va).is_ok(), M::MMIO_UNMAP_OK);
+    check_err(
+        sys_mmio_unmap(virtio, va),
+        SysError::InvalidArg,
+        M::MMIO_UNMAP_TWICE_REFUSED,
+    );
+    check_err(
+        sys_mmio_unmap(virtio, 0x7FF0_0000),
+        SysError::InvalidArg,
+        M::MMIO_UNMAP_NEVER_MAPPED_REFUSED,
+    );
+
+    // the table's bound: map until the kernel says no, unmap everything that filled it, map again
+    let mut vas = [0usize; 96];
+    let mut n = 0;
+    let mut refused = false;
+    while n < vas.len() {
+        match sys_mmio_map(virtio, 0, 0x1000) {
+            Ok(v) => {
+                vas[n] = v;
+                n += 1;
+            }
+            Err(SysError::NoMemory) => {
+                refused = true;
+                break;
+            }
+            Err(_) => break,
+        }
+    }
+    check(refused && n > 0, M::MMIO_MAP_TABLE_FULL_REFUSED);
+    let mut all_unmapped = true;
+    for &v in vas.iter().take(n) {
+        if sys_mmio_unmap(virtio, v).is_err() {
+            all_unmapped = false;
+        }
+    }
+    match sys_mmio_map(virtio, 0, 0x1000) {
+        Ok(v) if all_unmapped => {
+            check(true, M::MMIO_MAP_TABLE_REUSED);
+            let _ = sys_mmio_unmap(virtio, v);
+        }
+        _ => setup_failed("mmio_unmap: the table was not given back"),
+    }
+}
+
+/// MMIO: map a device page, read it, **unmap it, and read through the old address** -- which must fault (RFC-0.49-002). Run only
+/// when `init` sends `RUN_MMIO_UNMAPPED_READ`; the scenario ends with `neg-test` taking the fault, like `RUN_DMA_REVOKED_READ`.
+fn test_mmio_unmapped_va_faults() {
+    const SLOT_MMIO_VIRTIO: u32 = 34;
+    let virtio = CapHandle(SLOT_MMIO_VIRTIO);
+    let va = match sys_mmio_map(virtio, 0, 0x1000) {
+        Ok(v) => v,
+        Err(_) => return setup_failed("mmio_unmapped_read: map"),
+    };
+    // control: while mapped, the read works (the virtio magic, `virt`, a harmless register read)
+    // SAFETY: category=raw-pointer-deref `va` is the address `sys_mmio_map` returned for a mapped, readable virtio-mmio page.
+    // MMIO-ORDER: status_read
+    let magic = unsafe { core::ptr::read_volatile(va as *const u32) };
+    if magic != 0x7472_6976 {
+        return setup_failed("mmio_unmapped_read: control read of the virtio magic failed");
+    }
+    if sys_mmio_unmap(virtio, va).is_err() {
+        return setup_failed("mmio_unmapped_read: unmap");
+    }
+    sys_debug_writeln(M::MMIO_UNMAPPED_VA_READ_ATTEMPTED);
+    // SAFETY: category=raw-pointer-deref DELIBERATE: `va` was just unmapped, so this load must fault; that fault is the scenario.
+    // MMIO-ORDER: poll
+    let _ = unsafe { core::ptr::read_volatile(va as *const u32) };
+    sys_debug_writeln("NEG:HARNESS:UNMAPPED_READ_DID_NOT_FAULT");
+}
+
+/// RFC-0.49-001: **the task lifecycle** -- destroy a hung task, reuse its slot, refuse every stale handle, refuse the kill
+/// that must be refused, destroy a *blocked* task, and fill the task table three times over.
+///
+/// Run only when `init` sends `RUN_TASK_LIFECYCLE` (the `task-lifecycle` profile's console byte): it spawns until
+/// `TaskTableFull`, so it may not run while `init` still has services to spawn, and it destroys a boot service.
+fn test_task_lifecycle() {
+    use fjell_abi::error::SysError;
+    const WAIT: u32 = 20;
+    let alive = |h: usize| {
+        matches!(
+            sys_task_status(SLOT_TASK_CONTROL, h),
+            Ok(lc) if lc == TaskLifecycle::Running as u8
+                || lc == TaskLifecycle::Runnable as u8
+                || lc == TaskLifecycle::Blocked as u8
+        )
+    };
+
+    // 1. A task that neither exits nor faults: `svc-timeout`, started, never READY, never finishing. Nothing could stop it.
+    let (h1, _) = match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
+        Ok(r) => r,
+        Err(_) => return setup_failed("task_lifecycle: spawn the hung task"),
+    };
+    if sys_task_start(SLOT_TASK_CONTROL, h1, 0, 0).is_err() {
+        return setup_failed("task_lifecycle: start the hung task");
+    }
+    for _ in 0..WAIT {
+        sys_yield();
+    }
+    if !alive(h1) {
+        return setup_failed(
+            "task_lifecycle: the hung task is not alive, so killing it shows nothing",
+        );
+    }
+    if sys_task_kill(SLOT_TASK_CONTROL, h1).is_err() {
+        return setup_failed("task_lifecycle: kill the hung task");
+    }
+    check_err(
+        sys_task_status(SLOT_TASK_CONTROL, h1),
+        SysError::InvalidCap,
+        M::TASK_HUNG_KILLED,
+    );
+
+    // 2. The next spawn takes the SAME slot, one generation later; every handle to the old occupant now reaches nothing.
+    let (h2, _) = match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
+        Ok(r) => r,
+        Err(_) => return setup_failed("task_lifecycle: spawn into the freed slot"),
+    };
+    let (idx1, gen1, idx2, gen2) = (h1 & 0xFFFF, h1 >> 16, h2 & 0xFFFF, h2 >> 16);
+    check(idx1 == idx2 && gen2 == gen1 + 1, M::TASK_SLOT_REUSED);
+    check_err(
+        sys_task_status(SLOT_TASK_CONTROL, h1),
+        SysError::InvalidCap,
+        M::TASK_STALE_STATUS_REFUSED,
+    );
+    check_err(
+        sys_task_kill(SLOT_TASK_CONTROL, h1),
+        SysError::InvalidCap,
+        M::TASK_STALE_KILL_REFUSED,
+    );
+    check(
+        matches!(sys_task_status(SLOT_TASK_CONTROL, h2), Ok(lc) if lc == TaskLifecycle::Created as u8),
+        M::TASK_NEW_OCCUPANT_INTACT,
+    );
+
+    // 2b. A task that DIED on its own: `svc-fault` faults; its verdict is read; then it is destroyed (the dead branch of
+    //     RFC-0.49-001 D1 -- the slot is released, the death path already ran), and the slot is reused.
+    match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_FAULT) {
+        Err(_) => setup_failed("task_lifecycle: spawn svc-fault"),
+        Ok((hf, _)) => {
+            if sys_task_start(SLOT_TASK_CONTROL, hf, 0, 0).is_err() {
+                setup_failed("task_lifecycle: start svc-fault");
+            } else {
+                let mut faulted = false;
+                for _ in 0..2000 {
+                    sys_yield();
+                    if matches!(sys_task_status(SLOT_TASK_CONTROL, hf), Ok(lc) if lc == TaskLifecycle::Faulted as u8)
+                    {
+                        faulted = true;
+                        break;
+                    }
+                }
+                if !faulted {
+                    setup_failed("task_lifecycle: svc-fault did not fault");
+                } else if sys_task_kill(SLOT_TASK_CONTROL, hf).is_err() {
+                    setup_failed("task_lifecycle: destroy the faulted task");
+                } else {
+                    check_err(
+                        sys_task_status(SLOT_TASK_CONTROL, hf),
+                        SysError::InvalidCap,
+                        M::TASK_FAULTED_DESTROYED,
+                    );
+                    if let Ok((hn, _)) =
+                        sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT)
+                    {
+                        check(
+                            hn & 0xFFFF == hf & 0xFFFF && (hn >> 16) == (hf >> 16) + 1,
+                            M::TASK_FAULTED_SLOT_REUSED,
+                        );
+                        let _ = sys_task_kill(SLOT_TASK_CONTROL, hn);
+                    } else {
+                        setup_failed("task_lifecycle: spawn into the faulted task's slot");
+                    }
+                }
+            }
+        }
+    }
+
+    // 2c. A boot task that EXITED CLEANLY (a milestone image: `devmgr`, `syncd`, `netd`, `upgraded` ...) and is still in the
+    //     table as a corpse. Destroying it must not take the kernel's milestone evidence with it: `TEST:*:PASS` is printed by the
+    //     kernel from "has this image exited cleanly", which used to be a scan for the corpse itself. The kernel's own log line
+    //     for the destroy says the latch is still true (and says so loudly if it is not).
+    let mut destroyed_corpse = false;
+    for idx in 2usize..32 {
+        if matches!(sys_task_status(SLOT_TASK_CONTROL, idx), Ok(lc) if lc == TaskLifecycle::Exited as u8)
+            && sys_task_kill(SLOT_TASK_CONTROL, idx).is_ok()
+        {
+            check_err(
+                sys_task_status(SLOT_TASK_CONTROL, idx),
+                SysError::InvalidCap,
+                M::TASK_EXITED_CORPSE_DESTROYED,
+            );
+            destroyed_corpse = true;
+            break;
+        }
+    }
+    if !destroyed_corpse {
+        setup_failed("task_lifecycle: no cleanly exited boot task was found to destroy");
+    }
+
+    // 3. Refusal of the idle task (slot 0). (The capability refusals -- no `TASK_KILL`, a revoked lease -- are
+    //    `test_task_kill_is_funnelled`, which runs early in the default sequence while the `LeaseAdmin` it needs still exists.)
+    check_err(
+        sys_task_kill(SLOT_TASK_CONTROL, 0),
+        SysError::PermissionDenied,
+        M::TASK_KILL_IDLE_REFUSED,
+    );
+
+    // 4. A BLOCKED task. `configd` validates its manifest and then blocks in `recv` on its own endpoint, so a second instance
+    //    sits in that endpoint's receive queue beside the first. Destroying it must take *its* queue entry out and leave the
+    //    first alone -- the kernel's own log line for the destroy says how many queues named the slot ("blocked in 1
+    //    endpoint queue(s)") and that none does afterwards.
+    match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::CONFIGD) {
+        Err(_) => setup_failed("task_lifecycle: spawn the blocked-task fixture (configd)"),
+        Ok((hb, _)) => {
+            if sys_task_start(SLOT_TASK_CONTROL, hb, 0, 0).is_err() {
+                setup_failed("task_lifecycle: start the blocked-task fixture");
+            } else {
+                for _ in 0..WAIT * 5 {
+                    sys_yield();
+                }
+                let blocked = matches!(
+                    sys_task_status(SLOT_TASK_CONTROL, hb),
+                    Ok(lc) if lc == TaskLifecycle::Blocked as u8
+                );
+                if !blocked {
+                    setup_failed(
+                        "task_lifecycle: the fixture is not blocked, so killing it purges nothing",
+                    );
+                } else if sys_task_kill(SLOT_TASK_CONTROL, hb).is_err() {
+                    setup_failed("task_lifecycle: kill the blocked task");
+                } else {
+                    check_err(
+                        sys_task_status(SLOT_TASK_CONTROL, hb),
+                        SysError::InvalidCap,
+                        M::TASK_BLOCKED_KILLED,
+                    );
+                }
+            }
+        }
+    }
+
+    // 5. Exhaustion, three times over. Fill the table until the kernel says full; destroy everything that filled it; fill it
+    //    again. Every round must reach the same count -- and the first fill ends with `TaskTableFull`, which is the failure
+    //    this line exists to remove (before it, the slots never came back).
+    let _ = sys_task_kill(SLOT_TASK_CONTROL, h2); // h2 is the one spawn above; the fill starts from the table as it now is
+    let mut handles = [0usize; 48];
+    let mut first_fill = 0usize;
+    let mut survived = true;
+    for round in 0..3 {
+        let mut n = 0usize;
+        loop {
+            match sys_task_spawn_leased(SLOT_TASK_CREATE, ImageId::SVC_TIMEOUT) {
+                Ok((h, _)) if n < handles.len() => {
+                    handles[n] = h;
+                    n += 1;
+                }
+                Err(SysError::TaskTableFull) => {
+                    if round == 0 {
+                        check(true, M::TASK_TABLE_FULL_REFUSED);
+                    }
+                    break;
+                }
+                _ => {
+                    survived = false;
+                    break;
+                }
+            }
+        }
+        if round == 0 {
+            first_fill = n;
+        } else if n != first_fill {
+            survived = false;
+        }
+        for &h in handles.iter().take(n) {
+            if sys_task_kill(SLOT_TASK_CONTROL, h).is_err() {
+                survived = false;
+            }
+        }
+    }
+    sys_debug_write("NEG:TASK:FILL_COUNT=");
+    debug_dec(first_fill as u64);
+    sys_debug_writeln("");
+    check(survived && first_fill > 0, M::TASK_EXHAUSTION_SURVIVED);
+}
+
 /// How long the spawner waits for the child to notice its revoked boot capability (cooperative yields).
 const BOOT_REVOKE_WAIT_YIELDS: u32 = 200;
 
@@ -2244,6 +2597,9 @@ pub extern "C" fn service_main() -> ! {
     // ── RFC 050: CSpace layout self-check (must run first) ────────────────────
     harness_cspace_check();
 
+    // ── RFC-0.49-001: TaskKill is funnelled (needs LeaseAdmin, which a later scenario gives up) ──
+    test_task_kill_is_funnelled();
+
     // ── Capability enforcement (RFC 031) ──────────────────────────────────────
     test_cap_rights_denied();
     test_cap_lease_revoked();
@@ -2262,6 +2618,7 @@ pub extern "C" fn service_main() -> ! {
     // ── MMIO boundary (RFC 035) ───────────────────────────────────────────────
     test_mmio_ram_guard();
     test_mmio_bounds();
+    test_mmio_unmap();
 
     // ── DMA boundary (RFC 036) ────────────────────────────────────────────────
     test_dma_rights();
@@ -2352,6 +2709,12 @@ pub extern "C" fn service_main() -> ! {
         }
         if tag & 0xFFFF == fjell_service_api::neg_test::RUN_DMA_REVOKED_READ {
             test_dma_revoked_va_faults();
+        }
+        if tag & 0xFFFF == fjell_service_api::neg_test::RUN_TASK_LIFECYCLE {
+            test_task_lifecycle();
+        }
+        if tag & 0xFFFF == fjell_service_api::neg_test::RUN_MMIO_UNMAPPED_READ {
+            test_mmio_unmapped_va_faults();
         }
     }
     sys_exit(0)

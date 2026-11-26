@@ -258,6 +258,13 @@ impl Endpoint {
         self.sendq.pop().ok_or(EndpointError::WouldBlock)
     }
 
+    /// Does any queue entry -- a blocked sender's message or a blocked receiver -- name `tid`? (RFC-0.49-001 D5: the kernel
+    /// asks this before and after purging a destroyed task's slot, so "no queue names it" is checked, not assumed.)
+    pub fn mentions(&self, tid: u16) -> bool {
+        self.sendq.contains(|m: PendingMessage| m.sender_tid == tid)
+            || self.recvq.contains(|w: RecvWaiter| w.tid == tid)
+    }
+
     /// Cancel all pending entries for `tid`.
     pub fn cancel(&mut self, tid: u16) {
         let mut rm = [PendingMessage {
@@ -515,5 +522,49 @@ mod tests {
         } else {
             panic!("expected Delivered");
         }
+    }
+
+    // ── RFC-0.49-001 D5: a destroyed task's slot is purged from every queue ──────────────────────────────────────────
+
+    #[test]
+    fn cancel_removes_a_blocked_receiver_and_mentions_says_so() {
+        let mut ep = Endpoint::new();
+        assert!(!ep.mentions(7));
+        // task 7 blocks in recv (nothing to receive): it is now in the recv queue
+        assert!(matches!(
+            ep.recv(RecvWaiter::no_lease(7)).unwrap(),
+            RecvResult::Queued
+        ));
+        assert!(ep.mentions(7));
+        ep.cancel(7);
+        assert!(
+            !ep.mentions(7),
+            "a purged task must not be named by any queue"
+        );
+        // a later send finds NO receiver to deliver to: it queues instead of 'delivering' to a dead task
+        assert!(matches!(
+            ep.send(msg(3, 0, false, None)).unwrap(),
+            SendResult::Queued
+        ));
+    }
+
+    #[test]
+    fn cancel_removes_a_blocked_senders_message_and_leaves_other_tasks_alone() {
+        let mut ep = Endpoint::new();
+        ep.send(msg(7, 0, false, None)).unwrap(); // task 7 blocks sending
+        ep.send(msg(8, 0, false, None)).unwrap(); // task 8 too
+        assert!(ep.mentions(7) && ep.mentions(8));
+        ep.cancel(7);
+        assert!(!ep.mentions(7));
+        assert!(ep.mentions(8), "another task's queue entry is untouched");
+        assert_eq!(ep.send_queue_len(), 1);
+    }
+
+    #[test]
+    fn mentions_distinguishes_task_indices() {
+        let mut ep = Endpoint::new();
+        ep.recv(RecvWaiter::no_lease(7)).unwrap();
+        assert!(!ep.mentions(8));
+        assert!(!ep.mentions(0), "index 0 is not 'anything'");
     }
 }

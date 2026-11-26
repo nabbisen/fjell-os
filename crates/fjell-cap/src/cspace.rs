@@ -17,13 +17,96 @@ pub const CSPACE_SLOTS: usize = 64;
 /// Per-task capability table.
 pub struct CSpace {
     slots: [CapSlot; CSPACE_SLOTS],
+    /// Grants refused since the last [`CSpace::finish_grants`] (RFC-0.49-001 R2). A grant that cannot be
+    /// installed is **recorded**, never lost: see [`CSpace::grant`].
+    grant_failures: u8,
+    /// The slot of the first refused grant, for the message. Meaningful only while `grant_failures > 0`.
+    first_failed_slot: u8,
+    /// Grants installed since the last [`CSpace::finish_grants`]; compared with the occupied-slot count there.
+    grants_installed: u8,
+}
+
+/// Why a grant section did not end clean ([`CSpace::finish_grants`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GrantError {
+    /// `n` grants were refused (the slot was already `Active`, or out of range); the first was into `first_slot`.
+    Refused { first_slot: usize, n: usize },
+    /// Every grant installed, but the CSpace holds **more capabilities than were granted**: something was already in it.
+    /// On a reused CSpace that is the previous occupant's authority, which nothing in the new image asked for.
+    Leftover { occupied: usize, granted: usize },
 }
 
 impl CSpace {
     pub const fn new() -> Self {
         CSpace {
             slots: [CapSlot::empty(); CSPACE_SLOTS],
+            grant_failures: 0,
+            first_failed_slot: 0,
+            grants_installed: 0,
         }
+    }
+
+    /// Install a **boot grant** into `slot` and, if it cannot be installed, **remember that it could not** (RFC-0.49-001).
+    ///
+    /// This replaces the `let _ = cs.install_raw(..)` form the kernel's 55 grant sites used. `install_raw` refuses a slot
+    /// that is already `Active`, and a discarded refusal is invisible on a fresh CSpace only because nothing has ever
+    /// collided; **in a reused CSpace the refusal is the whole story** -- the new task would hold the previous occupant's
+    /// capability in that slot and its own grant would silently not exist. The spawner calls [`CSpace::finish_grants`]
+    /// once after its grant section and **refuses the spawn** if any grant was refused.
+    pub fn grant(&mut self, slot: usize, cap: Capability) {
+        if self.install_raw(slot, cap).is_err() {
+            if self.grant_failures == 0 {
+                self.first_failed_slot = slot.min(u8::MAX as usize) as u8;
+            }
+            self.grant_failures = self.grant_failures.saturating_add(1);
+        } else {
+            self.grants_installed = self.grants_installed.saturating_add(1);
+        }
+    }
+
+    /// End of a grant section. `Ok` only if **every** [`CSpace::grant`] installed **and the CSpace holds exactly the
+    /// capabilities that were granted** -- nothing more. The second half is what makes reuse safe *by invariant* rather than by
+    /// a test someone remembers to run: a CSpace that still holds a previous occupant's capability in a slot the new image does
+    /// not grant is refused here, at every spawn, not found by a scenario.
+    ///
+    /// Clears the record either way, so one section's failure is never charged to the next.
+    pub fn finish_grants(&mut self) -> Result<(), GrantError> {
+        let (n, first, installed) = (
+            self.grant_failures as usize,
+            self.first_failed_slot as usize,
+            self.grants_installed as usize,
+        );
+        self.grant_failures = 0;
+        self.first_failed_slot = 0;
+        self.grants_installed = 0;
+        if n > 0 {
+            return Err(GrantError::Refused {
+                first_slot: first,
+                n,
+            });
+        }
+        let occupied = self.slots.iter().filter(|s| s.is_occupied()).count();
+        if occupied != installed {
+            return Err(GrantError::Leftover {
+                occupied,
+                granted: installed,
+            });
+        }
+        Ok(())
+    }
+
+    /// Empty every slot, **bumping each slot's generation** (RFC-0.49-001 D4). Used when a task's slot is destroyed so the
+    /// next occupant starts with no capability of its predecessor's, and a handle the predecessor held -- or handed to
+    /// anyone -- names nothing. Also clears the grant record.
+    pub fn reset(&mut self) {
+        for s in self.slots.iter_mut() {
+            if s.state != CapSlotState::Empty || s.cap.is_some() {
+                s.clear();
+            }
+        }
+        self.grant_failures = 0;
+        self.first_failed_slot = 0;
+        self.grants_installed = 0;
     }
 
     // ── Internal helpers ──────────────────────────────────────────────────
@@ -340,5 +423,118 @@ impl CSpace {
                 None
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod grant_tests {
+    use super::*;
+    use crate::rights::{CapKind, CapRights, CapState, ObjectScope};
+
+    fn cap() -> Capability {
+        Capability {
+            kind: CapKind::Endpoint,
+            object_id: 0,
+            rights: CapRights::SEND,
+            badge: 0,
+            scope: ObjectScope::Any,
+            state: CapState::Active,
+            parent: None,
+            lease: None,
+        }
+    }
+
+    #[test]
+    fn a_grant_into_a_free_slot_installs_and_finishes_ok() {
+        let mut cs = CSpace::new();
+        cs.grant(3, cap());
+        assert!(cs.slots()[3].is_occupied());
+        assert_eq!(cs.finish_grants(), Ok(()));
+    }
+
+    #[test]
+    fn a_refused_grant_is_remembered_not_lost() {
+        let mut cs = CSpace::new();
+        cs.grant(3, cap());
+        cs.grant(3, cap()); // the slot is Active: install_raw refuses
+        cs.grant(70, cap()); // out of range: refused
+        assert_eq!(
+            cs.finish_grants(),
+            Err(GrantError::Refused {
+                first_slot: 3,
+                n: 2
+            }),
+            "first refused slot, and the count"
+        );
+        cs.reset();
+        assert_eq!(
+            cs.finish_grants(),
+            Ok(()),
+            "the record is cleared, so one section is not charged to the next"
+        );
+    }
+
+    #[test]
+    fn reset_empties_every_slot_and_bumps_each_generation() {
+        let mut cs = CSpace::new();
+        cs.grant(0, cap());
+        cs.grant(5, cap());
+        let h0 = CapHandle::new(0, cs.slots()[0].generation);
+        assert!(cs.get(h0).is_ok());
+        cs.reset();
+        assert!(cs.slots().iter().all(|s| !s.is_occupied()));
+        assert!(
+            cs.get(h0).is_err(),
+            "the predecessor's handle names nothing"
+        );
+        // the new occupant's grant into the same slot now installs, and the stale handle still does not reach it
+        cs.grant(0, cap());
+        assert_eq!(cs.finish_grants(), Ok(()));
+        assert!(
+            cs.get(h0).is_err(),
+            "a stale handle must not reach the new occupant's capability"
+        );
+    }
+
+    #[test]
+    fn without_reset_a_reused_cspace_refuses_the_new_grant_which_is_the_hazard() {
+        let mut cs = CSpace::new();
+        cs.grant(0, cap()); // the predecessor's
+        cs.grant(0, cap()); // the new occupant's, into the same slot
+        assert!(cs.finish_grants().is_err());
+    }
+
+    #[test]
+    fn a_capability_nobody_granted_is_a_leftover_and_refuses_the_section() {
+        let mut cs = CSpace::new();
+        // the previous occupant's capability, installed outside the new section's grants
+        cs.install_raw(9, cap()).unwrap();
+        cs.grant(0, cap());
+        assert_eq!(
+            cs.finish_grants(),
+            Err(GrantError::Leftover {
+                occupied: 2,
+                granted: 1
+            }),
+            "every grant installed, and the space still holds something nobody granted"
+        );
+    }
+
+    #[test]
+    fn reset_then_grants_is_a_clean_section_and_the_record_does_not_leak_between_sections() {
+        let mut cs = CSpace::new();
+        cs.install_raw(9, cap()).unwrap(); // a predecessor's
+        cs.reset();
+        cs.grant(0, cap());
+        cs.grant(1, cap());
+        assert_eq!(cs.finish_grants(), Ok(()));
+        // a second, empty section on the same space: 2 occupied, 0 granted -> not clean, which is the right answer
+        assert_eq!(
+            cs.finish_grants(),
+            Err(GrantError::Leftover {
+                occupied: 2,
+                granted: 0
+            })
+        );
     }
 }

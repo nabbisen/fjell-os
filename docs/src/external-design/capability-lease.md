@@ -96,11 +96,14 @@ capability. Bootstrap installation at spawn still goes through the in-kernel
   `sample-service` bind capabilities to leases *they* create, and a capability binds once — each
   named with its reason in the `bootstrap-leases` subcheck.
   **What revocation does not reach:** authority exercised **per call** is withdrawn; authority
-  that became a **mapping** is not. A revoked `MmioRegion` stops further mapping and leaves the
-  pages already mapped, because `MmioUnmap` is declared in the ABI and dispatched nowhere. DMA is
-  the counter-example — `sys_dma_revoke` unmaps the owner's page, verified — and
-  `bootstrap-leases` fails the day `MmioUnmap` is dispatched, so this paragraph must be rewritten
-  rather than quietly outlive its truth.
+  that became a **mapping** is not. A revoked `MmioRegion` stops further mapping **and, since 0.49,
+  stops its holder unmapping** (`sys_mmio_unmap` goes through the same funnel), and the pages
+  already mapped stay until the holder ends or a holder with a live capability unmaps them.
+  `MmioUnmap` is dispatched and verified (RFC-0.49-002), but it is **the holder's act**: lease
+  revocation reclaims neither a DMA frame nor an MMIO mapping. `bootstrap-leases` now guards that
+  reason rather than the old one — every call to a device-unmap primitive must sit in a classified
+  function (the holder's syscalls, a task's death, a failed map's own rollback), so the day lease
+  revocation acquires such a call this paragraph has to be restated.
 - **A lease is revoked by its owner** (RFC-0.46-003). Every `LeaseAdmin` carries
   `ObjectScope::Any` — necessarily, since the leases they revoke are created at runtime — so
   the kernel checks ownership rather than scope. One named exception, `LEASE_REVOKE_ANY`, is

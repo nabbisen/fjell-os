@@ -60,8 +60,11 @@ struct LeaseObject {
     /// incarnation of this slot can then never name the current one. Until 0.46 no slot was ever reused
     /// and this stayed `0`. A slot at `u16::MAX` is retired for good, never reclaimed (retire-before-wrap,
     /// as the epoch already is). **This is the lease table's generation only: the task table's is a
-    /// different field and is untouched** -- `TaskTable::remove` has no callers, so task generations are
-    /// always `0`, and the kernel's `TaskId::new(x, 0)` idiom is correct *because* of that.
+    /// different field.** *(Until 0.49 this sentence said the task table's generation was always `0` because
+    /// `TaskTable::remove` had no callers, "and the kernel's `TaskId::new(x, 0)` idiom is correct because of
+    /// that". `TaskKill` destroys a task and frees its slot, so a task slot's generation **does** advance, the
+    /// idiom is wrong, and `bootstrap-leases`'s premise 6 fails on any production `TaskId::new(_, 0)` outside
+    /// the idle task, `init`'s bootstrap and the DMA sentinel -- RFC-0.49-001 D3.)*
     pub generation: u16,
     /// Monotonically-increasing epoch counter; incremented on revoke.
     ///
@@ -380,19 +383,19 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
     {
         let (cancelled_callers, n_cancelled) = ct.cancel_replies_for_lease(id, old_epoch);
         for &tid in cancelled_callers.iter().take(n_cancelled) {
-            let task_id = fjell_abi::task::TaskId::new(tid, 0);
-            // Same terminal-state guard as the endpoint-queue wakes below:
-            // never re-enqueue Exited/Faulted tasks.
+            // RFC-0.49-001 D3: `tid` is an index from a reply edge, and destroying a task removes every edge that names its
+            // slot, so an index in a live edge always names the current occupant.
+            // Same terminal-state guard as the endpoint-queue wakes below: never re-enqueue Exited/Faulted tasks.
             let task_is_wakeable = matches!(
-                tasks.get(task_id).map(|t| &t.state),
+                tasks.get_by_index(tid).map(|t| &t.state),
                 Some(crate::task::tcb::TaskState::Blocked(_))
             );
             if task_is_wakeable {
-                if let Some(task) = tasks.get_mut(task_id) {
+                if let Some(task) = tasks.get_by_index_mut(tid) {
                     task.trap_frame.gpr[crate::task::tcb::REG_A0] =
                         fjell_abi::error::SysError::LeaseRevoked as isize as usize;
                     task.state = crate::task::tcb::TaskState::Runnable;
-                    sched.enqueue_runnable(task_id, 128);
+                    sched.enqueue_runnable(task.id, 128);
                 }
             }
         }
@@ -423,47 +426,39 @@ fn wake_or_cancel_blocked_ipc_for_lease(id: LeaseId, new_epoch: u32) {
         // Wake cancelled senders.
         for i in 0..cancelled.n_senders {
             let tid = cancelled.sender_tids[i];
-            // Safety note: CancelledSet holds raw u16 indices (no generation).
-            // We probe the task table with generation=0 (the most common first
-            // generation). If the task has been replaced with a newer generation,
-            // get_mut returns None and we skip — the new occupant is unrelated.
+            // `CancelledSet` holds raw u16 indices (no generation). **That is sound because destroying a task purges every
+            // endpoint queue entry that names its slot** (RFC-0.49-001 D5), so an index in a live queue names the current
+            // occupant. (This used to be sound for the opposite reason -- a `TaskId::new(tid, 0)` lookup *missed* a replaced
+            // slot -- which stopped being true the moment a slot could be reused at all.)
             //
-            // CRITICAL: we must NOT call sched.enqueue_runnable for tasks we
-            // cannot find.  Enqueuing a stale TaskId::new(idx, 0) can reschedule
-            // an already-exited task whose slot now holds generation=0 for a new
-            // service.  That service would resume from its saved PC into BSS
-            // (zeros), decode zeros as `lb x0, 0(x0)`, and fault.
-            let task_id = fjell_abi::task::TaskId::new(tid, 0);
-            // Only wake a task if it is in a terminal-safe state.
-            // Exited and Faulted tasks must never be re-enqueued — they would
-            // resume from a stale PC into BSS (zeros), causing LoadPageFault.
+            // Only wake a task if it is in a terminal-safe state. Exited and Faulted tasks must never be re-enqueued -- they
+            // would resume from a stale PC into BSS (zeros), causing LoadPageFault.
             let task_is_wakeable = matches!(
-                tasks.get(task_id).map(|t| &t.state),
+                tasks.get_by_index(tid).map(|t| &t.state),
                 Some(crate::task::tcb::TaskState::Blocked(_))
             );
             if task_is_wakeable {
-                if let Some(task) = tasks.get_mut(task_id) {
+                if let Some(task) = tasks.get_by_index_mut(tid) {
                     task.trap_frame.gpr[crate::task::tcb::REG_A0] =
                         fjell_abi::error::SysError::LeaseRevoked as isize as usize;
                     task.state = crate::task::tcb::TaskState::Runnable;
-                    sched.enqueue_runnable(task_id, 128);
+                    sched.enqueue_runnable(task.id, 128);
                 }
             }
         }
         // Wake cancelled receivers.
         for i in 0..cancelled.n_receivers {
             let tid = cancelled.receiver_tids[i];
-            let task_id = fjell_abi::task::TaskId::new(tid, 0);
             let task_is_wakeable = matches!(
-                tasks.get(task_id).map(|t| &t.state),
+                tasks.get_by_index(tid).map(|t| &t.state),
                 Some(crate::task::tcb::TaskState::Blocked(_))
             );
             if task_is_wakeable {
-                if let Some(task) = tasks.get_mut(task_id) {
+                if let Some(task) = tasks.get_by_index_mut(tid) {
                     task.trap_frame.gpr[crate::task::tcb::REG_A0] =
                         fjell_abi::error::SysError::LeaseRevoked as isize as usize;
                     task.state = crate::task::tcb::TaskState::Runnable;
-                    sched.enqueue_runnable(task_id, 128);
+                    sched.enqueue_runnable(task.id, 128);
                 }
             }
         }

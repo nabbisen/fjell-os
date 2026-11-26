@@ -35,6 +35,7 @@ pub mod install;
 pub mod lease_revoke;
 pub mod rights;
 pub mod slot;
+pub mod task_kill;
 
 // Re-exports for ergonomic use
 pub use cspace::{CSPACE_SLOTS, CSpace};

@@ -269,6 +269,17 @@ impl AuditRing {
         ParkOutcome::Parked
     }
 
+    /// Forget `who` as the parked or claimed waiter (RFC-0.49-001 D5). A destroyed task must not be woken later: the wake
+    /// would enqueue a slot's old id.
+    pub fn forget(&self, who: TaskId) {
+        if self.waiter.get() == Some(who) {
+            self.waiter.set(None);
+        }
+        if self.wake.get() == Some(who) {
+            self.wake.set(None);
+        }
+    }
+
     /// The waiter an append has claimed, if any; clears the claim.
     pub fn take_wake(&self) -> Option<TaskId> {
         self.wake.take()

@@ -43,5 +43,10 @@ expected_markers = [
     "a[cont]",
     "[cont]TAIL-END",
     "svc-fault: last words before the fault[cut]",
+    # RFC-0.49-001 D1: read, report, DESTROY. `service-manager` read the verdict, reported it to bootctl, then destroyed the
+    # faulted task (`sys_task_kill`), and the handle it held then named nothing. It holds no `TaskCreate`: this is reclamation,
+    # not restart.
+    "NEG:SVC:FAULTED_TASK_DESTROYED:PASS",
+    "NEG:SVC:DESTROYED_HANDLE_NAMES_NOTHING:PASS",
 ]
 extra_args = []

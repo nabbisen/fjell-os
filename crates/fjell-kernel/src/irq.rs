@@ -39,6 +39,21 @@ impl IrqTable {
         true
     }
 
+    /// Release every interrupt line `who` owns, clearing its pending flag (RFC-0.49-001 D4). There is no `sys_irq_unbind`, so
+    /// until a task is destroyed a dead driver owns its line for ever; after a reuse, the line would be delivered to
+    /// whatever task next occupies that slot. Returns how many lines were released.
+    pub fn release_task(&mut self, who: TaskId) -> usize {
+        let mut n = 0;
+        for i in 0..MAX_IRQ {
+            if self.bound[i] == Some(who) {
+                self.bound[i] = None;
+                self.pending[i] = false;
+                n += 1;
+            }
+        }
+        n
+    }
+
     /// The task currently bound to `irq`, if any.
     pub fn bound_task(&self, irq: u32) -> Option<TaskId> {
         self.bound.get(irq as usize).copied().flatten()

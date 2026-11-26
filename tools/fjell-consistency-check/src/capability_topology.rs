@@ -394,19 +394,21 @@ fn image_block_installs_slot(spawn_src: &str, image: &str, slot: u32) -> bool {
         if let Some(open_rel) = spawn_src[match_end..].find('{') {
             let open_idx = match_end + open_rel;
             if let Some(body) = extract_braced_body(spawn_src, open_idx) {
-                let pattern = "install_raw(\n";
-                let mut p = 0;
-                while let Some(call_rel) = body[p..].find(pattern) {
-                    let after = p + call_rel + pattern.len();
-                    let rest = body[after..].trim_start();
-                    if let Some(num_end) = rest.find(|c: char| !c.is_ascii_digit()) {
-                        if let Ok(n) = rest[..num_end].parse::<u32>() {
-                            if n == slot && rest[num_end..].trim_start().starts_with(',') {
-                                return true;
+                // A boot grant is `cs.grant(` since RFC-0.49-001 (`let _ = cs.install_raw(` before it); both are the call.
+                for pattern in ["install_raw(\n", "grant(\n"] {
+                    let mut p = 0;
+                    while let Some(call_rel) = body[p..].find(pattern) {
+                        let after = p + call_rel + pattern.len();
+                        let rest = body[after..].trim_start();
+                        if let Some(num_end) = rest.find(|c: char| !c.is_ascii_digit()) {
+                            if let Ok(n) = rest[..num_end].parse::<u32>() {
+                                if n == slot && rest[num_end..].trim_start().starts_with(',') {
+                                    return true;
+                                }
                             }
                         }
+                        p = after;
                     }
-                    p = after;
                 }
             }
         }
@@ -575,6 +577,217 @@ pub fn by_name_right_holders(
     }
 }
 
+// ── RFC-0.49-001 D2: effective holders THROUGH the blanket aggregate ───────────────────────────────────────────────────
+
+/// The rights `ALL_NON_META` expands to, read from `rights.rs`: `(bit count, names)`. Fail-closed on a definition that is not
+/// the `CapRights((1 << N) - 1)` form this reads.
+pub fn blanket_expansion(rights_src: &str) -> Result<(u32, Vec<String>), String> {
+    let def = rights_src
+        .lines()
+        .find(|l| l.contains("pub const ALL_NON_META") && l.contains("CapRights("))
+        .ok_or("rights.rs has no `pub const ALL_NON_META: Self = CapRights(..)`")?;
+    let n: u32 = def
+        .split("1 <<")
+        .nth(1)
+        .and_then(|t| t.trim_start().split(|c: char| !c.is_ascii_digit()).next())
+        .and_then(|d| d.parse().ok())
+        .ok_or_else(|| {
+            format!(
+                "`ALL_NON_META` is not `CapRights((1 << N) - 1)`: {}",
+                def.trim()
+            )
+        })?;
+    let mut names = Vec::new();
+    for l in rights_src.lines() {
+        let t = l.trim();
+        if let Some(rest) = t.strip_prefix("pub const ") {
+            if let (Some((name, tail)), true) =
+                (rest.split_once(':'), t.contains("= CapRights(1 <<"))
+            {
+                let bit: Option<u32> = tail
+                    .split("1 <<")
+                    .nth(1)
+                    .and_then(|x| x.trim_start().split(|c: char| !c.is_ascii_digit()).next())
+                    .and_then(|d| d.parse().ok());
+                if bit.is_some_and(|b| b < n) {
+                    names.push(name.trim().to_string());
+                }
+            }
+        }
+    }
+    if names.len() as u32 != n {
+        return Err(format!(
+            "`ALL_NON_META` is bits 0..{n} but `rights.rs` names {} single-bit rights below bit {n}: the expansion cannot be \
+             listed completely",
+            names.len()
+        ));
+    }
+    Ok((n, names))
+}
+
+/// Does the `rights:` expression `expr` of a capability grant confer `right`? `Some(true/false)`, or `None` if the expression
+/// contains something this does not understand (the caller treats that as a failure for a kind it is judging).
+fn rights_expr_confers(expr: &str, right: &str) -> Option<bool> {
+    let e: String = expr.split_whitespace().collect();
+    // every identifier-like token must be one this understands
+    let mut conferred = false;
+    let mut subtracted = false;
+    let mut i = 0;
+    let b = e.as_bytes();
+    while i < b.len() {
+        if e[i..].starts_with("CapRights::") {
+            let start = i + "CapRights::".len();
+            let name: String = e[start..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                .collect();
+            let negated = e[..i].ends_with('!');
+            if name == "ALL_NON_META" {
+                if !negated {
+                    conferred = true;
+                }
+            } else if name == right {
+                if negated {
+                    subtracted = true;
+                } else {
+                    conferred = true;
+                }
+            } else if name.is_empty() || name.chars().any(|c| c.is_ascii_lowercase()) {
+                return None;
+            }
+            i = start + name.len();
+        } else if b[i].is_ascii_alphabetic() || b[i] == b'_' {
+            // a bare identifier (a named constant such as `UPDATE_CHANNEL_RIGHTS`, or `e.rights`): not understood
+            let name: String = e[i..]
+                .chars()
+                .take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '.')
+                .collect();
+            if name == "CapRights" || name == "0" || name.starts_with("0") {
+                i += name.len().max(1);
+                continue;
+            }
+            return None;
+        } else {
+            i += 1;
+        }
+    }
+    Some(conferred && !subtracted)
+}
+
+/// Every site, in `spawn.rs` and `main.rs`, that grants a `kind` capability **conferring `right`** -- by name **or through
+/// `ALL_NON_META`** -- attributed to the nearest preceding `ImageId::<X>` (`main.rs`'s `init` installs carry none and are
+/// `INIT`). `Err` lists every holder outside `allowed`, a `kind` grant whose rights this cannot evaluate (fail-closed), and an
+/// absent right (a gate that counts zero holders counted nothing).
+///
+/// This is the second counting mode `by_name_right_holders` cannot be: **`TASK_KILL` is bit 15 and `ALL_NON_META` is
+/// `(1 << 26) - 1`**, so three `TaskControl` grants carried a kill right for an operation nobody could perform, and a search
+/// for the right's *name* found none of them (RFC-0.49-001, finding 1). A right is consulted against its kind --
+/// `sys_task_kill` asks `TaskControl` -- so a blanket grant of another kind carries the bit inertly and is not counted.
+pub fn effective_right_holders(
+    spawn_src: &str,
+    main_src: &str,
+    right: &str,
+    kind: &str,
+    allowed: &[&str],
+) -> Result<Vec<String>, Vec<String>> {
+    let mut holders: Vec<String> = Vec::new();
+    let mut problems: Vec<String> = Vec::new();
+    for (file, src, default_image) in [
+        ("task/spawn.rs", spawn_src, None),
+        ("main.rs (init's spawn path)", main_src, Some("INIT")),
+    ] {
+        let mut last_image: Option<String> = default_image.map(str::to_string);
+        // walk the text once, tracking the nearest preceding `ImageId::X` and each `kind: CapKind::<kind>,` grant
+        let lines: Vec<&str> = src.lines().collect();
+        let mut idx = 0;
+        while idx < lines.len() {
+            let t = lines[idx].trim_start();
+            if t.starts_with("//") {
+                idx += 1;
+                continue;
+            }
+            if let Some(i) = t.find("ImageId::") {
+                let name: String = t[i + "ImageId::".len()..]
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                if !name.is_empty() {
+                    last_image = Some(name);
+                }
+            }
+            if t.starts_with(&format!("kind: CapKind::{kind},")) {
+                // the `rights:` expression is the text after `rights:` up to the `,` that ends it at nesting depth 0
+                let mut expr = String::new();
+                let mut depth = 0i32;
+                let mut found = false;
+                'scan: for l in lines.iter().skip(idx + 1).take(12) {
+                    let lt = l.trim_start();
+                    if lt.starts_with("//") {
+                        continue;
+                    }
+                    if !found {
+                        if let Some(r) = lt.strip_prefix("rights:") {
+                            found = true;
+                            for ch in r.chars() {
+                                match ch {
+                                    '(' | '[' | '{' => depth += 1,
+                                    ')' | ']' | '}' => depth -= 1,
+                                    ',' if depth == 0 => break 'scan,
+                                    _ => {}
+                                }
+                                expr.push(ch);
+                            }
+                            expr.push(' ');
+                        }
+                    } else {
+                        for ch in lt.chars() {
+                            match ch {
+                                '(' | '[' | '{' => depth += 1,
+                                ')' | ']' | '}' => depth -= 1,
+                                ',' if depth == 0 => break 'scan,
+                                _ => {}
+                            }
+                            expr.push(ch);
+                        }
+                        expr.push(' ');
+                    }
+                }
+                let who = last_image.clone().unwrap_or_else(|| "?".to_string());
+                match rights_expr_confers(&expr, right) {
+                    Some(true) => holders.push(format!("{who} ({file})")),
+                    Some(false) => {}
+                    None => problems.push(format!(
+                        "a `{kind}` grant to {who} in {file} has rights `{}` that this check cannot evaluate: it will not guess \
+                         whether it confers `{right}`",
+                        expr.trim()
+                    )),
+                }
+            }
+            idx += 1;
+        }
+    }
+    if holders.is_empty() && problems.is_empty() {
+        problems.push(format!(
+            "`{right}` is conferred on a `{kind}` capability by nobody in spawn.rs or main.rs: a gate that counts zero holders \
+             counted nothing (if the right or the kind was removed, remove this assertion with it)"
+        ));
+    }
+    for h in &holders {
+        let image = h.split(" (").next().unwrap_or("");
+        if !allowed.contains(&image) {
+            problems.push(format!(
+                "`{right}` is conferred on a `{kind}` capability to {h}: only {} may hold it",
+                allowed.join(" and ")
+            ));
+        }
+    }
+    if problems.is_empty() {
+        Ok(holders)
+    } else {
+        Err(problems)
+    }
+}
+
 pub fn check() -> ExitCode {
     let Some(spawn_src) = read_file(NAME, SPAWN_PATH) else {
         return ExitCode::FAILURE;
@@ -676,10 +889,59 @@ pub fn check() -> ExitCode {
         }
     };
 
+    // RFC-0.49-001 D2: the blanket aggregate is a default grant, so a right inside it is conferred on every blanket holder the
+    // day it is defined. Print what `ALL_NON_META` expands to, and count the effective holders of the kill right through it.
+    let rights_for_blanket = read_file(NAME, "crates/fjell-cap/src/rights.rs");
+    let blanket_note = match (&rights_for_blanket, &main_for_holders) {
+        (Some(r), Some(m)) => {
+            let expansion = match blanket_expansion(r) {
+                Ok((n, names)) => {
+                    println!(
+                        "{NAME}: ALL_NON_META is a default grant: bits 0..{n} = {} rights: {}",
+                        names.len(),
+                        names.join(", ")
+                    );
+                    format!("{n} bits")
+                }
+                Err(why) => {
+                    ok = false;
+                    eprintln!("{NAME}: FAIL — {why}");
+                    String::new()
+                }
+            };
+            match effective_right_holders(
+                &spawn_src,
+                m,
+                "TASK_KILL",
+                "TaskControl",
+                &["SERVICE_MANAGER", "NEG_TEST"],
+            ) {
+                Ok(h) => format!(
+                    "; `TASK_KILL` is conferred on a `TaskControl` capability at {} site(s) -- {} -- counted through `ALL_NON_META` \
+                     ({expansion}), allowed {{SERVICE_MANAGER, NEG_TEST}}",
+                    h.len(),
+                    h.join(", ")
+                ),
+                Err(why) => {
+                    ok = false;
+                    for w in why {
+                        eprintln!("{NAME}: FAIL — {w}");
+                    }
+                    String::new()
+                }
+            }
+        }
+        _ => {
+            ok = false;
+            eprintln!("{NAME}: FAIL — rights.rs or main.rs could not be read");
+            String::new()
+        }
+    };
+
     if ok {
         println!(
             "{NAME}: PASS ({installed} installed, {waived} waived to a named line, \
-             {} checked{zero_note}{holders_note})",
+             {} checked{zero_note}{holders_note}{blanket_note})",
             discovered.len()
         );
         ExitCode::SUCCESS
@@ -1152,5 +1414,136 @@ if let Some(regions) = mmio_regions_for_service {\n    for &region_idx in region
             d.slots.iter().any(|s| s.slot == 0),
             "slot 0 must be discovered, not skipped"
         );
+    }
+
+    // ── RFC-0.49-001 D2: effective holders through the blanket ───────────────────────────────────────────────────────────
+
+    fn grant(image: &str, kind: &str, rights: &str) -> String {
+        format!(
+            "if image_id == fjell_abi::service::ImageId::{image} {{\n  cs.grant(\n    29,\n    Capability {{\n      kind: CapKind::{kind},\n      object_id: 0,\n      rights: {rights},\n      badge: 0,\n    }},\n  );\n}}\n"
+        )
+    }
+
+    #[test]
+    fn a_blanket_grant_confers_the_right_without_ever_naming_it() {
+        // the finding: a search for the NAME `TASK_KILL` finds nothing here, and the holder is real
+        let spawn = grant("SERVICE_MANAGER", "TaskControl", "CapRights::ALL_NON_META");
+        assert!(!spawn.contains("TASK_KILL"));
+        let h =
+            effective_right_holders(&spawn, "", "TASK_KILL", "TaskControl", &["SERVICE_MANAGER"])
+                .unwrap();
+        assert_eq!(h, vec!["SERVICE_MANAGER (task/spawn.rs)".to_string()]);
+        // ... and the by-name counter, asked the same question, counts nobody
+        assert!(by_name_right_holders(&spawn, "", "TASK_KILL", "SERVICE_MANAGER").is_err());
+    }
+
+    #[test]
+    fn a_subtraction_removes_the_right_and_a_third_blanket_holder_is_red() {
+        let main = "let cs = x;\ncs.grant(\n 29,\n Capability {\n  kind: CapKind::TaskControl,\n  rights: CapRights(CapRights::ALL_NON_META.0 & !CapRights::TASK_KILL.0),\n  badge: 0,\n },\n);\n";
+        let spawn = format!(
+            "{}{}",
+            grant("SERVICE_MANAGER", "TaskControl", "CapRights::ALL_NON_META"),
+            grant("NEG_TEST", "TaskControl", "CapRights::ALL_NON_META")
+        );
+        let ok = effective_right_holders(
+            &spawn,
+            main,
+            "TASK_KILL",
+            "TaskControl",
+            &["SERVICE_MANAGER", "NEG_TEST"],
+        )
+        .unwrap();
+        assert_eq!(
+            ok.len(),
+            2,
+            "init's grant subtracts the right, so it is not a holder: {ok:?}"
+        );
+        let three = format!(
+            "{spawn}{}",
+            grant("CAP_BROKER", "TaskControl", "CapRights::ALL_NON_META")
+        );
+        let e = effective_right_holders(
+            &three,
+            main,
+            "TASK_KILL",
+            "TaskControl",
+            &["SERVICE_MANAGER", "NEG_TEST"],
+        )
+        .unwrap_err();
+        assert!(
+            e.iter().any(
+                |w| w.contains("CAP_BROKER") && w.contains("only SERVICE_MANAGER and NEG_TEST")
+            ),
+            "{e:?}"
+        );
+    }
+
+    #[test]
+    fn a_by_name_grant_counts_and_another_kind_does_not() {
+        let spawn = format!(
+            "{}{}",
+            grant(
+                "NEG_TEST",
+                "TaskControl",
+                "CapRights::TASK_STATUS | CapRights::TASK_KILL"
+            ),
+            // the bit rides on an Endpoint blanket too, inertly: no operation asks an Endpoint for TASK_KILL
+            grant("CAP_BROKER", "Endpoint", "CapRights::ALL_NON_META")
+        );
+        let h =
+            effective_right_holders(&spawn, "", "TASK_KILL", "TaskControl", &["NEG_TEST"]).unwrap();
+        assert_eq!(h, vec!["NEG_TEST (task/spawn.rs)".to_string()]);
+    }
+
+    #[test]
+    fn rights_it_cannot_evaluate_fail_closed_and_an_absent_right_counts_nothing() {
+        let spawn = grant("NEG_TEST", "TaskControl", "SOME_NAMED_RIGHTS_CONSTANT");
+        let e = effective_right_holders(&spawn, "", "TASK_KILL", "TaskControl", &["NEG_TEST"])
+            .unwrap_err();
+        assert!(
+            e.iter()
+                .any(|w| w.contains("cannot evaluate") && w.contains("will not guess")),
+            "{e:?}"
+        );
+        let none = grant("NEG_TEST", "TaskControl", "CapRights::TASK_STATUS");
+        let e = effective_right_holders(&none, "", "TASK_KILL", "TaskControl", &["NEG_TEST"])
+            .unwrap_err();
+        assert!(e.iter().any(|w| w.contains("counted nothing")), "{e:?}");
+    }
+
+    #[test]
+    fn the_blanket_expansion_is_read_from_the_real_rights_file_and_must_be_complete() {
+        let rights = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../crates/fjell-cap/src/rights.rs"),
+        )
+        .unwrap();
+        let (n, names) = blanket_expansion(&rights).unwrap();
+        assert_eq!(n, 26);
+        assert_eq!(names.len(), 26);
+        assert!(
+            names.contains(&"TASK_KILL".to_string()),
+            "the finding: the blanket contains the kill right"
+        );
+        assert!(
+            !names.contains(&"CAP_INSTALL".to_string()),
+            "bit 26 is outside it"
+        );
+        // a definition this does not understand is an error, not an empty list
+        assert!(blanket_expansion("pub const ALL_NON_META: Self = CapRights(0xFFFF);").is_err());
+        // and an expansion that names fewer rights than bits cannot be listed completely
+        assert!(blanket_expansion("pub const A: Self = CapRights(1 << 0);\npub const ALL_NON_META: Self = CapRights((1 << 3) - 1);").is_err());
+    }
+
+    #[test]
+    fn the_grant_spelling_is_read_like_install_raw() {
+        let spawn = "if image_id == fjell_abi::service::ImageId::NEG_TEST {\n    cs.grant(\n        5,\n        Capability {},\n    );\n}\n";
+        assert!(image_block_installs_slot(spawn, "NEG_TEST", 5));
+        let old = spawn.replace("cs.grant(", "let _ = cs.install_raw(");
+        assert!(
+            image_block_installs_slot(&old, "NEG_TEST", 5),
+            "the old spelling still reads"
+        );
+        assert!(!image_block_installs_slot(spawn, "NEG_TEST", 6));
     }
 }

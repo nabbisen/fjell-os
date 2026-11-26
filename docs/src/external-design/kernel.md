@@ -41,20 +41,22 @@ Dispatched groups (as-built at v0.21.2, 26 syscalls):
 Every syscall except the debug helper is capability-gated. The result is
 returned in `a0` as a typed `SysError` (or `Ok`).
 
-### Declared, not dispatched (3 of the 36)
+### Declared, not dispatched (1 of the 36 -- held)
 
-These `SyscallNumber` variants exist in `fjell-abi`, but `trap/syscall.rs` has
-no dispatch arm for them -- the fallthrough (`Some(_) | None =>
-SysError::UnknownSyscall`) rejects every one, so calling any of them returns
-`UnknownSyscall`, not the behaviour a doc-comment may suggest. The set is held
-equal to the source by `cargo run -p fjell-consistency-check -- syscall-surface`
-against `tests/syscall/expected.toml`:
+**The rule since RFC-0.49-002: every declared syscall is dispatched, or it is retired.**
+`cargo run -p fjell-consistency-check -- syscall-surface` **fails** on a `SyscallNumber`
+variant with no dispatch arm in `trap/syscall.rs` (the fallthrough `Some(_) | None =>
+SysError::UnknownSyscall` is what such a call would reach). The one exception is a *held*
+variant -- named in `tests/syscall/expected.toml` with a reason and an expiry, failing once the
+workspace version is past it:
 
-| Syscall number | Wrapper(s) that issue it |
-|---|---|
-| `TaskKill` (43) | -- (no wrapper) |
-| `MmioUnmap` (91) | -- (no wrapper) |
-| `DmaShare` (111) | -- (no wrapper) |
+| Syscall number | Wrapper(s) that issue it | Status |
+|---|---|---|
+| `DmaShare` (111) | -- (no wrapper) | **held until 0.49.0**: retiring it states that v1 has no shared-region bulk transfer, which is the owner's decision (RFC-0.49-002 D6) |
+
+`TaskKill` (43, `fjell_syscall::sys_task_kill`) and `MmioUnmap` (91,
+`fjell_syscall::sys_mmio_unmap`) were declared and undispatched until 0.49; both are dispatched
+now (RFC-0.49-001, RFC-0.49-002).
 
 `CapInstall` (17) was the fourth until RFC-0.45-002: it is dispatched now, as
 `sys_cap_install` (see [Capability and lease](./capability-lease.md)).
@@ -63,10 +65,10 @@ against `tests/syscall/expected.toml`:
 host-side stub that returns `UnknownSyscall` without issuing an `ecall` at
 all, so it never reaches the kernel.
 
-The disposition of these 3 -- implement, remove from the ABI, or keep
-permanently reserved -- is not decided; see
-`rfcs/done/RFC-v0.21.3-001-build-restoration-and-as-built-reconciliation.md`
-§Deferred.
+The one that remains (`DmaShare`) is to be implemented or retired -- retiring means removing the
+variant and recording that its number is not reused, as `Reboot` (120) was -- and the owner has
+been asked; see RFC-0.49-002 D6 (the earlier deferral, `RFC-v0.21.3-001` §Deferred, never
+resolved it).
 
 ## 3. Internal module boundaries (as-built)
 

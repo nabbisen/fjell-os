@@ -39,6 +39,8 @@ pub fn handle_syscall(tf: &mut TrapFrame) {
         Some(SyscallNumber::TaskSpawn)  => dispatch_task_spawn(tf),
         Some(SyscallNumber::TaskStart)  => dispatch_task_start(tf),
         Some(SyscallNumber::TaskStatus) => dispatch_task_status(tf),
+        Some(SyscallNumber::TaskKill) => dispatch_task_kill(tf),
+        Some(SyscallNumber::MmioUnmap) => sys_mmio_unmap(tf),
         // M4 lease syscalls
         Some(SyscallNumber::LeaseCreate)  => dispatch_lease_create(tf),
         Some(SyscallNumber::LeaseRevoke)  => dispatch_lease_revoke(tf),
@@ -412,7 +414,7 @@ fn dispatch_m3(tf: &mut TrapFrame, nr: usize) {
 
     // Determine the calling task's index from sscratch → TrapFrame ptr.
     // For M3 we derive task index from the scheduler's current().
-    let cur_id = sched.current().unwrap_or(crate::task::TaskId::new(0, 0));
+    let cur_id = crate::trap::dispatch::current_task_id();
     let tidx = cur_id.index as usize;
 
     match SyscallNumber::from_usize(nr) {
@@ -465,7 +467,7 @@ pub fn sys_task_spawn(
     // SAFETY: category=raw-pointer-deref `fa` is the kernel frame allocator's static pointer, passed down by `dispatch_task_spawn`; single hart; no concurrent access.
     let fa_ref = unsafe { &mut *fa };
     // RFC-0.48-001: the new task's boot lease is owned by the caller -- the spawner -- who is told its id.
-    let spawner = crate::task::TaskId::new(tidx as u16, 0);
+    let spawner = crate::trap::dispatch::current_task_id();
     match spawn(image_id, table, sched, kernel_root, fa_ref, spawner) {
         Ok((tid, boot_lease)) => {
             // RFC 010: encode (index, generation) into a single u32 handle.
@@ -607,6 +609,38 @@ pub fn sys_task_status(
     }
 }
 
+/// `sys_task_kill(a0=cap_handle, a1=task_handle) -> a0=status` -- RFC-0.49-001.
+///
+/// **Destroys** the target: afterwards its id names nothing. A live task is stopped and everything the kernel held on its
+/// behalf is taken back; a task that already exited or faulted has only its slot released (its verdict stays readable by
+/// `sys_task_status` until this call -- read it first). Through the funnel: a `TaskControl` capability carrying `TASK_KILL`,
+/// scope `Task(target)`. **Refused:** the caller itself (`sys_exit` is that verb) and the idle task, `PermissionDenied`; a
+/// stale or never-issued handle, `InvalidCap`.
+pub fn sys_task_kill(tf: &mut TrapFrame, ct: &crate::cap::table::CapTable, tidx: usize) {
+    use crate::task::TaskId;
+    use fjell_cap::rights::ObjectScope;
+    let cap_h = fjell_cap::handle::CapHandle(tf.gpr[REG_A0] as u32);
+    let raw = tf.gpr[REG_A1] as u32;
+    let target = TaskId::new((raw & 0xFFFF) as u16, (raw >> 16) as u16);
+    let req_scope = ObjectScope::Task(target);
+    if let Err(e) = require_cap_on_ct(
+        ct,
+        tidx,
+        cap_h,
+        fjell_cap::CapKind::TaskControl,
+        fjell_cap::CapRights::TASK_KILL,
+        Some(&req_scope),
+    ) {
+        tf.gpr[REG_A0] = e as isize as usize;
+        return;
+    }
+    let caller = crate::trap::dispatch::current_task_id();
+    tf.gpr[REG_A0] = match crate::task::destroy::destroy_task(target, caller) {
+        Ok(_) => 0,
+        Err(e) => e as isize as usize,
+    };
+}
+
 /// `sys_lease_create(a0=cap_handle, a1=flags) -> a0=ok, a1=LeaseId` — RFC 048.
 pub fn sys_lease_create(
     tf: &mut TrapFrame,
@@ -627,9 +661,9 @@ pub fn sys_lease_create(
         tf.gpr[REG_A0] = e as isize as usize;
         return;
     }
-    use fjell_abi::task::TaskId;
     let flags = tf.gpr[REG_A1] as u32;
-    let owner = TaskId::new(tidx as u16, 0);
+    // RFC-0.49-001 D3: the owner is the caller's REAL id, so a lease cannot be inherited by a later occupant of its slot.
+    let owner = crate::trap::dispatch::current_task_id();
     match lt.create(owner, flags) {
         Ok(id) => {
             tf.gpr[REG_A0] = 0;
@@ -678,7 +712,7 @@ pub fn sys_lease_revoke(
             return;
         }
     };
-    let caller_owns = owner == fjell_abi::task::TaskId::new(tidx as u16, 0);
+    let caller_owns = owner == crate::trap::dispatch::current_task_id();
     let rights = ct
         .cspace(tidx)
         .and_then(|cs| cs.get(cap_h).ok())
@@ -961,6 +995,13 @@ fn dispatch_task_start(tf: &mut TrapFrame) {
     sys_task_start(tf, table, sched, ct, tidx);
 }
 
+fn dispatch_task_kill(tf: &mut TrapFrame) {
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (_, _, ct, _et) = unsafe { crate::get_kernel_state() };
+    let tidx = crate::trap::dispatch::current_task_idx();
+    sys_task_kill(tf, ct, tidx);
+}
+
 fn dispatch_task_status(tf: &mut TrapFrame) {
     // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, _, ct, _et) = unsafe { crate::get_kernel_state() };
@@ -1125,7 +1166,7 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     // Map pages R|W|U — explicitly no X bit (RFC 009 / RFC 035).
     // RFC 051: allocate user VA from the task's device VMA bump allocator
     // instead of using PA directly as VA (which could alias user heap).
-    let task_id = crate::task::TaskId::new(tidx as u16, 0);
+    let task_id = crate::trap::dispatch::current_task_id(); // RFC-0.49-001 D3: the real id
     // SAFETY: category=kernel-global-mutable
     //   get_kernel_state returns globally unique pointers; single-hart kernel.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
@@ -1160,11 +1201,29 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
         va
     };
 
+    // RFC-0.49-002 R2: **reserve the record before a PTE is written.** The kernel used to map device pages and keep no
+    // record that it had, so nothing could take a mapping back. A full table refuses the map here, with nothing changed; a map
+    // that fails below releases the entry again, so there is no mapping without a record and no record without a mapping.
+    let page_count = (size_bytes + 4095) / 4096;
+    let record =
+        match crate::mmio_mappings().reserve(fjell_frame_alloc::mmio_mappings::MmioMapping {
+            owner: task_id,
+            region_id: region_idx as u32,
+            user_va: device_va_base,
+            pa: phys_addr,
+            page_count: page_count.min(u16::MAX as usize) as u16,
+        }) {
+            Ok(i) => i,
+            Err(_) => {
+                tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
+                return;
+            }
+        };
+
     // RFC-v0.7.4-002: check every map result; rollback on failure.
     // SAFETY: category=kernel-global-mutable
     //   fa_static_ptr is the physical frame allocator accessed single-threaded.
     let fa = unsafe { &mut *crate::fa_static_ptr() };
-    let page_count = (size_bytes + 4095) / 4096;
     let mut pages_mapped: usize = 0;
     let mut map_ok = true;
     for i in 0..page_count {
@@ -1205,6 +1264,8 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
         unsafe {
             crate::arch::riscv64::csr::sfence_vma();
         }
+        // RFC-0.49-002 R2: the mapping did not happen, so neither does its record.
+        let _ = crate::mmio_mappings().release(record);
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
         return;
     }
@@ -1215,6 +1276,146 @@ pub fn sys_mmio_map(tf: &mut TrapFrame) {
     }
     tf.gpr[REG_A0] = 0;
     tf.gpr[REG_A1] = device_va_base; // RFC 051: VA in device range, not PA
+}
+
+/// `sys_mmio_unmap(a0=cap_handle, a1=user_va) -> a0=status` -- RFC-0.49-002.
+///
+/// Takes back a device mapping the caller made with `sys_mmio_map`, **verified the way `sys_dma_revoke` is**, and **never
+/// returning the page to the frame allocator** (an MMIO frame is a device register page, not RAM).
+///
+/// * the funnel: an `MmioRegion` capability with `MMIO_MAP` and a live lease -- **so a task whose capability's lease has been
+///   revoked cannot unmap its own mapping**, which is the bound limitations row 12 records, exact;
+/// * the capability's region must be the mapping's region (`PermissionDenied` otherwise), and the caller must be the owner
+///   (the record is looked up by `(owner, va)`, so another task's address finds nothing: `InvalidArg`);
+/// * **whole mapping only:** `va` is the base `sys_mmio_map` returned. An interior address, an address never mapped, and a
+///   second unmap of the same address are all `InvalidArg`;
+/// * **two phases:** every page's PTE is read first and must point at the recorded physical page; only then is anything
+///   unmapped, and each unmap must remove the frame it was expected to. A mismatch changes nothing (`InternalError`).
+pub fn sys_mmio_unmap(tf: &mut TrapFrame) {
+    use crate::mm::address::VirtAddr;
+    use crate::platform::qemu_virt::{RAM_BASE, RAM_END};
+    use fjell_cap::{CapKind, CapRights};
+
+    let cap_handle = fjell_cap::CapHandle(tf.gpr[REG_A0] as u32);
+    let user_va = tf.gpr[REG_A1];
+    let tidx = crate::trap::dispatch::current_task_idx();
+    // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
+    let (table, _, cap_table, _) = unsafe { crate::get_kernel_state() };
+    // SAFETY: category=kernel-global-mutable lease table single-threaded.
+    let lt = unsafe { crate::get_lease_table() };
+    let cs = match cap_table.cspace(tidx) {
+        Some(c) => c,
+        None => {
+            tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+            return;
+        }
+    };
+    let cap_region = match fjell_cap::enforcement::require_cap(
+        cs,
+        cap_handle,
+        CapKind::MmioRegion,
+        CapRights::MMIO_MAP,
+        None,
+        lt,
+    ) {
+        Ok(cap) => cap.object_id,
+        Err(e) => {
+            tf.gpr[REG_A0] = e.to_sys_error() as isize as usize;
+            return;
+        }
+    };
+
+    let owner = crate::trap::dispatch::current_task_id();
+    let (index, m) = match crate::mmio_mappings().find(owner, user_va) {
+        Some(r) => r,
+        None => {
+            tf.gpr[REG_A0] = SysError::InvalidArg as isize as usize;
+            return;
+        }
+    };
+    if m.region_id != cap_region {
+        tf.gpr[REG_A0] = SysError::PermissionDenied as isize as usize;
+        return;
+    }
+    // A device page is never RAM (`sys_mmio_map` refused anything that overlapped it), and **must never reach the frame
+    // allocator**: this function does not call `free_frame` anywhere, and refuses a record that says otherwise.
+    if m.pa < RAM_END && m.pa.saturating_add(m.page_count as usize * 4096) > RAM_BASE {
+        tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+        return;
+    }
+    let root_pfn = table.get(owner).map(|t| t.satp_root_pfn).unwrap_or(0);
+    if root_pfn == 0 {
+        tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+        return;
+    }
+    let root = root_pfn << 12;
+    // SAFETY: category=kernel-global-mutable the frame allocator, single hart; read only (its free count) -- this function never frees.
+    let free_before = unsafe { &*crate::fa_static_ptr() }.free_count();
+
+    // Phase 1: read every PTE first; nothing is changed unless all of them are exactly what was installed.
+    for i in 0..m.page_count as usize {
+        let va = VirtAddr(m.user_va + i * 4096);
+        // SAFETY: category=page-table-mutation read-only walk of the owner's live page table.
+        match unsafe { crate::mm::page_table::translate(root, va) } {
+            Ok((f, _)) if f.pa() == m.pa + i * 4096 => {}
+            _ => {
+                crate::kprintln!(
+                    "kernel: MMIO mapping of task {} at {:#x}: page {} is not the recorded device page; refusing to unmap",
+                    owner.index,
+                    m.user_va,
+                    i
+                );
+                tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+                return;
+            }
+        }
+    }
+    // Phase 2: unmap, requiring each removed frame to be the one expected.
+    let mut ok = true;
+    for i in 0..m.page_count as usize {
+        let va = VirtAddr(m.user_va + i * 4096);
+        // SAFETY: category=page-table-mutation the PTE was read in phase 1 and is the mapping `sys_mmio_map` installed.
+        match unsafe { crate::mm::page_table::unmap_page(root, va) } {
+            Ok(f) if f.pa() == m.pa + i * 4096 => {}
+            _ => ok = false,
+        }
+    }
+    // The task must not keep reaching the device through a cached translation.
+    // SAFETY: category=csr-asm global fence after PTE clears.
+    unsafe {
+        crate::arch::riscv64::csr::sfence_vma();
+    }
+    if !ok {
+        // Phase 1 verified every page, so this should be unreachable; the record is KEPT (a page may still be mapped) and
+        // dropped when the task ends, rather than claiming an unmap that did not fully happen.
+        crate::kprintln!(
+            "kernel: MMIO mapping of task {} at {:#x}: an unmap removed an unexpected page; the record is kept",
+            owner.index,
+            m.user_va
+        );
+        tf.gpr[REG_A0] = SysError::InternalError as isize as usize;
+        return;
+    }
+    let _ = crate::mmio_mappings().release(index);
+    // **Observable, not asserted:** an MMIO frame is a device page and must never reach the allocator. The free count is read
+    // before the first PTE is touched and after the last, and the line says whether it moved.
+    // SAFETY: category=kernel-global-mutable the frame allocator, single hart; read only.
+    let free_after = unsafe { &*crate::fa_static_ptr() }.free_count();
+    crate::kprintln!(
+        "kernel: MMIO unmap: {} page(s) of region {} at {:#x} from task {}; allocator free frames {} -> {} ({})",
+        m.page_count,
+        m.region_id,
+        m.user_va,
+        owner.index,
+        free_before,
+        free_after,
+        if free_before == free_after {
+            "unchanged"
+        } else {
+            "CHANGED: a device page reached the allocator"
+        }
+    );
+    tf.gpr[REG_A0] = 0;
 }
 
 // ── RFC-0.25-001: IRQ syscalls ──────────────────────────────────────────────
@@ -1537,7 +1738,7 @@ pub fn sys_dma_alloc(tf: &mut TrapFrame) {
 
     // SAFETY: category=kernel-global-mutable single-hart; no concurrent access.
     let (table, _, _, _) = unsafe { crate::get_kernel_state() };
-    let task_id = crate::task::TaskId::new(tidx as u16, 0);
+    let task_id = crate::trap::dispatch::current_task_id(); // RFC-0.49-001 D3: the real id
     let root_pfn = table.get(task_id).map(|t| t.satp_root_pfn).unwrap_or(0);
     if root_pfn == 0 {
         tf.gpr[REG_A0] = SysError::NoMemory as isize as usize;
@@ -1646,7 +1847,7 @@ pub fn sys_dma_revoke(tf: &mut TrapFrame) {
         return;
     }
 
-    let task_id = crate::task::TaskId::new(tidx as u16, 0);
+    let task_id = crate::trap::dispatch::current_task_id(); // RFC-0.49-001 D3: the real id
     use crate::DmaRevokeError;
     tf.gpr[REG_A0] = match crate::dma_table().revoke_by_pa(task_id, device_pa) {
         Ok(()) => 0,

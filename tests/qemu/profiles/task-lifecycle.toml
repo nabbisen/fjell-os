@@ -1,0 +1,49 @@
+# RFC-0.49-001: a task the system can stop, and a slot it can take back -- demonstrated on a real boot.
+#
+# 'K' injected right after "driver-uart: ready" (the console trigger the other scenario profiles use): `init` asks
+# `neg-test` to run its task-lifecycle scenario. By then `init` has spawned everything it will spawn, so the scenario may
+# fill the task table: it
+#   1. destroys a HUNG task (`svc-timeout`, started, never READY, never finishing) -- the half of the failure nothing could
+#      stop before, and shows its handle then names nothing;
+#   2. spawns again into the SAME slot, one generation later, and shows the old handle refused for status and for kill
+#      while the new occupant is intact;
+#   2b. destroys a task that DIED on its own (`svc-fault`) after its verdict is read, and reuses its slot -- the flow
+#      `service-manager` performs, shown in the `health-fail` profile;
+#   3. shows the refusals: the idle task, and (early in neg-test's default sequence) a TaskControl capability without
+#      TASK_KILL. A revoked-lease TaskControl is shown in `fjell_cap::task_kill`'s host tests, not here: it would need a
+#      TaskControl not bound to its holder's boot lease, a third fixture exemption;
+#   4. destroys a BLOCKED task (a second `configd`, parked in its endpoint's receive queue), whose queue entry the kernel
+#      purged, and says so in its own log line -- "blocked in 1 endpoint queue(s)", asserted below;
+#   5. fills the table until `TaskTableFull`, destroys everything that filled it, and fills it again -- three rounds, the
+#      same count each time. Before this line a boot could spawn at most MAX_TASKS tasks for its whole uptime.
+#
+# What this profile does NOT show: that a destroyed task's PAGE-TABLE frames come back. They do not (RFC-0.49-001 D4);
+# the kernel's own log line says how many it retained, and that number is asserted below so the leak cannot grow unannounced.
+
+name                 = "task-lifecycle"
+timeout_secs         = 90
+inject_after_marker  = "driver-uart: ready"
+inject_bytes         = "K"
+expected_markers = [
+  "init: task-lifecycle trigger received; asking neg-test to run its scenario",
+  "NEG:TASK:HUNG_TASK_KILLED:PASS",
+  "NEG:TASK:SLOT_REUSED_GENERATION_ADVANCED:PASS",
+  "NEG:TASK:STALE_STATUS_REFUSED_AFTER_REUSE:PASS",
+  "NEG:TASK:STALE_KILL_REFUSED_AFTER_REUSE:PASS",
+  "NEG:TASK:NEW_OCCUPANT_INTACT_AFTER_STALE_KILL:PASS",
+  "NEG:TASK:EXITED_CORPSE_DESTROYED:PASS",
+  "exited cleanly: the milestone latch for its image is still true after the corpse was destroyed",
+  "NEG:TASK:FAULTED_TASK_DESTROYED_AFTER_VERDICT:PASS",
+  "NEG:TASK:FAULTED_TASKS_SLOT_REUSED:PASS",
+  "NEG:TASK:KILL_OF_ABSENT_TASK_IS_INVALID_CAP:PASS",
+  "NEG:TASK:KILL_IDLE_REFUSED:PASS",
+  "NEG:TASK:KILL_WITHOUT_TASK_KILL_RIGHT_REFUSED:PASS",
+  "NEG:TASK:BLOCKED_TASK_KILLED:PASS",
+  "NEG:TASK:TABLE_FULL_REFUSED:PASS",
+  "NEG:TASK:EXHAUSTION_SURVIVED_REUSE:PASS",
+  # the kernel's own account of a destroy: the blocked task WAS in one endpoint queue, and nothing names its slot afterwards
+  "was blocked in 1 endpoint queue(s); no queue or reply edge names the slot",
+  # and what the destroy of an ordinary task frees and retains: 24 taken, 18 freed, 6 page-table frames kept (RFC-0.49-001 D4)
+  "(18 of 24 frames freed, 6 page-table frame(s) retained;",
+]
+extra_args = []
