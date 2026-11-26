@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-25 14:35:59 UTC
-Version   : 0.48.0
+Generated : 2026-11-26 14:46:17 UTC
+Version   : 0.49.0
 Mode      : full
 Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-linux-gnu / LLVM 23.1.5
 
@@ -22,8 +22,8 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 §2. LEASE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  LeaseId usage sites   : 114
-  LeaseEpoch usage sites: 32
+  LeaseId usage sites   : 118
+  LeaseEpoch usage sites: 36
   Runtime lease state   : (available from running fleet in v0.11)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -31,13 +31,13 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   Service binaries in prebuilt/: 33
-    fjell-init.bin (30080 bytes)
+    fjell-init.bin (30432 bytes)
     fjell-configd.bin (464 bytes)
     fjell-cap-broker.bin (3520 bytes)
     fjell-auditd.bin (3684 bytes)
-    fjell-service-manager.bin (1936 bytes)
+    fjell-service-manager.bin (2192 bytes)
     fjell-sample-service.bin (7200 bytes)
-    fjell-neg-test.bin (20632 bytes)
+    fjell-neg-test.bin (25512 bytes)
     fjell-svc-timeout.bin (254 bytes)
     fjell-svc-fault.bin (260 bytes)
     fjell-semantic-stream.bin (25128 bytes)
@@ -79,8 +79,8 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 §5. UNSAFE SITE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  total unsafe sites : 344
-  with SAFETY comment: 344
+  total unsafe sites : 360
+  with SAFETY comment: 360
   missing comment    : 0
   Gate verdict      : PASS
 
@@ -88,10 +88,10 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261125-140431
-  35    QEMU negative: user-copy                            60.1s  PASS
+  Latest test-all run: 20261126-141121
+  37    QEMU negative: user-copy                            60.2s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 35  |  PASS: 34  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
+  Total: 37  |  PASS: 36  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
   
   ✓ ALL REQUIRED TIERS PASSED
 

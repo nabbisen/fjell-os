@@ -1,6 +1,7 @@
 # RFC-0.49-001: A task the system can stop, and a slot it can take back — measured first, designed second
 
-**Status:** Proposed
+**Status:** Implemented (0.49.0) — accepted 2026-11-26
+**Evidence:** syscall:TaskKill, marker:health-fail:NEG:SVC:FAULTED_TASK_DESTROYED:PASS, marker:health-fail:NEG:SVC:DESTROYED_HANDLE_NAMES_NOTHING:PASS, file:crates/fjell-kernel/src/task/destroy.rs, file:tests/qemu/profiles/task-lifecycle.toml, test:crates/fjell-cap/src/cspace.rs::reset_empties_every_slot_and_bumps_each_generation, test:crates/fjell-cap/src/cspace.rs::a_capability_nobody_granted_is_a_leftover_and_refuses_the_section
 **Milestone:** 0.49
 **Tracks.** Handoff line 1 (`.git-exclude/handoff/handoff-0.49.md`): *a task cannot be stopped by anything but itself, and
 every task that stops costs a slot that never returns.* Closes the first of the three syscalls `v1-limitations.md` row 7

@@ -1,6 +1,7 @@
 # RFC-0.49-002: The ABI declares only syscalls the kernel dispatches — `MmioUnmap` built, `DmaShare` decided, the gate made a rule
 
-**Status:** Proposed
+**Status:** Implemented (0.49.0) — accepted 2026-11-26
+**Evidence:** syscall:MmioUnmap, marker:mmio:NEG:MMIO:UNMAP_OK:PASS, marker:mmio:NEG:MMIO:UNMAP_WITH_ANOTHER_REGIONS_CAPABILITY_REFUSED:PASS, marker:mmio:NEG:MMIO:MAP_REFUSED_WHEN_TABLE_FULL:PASS, marker:mmio:NEG:MMIO:MAP_SUCCEEDS_AGAIN_AFTER_UNMAP:PASS, file:crates/fjell-frame-alloc/src/mmio_mappings.rs, file:tests/syscall/expected.toml
 **Milestone:** 0.49
 **Tracks.** Handoff line 2 (`.git-exclude/handoff/handoff-0.49.md`): *every declared syscall is dispatched, or it is retired.*
 `v1-limitations.md` row 7 records three declared-and-never-dispatched syscalls; `TaskKill` is RFC-0.49-001's, and this RFC takes

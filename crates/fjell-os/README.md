@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nabbisen/fjell-os/0.48.0/assets/logo.png" alt="Fjell OS" width="180">
+  <img src="https://raw.githubusercontent.com/nabbisen/fjell-os/0.49.0/assets/logo.png" alt="Fjell OS" width="180">
 </p>
 
 # Fjell OS
@@ -59,7 +59,7 @@ Every release must pass a set of mechanical gates, a manual review and a
 37-tier test suite, and every divergence between what a document claims and
 what shipped is recorded in the errata register rather than fixed silently.
 
-That register currently carries **5 accepted limitations and 0 open** — including
+That register currently carries **7 accepted limitations and 0 open** — including
 several found by auditing the verification tooling itself, which turned out to
 have instruments that reported success without checking. See
 [`docs/src/assurance/instrument-audit-closeout.md`](https://github.com/nabbisen/fjell-os/blob/main/docs/src/assurance/instrument-audit-closeout.md).

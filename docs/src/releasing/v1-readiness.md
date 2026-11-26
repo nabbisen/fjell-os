@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.48.0
+## Summary at 0.49.0
 
 | Status | Count |
 |--------|-------|

@@ -1,6 +1,7 @@
 # RFC-0.49-003: The next Pages failure yields evidence — and what I did and did not do of the small items
 
-**Status:** Proposed
+**Status:** Implemented (0.49.0) — accepted 2026-11-26
+**Evidence:** file:.github/scripts/pages-artifact-probe.sh, file:crates/fjell-service-api/tests/bulk_transfer_cost.rs, test:crates/fjell-service-api/tests/bulk_transfer_cost.rs::the_widest_envelope_is_147_round_trips_and_the_full_path_294, test:crates/fjell-service-api/tests/bulk_transfer_cost.rs::the_old_157_and_314_were_the_structs_size_not_the_wire_size
 **Milestone:** 0.49
 **Tracks.** Handoff small items **A** (instrument `ci-pages`), **B** (the clippy gate) and **C** (the readiness obligation figure, owner-gated).
 **Errata:** **E-133** is the subject — a record of two misdiagnoses and one unrelated fix, with its residue in `v1-limitations.md`. This RFC adds instrumentation and leaves that disposition as it is. No new erratum.

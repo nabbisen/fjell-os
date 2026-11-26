@@ -5,6 +5,143 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.49.0] — 2026-11-26 — A task the system can stop, and an ABI that promises only what it does
+
+Two lines, three small items, **three errata filed** — **E-134** and **E-135** ACCEPTED, both about
+instruments that report nothing, and **E-136** CLOSED on filing, recording a claim in the previous
+release's own record that was false when it was written. The register stands at **135 entries, 7
+accepted, 0 open**; accepted limitations rose from 5 to 7 for the first time in four releases, and the reason is
+that this milestone looked at its own test evidence. `consistency-check` holds at **30 subchecks**,
+`test-all` at **37 tiers** (36 PASS, 1 NOT-GATED), host tests at **996 lib / 1719 bins**.
+
+### A task can be stopped, and its slot comes back (RFC-0.49-001)
+
+Until this release **a task could be terminated only by itself.** There was no kill path in the
+kernel, `TaskKill` was a declared `SyscallNumber` variant with no dispatch arm, and a service that
+hung — neither exiting nor faulting — held its slot, its address space and all its authority
+indefinitely, with no capability anywhere able to stop it. 0.48 had made a privilege *withdrawable*
+from such a task; it did not make the task *stoppable*.
+
+And every task that did stop cost a slot permanently: `TaskTable::insert` takes only a slot where
+`slot.task.is_none()`, an exited task keeps `Some(task)`, and the only clear lived in a `remove` with
+no callers. `MAX_TASKS` is 40 and a measured boot occupies **32**, so a node had **eight spawns for
+its entire uptime**, after which every `sys_task_spawn` returned `TaskTableFull` for ever.
+
+**`TaskKill` (43) is now dispatched and means destroy.** A live task gets the death path it never had;
+its endpoint, reply-edge, audit-ring, IRQ and ready-queue entries are purged; its CSpace is reset with
+every slot's generation bumped; its user frames and kernel stack are freed; and the slot's generation
+advances. A task that has already died has only its slot released, **so its exit verdict stays
+readable until a `TASK_KILL` holder destroys it** — nothing that reads a dead task had to change.
+`service-manager` is the destroyer, and it reads a faulted task's verdict and reports it **before**
+releasing the slot.
+
+**Identity is now real, not conventional.** Lease ownership compared a task-table *index* against a
+`TaskId` pinned to generation 0, which was sound only while slots were never reused. The 20 production
+`TaskId::new(_, 0)` sites are **gone** (five remain, each in a classified function with a reason), so a
+new occupant of slot *n* cannot inherit its predecessor's leases, cannot be woken by a stale id, and
+cannot receive a reply meant for the dead. `bootstrap-leases` premise 6 — which guarded "`remove` has
+no callers" — retired in the same commit that falsified it, with its successor live.
+
+**`TASK_KILL` was already granted, to three tasks, and nobody knew.** `ALL_NON_META` is
+`(1 << 26) - 1` and `TASK_KILL` is bit 15, so the blanket conferred it on `init`, `service-manager`
+and `neg-test` — dispatching the syscall as the tree stood would have armed a test fixture to destroy
+`init`. The right now leaves the blanket and is granted by name to two holders, and
+**`capability-topology` prints `ALL_NON_META`'s full 26-right expansion** and counts effective holders
+through it, so the next right added inside those bits cannot be conferred on three tasks silently.
+
+**What this release does not deliver is restart.** `service-manager` holds no `TaskCreate`; a slot is
+reclaimed and nothing refills it. Giving it that right would make a third `TaskCreate` holder, which is
+the condition under which a quota becomes necessary, and that was not sized in this line.
+
+### The ABI declares only syscalls the kernel dispatches (RFC-0.49-002)
+
+`MmioUnmap` was declared in the published ABI and answered `UnknownSyscall`, and `sys_mmio_map` kept
+**no runtime record** of what it had mapped — so a live task could not be deprived of a device window
+by anyone. It is now dispatched: the map **reserves its record before any page-table entry** (table
+full → `NoMemory`, failure → released), and the unmap is capability-checked through the funnel,
+owner-only, whole-mapping and two-phase verified. **The device page is never freed**, and that is
+observed rather than asserted — the kernel logs the allocator's free count on both sides of every
+unmap and the profile requires the absence of any change.
+
+`syscall-surface` reports **35 declared / 35 dispatched / 0 undispatched** and is now **a rule rather
+than a record**: the `undispatched` key is retired, the parser refuses it, and a new
+declared-but-undispatched variant fails the gate instead of being counted by it.
+
+### What retiring `DmaShare` states, and what it deliberately does not
+
+`DmaShare` (111) is **retired**, not implemented. It was mis-specified: it routed *inter-service*
+transfer through *device DMA* memory, and implementing it would have added a cross-task shared mapping
+— a third holding the system cannot take back, held by two tasks — to the release that spent two
+milestones proving it can take things back. Its number joins `120` in the ABI's retired-numbers note
+and is never reused.
+
+**The requirement it named stays open**, as v1.0 limitations **row 28**. What exists instead is a
+32-byte-per-round-trip chunked protocol that this project's own documentation calls *"a
+demonstration-scale workaround, not a designed transport"*, and that sentence survives rather than
+being rewritten into a design. **Its cost is now measured and pinned by a test**: the widest envelope
+the semantic model can hold is 4624 wire bytes, so **147 round trips**, and **294** for one emission
+plus one forward hop — upper bounds, with `ceil(bytes/32) + 2` for anything smaller. Those figures had
+been published wrong in both directions, as 157/314 from the struct size and as "dozens of round
+trips" in the API's own doc-comment.
+
+### The unsafe audit rises **344 → 360**, and this time it is new `unsafe`
+
+0.48's 291 → 344 was a scanner learning to see declarations it had been blind to. These sixteen are
+**genuinely new**: the mapping-table statics, the unmap's page-table walk, and two deliberately
+faulting reads that demonstrate an unmapped address really is unmapped. Each carries its own `SAFETY`
+comment and a supported category; 0 missing, 4 permanent exemptions.
+
+### Two errata filed, none closed, and both are instruments reporting nothing
+
+**E-134** — `fjell-kernel` carries **27 `#[test]` functions that cannot compile**. `cargo test -p
+fjell-kernel` fails with 19 errors, because a `no_std` kernel binary cannot link a host test harness,
+so not one of them has ever run: not skipped, not ignored, counted by nothing. It was found because
+this milestone's own `ReadyQueue::remove` left a bucket's bit set in `non_empty_mask`, **hung the
+machine**, and had to be found by booting — in a file carrying three of those dead tests. No published
+figure was ever inflated by them, so nothing drifted; what misleads is the source tree.
+
+**E-135** — a newly gated QEMU profile **cannot record its own marker artefacts**, so three of the 27
+gated profiles have none. `write_summary` writes them only when `expected-markers.txt` is already on
+disk, which is a deliberate fix to stop *ungated* profiles leaking untracked files, and which also
+means a new profile is absent, therefore not written, therefore never committed. `fleet-demo` has been
+in that state since it was added. Every gated tier's markers *are* still checked — the profile's own
+TOML is the authority — so no tier is unguarded; what is missing is the recorded rendering, and it was
+found while trying to cite one as evidence.
+
+Neither is scheduled to this release, deliberately: both need code, and code added after a milestone's
+verification run does not belong in a release commit.
+
+**E-136** is the architect's own, and about the previous release. `releases/0.48.0.md` states
+*"`git diff 0.48.0 HEAD` is **empty**"* as its evidence that E-130's reorder worked — **in one of the
+sixty-nine lines that made it non-empty.** The sentence was added by the follow-up commit that appended
+that record's tag-and-publish section, so the commit asserting an empty diff is the commit that filled
+it. What the sentence was reaching for is true and is what the reorder bought: no source, gate input,
+instrument output or build artefact differs between the tag and the commit after it — only the record's
+own account of the tag, which cannot exist before the tag. Released records are not rewritten, so the
+claim stands and this one states the property in the form that holds.
+
+### The small items
+
+The next GitHub Pages failure will produce **data instead of a third theory**: a read-only probe,
+incapable of failing the job, lists the run's artifacts as the API sees them either side of the
+deploy. E-133 stays closed with **no mechanism claimed** — two explanations were offered before and
+each was refuted by the following run. **The clippy gate was dropped on its own measurement**: six of
+the nine tool crates are bin-only, so the instructed `--lib` gate would have covered three crates and
+said nothing about the code that runs the gates. The readiness matrix's obligation figure remains the
+owner's decision, now open for six milestones.
+
+### What still does not hold
+
+No hardware has ever booted this system. There is no working network plane. Three of the four
+measurement-chain events are placeholders. **A reclaimed slot is not a restarted service** — nothing
+refills one. Page-table frames are still not freed, so a boot has roughly 5,000 destroy-and-respawn
+cycles rather than an unbounded number, and that bound is now measured (18 of 24 frames returned per
+destroy) rather than derived. Lease revocation still reclaims no resource: not a DMA frame, not an MMIO
+mapping — and whether it should is stated as an open question rather than answered by implementation.
+There is no designed bulk transport.
+
+---
+
 ## [0.48.0] — 2026-11-25 — Authority that can be taken back, and an audit that can see
 
 Three lines, one small item, **five errata closed** — **E-093**, **E-130**, **E-131**, **E-132**, **E-133**,

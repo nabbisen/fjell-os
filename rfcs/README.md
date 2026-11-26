@@ -23,9 +23,9 @@ enforces that each RFC's Status field matches its folder.
 
 ---
 
-## Implemented (done/) — 241 files
+## Implemented (done/) — 244 files
 
-240 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
+243 RFCs plus `v0.7.x-index.md`, an overview page for the v0.7.x patch set
 below — it is not itself an RFC and carries no Status field.
 
 ### v0.1.0 — M0–M8 prototype (000–025, 048–059)
@@ -552,6 +552,9 @@ mid-milestone and blocked the cut.
 | 0.48-001 | [A bootstrap capability can be taken back — measured first, designed second](./done/RFC-0.48-001-a-bootstrap-capability-can-be-taken-back.md) — closed **E-093**, and **E-132** found inside it. `RFC-v0.7.4-003` removed recursive revocation on the premise that every meaningful capability has a lease; nothing enforced it, so **no authority granted at boot could be withdrawn by anyone** — not the holder's own `cap_revoke`, which deletes descendants and not the named slot; not another task's, because revocation never crosses a CSpace; not lease revocation, because those grants had no lease. Now `spawn()` creates a boot lease **owned by the spawner** before any frame, and one pass binds every capability the task holds, so a new grant cannot forget. The architect's motive for the line (*"lose its MMIO window"*) was **unachievable** — `MmioUnmap` is declared and dispatched nowhere — and the implementer said so before building; `bootstrap-leases` now fails the day it is dispatched, so the claim must be restated rather than rot. `MAX_LEASES` 32 → **128** on a measured boot (31 holders, not the architect's 55 literals), with **0 Verus obligations changed** | 0.48.0 |
 | 0.48-002 | [A safety annotation describes the operation it is attached to — and the audit says what it cannot know](./done/RFC-0.48-002-a-safety-annotation-describes-the-operation-it-annotates.md) — closed **E-131**. The audit reported *291 sites, 0 missing* and **could not see 49 declarations**: 41 `#[unsafe(no_mangle)]`, 1 `#[unsafe(naked)]`, 6 `unsafe extern "C" fn`, and **one `unsafe impl<T>`** — because the scanner matched `"unsafe impl "` *with a trailing space*, so eight of nine matched and the ninth was `unsafe impl<T> Sync for KS<T>`, **a `Sync` soundness claim about the static every `get_kernel_state()` call in the kernel goes through**. Now **344 sites, 0 missing, 4 permanent exemptions, 0 seeded**, and a `category=` its operation does not support is refused. **The headline rose because the scanner's eyes opened, not because the kernel wrote new `unsafe`.** A green means a tag is not contradicted — **not** that any comment's prose is true, which the PASS line says and a test pins | 0.48.0 |
 | 0.48-003 | [A GitHub Release is published from a tag that has been checked](./done/RFC-0.48-003-a-release-is-published-from-a-tag-that-has-been-checked.md) — the owner's request of 2026-11-23, who **overruled the architect's draft-first recommendation**: the tag is already the authorization, so publishing from it bypasses nothing, and the care belongs in the trigger. Notes are extracted from the CHANGELOG section for that exact version and the record is **linked, never copied**; the bare-tag convention is enforced, so a `v`-prefixed tag cannot fire it; `permissions: {}` at the top with `contents: write` in exactly one job and every action pinned by a SHA resolved from the API. **The architect asked for something impossible** — attach and verify the signed archive — because Step 12b signs it *after* the tag with the offline key. The correspondence it gates **does not hold before `0.21.3`**, so the floor is derived; and the tag checks **cannot** be a `consistency-check` subcheck, which is a pure function of the committed tree | 0.48.0 |
+| 0.49-001 | [A task the system can stop, and a slot it can take back — measured first, designed second](./done/RFC-0.49-001-a-task-the-system-can-stop-and-a-slot-it-can-take-back.md) — `TaskKill` dispatched and meaning **destroy**, with `service-manager` as the destroyer reading a verdict before it releases the slot; **row 7 inverted** (every declared syscall is now dispatched) and **row 12's bound moved** rather than removed. Slots are reclaimed, generations are real (20 production `TaskId::new(_, 0)` → 0), `TASK_KILL` left the `ALL_NON_META` blanket that was conferring it on a test fixture unnoticed, and `bootstrap-leases` premise 6 retired with its successor in the same commit. **Reclamation, not restart** — nothing refills a slot, by design and stated. | 0.49.0 |
+| 0.49-002 | [The ABI declares only syscalls the kernel dispatches — `MmioUnmap` built, `DmaShare` decided, the gate made a rule](./done/RFC-0.49-002-the-abi-declares-only-syscalls-the-kernel-dispatches.md) — `MmioUnmap` dispatched with a runtime mapping record, owner-only and two-phase verified, and the device page **never** freed (observed through the allocator's own count, not asserted); `DmaShare` **retired** on the owner's ruling as mis-specified, its number never reused, and the requirement it named kept open as **row 28** with the cost measured and pinned by a test. `syscall-surface` is now a **rule**: 35/35/0, the `undispatched` key refused, a new declared-but-undispatched variant **fails** the gate instead of being counted by it. | 0.49.0 |
+| 0.49-003 | [The next Pages failure yields evidence — and what I did and did not do of the small items](./done/RFC-0.49-003-a-pages-failure-yields-evidence-and-the-small-items-said-plainly.md) — E-133's next occurrence will produce data instead of a third theory: a read-only probe that cannot fail the job lists the artifacts as the API sees them either side of the deploy. **No fix attempted.** The clippy gate was **dropped on its own measurement** (six of nine tool crates are bin-only, so the instructed gate covered three and said nothing), and the readiness figure remains the owner's, unresolved for six milestones. | 0.49.0 |
 
 ---
 
@@ -562,17 +565,9 @@ a fresh clone.
 
 ---
 
-## Proposed (proposed/) — 3 RFCs
+## Proposed (proposed/) — none
 
-0.49's two lines and its small items, **drafted by the implementer for the architect's review; nothing in the lines is implemented**
-(small item A's instrumentation is, and is described in -003). Each states the decisions it asks the architect to make rather than
-makes them. Handoff: `.git-exclude/handoff/handoff-0.49.md`; scope: `.git-exclude/handoff/scope-0.49.md`.
-
-| RFC | Title | Tracks |
-|-----|-------|--------|
-| 0.49-001 | [A task the system can stop, and a slot it can take back — measured first, designed second](./proposed/RFC-0.49-001-a-task-the-system-can-stop-and-a-slot-it-can-take-back.md) | `TaskKill` (row 7), the task-table slot, the recovery promise |
-| 0.49-002 | [The ABI declares only syscalls the kernel dispatches — `MmioUnmap` built, `DmaShare` decided, the gate made a rule](./proposed/RFC-0.49-002-the-abi-declares-only-syscalls-the-kernel-dispatches.md) | row 7 (`MmioUnmap`, `DmaShare`), row 12's bound |
-| 0.49-003 | [The next Pages failure yields evidence — and what I did and did not do of the small items](./proposed/RFC-0.49-003-a-pages-failure-yields-evidence-and-the-small-items-said-plainly.md) | E-133 (instrumentation only), small items B and C |
+Nothing is under review. 0.49's three RFCs were accepted on 2026-11-26 and are listed above.
 
 `proposed/README.md` keeps the folder in a fresh clone.
 

@@ -9871,6 +9871,112 @@ which is history removes the disagreement instead of detecting it, and needs no 
   need a job re-run. **Twice I explained this failure and twice the next run refuted me; the entry
   now says only what was measured.**
 
+## E-134 — `fjell-kernel` carries twenty-seven `#[test]` functions that cannot compile, so the crate the kernel lives in has no unit tests at all
+
+- **Found 2026-11-26 by the implementer**, at 0.49 stage 2, **by a scheduler bug that only a QEMU boot
+  could find**. Confirmed by the architect at the same stage.
+- **RFC:** none
+  No RFC over-claims here: the defect is a crate's test configuration and the dead code it leaves
+  looking live.
+- **Claim.** `fjell-kernel` contains **27 `#[test]` functions** — `mm/user_ptr.rs` 9, `trap/dispatch.rs`
+  8, `lease/mod.rs` 7, `task/scheduler.rs` 3 — in `#[cfg(test)]` modules indistinguishable, to a
+  reader, from the host tests the rest of the workspace runs.
+- **Tree / what actually happens.** `cargo test -p fjell-kernel` **does not build**: 19 errors
+  (`E0152` duplicate lang items, `E0433`), as a `no_std` kernel binary cannot link a host test
+  harness. **Not one of the 27 has ever run.** They are not skipped, not ignored and not reported —
+  they are never compiled, so nothing anywhere counts them or notices their absence.
+- **The E-014 class, and the instance that proves the cost.** This is twenty-seven instruments
+  reporting coverage they have not got. 0.49 wrote `ReadyQueue::remove`, which emptied a bucket and
+  left the `non_empty_mask` bit set, so the next dequeue popped nothing and handed the CPU to idle
+  while tasks were runnable — **the machine hung**. It was found by booting QEMU, in
+  `task/scheduler.rs`, a file that carries **3 dead `#[test]` functions**. A developer reading that
+  file sees tests beside the code that broke.
+- **What is NOT claimed, and this is why the status is not OPEN.** No published document says the
+  kernel crate has unit tests, and the published host-test counts (996 lib, 1719 bins at 0.49.0)
+  genuinely exclude it, because it cannot build. **So nothing published is false and this is not
+  drift.** What is wrong is in the source tree, where a reader is misled by code rather than by prose.
+- **Status:** **ACCEPTED** (architect, 2026-11-26) as a **v1.0 limitation**, recorded in
+  `v1-limitations.md` row 29. **The bound:** every kernel-crate behaviour is covered by a QEMU boot
+  tier or by nothing; `ReadyQueue::remove` is covered **only** by the boot. **What closing it needs:**
+  either a host-testable library target split out of the kernel binary so the 27 run, or their
+  deletion — leaving them is the one option that keeps misleading a reader. Deliberately **not**
+  scheduled to 0.49: adding a target or deleting tests after a full verification run would put
+  unexercised work in a release commit.
+
+## E-135 — a newly gated QEMU profile can never record its own marker artefacts, so three of twenty-seven have none and nothing notices
+
+- **Found 2026-11-26 by the architect**, at the 0.49.0 cut, **while trying to cite
+  `marker:task-lifecycle:…` as RFC evidence and finding nothing for the citation to resolve against**.
+- **RFC:** none
+  The defect is in `qemu_run.rs`'s artefact gating and in what no instrument checks; no RFC
+  over-claims it.
+- **Claim.** `.gitignore` says in its own words that `expected-markers.txt`, `qemu-command.txt` and
+  `result-summary.txt` **"must stay tracked"** for every profile `test-all` gates, and
+  `qemu_run.rs::write_summary`'s doc repeats it: *"those three files are tracked for every profile
+  `test-all` gates"*.
+- **Tree / what actually happens.** They are tracked for **24** of the **27** gated profiles.
+  `fleet-demo` has **never** had them — not in any commit, since the profile was added — and
+  `task-lifecycle` and `mmio-unmap`, added at 0.49 stage 2 (`b4a37ee`), have none either.
+- **Why it cannot fix itself, which is the interesting part.** `ArtifactDir::for_run` sets
+  `summaries_committed` from whether `expected-markers.txt` **was already on disk when the run
+  started**, and `write_summary` writes nothing unless it is. That is a deliberate fix (E-040): it
+  stops an *ungated* milestone leaving three untracked files behind for ever. **But the same
+  condition means a newly gated profile can never produce its first copy** — absent, so not written;
+  not written, so never committed; never committed, so absent. The only remedy is a human seeding the
+  file by hand, which is precisely the human remedy E-040's comment says the design existed to
+  remove.
+- **What it does and does not cost.** The markers themselves **are** checked: the authority is
+  `tests/qemu/profiles/<name>.toml`'s `expected_markers`, and `test-all` gates all 27 — so no tier is
+  unguarded and no published pass figure is inflated. What is missing is the **recorded rendering**,
+  which is what an `rfc-evidence` `marker:` citation resolves against. **So RFC-0.49-001's primary
+  profile cannot be cited by marker in its own Evidence line**, and that is how this was found.
+- **The E-014 class, again, in the gate layer.** Twenty-seven gated profiles, three with no recorded
+  evidence, and **nothing compares the set of gated profiles against the set of recorded ones** —
+  which is a one-line comparison that would have failed on `fleet-demo` for however many releases it
+  has been absent.
+- **Status:** **ACCEPTED** (architect, 2026-11-26) as a **v1.0 limitation**, recorded in
+  `v1-limitations.md` row 30. **Not seeded by hand at this cut**, deliberately: hand-seeding would
+  make the register consistent while hiding the defect that produced it, and the fix is a condition
+  change in `write_summary` (gate on *being gated*, not on the file's presence) plus the missing
+  comparison as a subcheck — **code, and so not work to add after a release's verification run**.
+  **What closing it needs:** that change, the comparison subcheck, and the three profiles' artefacts
+  recorded by a real run.
+
+## E-136 — `releases/0.48.0.md` claims `git diff 0.48.0 HEAD` is empty, in one of the sixty-nine lines that made it non-empty
+
+- **Found 2026-11-26 by the architect**, at the 0.49.0 cut, **while checking how the previous cut
+  sequenced its own record against its tag** — not by a gate.
+- **RFC:** none
+  No RFC is over-claiming: a release record states a checkable fact about itself and the fact is
+  wrong.
+- **Claim.** `releases/0.48.0.md`, under *"Why this cut's tree, tag and publish are one commit"*:
+  **"`git diff 0.48.0 HEAD` is **empty**."** It is offered as the evidence that E-130's reorder
+  worked, against 0.47.0 where the publish ran three commits ahead of the tag.
+- **Tree / what actually happens.** The `0.48.0` tag points at `cc91c98`. The sentence was added by
+  **`b2c17b7`**, the follow-up commit that appended the record's tag-and-publish section — and
+  `git diff 0.48.0 b2c17b7` reports **`releases/0.48.0.md | 70 +++-`, 69 insertions and 1
+  deletion**. Verified by locating the sentence inside that commit's own added lines: `git show
+  b2c17b7 -- releases/0.48.0.md` carries it as an added line. **The claim is self-referentially
+  false: the commit that asserts the diff is empty is the commit that makes it non-empty**, and it
+  was false at the moment it was written rather than becoming so later.
+- **What the sentence was reaching for, and which is true.** No source file, gate input, instrument
+  output or build artefact differs between the tag and the commit that follows it — **the only
+  difference is the record's own tag-and-publish section, which cannot exist before the tag it
+  describes.** That is a real and meaningful property, and it is what E-130's reorder bought. The
+  published sentence overstates it into something arithmetically checkable and wrong.
+- **Not correctable in place.** `releases/0.48.0.md` is a **released record, and this project does
+  not rewrite them** — the same rule that governs E-126 and E-133. The correction lives here and in
+  `releases/0.49.0.md`, which states the same property in the form that is true.
+- **Whose error.** **The architect's**, in a document the architect alone writes. It is the second
+  release record of mine to carry a false claim about itself or its subject (E-126 was the first), and
+  both were found by reading the record against the tree rather than by any instrument. **No gate
+  checks a release record's claims about the tag**, because `consistency-check` is by design a pure
+  function of the committed tree and a tag is a ref — which is the correct boundary, and leaves this
+  class to a reader.
+- **Status:** **CLOSED** (architect, 2026-11-26) **as a record of a false published claim**, not as a
+  corrected one. The claim stands in 0.48.0's record for ever; what changes is that 0.49.0's record
+  makes the same point without asserting an empty diff.
+
 ## Summary
 
 | Errata | Tracking RFC | Status |
@@ -10046,3 +10152,6 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-131 **`unsafe-audit` cannot see 49 of the tree's `unsafe` declarations, so "291 sites, 0 missing" is a count of what its scanner matches** — it classifies by substring (`unsafe {`, `unsafe fn `, `unsafe impl `, `unsafe trait `), and **41 `#[unsafe(no_mangle)]`, 1 `#[unsafe(naked)]`, 6 `unsafe extern "C" fn` and 1 `unsafe impl<T>` match none of them — 49 in all**. The one `unsafe impl` is `crates/fjell-kernel/src/main.rs:319`, `unsafe impl<T> Sync for KS<T> {}` — **eight of the nine `unsafe impl` declarations match and this one does not, because `impl<` has no space** — and `KS<T>` is the kernel-state wrapper every `get_kernel_state()` call goes through, so a `Sync` soundness claim about the most widely shared static in the system is invisible to the audit, with a SAFETY comment above it attached to no recorded site. The instrument reports `0 missing` rather than that its population is partial, and a release gate consumes that as coverage: the E-014 family, in the instrument behind this project's central safety claim. Found by the implementer; the mechanism was identified at the architect's stage-1 review, where the architect also "corrected" 49 to 48 by grepping the attribute already known instead of the attribute shape, and the implementer restored it at stage 2 — a narrow search producing a wrong number inside an entry about narrow matching. **Closing it raises the reported count**, which the record must explain, because the scanner's eyes open and the kernel does not change | 0.48 | CLOSED |
 | E-132 **`sys_lease_inspect` returned the lease id as the epoch, so half of two revocation claims could not fail** — it wrote the epoch into `a0`, the **status** register, and never wrote `a1`, which still held the lease id the caller passed in; every wrapper reads status from `a0` and the value from `a1`, so `lease_inspect(id)` returned `id` for every lease, always. `NEG:CAP:REVOKE_NOT_OWNER_REFUSED` (RFC-0.46-003) and the broker's `REVOKE_FOREIGN_LEASE_REFUSED` compare an epoch before and after a refused foreign revocation: **that half compared `id` with `id`**. The refusal half was always real, which is why 0.46-003's mutation table showed the pairs red and the defect survived its own review — a vacuous half, not a vacuous test. **`abi-snapshot` cannot see it** (it hashes declarations, not which register a path writes), the second milestone where that limit has mattered. Found when a new check read `before=27 after=27` against a kernel line printing `revoke -> Ok(2)` and the implementer chased the disagreement. Fixed in 0.48: status `a0`, epoch `a1`, pinned by `INSPECT_REPORTS_EPOCH` and shown red by mutation M9 | 0.48 | CLOSED |
 | E-133 **the release cycle's CI dispatch deploys Pages a second time for the same commit, cannot succeed at it, and the 0.46.0 record called that transient** — `ci-pages` ran on every `main` event but `pull_request`, so criterion 9's dispatch of the release commit re-deployed a tree the push run had already deployed. Both runs upload an artifact named `github-pages`; in the queued run `deploy-pages` reports **`Found 0 artifact(s)`** for an artifact its own run finalised seconds earlier. **Two consecutive identical failures at the 0.48.0 cut (45635983360, 45639520772) disprove "transient"**, while the push run on the same commit succeeded; at 0.46.0 one lucky re-dispatch was generalised into a mechanism, which is a single success read as a cause — in a release record, about a release gate. `ci.yml`'s concurrency note had said since 0.32.0 that both deploys serve the same commit and the second is redundant; that it could not succeed was not known. **Not correctable in place**: `releases/0.46.0.md` is a released record. `ci-pages` was removed from `workflow_dispatch` in 0.48, which is right on its own merits but **did not fix the failure**: within the hour the **push** run for the tag target failed identically with no competing deploy (run 45707204884, artifact 15066176363 finalised, then `Found 0 artifact(s)`). **Three explanations, two refuted by the next run** — a transient store race, then the queued-deploy theory. What is established: upload succeeds, deploy cannot see its own run's artifact, in both event types, intermittently; the remedy is a job re-run, which the action's own text prescribes. **No mechanism is claimed.** CLOSED as a record of two misdiagnoses and one unrelated fix, with the residue named in v1-limitations | 0.48 | CLOSED |
+| E-134 **`fjell-kernel` carries twenty-seven `#[test]` functions that cannot compile, so the crate the kernel lives in has no unit tests at all** — `cargo test -p fjell-kernel` fails to build with 19 errors (`E0152`, `E0433`): a `no_std` kernel binary cannot link a host test harness, so the 27 functions in `mm/user_ptr.rs` (9), `trap/dispatch.rs` (8), `lease/mod.rs` (7) and `task/scheduler.rs` (3) are **never compiled** — not skipped, not ignored, not reported, and counted by nothing. **The E-014 class, with the instance that proves its cost:** 0.49's `ReadyQueue::remove` left the `non_empty_mask` bit set on an emptied bucket and **hung the machine**, and it was found by a QEMU boot, in a file carrying three dead `#[test]`s. **Nothing published is false** — no document claims the kernel has unit tests and the published host-test counts genuinely exclude it — so this is not drift but a source tree that misleads by code. ACCEPTED as a v1.0 limitation (row 29) with the bound stated: kernel behaviour is covered by a boot tier or by nothing. Closing it needs a host-testable library target or the tests' deletion; leaving them is the only option that keeps misleading a reader | 0.49 | ACCEPTED (v1.0 limitation) |
+| E-135 **a newly gated QEMU profile can never record its own marker artefacts, so three of twenty-seven have none and nothing notices** — `.gitignore` and `qemu_run.rs::write_summary` both say the three per-profile summary files are tracked for every profile `test-all` gates; they are tracked for **24 of 27**. `fleet-demo` has never had them in any commit; `task-lifecycle` and `mmio-unmap` (added at 0.49 stage 2) have none. **It cannot fix itself:** `write_summary` writes them only when `expected-markers.txt` was already on disk, a deliberate E-040 fix to stop *ungated* milestones leaking files — so a newly gated profile is absent, therefore not written, therefore never committed, therefore absent. The markers themselves are still checked (the profile TOML is the authority and `test-all` gates all 27), so no tier is unguarded and no pass figure is inflated; what is missing is the recorded rendering an `rfc-evidence` `marker:` citation resolves against, which is how this was found — RFC-0.49-001's primary profile cannot be cited by marker in its own Evidence line. **Nothing compares the gated set against the recorded set**, a one-line check that would have failed on `fleet-demo` for many releases. ACCEPTED as a v1.0 limitation (row 30), deliberately **not** hand-seeded at the cut: that would make the register consistent while hiding the defect | 0.49 | ACCEPTED (v1.0 limitation) |
+| E-136 **`releases/0.48.0.md` claims `git diff 0.48.0 HEAD` is empty, in one of the sixty-nine lines that made it non-empty** — the sentence is offered as proof that E-130's reorder worked, and it was added by `b2c17b7`, the follow-up commit that appended the tag-and-publish section; `git diff 0.48.0 b2c17b7` reports 69 insertions and 1 deletion in that very file. **Self-referentially false**, and false when written. What it was reaching for is true and is what the reorder bought: no source, gate input, instrument output or build artefact differs between the tag and the commit after it — only the record's own tag-and-publish section, which cannot exist before the tag it describes. **Not correctable in place**: a released record, under the same rule as E-126 and E-133. The architect's error, in a document the architect alone writes, and the second release record of mine to carry a false claim about itself; both were found by reading the record against the tree, since no gate checks a record's claims about a tag — `consistency-check` is a pure function of the tree and a tag is a ref. CLOSED as a record, with 0.49.0's record stating the property in the form that is true | 0.49 | CLOSED |
