@@ -103,3 +103,15 @@ read the matrix for the purpose. The handoff's figures (19 / 26 / 12 / 17 agains
 bash .github/scripts/pages-artifact-probe.sh before-deploy        # with GITHUB_* set and a stub gh on PATH; exits 0
 for c in $(ls tools); do n=$(grep -m1 '^name' tools/$c/Cargo.toml | cut -d'"' -f2); cargo clippy -q -p $n -- -D warnings; done
 ```
+
+
+---
+
+## As built (stage 2)
+
+* **A, completed.** `actions/upload-pages-artifact@v5`'s own `action.yml` (read from the public repository, v5.0.0) declares the output
+  **`artifact_id`** — the name the probe reads; the probe's `<none>` fallback is therefore not expected to fire.
+* **B — dropped from 0.49 on the measurement above** (the architect's ruling). The table stays as the next milestone's starting point.
+* **The Pages-question is ruled** by the architect: criterion 9 gets a classification (*correctness-gating* vs *publishing* jobs), not an
+  exception for `pages`; the procedure change is the architect's, at the cut.
+* **C — untouched.**

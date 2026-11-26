@@ -286,3 +286,48 @@ cargo run -p fjell-tools -- qemu-test m8        # serial: tests/qemu/artifacts/s
 ```
 The patch was never committed; the worktree was removed. The arithmetic: `30171 / 24 = 1257`, `30171 / 46 = 655`,
 `30171 / (180/30) = 5028`.
+
+
+---
+
+## As built (stage 2) — what the implementation changed in this text, and why
+
+**0.49 delivers reclamation, not restart — and D6's "no quota" stands because of it.** Destroy frees a slot; **nothing refills it.**
+`service-manager` is now the destroyer and holds no `TaskCreate`; `TaskCreate` is held by `init` and `neg-test` only. A failed service
+can be stopped and its slot reclaimed, **and nothing restarts it**. Automatic restart is a separate line; no text may imply it.
+
+* **D1 (B), with the architect's two amendments.** (a) **The line includes a destroyer:** `service-manager` reads a faulted task's
+  verdict, reports it to `bootctl`, then destroys it (`health-fail` shows `FAULTED_TASK_DESTROYED` and the handle then naming nothing). (b)
+  **A latch, not a carve-out:** the kernel's `TEST:*:PASS` markers no longer depend on a corpse — a per-image "exited cleanly" flag is set
+  on the exit path (no tunable). **Shown:** `neg-test` destroys a cleanly exited boot task and the kernel's own destroy line says the
+  latch is still true afterwards (and says `LOST` if it is not). The R6 test-shaped exception ("milestone images are never destroyed")
+  is dropped.
+* **D2 as recommended, and wider.** `TASK_KILL` left `init`'s grant (`ALL_NON_META` minus the bit); the holders are `service-manager` and
+  `neg-test`. `capability-topology` now **prints `ALL_NON_META`'s expansion (26 rights) and counts effective holders of `TASK_KILL`
+  through it** (a `TaskControl` grant is evaluated, fail-closed on rights it cannot read; another kind's blanket carries the bit
+  inertly). Refused targets: the caller and the idle task (`fjell_cap::task_kill`, host-tested; the idle refusal is shown on boot).
+* **D3 (a), built.** `TaskTable::next_free() -> (index, generation)`, `id_at`, `get_by_index(_mut)`; `insert` stamps the TCB with the
+  slot's real id; `current_task_id()` for owner comparisons. **Premise 6 is retired and its successor is the gate's own count:** every
+  production `TaskId::new(_, 0)` / `TaskId { generation: 0 }` is found by the scanner and must be in one of **4 classified functions (5 sites)**
+  (idle and `init` at boot, the DMA sentinel, the lease placeholder, the no-current fallback) — **20 outside before, 0 now**.
+  `lease/mod.rs:64`'s sentence ("the idiom is correct because of that") is rewritten in the same commit.
+  **What the orphan answer becomes:** unchanged in effect (a `LEASE_REVOKE_ANY` holder, otherwise the subject's death) and now provably
+  not inheritable by a later occupant of the slot.
+* **D4 measured directly, not derived.** `spawn()` records the frames it took; destroy prints them: for `svc-timeout` **24 taken, 18
+  freed, 6 page-table frames retained**, which replaces the draft's by-subtraction 6.0. **Finding:** a task's kernel-stack frame is
+  allocated and **never used** (`kernel_stack_top` is written and read nowhere — traps run on the boot stack); destroy frees it. The
+  page-table walker remains deferred with its reasons; the retained 6/task is a printed number and a bound of ≈ 5,000 cycles per boot.
+* **D5, with a finding the draft did not have.** A task blocked in `recv` on a **lease-bound** endpoint capability is removed from the
+  endpoint's queue **by the boot-lease revocation** (`cancel_by_lease`) before the explicit purge runs; the explicit `Endpoint::cancel`
+  catches only waiters no lease reaches (an unbound capability). The kernel counts "blocked in N endpoint queues" **before** it revokes,
+  and verifies after the purge that no queue or reply edge names the slot (the all-clear wording is a profile requirement).
+* **Real defects found by running it, both mine:** `ReadyQueue::remove` left the `non_empty_mask` bit set when it emptied a bucket,
+  which hung the machine after a kill (fixed; the mask is cleared); the capability-topology and object-zero scanners matched the text
+  `install_raw(`, and the grants became `cs.grant(` (both read either spelling now, with tests).
+* **Boot grants record a refusal.** The 55 `let _ = cs.install_raw(..)` sites are `cs.grant(..)`; the spawner calls `finish_grants()`
+  and **rolls the spawn back** on a refused grant **or** a leftover capability (`occupied != granted`) — reuse safety is an invariant
+  checked at every spawn, not a scenario. `init`'s bootstrap panics on the same.
+* **Not shown on a boot, said plainly:** a revoked-lease `TaskControl` refusal (needs a `TaskControl` not bound to its holder's boot
+  lease — a third fixture exemption; shown in `fjell_cap::task_kill`'s host tests on the exact capability and rights); the explicit
+  endpoint/reply-edge purge for an *unbound* waiter; reply-edge purge generally. The kernel crate has no host tests, so the scheduler's
+  `remove` is covered by the boot only.

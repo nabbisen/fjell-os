@@ -46,7 +46,7 @@ there is one, and it is small.*
 * **Who maps MMIO.** Four tasks call `sys_mmio_map`: `driver-uart`, `driver-virtio-net`, `storaged` (one call each) and `neg-test`
   (three calls, **all refused by design** — the RAM guard, a wrong-kind capability, an out-of-bounds offset — so `neg-test` has never
   mapped anything successfully; it does hold `MmioRegion` capabilities for all five regions, slots 31–35, `spawn.rs:508`–`:513`). **Five** regions exist (`MMIO_REGION_COUNT`). The services hold `MmioRegion` capabilities
-  with **only `MMIO_MAP`** (`spawn.rs:531`); `init`'s five are `ALL_NON_META` (`main.rs:1650`). **Production live mappings: ≤ 3.**
+  with **only `MMIO_MAP`** (`spawn.rs:531`); `init`'s five are `ALL_NON_META` (`main.rs:1650`). **Production live mappings: ≤ 3 — a figure the first boot refuted, see "As built": the drivers map every transport they scan.**
 * **The VA window is not the constraint.** Each task's device range is `0x7000_0000`–`0x8000_0000` = **256 MiB = 65,536 pages**, a
   bump allocator that **never reuses** (`dev_vma_next` only grows; `sys_mmio_map` says "never previously mapped"). A map-and-unmap
   loop of one page therefore ends with `NoMemory` after **65,536** cycles. Unmapping does not return the VA, and
@@ -72,7 +72,7 @@ cargo run -q -p fjell-consistency-check -- syscall-surface        # 36 declared,
 ## The decisions this RFC asks for
 
 **D1 — the record, and its capacity.** A `MmioMappingTable` copying `DmaRegionTable`'s shape: `owner: TaskId`, `region_id`, `user_va`,
-`pa`, `page_count: u16`, `state`. **Recommended: `MAX_MMIO_MAPPINGS` = 16**, matching `MAX_DMA_REGIONS`, for **≤ 3** measured
+`pa`, `page_count: u16`, `state`. **Recommended (as drafted): `MAX_MMIO_MAPPINGS` = 16 — SUPERSEDED, 64 as built (see "As built")**, matching `MAX_DMA_REGIONS`, for a (wrong) **≤ 3** counted
 production mappings (`neg-test`'s three attempts are all refused before any entry is made). ≈ 32 bytes × 16 = 512 B, no obligation anywhere
 (the DMA table has none). **A new failure mode: the table can be full**, so `sys_mmio_map` **reserves the entry first** and a failure
 after it (a `remap_page` error) **releases it again** — no mapping may exist without a record, and no record without a mapping, which
@@ -200,3 +200,33 @@ cargo run -q -p fjell-consistency-check -- syscall-surface
 /usr/bin/grep -an 'undispatched' tests/syscall/expected.toml
 /usr/bin/grep -rn 'sys_mmio_map(' crates/drivers crates/services | /usr/bin/grep -v 'fn sys_mmio_map'
 ```
+
+
+---
+
+## As built (stage 2) — what the implementation changed in this text, and why
+
+* **Capacity is 64, not 16, and the draft's figure was wrong.** I counted *call sites* (four tasks call `sys_mmio_map`, one site each)
+  and read that as "≤ 3 live mappings". `driver-virtio-net` and `storaged` each loop over **all eight virtio transports and map every
+  one**, never unmapping a transport that is not theirs, and `driver-uart` maps one: **up to 17 live mappings in an ordinary boot**.
+  With 16 the first full run failed `net-absent` and `store` (the drivers' maps were refused `NoMemory`) — the gates caught it, not
+  the review. 64 entries (≈ 2.5 KiB) leave room. **Follow-up, not this line:** the two drivers can now unmap the transports they do
+  not use.
+* **The refusal for "no `MMIO_MAP` right" is a wrong-kind refusal on the boot.** Every `MmioRegion` capability `neg-test` holds carries
+  `MMIO_MAP` and none can be minted narrower (`MINT` is not granted), so the scenario shows the funnel with an *endpoint* capability
+  (`WrongType`). The rights half of the funnel is shown for `TaskControl`/`TASK_KILL` in `fjell_cap::task_kill`'s host tests, not here.
+* **`syscall-surface` is the rule (D7), with a dated hold.** `expected.toml`'s `undispatched` key is retired (the parser refuses it);
+  `held`, `held_reason`, `held_until` carry the one exception: **`DmaShare`, held to 0.49.0**, because retiring it is the owner's
+  decision (the architect has put it to them). **Today: 36 declared, 35 dispatched, 1 undispatched — held, not resolved**, and the PASS
+  line says so. The hold fails when stale, reasonless, undated, or once the workspace version passes it.
+* **Premise 5's successor (D7) is built:** every call to a device-unmap primitive (`unmap_page`, `unmap_dma_region_verified`,
+  `revoke_entry`, `revoke_by_pa`, `revoke_by_id`, `release_task`) sits in one of 10 classified functions with a reason (the holder's
+  syscalls, a task's death, the rollback of a failed map); a stale entry and an unclassified caller are both red. **Lease revocation is
+  not among them**, shown red by putting a `release_task` call in `LeaseTable::revoke_owned_by`.
+* **"No device page reaches the allocator" is observed, not asserted:** `sys_mmio_unmap` logs the allocator's free count before the first
+  PTE and after the last, and the `mmio` profile requires `(unchanged)` **and `expect_absent` on the CHANGED wording**, because one
+  `(unchanged)` line is no evidence about the others.
+* **Death releases the records** (`schedule_next`'s two arms and `destroy_inner`); shown by the host test of `release_task` and the
+  restart-loop test, **not by a boot scenario** — no fixture holds an `MmioRegion` capability and can die, and a third fixture exemption
+  was ruled out at 0.48.
+* **Not built, as stated:** `DmaShare` retirement or implementation (held), lease-driven reclamation (D5, a question), device-VA recycling.
