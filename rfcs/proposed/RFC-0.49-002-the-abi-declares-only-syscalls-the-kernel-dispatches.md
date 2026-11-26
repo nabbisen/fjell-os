@@ -123,7 +123,7 @@ stay true by a guard rather than by habit (D7).
   same; `from_u32(111)` is `None`; `abi-snapshot` loses one variant.
 * **What it costs, plainly:** the docs that call it "the intended mechanism" (`ipc.md` ×2, `kernel.md`, `fjell-service-api` ×2, the
   inventory row, `v0.2-preparation-backlog.md` V02-C-002) must say the opposite — **no shared-region syscall exists, bulk transfer
-  is chunked at 32 bytes per round trip, and that is a stated v1 limit, not a pending feature.** *That sentence is a limitation the
+  is chunked at 32 bytes per round trip, and that is a stated v1 limit, not a pending feature.** **[WITHDRAWN at stage 4 -- the owner rejected "not a pending feature": the requirement stays open and named; see "As built (stage 4)" below.]** *That sentence is a limitation the
   architect may want as a row of its own; I propose it, I do not write it.* **If the owner wants bulk transfer in v1, this is the decision to reverse, and the
   RFC for it is its own line.**
 
