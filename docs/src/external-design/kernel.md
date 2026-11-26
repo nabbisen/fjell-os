@@ -41,22 +41,30 @@ Dispatched groups (as-built at v0.21.2, 26 syscalls):
 Every syscall except the debug helper is capability-gated. The result is
 returned in `a0` as a typed `SysError` (or `Ok`).
 
-### Declared, not dispatched (1 of the 36 -- held)
+### Declared, not dispatched (none: 35 declared, 35 dispatched)
 
 **The rule since RFC-0.49-002: every declared syscall is dispatched, or it is retired.**
 `cargo run -p fjell-consistency-check -- syscall-surface` **fails** on a `SyscallNumber`
 variant with no dispatch arm in `trap/syscall.rs` (the fallthrough `Some(_) | None =>
-SysError::UnknownSyscall` is what such a call would reach). The one exception is a *held*
-variant -- named in `tests/syscall/expected.toml` with a reason and an expiry, failing once the
-workspace version is past it:
+SysError::UnknownSyscall` is what such a call would reach). The one exception the gate can
+express is a *held* variant -- named in `tests/syscall/expected.toml` with a reason and an
+expiry, failing once the workspace version is past it. Nothing is held today.
 
-| Syscall number | Wrapper(s) that issue it | Status |
+Three syscalls were declared and undispatched until 0.49, and each was resolved the way the rule
+allows:
+
+| Syscall | Number | How it ended |
 |---|---|---|
-| `DmaShare` (111) | -- (no wrapper) | **held until 0.49.0**: retiring it states that v1 has no shared-region bulk transfer, which is the owner's decision (RFC-0.49-002 D6) |
+| `TaskKill` | 43 | **dispatched** (`fjell_syscall::sys_task_kill`, RFC-0.49-001) |
+| `MmioUnmap` | 91 | **dispatched** (`fjell_syscall::sys_mmio_unmap`, RFC-0.49-002) |
+| `DmaShare` | 111 | **retired**: the variant is gone and the number is not reused, as `Reboot` (120) was not (RFC-0.49-002 D6) |
 
-`TaskKill` (43, `fjell_syscall::sys_task_kill`) and `MmioUnmap` (91,
-`fjell_syscall::sys_mmio_unmap`) were declared and undispatched until 0.49; both are dispatched
-now (RFC-0.49-001, RFC-0.49-002).
+`DmaShare` was mis-specified rather than merely unfinished: it routed *inter-service messaging*
+through *device DMA memory*, and a `SemanticEnvelope` between two services has nothing to do with
+DMA. Retiring it removed an advertised mechanism that did not exist; it did **not** remove the
+requirement it stood for -- bulk transfer between services still has no designed transport (the
+chunked path is a demonstration-scale workaround, costing up to 147 round trips per transfer;
+see [IPC](./ipc.md) §7).
 
 `CapInstall` (17) was the fourth until RFC-0.45-002: it is dispatched now, as
 `sys_cap_install` (see [Capability and lease](./capability-lease.md)).
@@ -64,11 +72,6 @@ now (RFC-0.49-001, RFC-0.49-002).
 `sys_platform_region_resolve` is a separate case: it is an explicit
 host-side stub that returns `UnknownSyscall` without issuing an `ecall` at
 all, so it never reaches the kernel.
-
-The one that remains (`DmaShare`) is to be implemented or retired -- retiring means removing the
-variant and recording that its number is not reused, as `Reboot` (120) was -- and the owner has
-been asked; see RFC-0.49-002 D6 (the earlier deferral, `RFC-v0.21.3-001` §Deferred, never
-resolved it).
 
 ## 3. Internal module boundaries (as-built)
 

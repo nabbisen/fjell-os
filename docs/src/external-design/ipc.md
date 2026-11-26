@@ -80,23 +80,31 @@ fail-closed runtime tests.
 - Payload is bounded to 4 words inline; bulk transfer uses a shared region
   granted by capability rather than large in-band messages.
 
-  **Correction (RFC-v0.23-001):** the shared-region mechanism this describes
-  is `DmaShare` (syscall 111) — one of the nine declared-but-undispatched
-  syscalls (`crates/fjell-abi/src/syscall.rs` declares it;
-  `crates/fjell-kernel/src/trap/syscall.rs` does not dispatch it). It is
-  **not currently available**. RFC-v0.23-001 needed to transfer
-  kilobyte-scale `SemanticEnvelope` values (`fjell-semantic-format`) between
-  services and, lacking the documented mechanism, used chunked byte
-  transfer instead — the same shape as `storaged`'s
-  `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` protocol, 32 bytes (4 inline
-  words) per round trip (`fjell-service-api::chunked`). This is a
-  demonstration-scale workaround, not a designed transport:
-  `SemanticEnvelope` is 4936 bytes, so one chunked transfer is 157 round
-  trips (`BEGIN` + 155 `CHUNK` + `COMMIT`), and the full path — one
-  emission plus one forward hop — is 314. The
-  documented shared-region path remains the intended mechanism once the
-  nine-syscall disposition (deferred to v0.22+, still open) resolves
-  `DmaShare`.
+  **Correction (RFC-v0.23-001; revised at 0.49, RFC-0.49-002 D6):** there is no shared-region
+  mechanism, and the sentence above is the design intent, not the as-built state. The syscall this
+  section used to name, `DmaShare` (111), was declared and never dispatched, and it was **retired
+  at 0.49** (the number is not reused, as `Reboot` (120) was not). It was mis-specified: it routed
+  *inter-service messaging* through *device DMA memory*, and a `SemanticEnvelope` passed between
+  two services has nothing to do with DMA. RFC-v0.23-001 needed to transfer kilobyte-scale
+  `SemanticEnvelope` values (`fjell-semantic-format`) between services and used chunked byte
+  transfer instead -- the same shape as `storaged`'s `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT`
+  protocol, 32 bytes (4 inline words) per round trip (`fjell-service-api::chunked`). This is a
+  demonstration-scale workaround, not a designed transport.
+
+  **What it costs, measured at 0.49.** The widest envelope the wire format can carry is
+  `MAX_WIRE_BYTES` = 4624 bytes (`fjell-semantic-format::wire`), so one chunked transfer is at
+  most `ceil(4624 / 32)` = 145 chunks: `BEGIN` + 145 `CHUNK` + `COMMIT` = **147 round trips**, and
+  the full path -- one emission plus one forward hop -- is **294**. These are upper bounds; a
+  smaller envelope costs `ceil(bytes / 32) + 2` per hop. (This paragraph used to say 157 and 314.
+  Those were computed from `size_of::<SemanticEnvelope>()` = 4936 bytes, the struct's in-memory
+  size, which stopped being what is sent when the sender began encoding the wire format
+  (RFC-0.32-002).)
+
+  **The requirement is open, and named.** Bulk transfer between services has no designed
+  transport. What would be one is a capability-granted, revocable, **single-holder** transfer
+  region, bounded by the reclamation discipline 0.48 and 0.49 built (everything a task holds, the
+  system can take back when it dies) -- not a second shared-mapping hole, and not `DmaShare`. It
+  is future work: no design, no number and no milestone are promised here.
 - No zero-copy page-remap fast path yet (FR-KRN-004 allows "room for" it; not
   built at v1.0). Small-message register passing is the implemented low-copy
   form.

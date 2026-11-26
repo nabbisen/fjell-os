@@ -392,9 +392,9 @@ match SyscallNumber::from_usize(nr) {
 
     #[test]
     fn parse_expected_reads_the_hold_inline_and_multiline() {
-        let src = "declared_count = 35\ndispatched_count = 34\nheld = [\"DmaShare\"]\nheld_until = \"0.49.0\"\nheld_reason = \"why\"\n";
+        let src = "declared_count = 35\ndispatched_count = 34\nheld = [\"CapInstall\"]\nheld_until = \"0.49.0\"\nheld_reason = \"why\"\n";
         let e = parse_expected(src).unwrap();
-        assert_eq!(e.undispatched, vec!["DmaShare"]);
+        assert_eq!(e.undispatched, vec!["CapInstall"]);
         assert_eq!(
             (e.held_until.as_deref(), e.held_reason.as_deref()),
             (Some("0.49.0"), Some("why"))

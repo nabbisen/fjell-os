@@ -1049,8 +1049,8 @@ pub mod diagnosticsd {
 // raw bytes in a chunked protocol modelled on `storaged`'s
 // `WRITE_BEGIN`/`WRITE_CHUNK`/`WRITE_COMMIT` (see `docs/src/external-design/
 // ipc.md`'s bulk-transfer note for why this is a chunking, not a shared-region,
-// transfer: the documented shared-region mechanism is `DmaShare`, one of the
-// nine declared-but-undispatched syscalls, and is therefore unavailable).
+// transfer: no shared-region syscall exists -- `DmaShare` (111), the mechanism that document named, was declared and never
+// dispatched, and was retired at 0.49 (RFC-0.49-002 D6); the requirement it stood for is open).
 //
 // Wire shape, both hops (sample-service -> semantic-stream,
 // semantic-stream -> proxy-text):
@@ -1305,11 +1305,15 @@ pub mod presentation {
 ///
 /// This is a **documented divergence**, not the mechanism
 /// `docs/src/external-design/ipc.md` describes for bulk transfer (a
-/// capability-granted shared region) — that mechanism is `DmaShare` (111),
-/// one of the nine declared-but-undispatched syscalls, and is therefore
-/// unavailable without adding a syscall, which this RFC's scope forbids.
-/// Kilobyte-scale nodes at 32 bytes per message mean dozens of round trips;
-/// acceptable for this demonstration, not a designed transport.
+/// capability-granted shared region): no such syscall exists. `DmaShare`
+/// (111), the one that document named, was declared and never dispatched
+/// and was retired at 0.49 (RFC-0.49-002 D6; the number is not reused).
+/// Measured at 0.49: the widest envelope the wire format carries is
+/// `MAX_WIRE_BYTES` = 4624 bytes, so one transfer is at most
+/// `ceil(4624 / 32)` = 145 chunks, i.e. **147 round trips** with `BEGIN` and
+/// `COMMIT`, and **294** for one emission plus one forward hop. This is a
+/// demonstration-scale workaround, not a designed transport; the
+/// requirement for one is open (see `docs/src/external-design/ipc.md` §7).
 pub mod chunked {
     /// Bytes carried per chunk: 4 `usize` words at 8 bytes each (riscv64gc).
     pub const CHUNK_BYTES: usize = 32;

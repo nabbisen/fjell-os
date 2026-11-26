@@ -103,7 +103,8 @@ pub enum SyscallNumber {
     /// Block the calling task until the bound IRQ fires (RFC v0.4-001).
     IrqWait = 102,
     DmaAlloc = 110,
-    DmaShare = 111,
+    // 111 was `DmaShare`, a syscall that was declared and never dispatched, and that was mis-specified (RFC-0.49-002 D6):
+    // it would have routed inter-service messaging through device DMA memory. Retired at 0.49; the number is not reused.
     DmaRevoke = 112,
     /// Read the monotone clock, in nanoseconds (RFC-0.42-002). Needs a
     /// `CapKind::Clock` capability carrying `CLOCK_READ`. The next free number after
@@ -162,7 +163,6 @@ impl SyscallNumber {
             // from `sys_irq_wait` — i.e. the syscall never reached it.
             102 => Some(Self::IrqWait),
             110 => Some(Self::DmaAlloc),
-            111 => Some(Self::DmaShare),
             112 => Some(Self::DmaRevoke),
             113 => Some(Self::ClockNow),
             _ => None,
@@ -240,5 +240,15 @@ mod rfc_0_42_002_tests {
     #[test]
     fn the_retired_number_stays_retired() {
         assert_eq!(SyscallNumber::from_usize(120), None);
+    }
+
+    /// `111` was `DmaShare` (RFC-0.49-002 D6): declared, never dispatched, mis-specified; reviving it would make old and new
+    /// ABIs disagree silently.
+    #[test]
+    fn dma_share_111_stays_retired() {
+        assert_eq!(SyscallNumber::from_usize(111), None);
+        // The numbers either side are untouched.
+        assert_eq!(SyscallNumber::DmaAlloc as usize, 110);
+        assert_eq!(SyscallNumber::DmaRevoke as usize, 112);
     }
 }

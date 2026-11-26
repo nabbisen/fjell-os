@@ -107,7 +107,7 @@
   {"crate":"fjell-abi","module":"service","impl_type":"ServiceId","kind":"fn","name":"init","sig":"3f8d66bd7b45bcfc"},
   {"crate":"fjell-abi","module":"service","impl_type":"ServiceId","kind":"fn","name":"sample_service","sig":"93cd7f0d6c3e3d18"},
   {"crate":"fjell-abi","module":"service","impl_type":"ServiceId","kind":"fn","name":"service_manager","sig":"a06270d257ec2dd3"},
-  {"crate":"fjell-abi","module":"syscall","impl_type":"","kind":"enum","name":"SyscallNumber","sig":"a5ee21c866c37666"},
+  {"crate":"fjell-abi","module":"syscall","impl_type":"","kind":"enum","name":"SyscallNumber","sig":"885f2ffb8be98f45"},
   {"crate":"fjell-abi","module":"syscall","impl_type":"SyscallNumber","kind":"const","name":"PLATFORM_REGION_RESOLVE","sig":"77d5b4ee1f972150"},
   {"crate":"fjell-abi","module":"syscall","impl_type":"SyscallNumber","kind":"fn","name":"from_usize","sig":"10e5e9755c5e5c61"},
   {"crate":"fjell-abi","module":"task","impl_type":"","kind":"struct","name":"TaskId","sig":"5e7ba625bd6f27b4"},

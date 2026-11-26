@@ -230,3 +230,30 @@ cargo run -q -p fjell-consistency-check -- syscall-surface
   restart-loop test, **not by a boot scenario** — no fixture holds an `MmioRegion` capability and can die, and a third fixture exemption
   was ruled out at 0.48.
 * **Not built, as stated:** `DmaShare` retirement or implementation (held), lease-driven reclamation (D5, a question), device-VA recycling.
+
+---
+
+## As built (stage 4) — the owner's ruling on `DmaShare`, and the one sentence D6 proposed that was rejected
+
+**The owner ruled: retire the syscall, do not retire the requirement.** `DmaShare = 111` is gone (variant and `from_u32` arm; `from_u32(111)`
+is `None`; the comment sites follow `Reboot = 120`'s: the gap in the enum and a test that the number stays retired). The hold is **deleted**
+from `tests/syscall/expected.toml`, not left to expire: **35 declared, 35 dispatched, 0 undispatched**, nothing held. The mechanism for a
+dated hold is kept, and tested (`CapInstall`-shaped fixtures), because a milestone may need it again.
+
+* **D6's wording was rejected on one phrase.** The draft said bulk transfer *"is chunked at 32 bytes per round trip, and that is a stated
+  v1 limit, not a pending feature"*. That sentence is **withdrawn**: the chunked path is `ipc.md`'s own *"demonstration-scale workaround, not
+  a designed transport"*, and promoting it to the v1 architecture would be a workaround kept in the design. The documents now say the
+  **requirement is open and named**; the limitations row carrying the cost is the architect's.
+* **Why retired rather than implemented, as the owner ruled:** `DmaShare` is *mis-specified* (it routes inter-service messaging through
+  device DMA memory, which a `SemanticEnvelope` between two services has nothing to do with), unimplemented, and advertised; implementing it
+  as specified would add a third un-reclaimable holding, held by two tasks, with lifetime questions no precedent covers.
+* **The cost, re-derived at this tip and pinned** (`crates/fjell-service-api/tests/bulk_transfer_cost.rs`, driving the real receiver):
+  `MAX_WIRE_BYTES` = 4624, `CHUNK_BYTES` = 32, `ceil(4624 / 32)` = 145 chunks, `BEGIN` + 145 + `COMMIT` = **147 round trips**, one emission
+  plus one forward hop **294**. These are bounds for the widest envelope. The published 157/314 came from `size_of::<SemanticEnvelope>()` =
+  4936, the struct's in-memory size, which stopped being what is sent when senders began encoding the wire format (RFC-0.32-002); "dozens"
+  (`fjell-service-api`) understated it by an order of magnitude.
+* **The successor is named, not built:** a capability-granted, revocable, single-holder transfer region, bounded by the reclamation
+  discipline 0.48 and 0.49 built -- not a second shared-mapping hole, and not `DmaShare`. No design, number or milestone is promised.
+* **Documents corrected:** `ipc.md` §7, `kernel.md` §2, `fjell-service-api` (two comments), `v0.1-inventory.md` (row removed; a
+  retired-numbers note covers 111 and 120), `v0.2-preparation-backlog.md` V02-C-002 (restated as the successor; there is no live stub to
+  orphan). `v1-limitations.md` is the architect's and is untouched, including its dated correction block.
