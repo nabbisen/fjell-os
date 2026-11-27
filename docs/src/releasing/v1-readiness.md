@@ -57,7 +57,7 @@ the distinction is written here rather than left to the tool.*
 |------|-----|--------|
 | Host test suite (≥ 487 tests; 566 confirmed at v0.20.0) | — | **DONE** (v0.9.4) |
 | Proptest harness (≥ 10 properties; 14 confirmed at v0.20.0) | RFC v0.6-001 | **DONE** (v0.6.0) |
-| Verus formal proofs — capability + lease (`release_required=true`), boot-control (pilot, `release_required=false`); 20 obligations machine-checked; callsite-audit Gate 11 blocking | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1 proofs; v0.20.0 gate) |
+| Verus formal proofs — capability + lease (`release_required=true`), boot-control (pilot, `release_required=false`); **19 prover-verified items in the release-required targets**, machine-checked; callsite-audit Gate 11 blocking | RFC-v0.17-002…006, RFC-v0.18-001 | **DONE** (v0.18.1 proofs; v0.20.0 gate). *This row promised **20 obligations** from v0.18.1 until 0.50.0, and **20 matched none of the four figures `cargo xtask verus-count` reports** — release-required prover-verified **19**, all targets **26**, release-required named ids **12**, all targets **17**. The owner ruled **19** on 2026-11-27, the figure for the set this row describes: the prover's own `verification results:: N verified` units in the targets marked `release_required = true`. The word "obligations" is dropped with it — it named no measured quantity, which is how a figure matching nothing survived eight milestones.* |
 | Reproducible build gate (SHA-256 baseline, two-build mode) | RFC-v0.16-005 H-04 | **DONE** (v0.18.2) |
 | Every byte decoder a host fuzz crate can reach is fuzzed | RFC v0.6-003, RFC-0.32-001 | **DONE** (0.32; corrected and re-run 2026-09-25) — six decoders, **all six fuzzed on CI for 301 s each in dispatch run `36064695680`** (2026-09-25, at the tip that deleted `fjell-dtb-derive`): `semantic_record_parse` 149,369,918 runs, `revocation_record_parse` 202,879,453, `audit_record_parse` 293,020,079, `cap_manifest_parse` 9,968,854, `dtb_validate` 17,537,434, `semantic_envelope_wire_decode` 98,808,034 — each read from its own job log, not from the run's conclusion. Decoders a host fuzz crate cannot reach are named in E-043's closure, not counted. *(This row said "six … run `34976532420`", and was wrong: that run fuzzed a different six, and there were seven decoders from RFC-0.32-002 until RFC-0.33-005 deleted `fjell-dtb-derive`; the run cited before this one, `35089305545`, was the 0.32.0 cut's, when `dtb_validate` had not yet been changed by RFC-0.33-005.)* *(This row read "Fuzz targets (≥ 4)" until 2026-09-15. Eight target files satisfied it while five had never compiled and one fuzzed anything; a count of targets was the defect.)* |
 | Unsafe-audit gate, zero gaps | RFC v0.6-004, RFC 060 | **DONE** (v0.8.24) |
@@ -119,7 +119,7 @@ the distinction is written here rather than left to the tool.*
 
 ---
 
-## Summary at 0.49.0
+## Summary at 0.50.0
 
 | Status | Count |
 |--------|-------|
@@ -374,6 +374,20 @@ an input path decided and this limitations section kept true — both `→ v1.x`
 > at 0.45.0. **Recorded, not silently corrected:** which number that row should promise — prover
 > totals, named ids, or release-required only — is a judgement about what the row *means*, and it is
 > the owner's to take. I counted rather than guessed, having nearly written "more than 20" first.
+>
+> **Re-taken 2026-11-27, at the 0.50.0 cut — and the one figure in this matrix that
+> matched nothing is settled.** `readiness-check` still counts **DONE 56 / IN PROGRESS 2 /
+> DEFERRED 3 / OPEN 0**, run rather than copied; 0.50's four RFCs touch no cell, so the
+> counts move not at all. What moved is the **Verus row**, which had promised *"20
+> obligations machine-checked"* since v0.18.1 — **a figure matching none of the four
+> `cargo xtask verus-count` reports**: release-required prover-verified **19**, all targets
+> **26**, release-required named ids **12**, all targets **17**. The architect recommended
+> **19** at 0.43 and carried it unresolved for **eight milestones**; the owner ruled **19**
+> on 2026-11-27 and the row now names the set it counts. *The word "obligations" went with
+> it: it named no measured quantity, which is how a figure matching nothing survived eight
+> milestones inside the v1.0 readiness gate while `readiness-summary` passed — that subcheck
+> compares this table's counts with its rows, and never a row's prose with the tool that owns
+> it. Still the E-014 class, one cell further in.*
 
 
 *Corrected 2026-09-24: this line read "v1.0.0 released. Zero OPEN cells. Zero IN

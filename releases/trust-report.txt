@@ -1,8 +1,8 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-26 14:46:17 UTC
-Version   : 0.49.0
+Generated : 2026-11-27 05:57:10 UTC
+Version   : 0.50.0
 Mode      : full
 Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-linux-gnu / LLVM 23.1.5
 
@@ -22,8 +22,8 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 §2. LEASE INVENTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  LeaseId usage sites   : 118
-  LeaseEpoch usage sites: 36
+  LeaseId usage sites   : 129
+  LeaseEpoch usage sites: 45
   Runtime lease state   : (available from running fleet in v0.11)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -44,7 +44,7 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
     fjell-proxy-text.bin (11776 bytes)
     fjell-devmgr.bin (5079 bytes)
     fjell-driver-virtio-blk.bin (54 bytes)
-    fjell-storaged.bin (3392 bytes)
+    fjell-storaged.bin (4304 bytes)
     fjell-bootctl.bin (924 bytes)
     fjell-upgraded.bin (4606 bytes)
     fjell-powerd.bin (134 bytes)
@@ -88,10 +88,10 @@ Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-
 §6. CI EVIDENCE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  Latest test-all run: 20261126-141121
-  37    QEMU negative: user-copy                            60.2s  PASS
+  Latest test-all run: 20261127-051849
+  38    QEMU negative: user-copy                            60.1s  PASS
   ───────────────────────────────────────────────────────────────────────────
-  Total: 37  |  PASS: 36  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
+  Total: 38  |  PASS: 37  |  FAIL: 0  |  SKIP: 0  |  NOT-GATED: 1
   
   ✓ ALL REQUIRED TIERS PASSED
 

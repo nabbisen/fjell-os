@@ -1,6 +1,7 @@
 # RFC-0.50-003: A driver gives back the device memory it does not use — and `storaged`'s scan says what it does
 
-**Status:** Proposed — drafted by the implementer for the architect's review; **nothing in this line is implemented**
+**Status:** Implemented (0.50.0) — accepted 2026-11-27
+**Evidence:** syscall:MmioUnmap, marker:transport-order:kernel: MMIO unmap: 1 page(s) of region 3 at 0x70000000 from task    [exactly 1x], marker:transport-order:TEST:M8:PASS, marker:mmio:NEG:MMIO:UNMAP_OK:PASS, file:crates/services/fjell-storaged/src/main.rs
 **Milestone:** 0.50
 **Tracks.** Handoff line 3 (`.git-exclude/handoff/handoff-0.50.md`); the follow-up named by `crates/fjell-frame-alloc/src/mmio_mappings.rs:21`–`:22` (*"Having those drivers unmap the transports they do not use is now possible and is a follow-up, not this line."*).
 **Errata:** none filed by this RFC. Finding 2 (a comment contradicted by the loop beside it, and a constant the crate-level `allow(dead_code)` hides) is the E-014 class in one function; whether it is an entry is the architect's.

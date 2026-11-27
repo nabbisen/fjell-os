@@ -1,6 +1,7 @@
 # RFC-0.50-004: The small items said plainly — E-135's repair and its three-set check, the `MmioUnmap` comments and the sweep for their shape, criterion 9's classification, and the figure that is not mine
 
-**Status:** Proposed — drafted by the implementer for the architect's review. **Small items A and B are implemented in the stage-1 commits and described below; C is designed and not implemented; D is untouched.**
+**Status:** Implemented (0.50.0) — accepted 2026-11-27
+**Evidence:** file:tools/fjell-consistency-check/src/qemu_records.rs, file:tools/fjell-consistency-check/src/criterion9.rs, file:tools/fjell-consistency-check/src/service_table.rs, marker:task-lifecycle:NEG:TASK:HUNG_TASK_KILLED:PASS, marker:mmio-unmap:NEG:MMIO:UNMAPPED_VA_READ_ATTEMPTED
 **Milestone:** 0.50
 **Tracks.** Handoff small items **A** (E-135), **B** (the two stale `MmioUnmap` comments), **C** (criterion 9), **D** (the readiness figure).
 **Errata:** **E-135** is item A's subject; its headline and one figure in its body are corrected in the register by this stage (the amendment the handoff asked for, and only that: no status line, no limitations row, no released record). Item C asks the architect for a new erratum (the 0.49.0 record's criterion 9), **CLOSED as a record**; this RFC does not file it.

@@ -6,7 +6,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Build](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml/badge.svg)](https://github.com/nabbisen/fjell-os/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.49.0-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.50.0-blue.svg)](CHANGELOG.md)
 [![crates.io](https://img.shields.io/crates/v/fjell-os.svg)](https://crates.io/crates/fjell-os)
 
 > **Every authority is explainable. Every update is verifiable. Every failure is recoverable.**
@@ -19,7 +19,7 @@ Fjell OS is a capability-based microkernel for high-assurance edge and fleet nod
 Written in Rust 2024 edition — `forbid(unsafe_code)` except at 286 audited,
 classified boundaries (`cargo run -p fjell-unsafe-audit`).
 
-Current version: **0.49.0**.
+Current version: **0.50.0**.
 
 **v1.0 is explicitly not in view** (owner decision, 2026-07-30); v0 development
 continues, and functional advancement precedes any v1.0 consideration. The
@@ -91,7 +91,7 @@ into the repository; the site renders the same pages.
 - [v1.0 Non-Goals](docs/src/releasing/v1-non-goals.md) — 23 explicitly scoped items
 - [Threat Model](docs/src/security/threat-model-v1.md) — 20 in-scope threats
 - [Trust Report](releases/trust-report.txt)
-- [RFC Process](rfcs/README.md) — 244 files in `done/`
+- [RFC Process](rfcs/README.md) — 248 files in `done/`
 - [Deployment: StarFive VisionFive 2](docs/src/deployment/starfive-visionfive2.md)
 - [Fleet Demo Tutorial](docs/src/tutorials/three-node-fleet.md)
 - [Performance Baseline](docs/src/perf/baseline.md)

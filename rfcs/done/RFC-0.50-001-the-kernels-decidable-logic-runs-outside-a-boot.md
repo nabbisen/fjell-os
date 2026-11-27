@@ -1,6 +1,7 @@
 # RFC-0.50-001: The kernel's decidable logic runs outside a boot — the 27 tests that never compiled, and the one that was never written
 
-**Status:** Proposed — drafted by the implementer for the architect's review; **nothing in this line is implemented**
+**Status:** Implemented (0.50.0) — accepted 2026-11-27
+**Evidence:** file:crates/fjell-user-ptr/src/lib.rs, file:crates/fjell-lease/src/lib.rs, file:crates/fjell-task/src/ready_queue.rs, file:tools/fjell-consistency-check/src/dead_tests.rs, test:crates/fjell-task/src/ready_queue.rs::remove_clears_the_mask_bit_of_a_bucket_it_empties
 **Milestone:** 0.50
 **Tracks.** Handoff line 1 (`.git-exclude/handoff/handoff-0.50.md`); **E-134 is the subject** (ACCEPTED at 0.49, `v1-limitations.md` row 29); whether it is ever marked resolved is the architect's, at a cut, and this RFC states the condition (R3) rather than claiming it.
 **Errata:** E-134 is the subject. This RFC adds **no** erratum; it records two findings the measurements made (§"Where the handoff and the tree differ").

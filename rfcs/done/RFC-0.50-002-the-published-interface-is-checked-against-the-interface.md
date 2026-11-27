@@ -1,6 +1,7 @@
 # RFC-0.50-002: The published interface is checked against the interface — `syscall-doc`, and the check that was named for this and aimed at three source files
 
-**Status:** Proposed — drafted by the implementer for the architect's review; **nothing in this line is implemented**
+**Status:** Implemented (0.50.0) — accepted 2026-11-27
+**Evidence:** file:tools/fjell-consistency-check/src/syscall_doc.rs, file:docs/src/api/syscalls.md, file:docs/src/external-design/kernel.md, test:tools/fjell-consistency-check/src/syscall_doc.rs::the_real_documents_agree_with_the_enum, test:tools/fjell-consistency-check/src/syscall_doc.rs::a_variant_no_row_names_fails_in_both_tables
 **Milestone:** 0.50
 **Tracks.** Handoff line 2 (`.git-exclude/handoff/handoff-0.50.md`). Builds on RFC-0.49-002 (the ABI declares only syscalls the kernel dispatches) and **RFC-v0.22-001 Slice 1** (the check that first claimed this question).
 **Errata:** none filed by this RFC. The cause is the E-014 class (an instrument reporting coverage it does not have); whether it warrants its own entry is the architect's.

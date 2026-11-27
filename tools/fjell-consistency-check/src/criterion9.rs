@@ -24,6 +24,10 @@
 //! a record that does not is red, unless it is a **named exemption with a reason**, and an exemption that is stale (the record now
 //! names both, or does not exist, or sits below the floor) is red too -- the `unsafe-audit` exemption shape.
 //!
+//! **The version being cut is not asked.** Its two runs are the CI runs for the tagged commit, which do not exist at the
+//! release commit; the record is filled by the follow-up commit and judged at the next cut. A ceiling of exactly one, and the
+//! reason it is safe is that the next cut does ask.
+//!
 //! **What this does not do:** it does not read GitHub, so it cannot tell a real run id from a typed one, nor a `ci.yml` run from
 //! another workflow's that happens to sit after the word `dispatch`; it judges that the record *says* it read both, in the words
 //! the cycle document requires. Whether the runs were green is the record's table, and the cut's.
@@ -169,12 +173,29 @@ pub struct Report {
     pub below_floor: Vec<String>,
     pub naming_both: usize,
     pub exempt: Vec<(String, String)>,
+    /// The record for the version **currently being cut**, which is not asked to name its runs: at the
+    /// release commit they do not exist yet. `None` when no record matches the workspace version.
+    pub in_flight: Option<String>,
 }
 
 /// Judge every record. `records` is `(version, text)`.
+///
+/// `in_flight` is the **workspace version** — the release being cut. Its own record is **not asked to
+/// name its runs**, and that is structural rather than a concession: criterion 9's two runs are the CI
+/// runs *for the tagged commit*, so they cannot exist until after the tag, which is after the release
+/// commit this check runs against. Asking would make `release-rehearsal` unpassable at every cut.
+///
+/// **The window is exactly one milestone.** The record is filled by the follow-up commit and judged at
+/// the *next* cut — which is precisely how 0.49.0's gap was found, by reading 0.50's rehearsal of it.
+/// A record below the workspace version is asked in full, so this is a ceiling of one, not a skip.
+///
+/// *Added at the 0.50.0 cut, by the architect, when this check — which the architect specified and the
+/// implementer built and demonstrated red against eleven historical records — failed on the record
+/// being written. Neither of us had run it against a record that did not yet have its runs.*
 pub fn evaluate(
     records: &[(String, String)],
     exemptions: &[Exemption<'_>],
+    in_flight: Option<&str>,
 ) -> Result<Report, Vec<String>> {
     let mut keyed: Vec<(&str, (u64, u64, u64), Found)> = Vec::new();
     for (v, text) in records {
@@ -192,9 +213,21 @@ pub fn evaluate(
     let mut below = Vec::new();
     let mut naming_both = 0usize;
     let mut exempt_used: Vec<(String, String)> = Vec::new();
+    let mut in_flight_seen: Option<String> = None;
     for (v, k, f) in &keyed {
         if *k < floor.1 {
             below.push((*v).to_string());
+            continue;
+        }
+        // The release being cut: its runs are measured after the tag, so its record cannot name them yet.
+        if in_flight == Some(*v) {
+            in_flight_seen = Some((*v).to_string());
+            if let Some(e) = exemptions.iter().find(|e| e.version == *v) {
+                problems.push(format!(
+                    "exemption for {v} is unnecessary: it is the version being cut, which this check does not ask (\"{}\")",
+                    e.reason
+                ));
+            }
             continue;
         }
         let ex = exemptions.iter().find(|e| e.version == *v);
@@ -249,6 +282,7 @@ pub fn evaluate(
         Ok(Report {
             records: keyed.len(),
             floor: floor.0.to_string(),
+        in_flight: in_flight_seen,
             below_floor: below,
             naming_both,
             exempt: exempt_used,
@@ -320,7 +354,7 @@ mod tests {
 
     #[test]
     fn the_floor_is_derived_and_the_records_below_it_are_not_asked() {
-        let r = evaluate(&set(), &[]).unwrap();
+        let r = evaluate(&set(), &[], None).unwrap();
         assert_eq!(r.floor, "0.32.0");
         assert_eq!(r.below_floor, ["0.30.0", "0.31.0"]);
         assert_eq!(r.naming_both, 2);
@@ -330,7 +364,7 @@ mod tests {
     fn a_record_above_the_floor_with_one_run_is_red_and_says_which_is_missing() {
         let mut s = set();
         s.push(rec("0.49.0", SECTION_FORM_ONE_RUN));
-        let err = evaluate(&s, &[]).unwrap_err();
+        let err = evaluate(&s, &[], None).unwrap_err();
         assert!(
             err.iter().any(|e| e.contains("0.49.0") && e.contains("no dispatch run") && e.contains("45843432462")),
             "{err:?}"
@@ -341,7 +375,7 @@ mod tests {
     fn a_record_above_the_floor_with_no_section_is_red() {
         let mut s = set();
         s.push(rec("0.50.0", NO_CRITERION_9));
-        let err = evaluate(&s, &[]).unwrap_err();
+        let err = evaluate(&s, &[], None).unwrap_err();
         assert!(err.iter().any(|e| e.contains("0.50.0") && e.contains("no criterion-9 section")), "{err:?}");
     }
 
@@ -350,32 +384,32 @@ mod tests {
         let mut s = set();
         s.push(rec("0.49.0", SECTION_FORM_ONE_RUN));
         let ex = [Exemption { version: "0.49.0", reason: "the gap itself" }];
-        let r = evaluate(&s, &ex).unwrap();
+        let r = evaluate(&s, &ex, None).unwrap();
         assert_eq!(r.exempt, [("0.49.0".to_string(), "the gap itself".to_string())]);
         // the record gains its dispatch run: the exemption must be retired
         let mut s2 = set();
         s2.push(rec("0.49.0", SECTION_FORM_TWO_RUNS));
-        let err = evaluate(&s2, &ex).unwrap_err();
+        let err = evaluate(&s2, &ex, None).unwrap_err();
         assert!(err.iter().any(|e| e.contains("stale exemption for 0.49.0")), "{err:?}");
     }
 
     #[test]
     fn exemptions_for_nothing_or_below_the_floor_or_without_a_reason_are_red() {
         let s = set();
-        let err = evaluate(&s, &[Exemption { version: "9.9.9", reason: "x" }]).unwrap_err();
+        let err = evaluate(&s, &[Exemption { version: "9.9.9", reason: "x" }], None).unwrap_err();
         assert!(err.iter().any(|e| e.contains("no such release record")));
-        let err = evaluate(&s, &[Exemption { version: "0.31.0", reason: "x" }]).unwrap_err();
+        let err = evaluate(&s, &[Exemption { version: "0.31.0", reason: "x" }], None).unwrap_err();
         assert!(err.iter().any(|e| e.contains("below the derived floor")));
         let mut s2 = set();
         s2.push(rec("0.49.0", SECTION_FORM_ONE_RUN));
-        let err = evaluate(&s2, &[Exemption { version: "0.49.0", reason: " " }]).unwrap_err();
+        let err = evaluate(&s2, &[Exemption { version: "0.49.0", reason: " " }], None).unwrap_err();
         assert!(err.iter().any(|e| e.contains("has no reason")));
     }
 
     #[test]
     fn if_no_record_names_both_there_is_no_floor_and_that_is_an_error_not_a_pass() {
         let s = vec![rec("0.31.0", ONE_RUN_ROW), rec("0.49.0", SECTION_FORM_ONE_RUN)];
-        assert!(evaluate(&s, &[]).is_err());
+        assert!(evaluate(&s, &[], None).is_err());
     }
 
     #[test]
@@ -404,15 +438,62 @@ mod tests {
         v
     }
 
+    /// **The ceiling of one, and that it is a ceiling and not a skip.** The record for the version being
+    /// cut has no runs yet, so it is not asked — but a record *below* it with one run is still red. A
+    /// blanket skip would pass the very shape E-137 records.
+    #[test]
+    fn the_version_being_cut_is_not_asked_and_the_one_below_it_still_is() {
+        let s = vec![
+            rec("0.32.0", SECTION_FORM_TWO_RUNS),
+            rec("0.49.0", SECTION_FORM_ONE_RUN),
+            rec("0.50.0", "## Tag and publish\n\n### CI for the tagged commit — criterion 9\n\nmeasured in the follow-up commit\n"),
+        ];
+        // Cutting 0.50.0: its own record is not asked, and 0.49.0's single run is still a failure.
+        let err = evaluate(&s, &[], Some("0.50.0")).unwrap_err();
+        assert!(
+            err.iter().any(|e| e.contains("0.49.0") && e.contains("no dispatch run")),
+            "the record below the one being cut must still be asked: {err:?}"
+        );
+        assert!(
+            !err.iter().any(|e| e.contains("0.50.0")),
+            "the version being cut must not be asked: {err:?}"
+        );
+        // With 0.49.0 exempted, cutting 0.50.0 passes and says which record was held back.
+        let r = evaluate(&s, &[Exemption { version: "0.49.0", reason: "E-137" }], Some("0.50.0")).unwrap();
+        assert_eq!(r.in_flight.as_deref(), Some("0.50.0"));
+        // And with no version in flight, the same tree is red on 0.50.0 too -- so the ceiling is doing the work.
+        let err2 = evaluate(&s, &[Exemption { version: "0.49.0", reason: "E-137" }], None).unwrap_err();
+        assert!(err2.iter().any(|e| e.contains("0.50.0")), "{err2:?}");
+    }
+
+    /// An exemption for the version being cut is **unnecessary**, and saying so stops one being carried
+    /// forward after the follow-up commit fills the record.
+    #[test]
+    fn an_exemption_for_the_version_being_cut_is_reported_as_unnecessary() {
+        let s = vec![rec("0.32.0", SECTION_FORM_TWO_RUNS), rec("0.50.0", "### criterion 9\n\npending\n")];
+        let err = evaluate(&s, &[Exemption { version: "0.50.0", reason: "not measured yet" }], Some("0.50.0")).unwrap_err();
+        assert!(
+            err.iter().any(|e| e.contains("0.50.0") && e.contains("unnecessary")),
+            "{err:?}"
+        );
+    }
+
     /// **The red run the item's evidence rests on:** against the real records, with no exemption, `0.49.0` is the one red, and
     /// the floor is `0.32.0` with 11 records below it.
+    ///
+    /// **It reads the real workspace version rather than `None`**, which is what the gate does — and it has to:
+    /// from 0.50.0 on, the tree carries a record for the version being cut whose runs are measured only after
+    /// the tag, so a test passing `None` here goes red at every cut on a record that is correctly unfinished.
+    /// That is how the ceiling was found: this assertion failed at the 0.50.0 cut.
     #[test]
     fn the_real_records_are_red_on_0_49_0_alone_and_the_floor_is_0_32_0() {
         let recs = real_records();
-        let err = evaluate(&recs, &[]).unwrap_err();
+        let ws = crate::release_records::workspace_version(include_str!("../../../Cargo.toml"))
+            .expect("the workspace version is readable");
+        let err = evaluate(&recs, &[], Some(ws.as_str())).unwrap_err();
         assert_eq!(err.len(), 1, "{err:?}");
         assert!(err[0].contains("release record 0.49.0") && err[0].contains("no dispatch run"), "{err:?}");
-        let r = evaluate(&recs, &[Exemption { version: "0.49.0", reason: "x" }]).unwrap();
+        let r = evaluate(&recs, &[Exemption { version: "0.49.0", reason: "x" }], Some(ws.as_str())).unwrap();
         assert_eq!(r.floor, "0.32.0");
         assert_eq!(r.below_floor.len(), 11, "the ten that predate criterion 9 and 0.31.0: {:?}", r.below_floor);
         assert_eq!(r.naming_both, 17, "0.32.0 .. 0.48.0");

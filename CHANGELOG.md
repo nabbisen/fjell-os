@@ -5,6 +5,170 @@ Versions follow `MAJOR.MINOR.PATCH` semantics from v1.0.0 onward.
 
 ---
 
+## [0.50.0] — 2026-11-27 — The project's account of itself, checked against itself
+
+Three lines, four small items, **three errata moved** — **E-135 CLOSED**, and **E-137** and **E-138**
+filed. The register stands at **137 entries, 7 accepted, 0 open**. `consistency-check` goes from
+**30 to 34 subchecks** (`qemu-records`, `syscall-doc`, `dead-tests`, `service-table`), `test-all` from
+**37 to 38 tiers**, host tests from **996 / 1719** to **1081 / 1810**.
+
+0.49 made the ABI promise only what it does: a declared syscall is dispatched or it is retired, with a
+gate behind it. **That rule was applied to the two source files `syscall-surface` reads.** This
+milestone applies it to the three other places the same promise is made — the documents a service
+author reads, the kernel logic no test ever compiled, and the syscall 0.49 built that nothing then
+used.
+
+**And the one figure in the v1.0 readiness matrix that matched nothing is settled.** The Verus row had
+promised *"20 obligations machine-checked"* since v0.18.1, against the four figures
+`cargo xtask verus-count` reports — **19 / 26 / 12 / 17**. The owner ruled **19**, the figure for the
+set the row describes, after the recommendation had stood unresolved for eight milestones. The word
+*"obligations"* went with it: it named no measured quantity, which is how a figure matching nothing
+survived inside the release gate while `readiness-summary` passed — that subcheck compares the table's
+counts with its rows, never a row's prose with the tool that owns it.
+
+### The kernel's decidable logic runs outside a boot (RFC-0.50-001, closes E-134)
+
+`fjell-kernel` declared a `[[bin]]` and no `[lib]`, so `cargo test -p fjell-kernel` **could not
+build** — 19 errors, duplicate lang items — and the **27 `#[test]` functions** in `mm/user_ptr.rs`,
+`trap/dispatch.rs`, `lease/mod.rs` and `task/scheduler.rs` had **never been compiled**. Not skipped,
+not ignored: never compiled, and counted by nothing. **Nine of them were the kernel's user-pointer
+validator** — the predicate deciding whether every pointer the kernel dereferences on a user's behalf
+lies inside that user's address space. This project machine-checks capability and lease obligations in
+Verus, fuzzes six decoders for 301 s each on CI, and audits 360 `unsafe` sites; that predicate's tests
+had not run since the day they were written.
+
+They run now, in **`fjell-user-ptr`, `fjell-lease` and `fjell-task`** — extraction, the pattern this
+project already used four times, not a `[lib]` over a kernel that cannot link one. **26 of the 27 test
+bodies are byte-identical after the move and the 27th differs only in a `use` path**, which the
+architect verified against the previous tag rather than accepting. The **lease seam is the wake**: the
+extracted crate owns the table and *returns what must be woken*, and the kernel wakes — because
+`revoke` ended in a call reaching the task table, scheduler, capability table and endpoint table on
+every successful revocation. A hook trait would have put the kernel's reach back inside the interface
+the seam exists to cut.
+
+`cargo test -p fjell-kernel` now **exits 0 with nothing to run** — honest only because **`dead-tests`**
+makes zero provably correct, which is why `test = false` and that guard landed in one commit. A green
+that says nothing would have been worse than the red it replaced.
+
+**The second deliverable was the test that was never written.** 0.49's `ReadyQueue::remove` left the
+`non_empty_mask` bit set on an emptied bucket and **hung the machine**; it was found by booting QEMU,
+in a file carrying three dead `#[test]`s — none of which would have caught it. `remove` now has four
+tests, shown red against a reconstruction of the defect. **Not tested, and said so:** `Scheduler`'s own
+methods, the milestone latch, `task/destroy.rs`.
+
+### The published interface is checked against the interface (RFC-0.50-002)
+
+The Syscall Reference told its reader *"`trap/syscall.rs` dispatches **26** of them. The remaining 9 …
+are not dispatched"* and *"This page lists only the 26 that are live."* The truth was **35 declared,
+35 dispatched, 0 undispatched**, and **seven live syscalls appeared nowhere on the page** —
+`CapInstall`, `IrqAck`, `IrqBind`, `IrqWait`, `MmioUnmap`, `PlatformReboot`, `TaskKill`. Its
+*"as-built at v0.21.3"* stamp was not an honest staleness marker either: the page carried `ClockNow`,
+added at **0.42**, so its body had been maintained twenty milestones past the date in its own header
+while the header kept saying 26.
+
+`kernel.md` was worse because it disagreed with itself. Its §2 heading said *"as-built at v0.21.2, 26
+syscalls"* over a table naming 27 and omitting 8; its opening paragraph repeated the same stale 26 four
+lines above that table; and its §6 asserted **"Interrupt syscalls are not dispatched"** — **false since
+0.25**, naming the wrong driver, over a path `uart-rx` and `uart-rx-unbound` exercise as release-gated
+tiers, and citing as its authority the section of its own file that 0.49 had updated to say the
+opposite.
+
+**`syscall-doc`** now compares both published tables against `SyscallNumber` — a row naming no variant,
+a variant no row names, a row whose number disagrees, the wrapper column, the aliases. **Its red run
+was captured before any document was touched**, which is this line's evidence and exists only in that
+order. It found two more defects nobody had reported: `CapDelete`'s wrapper was said not to exist (it
+has since 0.47) and `ipc_try_send`'s to exist (it does not).
+
+**The instrument that declined this question named one that did not own it.** `doc_counts`'s scope note
+excluded *"syscall counts already covered by `syscall-surface`"* — and `syscall-surface` reads three
+source files and a TOML, no document. The note now names the checks that do read documents, and says
+what is still covered by nothing. **The check 0.22 named for exactly this drift was built, as
+`syscall-surface`, and aimed at the enum**; the ground truth in its own handoff — *"35 declared, 26
+dispatched, 9 undispatched"* — is, to the number and the name, what the Reference still said 28
+milestones later.
+
+### A driver gives back the device memory it does not use (RFC-0.50-003)
+
+0.49 dispatched `MmioUnmap` and **nothing in the system used it**: its only caller was the
+negative-test suite. A verb whose sole caller is a test is dispatched but not adopted.
+
+`storaged` now scans from the highest virtio-mmio transport **down** — through `BUS_OFFSETS`, the dead
+constant its own comment had described while the loop ascended, silenced by a crate-level
+`allow(dead_code)` — and **releases every transport that is not blk**, reporting released, refused and
+unmappable separately so that `0 released, 8 unmappable` cannot read as a clean scan. `storaged`'s held
+mappings go **8 → 1**; live mappings once the drivers settle, **9 → 2**.
+
+**And the release runs in a gated boot.** Because QEMU assigns virtio-mmio in reverse creation order and
+the harness hard-coded blk first, blk was always on the top transport, so a descending scan would have
+released nothing in any profile and the production caller would have executed nowhere. An **additive**
+`pre_blk_args` lets one profile — `transport-order` — place a NIC ahead of blk; every existing
+profile's committed `qemu-command.txt` is **byte-identical**, verified by a test that refuses to pass
+on fewer than twenty of them.
+
+**That profile was GREEN under the mutation that mattered, and that is the finding worth keeping.** It
+first required only `storaged`'s own line, *"released 1 unused mapping(s)"* — which a scan that
+*counted* a release it never made satisfies identically, because a service's report is what the service
+believes. It now requires **the kernel's own unmap line, exactly once**, distinguished from the test
+suite's unmaps by page count and address. That line is this RFC's Evidence.
+
+### The small items (RFC-0.50-004) — and three errata
+
+**E-135 is CLOSED.** A newly gated QEMU profile could never record its own marker artefacts:
+`write_summary` wrote them only when the file was *already* on disk — a deliberate E-040 fix against
+ungated milestones leaking files — so a new profile was absent, therefore not written, therefore never
+committed, therefore absent. It now keys on the profile being **release-gated**, and **`qemu-records`
+compares three sets**: the profile TOMLs, the gated categories and the recorded directories. Three
+rather than two for a measured reason — **the two-set comparison E-135 itself proposed as "a one-line
+comparison" would still have missed `fleet-demo`**, the profile it was filed for, which belongs to
+neither set. `task-lifecycle` and `mmio-unmap` were recorded **by the mechanism**, from real runs;
+nothing was hand-seeded.
+
+`fleet-demo` remains recordable by nothing, and is **waived by name with that reason in the gate's own
+output**, a waiver that fails the day the profile gains a record. Writing it surfaced something larger:
+the demo's four pass markers had been declared in **three** places — the profile, the examples TOML
+whose header says it is the one used, and a constant in the runner — **identical in all three and
+compared by nothing**, with the runner reading the only copy no document pointed at. `verify` now reads
+the profile.
+
+**E-137 filed, CLOSED as a record.** `releases/0.49.0.md` records exit criterion 9 with **one** CI run
+where the criterion requires two: `ci-fuzz-run` and `ci-miri` are skipped on push and read only in the
+dispatched run, and that record names no dispatched run — so two correctness-gating jobs were not read
+for the release commit, or were read and left out, which the tree cannot distinguish. The three cuts
+before it each name both. This is the **E-043 family**: the dispatch step exists because 0.31.0 shipped
+while every scheduled fuzz run had failed for three months. The cycle document now **classifies** CI
+jobs — *correctness-gating* (a red one blocks the tag) and *publishing* (`ci-pages` alone; a red one is
+recorded with its run id and what was not published, and does not block the tag) — and
+**`release-records` judges criterion 9**, requiring a push-labelled and a dispatch-labelled run id in
+the record's own criterion-9 section, above a derived floor. **Section-scoped and label-based because
+the architect's first specification, counted over the document, passes the very record it was written
+for**: `0.49.0.md` holds three long numbers, two of them a `release`-workflow run id and a Pages
+artifact id.
+
+**E-138 filed, ACCEPTED, tracked 0.51** (`v1-limitations.md` row 31). A negative-test fixture fills the
+64-entry device-mapping table on every boot — it pins the table's bound the only way it can, by
+reaching it — **with no `sys_yield` in the loop**. That is not confined to the fixture: `trap_dispatch`
+calls `schedule_next` **unconditionally after every trap**, so the scheduler is consulted between every
+pair of maps, and a task picked inside the window meets a full table. The exposures are asymmetric:
+`driver-virtio-net` degrades honestly, **`storaged` exits** — `no blk`, taking `TEST:M8:PASS` with it.
+**A release-gated tier can fail for a reason that is not the code under test.** Found by measuring a
+baseline boot and reported rather than banked; not fixed here, because bounding the fill would destroy
+the assertion and the remedy is `init`'s sequencing.
+
+**`service-table`** compares the service table with the tree, which was five programs short. Its
+heading no longer states a count at all but the rule — *every program under `crates/services/` and
+`crates/drivers/`* — and a rule stated in a document with nothing checking it is the defect this
+milestone exists to remove.
+
+### One shape, three times
+
+**An assertion whose evidence the assertion itself provides.** `transport-order` asserting a service's
+*report* of an unmap; a pin test grepping the file that contains the assertion; and a criterion-9 check
+counting ids it would also have matched as decoys. All three were found by **mutating the thing the
+test was about** rather than the code near it, and two of the three were the architect's. It is named
+in RFC-0.50-004, which says plainly that no instrument covers it.
+
+---
+
 ## [0.49.0] — 2026-11-26 — A task the system can stop, and an ABI that promises only what it does
 
 Two lines, three small items, **three errata filed** — **E-134** and **E-135** ACCEPTED, both about

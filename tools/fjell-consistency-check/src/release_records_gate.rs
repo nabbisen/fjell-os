@@ -40,7 +40,7 @@ pub fn check() -> ExitCode {
     }
     records.sort();
     // 0.50 small item C: criterion 9 names two runs. Judged beside the structure checks and reported in the same line.
-    let c9 = criterion9::evaluate(&records, CRITERION_9_EXEMPTIONS);
+    let c9 = criterion9::evaluate(&records, CRITERION_9_EXEMPTIONS, Some(ws.as_str()));
     match evaluate(&Inputs {
         records: &records,
         changelog: &changelog,
