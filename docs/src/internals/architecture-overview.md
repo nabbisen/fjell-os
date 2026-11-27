@@ -43,6 +43,9 @@
 | `fjell-syscall` | `lib` (no_std) | User-space syscall wrappers |
 | `fjell-cap` | `lib` (no_std) | Capability model (pure logic) |
 | `fjell-ipc` | `lib` (no_std) | IPC state machine (pure logic) |
+| `fjell-lease` | `lib` (no_std) | Lease table (pure logic; extracted from the kernel, RFC-0.50-001) |
+| `fjell-task` | `lib` (no_std) | Task table, ready queue, milestone queries (pure logic; extracted from the kernel) |
+| `fjell-user-ptr` | `lib` (no_std) | User-pointer validation (pure logic; extracted from the kernel) |
 | `fjell-audit-format` | `lib` (no_std) | Audit event schema |
 | `fjell-config-format` | `lib` (no_std) | TOML config schema |
 | `fjell-semantic-format` | `lib` (no_std) | Intent/State/Event stream schema |

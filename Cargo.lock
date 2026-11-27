@@ -745,7 +745,10 @@ dependencies = [
  "fjell-fdt-header",
  "fjell-frame-alloc",
  "fjell-ipc",
+ "fjell-lease",
  "fjell-measure-format",
+ "fjell-task",
+ "fjell-user-ptr",
 ]
 
 [[package]]
@@ -755,6 +758,14 @@ dependencies = [
  "fjell-canon",
  "fjell-measure-format",
  "fjell-trust-provider",
+]
+
+[[package]]
+name = "fjell-lease"
+version = "0.49.0"
+dependencies = [
+ "fjell-abi",
+ "fjell-cap",
 ]
 
 [[package]]
@@ -1185,6 +1196,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fjell-task"
+version = "0.49.0"
+dependencies = [
+ "fjell-abi",
+]
+
+[[package]]
 name = "fjell-tools"
 version = "0.49.0"
 dependencies = [
@@ -1236,6 +1254,13 @@ dependencies = [
  "fjell-syscall",
  "fjell-trust-provider",
  "fjell-upgrade-format",
+]
+
+[[package]]
+name = "fjell-user-ptr"
+version = "0.49.0"
+dependencies = [
+ "fjell-abi",
 ]
 
 [[package]]

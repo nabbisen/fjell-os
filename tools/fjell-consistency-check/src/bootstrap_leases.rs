@@ -6,7 +6,7 @@
 //! creates a *boot lease* per task and binds every capability the task holds in one pass, so no grant literal needs a
 //! lease and **a grant added tomorrow cannot forget the bind**. This check is what keeps that true.
 //!
-//! **Population: every `Capability { ... }` literal under `crates/fjell-kernel/src`** outside `#[cfg(test)]`, through the
+//! **Population: every `Capability { ... }` literal under `crates/fjell-kernel/src` and the three crates extracted from it (`SCANNED_SRC`)** outside `#[cfg(test)]`, through the
 //! shared `fjell-repo-scope`, in code only (comments and strings blanked). Nothing here names a grant.
 //!
 //! 1. **A literal that is `lease: None` must be in a function on [`CLASSIFIED_FUNCTIONS`]**, each with a reason -- and
@@ -282,6 +282,16 @@ pub struct ClassifiedTaskIdSite {
     pub reason: &'static str,
 }
 
+/// The source trees this check reads: the kernel, **and the three crates extracted from it** (RFC-0.50-001). The lease table -- where
+/// an owner is compared with a caller's whole `TaskId` -- now lives in `fjell-lease`; a check that kept reading only the kernel would
+/// have been silently emptied of the one place premise 6 is about.
+pub const SCANNED_SRC: &[&str] = &[
+    "crates/fjell-kernel/src/",
+    "crates/fjell-lease/src/",
+    "crates/fjell-task/src/",
+    "crates/fjell-user-ptr/src/",
+];
+
 pub const CLASSIFIED_TASK_ID_SITES: &[ClassifiedTaskIdSite] = &[
     ClassifiedTaskIdSite {
         file: "main.rs",
@@ -295,10 +305,11 @@ pub const CLASSIFIED_TASK_ID_SITES: &[ClassifiedTaskIdSite] = &[
         reason: "`DmaRegionEntry::free`'s sentinel: index 0xFFFF marks an empty entry and names no task",
     },
     ClassifiedTaskIdSite {
-        file: "lease/mod.rs",
+        file: "fjell-lease/src/lib.rs",
         func: "empty",
         reason: "an `Empty` lease slot's placeholder owner: the slot is not `Active`, so its owner is never read until `allocate` \
-                 overwrites it",
+                 overwrites it. (In `fjell-lease` since 0.50 -- RFC-0.50-001 moved the table out of the kernel; the lease table is \
+                 where owners are compared, so this check reads that crate too and does not let the move take it out of scope.)",
     },
     ClassifiedTaskIdSite {
         file: "trap/dispatch.rs",
@@ -598,7 +609,15 @@ mod tests {
         }
         files
             .into_iter()
-            .map(|(f, t)| src(&format!("crates/fjell-kernel/src/{f}"), &t))
+            .map(|(f, t)| {
+                // an entry in an extracted crate (`fjell-lease/src/lib.rs`) is not under the kernel's `src/`
+                let path = if f.starts_with("fjell-") {
+                    format!("crates/{f}")
+                } else {
+                    format!("crates/fjell-kernel/src/{f}")
+                };
+                src(&path, &t)
+            })
             .collect()
     }
 
@@ -607,7 +626,7 @@ mod tests {
             src("crates/fjell-kernel/src/task/spawn.rs", SPAWN_OK),
             src("crates/fjell-kernel/src/main.rs", MAIN_OK),
             src("crates/fjell-kernel/src/trap/dispatch.rs", DISPATCH_OK),
-            src("crates/fjell-kernel/src/lease/mod.rs", LEASE_OK),
+            src("crates/fjell-lease/src/lib.rs", LEASE_OK),
         ];
         v.extend(unmap_sources());
         v
@@ -718,7 +737,10 @@ mod tests {
                 .expect("scope");
         let sources: Vec<Source> = paths
             .iter()
-            .filter(|p| p.to_string_lossy().contains("crates/fjell-kernel/src/"))
+            .filter(|p| {
+                let p = p.to_string_lossy();
+                SCANNED_SRC.iter().any(|d| p.contains(d))
+            })
             .map(|p| Source {
                 path: p.to_string_lossy().to_string(),
                 text: std::fs::read_to_string(p).expect("read"),
@@ -737,6 +759,23 @@ mod tests {
             v.push(src(extra_path, extra));
         }
         v
+    }
+
+    /// RFC-0.50-001: the lease table moved out of the kernel, and this check moved with it. A literal-generation-0 task id in
+    /// `fjell-lease` (where an owner is compared with a caller's whole id) is as red as one in the kernel's `lease/mod.rs` was.
+    #[test]
+    fn a_literal_generation_zero_in_an_extracted_crate_is_as_red_as_one_in_the_kernel() {
+        for path in [
+            "crates/fjell-lease/src/lib.rs",
+            "crates/fjell-task/src/tcb.rs",
+            "crates/fjell-user-ptr/src/lib.rs",
+        ] {
+            let e = evaluate(&zero_base(path, "fn pick() -> TaskId { TaskId::new(3, 0) }\n")).unwrap_err();
+            assert!(
+                e.iter().any(|p| p.contains(path) && p.contains("literal generation 0")),
+                "{path}: {e:?}"
+            );
+        }
     }
 
     #[test]

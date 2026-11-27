@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-//! Fixed-priority round-robin scheduler.
+//! Fixed-priority round-robin scheduler. The ready queue is `fjell-task::ready_queue`.
 //!
 //! Invariants (SCHED-*):
 //!   SCHED-001  The same TaskId never appears twice in the ready queue.
@@ -9,145 +9,10 @@
 //!   SCHED-005  The idle task never reaches Exited.
 
 use super::id::TaskId;
-use crate::task::tcb::MAX_TASKS;
 
-// ── Priority constants ────────────────────────────────────────────────────────
-
-pub const PRIORITY_IDLE: u8 = 0;
-pub const PRIORITY_USER: u8 = 32;
-pub const PRIORITY_KERNEL_SERVICE: u8 = 64;
-
-// ── Internal bucket mapping ───────────────────────────────────────────────────
-
-const MAX_PRIORITY_LEVELS: usize = 8;
-
-fn priority_to_bucket(p: u8) -> usize {
-    // Map 0..255 into 8 buckets; higher priority → higher bucket index.
-    (p as usize) * MAX_PRIORITY_LEVELS / 256
-}
-
-// ── TaskQueue (circular buffer per bucket) ───────────────────────────────────
-
-struct TaskQueue {
-    items: [Option<TaskId>; MAX_TASKS],
-    head: usize,
-    len: usize,
-}
-
-impl TaskQueue {
-    const fn new() -> Self {
-        TaskQueue {
-            items: [None; MAX_TASKS],
-            head: 0,
-            len: 0,
-        }
-    }
-
-    fn push(&mut self, id: TaskId) -> bool {
-        if self.len == MAX_TASKS {
-            return false;
-        }
-        let tail = (self.head + self.len) % MAX_TASKS;
-        self.items[tail] = Some(id);
-        self.len += 1;
-        true
-    }
-
-    fn pop(&mut self) -> Option<TaskId> {
-        if self.len == 0 {
-            return None;
-        }
-        let id = self.items[self.head].take();
-        self.head = (self.head + 1) % MAX_TASKS;
-        self.len -= 1;
-        id
-    }
-
-    fn contains(&self, id: TaskId) -> bool {
-        for i in 0..self.len {
-            let idx = (self.head + i) % MAX_TASKS;
-            if self.items[idx] == Some(id) {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Remove every occurrence of `id`, keeping the order of the rest. Returns how many were removed.
-    fn remove(&mut self, id: TaskId) -> usize {
-        let mut kept = TaskQueue::new();
-        let mut removed = 0;
-        while let Some(v) = self.pop() {
-            if v == id {
-                removed += 1;
-            } else {
-                kept.push(v);
-            }
-        }
-        *self = kept;
-        removed
-    }
-}
-
-// ── ReadyQueue ────────────────────────────────────────────────────────────────
-
-/// Multi-level ready queue.
-pub struct ReadyQueue {
-    queues: [TaskQueue; MAX_PRIORITY_LEVELS],
-    non_empty_mask: u8, // bitmask of non-empty buckets
-}
-
-impl ReadyQueue {
-    pub const fn new() -> Self {
-        const EMPTY_Q: TaskQueue = TaskQueue::new();
-        ReadyQueue {
-            queues: [EMPTY_Q; MAX_PRIORITY_LEVELS],
-            non_empty_mask: 0,
-        }
-    }
-
-    /// Take `id` out of every bucket (RFC-0.49-001 D5). A destroyed `Runnable` task is in the ready queue; leaving it there
-    /// would hand the CPU to a slot whose occupant is gone or, after a reuse, to a different task. Returns how many entries
-    /// were removed (0 or 1 by SCHED-001).
-    pub fn remove(&mut self, id: TaskId) -> usize {
-        let mut removed = 0;
-        for (bucket, q) in self.queues.iter_mut().enumerate() {
-            removed += q.remove(id);
-            // `dequeue_next` finds its bucket through this mask, so a bucket this empties must leave it -- otherwise the
-            // next dequeue pops nothing from it and hands the CPU to idle while a lower bucket still has runnable tasks.
-            if q.len == 0 {
-                self.non_empty_mask &= !(1 << bucket);
-            }
-        }
-        removed
-    }
-
-    pub fn enqueue(&mut self, id: TaskId, priority: u8) -> bool {
-        let bucket = priority_to_bucket(priority);
-        if self.queues[bucket].contains(id) {
-            return false;
-        } // SCHED-001
-        let ok = self.queues[bucket].push(id);
-        if ok {
-            self.non_empty_mask |= 1 << bucket;
-        }
-        ok
-    }
-
-    /// Dequeue the highest-priority waiting task.
-    pub fn dequeue_next(&mut self) -> Option<TaskId> {
-        // Find the highest non-empty bucket (MSB of mask).
-        if self.non_empty_mask == 0 {
-            return None;
-        }
-        let bucket = (7 - self.non_empty_mask.leading_zeros()) as usize;
-        let id = self.queues[bucket].pop();
-        if self.queues[bucket].len == 0 {
-            self.non_empty_mask &= !(1 << bucket);
-        }
-        id
-    }
-}
+// The multi-level ready queue, its priorities and its tests live in `fjell-task` (RFC-0.50-001): `ReadyQueue::remove` was written at 0.49
+// with no test and hung the machine, found only by booting. `Scheduler` stays here because `set_current` tells the audit ring who has the CPU.
+pub use fjell_task::ready_queue::{PRIORITY_IDLE, PRIORITY_USER, ReadyQueue};
 
 // ── SchedError ────────────────────────────────────────────────────────────────
 
@@ -259,43 +124,5 @@ impl Scheduler {
 
     pub fn ticks(&self) -> u64 {
         self.tick
-    }
-}
-
-// ── host-side unit tests ──────────────────────────────────────────────────────
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn id(i: u16) -> TaskId {
-        TaskId::new(i, 0)
-    }
-
-    #[test]
-    fn basic_enqueue_dequeue() {
-        let mut rq = ReadyQueue::new();
-        rq.enqueue(id(0), PRIORITY_USER);
-        rq.enqueue(id(1), PRIORITY_USER);
-        let a = rq.dequeue_next().unwrap();
-        let b = rq.dequeue_next().unwrap();
-        assert_ne!(a, b);
-        assert!(rq.dequeue_next().is_none());
-    }
-
-    #[test]
-    fn higher_priority_first() {
-        let mut rq = ReadyQueue::new();
-        rq.enqueue(id(0), PRIORITY_USER);
-        rq.enqueue(id(1), PRIORITY_KERNEL_SERVICE);
-        let first = rq.dequeue_next().unwrap();
-        assert_eq!(first, id(1), "kernel-service priority should come first");
-    }
-
-    #[test]
-    fn no_duplicate_enqueue() {
-        let mut rq = ReadyQueue::new();
-        assert!(rq.enqueue(id(0), PRIORITY_USER));
-        assert!(!rq.enqueue(id(0), PRIORITY_USER)); // duplicate → rejected
     }
 }

@@ -47,6 +47,8 @@
 //!     `Allow` rights, evaluated rather than text-matched (0.46 small item C)
 //!   - `syscall-doc` — the Syscall Reference's table and `kernel.md`'s group table agree with `SyscallNumber`: a row naming no variant,
 //!     a variant no row names, a wrong number, an alias that is not a wrapper or reaches another syscall (RFC-0.50-002)
+//!   - `dead-tests` — a bare-metal crate's binary contains no `#[test]`/`#[cfg(test)]`: the host cannot compile one, so it would report
+//!     coverage it has not got (E-134, RFC-0.50-001 D6)
 //!   - `qemu-records` — every release-gated QEMU profile (and each smoke milestone `test-all` runs) has its recorded marker
 //!     artefacts, a `multi_node` profile without one is waived by name and reason, and no record is orphaned (E-135)
 //!   - `repo-scope` — every Rust source that walks the tree asks `fjell-repo-scope` or is classified
@@ -71,6 +73,7 @@ mod bootstrap_leases_gate; // RFC-0.48-001: the subcheck's file-reading half (lo
 mod capability_topology;
 mod ci_test_jobs;
 mod citation;
+mod dead_tests_gate; // RFC-0.50-001 D6 (E-134): the subcheck's file-reading half (logic is in the lib)
 mod closed_erratum_prose; // RFC-0.41-005: prose that still asserts a closed erratum
 mod doc_counts;
 mod doc_links;
@@ -180,6 +183,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("qemu-records", qemu_records_gate::check),
     // RFC-0.50-002: the Syscall Reference and kernel.md's group table are compared with `SyscallNumber` (the check 0.22 named and aimed at source).
     ("syscall-doc", syscall_doc_gate::check),
+    // RFC-0.50-001 D6 (E-134): a bare-metal crate cannot compile a test on the host, so it must not contain one.
+    ("dead-tests", dead_tests_gate::check),
 ];
 
 #[cfg(test)]

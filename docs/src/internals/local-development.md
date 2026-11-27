@@ -197,6 +197,9 @@ fjell-os/
 │   ├── fjell-abi/              stable ABI types
 │   ├── fjell-cap/              capability model (host-testable)
 │   ├── fjell-ipc/              IPC state machine (host-testable)
+│   ├── fjell-lease/            the lease table (host-testable; the kernel wakes what it revokes)
+│   ├── fjell-task/             task table, ready queue, milestone queries (host-testable)
+│   ├── fjell-user-ptr/         user-pointer validation (host-testable)
 │   ├── fjell-syscall/          userspace syscall wrappers
 │   └── fjell-tools/            cargo xtask runner
 ├── docs/

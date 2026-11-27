@@ -1,12 +1,11 @@
 //! RFC-0.48-001 R6: the `bootstrap-leases` subcheck's file-reading and printing half. The judgement is
 //! `fjell_consistency_check::bootstrap_leases::evaluate`, in the library, where its tests are.
 
-use fjell_consistency_check::bootstrap_leases::{Source, evaluate};
+use fjell_consistency_check::bootstrap_leases::{SCANNED_SRC, Source, evaluate};
 use std::path::Path;
 use std::process::ExitCode;
 
 const NAME: &str = "bootstrap-leases";
-const KERNEL_SRC: &str = "crates/fjell-kernel/src/";
 
 pub fn check() -> ExitCode {
     let paths = match fjell_repo_scope::files_with_extension(
@@ -21,10 +20,10 @@ pub fn check() -> ExitCode {
         }
     };
     let mut sources = Vec::new();
-    for p in paths
-        .iter()
-        .filter(|p| p.to_string_lossy().contains(KERNEL_SRC))
-    {
+    for p in paths.iter().filter(|p| {
+        let p = p.to_string_lossy();
+        SCANNED_SRC.iter().any(|d| p.contains(d))
+    }) {
         let Some(text) = crate::read_file(NAME, &p.to_string_lossy()) else {
             return ExitCode::FAILURE;
         };
@@ -36,7 +35,7 @@ pub fn check() -> ExitCode {
     match evaluate(&sources) {
         Ok(r) => {
             println!(
-                "{NAME}: PASS ({} kernel source files; {} Capability literals, {} `lease: None`, every one in a classified \
+                "{NAME}: PASS ({} source files (the kernel and the three crates extracted from it); {} Capability literals, {} `lease: None`, every one in a classified \
                  function ({} entries, each with a reason) -- the per-image grants are bound to a boot lease in one pass; \
                  {} fixture images exempt from that pass, each with a reason; {} call sites of a device-unmap primitive, every \
                  one in a classified function (the holder's syscalls, a task's death, and a failed map's own rollback) -- so lease \

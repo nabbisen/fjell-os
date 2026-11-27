@@ -1,0 +1,11 @@
+[package]
+name = "fjell-lease"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+fjell-abi = { path = "../fjell-abi" }
+fjell-cap = { path = "../fjell-cap" }

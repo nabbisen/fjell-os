@@ -59,9 +59,8 @@ pub struct VmRegion {
 /// Maximum number of `VmRegion` entries per address space.
 pub const MAX_VM_REGIONS: usize = 16;
 
-/// Unique identifier for an address space.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct AddressSpaceId(pub u16);
+/// Unique identifier for an address space. (Defined in `fjell-task` with the TCB that carries one -- RFC-0.50-001.)
+pub use fjell_task::AddressSpaceId;
 
 /// A Sv39 virtual address space.
 ///

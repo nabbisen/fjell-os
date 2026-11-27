@@ -21,6 +21,7 @@ pub const UNDERIVED_TEST_PACKAGE: &str = "fjell-proptest";
 pub mod authority_funnel;
 pub mod bootstrap_leases; // RFC-0.48-001: every boot grant is bound to a lease, or classified with a reason // RFC-0.47-001: no authority check outside the funnel, and no false SAFETY claim about it
 pub mod criterion9; // 0.50 small item C: a release record names the push run and the dispatched run criterion 9 reads
+pub mod dead_tests; // RFC-0.50-001 D6 (E-134): a bare-metal crate's binary contains no test
 pub mod errata;
 pub mod landing_page; // 0.48 small item A (E-130): the crates.io landing page's errata figures are derived from the register
 pub mod qemu_records; // E-135: the gated profiles and the recorded ones are compared, as three sets
@@ -76,4 +77,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "release-records",
     "qemu-records",
     "syscall-doc",
+    "dead-tests",
 ];

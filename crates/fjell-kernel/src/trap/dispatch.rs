@@ -530,10 +530,11 @@ pub(crate) fn exited_ok_by_image(table: &crate::task::tcb::TaskTable, image_id: 
     // RFC-0.49-001 D1: the kernel's own milestone markers must not depend on a *corpse*. A task is destroyed by `TaskKill`
     // and its slot freed, so "has an image exited cleanly" is a latch set on the exit path, not a scan for a task that
     // may no longer exist. The scan is kept as well: it is the old definition and costs nothing.
-    exit_latched(image_id)
-        || table
-            .iter()
-            .any(|t| t.image_id == image_id && matches!(t.state, TaskState::Exited(0)))
+    //
+    // RFC-0.50-001: the scan is `fjell_task::milestone::exited_ok_by_image`, where its eight tests run on the host. **The latch
+    // stays here**: it is a process-global static, and in a library shared by parallel host tests it would carry one test's
+    // `Exited(0)` into another's "must not fire while running".
+    exit_latched(image_id) || fjell_task::milestone::exited_ok_by_image(table, image_id)
 }
 
 /// Images that have **exited cleanly at least once this boot** (RFC-0.49-001 D1) -- one flag per image id, no tunable.
@@ -554,16 +555,7 @@ fn exit_latched(image_id: ImageId) -> bool {
         .is_some_and(|f| f.load(core::sync::atomic::Ordering::Relaxed))
 }
 
-/// Is every task carrying `image_id` no longer runnable (exited or
-/// faulted)? `Iterator::all` is vacuously true when no task carries
-/// `image_id` at all, mirroring the old index-keyed `done()`'s
-/// `unwrap_or(true)` — "nothing there" counts as done, same as before.
-fn done_by_image(table: &crate::task::tcb::TaskTable, image_id: ImageId) -> bool {
-    table
-        .iter()
-        .filter(|t| t.image_id == image_id)
-        .all(|t| matches!(t.state, TaskState::Exited(_) | TaskState::Faulted(_)))
-}
+use fjell_task::milestone::done_by_image;
 
 fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
     // Pass conditions by milestone, keyed on the kernel-attested `image_id`
@@ -591,146 +583,6 @@ fn check_smoke_pass(table: &crate::task::tcb::TaskTable) {
         crate::kprintln!("TEST:M7:PASS");
     } else if done_by_image(table, ImageId::INIT) {
         crate::kprintln!("TEST:M7:FAIL (init did not exit cleanly)");
-    }
-}
-
-#[cfg(test)]
-mod milestone_marker_tests {
-    use super::*;
-    use crate::mm::vspace::AddressSpaceId;
-    use crate::task::TaskId;
-    use crate::task::tcb::{Task, TaskTable};
-
-    /// A minimal, host-constructible task: only `image_id` and `state`
-    /// matter for these checks, so the rest are throwaway values.
-    fn task_with(image_id: ImageId, state: TaskState) -> Task {
-        let mut t = Task::new(TaskId::new(0, 0), 0, AddressSpaceId(0), 0, 0);
-        t.image_id = image_id;
-        t.state = state;
-        t
-    }
-
-    // ── Requirement 1: fails when the named service fails ──────────────────
-
-    #[test]
-    fn exited_ok_true_when_named_service_exited_cleanly() {
-        let mut table = TaskTable::new();
-        table
-            .insert(task_with(ImageId::SYNCD, TaskState::Exited(0)))
-            .unwrap();
-        assert!(exited_ok_by_image(&table, ImageId::SYNCD));
-    }
-
-    #[test]
-    fn exited_ok_false_when_named_service_still_running() {
-        let mut table = TaskTable::new();
-        table
-            .insert(task_with(ImageId::SYNCD, TaskState::Runnable))
-            .unwrap();
-        assert!(
-            !exited_ok_by_image(&table, ImageId::SYNCD),
-            "marker must not fire while the named service is still running"
-        );
-    }
-
-    #[test]
-    fn exited_ok_false_when_named_service_exited_with_nonzero_code() {
-        let mut table = TaskTable::new();
-        table
-            .insert(task_with(ImageId::SYNCD, TaskState::Exited(1)))
-            .unwrap();
-        assert!(
-            !exited_ok_by_image(&table, ImageId::SYNCD),
-            "marker must not fire when the named service failed (nonzero exit)"
-        );
-    }
-
-    #[test]
-    fn exited_ok_false_when_named_service_faulted() {
-        use crate::task::tcb::{FaultCause, FaultInfo};
-        let mut table = TaskTable::new();
-        table
-            .insert(task_with(
-                ImageId::SYNCD,
-                TaskState::Faulted(FaultInfo {
-                    cause: FaultCause::LoadPageFault,
-                    sepc: 0,
-                    stval: 0,
-                }),
-            ))
-            .unwrap();
-        assert!(
-            !exited_ok_by_image(&table, ImageId::SYNCD),
-            "marker must not fire when the named service faulted"
-        );
-    }
-
-    // ── Requirement 2: does not fire when a different task occupies the ────
-    // ── index the named service used to use ────────────────────────────────
-
-    /// Reproduces the exact real-world scenario this RFC exists to fix:
-    /// insert filler tasks to push a different-identity task into table
-    /// index 19 — the hardcoded index `TEST:V0.7-SYNC:PASS` used to key
-    /// on — and confirm the identity-based check does not fire for
-    /// `SYNCD`, even though *something* at that historical index is
-    /// `Exited(0)`.
-    #[test]
-    fn exited_ok_ignores_a_different_task_at_the_old_hardcoded_index() {
-        let mut table = TaskTable::new();
-        // Fill indices 0..19 with unrelated, still-running tasks.
-        for _ in 0..19 {
-            table
-                .insert(task_with(ImageId::DEVMGR, TaskState::Runnable))
-                .unwrap();
-        }
-        // Index 19 (the old hardcoded syncd slot) is now occupied by an
-        // unrelated task that HAS exited cleanly.
-        let imposter_id = table
-            .insert(task_with(ImageId::NETD, TaskState::Exited(0)))
-            .unwrap();
-        assert_eq!(
-            imposter_id.index, 19,
-            "test setup must actually land the imposter at index 19"
-        );
-
-        // The old index-keyed check would have said yes here. The
-        // identity-keyed check must not: no task in this table carries
-        // ImageId::SYNCD at all.
-        assert!(
-            !exited_ok_by_image(&table, ImageId::SYNCD),
-            "must not fire for SYNCD just because index 19 exited cleanly"
-        );
-        // Sanity: the imposter's own identity is unaffected.
-        assert!(exited_ok_by_image(&table, ImageId::NETD));
-    }
-
-    // ── done_by_image (used for the init/M7-FAIL path) ──────────────────────
-
-    #[test]
-    fn done_by_image_true_when_no_such_task_exists() {
-        let table = TaskTable::new();
-        assert!(
-            done_by_image(&table, ImageId::INIT),
-            "vacuous truth: nothing to be un-done about a task that isn't there"
-        );
-    }
-
-    #[test]
-    fn done_by_image_false_while_task_is_running() {
-        let mut table = TaskTable::new();
-        table
-            .insert(task_with(ImageId::INIT, TaskState::Runnable))
-            .unwrap();
-        assert!(!done_by_image(&table, ImageId::INIT));
-    }
-
-    #[test]
-    fn done_by_image_true_after_exit_or_fault() {
-        let mut table = TaskTable::new();
-        table
-            .insert(task_with(ImageId::INIT, TaskState::Exited(1)))
-            .unwrap();
-        assert!(done_by_image(&table, ImageId::INIT));
     }
 }
 
