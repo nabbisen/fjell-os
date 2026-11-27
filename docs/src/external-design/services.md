@@ -21,8 +21,9 @@ five programs were missing from it, and two other figures in circulation (the ke
 number of crates) disagreed with both. A count a person types is the thing that drifted, so none is stated
 here. To count: `ls -d crates/services/*/ crates/drivers/*/ | wc -l` for programs and
 `git ls-files 'crates/fjell-kernel/prebuilt/*.bin' | wc -l` for the images the kernel embeds (every program but
-`summaryd`, which has none). Nothing checks this table against the tree: `doc-counts` covers only
-`rfcs/README.md`, and `syscall-doc` only the syscall tables (RFC-0.50-002 D5).*
+`summaryd`, which has none). The `service-table` subcheck compares the **set**: every program
+directory is named by a row below and every row names a program (RFC-0.50-002 D5); it does not
+read the Responsibility or Requirement columns, and nothing does.*
 
 | Service | Responsibility | Requirement |
 |---|---|---|

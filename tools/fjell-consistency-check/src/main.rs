@@ -47,6 +47,8 @@
 //!     `Allow` rights, evaluated rather than text-matched (0.46 small item C)
 //!   - `syscall-doc` — the Syscall Reference's table and `kernel.md`'s group table agree with `SyscallNumber`: a row naming no variant,
 //!     a variant no row names, a wrong number, an alias that is not a wrapper or reaches another syscall (RFC-0.50-002)
+//!   - `service-table` — `services.md`'s service table names every program under `crates/services/` and `crates/drivers/`, and only those
+//!     (a set comparison; RFC-0.50-002 D5)
 //!   - `dead-tests` — a bare-metal crate's binary contains no `#[test]`/`#[cfg(test)]`: the host cannot compile one, so it would report
 //!     coverage it has not got (E-134, RFC-0.50-001 D6)
 //!   - `qemu-records` — every release-gated QEMU profile (and each smoke milestone `test-all` runs) has its recorded marker
@@ -92,6 +94,7 @@ mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is i
 mod rfc_policy_gate; // RFC-0.47-002: the subcheck's file-reading half (logic is in the lib)
 mod rfc_status_folder;
 mod security_advisories;
+mod service_table_gate; // RFC-0.50-002 D5: the subcheck's file-reading half (logic is in the lib)
 mod standards_mapping;
 use fjell_consistency_check::status; // shared with the lib (RFC-0.45-003)
 mod syscall_doc_gate; // RFC-0.50-002: the subcheck's file-reading half (logic is in the lib)
@@ -185,6 +188,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("syscall-doc", syscall_doc_gate::check),
     // RFC-0.50-001 D6 (E-134): a bare-metal crate cannot compile a test on the host, so it must not contain one.
     ("dead-tests", dead_tests_gate::check),
+    // RFC-0.50-002 D5: every program under crates/services/ and crates/drivers/ is a row of services.md's table, and every row is a program.
+    ("service-table", service_table_gate::check),
 ];
 
 #[cfg(test)]

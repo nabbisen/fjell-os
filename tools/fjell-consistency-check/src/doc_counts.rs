@@ -40,8 +40,11 @@
 //! 0.22 named for exactly this, *"to stop documented-surface drift recurring"*, was built and given
 //! the wrong inputs). Now: the **syscall tables in the documents** are `syscall-doc`'s (the
 //! Syscall Reference and `kernel.md`'s group table, against `SyscallNumber`); the **dispatch state**
-//! is `syscall-surface`'s; **service and driver counts, and the service table, are covered by
-//! nothing** -- named here so that the next reader is not told they belong to somebody else.
+//! is `syscall-surface`'s; **which programs `services.md`'s service table names** is `service-table`'s
+//! (a set comparison: every program under `crates/services/` and `crates/drivers/` is a row, every row a
+//! program); and **everything else about them -- a count typed in prose, a Responsibility column, a
+//! stub claim -- is covered by nothing**, named here so that the next reader is not told it belongs
+//! to somebody else.
 
 use crate::read_file;
 use fjell_consistency_check::readme_counts::{FolderCounts, count_folders, disagreements};
@@ -90,9 +93,11 @@ mod tests {
     /// that does (`syscall-doc`) and says what is uncovered; this test pins both, and that the false sentence is gone.
     #[test]
     fn the_scope_note_names_the_check_that_owns_the_syscall_tables_and_what_nothing_covers() {
-        let me = include_str!("doc_counts.rs");
-        assert!(me.contains("`syscall-doc`"), "the note must name the check that reads the documents");
-        assert!(me.contains("covered by\n//! nothing"), "the note must say what is uncovered");
+        // Only the module's own documentation: the assertions below name these checks in their own source, so scanning the whole file
+        // would find them in the test and pass whatever the note says (found by mutating the note: the first version stayed green).
+        let me = include_str!("doc_counts.rs").split("#[cfg(test)]").next().unwrap();
+        assert!(me.contains("`syscall-doc`") && me.contains("`service-table`"), "the note must name the checks that read the documents");
+        assert!(me.contains("is covered by nothing"), "the note must say what is uncovered");
         let false_sentence = ["syscall counts already covered", " by\n//! `syscall-surface`"].concat();
         let hits = me.matches(false_sentence.as_str()).count();
         assert_eq!(hits, 0, "the sentence that said syscall-surface covers the documents must not come back");

@@ -29,6 +29,7 @@ pub mod readme_counts;
 pub mod release_records; // RFC-0.48-003: a release has a CHANGELOG section and a record; the workflow is the one described
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
 pub mod rfc_policy; // RFC-0.47-002: the lifecycle policy's kept rules are written down, and a check can find them missing
+pub mod service_table; // RFC-0.50-002 D5: the service table names every program in the tree, and only those
 pub mod status; // shared status-keyword parsing (was a bin module)
 pub mod syscall_doc; // RFC-0.50-002: the published syscall tables are compared with `SyscallNumber`
 pub mod syscall_table; // `syscall-surface`'s two parsers, shared with `rfc-evidence`
@@ -78,4 +79,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "qemu-records",
     "syscall-doc",
     "dead-tests",
+    "service-table",
 ];
