@@ -20,6 +20,8 @@ name             = "net-absent"
 timeout_secs     = 60
 expected_markers = [
   "driver-virtio-net: no virtio-net device found (scanned 8 transports)",
+  # RFC-0.50-003: with no NIC, blk is on the highest transport and `storaged` finds it on its first read (nothing to release).
+  "storaged: virtio-blk found on transport 7; released 0 unused mapping(s), 0 refused, 0 unmappable",
 ]
-expect_absent    = ["driver-virtio-net: found"]
+expect_absent    = ["driver-virtio-net: found", "transport mapping(s) not released"]
 extra_args       = []

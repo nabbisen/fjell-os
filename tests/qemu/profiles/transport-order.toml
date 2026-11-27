@@ -1,0 +1,33 @@
+# RFC-0.50-003 D5: blk is NOT on the highest virtio-mmio transport, and `storaged` still finds it -- and gives back the one it probed.
+#
+# QEMU `virt` assigns virtio-mmio transports in REVERSE creation order: the first device created takes the highest slot (7). Every
+# other profile attaches blk first, so blk is always on 7 and `storaged`'s scan (descending, since 0.50) finds it on its first read
+# and releases nothing -- which would leave the release path, the one thing line 3 exists to put a production caller behind,
+# executed in no gated boot. `pre_blk_args` puts a NIC AHEAD of blk (`extra_args` is appended after it and cannot): the NIC takes slot
+# 7, blk lands on 6, so `storaged` must map slot 7, see it is not blk, **release that mapping**, then map slot 6.
+#
+# What this requires, and what each line would mean if it failed:
+#   * the NIC really is on 7 (`driver-virtio-net` found it there) -- else the profile is not testing what it says;
+#   * `storaged` found blk on transport 6 and released exactly 1 unused mapping with 0 refused and 0 unmappable -- a release that
+#     stopped working reads `released 0` (and `1 refused` if the kernel said no); a scan that went back to counting up would find
+#     blk on transport 6 after mapping SEVEN, and say `released 6`;
+#   * the second line `storaged` prints only when a release was refused ("not released") never appears;
+#   * the storage path still works end to end behind that scan (`TEST:M8:PASS` needs `upgraded`, which needs `storaged`).
+
+name             = "transport-order"
+timeout_secs     = 90
+expected_markers = [
+  "driver-virtio-net: found virtio-mmio device id=1 at slot 7 ",
+  "storaged: virtio-blk found on transport 6; released 1 unused mapping(s), 0 refused, 0 unmappable",
+  "TEST:M8:PASS",
+]
+expect_absent    = ["transport mapping(s) not released"]
+# The KERNEL's own line for the release, not only storaged's account of it: `storaged` printing "released 1" shows what it believes, and
+# a scan that counted a release it never made (the mutation that was GREEN on the first version of this profile) reads identically. One
+# page, at the device VMA base, once -- and `neg-test`'s unmaps are different lines ("2 page(s)" at the same address, then 0x70002000
+# upward), so this one is storaged's. The task number is not pinned: it moves with the task table.
+once_markers     = [
+  "kernel: MMIO unmap: 1 page(s) of region 3 at 0x70000000 from task",
+]
+pre_blk_args     = ["-netdev", "user,id=n0,restrict=on", "-device", "virtio-net-device,netdev=n0"]
+extra_args       = []

@@ -3,12 +3,12 @@
 #![no_std]
 #![no_main]
 // RFC-0.37-002 (closes E-082): re-derived, not inherited -- confirmed real
-// by deleting this allow and building. Covers: the nine v2-only virtio-mmio
+// by deleting this allow and building (re-run at 0.50 when `BUS_OFFSETS` stopped being dead: 12, not 13). Covers: the nine v2-only virtio-mmio
 // register offsets (`R_DEV_FEAT_SEL`..`R_QUEUE_DEV_HI`, already commented
 // "unused in v1 mode" -- this driver runs the v1 legacy register set only),
-// plus `OFF_DESC`, `READ_DATA`, `REGION_BASE` and `BUS_OFFSETS`, each
+// plus `OFF_DESC`, `READ_DATA` and `REGION_BASE`, each
 // declared for documentation/future use alongside constants this file does
-// read. Kept crate-level: 13 single-purpose constants scattered through a
+// read. Kept crate-level: 12 single-purpose constants scattered through a
 // hardware register map, not a handful of loop-local bindings -- item-level
 // annotation on each would not narrow what it covers, only how it is spelled.
 #![allow(dead_code)]
@@ -17,6 +17,7 @@ mod rt;
 use core::sync::atomic::{Ordering, fence};
 use fjell_syscall::{
     sys_clock_now_ns, sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map,
+    sys_mmio_unmap,
     sys_yield,
 };
 
@@ -222,6 +223,33 @@ fn put_dec64(mut v: u64) {
     }
 }
 
+/// The one line the scan says (RFC-0.50-003 D3/D4), and, only if a release was refused, a second that says so. The numbers vary, the
+/// form does not: **`0 released, 8 unmappable` cannot read as a clean scan** because every count is printed, and a refused release
+/// changes the second number and adds the second line -- which the profiles require absent.
+fn report_scan(bus: Option<usize>, released: u32, refused: u32, unmappable: u32, last_refusal: isize) {
+    match bus {
+        Some(b) => {
+            sys_debug_write("storaged: virtio-blk found on transport ");
+            put_dec(b as u32);
+        }
+        None => sys_debug_write("storaged: no virtio-blk on any transport"),
+    }
+    sys_debug_write("; released ");
+    put_dec(released);
+    sys_debug_write(" unused mapping(s), ");
+    put_dec(refused);
+    sys_debug_write(" refused, ");
+    put_dec(unmappable);
+    sys_debug_writeln(" unmappable");
+    if refused > 0 {
+        sys_debug_write("storaged: ");
+        put_dec(refused);
+        sys_debug_write(" transport mapping(s) not released (last error code ");
+        put_dec64(last_refusal.unsigned_abs() as u64);
+        sys_debug_writeln(")");
+    }
+}
+
 /// Read the clock, in nanoseconds, or `None` if the kernel refuses (no `Clock` cap, or no
 /// `CLOCK_READ`). A failed read costs the report its duration and nothing else: it is
 /// observation only and no decision in this service depends on it.
@@ -424,22 +452,38 @@ fn reply(tag: usize) {
 #[unsafe(no_mangle)]
 pub extern "C" fn service_main() -> ! {
     // 1. Find virtio-blk MMIO.
-    //    QEMU virt assigns drives to virtio-mmio buses in reverse order.
-    //    Scan buses from 7 to 0 (highest offset first) for DeviceID=2 (blk).
+    //    QEMU virt assigns drives to virtio-mmio buses in reverse order: the first device created takes the HIGHEST slot. So scan
+    //    from 7 down to 0 (`BUS_OFFSETS` is that table) for DeviceID=2 (blk) -- on every profile that attaches blk first, blk is
+    //    found on the first read. (Until 0.50 the comment said this and the loop counted UP from 0, mapping all eight transports
+    //    and finding blk on the last; `BUS_OFFSETS`, the constant that would have shown the contradiction, was dead and silenced
+    //    by this crate's `allow(dead_code)`.)
+    //
+    //    **A transport that is not blk is released the moment it fails the test** (RFC-0.50-003): a long-lived service must not
+    //    hold seven mappings of transports it will never touch. Which transport blk occupies is a function of the QEMU command
+    //    line, not of the machine -- a NIC created before blk puts blk on slot 6 -- so the scan *probes and releases* and does
+    //    not assume "highest".
+    //
+    //    A refusal to release is bookkeeping, not a verdict on the device: the scan carries on and the count is printed, so a
+    //    release that stops working fails a gate instead of being absorbed (and instead of failing the boot).
     const MAGIC_VALUE: u32 = 0x7472_6976;
     const DEVICE_ID_BLK: u32 = 2;
     const BUS_OFFSETS: [usize; 8] = [
         0x7000, 0x6000, 0x5000, 0x4000, 0x3000, 0x2000, 0x1000, 0x0000,
     ];
-    // Scan: print each bus devid nibble, stop when devid=2 found.
-    // Format: bus_idx(0x30..0x37) then devid_nibble(0x30..0x3F)
+    let mmio_cap = CapHandle::new(MMIO_SLOT, 0);
+    let mut released = 0u32;
+    let mut refused = 0u32;
+    let mut unmappable = 0u32;
+    let mut last_refusal = 0isize;
     let mmio: usize = {
         let mut found = 0usize;
-        for bus in 0..8usize {
-            let off = bus * 0x1000;
-            let va = match sys_mmio_map(CapHandle::new(MMIO_SLOT, 0), off, 0x1000) {
+        let mut found_bus = 0usize;
+        for &off in BUS_OFFSETS.iter() {
+            let va = match sys_mmio_map(mmio_cap, off, 0x1000) {
                 Ok(v) if v != 0 => v,
+                // Not mapped, so there is nothing to release: neither a release nor a refusal.
                 _ => {
+                    unmappable += 1;
                     continue;
                 }
             };
@@ -453,13 +497,24 @@ pub extern "C" fn service_main() -> ! {
             // Removed; the scan's result is what matters, not its progress.
             if magic == MAGIC_VALUE && devid == DEVICE_ID_BLK {
                 found = va;
+                found_bus = off / 0x1000;
                 break;
+            }
+            // A miss that was mapped: give it back now.
+            match sys_mmio_unmap(mmio_cap, va) {
+                Ok(()) => released += 1,
+                Err(e) => {
+                    refused += 1;
+                    last_refusal = e as isize;
+                }
             }
         }
         if found == 0 {
             sys_debug_writeln("storaged: no blk");
+            report_scan(None, released, refused, unmappable, last_refusal);
             sys_exit(1);
         }
+        report_scan(Some(found_bus), released, refused, unmappable, last_refusal);
         found
     };
 

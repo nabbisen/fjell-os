@@ -21,5 +21,10 @@ timeout_secs     = 60
 expected_markers = [
   "driver-virtio-net: found virtio-mmio device id=1 at slot ",
   "magic=0x74726976",
+  # RFC-0.50-003: blk is attached first here, so it is on the highest transport and `storaged`'s descending scan finds it on
+  # its first read and has nothing to release. The line is required in this form so that a scan that goes back to mapping
+  # every transport (`released 7`), or a release that is refused, fails here and not only in `transport-order`.
+  "storaged: virtio-blk found on transport 7; released 0 unused mapping(s), 0 refused, 0 unmappable",
 ]
+expect_absent    = ["transport mapping(s) not released"]
 extra_args       = ["-netdev", "user,id=n0,restrict=on", "-device", "virtio-net-device,netdev=n0"]

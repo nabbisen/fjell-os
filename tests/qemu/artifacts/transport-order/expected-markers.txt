@@ -1,0 +1,5 @@
+driver-virtio-net: found virtio-mmio device id=1 at slot 7 
+storaged: virtio-blk found on transport 6; released 1 unused mapping(s), 0 refused, 0 unmappable
+TEST:M8:PASS
+kernel: MMIO unmap: 1 page(s) of region 3 at 0x70000000 from task    [exactly 1x]
+transport mapping(s) not released    [absent: no console line may contain this text]

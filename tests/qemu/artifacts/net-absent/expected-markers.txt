@@ -1,2 +1,4 @@
 driver-virtio-net: no virtio-net device found (scanned 8 transports)
+storaged: virtio-blk found on transport 7; released 0 unused mapping(s), 0 refused, 0 unmappable
 driver-virtio-net: found    [absent: no console line may contain this text]
+transport mapping(s) not released    [absent: no console line may contain this text]

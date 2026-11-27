@@ -38,6 +38,12 @@ pub struct Profile {
     pub expected_markers: Vec<String>,
     /// Optional extra QEMU args beyond the defaults.
     pub extra_args: Vec<String>,
+    /// QEMU args placed **before** the blk device (`-drive` / `-device virtio-blk-device`), where `extra_args` cannot reach
+    /// (RFC-0.50-003 D5, the architect's ruling on the stage-1 review). QEMU `virt` assigns virtio-mmio transports in reverse
+    /// creation order, so **a device created before blk takes a higher slot and blk lands lower**; `extra_args` is appended after
+    /// blk, so no profile could ever put a device first. Empty for every profile that does not set it -- an additive field, so
+    /// every existing command line is byte-identical (a test checks that against the committed `qemu-command.txt` of each one).
+    pub pre_blk_args: Vec<String>,
     /// RFC-0.25-001 (Demonstration 6): once this marker appears in the
     /// captured output, write `.1`'s bytes to QEMU's stdin — `-nographic`
     /// wires the guest's UART0 RX to the host process's stdin by default,
@@ -196,6 +202,7 @@ impl Profile {
             timeout_secs: 60,
             expected_markers: vec![marker.to_string()],
             extra_args: vec![],
+            pre_blk_args: vec![],
             inject_after_marker: None,
             multi_node: false,
             release_gated: gated,
@@ -412,6 +419,32 @@ pub fn judge_equal_digests(text: &str, spec: &str) -> Result<String, String> {
     Ok(format!(
         "{b_lines} `{b}…` line(s) equal the `{a}…` digest before them ({a_lines} produced)"
     ))
+}
+
+/// The QEMU command line of a run, before the shutdown flags (`-no-reboot -qmp ...`) that `expect_shutdown` appends: the timeout, the
+/// machine, the kernel, then **`pre_blk_args`**, then the blk drive and device, then `extra_args`. Pure, so a test can compare it
+/// with every committed `qemu-command.txt`.
+pub(crate) fn base_argv(p: &Profile, kernel_str: &str, drive_arg: &str) -> Vec<String> {
+    let mut argv: Vec<String> = vec![
+        format!("{}", p.timeout_secs),
+        "qemu-system-riscv64".into(),
+        "-machine".into(),
+        "virt".into(),
+        "-bios".into(),
+        "none".into(),
+        "-nographic".into(),
+        "-kernel".into(),
+        kernel_str.to_string(),
+    ];
+    argv.extend(p.pre_blk_args.iter().cloned());
+    argv.extend([
+        "-drive".into(),
+        drive_arg.to_string(),
+        "-device".into(),
+        "virtio-blk-device,drive=hd0".into(),
+    ]);
+    argv.extend(p.extra_args.iter().cloned());
+    argv
 }
 
 /// Where artefacts are written for one run.
@@ -660,22 +693,7 @@ pub fn run_profile(p: &Profile) -> ExitCode {
 
     // Build the command vector once so we can both run it and persist
     // it to qemu-command.txt.
-    let mut argv: Vec<String> = vec![
-        format!("{}", p.timeout_secs),
-        "qemu-system-riscv64".into(),
-        "-machine".into(),
-        "virt".into(),
-        "-bios".into(),
-        "none".into(),
-        "-nographic".into(),
-        "-kernel".into(),
-        kernel_str.clone(),
-        "-drive".into(),
-        drive_arg.clone(),
-        "-device".into(),
-        "virtio-blk-device,drive=hd0".into(),
-    ];
-    argv.extend(p.extra_args.iter().cloned());
+    let mut argv = base_argv(p, &kernel_str, &drive_arg);
 
     // RFC-0.33-001: a profile that expects the machine to stop is run with
     // `-no-reboot` (so a reset ends the run instead of looping) and a QMP
@@ -1377,6 +1395,7 @@ fn run_with_stdin_injection(argv: &[String], marker: &[u8], inject_bytes: &[u8])
 ///   timeout_secs     = integer
 ///   expected_markers = ["a", "b", "c"]
 ///   extra_args       = ["-d", "trace:..."]
+///   pre_blk_args     = ["-netdev", ...]   (RFC-0.50-003 D5: QEMU args placed BEFORE the blk device)
 ///   multi_node       = true|false   (RFC-0.29-001)
 ///   release_gated    = true|false   (RFC-0.29-001; requires not_gated_reason when false)
 ///   not_gated_reason = "string"     (RFC-0.29-001)
@@ -1401,6 +1420,7 @@ pub(crate) fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let mut disk_v = PathBuf::from("fjell-disk.img");
     let mut timeout_v: u32 = 60;
     let mut markers: Vec<String> = Vec::new();
+    let mut pre_blk: Vec<String> = Vec::new();
     let mut extra: Vec<String> = Vec::new();
     let mut inject_after_marker_v: Option<String> = None;
     let mut inject_bytes_v: Option<String> = None;
@@ -1480,6 +1500,7 @@ pub(crate) fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
             }
             "expected_markers" => markers = array_items(&path, k, idx, v)?,
             "extra_args" => extra = array_items(&path, k, idx, v)?,
+            "pre_blk_args" => pre_blk = array_items(&path, k, idx, v)?,
             // RFC-0.25-001 (Demonstration 6): a byte is written to QEMU's
             // stdin once `inject_after_marker` appears in the output.
             // `inject_bytes` is the literal string whose bytes are sent —
@@ -1591,6 +1612,7 @@ pub(crate) fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
         timeout_secs: timeout_v,
         expected_markers: markers,
         extra_args: extra,
+        pre_blk_args: pre_blk,
         inject_after_marker,
         multi_node: multi_node_v,
         release_gated: release_gated_v,
@@ -1964,6 +1986,50 @@ mod array_reader_tests {
                 .expected_markers
                 .is_empty()
         );
+    }
+
+    /// **RFC-0.50-003 D5, verified and not assumed:** adding `pre_blk_args` changed no existing command line. For every committed
+    /// profile with a recorded `qemu-command.txt`, the pure argv builder reproduces that file **byte for byte** (a profile that ends
+    /// by machine reset appends `-no-reboot -qmp ...` after the builder's output, so for those the record must *start with* it).
+    /// Moving the blk `-device` after `extra_args` instead -- the tidier-looking fix -- would fail this for every profile.
+    #[test]
+    fn every_existing_command_line_is_byte_identical_after_pre_blk_args() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut checked = 0;
+        for entry in fs::read_dir(root.join("tests/qemu/profiles")).unwrap().flatten() {
+            let path = entry.path();
+            let Some(name) = path.file_stem().map(|s| s.to_string_lossy().to_string()) else { continue };
+            if path.extension().is_none_or(|e| e != "toml") || name == "README" {
+                continue;
+            }
+            let p = load_profile(&root, &name).unwrap();
+            let rec = root.join("tests/qemu/artifacts").join(&name).join("qemu-command.txt");
+            let Ok(recorded) = fs::read_to_string(&rec) else { continue };
+            if !p.pre_blk_args.is_empty() {
+                continue; // a profile that sets the new field is, by definition, not an old command line
+            }
+            let kernel = p.kernel.to_string_lossy().to_string();
+            let disk = p.disk.to_string_lossy().to_string();
+            let built = base_argv(&p, &kernel, &format!("file={disk},format=raw,if=none,id=hd0")).join(" ");
+            if p.expect_shutdown.is_none() {
+                assert_eq!(recorded, built, "{name}: the command line changed");
+            } else {
+                assert!(recorded.starts_with(&built), "{name}: the command line changed");
+            }
+            checked += 1;
+        }
+        assert!(checked >= 20, "only {checked} recorded profiles were compared: the test is not looking at the tree");
+    }
+
+    #[test]
+    fn pre_blk_args_land_between_the_kernel_and_the_blk_device_and_extra_args_stay_after_it() {
+        let mut p = Profile::smoke("m8", "x");
+        p.pre_blk_args = vec!["-netdev".into(), "user,id=n0".into(), "-device".into(), "virtio-net-device,netdev=n0".into()];
+        p.extra_args = vec!["-d".into(), "trace:a".into()];
+        let argv = base_argv(&p, "K", "D").join(" ");
+        let at = |needle: &str| argv.find(needle).unwrap_or_else(|| panic!("{needle} missing in {argv}"));
+        assert!(at("-kernel K") < at("virtio-net-device") && at("virtio-net-device") < at("-drive D"));
+        assert!(at("-drive D") < at("virtio-blk-device") && at("virtio-blk-device") < at("-d trace:a"));
     }
 
     #[test]

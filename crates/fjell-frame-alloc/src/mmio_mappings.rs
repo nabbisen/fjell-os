@@ -15,11 +15,12 @@
 use fjell_abi::task::TaskId;
 
 /// Capacity: **64**. *Re-measured after the first boot with 16 failed* (the `net-absent` and `store` profiles went red): the RFC
-/// counted call sites, not calls. `driver-virtio-net` and `storaged` each **scan all eight virtio transports and map every one**
-/// (`for bus in 0..8 { sys_mmio_map(.., bus * 0x1000, 0x1000) }`, never unmapping a transport that is not theirs), and
-/// `driver-uart` maps one: **up to 17 live mappings in an ordinary boot**, before `neg-test`'s scenario adds its own. 64 leaves
-/// room for a few more drivers; the table is ~40 bytes an entry, 2.5 KiB. (Having those drivers unmap the transports they do not
-/// use is now possible and is a follow-up, not this line.)
+/// counted call sites, not calls. `driver-virtio-net` and `storaged` each scanned **all eight virtio transports and mapped every
+/// one**, and `driver-uart` maps one: **up to 17 live mappings in an ordinary boot**, before `neg-test`'s scenario adds its own.
+/// 64 leaves room for a few more drivers; the table is ~40 bytes an entry, 2.5 KiB. *(Since 0.50 -- RFC-0.50-003 -- `storaged`
+/// scans from the highest transport down and releases each one that is not blk, so it holds **one**, and a boot's steady state is
+/// **2** live mappings against the **9** it held before; `driver-virtio-net` exits inside its scan, so the table reclaims its eight
+/// at exit and it is left alone.)*
 pub const MAX_MMIO_MAPPINGS: usize = 64;
 
 /// One live mapping.
