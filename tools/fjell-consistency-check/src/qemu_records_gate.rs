@@ -43,10 +43,17 @@ pub fn check() -> ExitCode {
     let mut profiles: Vec<ProfileInfo> = Vec::new();
     let mut recorded: BTreeSet<String> = BTreeSet::new();
     for f in &tracked {
-        let rel = f.strip_prefix(root).unwrap_or(f).to_string_lossy().replace('\\', "/");
+        let rel = f
+            .strip_prefix(root)
+            .unwrap_or(f)
+            .to_string_lossy()
+            .replace('\\', "/");
         if let Some(d) = recorded_dir(&rel) {
             recorded.insert(d.to_string());
-        } else if rel.starts_with("tests/qemu/profiles/") && rel.ends_with(".toml") && rel.matches('/').count() == 3 {
+        } else if rel.starts_with("tests/qemu/profiles/")
+            && rel.ends_with(".toml")
+            && rel.matches('/').count() == 3
+        {
             let Some(text) = crate::read_file(NAME, &rel) else {
                 return ExitCode::FAILURE;
             };
@@ -60,7 +67,9 @@ pub fn check() -> ExitCode {
         }
     }
     if profiles.is_empty() {
-        eprintln!("{NAME}: FAIL — no tests/qemu/profiles/*.toml among the tracked files: a check over nothing is not a pass");
+        eprintln!(
+            "{NAME}: FAIL — no tests/qemu/profiles/*.toml among the tracked files: a check over nothing is not a pass"
+        );
         return ExitCode::FAILURE;
     }
     let Some(test_all) = crate::read_file(NAME, "crates/fjell-tools/src/test_all.rs") else {

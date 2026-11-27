@@ -14,7 +14,9 @@ fn bare_metal_dir(rel: &str) -> Option<String> {
     let parts: Vec<&str> = rel.split('/').collect();
     match parts.as_slice() {
         ["crates", "fjell-kernel", ..] => Some("crates/fjell-kernel".into()),
-        ["crates", kind @ ("services" | "drivers"), name, ..] => Some(format!("crates/{kind}/{name}")),
+        ["crates", kind @ ("services" | "drivers"), name, ..] => {
+            Some(format!("crates/{kind}/{name}"))
+        }
         _ => None,
     }
 }
@@ -29,7 +31,11 @@ pub fn check() -> ExitCode {
     };
     let mut by_dir: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for f in &tracked {
-        let rel = f.strip_prefix(".").unwrap_or(f).to_string_lossy().replace('\\', "/");
+        let rel = f
+            .strip_prefix(".")
+            .unwrap_or(f)
+            .to_string_lossy()
+            .replace('\\', "/");
         let rel = rel.trim_start_matches("./").to_string();
         if let Some(dir) = bare_metal_dir(&rel) {
             let e = by_dir.entry(dir.clone()).or_default();
@@ -51,7 +57,11 @@ pub fn check() -> ExitCode {
             };
             sources.push((f, text));
         }
-        crates.push(CrateInfo { dir, manifest, sources });
+        crates.push(CrateInfo {
+            dir,
+            manifest,
+            sources,
+        });
     }
     match evaluate(&crates) {
         Ok(r) => {

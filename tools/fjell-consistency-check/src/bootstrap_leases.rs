@@ -770,9 +770,14 @@ mod tests {
             "crates/fjell-task/src/tcb.rs",
             "crates/fjell-user-ptr/src/lib.rs",
         ] {
-            let e = evaluate(&zero_base(path, "fn pick() -> TaskId { TaskId::new(3, 0) }\n")).unwrap_err();
+            let e = evaluate(&zero_base(
+                path,
+                "fn pick() -> TaskId { TaskId::new(3, 0) }\n",
+            ))
+            .unwrap_err();
             assert!(
-                e.iter().any(|p| p.contains(path) && p.contains("literal generation 0")),
+                e.iter()
+                    .any(|p| p.contains(path) && p.contains("literal generation 0")),
                 "{path}: {e:?}"
             );
         }

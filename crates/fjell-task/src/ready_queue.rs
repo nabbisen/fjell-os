@@ -202,7 +202,11 @@ mod tests {
         rq.enqueue(id(0), PRIORITY_KERNEL_SERVICE);
         assert_ne!(mask(&rq), 0);
         assert_eq!(rq.remove(id(0)), 1);
-        assert_eq!(mask(&rq), 0, "an emptied bucket must leave the mask, or dequeue_next looks in it for ever");
+        assert_eq!(
+            mask(&rq),
+            0,
+            "an emptied bucket must leave the mask, or dequeue_next looks in it for ever"
+        );
         assert!(rq.dequeue_next().is_none());
     }
 
@@ -213,7 +217,11 @@ mod tests {
         rq.enqueue(id(1), PRIORITY_USER);
         rq.enqueue(id(2), PRIORITY_KERNEL_SERVICE);
         assert_eq!(rq.remove(id(2)), 1);
-        assert_eq!(rq.dequeue_next(), Some(id(1)), "handing the CPU to idle here is the 0.49 hang");
+        assert_eq!(
+            rq.dequeue_next(),
+            Some(id(1)),
+            "handing the CPU to idle here is the 0.49 hang"
+        );
         assert_eq!(mask(&rq), 0);
     }
 
@@ -237,6 +245,10 @@ mod tests {
         assert_eq!(rq.remove(id(2)), 1);
         assert_eq!(mask(&rq), before, "the bucket is not empty: its bit stays");
         assert_eq!(rq.dequeue_next(), Some(id(1)));
-        assert_eq!(rq.dequeue_next(), Some(id(3)), "the order of the rest is kept");
+        assert_eq!(
+            rq.dequeue_next(),
+            Some(id(3)),
+            "the order of the rest is kept"
+        );
     }
 }

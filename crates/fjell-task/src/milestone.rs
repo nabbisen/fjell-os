@@ -37,7 +37,6 @@ pub fn done_by_image(table: &TaskTable, image_id: ImageId) -> bool {
         .all(|t| matches!(t.state, TaskState::Exited(_) | TaskState::Faulted(_)))
 }
 
-
 #[cfg(test)]
 mod milestone_marker_tests {
     use super::*;
@@ -177,4 +176,3 @@ mod milestone_marker_tests {
         assert!(done_by_image(&table, ImageId::INIT));
     }
 }
-

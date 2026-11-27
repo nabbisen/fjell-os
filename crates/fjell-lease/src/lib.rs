@@ -521,7 +521,10 @@ mod tests {
         let b = lt.revoke_owned_by(task);
         assert_eq!(b.len(), 1, "only the plain lease");
         assert_eq!(b.iter().next().unwrap().id, plain);
-        assert!(lt.check_active(boot, boot_ep).is_ok(), "the boot lease belongs to its subject's lifetime, not its owner's");
+        assert!(
+            lt.check_active(boot, boot_ep).is_ok(),
+            "the boot lease belongs to its subject's lifetime, not its owner's"
+        );
         assert!(lt.check_active(plain, plain_ep).is_err());
     }
 
@@ -561,6 +564,10 @@ mod tests {
         let first = lt.revoke_owned_by(task);
         assert_eq!((first.len(), first.more), (BATCH, true));
         let second = lt.revoke_owned_by(task);
-        assert_eq!((second.len(), second.more), (3, false), "the call continues where the last stopped");
+        assert_eq!(
+            (second.len(), second.more),
+            (3, false),
+            "the call continues where the last stopped"
+        );
     }
 }

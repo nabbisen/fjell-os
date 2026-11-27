@@ -1996,40 +1996,73 @@ mod array_reader_tests {
     fn every_existing_command_line_is_byte_identical_after_pre_blk_args() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut checked = 0;
-        for entry in fs::read_dir(root.join("tests/qemu/profiles")).unwrap().flatten() {
+        for entry in fs::read_dir(root.join("tests/qemu/profiles"))
+            .unwrap()
+            .flatten()
+        {
             let path = entry.path();
-            let Some(name) = path.file_stem().map(|s| s.to_string_lossy().to_string()) else { continue };
+            let Some(name) = path.file_stem().map(|s| s.to_string_lossy().to_string()) else {
+                continue;
+            };
             if path.extension().is_none_or(|e| e != "toml") || name == "README" {
                 continue;
             }
             let p = load_profile(&root, &name).unwrap();
-            let rec = root.join("tests/qemu/artifacts").join(&name).join("qemu-command.txt");
-            let Ok(recorded) = fs::read_to_string(&rec) else { continue };
+            let rec = root
+                .join("tests/qemu/artifacts")
+                .join(&name)
+                .join("qemu-command.txt");
+            let Ok(recorded) = fs::read_to_string(&rec) else {
+                continue;
+            };
             if !p.pre_blk_args.is_empty() {
                 continue; // a profile that sets the new field is, by definition, not an old command line
             }
             let kernel = p.kernel.to_string_lossy().to_string();
             let disk = p.disk.to_string_lossy().to_string();
-            let built = base_argv(&p, &kernel, &format!("file={disk},format=raw,if=none,id=hd0")).join(" ");
+            let built = base_argv(
+                &p,
+                &kernel,
+                &format!("file={disk},format=raw,if=none,id=hd0"),
+            )
+            .join(" ");
             if p.expect_shutdown.is_none() {
                 assert_eq!(recorded, built, "{name}: the command line changed");
             } else {
-                assert!(recorded.starts_with(&built), "{name}: the command line changed");
+                assert!(
+                    recorded.starts_with(&built),
+                    "{name}: the command line changed"
+                );
             }
             checked += 1;
         }
-        assert!(checked >= 20, "only {checked} recorded profiles were compared: the test is not looking at the tree");
+        assert!(
+            checked >= 20,
+            "only {checked} recorded profiles were compared: the test is not looking at the tree"
+        );
     }
 
     #[test]
     fn pre_blk_args_land_between_the_kernel_and_the_blk_device_and_extra_args_stay_after_it() {
         let mut p = Profile::smoke("m8", "x");
-        p.pre_blk_args = vec!["-netdev".into(), "user,id=n0".into(), "-device".into(), "virtio-net-device,netdev=n0".into()];
+        p.pre_blk_args = vec![
+            "-netdev".into(),
+            "user,id=n0".into(),
+            "-device".into(),
+            "virtio-net-device,netdev=n0".into(),
+        ];
         p.extra_args = vec!["-d".into(), "trace:a".into()];
         let argv = base_argv(&p, "K", "D").join(" ");
-        let at = |needle: &str| argv.find(needle).unwrap_or_else(|| panic!("{needle} missing in {argv}"));
-        assert!(at("-kernel K") < at("virtio-net-device") && at("virtio-net-device") < at("-drive D"));
-        assert!(at("-drive D") < at("virtio-blk-device") && at("virtio-blk-device") < at("-d trace:a"));
+        let at = |needle: &str| {
+            argv.find(needle)
+                .unwrap_or_else(|| panic!("{needle} missing in {argv}"))
+        };
+        assert!(
+            at("-kernel K") < at("virtio-net-device") && at("virtio-net-device") < at("-drive D")
+        );
+        assert!(
+            at("-drive D") < at("virtio-blk-device") && at("virtio-blk-device") < at("-d trace:a")
+        );
     }
 
     #[test]
@@ -2311,7 +2344,10 @@ mod discover_tests {
         }
         let p = Profile::smoke("m7", "x");
         assert!(!crate::test_all::SMOKE_PROFILES.contains(&"m7"));
-        assert!(!p.release_gated, "m7 is accepted by qemu-test and not run by test-all");
+        assert!(
+            !p.release_gated,
+            "m7 is accepted by qemu-test and not run by test-all"
+        );
         assert!(p.not_gated_reason.is_some());
     }
 

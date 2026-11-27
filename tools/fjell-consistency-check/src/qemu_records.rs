@@ -85,10 +85,9 @@ fn parse_bool(v: &str, key: &str) -> Result<bool, String> {
 /// The names in `test_all.rs`'s `SMOKE_PROFILES` constant, read from its source.
 pub fn parse_smoke_profiles(test_all_source: &str) -> Result<Vec<String>, String> {
     let marker = "const SMOKE_PROFILES: &[&str] = &[";
-    let start = test_all_source
-        .find(marker)
-        .ok_or("`const SMOKE_PROFILES: &[&str] = &[` not found in crates/fjell-tools/src/test_all.rs")?
-        + marker.len();
+    let start = test_all_source.find(marker).ok_or(
+        "`const SMOKE_PROFILES: &[&str] = &[` not found in crates/fjell-tools/src/test_all.rs",
+    )? + marker.len();
     let end = test_all_source[start..]
         .find("];")
         .ok_or("`SMOKE_PROFILES` has no closing `];`")?;
@@ -321,9 +320,10 @@ mod tests {
         pr.push(p("task-lifecycle", false, true));
         let err = run(&pr, &sm, &rec, &[FLEET_WAIVER]).unwrap_err();
         assert!(
-            err.iter().any(|e| e.contains("`task-lifecycle` is release-gated")
-                && e.contains("Run it")
-                && e.contains("Do not write them by hand")),
+            err.iter()
+                .any(|e| e.contains("`task-lifecycle` is release-gated")
+                    && e.contains("Run it")
+                    && e.contains("Do not write them by hand")),
             "{err:?}"
         );
     }
@@ -332,11 +332,15 @@ mod tests {
     #[test]
     fn an_orphaned_record_fails_and_a_smoke_directory_is_not_one() {
         let (pr, sm, mut rec) = world();
-        assert!(run(&pr, &sm, &rec, &[FLEET_WAIVER]).is_ok(), "smoke-m8 is owned by SMOKE_PROFILES");
+        assert!(
+            run(&pr, &sm, &rec, &[FLEET_WAIVER]).is_ok(),
+            "smoke-m8 is owned by SMOKE_PROFILES"
+        );
         rec.insert("removed-profile".into());
         let err = run(&pr, &sm, &rec, &[FLEET_WAIVER]).unwrap_err();
         assert!(
-            err.iter().any(|e| e.contains("`removed-profile`") && e.contains("orphaned")),
+            err.iter()
+                .any(|e| e.contains("`removed-profile`") && e.contains("orphaned")),
             "{err:?}"
         );
         assert!(!err.iter().any(|e| e.contains("smoke-m8")), "{err:?}");
@@ -348,7 +352,8 @@ mod tests {
         let (pr, sm, rec) = world();
         let err = run(&pr, &sm, &rec, &[]).unwrap_err();
         assert!(
-            err.iter().any(|e| e.contains("`fleet-demo` is `multi_node`") && e.contains("no waiver")),
+            err.iter()
+                .any(|e| e.contains("`fleet-demo` is `multi_node`") && e.contains("no waiver")),
             "{err:?}"
         );
     }
@@ -357,18 +362,53 @@ mod tests {
     fn a_waiver_with_no_reason_or_for_nothing_or_gone_stale_fails() {
         let (pr, sm, rec) = world();
         // no reason
-        let w = [Waiver { profile: "fleet-demo", reason: " " }];
-        assert!(run(&pr, &sm, &rec, &w).unwrap_err().iter().any(|e| e.contains("has no reason")));
+        let w = [Waiver {
+            profile: "fleet-demo",
+            reason: " ",
+        }];
+        assert!(
+            run(&pr, &sm, &rec, &w)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("has no reason"))
+        );
         // no such profile
-        let w = [FLEET_WAIVER, Waiver { profile: "ghost", reason: "x" }];
-        assert!(run(&pr, &sm, &rec, &w).unwrap_err().iter().any(|e| e.contains("no profile of that name")));
+        let w = [
+            FLEET_WAIVER,
+            Waiver {
+                profile: "ghost",
+                reason: "x",
+            },
+        ];
+        assert!(
+            run(&pr, &sm, &rec, &w)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("no profile of that name"))
+        );
         // the profile has a record now: the waiver is retired
         let mut rec2 = rec.clone();
         rec2.insert("fleet-demo".into());
-        assert!(run(&pr, &sm, &rec2, &[FLEET_WAIVER]).unwrap_err().iter().any(|e| e.contains("stale waiver") && e.contains("record now")));
+        assert!(
+            run(&pr, &sm, &rec2, &[FLEET_WAIVER])
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("stale waiver") && e.contains("record now"))
+        );
         // waiving a profile that is not multi_node
-        let w = [FLEET_WAIVER, Waiver { profile: "audit", reason: "x" }];
-        assert!(run(&pr, &sm, &rec, &w).unwrap_err().iter().any(|e| e.contains("not `multi_node`")));
+        let w = [
+            FLEET_WAIVER,
+            Waiver {
+                profile: "audit",
+                reason: "x",
+            },
+        ];
+        assert!(
+            run(&pr, &sm, &rec, &w)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("not `multi_node`"))
+        );
     }
 
     #[test]
@@ -384,18 +424,27 @@ mod tests {
         let (pr, _, rec) = world();
         let sm = vec!["m8".to_string(), "v9".to_string()];
         let err = run(&pr, &sm, &rec, &[FLEET_WAIVER]).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("smoke milestone `v9`")), "{err:?}");
+        assert!(
+            err.iter().any(|e| e.contains("smoke milestone `v9`")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn parse_profile_reads_the_three_keys_and_defaults_release_gated_true() {
         let t = "# c\nname = \"fleet-demo\"\ntimeout_secs = 120\nmulti_node = true\nexpected_markers = [\n    \"a\",\n]\n";
         let i = parse_profile(t).unwrap();
-        assert_eq!((i.name.as_str(), i.multi_node, i.release_gated), ("fleet-demo", true, true));
+        assert_eq!(
+            (i.name.as_str(), i.multi_node, i.release_gated),
+            ("fleet-demo", true, true)
+        );
         let t = "name = \"store\"\nrelease_gated = false # why\nnot_gated_reason = \"x\"\n";
         let i = parse_profile(t).unwrap();
         assert_eq!((i.multi_node, i.release_gated), (false, false));
-        assert!(parse_profile("timeout_secs = 1\n").is_err(), "no name is an error, not a guess");
+        assert!(
+            parse_profile("timeout_secs = 1\n").is_err(),
+            "no name is an error, not a guess"
+        );
         assert!(parse_profile("name = \"x\"\nrelease_gated = maybe\n").is_err());
     }
 
@@ -404,14 +453,26 @@ mod tests {
         let src = "/// c\npub(crate) const SMOKE_PROFILES: &[&str] = &[\"m8\", \"v0.4-net\"];\nconst X: u8 = 1;\n";
         assert_eq!(parse_smoke_profiles(src).unwrap(), vec!["m8", "v0.4-net"]);
         assert!(parse_smoke_profiles("nothing here").is_err());
-        assert!(parse_smoke_profiles("const SMOKE_PROFILES: &[&str] = &[];").is_err(), "an empty list is a failure");
+        assert!(
+            parse_smoke_profiles("const SMOKE_PROFILES: &[&str] = &[];").is_err(),
+            "an empty list is a failure"
+        );
     }
 
     #[test]
     fn recorded_dir_reads_only_the_flat_marker_files() {
-        assert_eq!(recorded_dir("tests/qemu/artifacts/audit/expected-markers.txt"), Some("audit"));
-        assert_eq!(recorded_dir("tests/qemu/artifacts/smoke-m8/expected-markers.txt"), Some("smoke-m8"));
-        assert_eq!(recorded_dir("tests/qemu/artifacts/audit/runs/x/expected-markers.txt"), None);
+        assert_eq!(
+            recorded_dir("tests/qemu/artifacts/audit/expected-markers.txt"),
+            Some("audit")
+        );
+        assert_eq!(
+            recorded_dir("tests/qemu/artifacts/smoke-m8/expected-markers.txt"),
+            Some("smoke-m8")
+        );
+        assert_eq!(
+            recorded_dir("tests/qemu/artifacts/audit/runs/x/expected-markers.txt"),
+            None
+        );
         assert_eq!(recorded_dir("tests/qemu/artifacts/audit/serial.log"), None);
     }
 }

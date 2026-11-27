@@ -17,8 +17,7 @@ mod rt;
 use core::sync::atomic::{Ordering, fence};
 use fjell_syscall::{
     sys_clock_now_ns, sys_debug_write, sys_debug_writeln, sys_dma_alloc, sys_exit, sys_mmio_map,
-    sys_mmio_unmap,
-    sys_yield,
+    sys_mmio_unmap, sys_yield,
 };
 
 #[panic_handler]
@@ -226,7 +225,13 @@ fn put_dec64(mut v: u64) {
 /// The one line the scan says (RFC-0.50-003 D3/D4), and, only if a release was refused, a second that says so. The numbers vary, the
 /// form does not: **`0 released, 8 unmappable` cannot read as a clean scan** because every count is printed, and a refused release
 /// changes the second number and adds the second line -- which the profiles require absent.
-fn report_scan(bus: Option<usize>, released: u32, refused: u32, unmappable: u32, last_refusal: isize) {
+fn report_scan(
+    bus: Option<usize>,
+    released: u32,
+    refused: u32,
+    unmappable: u32,
+    last_refusal: isize,
+) {
     match bus {
         Some(b) => {
             sys_debug_write("storaged: virtio-blk found on transport ");

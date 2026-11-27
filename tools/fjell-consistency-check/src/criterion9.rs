@@ -205,7 +205,11 @@ pub fn evaluate(
     }
     keyed.sort_by_key(|(_, k, _)| *k);
     let mut problems = Vec::new();
-    let Some(floor) = keyed.iter().find(|(_, _, f)| f.names_both()).map(|(v, k, _)| (*v, *k)) else {
+    let Some(floor) = keyed
+        .iter()
+        .find(|(_, _, f)| f.names_both())
+        .map(|(v, k, _)| (*v, *k))
+    else {
         return Err(vec![
             "no release record names both a push and a dispatch run in its criterion-9 section, so no floor can be derived; either the records changed shape or this check's anchors no longer match them".into(),
         ]);
@@ -282,7 +286,7 @@ pub fn evaluate(
         Ok(Report {
             records: keyed.len(),
             floor: floor.0.to_string(),
-        in_flight: in_flight_seen,
+            in_flight: in_flight_seen,
             below_floor: below,
             naming_both,
             exempt: exempt_used,
@@ -316,7 +320,11 @@ mod tests {
         assert_eq!(f.dispatch, ["35089305545"]);
         let f = inspect(ROW_FORM_SPLIT_WORDING);
         assert!(f.names_both());
-        assert_eq!(f.dispatch.len(), 2, "both dispatches named, including the first, red one: {f:?}");
+        assert_eq!(
+            f.dispatch.len(),
+            2,
+            "both dispatches named, including the first, red one: {f:?}"
+        );
         let f = inspect(SECTION_FORM_TWO_RUNS);
         assert!(f.names_both(), "{f:?}");
     }
@@ -324,16 +332,23 @@ mod tests {
     /// **The hole in the first design**: counted over the whole document, `0.49.0` has three long numbers and passes. Scoped to the
     /// section and labelled, it names one push run and no dispatch.
     #[test]
-    fn a_document_scoped_count_would_pass_the_record_this_exists_for_and_the_section_scoped_rule_does_not() {
+    fn a_document_scoped_count_would_pass_the_record_this_exists_for_and_the_section_scoped_rule_does_not()
+     {
         let doc_ids = SECTION_FORM_ONE_RUN
             .split(|c: char| !c.is_ascii_digit())
             .filter(|s| s.len() >= 9)
             .count();
-        assert_eq!(doc_ids, 3, "the three decoys: the push run, the release workflow's run, a Pages artifact id");
+        assert_eq!(
+            doc_ids, 3,
+            "the three decoys: the push run, the release workflow's run, a Pages artifact id"
+        );
         let f = inspect(SECTION_FORM_ONE_RUN);
         assert!(f.section);
         assert_eq!(f.push, ["45843432462"]);
-        assert!(f.dispatch.is_empty(), "the release workflow's id is outside the section and unlabelled: {f:?}");
+        assert!(
+            f.dispatch.is_empty(),
+            "the release workflow's id is outside the section and unlabelled: {f:?}"
+        );
         assert!(!f.names_both());
     }
 
@@ -366,7 +381,9 @@ mod tests {
         s.push(rec("0.49.0", SECTION_FORM_ONE_RUN));
         let err = evaluate(&s, &[], None).unwrap_err();
         assert!(
-            err.iter().any(|e| e.contains("0.49.0") && e.contains("no dispatch run") && e.contains("45843432462")),
+            err.iter().any(|e| e.contains("0.49.0")
+                && e.contains("no dispatch run")
+                && e.contains("45843432462")),
             "{err:?}"
         );
     }
@@ -376,39 +393,79 @@ mod tests {
         let mut s = set();
         s.push(rec("0.50.0", NO_CRITERION_9));
         let err = evaluate(&s, &[], None).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("0.50.0") && e.contains("no criterion-9 section")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("0.50.0") && e.contains("no criterion-9 section")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn a_named_exemption_passes_and_is_reported_and_goes_stale_when_the_record_is_fixed() {
         let mut s = set();
         s.push(rec("0.49.0", SECTION_FORM_ONE_RUN));
-        let ex = [Exemption { version: "0.49.0", reason: "the gap itself" }];
+        let ex = [Exemption {
+            version: "0.49.0",
+            reason: "the gap itself",
+        }];
         let r = evaluate(&s, &ex, None).unwrap();
-        assert_eq!(r.exempt, [("0.49.0".to_string(), "the gap itself".to_string())]);
+        assert_eq!(
+            r.exempt,
+            [("0.49.0".to_string(), "the gap itself".to_string())]
+        );
         // the record gains its dispatch run: the exemption must be retired
         let mut s2 = set();
         s2.push(rec("0.49.0", SECTION_FORM_TWO_RUNS));
         let err = evaluate(&s2, &ex, None).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("stale exemption for 0.49.0")), "{err:?}");
+        assert!(
+            err.iter().any(|e| e.contains("stale exemption for 0.49.0")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn exemptions_for_nothing_or_below_the_floor_or_without_a_reason_are_red() {
         let s = set();
-        let err = evaluate(&s, &[Exemption { version: "9.9.9", reason: "x" }], None).unwrap_err();
+        let err = evaluate(
+            &s,
+            &[Exemption {
+                version: "9.9.9",
+                reason: "x",
+            }],
+            None,
+        )
+        .unwrap_err();
         assert!(err.iter().any(|e| e.contains("no such release record")));
-        let err = evaluate(&s, &[Exemption { version: "0.31.0", reason: "x" }], None).unwrap_err();
+        let err = evaluate(
+            &s,
+            &[Exemption {
+                version: "0.31.0",
+                reason: "x",
+            }],
+            None,
+        )
+        .unwrap_err();
         assert!(err.iter().any(|e| e.contains("below the derived floor")));
         let mut s2 = set();
         s2.push(rec("0.49.0", SECTION_FORM_ONE_RUN));
-        let err = evaluate(&s2, &[Exemption { version: "0.49.0", reason: " " }], None).unwrap_err();
+        let err = evaluate(
+            &s2,
+            &[Exemption {
+                version: "0.49.0",
+                reason: " ",
+            }],
+            None,
+        )
+        .unwrap_err();
         assert!(err.iter().any(|e| e.contains("has no reason")));
     }
 
     #[test]
     fn if_no_record_names_both_there_is_no_floor_and_that_is_an_error_not_a_pass() {
-        let s = vec![rec("0.31.0", ONE_RUN_ROW), rec("0.49.0", SECTION_FORM_ONE_RUN)];
+        let s = vec![
+            rec("0.31.0", ONE_RUN_ROW),
+            rec("0.49.0", SECTION_FORM_ONE_RUN),
+        ];
         assert!(evaluate(&s, &[], None).is_err());
     }
 
@@ -419,7 +476,9 @@ mod tests {
         assert!(p.is_empty() && d.is_empty(), "{p:?} {d:?}");
         let (p, _) = labelled_runs("push run **`35089262713`**\n");
         assert_eq!(p, ["35089262713"]);
-        let (p, _) = labelled_runs("push — and then a very long stretch of prose with no digits at all before `35089262713`\n");
+        let (p, _) = labelled_runs(
+            "push — and then a very long stretch of prose with no digits at all before `35089262713`\n",
+        );
         assert!(p.is_empty());
     }
 
@@ -446,12 +505,16 @@ mod tests {
         let s = vec![
             rec("0.32.0", SECTION_FORM_TWO_RUNS),
             rec("0.49.0", SECTION_FORM_ONE_RUN),
-            rec("0.50.0", "## Tag and publish\n\n### CI for the tagged commit — criterion 9\n\nmeasured in the follow-up commit\n"),
+            rec(
+                "0.50.0",
+                "## Tag and publish\n\n### CI for the tagged commit — criterion 9\n\nmeasured in the follow-up commit\n",
+            ),
         ];
         // Cutting 0.50.0: its own record is not asked, and 0.49.0's single run is still a failure.
         let err = evaluate(&s, &[], Some("0.50.0")).unwrap_err();
         assert!(
-            err.iter().any(|e| e.contains("0.49.0") && e.contains("no dispatch run")),
+            err.iter()
+                .any(|e| e.contains("0.49.0") && e.contains("no dispatch run")),
             "the record below the one being cut must still be asked: {err:?}"
         );
         assert!(
@@ -459,10 +522,26 @@ mod tests {
             "the version being cut must not be asked: {err:?}"
         );
         // With 0.49.0 exempted, cutting 0.50.0 passes and says which record was held back.
-        let r = evaluate(&s, &[Exemption { version: "0.49.0", reason: "E-137" }], Some("0.50.0")).unwrap();
+        let r = evaluate(
+            &s,
+            &[Exemption {
+                version: "0.49.0",
+                reason: "E-137",
+            }],
+            Some("0.50.0"),
+        )
+        .unwrap();
         assert_eq!(r.in_flight.as_deref(), Some("0.50.0"));
         // And with no version in flight, the same tree is red on 0.50.0 too -- so the ceiling is doing the work.
-        let err2 = evaluate(&s, &[Exemption { version: "0.49.0", reason: "E-137" }], None).unwrap_err();
+        let err2 = evaluate(
+            &s,
+            &[Exemption {
+                version: "0.49.0",
+                reason: "E-137",
+            }],
+            None,
+        )
+        .unwrap_err();
         assert!(err2.iter().any(|e| e.contains("0.50.0")), "{err2:?}");
     }
 
@@ -470,10 +549,22 @@ mod tests {
     /// forward after the follow-up commit fills the record.
     #[test]
     fn an_exemption_for_the_version_being_cut_is_reported_as_unnecessary() {
-        let s = vec![rec("0.32.0", SECTION_FORM_TWO_RUNS), rec("0.50.0", "### criterion 9\n\npending\n")];
-        let err = evaluate(&s, &[Exemption { version: "0.50.0", reason: "not measured yet" }], Some("0.50.0")).unwrap_err();
+        let s = vec![
+            rec("0.32.0", SECTION_FORM_TWO_RUNS),
+            rec("0.50.0", "### criterion 9\n\npending\n"),
+        ];
+        let err = evaluate(
+            &s,
+            &[Exemption {
+                version: "0.50.0",
+                reason: "not measured yet",
+            }],
+            Some("0.50.0"),
+        )
+        .unwrap_err();
         assert!(
-            err.iter().any(|e| e.contains("0.50.0") && e.contains("unnecessary")),
+            err.iter()
+                .any(|e| e.contains("0.50.0") && e.contains("unnecessary")),
             "{err:?}"
         );
     }
@@ -492,10 +583,26 @@ mod tests {
             .expect("the workspace version is readable");
         let err = evaluate(&recs, &[], Some(ws.as_str())).unwrap_err();
         assert_eq!(err.len(), 1, "{err:?}");
-        assert!(err[0].contains("release record 0.49.0") && err[0].contains("no dispatch run"), "{err:?}");
-        let r = evaluate(&recs, &[Exemption { version: "0.49.0", reason: "x" }], Some(ws.as_str())).unwrap();
+        assert!(
+            err[0].contains("release record 0.49.0") && err[0].contains("no dispatch run"),
+            "{err:?}"
+        );
+        let r = evaluate(
+            &recs,
+            &[Exemption {
+                version: "0.49.0",
+                reason: "x",
+            }],
+            Some(ws.as_str()),
+        )
+        .unwrap();
         assert_eq!(r.floor, "0.32.0");
-        assert_eq!(r.below_floor.len(), 11, "the ten that predate criterion 9 and 0.31.0: {:?}", r.below_floor);
+        assert_eq!(
+            r.below_floor.len(),
+            11,
+            "the ten that predate criterion 9 and 0.31.0: {:?}",
+            r.below_floor
+        );
         assert_eq!(r.naming_both, 17, "0.32.0 .. 0.48.0");
     }
 }

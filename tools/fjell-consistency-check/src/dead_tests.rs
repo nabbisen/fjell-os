@@ -42,7 +42,8 @@ fn binary_files<'a>(c: &'a CrateInfo) -> Vec<&'a (String, String)> {
     c.sources
         .iter()
         .filter(|(p, _)| {
-            !lib || *p == format!("{}/src/main.rs", c.dir) || p.starts_with(&format!("{}/src/bin/", c.dir))
+            !lib || *p == format!("{}/src/main.rs", c.dir)
+                || p.starts_with(&format!("{}/src/bin/", c.dir))
         })
         .collect()
 }
@@ -61,7 +62,9 @@ pub fn test_attributes(text: &str) -> Vec<(usize, &str)> {
 
 pub fn evaluate(crates: &[CrateInfo]) -> Result<Report, Vec<String>> {
     if crates.is_empty() {
-        return Err(vec!["no bare-metal crate found: a check over nothing is not a pass".into()]);
+        return Err(vec![
+            "no bare-metal crate found: a check over nothing is not a pass".into(),
+        ]);
     }
     let mut problems = Vec::new();
     let mut files = 0usize;
@@ -110,7 +113,14 @@ mod tests {
 
     #[test]
     fn a_bin_only_crate_with_no_test_passes_and_is_counted() {
-        let c = [krate("crates/fjell-kernel", BIN, &[("main.rs", "fn main() {}\n"), ("lease/mod.rs", "fn a() {}\n")])];
+        let c = [krate(
+            "crates/fjell-kernel",
+            BIN,
+            &[
+                ("main.rs", "fn main() {}\n"),
+                ("lease/mod.rs", "fn a() {}\n"),
+            ],
+        )];
         let r = evaluate(&c).unwrap();
         assert_eq!((r.crates, r.with_lib, r.files_examined), (1, 0, 2));
     }
@@ -121,27 +131,54 @@ mod tests {
         let c = [krate(
             "crates/fjell-kernel",
             BIN,
-            &[("main.rs", "fn main() {}\n"), ("mm/user_ptr.rs", "fn v() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n")],
+            &[
+                ("main.rs", "fn main() {}\n"),
+                (
+                    "mm/user_ptr.rs",
+                    "fn v() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n",
+                ),
+            ],
         )];
         let err = evaluate(&c).unwrap_err();
         assert_eq!(err.len(), 2, "both attributes: {err:?}");
-        assert!(err[0].contains("crates/fjell-kernel/src/mm/user_ptr.rs:3") && err[0].contains("E-134"), "{err:?}");
+        assert!(
+            err[0].contains("crates/fjell-kernel/src/mm/user_ptr.rs:3") && err[0].contains("E-134"),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn in_a_crate_with_a_lib_only_the_binary_root_is_examined() {
         let tests_in_lib = "#[cfg(test)]\nmod t { #[test] fn a() {} }\n";
-        let ok = [krate("crates/drivers/fjell-driver-virtio-net", WITH_LIB, &[("main.rs", "fn main() {}\n"), ("core/scan.rs", tests_in_lib)])];
+        let ok = [krate(
+            "crates/drivers/fjell-driver-virtio-net",
+            WITH_LIB,
+            &[
+                ("main.rs", "fn main() {}\n"),
+                ("core/scan.rs", tests_in_lib),
+            ],
+        )];
         let r = evaluate(&ok).unwrap();
-        assert_eq!((r.with_lib, r.files_examined), (1, 1), "the lib's tests compile on the host and are not this check's");
-        let bad = [krate("crates/drivers/fjell-driver-virtio-net", WITH_LIB, &[("main.rs", tests_in_lib), ("core/scan.rs", tests_in_lib)])];
+        assert_eq!(
+            (r.with_lib, r.files_examined),
+            (1, 1),
+            "the lib's tests compile on the host and are not this check's"
+        );
+        let bad = [krate(
+            "crates/drivers/fjell-driver-virtio-net",
+            WITH_LIB,
+            &[("main.rs", tests_in_lib), ("core/scan.rs", tests_in_lib)],
+        )];
         let err = evaluate(&bad).unwrap_err();
         assert!(err.iter().all(|e| e.contains("src/main.rs")), "{err:?}");
     }
 
     #[test]
     fn a_comment_that_mentions_the_attribute_is_not_one() {
-        assert!(test_attributes("// #[test] used to be here\n/// `#[cfg(test)]` too\nfn f() {}\n").is_empty());
+        assert!(
+            test_attributes("// #[test] used to be here\n/// `#[cfg(test)]` too\nfn f() {}\n")
+                .is_empty()
+        );
         assert_eq!(test_attributes("    #[test]\n").len(), 1);
     }
 

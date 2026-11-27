@@ -95,12 +95,28 @@ mod tests {
     fn the_scope_note_names_the_check_that_owns_the_syscall_tables_and_what_nothing_covers() {
         // Only the module's own documentation: the assertions below name these checks in their own source, so scanning the whole file
         // would find them in the test and pass whatever the note says (found by mutating the note: the first version stayed green).
-        let me = include_str!("doc_counts.rs").split("#[cfg(test)]").next().unwrap();
-        assert!(me.contains("`syscall-doc`") && me.contains("`service-table`"), "the note must name the checks that read the documents");
-        assert!(me.contains("is covered by nothing"), "the note must say what is uncovered");
-        let false_sentence = ["syscall counts already covered", " by\n//! `syscall-surface`"].concat();
+        let me = include_str!("doc_counts.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        assert!(
+            me.contains("`syscall-doc`") && me.contains("`service-table`"),
+            "the note must name the checks that read the documents"
+        );
+        assert!(
+            me.contains("is covered by nothing"),
+            "the note must say what is uncovered"
+        );
+        let false_sentence = [
+            "syscall counts already covered",
+            " by\n//! `syscall-surface`",
+        ]
+        .concat();
         let hits = me.matches(false_sentence.as_str()).count();
-        assert_eq!(hits, 0, "the sentence that said syscall-surface covers the documents must not come back");
+        assert_eq!(
+            hits, 0,
+            "the sentence that said syscall-surface covers the documents must not come back"
+        );
     }
 
     fn fixture_readme() -> &'static str {

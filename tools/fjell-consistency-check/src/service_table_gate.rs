@@ -21,7 +21,11 @@ pub fn check() -> ExitCode {
     // A program directory is one that has a tracked Cargo.toml directly under it.
     let mut dirs: BTreeSet<String> = BTreeSet::new();
     for f in &tracked {
-        let rel = f.strip_prefix(".").unwrap_or(f).to_string_lossy().replace('\\', "/");
+        let rel = f
+            .strip_prefix(".")
+            .unwrap_or(f)
+            .to_string_lossy()
+            .replace('\\', "/");
         let rel = rel.trim_start_matches("./");
         if let Some(dir) = rel.strip_suffix("/Cargo.toml")
             && program_name(dir).is_some()

@@ -15,8 +15,8 @@
 
 use fjell_abi::error::SysError;
 use fjell_abi::lease::{LeaseEpoch, LeaseId};
-use fjell_abi::task::TaskId;
 pub use fjell_abi::lease::{MAX_LEASES, MAX_LEASES_PER_OWNER};
+use fjell_abi::task::TaskId;
 use fjell_lease::Revoked;
 
 // The capacity must hold one boot lease for every task the kernel can have, plus one delegator's whole quota (so the

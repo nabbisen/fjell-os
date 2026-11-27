@@ -75,8 +75,8 @@ mod bootstrap_leases_gate; // RFC-0.48-001: the subcheck's file-reading half (lo
 mod capability_topology;
 mod ci_test_jobs;
 mod citation;
-mod dead_tests_gate; // RFC-0.50-001 D6 (E-134): the subcheck's file-reading half (logic is in the lib)
 mod closed_erratum_prose; // RFC-0.41-005: prose that still asserts a closed erratum
+mod dead_tests_gate; // RFC-0.50-001 D6 (E-134): the subcheck's file-reading half (logic is in the lib)
 mod doc_counts;
 mod doc_links;
 mod endpoint_envelope; // 0.46 small item C: the install envelope is the union of the broker's Endpoint grants
@@ -86,8 +86,8 @@ mod evidence;
 mod handoff_status;
 mod landing_page_gate; // 0.48 small item A (E-130): the subcheck's file-reading half (logic is in the lib)
 mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
-mod readiness_summary;
 mod qemu_records_gate; // E-135: the subcheck's file-reading half (logic is in the lib)
+mod readiness_summary;
 mod release_records_gate; // RFC-0.48-003: the subcheck's file-reading half (logic is in the lib)
 mod repo_scope; // 0.46 small item B (E-125): no tool answers 'what counts as this repository' from a name list
 mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is in the lib)

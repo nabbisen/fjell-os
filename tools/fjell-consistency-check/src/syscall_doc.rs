@@ -122,7 +122,9 @@ fn parse_reference(src: &str) -> Vec<RefRow> {
         if c.len() < 3 {
             continue;
         }
-        let Ok(number) = c[0].parse::<u32>() else { continue };
+        let Ok(number) = c[0].parse::<u32>() else {
+            continue;
+        };
         let name = c[1].trim_matches('`');
         if name.is_empty()
             || c[1] == name
@@ -151,7 +153,11 @@ fn parse_kernel_table(src: &str) -> Option<Vec<KernelEntry>> {
     for line in src.lines() {
         let t = line.trim();
         if !in_table {
-            if t.starts_with('|') && cells(t).len() == 2 && cells(t)[0] == "Group" && cells(t)[1] == "Syscalls" {
+            if t.starts_with('|')
+                && cells(t).len() == 2
+                && cells(t)[0] == "Group"
+                && cells(t)[1] == "Syscalls"
+            {
                 in_table = true;
             }
             continue;
@@ -179,15 +185,24 @@ fn parse_kernel_table(src: &str) -> Option<Vec<KernelEntry>> {
                 let al: Vec<String> = spans(&after[..end]).iter().map(|s| s.to_string()).collect();
                 let last = sp.pop();
                 for s in sp {
-                    out.push(KernelEntry { canonical: s.to_string(), aliases: vec![] });
+                    out.push(KernelEntry {
+                        canonical: s.to_string(),
+                        aliases: vec![],
+                    });
                 }
                 if let Some(l) = last {
-                    out.push(KernelEntry { canonical: l.to_string(), aliases: al });
+                    out.push(KernelEntry {
+                        canonical: l.to_string(),
+                        aliases: al,
+                    });
                 }
                 rest = &after[(end + 1).min(after.len())..];
             } else {
                 for s in sp {
-                    out.push(KernelEntry { canonical: s.to_string(), aliases: vec![] });
+                    out.push(KernelEntry {
+                        canonical: s.to_string(),
+                        aliases: vec![],
+                    });
                 }
                 break;
             }
@@ -204,8 +219,14 @@ fn body_of<'a>(wrappers: &'a str, name: &str) -> Option<&'a str> {
         let start = from + p;
         let after = start + needle.len();
         // whole identifier: next char must not continue it
-        if wrappers[after..].chars().next().is_some_and(|c| c == '(' || c == '<') {
-            let end = wrappers[after..].find("\npub fn ").map_or(wrappers.len(), |e| after + e);
+        if wrappers[after..]
+            .chars()
+            .next()
+            .is_some_and(|c| c == '(' || c == '<')
+        {
+            let end = wrappers[after..]
+                .find("\npub fn ")
+                .map_or(wrappers.len(), |e| after + e);
             return Some(&wrappers[start..end]);
         }
         from = after;
@@ -214,12 +235,23 @@ fn body_of<'a>(wrappers: &'a str, name: &str) -> Option<&'a str> {
 }
 
 /// Does wrapper `name` reach syscall `variant` (number `num`)? Direct evidence, or through another `sys_*` it calls (depth <= 4).
-fn reaches(wrappers: &str, name: &str, variant: &str, num: u32, depth: usize, seen: &mut BTreeSet<String>) -> bool {
+fn reaches(
+    wrappers: &str,
+    name: &str,
+    variant: &str,
+    num: u32,
+    depth: usize,
+    seen: &mut BTreeSet<String>,
+) -> bool {
     if depth == 0 || !seen.insert(name.to_string()) {
         return false;
     }
-    let Some(body) = body_of(wrappers, name) else { return false };
-    if body.contains(&format!("SyscallNumber::{variant}")) || body.contains(&format!("li a7, {num}\"")) {
+    let Some(body) = body_of(wrappers, name) else {
+        return false;
+    };
+    if body.contains(&format!("SyscallNumber::{variant}"))
+        || body.contains(&format!("li a7, {num}\""))
+    {
         return true;
     }
     let mut i = 0;
@@ -232,7 +264,10 @@ fn reaches(wrappers: &str, name: &str, variant: &str, num: u32, depth: usize, se
         }
         let callee = &body[s..e];
         // `name` is the declaration itself on its first occurrence; only a call (`callee(`) recurses
-        if callee != name && body[e..].starts_with('(') && reaches(wrappers, callee, variant, num, depth - 1, seen) {
+        if callee != name
+            && body[e..].starts_with('(')
+            && reaches(wrappers, callee, variant, num, depth - 1, seen)
+        {
             return true;
         }
         i = e.max(s + 4);
@@ -244,7 +279,9 @@ pub fn evaluate(i: &Inputs<'_>) -> Result<Report, Vec<String>> {
     let mut problems = Vec::new();
     let declared = parse_declared(i.abi);
     if declared.is_empty() {
-        return Err(vec!["no `SyscallNumber` variants found in the ABI source".into()]);
+        return Err(vec![
+            "no `SyscallNumber` variants found in the ABI source".into(),
+        ]);
     }
     let by_name: BTreeMap<&str, u32> = declared.iter().map(|(n, v)| (n.as_str(), *v)).collect();
     let by_snake: BTreeMap<String, (&str, u32)> = declared
@@ -262,11 +299,17 @@ pub fn evaluate(i: &Inputs<'_>) -> Result<Report, Vec<String>> {
     let mut aliases_resolved = 0usize;
     for r in &rows {
         if !seen_ref.insert(r.name.as_str()) {
-            problems.push(format!("docs/src/api/syscalls.md: `{}` has two rows", r.name));
+            problems.push(format!(
+                "docs/src/api/syscalls.md: `{}` has two rows",
+                r.name
+            ));
         }
         match by_name.get(r.name.as_str()) {
             None => {
-                problems.push(format!("docs/src/api/syscalls.md: row `{}` names no `SyscallNumber` variant", r.name));
+                problems.push(format!(
+                    "docs/src/api/syscalls.md: row `{}` names no `SyscallNumber` variant",
+                    r.name
+                ));
                 continue;
             }
             Some(n) if *n != r.number => problems.push(format!(
@@ -277,7 +320,10 @@ pub fn evaluate(i: &Inputs<'_>) -> Result<Report, Vec<String>> {
         }
         let num = by_name[r.name.as_str()];
         let (plain, aliases) = split_aliases(&r.wrappers);
-        let named: Vec<&str> = spans(&plain).into_iter().filter(|s| s.starts_with("sys_")).collect();
+        let named: Vec<&str> = spans(&plain)
+            .into_iter()
+            .filter(|s| s.starts_with("sys_"))
+            .collect();
         for w in &named {
             wrappers_checked += 1;
             if body_of(i.wrappers, w).is_none() {
@@ -288,7 +334,15 @@ pub fn evaluate(i: &Inputs<'_>) -> Result<Report, Vec<String>> {
             }
         }
         for a in &aliases {
-            check_alias("docs/src/api/syscalls.md", &r.name, num, a, i.wrappers, &mut problems, &mut aliases_resolved);
+            check_alias(
+                "docs/src/api/syscalls.md",
+                &r.name,
+                num,
+                a,
+                i.wrappers,
+                &mut problems,
+                &mut aliases_resolved,
+            );
         }
         if named.is_empty() && aliases.is_empty() && r.wrappers.trim_start().starts_with('—') {
             // "no wrapper": there must not be one under the obvious name
@@ -402,14 +456,22 @@ mod tests {
     const KERNEL: &str = "text\n\n| Group | Syscalls |\n|---|---|\n| Scheduler | `yield` |\n| IPC | `ipc_call` (also reached via `ipc_call_words`), `ipc_recv` (also reached via `ipc_recv_msg`) |\n| Capability | `cap_delete` |\n\nafter\n";
 
     fn run(reference: &str, kernel: &str, wrappers: &str) -> Result<Report, Vec<String>> {
-        evaluate(&Inputs { abi: ABI, reference, kernel_doc: kernel, wrappers })
+        evaluate(&Inputs {
+            abi: ABI,
+            reference,
+            kernel_doc: kernel,
+            wrappers,
+        })
     }
 
     #[test]
     fn a_consistent_world_passes_and_counts_what_it_read() {
         let r = run(REFERENCE, KERNEL, WRAPPERS).unwrap();
         assert_eq!((r.declared, r.reference_rows, r.kernel_entries), (4, 4, 4));
-        assert_eq!(r.aliases_resolved, 4, "two in each table; a literal `li a7, 21` counts");
+        assert_eq!(
+            r.aliases_resolved, 4,
+            "two in each table; a literal `li a7, 21` counts"
+        );
     }
 
     /// Direction 1: a row naming no variant (a retired syscall left in the page).
@@ -417,10 +479,18 @@ mod tests {
     fn a_row_naming_no_variant_fails() {
         let doc = REFERENCE.to_string() + "| 111 | `DmaShare` | — | Hardware |\n";
         let err = run(&doc, KERNEL, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`DmaShare` names no `SyscallNumber` variant")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`DmaShare` names no `SyscallNumber` variant")),
+            "{err:?}"
+        );
         let k = KERNEL.replace("| `cap_delete` |", "| `cap_delete`, `dma_share` |");
         let err = run(REFERENCE, &k, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`dma_share` is no `SyscallNumber` variant")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`dma_share` is no `SyscallNumber` variant")),
+            "{err:?}"
+        );
     }
 
     /// Direction 2: a variant no row names -- the seven the real page lacked.
@@ -428,10 +498,18 @@ mod tests {
     fn a_variant_no_row_names_fails_in_both_tables() {
         let doc = REFERENCE.replace("| 12 | `CapDelete` | `sys_cap_delete` | Capability |\n", "");
         let err = run(&doc, KERNEL, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`CapDelete` (12) is declared in the ABI and no row names it")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`CapDelete` (12) is declared in the ABI and no row names it")),
+            "{err:?}"
+        );
         let k = KERNEL.replace("| Capability | `cap_delete` |\n", "");
         let err = run(REFERENCE, &k, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`cap_delete`") && e.contains("no group-table entry names it")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`cap_delete`") && e.contains("no group-table entry names it")),
+            "{err:?}"
+        );
     }
 
     /// Direction 3: a row whose number disagrees with the enum.
@@ -439,7 +517,11 @@ mod tests {
     fn a_row_with_the_wrong_number_fails() {
         let doc = REFERENCE.replace("| 12 | `CapDelete`", "| 13 | `CapDelete`");
         let err = run(&doc, KERNEL, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`CapDelete` says 13 and the enum says 12")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`CapDelete` says 13 and the enum says 12")),
+            "{err:?}"
+        );
     }
 
     /// Direction 4: an alias that is not a wrapper (`ipc_try_send`), and an alias that reaches a DIFFERENT syscall.
@@ -447,16 +529,27 @@ mod tests {
     fn an_alias_that_is_not_a_wrapper_or_reaches_another_syscall_fails() {
         let k = KERNEL.replace("`ipc_call_words`", "`ipc_try_send`");
         let err = run(REFERENCE, &k, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`sys_ipc_try_send`") && e.contains("an alias that is not a wrapper")), "{err:?}");
+        assert!(
+            err.iter().any(|e| e.contains("`sys_ipc_try_send`")
+                && e.contains("an alias that is not a wrapper")),
+            "{err:?}"
+        );
         // swapped: ipc_call claims ipc_recv_msg, which issues IpcRecv
         let k = KERNEL.replace("`ipc_call` (also reached via `ipc_call_words`), `ipc_recv` (also reached via `ipc_recv_msg`)", "`ipc_call` (also reached via `ipc_recv_msg`), `ipc_recv` (also reached via `ipc_call_words`)");
         let err = run(REFERENCE, &k, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("does not reach `SyscallNumber::IpcCall`")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("does not reach `SyscallNumber::IpcCall`")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn an_alias_reaches_its_syscall_through_another_wrapper() {
-        let doc = REFERENCE.replace("| 0 | `Yield` | `sys_yield` |", "| 0 | `Yield` | `sys_yield` (also reached via `sys_wrap_yield`) |");
+        let doc = REFERENCE.replace(
+            "| 0 | `Yield` | `sys_yield` |",
+            "| 0 | `Yield` | `sys_yield` (also reached via `sys_wrap_yield`) |",
+        );
         assert!(run(&doc, KERNEL, WRAPPERS).is_ok());
     }
 
@@ -465,10 +558,18 @@ mod tests {
     fn the_wrapper_column_is_checked_narrowly() {
         let doc = REFERENCE.replace("`sys_cap_delete`", "`sys_cap_remove`");
         let err = run(&doc, KERNEL, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("wrapper `sys_cap_remove`")), "{err:?}");
+        assert!(
+            err.iter().any(|e| e.contains("wrapper `sys_cap_remove`")),
+            "{err:?}"
+        );
         let doc = REFERENCE.replace("`sys_cap_delete`", "— (dispatched; no wrapper)");
         let err = run(&doc, KERNEL, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("says it has no wrapper") && e.contains("pub fn sys_cap_delete")), "{err:?}");
+        assert!(
+            err.iter().any(
+                |e| e.contains("says it has no wrapper") && e.contains("pub fn sys_cap_delete")
+            ),
+            "{err:?}"
+        );
         // and a true "no wrapper" passes
         let w = WRAPPERS.replace("pub fn sys_cap_delete", "pub fn sys_cap_delete_renamed");
         assert!(run(&doc, KERNEL, &w).is_ok());
@@ -477,9 +578,22 @@ mod tests {
     #[test]
     fn duplicates_fail() {
         let doc = REFERENCE.to_string() + "| 0 | `Yield` | `sys_yield` | Scheduler |\n";
-        assert!(run(&doc, KERNEL, WRAPPERS).unwrap_err().iter().any(|e| e.contains("`Yield` has two rows")));
-        let k = KERNEL.replace("| Scheduler | `yield` |", "| Scheduler | `yield`, `yield` |");
-        assert!(run(REFERENCE, &k, WRAPPERS).unwrap_err().iter().any(|e| e.contains("`yield` is listed twice")));
+        assert!(
+            run(&doc, KERNEL, WRAPPERS)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("`Yield` has two rows"))
+        );
+        let k = KERNEL.replace(
+            "| Scheduler | `yield` |",
+            "| Scheduler | `yield`, `yield` |",
+        );
+        assert!(
+            run(REFERENCE, &k, WRAPPERS)
+                .unwrap_err()
+                .iter()
+                .any(|e| e.contains("`yield` is listed twice"))
+        );
     }
 
     /// N3: a renamed header is a failure, not a pass over nothing.
@@ -487,23 +601,35 @@ mod tests {
     fn a_table_that_cannot_be_found_is_a_failure_not_a_pass() {
         let k = KERNEL.replace("| Group | Syscalls |", "| Kind | Calls |");
         let err = run(REFERENCE, &k, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("table was not found")), "{err:?}");
+        assert!(
+            err.iter().any(|e| e.contains("table was not found")),
+            "{err:?}"
+        );
         let err = run("# empty\n", KERNEL, WRAPPERS).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("no syscall rows found")), "{err:?}");
+        assert!(
+            err.iter().any(|e| e.contains("no syscall rows found")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn snake_case_and_alias_splitting() {
         assert_eq!(snake("PlatformInfoGet"), "platform_info_get");
         assert_eq!(snake("Yield"), "yield");
-        let (plain, al) = split_aliases("`sys_ipc_recv` (also reached via `sys_ipc_recv_msg`, `sys_x`) tail");
+        let (plain, al) =
+            split_aliases("`sys_ipc_recv` (also reached via `sys_ipc_recv_msg`, `sys_x`) tail");
         assert_eq!(al, ["sys_ipc_recv_msg", "sys_x"]);
-        assert!(plain.contains("sys_ipc_recv") && !plain.contains("sys_ipc_recv_msg"), "{plain}");
+        assert!(
+            plain.contains("sys_ipc_recv") && !plain.contains("sys_ipc_recv_msg"),
+            "{plain}"
+        );
     }
 
     // ── the real documents, in the repository ───────────────────────────────────
     fn real(rel: &str) -> String {
-        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(rel);
+        let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join(rel);
         std::fs::read_to_string(p).unwrap()
     }
 
@@ -515,7 +641,12 @@ mod tests {
             real("docs/src/external-design/kernel.md"),
             real("crates/fjell-syscall/src/lib.rs"),
         );
-        let r = evaluate(&Inputs { abi: &abi, reference: &reference, kernel_doc: &kernel, wrappers: &w });
+        let r = evaluate(&Inputs {
+            abi: &abi,
+            reference: &reference,
+            kernel_doc: &kernel,
+            wrappers: &w,
+        });
         assert!(r.is_ok(), "{:#?}", r.err());
     }
 }

@@ -345,7 +345,11 @@ mod tests {
         let b = t.insert(task()).unwrap();
         assert_eq!((a.index, a.generation), (0, 0));
         assert_eq!((b.index, b.generation), (1, 0));
-        assert_eq!(t.get(a).unwrap().id, a, "the TCB's own id is the slot's, not the placeholder it was built with");
+        assert_eq!(
+            t.get(a).unwrap().id,
+            a,
+            "the TCB's own id is the slot's, not the placeholder it was built with"
+        );
     }
 
     #[test]
@@ -355,7 +359,11 @@ mod tests {
         assert!(t.remove(a).is_some());
         let again = t.insert(task()).unwrap();
         assert_eq!(again.index, a.index, "the first free slot is reused");
-        assert_eq!(again.generation, a.generation + 1, "and says it is a new occupant");
+        assert_eq!(
+            again.generation,
+            a.generation + 1,
+            "and says it is a new occupant"
+        );
     }
 
     #[test]
@@ -364,7 +372,10 @@ mod tests {
         let old = t.insert(task()).unwrap();
         t.remove(old);
         let new = t.insert(task()).unwrap();
-        assert!(t.get(old).is_none(), "the predecessor's id must not resolve to its successor");
+        assert!(
+            t.get(old).is_none(),
+            "the predecessor's id must not resolve to its successor"
+        );
         assert!(t.get_mut(old).is_none());
         assert!(t.remove(old).is_none(), "nor may it destroy it");
         assert!(t.get(new).is_some());
@@ -377,7 +388,10 @@ mod tests {
         let a = t.insert(task()).unwrap();
         assert_eq!(t.id_at(0), Some(a));
         t.remove(a);
-        assert!(t.id_at(0).is_none(), "a free slot has no id, whatever its generation");
+        assert!(
+            t.id_at(0).is_none(),
+            "a free slot has no id, whatever its generation"
+        );
         let b = t.insert(task()).unwrap();
         assert_eq!(t.id_at(0), Some(b));
         assert_eq!(t.get_by_index(0).unwrap().id, b);
@@ -389,7 +403,11 @@ mod tests {
         assert_eq!(t.next_free(), Some((0, 0)));
         let a = t.insert(task()).unwrap();
         t.remove(a);
-        assert_eq!(t.next_free(), Some((0, 1)), "a spawner builds frame-owner tags from this, so it must carry the bumped generation");
+        assert_eq!(
+            t.next_free(),
+            Some((0, 1)),
+            "a spawner builds frame-owner tags from this, so it must carry the bumped generation"
+        );
         let predicted = t.next_free().unwrap();
         let got = t.insert(task()).unwrap();
         assert_eq!((got.index, got.generation), predicted);

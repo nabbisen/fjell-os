@@ -28,7 +28,8 @@ pub fn program_name(dir: &str) -> Option<String> {
     let rest = dir
         .strip_prefix("crates/services/")
         .or_else(|| dir.strip_prefix("crates/drivers/"))?;
-    (!rest.is_empty() && !rest.contains('/')).then(|| rest.strip_prefix("fjell-").unwrap_or(rest).to_string())
+    (!rest.is_empty() && !rest.contains('/'))
+        .then(|| rest.strip_prefix("fjell-").unwrap_or(rest).to_string())
 }
 
 /// The program names the table's first cells give, in order (one entry per backtick span; a row may name several).
@@ -68,7 +69,9 @@ pub fn evaluate(dirs: &[String], doc: &str) -> Result<Report, Vec<String>> {
         return Err(vec!["no program directory found under crates/services/ or crates/drivers/: a check over nothing is not a pass".into()]);
     }
     let Some(named) = named_programs(doc) else {
-        return Err(vec![format!("services.md: the `{ANCHOR}` heading was not found: a renamed or removed table is a failure, not a pass over nothing")]);
+        return Err(vec![format!(
+            "services.md: the `{ANCHOR}` heading was not found: a renamed or removed table is a failure, not a pass over nothing"
+        )]);
     };
     if named.is_empty() {
         problems.push("services.md: the service table has no rows under its heading".into());
@@ -76,7 +79,9 @@ pub fn evaluate(dirs: &[String], doc: &str) -> Result<Report, Vec<String>> {
     let mut seen = BTreeSet::new();
     for n in &named {
         if !seen.insert(n.as_str()) {
-            problems.push(format!("services.md: `{n}` is named by two rows (or twice in one)"));
+            problems.push(format!(
+                "services.md: `{n}` is named by two rows (or twice in one)"
+            ));
         }
         if !tree.contains(n) {
             problems.push(format!(
@@ -92,7 +97,10 @@ pub fn evaluate(dirs: &[String], doc: &str) -> Result<Report, Vec<String>> {
         }
     }
     if problems.is_empty() {
-        Ok(Report { programs: tree.len(), rows: named.len() })
+        Ok(Report {
+            programs: tree.len(),
+            rows: named.len(),
+        })
     } else {
         Err(problems)
     }
@@ -104,16 +112,25 @@ mod tests {
 
     const DOC: &str = "## 2. x\n\n### The service plane (as built)\n\ntext\n\n| Service | Responsibility | Requirement |\n|---|---|---|\n| `init` | first | FR |\n| `driver-uart` | uart | RFC |\n| `svc-fault`, `neg-test` | helpers | (testing) |\n\n## 3. next\n\n| `not-this` | x | y |\n";
     fn dirs() -> Vec<String> {
-        ["crates/services/fjell-init", "crates/drivers/fjell-driver-uart", "crates/services/fjell-svc-fault", "crates/services/fjell-neg-test"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect()
+        [
+            "crates/services/fjell-init",
+            "crates/drivers/fjell-driver-uart",
+            "crates/services/fjell-svc-fault",
+            "crates/services/fjell-neg-test",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
     }
 
     #[test]
     fn a_table_that_names_every_program_and_only_those_passes() {
         let r = evaluate(&dirs(), DOC).unwrap();
-        assert_eq!((r.programs, r.rows), (4, 4), "a row may name several programs; a name is counted once");
+        assert_eq!(
+            (r.programs, r.rows),
+            (4, 4),
+            "a row may name several programs; a name is counted once"
+        );
     }
 
     /// Direction 1: a program in the tree that no row names (the five the real table was missing).
@@ -122,7 +139,11 @@ mod tests {
         let mut d = dirs();
         d.push("crates/services/fjell-summaryd".into());
         let err = evaluate(&d, DOC).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`summaryd` is a program in the tree")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`summaryd` is a program in the tree")),
+            "{err:?}"
+        );
     }
 
     /// Direction 2: a row naming a program that is not in the tree.
@@ -130,19 +151,31 @@ mod tests {
     fn a_ghost_row_fails() {
         let doc = DOC.replace("`neg-test`", "`neg-test`, `ghost-svc`");
         let err = evaluate(&dirs(), &doc).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`ghost-svc`") && e.contains("ghost row")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`ghost-svc`") && e.contains("ghost row")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn a_program_named_twice_fails() {
         let doc = DOC.replace("| `driver-uart` |", "| `driver-uart`, `init` |");
         let err = evaluate(&dirs(), &doc).unwrap_err();
-        assert!(err.iter().any(|e| e.contains("`init` is named by two rows")), "{err:?}");
+        assert!(
+            err.iter()
+                .any(|e| e.contains("`init` is named by two rows")),
+            "{err:?}"
+        );
     }
 
     #[test]
     fn a_table_that_cannot_be_found_is_a_failure_not_a_pass() {
-        let err = evaluate(&dirs(), &DOC.replace("### The service plane", "### The plane of services")).unwrap_err();
+        let err = evaluate(
+            &dirs(),
+            &DOC.replace("### The service plane", "### The plane of services"),
+        )
+        .unwrap_err();
         assert!(err[0].contains("heading was not found"), "{err:?}");
         let err = evaluate(&[], DOC).unwrap_err();
         assert!(err[0].contains("a check over nothing"), "{err:?}");
@@ -158,8 +191,14 @@ mod tests {
 
     #[test]
     fn program_names_strip_the_prefix_and_only_the_two_trees_count() {
-        assert_eq!(program_name("crates/services/fjell-init").as_deref(), Some("init"));
-        assert_eq!(program_name("crates/drivers/fjell-driver-uart").as_deref(), Some("driver-uart"));
+        assert_eq!(
+            program_name("crates/services/fjell-init").as_deref(),
+            Some("init")
+        );
+        assert_eq!(
+            program_name("crates/drivers/fjell-driver-uart").as_deref(),
+            Some("driver-uart")
+        );
         assert_eq!(program_name("crates/fjell-kernel"), None);
         assert_eq!(program_name("crates/services/fjell-init/src"), None);
     }
@@ -169,13 +208,17 @@ mod tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let mut dirs = Vec::new();
         for kind in ["services", "drivers"] {
-            for e in std::fs::read_dir(root.join("crates").join(kind)).unwrap().flatten() {
+            for e in std::fs::read_dir(root.join("crates").join(kind))
+                .unwrap()
+                .flatten()
+            {
                 if e.path().join("Cargo.toml").is_file() {
                     dirs.push(format!("crates/{kind}/{}", e.file_name().to_string_lossy()));
                 }
             }
         }
-        let doc = std::fs::read_to_string(root.join("docs/src/external-design/services.md")).unwrap();
+        let doc =
+            std::fs::read_to_string(root.join("docs/src/external-design/services.md")).unwrap();
         let r = evaluate(&dirs, &doc);
         assert!(r.is_ok(), "{:#?}", r.err());
     }
