@@ -29,6 +29,7 @@ pub mod release_records; // RFC-0.48-003: a release has a CHANGELOG section and 
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
 pub mod rfc_policy; // RFC-0.47-002: the lifecycle policy's kept rules are written down, and a check can find them missing
 pub mod status; // shared status-keyword parsing (was a bin module)
+pub mod syscall_doc; // RFC-0.50-002: the published syscall tables are compared with `SyscallNumber`
 pub mod syscall_table; // `syscall-surface`'s two parsers, shared with `rfc-evidence`
 pub mod toolchain;
 
@@ -74,4 +75,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "bootstrap-leases",
     "release-records",
     "qemu-records",
+    "syscall-doc",
 ];

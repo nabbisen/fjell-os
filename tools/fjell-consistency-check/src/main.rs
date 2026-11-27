@@ -45,6 +45,8 @@
 //!     statuses are reported by name (RFC-0.45-003)
 //!   - `endpoint-envelope` — `ENDPOINT_ENVELOPE` equals the union of the broker's `Endpoint`-class
 //!     `Allow` rights, evaluated rather than text-matched (0.46 small item C)
+//!   - `syscall-doc` — the Syscall Reference's table and `kernel.md`'s group table agree with `SyscallNumber`: a row naming no variant,
+//!     a variant no row names, a wrong number, an alias that is not a wrapper or reaches another syscall (RFC-0.50-002)
 //!   - `qemu-records` — every release-gated QEMU profile (and each smoke milestone `test-all` runs) has its recorded marker
 //!     artefacts, a `multi_node` profile without one is waived by name and reason, and no record is orphaned (E-135)
 //!   - `repo-scope` — every Rust source that walks the tree asks `fjell-repo-scope` or is classified
@@ -89,6 +91,7 @@ mod rfc_status_folder;
 mod security_advisories;
 mod standards_mapping;
 use fjell_consistency_check::status; // shared with the lib (RFC-0.45-003)
+mod syscall_doc_gate; // RFC-0.50-002: the subcheck's file-reading half (logic is in the lib)
 mod syscall_surface;
 mod threat_model; // 0.44 small item A (E-027): the threat-model gate the handoff claimed
 mod toolchain_declarations;
@@ -175,6 +178,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("release-records", release_records_gate::check),
     // E-135: every release-gated QEMU profile has its recorded marker artefacts; a multi_node profile without one is waived by name; nothing recorded is orphaned.
     ("qemu-records", qemu_records_gate::check),
+    // RFC-0.50-002: the Syscall Reference and kernel.md's group table are compared with `SyscallNumber` (the check 0.22 named and aimed at source).
+    ("syscall-doc", syscall_doc_gate::check),
 ];
 
 #[cfg(test)]

@@ -32,7 +32,9 @@ A 25+-bit rights lattice: `READ`, `WRITE`, `EXECUTE`, `SEND`, `RECV`, `CALL`,
 ### Capability operations (syscalls)
 
 `cap_copy` (equal-rights copy), `cap_mint` (strict subset), `cap_delete`,
-`cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease`.
+`cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease`, `cap_install`.
+
+`cap_install` installs a capability into another task's CSpace. It is dispatched since 0.45 and installs `Endpoint` capabilities only (RFC-0.45-002); `cap-broker` is its one holder (see below).
 
 `cap_bind_lease` binds a capability the caller owns to a lease. **Authority is by
 possession, and the call names no authorising handle** (RFC-0.47-001 R4): the caller must

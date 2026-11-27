@@ -26,12 +26,22 @@
 //! instrument audit's own totals table (`docs/src/assurance/instrument-audit.md`
 //! — already corrected under RFC-0.24-003, and its own document, not
 //! `rfcs/README.md`), and every other numeric claim anywhere else in the
-//! tree (service counts, syscall counts already covered by
-//! `syscall-surface`, line counts in commentary, etc.) — none of those are
+//! tree (service counts, line counts in commentary, etc.) — none of those are
 //! "a document asserting a count about the tree" in the same
 //! directly-derivable sense; each would need its own bespoke parser for a
 //! single data point, which is the general-linter shape this RFC's Scope
 //! explicitly rules out.
+//!
+//! **Who owns what the exclusion names (corrected at 0.50, RFC-0.50-002 D6).** This note used to
+//! list *"syscall counts already covered by `syscall-surface`"* among the things it declined, and
+//! `syscall-surface` reads three source files and a TOML and **no document** -- so the question was
+//! declined on the grounds that a sibling owned it, the sibling did not, and that sentence is why
+//! nobody looked again while the Syscall Reference said "26 of 35" for twenty milestones (the check
+//! 0.22 named for exactly this, *"to stop documented-surface drift recurring"*, was built and given
+//! the wrong inputs). Now: the **syscall tables in the documents** are `syscall-doc`'s (the
+//! Syscall Reference and `kernel.md`'s group table, against `SyscallNumber`); the **dispatch state**
+//! is `syscall-surface`'s; **service and driver counts, and the service table, are covered by
+//! nothing** -- named here so that the next reader is not told they belong to somebody else.
 
 use crate::read_file;
 use fjell_consistency_check::readme_counts::{FolderCounts, count_folders, disagreements};
@@ -74,6 +84,19 @@ pub fn run_check(readme_src: &str, actual: &FolderCounts) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// RFC-0.50-002 D6: this module's own scope note must not claim that somebody else covers a question nobody covers. It named
+    /// `syscall-surface` as the owner of syscall counts in documents while that check read no document. The note now names the check
+    /// that does (`syscall-doc`) and says what is uncovered; this test pins both, and that the false sentence is gone.
+    #[test]
+    fn the_scope_note_names_the_check_that_owns_the_syscall_tables_and_what_nothing_covers() {
+        let me = include_str!("doc_counts.rs");
+        assert!(me.contains("`syscall-doc`"), "the note must name the check that reads the documents");
+        assert!(me.contains("covered by\n//! nothing"), "the note must say what is uncovered");
+        let false_sentence = ["syscall counts already covered", " by\n//! `syscall-surface`"].concat();
+        let hits = me.matches(false_sentence.as_str()).count();
+        assert_eq!(hits, 0, "the sentence that said syscall-surface covers the documents must not come back");
+    }
 
     fn fixture_readme() -> &'static str {
         "## Implemented (done/) — 166 files\n\n\

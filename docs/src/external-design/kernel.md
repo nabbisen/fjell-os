@@ -18,30 +18,31 @@ stack, GUI stack, font rendering, dynamic plugins, or app-compatibility layer
 
 ## 2. External surface
 
-The kernel's boundary is the **syscall surface**. `fjell-abi` declares 35
-syscall numbers; `trap/syscall.rs` dispatches **26** of them via the RISC-V
-`ecall` convention. The register-level contract is normative in
-[IPC Register Layout](../abi/ipc-register-layout.md); the syscall catalog is
-in [Syscall Reference](../api/syscalls.md).
+The kernel's boundary is the **syscall surface**. `fjell-abi` declares the syscall numbers and
+`trap/syscall.rs` dispatches every one of them via the RISC-V `ecall` convention. The register-level
+contract is normative in [IPC Register Layout](../abi/ipc-register-layout.md); the syscall catalog
+is in [Syscall Reference](../api/syscalls.md). This section states no count: the one it carried
+(*"dispatches 26 of them"*) was stale for twenty milestones, and the table below is kept equal to
+`SyscallNumber` by the `syscall-doc` subcheck instead (RFC-0.50-002).
 
-Dispatched groups (as-built at v0.21.2, 26 syscalls):
+Dispatched groups (every declared syscall, by wrapper name; kept equal to `SyscallNumber`):
 
 | Group | Syscalls |
 |---|---|
 | Scheduler / lifecycle | `yield`, `exit` |
-| IPC | `ipc_call` (also reached via `ipc_call_words`), `ipc_recv` (also reached via `ipc_recv_msg`), `ipc_reply`, `ipc_send` (also reached via `ipc_try_send`), `ipc_try_recv` |
-| Capability | `cap_copy`, `cap_mint`, `cap_delete`, `cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease` |
+| IPC | `ipc_call` (also reached via `ipc_call_words`), `ipc_recv` (also reached via `ipc_recv_msg`), `ipc_reply`, `ipc_send`, `ipc_try_recv` |
+| Capability | `cap_copy`, `cap_mint`, `cap_delete`, `cap_revoke`, `cap_drop`, `cap_inspect`, `cap_bind_lease`, `cap_install` |
 | Lease | `lease_create`, `lease_revoke`, `lease_inspect` |
-| Task | `task_spawn`, `task_start`, `task_status` |
-| Hardware | `mmio_map`, `dma_alloc`, `dma_revoke` |
-| Platform | `platform_info_get` |
+| Task | `task_spawn`, `task_start`, `task_status`, `task_kill` |
+| Hardware | `mmio_map`, `mmio_unmap`, `dma_alloc`, `dma_revoke`, `irq_bind`, `irq_ack`, `irq_wait` |
+| Platform | `platform_info_get`, `platform_reboot`, `clock_now` |
 | Audit | `audit_drain`, `audit_wait` |
 | Debug (dev only) | `debug_write` |
 
 Every syscall except the debug helper is capability-gated. The result is
 returned in `a0` as a typed `SysError` (or `Ok`).
 
-### Declared, not dispatched (none: 35 declared, 35 dispatched)
+### Declared, not dispatched (none)
 
 **The rule since RFC-0.49-002: every declared syscall is dispatched, or it is retired.**
 `cargo run -p fjell-consistency-check -- syscall-surface` **fails** on a `SyscallNumber`
@@ -120,13 +121,14 @@ that the resource exists (NFR-SEC-001).
 - **Scheduling is cooperative**, not the full power-state-coupled scheduler of
   FR-KRN-005/FR-KRN-006; `powerd` provides telemetry but not active power-state
   scheduling yet.
-- **Interrupt syscalls are not dispatched.** `irq_bind`/`irq_ack`/`irq_wait`
-  are declared in `fjell-abi` and have user-space wrappers, but
-  `trap/syscall.rs` has no dispatch arm for any of them (see §2, "Declared,
-  not dispatched"); calling one returns `UnknownSyscall`. `driver-virtio-net`
-  calls `sys_irq_bind`, but it is a documented early-exit stub
-  (`docs/src/releasing/v1-limitations.md`), so this is not exercised as a live
-  interrupt path at v1.0.
+- **Interrupt syscalls are dispatched and in use.** `irq_bind`/`irq_ack`/`irq_wait` have dispatch arms in
+  `trap/syscall.rs`, and `driver-uart` binds, waits and acks in a live loop (its console RX path); the
+  `uart-rx` and `uart-rx-unbound` negative categories exercise exactly that path. `driver-virtio-net`
+  calls none of them: it is a one-shot transport scan that maps the virtio-mmio region, reports, and exits
+  (`docs/src/releasing/v1-limitations.md`). *(Corrected at 0.50: this bullet read "Interrupt syscalls are
+  not dispatched", cited §2 as its authority, and named `driver-virtio-net` as the caller of `sys_irq_bind`.
+  The arms were added by RFC-0.25-001; the paragraph was false from that milestone, and false in all three
+  clauses.)*
 
 ## 7. Known gaps
 

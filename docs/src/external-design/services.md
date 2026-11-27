@@ -14,7 +14,15 @@ restartable (NFR-REL-002).
 
 ## 2. External surface
 
-### The service plane (as-built, 29 programs)
+### The service plane (as built: every program under `crates/services/` and `crates/drivers/`)
+
+*This heading used to carry a count (29), and the table beneath it matched that count while the tree held more:
+five programs were missing from it, and two other figures in circulation (the kernel's prebuilt images, the
+number of crates) disagreed with both. A count a person types is the thing that drifted, so none is stated
+here. To count: `ls -d crates/services/*/ crates/drivers/*/ | wc -l` for programs and
+`git ls-files 'crates/fjell-kernel/prebuilt/*.bin' | wc -l` for the images the kernel embeds (every program but
+`summaryd`, which has none). Nothing checks this table against the tree: `doc-counts` covers only
+`rfcs/README.md`, and `syscall-doc` only the syscall tables (RFC-0.50-002 D5).*
 
 | Service | Responsibility | Requirement |
 |---|---|---|
@@ -26,6 +34,7 @@ restartable (NFR-REL-002).
 | `devmgr` | Device discovery, capability assignment, driver startup | FR-SVC-002 |
 | `driver-virtio-blk` | Block device driver (user space) | FR-SVC-001 |
 | `driver-virtio-net` | Discovery only: scans the eight virtio-mmio transports through one `MMIO_MAP` capability, reports whether a `DeviceID=1` device is present — or that it could not scan — and exits. It does **not** drive the device: no DMA, no interrupt, no virtqueue (RFC-0.45-001) | FR-SVC-001 |
+| `driver-uart` | UART RX driver: binds UART0's interrupt, reads one byte per interrupt and delivers it by IPC to `init` (no shell, no echo) | RFC-0.25-001 |
 | `storaged` | virtio-blk I/O / storage service | FR-SVC-003 |
 | `bootctl` | Boot-control (A/B slot management) | FR-BOOT-003 |
 | `upgraded` | Immutable A/B upgrade staging | FR-BOOT-003 |
@@ -42,9 +51,11 @@ restartable (NFR-REL-002).
 | `diagnosticsd` | Diagnostic bundle builder | FR-AUD-002 |
 | `semantic-stream` | Semantic/Intent stream service | FR-SEM-001 |
 | `proxy-text` | Text Presentation Proxy (sample) | FR-SEM-002 |
+| `proxy-braille` | Braille Presentation Proxy: the second presentation of the same stream, as uncontracted braille patterns on the console (no braille display is driven, E-004) | RFC-0.34-001 |
 | `fleetd` | Fleet operations manager | (fleet, Could-tier) |
+| `summaryd` | Measurement and release summary exporter (no prebuilt image: the kernel does not embed it) | RFC v0.7-003 |
 | `sample-service` | SDK reference service | FR-DEV-001 |
-| `svc-fault`, `svc-timeout`, `neg-test` | Negative-test helpers | (testing) |
+| `svc-fault`, `svc-timeout`, `svc-presentation-fault`, `svc-presentation-liar`, `neg-test` | Negative-test helpers (the two `svc-presentation-*` are test-only presentations: one that faults mid-run, one that claims rights it does not hold) | (testing) |
 
 ## 3. Requirements coverage
 
