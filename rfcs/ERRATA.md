@@ -9943,6 +9943,28 @@ which is history removes the disagreement instead of detecting it, and needs no 
   comparison as a subcheck — **code, and so not work to add after a release's verification run**.
   **What closing it needs:** that change, the comparison subcheck, and the three profiles' artefacts
   recorded by a real run.
+- **Resolution:** ~~**ACCEPTED**~~ → **CLOSED** by **RFC-0.50-004 §A** (architect, 2026-11-27).
+  All three of the closing conditions above were met, and the Status bullet above stays as the dated
+  record the convention supersedes (E-114). What landed: `write_summary` now keys on
+  `release_gated || already committed` rather than on the file's presence; `qemu-records` compares
+  **three** sets — the profile TOMLs, the gated categories and the recorded directories — because the
+  obvious two-set comparison this entry proposed as *"a one-line comparison"* **would still have
+  missed `fleet-demo`**, which is in neither of the two sets; and `task-lifecycle` and `mmio-unmap`
+  were recorded **by the mechanism**, from a real run of each profile, nothing hand-seeded.
+- **The residue, named rather than closed over.** `fleet-demo` still has no record and **no change to
+  `write_summary` can give it one**: `cargo xtask fleet-demo` never goes through `run_profile` or
+  `ArtifactDir`, `test-all` does not run it and no workflow names it. `qemu-records` **waives it by
+  name with that reason, and the waiver goes stale and fails** if the profile ever gains a record.
+  **A deeper finding came out of writing that waiver** (architect, 2026-11-27): the demo's four pass
+  markers were declared in **three** places — this profile, `examples/three-node-fleet/fleet-demo.toml`'s
+  `[verify]` block, and a `const PASS_MARKERS` in `fleet_demo.rs` — **identical in all three and
+  compared by nothing**, with the runner reading the only copy no document pointed at. Since 0.50
+  `verify` reads the profile and the other two declarations are gone. The three-node **topology**
+  (ports and roles) is still duplicated between `fleet_demo.rs` and the examples TOML: recorded here,
+  not fixed, because parsing that node table was not this line's work.
+- **This entry's own figures were wrong twice** and are corrected above with their dates: *"three of
+  twenty-seven"* added two sets together, and *"24 of 27"* followed from it. Both were the
+  architect's, in the entry the architect filed.
 
 ## E-136 — `releases/0.48.0.md` claims `git diff 0.48.0 HEAD` is empty, in one of the sixty-nine lines that made it non-empty
 
@@ -9978,6 +10000,111 @@ which is history removes the disagreement instead of detecting it, and needs no 
 - **Status:** **CLOSED** (architect, 2026-11-26) **as a record of a false published claim**, not as a
   corrected one. The claim stands in 0.48.0's record for ever; what changes is that 0.49.0's record
   makes the same point without asserting an empty diff.
+
+## E-137 — `releases/0.49.0.md` records exit criterion 9 with one CI run where the criterion requires two, so `fuzz-run` and `miri` were not read for the release commit
+
+- **Found 2026-11-27 by the architect**, while scoping 0.50 and comparing the last four records'
+  criterion-9 sections against the cycle document — not by a gate, because no gate read a record's
+  criterion-9 section until this milestone added one.
+- **RFC:** none
+  No RFC is over-claiming: a release record is incomplete against the procedure it
+  cites, and the procedure's own text was right.
+- **Claim.** `releases/0.49.0.md:277`–`:278`, under *CI for the tagged commit — criterion 9*:
+  **"Run | push `45843432462`, head `093ccdf5` — the tagged commit's own run, not a dispatch"** and
+  **"Result | 48 success · 0 failure · 2 skipped (`miri`, `fuzz-run`, skipped by design)"**. The
+  record's exit-criteria entry for criterion 9 reads only *"see Tag and publish"*, so that section is
+  the whole of it.
+- **What the procedure requires.** `docs/src/releasing/v0-release-cycle.md` §*Criterion 9 also covers
+  the fuzz run, which no push run contains*: `fuzz-run` runs only on `schedule` and
+  `workflow_dispatch`, so *"At every cut, **dispatch the workflow against the release commit** and
+  read that run too."* `ci-miri` is skipped on push for the same reason. **So two correctness-gating
+  jobs are read only in the dispatched run, and 0.49.0's record names no dispatched run.**
+- **Tree / what actually happens.** The three cuts before it each name both:
+  **0.46.0** push `44911794179` + dispatch `44911793524`; **0.47.0** push `45167759567` + dispatch
+  `45167758989`; **0.48.0** push `45708634122` + dispatch `45642086476`, whose row states in its own
+  words *"`miri` and all six `fuzz-run` targets are in that 52"*. 0.49.0 is the **first** cut since
+  the dispatch step was added at 0.32.0 to record one.
+- **What cannot be established, and is not guessed at.** Whether the dispatch was run and left out of
+  the record, or never run, **cannot be told from the tree**; settling it would need a GitHub API call
+  naming this repository, which this project does not make. It does not change the finding: the record
+  is what the project has, and criterion 9's own rule is *"read from the run, never from anything
+  else."*
+- **Why this is the E-043 family.** The dispatch step exists *because* of this failure — the cycle
+  document records that *"0.31.0 shipped while every scheduled run of the old fuzz job had failed for
+  three months (E-043)"*. The step added to stop a job being structurally invisible at a cut was the
+  step the cut skipped, or failed to record.
+- **Whose error.** **The architect's**, who ran that cut and wrote that record. The third release
+  record of mine to be wrong about itself or its subject (E-126, E-136), and the third found by reading
+  a record against the tree.
+- **Not correctable in place.** `releases/0.49.0.md` is a **released record and this project does not
+  rewrite them** — the rule that governs E-126, E-133 and E-136.
+- **Status:** **CLOSED** (architect, 2026-11-27) **as a record**, with the remedy in the live
+  documents rather than the dead one: `v0-release-cycle.md` now **classifies** CI jobs as
+  *correctness-gating* (a red one blocks the tag) and *publishing* (`ci-pages` alone — the only job
+  carrying `pages: write`, an `environment:` and a `deploy-pages` step — a red one is recorded with its
+  run id and what was not published, and does not block the tag), and says which run each kind is read
+  from; and **`release-records` now judges criterion 9**: for every record at or above a **derived**
+  floor (`0.32.0`, the first to name both), the criterion-9 **section** must name a push run **and** a
+  dispatch run. It is **section-scoped and label-based for a measured reason** — a document-scoped
+  count of run ids **passes `0.49.0.md`**, which holds three long numbers, two of them decoys
+  (`45843464701`, the `release` workflow's own run, and `151289025`, a Pages artifact id). The
+  architect specified the document-scoped version first and tested it against this very record before
+  it was built. 0.49.0 is **exempt by name in the gate**, and that exemption **goes stale and fails the
+  gate** the day the record names both runs.
+
+## E-138 — a negative-test fixture fills the device-mapping table and can break two production services mid-boot, in a release-gated tier
+
+- **Found 2026-11-27 by the implementer**, from a measured baseline boot taken for RFC-0.50-003 — not
+  from a failing tier. Reported rather than banked quietly, which is how it reached this register.
+- **RFC:** none
+  No RFC is over-claiming: nothing in the tree claims the fixture is isolated. **Tracked 0.51** (the
+  Summary table's tracking column): not fixed in 0.50 because the remedy is `init`'s startup
+  sequencing, no part of the three lines this milestone carries.
+- **Claim.** Nothing in the tree claims the fixture is isolated, so **nothing published is false.**
+  What is recorded here is an unstated and unbounded interaction: a test fixture can make two
+  production services fail, in a suite the release gates on.
+- **The fixture.** `crates/services/fjell-neg-test/src/main.rs` (`test_mmio_unmap`, RFC-0.49-002)
+  pins the mapping table's bound the only way it can — by reaching it: `let mut vas = [0usize; 96]`,
+  then `while n < vas.len() { sys_mmio_map(..) }` until the kernel answers `NoMemory`, then unmapping
+  all of them. `MAX_MMIO_MAPPINGS` is **64**. **There is no `sys_yield` in that loop**, and the fill
+  runs in `neg-test`'s default sequence, on **every** boot.
+- **Why that is not confined to the fixture, measured and not assumed.** `trap/dispatch.rs`'s
+  `trap_dispatch` calls **`schedule_next(tf)` unconditionally after every trap**, `UserEcall`
+  included, and `handle_timer` additionally sets the preemption flag and calls `request_yield()`. **So
+  the scheduler is consulted between every pair of `sys_mmio_map` calls in the fill**, and any task it
+  picks during the window between the fill and the unmaps meets a table at 64 of 64. A green
+  `test-all` is the scheduler's current choices, **not an invariant**.
+- **What it did, once.** In an instrumented baseline `net` boot (a print-only kernel patch in a scratch
+  worktree, never committed — it shifts timing), `driver-virtio-net` printed
+  **`cannot scan the virtio-mmio region (read 5 of 8 transports, last error code -30)`**.
+  `SysError::NoMemory = -30` (`fjell-abi/src/error.rs:39`). It has not recurred in any `test-all` or
+  any run of the 0.50 line.
+- **The two exposures are not symmetric, and this is the part that matters.**
+  `driver-virtio-net` **degrades honestly** — reporting what it read and how far it got is the
+  behaviour RFC-0.43-003 built, so a refusal there costs a line of output and no verdict.
+  **`storaged` does not degrade: it exits.** Its scan counts a refused map as `unmappable` and
+  continues; with every transport refused, `found == 0`, and it prints `storaged: no blk` and calls
+  `sys_exit(1)` — a boot with no storage, so `TEST:M8:PASS` (which needs `upgraded`, which needs
+  `storaged`) fails. **A release-gated tier can therefore fail for a reason that is not the code under
+  test.**
+- **The window narrowed in 0.50, by accident rather than by design.** RFC-0.50-003 made `storaged`'s
+  scan descend, so on every profile that attaches blk first it needs **one** successful map — slot 7,
+  its first attempt — where before it made eight. The exposure is one syscall per boot instead of
+  eight; on `transport-order`, where blk is on 6, it is two. Narrower, and not closed.
+- **Why it is not fixed here, and why a cheap mitigation would be wrong.** Bounding the fill below 64
+  would destroy the fixture's purpose, which is to reach the bound and be refused
+  (`MMIO_MAP_TABLE_FULL_REFUSED`, and `MMIO_MAP_TABLE_REUSED` after the unmaps — the pair that proves
+  the table is given back). The fix is to run the fill where no production service is still
+  discovering: `init`'s sequencing, 0.51.
+- **Whose error.** **The architect's by approval** — the fixture was reviewed and accepted at 0.49
+  stage 2 without asking what it does to a task the scheduler picks between two of its syscalls — and
+  the implementer's by construction. The capacity question was asked of the *table* and never of the
+  *machine*.
+- **Status:** **ACCEPTED** (architect, 2026-11-27) as a **v1.0 limitation**, recorded in
+  `v1-limitations.md` row 31, tracked **0.51**. The bound, stated so that whoever next sees it flake
+  has the sentence: *a release-gated tier can fail for a reason that is not the code under test, the
+  mechanism is a negative-test fixture filling the device-mapping table while production services are
+  still scanning, and `storaged` is the one that exits rather than degrades.*
 
 ## Summary
 
@@ -10155,5 +10282,7 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-132 **`sys_lease_inspect` returned the lease id as the epoch, so half of two revocation claims could not fail** — it wrote the epoch into `a0`, the **status** register, and never wrote `a1`, which still held the lease id the caller passed in; every wrapper reads status from `a0` and the value from `a1`, so `lease_inspect(id)` returned `id` for every lease, always. `NEG:CAP:REVOKE_NOT_OWNER_REFUSED` (RFC-0.46-003) and the broker's `REVOKE_FOREIGN_LEASE_REFUSED` compare an epoch before and after a refused foreign revocation: **that half compared `id` with `id`**. The refusal half was always real, which is why 0.46-003's mutation table showed the pairs red and the defect survived its own review — a vacuous half, not a vacuous test. **`abi-snapshot` cannot see it** (it hashes declarations, not which register a path writes), the second milestone where that limit has mattered. Found when a new check read `before=27 after=27` against a kernel line printing `revoke -> Ok(2)` and the implementer chased the disagreement. Fixed in 0.48: status `a0`, epoch `a1`, pinned by `INSPECT_REPORTS_EPOCH` and shown red by mutation M9 | 0.48 | CLOSED |
 | E-133 **the release cycle's CI dispatch deploys Pages a second time for the same commit, cannot succeed at it, and the 0.46.0 record called that transient** — `ci-pages` ran on every `main` event but `pull_request`, so criterion 9's dispatch of the release commit re-deployed a tree the push run had already deployed. Both runs upload an artifact named `github-pages`; in the queued run `deploy-pages` reports **`Found 0 artifact(s)`** for an artifact its own run finalised seconds earlier. **Two consecutive identical failures at the 0.48.0 cut (45635983360, 45639520772) disprove "transient"**, while the push run on the same commit succeeded; at 0.46.0 one lucky re-dispatch was generalised into a mechanism, which is a single success read as a cause — in a release record, about a release gate. `ci.yml`'s concurrency note had said since 0.32.0 that both deploys serve the same commit and the second is redundant; that it could not succeed was not known. **Not correctable in place**: `releases/0.46.0.md` is a released record. `ci-pages` was removed from `workflow_dispatch` in 0.48, which is right on its own merits but **did not fix the failure**: within the hour the **push** run for the tag target failed identically with no competing deploy (run 45707204884, artifact 15066176363 finalised, then `Found 0 artifact(s)`). **Three explanations, two refuted by the next run** — a transient store race, then the queued-deploy theory. What is established: upload succeeds, deploy cannot see its own run's artifact, in both event types, intermittently; the remedy is a job re-run, which the action's own text prescribes. **No mechanism is claimed.** CLOSED as a record of two misdiagnoses and one unrelated fix, with the residue named in v1-limitations | 0.48 | CLOSED |
 | E-134 **`fjell-kernel` carries twenty-seven `#[test]` functions that cannot compile, so the crate the kernel lives in has no unit tests at all** — `cargo test -p fjell-kernel` fails to build with 19 errors (`E0152`, `E0433`): a `no_std` kernel binary cannot link a host test harness, so the 27 functions in `mm/user_ptr.rs` (9), `trap/dispatch.rs` (8), `lease/mod.rs` (7) and `task/scheduler.rs` (3) are **never compiled** — not skipped, not ignored, not reported, and counted by nothing. **The E-014 class, with the instance that proves its cost:** 0.49's `ReadyQueue::remove` left the `non_empty_mask` bit set on an emptied bucket and **hung the machine**, and it was found by a QEMU boot, in a file carrying three dead `#[test]`s. **Nothing published is false** — no document claims the kernel has unit tests and the published host-test counts genuinely exclude it — so this is not drift but a source tree that misleads by code. ACCEPTED as a v1.0 limitation (row 29) with the bound stated: kernel behaviour is covered by a boot tier or by nothing. Closing it needs a host-testable library target or the tests' deletion; leaving them is the only option that keeps misleading a reader | 0.49 | ACCEPTED (v1.0 limitation) |
-| E-135 **a newly gated QEMU profile can never record its own marker artefacts, so two of the twenty-seven gated categories have none, `fleet-demo` has never had any, and nothing notices** — `.gitignore` and `qemu_run.rs::write_summary` both say the three per-profile summary files are tracked for every profile `test-all` gates; they are tracked for **25 of the 27 categories** *(corrected 2026-11-27 from "24 of 27")*. `fleet-demo` has never had them in any commit; `task-lifecycle` and `mmio-unmap` (added at 0.49 stage 2) have none. **It cannot fix itself:** `write_summary` writes them only when `expected-markers.txt` was already on disk, a deliberate E-040 fix to stop *ungated* milestones leaking files — so a newly gated profile is absent, therefore not written, therefore never committed, therefore absent. The markers themselves are still checked (the profile TOML is the authority and `test-all` gates all 27), so no tier is unguarded and no pass figure is inflated; what is missing is the recorded rendering an `rfc-evidence` `marker:` citation resolves against, which is how this was found — RFC-0.49-001's primary profile cannot be cited by marker in its own Evidence line. **Nothing compares the gated set against the recorded set**, a one-line check that would have failed on `fleet-demo` for many releases. ACCEPTED as a v1.0 limitation (row 30), deliberately **not** hand-seeded at the cut: that would make the register consistent while hiding the defect | 0.49 | ACCEPTED (v1.0 limitation) |
+| E-135 **a newly gated QEMU profile can never record its own marker artefacts, so two of the twenty-seven gated categories have none, `fleet-demo` has never had any, and nothing notices** — `.gitignore` and `qemu_run.rs::write_summary` both say the three per-profile summary files are tracked for every profile `test-all` gates; they are tracked for **25 of the 27 categories** *(corrected 2026-11-27 from "24 of 27")*. `fleet-demo` has never had them in any commit; `task-lifecycle` and `mmio-unmap` (added at 0.49 stage 2) have none. **It cannot fix itself:** `write_summary` writes them only when `expected-markers.txt` was already on disk, a deliberate E-040 fix to stop *ungated* milestones leaking files — so a newly gated profile is absent, therefore not written, therefore never committed, therefore absent. The markers themselves are still checked (the profile TOML is the authority and `test-all` gates all 27), so no tier is unguarded and no pass figure is inflated; what is missing is the recorded rendering an `rfc-evidence` `marker:` citation resolves against, which is how this was found — RFC-0.49-001's primary profile cannot be cited by marker in its own Evidence line. **Nothing compares the gated set against the recorded set**, a one-line check that would have failed on `fleet-demo` for many releases. ACCEPTED as a v1.0 limitation (row 30), deliberately **not** hand-seeded at the cut: that would make the register consistent while hiding the defect **CLOSED in 0.50 by RFC-0.50-004 §A**: `write_summary` keys on a profile being release-gated (or already having a record, which keeps `store`'s refreshed), `qemu-records` compares THREE sets (the two-set comparison this entry proposed would still have missed `fleet-demo`), and the two missing records were written by the mechanism. Residue: `fleet-demo` is reachable by no writer and is waived by name, a waiver that goes stale and fails. Its markers had been declared in three places and compared by nothing; one reader now. Two of this entry's own figures were the architect's and are corrected in place with dates | RFC-0.50-004 | CLOSED |
 | E-136 **`releases/0.48.0.md` claims `git diff 0.48.0 HEAD` is empty, in one of the sixty-nine lines that made it non-empty** — the sentence is offered as proof that E-130's reorder worked, and it was added by `b2c17b7`, the follow-up commit that appended the tag-and-publish section; `git diff 0.48.0 b2c17b7` reports 69 insertions and 1 deletion in that very file. **Self-referentially false**, and false when written. What it was reaching for is true and is what the reorder bought: no source, gate input, instrument output or build artefact differs between the tag and the commit after it — only the record's own tag-and-publish section, which cannot exist before the tag it describes. **Not correctable in place**: a released record, under the same rule as E-126 and E-133. The architect's error, in a document the architect alone writes, and the second release record of mine to carry a false claim about itself; both were found by reading the record against the tree, since no gate checks a record's claims about a tag — `consistency-check` is a pure function of the tree and a tag is a ref. CLOSED as a record, with 0.49.0's record stating the property in the form that is true | 0.49 | CLOSED |
+| E-137 **`releases/0.49.0.md` records exit criterion 9 with one CI run where the criterion requires two** — the section names push `45843432462`, says *"not a dispatch"*, reports `miri` and `fuzz-run` as *"skipped by design"*, and names **no dispatch run**; the exit-criteria entry only says *"see Tag and publish"*. Those two jobs are skipped on push and read only in the dispatched run, so they were **not read for the release commit** — or were read and left out, which the tree cannot distinguish and which does not change the finding. The three cuts before it each name both runs (0.48.0's row: *"`miri` and all six `fuzz-run` targets are in that 52"*). **The E-043 family**: the dispatch step exists because 0.31.0 shipped while every scheduled fuzz run had failed for three months. The architect's, who ran the cut and wrote the record — the third of mine wrong about its own subject. Not correctable in place. **Remedy in the live documents**: the cycle document now classifies jobs *correctness-gating* vs *publishing* (`ci-pages` alone) and says which run each is read from, and `release-records` judges the criterion-9 **section** for a push **and** a dispatch id above a derived `0.32.0` floor — section-scoped and label-based because a document-scoped count **passes this very record** (three long numbers, two of them a `release`-workflow run and a Pages artifact id; the architect specified the weaker form first and tested it). 0.49.0 is exempt by name and the exemption goes stale | 0.50 | CLOSED |
+| E-138 **a negative-test fixture fills the 64-entry device-mapping table on every boot and can make two production services fail, in a release-gated tier** — `neg-test`'s `test_mmio_unmap` pins the table's bound by reaching it (`while n < 96 { sys_mmio_map }` until `NoMemory`, then unmapping all) with **no `sys_yield` in the loop**. That is not confined to the fixture: `trap_dispatch` calls `schedule_next` **unconditionally after every trap**, `UserEcall` included, and `handle_timer` requests a yield — so the scheduler is consulted between every pair of maps, and a task picked inside the window meets 64 of 64. **The exposures are asymmetric**: `driver-virtio-net` degrades honestly (measured once under a print-only patch: *"read 5 of 8 transports, last error code -30"*, `NoMemory`), while **`storaged` exits** (`no blk`, `sys_exit(1)`), taking `TEST:M8:PASS` with it — so a gated tier can fail for a reason that is not the code under test. 0.50's descending scan narrowed the window from eight syscalls to one, by accident. **Not fixed here**: bounding the fill would destroy its purpose (reaching the bound *is* the assertion); the remedy is `init`'s sequencing. The architect's by approval at 0.49 stage 2 — the capacity question was asked of the table and never of the machine. Found by measuring a baseline boot and reported, not banked | 0.51 | ACCEPTED (v1.0 limitation) |

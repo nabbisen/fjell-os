@@ -146,3 +146,15 @@ git grep -n -i -E 'never dispatched|not dispatched|undispatched|no dispatch arm|
 * **Not done:** the erratum (the architect's, CLOSED as a record); whether the 0.49.0 dispatch run was made and left out of the record (the tree cannot say, and the settling call names this repository).
 
 ### D. Untouched, as instructed.
+
+---
+
+## A lesson this milestone taught three times, named once (the architect's stage-3 ruling)
+
+**An assertion whose evidence the assertion itself provides.** Three instances, each found by *mutating the thing the test was about* and not the code near it, and each written by one of the two of us:
+
+1. **`transport-order` (RFC-0.50-003).** The first profile required `storaged`'s line *"released 1"*; replacing `sys_mmio_unmap` with a bare counter left it green, because a service's report is what it believes and the profile read nothing but the report. **Fixed** by requiring the kernel's own unmap line, exactly once.
+2. **The `doc_counts` pin test (stage 2, mine).** It asserted the module's note *contains* `` `syscall-doc` ``; the assertion's own source contains that string, so it was true whatever the note said. Found by adding `service-table` to the same assertion and mutating the note — it stayed green. **Fixed** by scanning only the module's documentation (everything before `#[cfg(test)]`); and the forbidden sentence in the same test is built by concatenation so that it does not appear literally in the file for its own absence assertion to find.
+3. **The criterion-9 check as first specified (the architect's).** A document-scoped count of run ids passes `0.49.0.md`, because the record contains three long numbers — a push run, a *different workflow's* run, and a Pages artifact id — and the check counted the decoys. **Fixed** by scoping to the section and requiring a `push` and a `dispatch` label; E-137 records that the weaker form was specified first and tested against the very record it was for.
+
+**What to do about it, which is a habit and not a mechanism:** for any new assertion or gate, name *where its evidence comes from* and ask whether the thing under test can supply it. Then run the mutation that removes the thing under test and check that the evidence disappears with it. A green result is information about the assertion only after that has been done. (There is no instrument for this; the three were found by the mutation rule, which is why it is the project's rule.)

@@ -99,6 +99,6 @@ const CRITERION_9_EXEMPTIONS: &[Exemption<'static>] = &[Exemption {
     version: "0.49.0",
     reason: "its criterion-9 section records one run -- push 45843432462, \"the tagged commit's own run, not a dispatch\" -- and names no dispatch run, \
              so `fuzz-run` and `miri` (skipped on push) were not read for the release commit, or were read and left out of the record; the tree \
-             cannot distinguish them. A released record is not rewritten: the gap is the architect's erratum (CLOSED as a record), and this \
+             cannot distinguish them. A released record is not rewritten: the gap is E-137 (CLOSED as a record), and this \
              exemption goes stale -- and the gate fails -- the day the record names both runs",
 }];
