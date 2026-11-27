@@ -43,12 +43,26 @@ const PORTS: [(u16, &str, &str); 3] = [
     (4442, "node-c", "member"),
 ];
 
-const PASS_MARKERS: &[&str] = &[
-    "FLEET:NODE_A:READY",
-    "FLEET:NODE_B:READY",
-    "FLEET:NODE_C:READY",
-    "TEST:V0.10-FLEET-DEMO:PASS",
-];
+/// The profile whose `expected_markers` and `timeout_secs` `verify` reads. **One specification, read by the runner**: these four
+/// markers used to be declared three times (here, in `tests/qemu/profiles/fleet-demo.toml`, and in the `[verify]` block of
+/// `examples/three-node-fleet/fleet-demo.toml`) and read once, by a copy in this file -- so editing either TOML changed nothing
+/// the demo checked (RFC-0.50-004 §A, the architect's ruling on the stage-1 review). The profile is the authority, as it is for
+/// every other profile. The node *topology* (`PORTS` below) is still duplicated with the examples TOML's node table, and is
+/// recorded and not fixed: parsing that table is not this change.
+const PROFILE: &str = "fleet-demo";
+
+/// The markers `verify` waits for and how long it waits, from the profile. An unreadable profile or one with no markers is an
+/// error -- a `verify` that waits for nothing would pass over nothing.
+fn verify_spec(root: &Path) -> Result<(Vec<String>, Duration), String> {
+    let p = crate::qemu_run::load_profile(root, PROFILE)?;
+    if p.expected_markers.is_empty() {
+        return Err(format!("{PROFILE}.toml declares no expected_markers"));
+    }
+    Ok((
+        p.expected_markers,
+        Duration::from_secs(u64::from(p.timeout_secs)),
+    ))
+}
 
 pub fn cmd_fleet_demo(sub: Option<&str>, _args: &[String]) -> ExitCode {
     match sub {
@@ -177,13 +191,19 @@ fn cmd_status() -> ExitCode {
 // ── verify ────────────────────────────────────────────────────────────────────
 
 fn cmd_verify() -> ExitCode {
-    let timeout = Duration::from_secs(120);
+    let (markers, timeout) = match verify_spec(Path::new(".")) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("[fleet-demo] cannot read the profile to verify against: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     println!(
-        "[fleet-demo] waiting for pass markers ({}s timeout) …",
+        "[fleet-demo] waiting for pass markers ({}s timeout, from tests/qemu/profiles/{PROFILE}.toml) …",
         timeout.as_secs()
     );
 
-    let mut missing: Vec<&str> = PASS_MARKERS.to_vec();
+    let mut missing: Vec<&str> = markers.iter().map(String::as_str).collect();
     let start = std::time::Instant::now();
 
     while !missing.is_empty() && start.elapsed() < timeout {
@@ -273,9 +293,49 @@ fn cmd_deploy() -> ExitCode {
 mod tests {
     use super::*;
 
+    fn workspace_root() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// `verify` waits for what the profile says: the four fleet markers and the profile's own timeout, read at run time.
     #[test]
-    fn pass_markers_non_empty() {
-        assert!(!PASS_MARKERS.is_empty());
+    fn verify_reads_its_markers_and_timeout_from_the_profile() {
+        let (markers, timeout) = verify_spec(&workspace_root()).expect("the profile loads");
+        assert_eq!(
+            markers,
+            [
+                "FLEET:NODE_A:READY",
+                "FLEET:NODE_B:READY",
+                "FLEET:NODE_C:READY",
+                "TEST:V0.10-FLEET-DEMO:PASS"
+            ]
+        );
+        assert_eq!(timeout, Duration::from_secs(120));
+    }
+
+    /// The profile is the authority: a profile edited to declare a different marker changes what `verify` waits for, with no
+    /// second copy to edit.
+    #[test]
+    fn editing_the_profile_changes_what_verify_waits_for() {
+        let root = std::env::temp_dir().join(format!("fleet_verify_spec_{}", std::process::id()));
+        let dir = root.join("tests/qemu/profiles");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("fleet-demo.toml"),
+            "name = \"fleet-demo\"\ntimeout_secs = 7\nmulti_node = true\nexpected_markers = [\"ONLY:THIS\"]\n",
+        )
+        .unwrap();
+        let (markers, timeout) = verify_spec(&root).unwrap();
+        assert_eq!(markers, ["ONLY:THIS"]);
+        assert_eq!(timeout, Duration::from_secs(7));
+        // A profile that declares no markers is an error, not a verify that waits for nothing.
+        fs::write(
+            dir.join("fleet-demo.toml"),
+            "name = \"fleet-demo\"\nmulti_node = true\nexpected_markers = []\n",
+        )
+        .unwrap();
+        assert!(verify_spec(&root).is_err());
+        fs::remove_dir_all(&root).ok();
     }
 
     #[test]

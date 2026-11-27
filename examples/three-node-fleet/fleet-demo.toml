@@ -26,16 +26,12 @@ qemu_port_serial = 4442
 qemu_port_gdb    = 0
 
 # ── Expected markers for `fleet-demo verify` ───────────────────────────────
-# These are emitted by the fleet services in the kernel image.
-
-[verify]
-pass_markers = [
-    "FLEET:NODE_A:READY",
-    "FLEET:NODE_B:READY",
-    "FLEET:NODE_C:READY",
-    "TEST:V0.10-FLEET-DEMO:PASS",
-]
-timeout_secs = 120
+# NOT declared here. `fleet-demo verify` reads its markers and timeout from
+# `tests/qemu/profiles/fleet-demo.toml`, the profile every other runner reads
+# (this block used to carry a second copy that nothing read; they were edited
+# separately and agreed only by luck). The node topology above is still read
+# from nowhere: `crates/fjell-tools/src/fleet_demo.rs` hard-codes the three
+# ports and roles, and that duplication is recorded, not fixed (RFC-0.50-004).
 
 # ── Demo bundle ────────────────────────────────────────────────────────────
 [bundle]

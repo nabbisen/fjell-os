@@ -23,8 +23,12 @@ const NAME: &str = "qemu-records";
 /// condition in `write_summary`. It is in this list so that its absence is printed on every run of the gate, not a gap by construction.
 const WAIVERS: &[Waiver<'static>] = &[Waiver {
     profile: "fleet-demo",
-    reason: "multi_node: run by `cargo xtask fleet-demo` (crates/fjell-tools/src/fleet_demo.rs), which never goes through `run_profile` and so never \
-             writes the three summary files; `test-all` does not run it and no workflow names it",
+    reason: "multi_node, and run by nothing automated: `cargo xtask fleet-demo` (crates/fjell-tools/src/fleet_demo.rs) is dispatched only from \
+             main.rs, never goes through `run_profile` or `ArtifactDir` (so it never writes the three summary files, and no change to \
+             `write_summary` can make it), `test-all` does not run it and no workflow names it; the profile still defaults to release-gated. \
+             Its four pass markers were declared in three places and read in one (this profile, the examples TOML's `[verify]`, and a copy \
+             in fleet_demo.rs); since 0.50 `verify` reads this profile and the other two are gone, but the three-node TOPOLOGY (ports and \
+             roles) is still hard-coded in fleet_demo.rs beside the examples TOML's node table, recorded and not fixed",
 }];
 
 pub fn check() -> ExitCode {

@@ -1389,7 +1389,7 @@ pub(crate) fn profile_ends_by_machine_shutdown(root: &Path, name: &str) -> bool 
     load_profile(root, name).is_ok_and(|p| p.expect_shutdown.is_some())
 }
 
-fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
+pub(crate) fn load_profile(root: &Path, name: &str) -> Result<Profile, String> {
     let path = root
         .join("tests/qemu/profiles")
         .join(format!("{name}.toml"));
