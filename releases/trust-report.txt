@@ -1,7 +1,7 @@
 ═══════════════════════════════════════════════════════════════
                     FJELL OS TRUST REPORT
 ═══════════════════════════════════════════════════════════════
-Generated : 2026-11-27 05:57:10 UTC
+Generated : 2026-11-27 09:36:56 UTC
 Version   : 0.50.0
 Mode      : full
 Toolchain : 1.100.0 / 0ef1bc386059596dada8fb65b50425aab2ea637a / x86_64-unknown-linux-gnu / LLVM 23.1.5
