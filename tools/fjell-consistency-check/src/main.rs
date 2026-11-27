@@ -45,6 +45,8 @@
 //!     statuses are reported by name (RFC-0.45-003)
 //!   - `endpoint-envelope` — `ENDPOINT_ENVELOPE` equals the union of the broker's `Endpoint`-class
 //!     `Allow` rights, evaluated rather than text-matched (0.46 small item C)
+//!   - `qemu-records` — every release-gated QEMU profile (and each smoke milestone `test-all` runs) has its recorded marker
+//!     artefacts, a `multi_node` profile without one is waived by name and reason, and no record is orphaned (E-135)
 //!   - `repo-scope` — every Rust source that walks the tree asks `fjell-repo-scope` or is classified
 //!     with a reason; an unclassifiable walker fails (0.46 small item B, E-125)
 //!
@@ -78,6 +80,7 @@ mod handoff_status;
 mod landing_page_gate; // 0.48 small item A (E-130): the subcheck's file-reading half (logic is in the lib)
 mod object_zero; // RFC-0.41-002 R5: nothing may receive on endpoint object 0
 mod readiness_summary;
+mod qemu_records_gate; // E-135: the subcheck's file-reading half (logic is in the lib)
 mod release_records_gate; // RFC-0.48-003: the subcheck's file-reading half (logic is in the lib)
 mod repo_scope; // 0.46 small item B (E-125): no tool answers 'what counts as this repository' from a name list
 mod rfc_evidence_gate; // RFC-0.45-003: the subcheck's printing half (logic is in the lib)
@@ -170,6 +173,8 @@ const ALL_SUBCHECKS: &[Subcheck] = &[
     ("bootstrap-leases", bootstrap_leases_gate::check),
     // RFC-0.48-003: every release record has a CHANGELOG section; the release workflow is the one the RFC describes.
     ("release-records", release_records_gate::check),
+    // E-135: every release-gated QEMU profile has its recorded marker artefacts; a multi_node profile without one is waived by name; nothing recorded is orphaned.
+    ("qemu-records", qemu_records_gate::check),
 ];
 
 #[cfg(test)]

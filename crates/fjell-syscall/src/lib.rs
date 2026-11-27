@@ -308,8 +308,8 @@ pub fn sys_task_spawn(cap_handle: u32, image_id: ImageId) -> Result<usize, SysEr
 ///
 /// Every capability the new task was granted at boot is bound to this lease, which **the caller owns** -- so the caller
 /// may revoke it, with `sys_lease_revoke` and a `LeaseAdmin` holding `LEASE_REVOKE` and *no* `LEASE_REVOKE_ANY`, and
-/// every funnel-checked use of those capabilities then answers `LeaseRevoked`. (An MMIO mapping the task already holds
-/// is not reclaimed: `MmioUnmap` is declared in the ABI and never dispatched.) The lease also ends when the task does.
+/// every funnel-checked use of those capabilities then answers `LeaseRevoked`. (Revoking the lease does not take back an
+/// MMIO mapping the task already holds: unmapping is the holder's own act, `MmioUnmap`, or its death.) The lease also ends when the task does.
 ///
 /// # ABI
 /// ```text

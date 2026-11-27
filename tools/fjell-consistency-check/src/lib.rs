@@ -22,6 +22,7 @@ pub mod authority_funnel;
 pub mod bootstrap_leases; // RFC-0.48-001: every boot grant is bound to a lease, or classified with a reason // RFC-0.47-001: no authority check outside the funnel, and no false SAFETY claim about it
 pub mod errata;
 pub mod landing_page; // 0.48 small item A (E-130): the crates.io landing page's errata figures are derived from the register
+pub mod qemu_records; // E-135: the gated profiles and the recorded ones are compared, as three sets
 pub mod readme_counts;
 pub mod release_records; // RFC-0.48-003: a release has a CHANGELOG section and a record; the workflow is the one described
 pub mod rfc_evidence; // RFC-0.45-003: what an `Implemented` RFC cites, and whether it resolves
@@ -71,4 +72,5 @@ pub const SUBCHECK_NAMES: &[&str] = &[
     "landing-page",
     "bootstrap-leases",
     "release-records",
+    "qemu-records",
 ];

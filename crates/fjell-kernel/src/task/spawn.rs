@@ -1390,7 +1390,7 @@ fn spawn_with_lease(
     // after the grants above. No `lease: None` literal is edited and a grant added tomorrow cannot forget the bind -- the
     // `bootstrap-leases` subcheck fails on a bootstrap literal that is not in this path or classified. The binding is
     // stamped with the lease's current epoch, so revoking the lease kills them all at once, for every use that goes through
-    // the funnel (an MMIO mapping already obtained is not reclaimed: `MmioUnmap` is declared and never dispatched).
+    // the funnel (revoking the lease does not take back an MMIO mapping already obtained: that is the holder's own `MmioUnmap`, or its death).
     {
         // SAFETY: category=kernel-global-mutable single hart; the capability table and the lease table are distinct
         // statics, each borrowed once in this block and neither retained past it.

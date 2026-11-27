@@ -184,6 +184,11 @@ pub struct Profile {
 impl Profile {
     /// Build the default smoke profile for one milestone (`m1`..`m8`).
     pub fn smoke(milestone: &str, marker: &str) -> Self {
+        // Whether a smoke milestone is release-gated is a fact about `test-all`, not a default: `SMOKE_PROFILES` is the list it
+        // runs, and `qemu-test` accepts more names than that (`m7`). A synthesised profile that said `true` for every name would
+        // make `ArtifactDir` (which now keys its writes on this field, E-135) leave three untracked files behind for every
+        // ungated milestone -- E-040 again, one level up.
+        let gated = crate::test_all::SMOKE_PROFILES.contains(&milestone);
         Self {
             name: format!("smoke-{milestone}"),
             kernel: PathBuf::from(KERNEL_ELF),
@@ -193,8 +198,15 @@ impl Profile {
             extra_args: vec![],
             inject_after_marker: None,
             multi_node: false,
-            release_gated: true,
-            not_gated_reason: None,
+            release_gated: gated,
+            not_gated_reason: if gated {
+                None
+            } else {
+                Some(
+                    "not run by `test-all` (`test_all::SMOKE_PROFILES`): an ad-hoc `qemu-test` run, which records nothing"
+                        .to_string(),
+                )
+            },
             expect_shutdown: None,
             expect_boots: None,
             boot_banner: None,
@@ -405,33 +417,38 @@ pub fn judge_equal_digests(text: &str, spec: &str) -> Result<String, String> {
 /// Where artefacts are written for one run.
 pub struct ArtifactDir {
     pub path: PathBuf,
-    /// Whether this profile's summary files are committed — i.e. whether
-    /// `expected-markers.txt` was already on disk when the run started.
-    /// This is the gate on writing them (see `write_summary`).
-    pub summaries_committed: bool,
+    /// Whether this run writes the profile's three summary files (`expected-markers.txt`, `qemu-command.txt`,
+    /// `result-summary.txt`) -- see [`ArtifactDir::write_summary`] and [`ArtifactDir::for_run`] for the rule.
+    pub writes_summaries: bool,
 }
 
 impl ArtifactDir {
     /// `tests/qemu/artifacts/<profile>/`.  Created on demand.
-    pub fn for_run(name: &str) -> Self {
+    ///
+    /// **The rule (E-135): a profile's summary files are written when the profile is release-gated, or when they are already
+    /// committed.** `release_gated` is the profile TOML's own field (`Profile::release_gated`, which the loader requires a
+    /// reason for when it is `false`) -- the authority for "does `test-all` gate this".
+    ///
+    /// It used to be *only* "was `expected-markers.txt` already on disk", a deliberate E-040 fix against ungated milestones
+    /// leaving three untracked files behind. That condition has a consequence nobody wanted: **a newly gated profile is absent,
+    /// therefore not written, therefore never committed, therefore absent.** Keying on being gated lets a gated profile write
+    /// its own first copy, which a human then commits -- the files exist because the mechanism wrote them, never because anyone
+    /// seeded them. Keying on *already committed* as well keeps the one case the new rule alone would regress: a profile that
+    /// is **not** gated but whose files are tracked (`store`) keeps being refreshed in place rather than silently going stale.
+    ///
+    /// The file-presence sample is taken *before* creating anything, and on `expected-markers.txt` rather than on the
+    /// directory: the directory is the wrong test, because this run creates it, so a second run of the same ungated milestone
+    /// would find it present and start writing after all -- the leak would take two runs instead of one. (Found exactly that
+    /// way, by running an ungated milestone while demonstrating the first version of the E-040 fix.)
+    /// `expected-markers.txt` is stable under repetition: committed for every recorded profile, so present in any checkout; and
+    /// never written for an ungated run, so absent however often it runs.
+    pub fn for_run(name: &str, release_gated: bool) -> Self {
         let dir = PathBuf::from("tests/qemu/artifacts").join(name);
-        // Sampled *before* creating anything, and keyed on
-        // `expected-markers.txt` rather than on the directory itself.
-        //
-        // The directory is the wrong test: this run creates it, so a second
-        // run of the same ungated milestone would find it present and start
-        // writing after all — the leak would take two runs instead of one.
-        // (Found exactly that way, by running an ungated milestone while
-        // demonstrating the first version of this fix.)
-        //
-        // `expected-markers.txt` is stable under repetition: committed for
-        // every gated profile, so present in any checkout; and never
-        // written for an ungated run, so absent however often it runs.
-        let summaries_committed = dir.join("expected-markers.txt").is_file();
+        let already_committed = dir.join("expected-markers.txt").is_file();
         let _ = fs::create_dir_all(&dir);
         ArtifactDir {
             path: dir,
-            summaries_committed,
+            writes_summaries: release_gated || already_committed,
         }
     }
     pub fn join(&self, p: &str) -> PathBuf {
@@ -440,29 +457,27 @@ impl ArtifactDir {
 
     /// Write one of the three committed per-profile summary files
     /// (`expected-markers.txt`, `qemu-command.txt`, `result-summary.txt`)
-    /// — but **only for a profile whose summaries are already committed**.
+    /// -- but **only for a profile that is release-gated or already has them committed**
+    /// (the rule is [`ArtifactDir::for_run`]'s).
     ///
     /// Those three files are tracked for every profile `test-all` gates,
     /// and `.gitignore` says in its own words that they "must stay
     /// tracked": a re-run rewrites them in place, so `git status` stays
-    /// clean. That design silently assumed every runnable profile's
-    /// directory is already tracked — true for the 18 gated ones, false for
-    /// the six ungated smoke milestones (E-040) and for any ad-hoc name.
+    /// clean. The first design silently assumed every runnable profile's
+    /// directory is already tracked -- true for the gated ones, false for
+    /// the ungated smoke milestones (E-040) and for any ad-hoc name.
     /// Running one of those left three untracked files behind **forever**,
     /// and the only remedy was for a human to notice and delete them.
     ///
-    /// Writing them only where `expected-markers.txt` is already committed
-    /// closes that: an ungated run leaves `serial.log` (ignored by `*.log`)
+    /// An ungated run therefore leaves `serial.log` (ignored by `*.log`)
     /// and `runs/<run-id>/` (ignored) and nothing else, so it is clean by
-    /// construction rather than by anyone remembering — and stays clean
+    /// construction rather than by anyone remembering -- and stays clean
     /// however many times that milestone is run. The run's own output is
     /// not lost: `run_dir()` holds a complete per-invocation copy.
     ///
-    /// The skip is announced, never silent: a genuinely new gated profile
-    /// opts in by committing its `expected-markers.txt`, and `run_profile`
-    /// prints exactly that rather than quietly writing nothing.
+    /// The skip is announced, never silent (see `run_profile`).
     pub fn write_summary(&self, file: &str, bytes: &[u8]) {
-        if self.summaries_committed {
+        if self.writes_summaries {
             let _ = fs::write(self.join(file), bytes);
         }
     }
@@ -602,20 +617,19 @@ pub fn cmd_qemu_run(profile_name: Option<&str>) -> ExitCode {
 /// 6. Assert every expected marker via `qemu-log-check::log_check`.
 /// 7. Write `result-summary.txt` and return the verdict.
 pub fn run_profile(p: &Profile) -> ExitCode {
-    let art = ArtifactDir::for_run(&p.name);
+    let art = ArtifactDir::for_run(&p.name, p.release_gated);
     println!(
         "[xtask] running profile `{}` (timeout {}s)",
         p.name, p.timeout_secs
     );
-    if !art.summaries_committed {
-        // Announced, not silent — see `ArtifactDir::write_summary`.
+    if !art.writes_summaries {
+        // Announced, not silent -- see `ArtifactDir::write_summary`.
         println!(
-            "[xtask] tests/qemu/artifacts/{}/expected-markers.txt is not \
-             committed, so this profile's summary files are not written and \
-             this run leaves nothing untracked behind. Full output is under \
-             runs/<run-id>/. If `{}` is meant to be a gated profile, commit \
-             its expected-markers.txt deliberately.",
-            p.name, p.name
+            "[xtask] profile `{}` is not release-gated and tests/qemu/artifacts/{}/expected-markers.txt is not \
+             committed, so this profile's summary files are not written and this run leaves nothing untracked \
+             behind. Full output is under runs/<run-id>/. A profile `test-all` gates writes them on its own; \
+             to gate `{}`, set `release_gated = true` in its profile.",
+            p.name, p.name, p.name
         );
     }
 
@@ -2132,20 +2146,19 @@ mod discover_tests {
 
     /// E-040's neighbour, found while accounting for three untracked
     /// directories left by ungated smoke milestones: the summary files must
-    /// not appear in a directory that did not already exist, or every
-    /// ungated run leaks three untracked files that only a human deleting
-    /// them can clear.
+    /// not appear for a profile that is neither gated nor already recorded,
+    /// or every ungated run leaks three untracked files that only a human
+    /// deleting them can clear.
     #[test]
-    fn summary_files_are_written_only_into_a_pre_existing_directory() {
+    fn summary_files_are_written_only_for_a_profile_that_writes_them() {
         let base = std::env::temp_dir().join(format!("qemu_art_test_{}", std::process::id()));
         fs::remove_dir_all(&base).ok();
 
-        // A directory that did not exist: nothing is written.
         let fresh = base.join("ungated");
         fs::create_dir_all(&fresh).unwrap();
         let ungated = ArtifactDir {
             path: fresh.clone(),
-            summaries_committed: false,
+            writes_summaries: false,
         };
         ungated.write_summary("result-summary.txt", b"FAIL\n");
         assert!(
@@ -2153,12 +2166,11 @@ mod discover_tests {
             "an ungated run must leave no summary file behind"
         );
 
-        // A directory that did: written as before.
         let gated = base.join("gated");
         fs::create_dir_all(&gated).unwrap();
         let tracked = ArtifactDir {
             path: gated.clone(),
-            summaries_committed: true,
+            writes_summaries: true,
         };
         tracked.write_summary("result-summary.txt", b"PASS\n");
         assert_eq!(
@@ -2169,41 +2181,72 @@ mod discover_tests {
         fs::remove_dir_all(&base).ok();
     }
 
-    /// The property that makes the guard hold under repetition — and the
-    /// one a directory-existence check does *not* have. The first version
-    /// of this fix keyed on `dir.is_dir()`; the run that demonstrated it
-    /// created the directory, so the *second* run of the same ungated
-    /// milestone would have found it present and started writing. The leak
-    /// would have taken two runs instead of one.
+    /// **E-135, the defect itself.** A newly gated profile has no `expected-markers.txt` yet, and under the old rule that made it
+    /// unable to write its first copy. A release-gated profile writes in a directory with nothing in it.
+    #[test]
+    fn a_newly_gated_profile_writes_its_first_summaries() {
+        let name = format!("_qemu_art_newly_gated_{}", std::process::id());
+        let dir = PathBuf::from("tests/qemu/artifacts").join(&name);
+        fs::remove_dir_all(&dir).ok();
+        assert!(!dir.join("expected-markers.txt").exists());
+
+        let art = ArtifactDir::for_run(&name, true);
+        assert!(art.writes_summaries, "a gated profile writes on its own");
+        art.write_summary("expected-markers.txt", b"TEST:X:PASS");
+        art.write_summary("result-summary.txt", b"PASS\n");
+        assert!(dir.join("expected-markers.txt").is_file());
+        assert!(dir.join("result-summary.txt").is_file());
+
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The property that makes the E-040 guard hold under repetition -- and the one a directory-existence check does *not*
+    /// have. The first version of that fix keyed on `dir.is_dir()`; the run that demonstrated it created the directory, so the
+    /// *second* run of the same ungated milestone would have found it present and started writing. For a profile that is not
+    /// gated, nothing changes with E-135: still nothing written, however often, until `expected-markers.txt` is committed.
     #[test]
     fn repeated_ungated_runs_never_start_writing_summaries() {
         let name = format!("_qemu_art_probe_{}", std::process::id());
         let dir = PathBuf::from("tests/qemu/artifacts").join(&name);
         fs::remove_dir_all(&dir).ok();
 
-        let first = ArtifactDir::for_run(&name);
-        assert!(!first.summaries_committed);
+        let first = ArtifactDir::for_run(&name, false);
+        assert!(!first.writes_summaries);
         first.write_summary("result-summary.txt", b"FAIL\n");
 
-        // The directory now exists — created by the first run — which is
+        // The directory now exists -- created by the first run -- which is
         // exactly the state a directory-existence guard would misread.
         assert!(dir.is_dir());
-        let second = ArtifactDir::for_run(&name);
+        let second = ArtifactDir::for_run(&name, false);
         assert!(
-            !second.summaries_committed,
+            !second.writes_summaries,
             "a second ungated run must still write nothing"
         );
         second.write_summary("result-summary.txt", b"FAIL\n");
         assert!(!dir.join("result-summary.txt").exists());
 
-        // Committing expected-markers.txt is the deliberate opt-in.
+        // A profile that is not gated but whose summaries are already committed (`store`) keeps being refreshed in place.
         fs::write(dir.join("expected-markers.txt"), b"TEST:X:PASS").unwrap();
-        let third = ArtifactDir::for_run(&name);
-        assert!(third.summaries_committed);
+        let third = ArtifactDir::for_run(&name, false);
+        assert!(third.writes_summaries);
         third.write_summary("result-summary.txt", b"PASS\n");
         assert!(dir.join("result-summary.txt").exists());
 
         fs::remove_dir_all(&dir).ok();
+    }
+
+    /// `Profile::smoke` says whether `test-all` gates the milestone, so an ad-hoc `qemu-test m7` does not leave files behind.
+    #[test]
+    fn a_smoke_milestone_is_gated_exactly_when_test_all_runs_it() {
+        for m in crate::test_all::SMOKE_PROFILES {
+            let p = Profile::smoke(m, "x");
+            assert!(p.release_gated, "{m} is run by test-all");
+            assert!(p.not_gated_reason.is_none());
+        }
+        let p = Profile::smoke("m7", "x");
+        assert!(!crate::test_all::SMOKE_PROFILES.contains(&"m7"));
+        assert!(!p.release_gated, "m7 is accepted by qemu-test and not run by test-all");
+        assert!(p.not_gated_reason.is_some());
     }
 
     #[test]

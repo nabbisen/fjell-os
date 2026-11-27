@@ -1,9 +1,11 @@
 # Fleet demo QEMU profile — RFC-v0.10-005.
 # Exercises the three-node QEMU fleet pass markers.
-# Runs as part of the QEMU smoke tier in `cargo xtask test-all`.
 #
-# NOTE: This profile requires three simultaneous QEMU instances.
-# In CI it runs only when QEMU is available and disk ≥ 1GB free.
+# NOTE: This profile requires three simultaneous QEMU instances, so it is NOT run by
+# `cargo xtask test-all` and no CI workflow names it (this header used to say it ran in the
+# smoke tier, which it never did; corrected with E-135). It is run by hand: `cargo xtask
+# fleet-demo up` then `verify`. That runner does not go through `run_profile`, so this profile
+# has no recorded marker artefacts; the `qemu-records` subcheck waives it by name for that reason.
 
 name             = "fleet-demo"
 timeout_secs     = 120
@@ -15,7 +17,7 @@ expected_markers = [
 ]
 extra_args       = []
 
-# Multi-node profiles use a custom runner; the standard single-QEMU runner
-# is not sufficient.  The xtask smoke runner detects the "fleet-demo"
-# profile name and delegates to `cargo xtask fleet-demo deploy` instead.
+# Multi-node profiles use a custom runner (`crates/fjell-tools/src/fleet_demo.rs`); the
+# standard single-QEMU runner is not sufficient. `qemu_run::discover_negative_categories`
+# excludes a `multi_node` profile, which is why `qemu-negative` never lists this one.
 multi_node = true

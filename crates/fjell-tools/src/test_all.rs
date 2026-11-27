@@ -57,7 +57,7 @@ use crate::qemu_run;
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /// Smoke test profiles run in tier 4.
-const SMOKE_PROFILES: &[&str] = &["m8", "v0.4-net", "v0.5-platform", "v0.7-sync"];
+pub(crate) const SMOKE_PROFILES: &[&str] = &["m8", "v0.4-net", "v0.5-platform", "v0.7-sync"];
 
 /// The ids of the tiers `cmd_test_all` always runs, before the QEMU ones (0.47 small item C).
 ///

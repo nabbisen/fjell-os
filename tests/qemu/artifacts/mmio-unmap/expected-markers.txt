@@ -1,0 +1,3 @@
+init: mmio-unmapped-read trigger received; asking neg-test to run its scenario
+NEG:MMIO:UNMAPPED_VA_READ_ATTEMPTED
+neg-test]: fault(LoadPageFault)    [exactly 1x]

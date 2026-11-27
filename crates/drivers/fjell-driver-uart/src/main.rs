@@ -24,8 +24,8 @@ fn panic(_: &core::panic::PanicInfo) -> ! {
 //
 // The kernel installs these directly at spawn time
 // (`crates/fjell-kernel/src/task/spawn.rs`) — driver-uart is a bootstrap
-// exception, like driver-virtio-net, devmgr, and storaged: it cannot yet use
-// cap-broker, since `sys_cap_install` has no dispatch arm (RFC-0.25-001 D4).
+// exception, like driver-virtio-net, devmgr, and storaged: it cannot use cap-broker, which installs
+// `Endpoint` capabilities only (`sys_cap_install`, RFC-0.45-002); this driver's are `Interrupt` and `MmioRegion`.
 //   slot 0  — Endpoint    (init's uart-rx endpoint; driver posts received bytes here)
 //   slot 1  — Interrupt   (UART0's IRQ line, irq 10)
 //   slot 32 — MmioRegion  (UART0 device registers, region 1; slot number
