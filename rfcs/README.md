@@ -565,9 +565,18 @@ a fresh clone.
 
 ---
 
-## Proposed (proposed/) — none
+## Proposed (proposed/) — 4 RFCs
 
-Nothing is under review. 0.49's three RFCs were accepted on 2026-11-26 and are listed above.
+0.50's three lines and its small items, **drafted by the implementer for the architect's review; nothing in the three lines is implemented**
+(small items A and B are, and are described in -004). Each states the decisions it asks the architect to make rather than makes them.
+Handoff: `.git-exclude/handoff/handoff-0.50.md`; scope: `.git-exclude/handoff/scope-0.50.md`.
+
+| RFC | Title | Tracks |
+|-----|-------|--------|
+| 0.50-001 | [The kernel's decidable logic runs outside a boot — the 27 tests that never compiled, and the one that was never written](./proposed/RFC-0.50-001-the-kernels-decidable-logic-runs-outside-a-boot.md) | **E-134** (`v1-limitations.md` row 29); the `ReadyQueue::remove` hang found by booting at 0.49 |
+| 0.50-002 | [The published interface is checked against the interface — `syscall-doc`, and the check that was named for this and aimed at three source files](./proposed/RFC-0.50-002-the-published-interface-is-checked-against-the-interface.md) | RFC-0.49-002 D7's rule applied to the documents; `doc-counts`' scope note; RFC-v0.22-001 Slice 1 |
+| 0.50-003 | [A driver gives back the device memory it does not use — and `storaged`'s scan says what it does](./proposed/RFC-0.50-003-a-driver-gives-back-the-device-memory-it-does-not-use.md) | the follow-up named in `mmio_mappings.rs`; `MmioUnmap`'s only production caller |
+| 0.50-004 | [The small items said plainly — E-135's repair and its three-set check, the `MmioUnmap` comments and the sweep for their shape, criterion 9's classification, and the figure that is not mine](./proposed/RFC-0.50-004-the-small-items-said-plainly.md) | **E-135** (small item A, implemented); small items B (implemented), C (designed), D (untouched) |
 
 `proposed/README.md` keeps the folder in a fresh clone.
 
