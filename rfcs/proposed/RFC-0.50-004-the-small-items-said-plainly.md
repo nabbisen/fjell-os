@@ -121,3 +121,28 @@ cargo run -q -p fjell-tools -- qemu-negative 2>&1 | sed -n 's/^Known categories:
 git grep -n -i -E 'never dispatched|not dispatched|undispatched|no dispatch arm|dispatch arm' -- crates docs/src ':!docs/src/history' ':!docs/src/audit'
 /usr/bin/grep -n -E '^\| 9 \|' releases/0.3[1-9].0.md releases/0.4[0-8].0.md      # 0.31 one run; the 17 after it two
 ```
+
+---
+
+## As built (stage 2)
+
+### A. The architect's three-part ruling on `fleet-demo`, applied
+
+1. **The waiver's reason now carries the real state**, not only the `run_profile` half: multi_node and run by nothing automated; the profile still defaults to release-gated; its four pass markers were **declared in three places and read in one**; since 0.50 `verify` reads the profile; the three-node *topology* is still hard-coded in `fleet_demo.rs`, recorded and not fixed.
+2. **The duplication is deleted, not described.** `load_profile` is `pub(crate)`; `fleet_demo.rs`'s `PASS_MARKERS` and its hard-coded `120` seconds are gone, replaced by `verify_spec` reading `tests/qemu/profiles/fleet-demo.toml` (an unreadable profile, or one with no markers, is an error, so `verify` cannot wait for nothing). The `[verify]` block of `examples/three-node-fleet/fleet-demo.toml` — **read by nothing** — is replaced by a pointer. **Compared mechanically before deleting:** the three lists were identical, reconciled by nothing. Two tests (the profile's markers and timeout are what `verify` reads; editing the profile changes what it waits for). **Mutation F1:** a hard-coded copy again → `editing_the_profile_changes_what_verify_waits_for` RED.
+3. **`PORTS` stays hard-coded**, and the topology duplication with the examples TOML's node table is **recorded, not fixed**: parsing that table is not this line (the architect's reason, and mine).
+
+*E-135's disposition is the architect's and I have not written it:* the writer defect is fixed, `qemu-records` gates the sets, two of the three records exist because the mechanism wrote them, and what remains is `fleet-demo`, waived by a checked waiver (a stale waiver fails).
+
+### C. Criterion 9 — built (`release-records` now judges it)
+
+* **Section-scoped and label-based, as ruled** (`criterion9.rs`, library + tests; the gate half is `release_records_gate.rs`). The section is **either** anchor — the exit-criteria row `| 9 |`, or a heading naming "criterion 9" to the next heading of the same or a higher level — **neither found is a failure at or above the floor.** A run id counts only when a `push` or `dispatch` label (whole word) precedes it within 40 non-digit characters on its line.
+* **The hole in the first design, shown by a test, not asserted:** counted over the *document*, `0.49.0` has three long numbers (`45843432462`, the push run; `45843464701`, the **`release` workflow's** run; a Pages artifact id) and passes. The test counts them (3), then shows the section-scoped, labelled rule finds one push run and **no dispatch run**.
+* **The red run — the item's evidence — captured before the exemption existed:** `release-records: FAIL — criterion 9: release record 0.49.0 names a push run (45843432462) and **no dispatch run**: criterion 9 reads two runs, because `fuzz-run` and `miri` are skipped on push and `ci-pages` is skipped on dispatch` — **and nothing else**: 29 records read, 17 name both, 11 are below the derived floor. The unit test `the_real_records_are_red_on_0_49_0_alone_and_the_floor_is_0_32_0` holds the same on the real files.
+* **The floor is derived, not written** (the architect's ruling): the lowest-version record that names both labels — **`0.32.0`**; the **11** below it are the ten that predate criterion 9 and `0.31.0`. They are reported by count and up-to name in the PASS line, and **not** seeded as eleven exemptions.
+* **The one named exemption is `0.49.0`**, with its reason in the gate's source (*a released record is not rewritten; the gap is the architect's erratum, CLOSED as a record*). The ruling did not say where it lives; I put it in the gate, **stale-checked**: it fails the gate the day the record names both runs (shown by a test), when the version is below the floor, or if it has no reason. If the architect prefers the exemption to cite an erratum number, that is a one-line change after the erratum is filed.
+* **The classification is written into `docs/src/releasing/v0-release-cycle.md`** as ruled: correctness-gating (a red job blocks the tag or takes an accepted-risk statement) vs publishing (**`ci-pages` alone**: recorded with its run id and what was not published; does not block), **and which run each is read from** (the dispatched run for `fuzz-run` and `miri`; the push run for `ci-pages`; both for the rest), **and that the record names them labelled, which the gate reads.** The one command the paragraph carries (`grep -n 'pages: write\|deploy-pages\|^    environment:' .github/workflows/ci.yml`) was **run verbatim before it was committed**: 5 hits, all between the `ci-pages:` (230) and `ci-qemu-smoke:` (306) job keys, two of them comments; and the job count the paragraph states (21) was re-counted (`grep -c '^  ci-[a-z0-9-]*:$'` → 21).
+* **Mutation C1** (an unlabelled one-run record counted as both) turns five tests RED, including the real-records one.
+* **Not done:** the erratum (the architect's, CLOSED as a record); whether the 0.49.0 dispatch run was made and left out of the record (the tree cannot say, and the settling call names this repository).
+
+### D. Untouched, as instructed.

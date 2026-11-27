@@ -106,3 +106,39 @@ python3 -I -c "…the handoff's pipeline, verbatim…"        # declared 35 | do
 sed -n '57,59p' crates/fjell-kernel/src/trap/syscall.rs ; sed -n '39p' crates/drivers/fjell-driver-virtio-net/src/main.rs
 /usr/bin/grep -n 'ALL_NON_META\|pub const [A-Z_]*: CapRights' crates/fjell-abi/src/*.rs | head      # the 33-bit figure: count single-bit consts
 ```
+
+---
+
+## As built (stage 2) — what the implementation changed in this text, and why
+
+* **Gate built first, run red against the uncorrected documents, then the documents corrected** (D2's order, which the architect called the whole evidential value of the line). At `9b5a662^` the two documents are byte-identical to `b5d488d`'s (`git diff b5d488d HEAD -- <both>` empty). `syscall-doc` against them: **FAIL, 17 problems — exactly the predicted set and nothing else:** `syscalls.md` — the **seven** variants no row names (`CapInstall`, `PlatformReboot`, `TaskKill`, `MmioUnmap`, `IrqBind`, `IrqAck`, `IrqWait`) and `CapDelete`'s *"no wrapper"* with `pub fn sys_cap_delete` present; `kernel.md` — the **eight** (`cap_install`, `platform_reboot`, `task_kill`, `mmio_unmap`, `irq_bind`, `irq_ack`, `irq_wait`, `clock_now`) and `IpcSend`'s alias `sys_ipc_try_send`, **no `pub fn` of that name** (finding 11). **No row named a non-variant** — the symmetric control, so the parse is the parser's and not the documents'. The captured output, verbatim (the same red is the host test `the_real_documents_agree_with_the_enum` before the corrections):
+
+```
+--- consistency-check: syscall-doc ---
+syscall-doc: FAIL
+  docs/src/api/syscalls.md: row `CapDelete` says it has no wrapper, and `pub fn sys_cap_delete` exists in crates/fjell-syscall/src/lib.rs
+  docs/src/api/syscalls.md: `CapInstall` (17) is declared in the ABI and no row names it
+  docs/src/api/syscalls.md: `PlatformReboot` (18) is declared in the ABI and no row names it
+  docs/src/api/syscalls.md: `TaskKill` (43) is declared in the ABI and no row names it
+  docs/src/api/syscalls.md: `MmioUnmap` (91) is declared in the ABI and no row names it
+  docs/src/api/syscalls.md: `IrqBind` (100) is declared in the ABI and no row names it
+  docs/src/api/syscalls.md: `IrqAck` (101) is declared in the ABI and no row names it
+  docs/src/api/syscalls.md: `IrqWait` (102) is declared in the ABI and no row names it
+  docs/src/external-design/kernel.md: `IpcSend` lists `sys_ipc_try_send` as an alias, and no `pub fn sys_ipc_try_send` exists in crates/fjell-syscall/src/lib.rs (an alias that is not a wrapper)
+  docs/src/external-design/kernel.md: `cap_install` (`CapInstall`, 17) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `platform_reboot` (`PlatformReboot`, 18) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `task_kill` (`TaskKill`, 43) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `mmio_unmap` (`MmioUnmap`, 91) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `irq_bind` (`IrqBind`, 100) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `irq_ack` (`IrqAck`, 101) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `irq_wait` (`IrqWait`, 102) is declared in the ABI and no group-table entry names it
+  docs/src/external-design/kernel.md: `clock_now` (`ClockNow`, 113) is declared in the ABI and no group-table entry names it
+```
+
+* **D1 as built, with one rule the RFC did not foresee:** an alias must *reach* its syscall — `SyscallNumber::<Name>` in its body, **or the literal `li a7, <number>`, or a call through another `sys_*` wrapper** (depth ≤ 4). `sys_ipc_recv_msg` issues the call with `li a7, 21`, not `SyscallNumber::IpcRecv`; a rule that required the enum path would have failed a correct alias. Six aliases resolve (2 in `kernel.md`, 4 in `syscalls.md`, the `debug_write` family resolving through `sys_debug_write_byte`).
+* **D4 built** (the architect approved D1–D8 as recommended): the wrapper column is checked narrowly — 35 wrapper names, each must be a `pub fn`; a row that says *"no wrapper"* must not have one. `PlatformReboot`'s wrapper is `sys_reboot` (the name differs from the variant), so the new row says so.
+* **D3 and D7 as ruled:** neither page states a count and the staleness stamps are replaced, not re-dated. **Absence probe, with its control:** the pattern (`dispatches **N** | declares N | N syscalls | remaining N | only the N`) finds **6 hits at `b5d488d`** and **one at the tip — my own quotation of the retired sentence** in `syscalls.md`'s header (*"dispatches 26 of them … the remaining 9"*, inside the sentence explaining why it was removed).
+* **D5:** `capability-lease.md` gains `cap_install`. **`services.md` — the handoff's three figures were each right about something different, and the real defect is that the *table* was five programs short of the tree:** the heading said 29 and the table held 29 programs (27 rows, one of them a row of three); the tree has 34 (31 services + 3 drivers); 33 prebuilt images (everything but `summaryd`, which has none). Missing from the table: `driver-uart`, `proxy-braille`, `summaryd`, `svc-presentation-fault`, `svc-presentation-liar`. All five added; the hand-typed count is replaced by the two commands that derive it, **run verbatim at the tip** (`ls -d crates/services/*/ crates/drivers/*/ | wc -l` → 34; `git ls-files 'crates/fjell-kernel/prebuilt/*.bin' | wc -l` → 33), and the page says plainly that nothing checks the table. **No service-table subcheck built** (D5's recommendation, and it is the architect's call).
+* **D6 as built:** `doc_counts.rs`'s scope note rewritten (it now names `syscall-doc`, `syscall-surface` and what **nothing** covers) and a pin test fails if the false sentence returns; **shown red** by putting it back. **D8:** `kernel.md` §6's interrupt paragraph rewritten to what is true, with a dated correction note stating all three clauses it got wrong.
+* **Mutations (R6), each RED by a named test, restored sha-exact:** SD1 number comparison off (`a_row_with_the_wrong_number_fails`); SD2 alias-exists check off and SD3 alias-reaches check always true (`an_alias_that_is_not_a_wrapper_or_reaches_another_syscall_fails`); SD4 *rows not found* turned into a pass (`a_table_that_cannot_be_found_is_a_failure_not_a_pass`); SD5 variant-no-row check off (`a_variant_no_row_names_fails_in_both_tables`); DC1 the false sentence restored in `doc_counts.rs`.
+* **Findings beyond the RFC's eleven:** none new in the documents; **`syscalls.md` row 18 and the `PlatformReboot` wrapper name** (above) is the only place the table and the code disagree on a *name* rather than a presence. The `standards-mapping.md` row CRA-I-2j (*"`syscall-surface` … holds declared, dispatched, and committed-expectation syscall sets equal"*) is **true as written and now incomplete**; it is the architect's to extend to `syscall-doc`.
