@@ -79,9 +79,43 @@ hand at each cut, the same as the two documents above.
 **Criterion 9 is read from the run, never from anything else.**
 `gh run list --workflow ci.yml` for the run whose `headSha` is the release
 commit; `gh run view <id> --json jobs` for the conclusions. The run id and a
-per-job table go in the release record. A red job blocks the tag or takes an
-accepted-risk statement under the existing rule — it is not noted and walked
-past.
+per-job table go in the release record.
+
+**The jobs are of two kinds, and a red one is handled differently** (classified
+at 0.50; until then this paragraph treated all 21 as one kind):
+
+- **Correctness-gating — every job that concludes something about the tree.**
+  A red one **blocks the tag or takes an accepted-risk statement under the
+  existing rule — it is not noted and walked past.**
+- **Publishing — `ci-pages` alone.** It is the only job in `ci.yml` that holds
+  `pages: write`, an `environment:` and a `deploy-pages` step; if it fails,
+  nothing about the tree is in doubt and withholding the tag is not the remedy.
+  A red one is **recorded in the release record with its run id and what was
+  not published** — recorded, not waived, not silent — and does not block the
+  tag. To check that no other job has become one:
+
+  ```sh
+  grep -n 'pages: write\|deploy-pages\|^    environment:' .github/workflows/ci.yml
+  ```
+
+  Every hit lies between the `ci-pages:` and `ci-qemu-smoke:` job keys (two are
+  comments inside `ci-pages`). A hit elsewhere means this classification is out
+  of date.
+
+**Criterion 9 reads two runs, and neither holds the whole set.** `ci-fuzz-run`
+and `ci-miri` run only on `schedule` and `workflow_dispatch`, so the push run
+skips them; `ci-pages` is guarded by `github.event_name != 'workflow_dispatch'`,
+so the dispatched run skips it. So: **the correctness-gating jobs `fuzz-run`
+and `miri` are read from the *dispatched* run; `ci-pages` (publishing) from the
+*push* run; every other job from both.** The record names the two runs in its
+criterion-9 section **labelled** — `push` followed by the run id, `dispatch`
+followed by the run id, as `0.32.0` through `0.48.0` do — and **the
+`release-records` subcheck of `consistency-check` reads exactly that wording**:
+it fails a record, at or above the first one that names both, whose criterion-9
+section does not. (`0.49.0` names only its push run; it is the one named
+exemption, because a released record is not rewritten, and the exemption fails
+the gate the day the record names both.) The check judges that the record *says*
+it read both runs; whether they were green is the record's table, and the cut's.
 
 This criterion exists because for four months nothing in this cycle
 consulted CI, and so nothing noticed that **no CI job had ever built this
