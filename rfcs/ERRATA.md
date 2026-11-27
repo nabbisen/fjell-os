@@ -10100,11 +10100,68 @@ which is history removes the disagreement instead of detecting it, and needs no 
   stage 2 without asking what it does to a task the scheduler picks between two of its syscalls — and
   the implementer's by construction. The capacity question was asked of the *table* and never of the
   *machine*.
+- **Amended 2026-11-27, at the 0.50.0 cut, and it is the evidence this entry most needed.** The
+  paragraph above said the fault *"has not recurred in any `test-all` or any run of the 0.50 line"*.
+  **It had recurred, on CI, and I asserted non-recurrence without looking there.** The `ci.yml` push
+  run **45845212495**, on `b5d488d` — the 0.49.0 record's follow-up commit, a **documentation-only**
+  change — failed its `qemu-negative (net, true)` job. Its artefact's serial log reads:
+  **`driver-virtio-net: cannot scan the virtio-mmio region (read 0 of 8 transports, last error code
+  -30)`**, and **`NEG:MMIO:MAP_REFUSED_WHEN_TABLE_FULL:PASS` is in the same log** — the fixture had
+  the table full at that moment. `-30` is `SysError::NoMemory`.
+  **So this is not a timing artefact of a print-only patch:** it is **zero of eight** transports on
+  unmodified code on a hosted runner, where the local observation was five of eight under a patch.
+  **Measured frequency, bounded to what the API lists: one failure in the thirteen completed `ci.yml`
+  runs**, and the one it broke was a release's follow-up commit. The disposition stays **ACCEPTED** —
+  disclosed, deliberate, bounded, scheduled — and the bound is unchanged, but *"has not recurred"* was
+  wrong and is withdrawn here rather than quietly dropped.
 - **Status:** **ACCEPTED** (architect, 2026-11-27) as a **v1.0 limitation**, recorded in
   `v1-limitations.md` row 31, tracked **0.51**. The bound, stated so that whoever next sees it flake
   has the sentence: *a release-gated tier can fail for a reason that is not the code under test, the
   mechanism is a negative-test fixture filling the device-mapping table while production services are
   still scanning, and `storaged` is the one that exits rather than degrades.*
+
+## E-139 — exit criterion 3 was not performed at the 0.50.0 cut, so the first tag named a tree that could not pass CI
+
+- **Found 2026-11-27 by `ci-format`**, on the push run for the tagged commit — **after the tag was
+  pushed**, which is the only place it could have been found given what the cut did and did not run.
+- **RFC:** none
+  No RFC is over-claiming. The procedure is right and the cut did not follow it.
+- **Claim.** `docs/src/releasing/v0-release-cycle.md`'s exit-criteria table, row **3**:
+  **"Formatting | `cargo fmt --all --check` exit 0"**, listed among the twelve *"all required before
+  the tag"*.
+- **Tree / what actually happened.** `cargo fmt --all --check` was red from **`3b2248a`** (0.50's line
+  1) onward — **93 diffs across 19 files**: the three extracted crates, the five new subchecks,
+  `qemu_run.rs` and `storaged`. It survived three review stages, the architect's pre-cut pass, a
+  38-tier `test-all`, a 12-gate `release-rehearsal` and 34 consistency subchecks, because **none of
+  those runs it**: `release-rehearsal` has no `fmt` step, and criterion 3 is a criterion, not a gate.
+  The first tag `0.50.0` therefore named a commit whose CI concluded `failure`, `release-preflight`
+  **precondition 7 refused** (*"CI on the tagged commit did not succeed"*), the `create the Release`
+  job was **skipped**, and **no Release was created and no crate published** — the mechanism behaving
+  exactly as RFC-0.48-003 designed it.
+- **The architect's own account of it was wrong, in a commit message, and that is the sharper half.**
+  `72c2c9d`'s message states that `cargo fmt --check` *"runs in CI and in NO local gate, no `test-all`
+  tier and no exit criterion before criterion 9"*. **The last clause is false: it is exit criterion
+  3.** The procedure document was open while that was written. **Fourth instance this milestone of an
+  absence asserted from a search that did not cover the place the thing was** — after the two
+  `MmioUnmap` comments, the lease-seam grep, and the `services.md` miscount. A commit message is not
+  rewritten, so the correction lives here and in `releases/0.50.0.md`.
+- **What was and was not at risk.** Nothing shipped: the refusal is what stopped it. The reformat is
+  whitespace only and **changed no compiled output** — all 33 artefacts bit-identical to the baseline
+  recorded in the first tagged commit, no prebuilt moved — so the 38-tier `test-all` result for those
+  images still applies, which is why the fix needed no new QEMU run and the record says so.
+- **Why no gate caught it, stated as a boundary and not an excuse.** `release-rehearsal` runs the
+  twelve **gates**; the exit criteria are twelve **criteria**, and the two sets are not the same.
+  Criteria 1, 2, 3, 9, 10, 11 and 12 are commands or reads a person performs, and **the procedure
+  nowhere says which criteria the runner covers** — so a reader who runs the runner and reads its
+  table has done six of the twelve and has no prompt for the rest.
+- **Status:** **CLOSED** (architect, 2026-11-27). The tree is `fmt`-clean, the criterion is satisfied,
+  and the owner authorized moving the tag, nothing having been published from it. **The procedure is
+  corrected here too**: the exit-criteria table now says, per row, which criteria `release-rehearsal`
+  covers and which it does not, so the runner's green table can no longer read as twelve of twelve.
+  **Folding criterion 3 into `release-rehearsal`** — one command, mechanically checkable, and the
+  thing that would actually have prevented this — is **0.51's**, with the rest of the
+  criteria-outside-the-runner question: a code change after a verification run is what this cut has
+  already had to do once.
 
 ## Summary
 
@@ -10286,3 +10343,4 @@ live unresolved drift — the same distinction applied to E-004/E-011/E-012.
 | E-136 **`releases/0.48.0.md` claims `git diff 0.48.0 HEAD` is empty, in one of the sixty-nine lines that made it non-empty** — the sentence is offered as proof that E-130's reorder worked, and it was added by `b2c17b7`, the follow-up commit that appended the tag-and-publish section; `git diff 0.48.0 b2c17b7` reports 69 insertions and 1 deletion in that very file. **Self-referentially false**, and false when written. What it was reaching for is true and is what the reorder bought: no source, gate input, instrument output or build artefact differs between the tag and the commit after it — only the record's own tag-and-publish section, which cannot exist before the tag it describes. **Not correctable in place**: a released record, under the same rule as E-126 and E-133. The architect's error, in a document the architect alone writes, and the second release record of mine to carry a false claim about itself; both were found by reading the record against the tree, since no gate checks a record's claims about a tag — `consistency-check` is a pure function of the tree and a tag is a ref. CLOSED as a record, with 0.49.0's record stating the property in the form that is true | 0.49 | CLOSED |
 | E-137 **`releases/0.49.0.md` records exit criterion 9 with one CI run where the criterion requires two** — the section names push `45843432462`, says *"not a dispatch"*, reports `miri` and `fuzz-run` as *"skipped by design"*, and names **no dispatch run**; the exit-criteria entry only says *"see Tag and publish"*. Those two jobs are skipped on push and read only in the dispatched run, so they were **not read for the release commit** — or were read and left out, which the tree cannot distinguish and which does not change the finding. The three cuts before it each name both runs (0.48.0's row: *"`miri` and all six `fuzz-run` targets are in that 52"*). **The E-043 family**: the dispatch step exists because 0.31.0 shipped while every scheduled fuzz run had failed for three months. The architect's, who ran the cut and wrote the record — the third of mine wrong about its own subject. Not correctable in place. **Remedy in the live documents**: the cycle document now classifies jobs *correctness-gating* vs *publishing* (`ci-pages` alone) and says which run each is read from, and `release-records` judges the criterion-9 **section** for a push **and** a dispatch id above a derived `0.32.0` floor — section-scoped and label-based because a document-scoped count **passes this very record** (three long numbers, two of them a `release`-workflow run and a Pages artifact id; the architect specified the weaker form first and tested it). 0.49.0 is exempt by name and the exemption goes stale | 0.50 | CLOSED |
 | E-138 **a negative-test fixture fills the 64-entry device-mapping table on every boot and can make two production services fail, in a release-gated tier** — `neg-test`'s `test_mmio_unmap` pins the table's bound by reaching it (`while n < 96 { sys_mmio_map }` until `NoMemory`, then unmapping all) with **no `sys_yield` in the loop**. That is not confined to the fixture: `trap_dispatch` calls `schedule_next` **unconditionally after every trap**, `UserEcall` included, and `handle_timer` requests a yield — so the scheduler is consulted between every pair of maps, and a task picked inside the window meets 64 of 64. **The exposures are asymmetric**: `driver-virtio-net` degrades honestly (measured once under a print-only patch: *"read 5 of 8 transports, last error code -30"*, `NoMemory`), while **`storaged` exits** (`no blk`, `sys_exit(1)`), taking `TEST:M8:PASS` with it — so a gated tier can fail for a reason that is not the code under test. 0.50's descending scan narrowed the window from eight syscalls to one, by accident. **Not fixed here**: bounding the fill would destroy its purpose (reaching the bound *is* the assertion); the remedy is `init`'s sequencing. The architect's by approval at 0.49 stage 2 — the capacity question was asked of the table and never of the machine. Found by measuring a baseline boot and reported, not banked | 0.51 | ACCEPTED (v1.0 limitation) |
+| E-139 **exit criterion 3 was not performed at the 0.50.0 cut, so the first tag named a tree that could not pass CI** — the procedure lists it as **criterion 3, `cargo fmt --all --check` exit 0**, among the twelve required before the tag. It was red from `3b2248a` on (**93 diffs, 19 files**) and survived three review stages, a pre-cut pass, a 38-tier `test-all`, a 12-gate `release-rehearsal` and 34 subchecks, because **none of them runs it**: `release-rehearsal` has no `fmt` step and criterion 3 is a criterion, not a gate. The first tag's CI concluded `failure`, `release-preflight` **precondition 7 refused**, `create the Release` was **skipped**, and nothing was published — the mechanism working. **The architect's commit message `72c2c9d` then claimed no exit criterion covers `fmt`, which is false — it is criterion 3** — the fourth absence this milestone asserted from a search that did not cover the place the thing was, and a commit message is not rewritten. The reformat changed **no compiled output** (33 artefacts bit-identical, no prebuilt moved), so the tier results stood. CLOSED: the tree is clean, the tag moved on the owner's authorization, and the exit-criteria table now says per row what `release-rehearsal` does and does not cover. **Folding criterion 3 into the runner is 0.51's** | 0.50 | CLOSED |

@@ -42,20 +42,31 @@ All four must hold before beginning:
 
 ## Exit criteria — all required before the tag
 
-| # | Criterion | Evidence |
-|---|---|---|
-| 1 | Workspace resolves | `cargo metadata --no-deps` exit 0 |
-| 2 | Build clean | `cargo xtask build`, warning count recorded |
-| 3 | Formatting | `cargo fmt --all --check` exit 0 |
-| 4 | Host tiers | `cargo xtask test-all --no-qemu` |
-| 5 | QEMU tiers | `cargo xtask test-all` |
-| 6 | Mechanical gates | `cargo xtask release-rehearsal`, full gate table recorded |
-| 7 | CHANGELOG entry | present, version and date correct |
-| 8 | Docs match reality | no doc asserts behaviour the tree does not have |
-| 9 | The release commit's CI runs read | the push run and a `workflow_dispatch` run of the release commit, each by `gh run view <id> --json jobs`: run ids and per-job conclusions, plus a `Done N runs` line per `fuzz-run` job; the latest `schedule` run's id and date as context |
-| 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag |
-| 11 | Advisories read | the release commit's `dependency-advisories` job: run id, conclusion, packages checked per lockfile, and the advisory database's commit and date — no more than 7 days old at the cut; the advisory register's count, from Gate 12 |
-| 12 | Action currency read | every `uses:` pin in `.github/workflows/` compared against its action's current major upstream; each pin, the current major and the gap recorded. **A pin whose runtime upstream has removed blocks the tag**; one merely behind is recorded and does not. Currency needs the network, so this is a criterion and not a subcheck — and it is the only thing that looks (E-113) |
+**Which of these `release-rehearsal` covers, and which it does not (E-139).** The runner runs the
+twelve **gates**; these are twelve **criteria**, and the two sets are not the same. It covers
+**three** of them: **4** and **6** in full, and **5** when QEMU is present. It does **not** run the
+other **nine** — 1, 2, 3, 7, 8, 9, 10, 11 and 12 — which are commands or reads a person performs.
+**A green gate table is three of twelve**, and the `Runner` column below says so per row rather than
+leaving it to be inferred.
+
+*Added 2026-11-27 at the 0.50.0 cut, where **criterion 3 was simply not run**: `cargo fmt --all
+--check` had been red since that milestone's first line, every gate and tier was green, and CI found
+it after the tag was pushed — which refused the release, correctly. **E-139.***
+
+| # | Criterion | Evidence | Runner |
+|---|---|---|---|
+| 1 | Workspace resolves | `cargo metadata --no-deps` exit 0 | by hand |
+| 2 | Build clean | `cargo xtask build`, warning count recorded | by hand |
+| 3 | Formatting | `cargo fmt --all --check` exit 0 | **by hand — no gate runs this** |
+| 4 | Host tiers | `cargo xtask test-all --no-qemu` | by `release-rehearsal` (Gate 1) |
+| 5 | QEMU tiers | `cargo xtask test-all` | by `test-all` when QEMU is present |
+| 6 | Mechanical gates | `cargo xtask release-rehearsal`, full gate table recorded | **is** `release-rehearsal` |
+| 7 | CHANGELOG entry | present, version and date correct | by hand (`release-records` checks the pairing, not the content) |
+| 8 | Docs match reality | no doc asserts behaviour the tree does not have | by hand — two documents re-read, see below |
+| 9 | The release commit's CI runs read | the push run and a `workflow_dispatch` run of the release commit, each by `gh run view <id> --json jobs`: run ids and per-job conclusions, plus a `Done N runs` line per `fuzz-run` job; the latest `schedule` run's id and date as context | by hand; `release-records` judges the *record* at the next cut |
+| 10 | Toolchain currency | `rustup check` vs `rust-toolchain.toml`; pin, current stable and the gap recorded; >3 minor versions behind blocks the tag | by hand (needs the network) |
+| 11 | Advisories read | the release commit's `dependency-advisories` job: run id, conclusion, packages checked per lockfile, and the advisory database's commit and date — no more than 7 days old at the cut; the advisory register's count, from Gate 12 | by hand (needs the network) |
+| 12 | Action currency read | every `uses:` pin in `.github/workflows/` compared against its action's current major upstream; each pin, the current major and the gap recorded. **A pin whose runtime upstream has removed blocks the tag**; one merely behind is recorded and does not. Currency needs the network, so this is a criterion and not a subcheck — and it is the only thing that looks (E-113) | by hand (needs the network) |
 
 **Criterion 8 includes re-opening two documents by hand, not just running a
 gate.** [`docs/src/releasing/v1-limitations.md`](./v1-limitations.md)
